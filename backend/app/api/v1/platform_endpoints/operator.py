@@ -490,7 +490,7 @@ async def restore_deleted_user(
     a deletion they made on somebody's behalf.
 
     Nothing is restored as such: the account never lost anything. It kept its
-    memberships, its initiative roles and the documents it owns for the whole
+    memberships, its initiative roles and the files it owns for the whole
     window, so this puts it back exactly where it was.
 
     Separate from ``reactivate``, which is for a *deactivated* account and
@@ -775,11 +775,11 @@ async def clear_age_block(
 ) -> OperatorUserRead:
     """Let an account answer the age question again.
 
-    An account that answered as under age keeps that answer, and the question
-    is not re-asked — otherwise it is not a question. This is the way back for
-    the case that is nearly all of them: a mistyped year. It clears the record
-    of the answer and nothing else; the account answers again from scratch, and
-    the deployment has no more idea of anybody's birthday than it did before.
+    An answer stands — an under-age one, and any kept date of birth — and the
+    question is not re-asked, otherwise it is not a question. This is the way
+    back for the case that is nearly all of them: a mistyped year. It clears
+    the under-age record, the confirmation and the kept date, and nothing
+    else; the account answers again from scratch.
 
     Gated on ``users.age_unblock``, which the support tier holds — the lowest
     rung, because getting somebody back into their account after a typo is
@@ -788,13 +788,17 @@ async def clear_age_block(
     a log is for.
     """
     user = await _account_within_rank(session, user_id, current_user)
-    if user.age_below_minimum_at is None:
+    kept = await users_service.birthdate_of(session, user_id=user_id) is not None
+    if user.age_below_minimum_at is None and not kept:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.AGE_NOT_BLOCKED,
         )
 
+    await users_service.forget_birthdate(session, user_id=user_id)
+    # The account answers from scratch, so every part of the earlier answer goes.
     user.age_below_minimum_at = None
+    user.age_confirmed_at = None
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
 

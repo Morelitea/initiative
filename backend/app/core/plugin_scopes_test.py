@@ -51,7 +51,7 @@ def test_what_is_not_a_scope_is_refused(scope):
 
 def test_validate_names_the_scope_it_refused():
     with pytest.raises(UnknownPluginScope) as refused:
-        validate_scopes(["documents:read", "guild:owner"])
+        validate_scopes(["files:read", "guild:owner"])
     assert refused.value.scope == "guild:owner"
 
 
@@ -64,9 +64,9 @@ def test_each_level_has_a_standing_scope_a_community_can_grant():
         assert scope in ALL_SCOPES
         assert is_known_scope(scope)
         assert is_standing_scope(scope)
-    assert validate_scopes(["community:admin", "documents:read"]) == {
+    assert validate_scopes(["community:admin", "files:read"]) == {
         "community:admin",
-        "documents:read",
+        "files:read",
     }
 
 
@@ -77,14 +77,14 @@ def test_a_standing_names_no_resource(scope):
     with pytest.raises(UnknownPluginScope):
         parse_scope(scope)
     assert expand([scope]) == (frozenset(), frozenset())
-    read, write = expand([scope, "documents:read"])
-    assert read == {PluginScopeResource("documents")} and write == frozenset()
+    read, write = expand([scope, "files:read"])
+    assert read == {PluginScopeResource("files")} and write == frozenset()
 
 
 def test_writing_implies_reading():
-    read, write = expand(["documents:write", "comments:read"])
-    assert write == {PluginScopeResource("documents")}
-    assert read == {PluginScopeResource("documents"), PluginScopeResource("comments")}
+    read, write = expand(["files:write", "comments:read"])
+    assert write == {PluginScopeResource("files")}
+    assert read == {PluginScopeResource("files"), PluginScopeResource("comments")}
 
 
 def test_read_only_resources_have_no_write_scope():
@@ -107,9 +107,9 @@ def test_a_plugin_scope_names_the_plugin_it_lets_one_call():
     assert plugin_scope("acme.github") == "plugins:acme.github"
     assert plugin_scope_target("plugins:acme.github") == "acme.github"
     assert is_known_scope("plugins:acme.github")
-    assert validate_scopes(["plugins:acme.github", "documents:read"]) == {
+    assert validate_scopes(["plugins:acme.github", "files:read"]) == {
         "plugins:acme.github",
-        "documents:read",
+        "files:read",
     }
 
 

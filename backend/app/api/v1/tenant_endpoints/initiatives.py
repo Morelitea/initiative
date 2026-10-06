@@ -898,7 +898,7 @@ async def delete_initiative(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
     """Soft-delete an initiative. Cascades the same deleted_at to its
-    projects, documents, queues, and calendar events; their descendants
+    projects, files, queues, and calendar events; their descendants
     (tasks, comments, queue items) follow recursively. Restoring the
     initiative resurfaces everything that was cascaded together."""
     from app.services.tenant.soft_delete import trash

@@ -18,7 +18,7 @@ type QueryOpts<TData> = Omit<UseQueryOptions<TData>, "queryKey" | "queryFn">;
  *
  * Replaces the previous projects-only ``useRecentProjects`` hook. Items come
  * back ordered by ``last_viewed_at`` desc with entity-specific metadata for
- * rendering icons (emoji for projects, document-type icons for documents).
+ * rendering icons (emoji for projects, file-type icons for files).
  */
 export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   return useQuery<RecentItemRead[]>({

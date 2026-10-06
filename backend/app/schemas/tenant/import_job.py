@@ -209,12 +209,12 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: the site would not hand over.
     images_oversize: int = 0
     images_unreadable: int = 0
-    #: Attached files that are not images, each coming over as a document
+    #: Attached files that are not images, each coming over as a file
     #: attached to its task, and the storage they will use.
     files: int = 0
     file_bytes: int = 0
     #: Attached files that are not images, left behind: attachments were
-    #: switched off, or the initiative has documents switched off.
+    #: switched off, or the initiative has files switched off.
     other_attachments: int = 0
     #: Confluence: spaces read, and the pages they became.
     spaces: int = 0
@@ -233,7 +233,7 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: attachments were not asked for.
     page_attachments: int = 0
     #: Pictures the pages show, coming over as uploads, and files — with any
-    #: picture no page shows — coming over as documents filed in the wiki.
+    #: picture no page shows — coming over as files filed in the wiki.
     page_images: int = 0
     page_files: int = 0
     #: The storage both will use.
@@ -241,7 +241,7 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: Attachments too large, past the import's budget, of a type never
     #: brought, or that the site would not hand over.
     page_attachments_skipped: int = 0
-    #: Files left behind because the initiative cannot take documents.
+    #: Files left behind because the initiative cannot take files.
     page_files_blocked: int = 0
     #: Comments on the pages — footer and inline — that will come over.
     page_comments: int = 0

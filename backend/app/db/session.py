@@ -591,7 +591,7 @@ async def apply_install_standing(
 def routed_guild_id(session: AsyncSession) -> int | None:
     """The guild this session is currently routed to, or ``None`` if it is not.
 
-    Ids of things that live in a guild schema — documents, initiatives — are
+    Ids of things that live in a guild schema — files, initiatives — are
     per-schema sequences, so the same number names a different row in each
     guild. Anything keyed by one of them outside the database needs the guild
     beside it, and where the id was read through a routed session, that routing

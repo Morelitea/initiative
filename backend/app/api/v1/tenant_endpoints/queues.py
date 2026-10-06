@@ -124,7 +124,9 @@ async def _refetch_queue(
     Uses populate_existing=True so selectinload returns fresh relationship data
     (needed because expire_on_commit=False keeps stale collections in identity map).
     """
-    queue = await queues_service.get_queue(session, queue_id, populate_existing=True)
+    queue = await queues_service.get_queue_hydrated(
+        session, queue_id, populate_existing=True
+    )
     if not queue:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -193,7 +195,7 @@ async def read_queue(
     include_deleted: IncludeDeletedDep = False,
 ) -> QueueRead:
     queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context
+        session, Tool.queue, queue_id, current_user, guild_context, hydrated=True
     )
     return await _serialized_queue(session, queue, user_id=guild_context.user_id)
 

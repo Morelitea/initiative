@@ -17,7 +17,8 @@ from app.services.tenant import tags as tags_service
 
 
 def dashboard_loader_options() -> list:
-    """Eager-load everything dashboard serialization + authorization needs."""
+    """Eager-load what a dashboard *list* row needs: its sharing, its
+    initiative and the level the request holds on it."""
     return [
         selectinload(Dashboard.grants),
         selectinload(Dashboard.initiative),
@@ -31,17 +32,28 @@ async def get_dashboard(
     *,
     populate_existing: bool = False,
 ) -> Dashboard | None:
-    """Fetch a dashboard with the relationships authorization + serialization
-    need. RLS scopes the row to the request's guild."""
+    """Fetch a dashboard as a list row carries it: what authorizing it and the
+    grant flow read. RLS scopes the row to the request's guild."""
     stmt = (
         select(Dashboard)
         .where(Dashboard.id == dashboard_id)
         .options(*dashboard_loader_options())
+        .execution_options(populate_existing=populate_existing)
     )
-    if populate_existing:
-        stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    dashboard = result.one_or_none()
+    return (await session.exec(stmt)).one_or_none()
+
+
+async def get_dashboard_hydrated(
+    session: AsyncSession,
+    dashboard_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Dashboard | None:
+    """:func:`get_dashboard` plus the tags and properties a serialized
+    ``DashboardRead`` carries."""
+    dashboard = await get_dashboard(
+        session, dashboard_id, populate_existing=populate_existing
+    )
     if dashboard is not None:
         await tags_service.annotate_tags(session, [dashboard])
         await properties_service.annotate_properties(session, [dashboard])

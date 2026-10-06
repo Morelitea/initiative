@@ -20,19 +20,19 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Merge edits a tab made while its socket was closed into the document.
- * @summary Hand Over Document Edits
+ * Merge edits a tab made while its socket was closed into the file.
+ * @summary Hand Over File Edits
  */
-export const handOverDocumentEdits = (
+export const handOverFileEdits = (
   communityId: number,
-  documentId: number,
+  fileId: number,
   collaborationHandover: BodyType<CollaborationHandover>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/collaboration/documents/${documentId}/collaborate`,
+      url: `/api/v1/c/${communityId}/collaboration/files/${fileId}/collaborate`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: collaborationHandover,
@@ -42,26 +42,26 @@ export const handOverDocumentEdits = (
   );
 };
 
-export const getHandOverDocumentEditsMutationKey = () => ["handOverDocumentEdits"] as const;
+export const getHandOverFileEditsMutationKey = () => ["handOverFileEdits"] as const;
 
-export const getHandOverDocumentEditsMutationOptions = <
+export const getHandOverFileEditsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof handOverDocumentEdits>>,
+    Awaited<ReturnType<typeof handOverFileEdits>>,
     TError,
-    HandOverDocumentEditsMutationVariables,
+    HandOverFileEditsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof handOverDocumentEdits>>,
+  Awaited<ReturnType<typeof handOverFileEdits>>,
   TError,
-  HandOverDocumentEditsMutationVariables,
+  HandOverFileEditsMutationVariables,
   TContext
 > => {
-  const mutationKey = getHandOverDocumentEditsMutationKey();
+  const mutationKey = getHandOverFileEditsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -69,52 +69,49 @@ export const getHandOverDocumentEditsMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof handOverDocumentEdits>>,
-    HandOverDocumentEditsMutationVariables
+    Awaited<ReturnType<typeof handOverFileEdits>>,
+    HandOverFileEditsMutationVariables
   > = (props) => {
-    const { communityId, documentId, data } = props ?? {};
+    const { communityId, fileId, data } = props ?? {};
 
-    return handOverDocumentEdits(communityId, documentId, data, requestOptions);
+    return handOverFileEdits(communityId, fileId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type HandOverDocumentEditsMutationResult = NonNullable<
-  Awaited<ReturnType<typeof handOverDocumentEdits>>
+export type HandOverFileEditsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof handOverFileEdits>>
 >;
-export type HandOverDocumentEditsMutationBody = BodyType<CollaborationHandover>;
-export type HandOverDocumentEditsMutationError = ErrorType<HTTPValidationError>;
-export type HandOverDocumentEditsMutationVariables = {
+export type HandOverFileEditsMutationBody = BodyType<CollaborationHandover>;
+export type HandOverFileEditsMutationError = ErrorType<HTTPValidationError>;
+export type HandOverFileEditsMutationVariables = {
   communityId: number;
-  documentId: number;
+  fileId: number;
   data: BodyType<CollaborationHandover>;
 };
 
 /**
- * @summary Hand Over Document Edits
+ * @summary Hand Over File Edits
  */
-export const useHandOverDocumentEdits = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useHandOverFileEdits = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof handOverDocumentEdits>>,
+      Awaited<ReturnType<typeof handOverFileEdits>>,
       TError,
-      HandOverDocumentEditsMutationVariables,
+      HandOverFileEditsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof handOverDocumentEdits>>,
+  Awaited<ReturnType<typeof handOverFileEdits>>,
   TError,
-  HandOverDocumentEditsMutationVariables,
+  HandOverFileEditsMutationVariables,
   TContext
 > => {
-  return useMutation(getHandOverDocumentEditsMutationOptions(options), queryClient);
+  return useMutation(getHandOverFileEditsMutationOptions(options), queryClient);
 };
 /**
  * Merge edits a tab made while its socket was closed into the page.

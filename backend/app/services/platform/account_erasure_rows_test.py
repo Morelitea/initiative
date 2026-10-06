@@ -59,7 +59,7 @@ from app.testing.factories import (
     create_calendar,
     create_calendar_event,
     create_comment,
-    create_document,
+    create_file,
     create_guild,
     create_guild_plugin,
     create_guild_membership,
@@ -103,7 +103,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     await create_initiative_member(session, initiative=initiative, user=victim)
     project = await create_project(session, initiative, keeper)
     task = await create_task(session, project)
-    document = await create_document(session, initiative, keeper)
+    file = await create_file(session, initiative, keeper)
     calendar = await create_calendar(session, initiative, keeper)
     event = await create_calendar_event(session, calendar, keeper)
     plugin = await create_guild_plugin(
@@ -111,7 +111,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     )
 
     # Authorship: a comment they wrote, and an emoji they put on it.
-    comment = await create_comment(session, victim, document=document)
+    comment = await create_comment(session, victim, file=file)
     reaction = await create_reaction(session, victim, comment=comment)
 
     now = datetime.now(timezone.utc)

@@ -85,19 +85,16 @@ export function collectDescendantTagIds(node: TagTreeNode): Set<number> {
 }
 
 /**
- * Count documents for a tree node by summing across the node and all its descendants.
- * `docCountByTagId` maps tag ID → number of documents with that tag.
+ * Count files for a tree node by summing across the node and all its descendants.
+ * `docCountByTagId` maps tag ID → number of files with that tag.
  */
-export function countDocumentsForNode(
-  node: TagTreeNode,
-  docCountByTagId: Map<number, number>
-): number {
+export function countFilesForNode(node: TagTreeNode, docCountByTagId: Map<number, number>): number {
   let count = 0;
   if (node.tag) {
     count += docCountByTagId.get(node.tag.id) ?? 0;
   }
   for (const child of node.children) {
-    count += countDocumentsForNode(child, docCountByTagId);
+    count += countFilesForNode(child, docCountByTagId);
   }
   return count;
 }

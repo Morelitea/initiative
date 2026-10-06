@@ -53,7 +53,7 @@ interface ParsedEnvelope {
   kind?: string;
   title?: string;
   name?: string;
-  document_type?: string;
+  file_type?: string;
   schema_version?: number;
 }
 
@@ -328,7 +328,7 @@ export function EnvelopeImportDialog({
 
   const isSubmitting = importMutation.isPending || archiveMutation.isPending;
   const canSubmit = (!!envelope || !!archive) && !!initiativeId && !isSubmitting;
-  // Every tool's envelope names its entity `name`; document exports taken
+  // Every tool's envelope names its entity `name`; file exports taken
   // before the rename spelled it `title`, which the server still accepts.
   const envelopeTitle = envelope?.name ?? envelope?.title ?? "";
 

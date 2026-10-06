@@ -76,7 +76,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     role_display_name: null,
     can: initiativeCan(),
     // One `{plural}_enabled` master switch per tool, at the column defaults:
-    // projects and documents on, the rest opt-in. Derived from the registry so
+    // projects and files on, the rest opt-in. Derived from the registry so
     // a new tool arrives here without an edit.
     ...(Object.fromEntries(
       TOOLS.map((tool) => [toolViewPermission(tool), DEFAULT_ENABLED_TOOLS.has(tool)])

@@ -35,7 +35,7 @@ from app.models.tenant._mixins import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.queue import Queue
     from app.models.tenant.calendar import Calendar
     from app.models.tenant.counter import CounterGroup
@@ -440,7 +440,7 @@ class Initiative(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     projects: List["Project"] = Relationship(back_populates="initiative")
-    documents: List["Document"] = Relationship(
+    files: List["File"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

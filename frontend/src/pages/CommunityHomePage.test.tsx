@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildBanner,
   buildCommunity,
-  buildDocumentSummary,
+  buildFileSummary,
   buildInitiative,
   buildInitiativeDirectoryEntry,
   buildInitiativeJoinRequest,
@@ -45,16 +45,16 @@ const page = (items: unknown[], totalCount = items.length) =>
  */
 function stubTools({
   projects = [],
-  documents = [],
+  files = [],
   queues = [],
 }: {
   projects?: unknown[];
-  documents?: unknown[];
+  files?: unknown[];
   queues?: unknown[];
 } = {}) {
   server.use(
     communityHttp.get("/projects/", () => page(projects)),
-    communityHttp.get("/documents/", () => page(documents)),
+    communityHttp.get("/files/", () => page(files)),
     communityHttp.get("/queues/", () => page(queues)),
     communityHttp.get("/counter-groups/", () => page([])),
     communityHttp.get("/calendars/", () => page([])),
@@ -311,7 +311,7 @@ describe("CommunityHomePage", () => {
 
   // The rail shows only what the community's initiatives actually turned on, and
   // projects are a tool like any other now — so an initiative that is only
-  // documents has no Projects circle to offer.
+  // files has no Projects circle to offer.
   it.each([
     [
       "Queues, and none for the calendars it left off",
@@ -320,9 +320,9 @@ describe("CommunityHomePage", () => {
       ["Calendar"],
     ],
     [
-      "Documents, and none for the projects it turned off",
+      "Files, and none for the projects it turned off",
       { projects_enabled: false },
-      ["Documents"],
+      ["Files"],
       ["Projects"],
     ],
   ])("shows a circle for %s", async (_label, initiative, shown, hidden) => {
@@ -547,9 +547,9 @@ describe("CommunityHomePage", () => {
 
   it("says so when the selected tool has nothing in the community", async () => {
     stubInitiatives();
-    stubTools({ documents: [] });
+    stubTools({ files: [] });
 
-    renderHome({ tool: "documents" });
+    renderHome({ tool: "files" });
 
     expect(await screen.findByText("Nothing here yet")).toBeInTheDocument();
   });
@@ -860,15 +860,13 @@ describe("CommunityHomePage", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("What is it called?");
   });
 
-  it("keeps documents on the same table shape as projects", async () => {
+  it("keeps files on the same table shape as projects", async () => {
     stubInitiatives();
     stubTools({
-      documents: [
-        buildDocumentSummary({ id: 5, name: "Flight Rules", initiative_id: INITIATIVE_ID }),
-      ],
+      files: [buildFileSummary({ id: 5, name: "Flight Rules", initiative_id: INITIATIVE_ID })],
     });
 
-    renderHome({ tool: "documents" });
+    renderHome({ tool: "files" });
 
     expect(await screen.findByRole("link", { name: "Flight Rules" })).toBeInTheDocument();
     await waitFor(() =>

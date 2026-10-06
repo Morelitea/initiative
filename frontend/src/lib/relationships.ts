@@ -168,12 +168,12 @@ export const ASSERTABLE_GROUPS: RelationGroup[] = RELATION_GROUP_ORDER.map(
 /**
  * The kinds that are a thing you attach rather than a thing you depend on.
  *
- * A document or a picture is almost always evidence about the work rather than
+ * A file or a picture is almost always evidence about the work rather than
  * a step in it, so a link touching one reads as "attached" unless somebody says
  * otherwise.
  */
 const FILE_LIKE: ReadonlySet<SearchEntityType> = new Set([
-  SearchEntityTypeValues.document,
+  SearchEntityTypeValues.file,
   SearchEntityTypeValues.gallery_image,
 ]);
 

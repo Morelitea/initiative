@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 #: Stored types a served upload is rendered inline as. Raster pictures only:
 #: an ``<img>`` draws these and nothing about them is markup. Anything else —
-#: an SVG, a document file, a type nothing recognizes — is handed over as a
+#: an SVG, an uploaded file, a type nothing recognizes — is handed over as a
 #: download with scripts disabled.
 INLINE_UPLOAD_TYPES = frozenset(
     {
@@ -199,7 +199,7 @@ async def lifespan(app: FastAPI):
     notify_bus.register(notice_outbox.CHANNEL, notice_outbox.hint)
     await notify_bus.start()
 
-    # Write collaborative documents that have changed on an interval, so what a
+    # Write collaborative bodies that have changed on an interval, so what a
     # live editing session has produced does not depend on its last connection
     # closing cleanly to reach the database.
     from app.services.tenant.collaboration import collaboration_manager

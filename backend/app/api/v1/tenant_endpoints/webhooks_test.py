@@ -399,7 +399,7 @@ async def test_narrowing_events_rechecks_the_stored_fields(client, acting_user):
 
     response = await client.patch(
         _url(a.guild.id, f"/{subscription_id}"),
-        json={"event_types": ["documents.updated"]},
+        json={"event_types": ["files.updated"]},
         headers=a.headers,
     )
 
@@ -414,7 +414,7 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
     to be judged against the other as it will be *after* the write.
 
     Two patches, each valid against the row it read, can otherwise land a pair
-    that matches nothing: narrow the events to documents while widening the
+    that matches nothing: narrow the events to files while widening the
     fields to a task column, and the subscription can never fire again. The row
     is locked for the check, so the second re-reads what the first wrote.
     """
@@ -435,7 +435,7 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
     path = _url(a.guild.id, f"/{subscription_id}")
 
     first = await client.patch(
-        path, json={"event_types": ["documents.updated"]}, headers=a.headers
+        path, json={"event_types": ["files.updated"]}, headers=a.headers
     )
     assert first.status_code == 200, first.text
 
@@ -444,7 +444,7 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
     )
 
     assert second.status_code == 400, (
-        "a task column was accepted onto a documents-only subscription — the "
+        "a task column was accepted onto a files-only subscription — the "
         "second patch was judged against the events it replaced"
     )
     assert second.json()["detail"] == "WEBHOOK_UNKNOWN_FIELD"

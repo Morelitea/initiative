@@ -165,7 +165,7 @@ export const QueueItemFields = ({
         </div>
       </div>
 
-      {/* One list, any kind — in place of a documents-only picker beside a
+      {/* One list, any kind — in place of a files-only picker beside a
           tasks-only one. An item being added is no subject yet. */}
       <EntityLinkField
         label={t("relations:groups.attached.title")}

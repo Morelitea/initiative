@@ -114,16 +114,16 @@ class Visual:
     color: str | None = None
     #: Columns saying what SORT of thing this is within its kind, for a kind
     #: whose icon depends on that rather than being fixed: a spreadsheet, a
-    #: whiteboard and a PDF are all documents and none of them should draw as a
+    #: whiteboard and a PDF are all files and none of them should draw as a
     #: scroll. These are the same three facts a recent item already carries, plus
     #: the link a smart link points at, so a client picks the icon with the
     #: helper it already has instead of fetching each row to find out.
-    document_type: str | None = None
+    file_type: str | None = None
     mime: str | None = None
     filename: str | None = None
     #: A JSON column and the key inside it holding a link, for a kind that keeps
     #: one there rather than in a column of its own. Only that key is read, never
-    #: the whole body — which for a document is the largest thing it has.
+    #: the whole body — which for a file is the largest thing it has.
     link_in_json: tuple[str, str] | None = None
 
 
@@ -133,9 +133,9 @@ class Visual:
 _PICTURE = ("current_version_id.thumbnail_url", "current_version_id.file_url")
 
 VISUALS: dict[str, Visual] = {
-    "documents": Visual(
+    "files": Visual(
         image=("featured_image_url",),
-        document_type="document_type",
+        file_type="file_type",
         mime="current_version_id.file_content_type",
         filename="current_version_id.original_filename",
         link_in_json=("content", "url"),
@@ -191,7 +191,7 @@ def visible_ids(
 
     resource = SQLModel.metadata.tables[source.dac_tool.plural]
     if resource is table:
-        # The row IS the shared resource — a project, a document. Nothing to
+        # The row IS the shared resource — a project, a file. Nothing to
         # join to; it answers for itself.
         return statement.where(
             func.resource_access(
@@ -344,7 +344,7 @@ def _visual_exprs(table_name: str, table: Table):
     color = table.c[visual.color] if visual.color else null()
     facets = tuple(
         _column(table, name) if name else null()
-        for name in (visual.document_type, visual.mime, visual.filename)
+        for name in (visual.file_type, visual.mime, visual.filename)
     )
     if visual.link_in_json is not None:
         # One key out of the JSON, never the body around it.
@@ -426,8 +426,8 @@ class Resolved:
     icon: str | None = None
     color: str | None = None
     #: What sort of thing it is within its kind, for the kinds whose icon
-    #: depends on that. Only documents report these.
-    document_type: str | None = None
+    #: depends on that. Only files report these.
+    file_type: str | None = None
     mime_type: str | None = None
     original_filename: str | None = None
     smart_link_url: str | None = None
@@ -509,7 +509,7 @@ async def resolve_many(
             image_urls=list(row[6] or ()),
             icon=row[7],
             color=row[8],
-            document_type=row[9],
+            file_type=row[9],
             mime_type=row[10],
             original_filename=row[11],
             smart_link_url=row[12],

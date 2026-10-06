@@ -326,7 +326,7 @@ describe("tool route builders", () => {
   });
 
   it("routes a bare id through the resolver", () => {
-    expect(entityRefRoute("document", 42)).toBe("/go/document/42");
+    expect(entityRefRoute("file", 42)).toBe("/go/file/42");
   });
 });
 
@@ -434,30 +434,27 @@ describe("tool surfaces are wired, not just typed", () => {
 
 describe("tool exports", () => {
   it("every bulk-export tool has a format source, and only those", async () => {
-    const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
-      "@/components/exports/formats"
-    );
-    const { DocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { FILE_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import("@/components/exports/formats");
+    const { FileType } = await import("@/api/generated/initiativeAPI.schemas");
     const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
 
     for (const tool of BULK_EXPORT_TOOLS) {
-      // Documents are per-type (their format set depends on the selection);
-      // every document type must offer at least one engine format.
-      if (tool === Tool.document) continue;
+      // Files are per-type (their format set depends on the selection);
+      // every file type must offer at least one engine format.
+      if (tool === Tool.file) continue;
       expect(
         TOOL_EXPORT_FORMATS[tool]?.length,
         `missing TOOL_EXPORT_FORMATS[${tool}]`
       ).toBeGreaterThan(0);
     }
-    for (const type of Object.values(DocumentType)) {
-      expect(
-        DOCUMENT_TYPE_FORMATS[type]?.length,
-        `missing DOCUMENT_TYPE_FORMATS.${type}`
-      ).toBeGreaterThan(0);
+    for (const type of Object.values(FileType)) {
+      expect(FILE_TYPE_FORMATS[type]?.length, `missing FILE_TYPE_FORMATS.${type}`).toBeGreaterThan(
+        0
+      );
     }
     // Exact coverage: a formats entry for a non-export tool is drift too.
     for (const tool of TOOLS) {
-      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.document) {
+      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.file) {
         expect(
           TOOL_EXPORT_FORMATS[tool],
           `${tool} declares formats but is in NON_EXPORTABLE_TOOLS`

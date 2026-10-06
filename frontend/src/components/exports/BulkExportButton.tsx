@@ -2,7 +2,7 @@ import { FileDown } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentType, Tool, ToolCan } from "@/api/generated/initiativeAPI.schemas";
+import type { FileType, Tool, ToolCan } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard, type ExportWizardScope } from "@/components/exports/ExportWizard";
 import { selectionExportFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,8 @@ interface BulkExportButtonProps {
    * from the registry, so a bulk-export surface can't drift per page. */
   tool: Tool;
   /** The selected entities, with what the viewer may do to each — and, for
-   * documents, the type that decides which formats they export to. */
-  items: { id: number; can: ToolCan; document_type?: DocumentType }[];
+   * files, the type that decides which formats they export to. */
+  items: { id: number; can: ToolCan; file_type?: FileType }[];
 }
 
 /** Bulk-selection export for a tool's list page: one artifact per selected

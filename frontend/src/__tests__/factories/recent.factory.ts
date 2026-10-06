@@ -21,7 +21,7 @@ export function buildRecentItem(overrides: Partial<RecentItemRead> = {}): Recent
     name: `Recent Item ${counter}`,
     last_viewed_at: new Date().toISOString(),
     icon: null,
-    document_type: null,
+    file_type: null,
     mime_type: null,
     original_filename: null,
     ...overrides,
@@ -32,10 +32,10 @@ export function buildRecentProjectItem(overrides: Partial<RecentItemRead> = {}):
   return buildRecentItem({ entity_type: "project", icon: "🛠", ...overrides });
 }
 
-export function buildRecentDocumentItem(overrides: Partial<RecentItemRead> = {}): RecentItemRead {
+export function buildRecentFileItem(overrides: Partial<RecentItemRead> = {}): RecentItemRead {
   return buildRecentItem({
-    entity_type: "document",
-    document_type: "native",
+    entity_type: "file",
+    file_type: "native",
     ...overrides,
   });
 }

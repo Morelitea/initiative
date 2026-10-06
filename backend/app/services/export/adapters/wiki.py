@@ -1,20 +1,20 @@
 """Wiki source adapter: the importable envelope (json), or the whole wiki as
-one document (pdf, md, docx) — and, beside either, the documents filed in it.
+one document (pdf, md, docx) — and, beside either, the files filed in it.
 
 As a document, the pages are read in the order the tree gives them, each under
 a heading with its title, nested as deep as the page sits; drafts are left
 out, because a copy to read is not where an unfinished page gets shown. The
-documents filed in the wiki ride in the same download under ``documents/``,
+files filed in the wiki ride in the same download under ``files/``,
 each in the format that fits its type — a text document in the format asked
 for, a spreadsheet as a workbook, an upload as itself. The importable file
 carries them inside the wiki's envelope instead, with where each is filed, so
 an import files them again; an upload's bytes ride under ``assets/``. A wiki
-exported on its own is always a zip, filed documents or not, so its download
-is one kind of file whatever it holds. Only the documents the exporter could export on their own come
-along: filing a document in a wiki is not a way to hand over a copy of it.
+exported on its own is always a zip, filed files or not, so its download
+is one kind of file whatever it holds. Only the files the exporter could export on their own come
+along: filing a file in a wiki is not a way to hand over a copy of it.
 
 A wiki is its pages and the shape they sit in, so the envelope carries both:
-each page's Lexical body whole, the way the post and document envelopes carry
+each page's Lexical body whole, the way the post and file envelopes carry
 theirs, and the tree as a ``parent`` slug on each page.
 
 The tree crosses as **slugs, not ids**. Ids mean nothing in the guild a backup
@@ -47,32 +47,34 @@ from fastapi import HTTPException
 
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.wiki import Wiki, WikiPage
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
+    asset_item,
     envelope_key,
     export_stem,
 )
-from app.services.export.adapters.document import DocumentAdapter
+from app.services.export.adapters.file import FileAdapter
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
-#: What one wiki contributes to a batch: its row, its pages, and the documents
+#: What one wiki contributes to a batch: its row, its pages, and the files
 #: filed in it that come along.
-Loaded = tuple[Wiki, list[WikiPage], list[Document]]
+Loaded = tuple[Wiki, list[WikiPage], list[File]]
 
-#: Where the filed documents sit in the download.
-DOCUMENTS_DIR = "documents/"
+#: Where the filed files sit in the download.
+FILES_DIR = "files/"
 
 
 class WikiAdapter(ToolExportAdapter):
     tool = Tool.wiki
-    template_id = "document"  # the Lexical PDF template documents use
+    template_id = "document"  # the Lexical PDF template files use
     formats = ("json", "pdf", "md", "docx")
-    #: Always a zip: the wiki and the documents filed in it are one download.
+    #: Always a zip: the wiki and the files filed in it are one download.
     force_zip = True
 
     async def fetch(
@@ -85,24 +87,24 @@ class WikiAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Loaded:
-        from app.services.tenant.wikis import linked_documents
+        from app.services.tenant.wikis import linked_files
 
         wiki, pages, _ = await self.fetch_pages(
             session, user, guild_id, wiki_id, access=access
         )
-        document_adapter = DocumentAdapter()
-        documents: list[Document] = []
-        for linked in await linked_documents(session, wiki.id):
+        file_adapter = FileAdapter()
+        files: list[File] = []
+        for linked in await linked_files(session, wiki.id):
             try:
-                documents.append(
-                    await document_adapter.fetch(
+                files.append(
+                    await file_adapter.fetch(
                         session, user, guild_id, linked.id, access=access
                     )
                 )
             except HTTPException:
                 # Not theirs to export: it stays out of the download.
                 continue
-        return wiki, pages, documents
+        return wiki, pages, files
 
     async def fetch_pages(
         self,
@@ -114,7 +116,7 @@ class WikiAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Loaded:
-        """The wiki and its pages, with no filed documents. An initiative or
+        """The wiki and its pages, with no filed files. An initiative or
         community backup writes those as entries of their own and places them
         in the wiki from there. The pages come in reading order."""
         from app.services.tenant import properties as properties_service
@@ -130,42 +132,42 @@ class WikiAdapter(ToolExportAdapter):
     async def reach(
         self, session: AsyncSession, params: dict, loaded: list[Loaded], /
     ) -> set[int]:
-        # A document filed in the wiki can belong to another initiative.
+        # A file filed in the wiki can belong to another initiative.
         return {
             initiative_id
-            for wiki, _pages, documents in loaded
+            for wiki, _pages, files in loaded
             for initiative_id in (
                 wiki.initiative_id,
-                *(d.initiative_id for d in documents),
+                *(d.initiative_id for d in files),
             )
         }
 
     def title(self, loaded: Loaded, /) -> str:
-        wiki, _pages, _documents = loaded
+        wiki, _pages, _files = loaded
         return wiki.name
 
     def rows(self, loaded: Loaded, /) -> int:
-        # One row per page and per filed document: a wiki's size is what is
+        # One row per page and per filed file: a wiki's size is what is
         # written in it, not the single row naming it.
-        _wiki, pages, documents = loaded
-        return (len(pages) + len(documents)) or 1
+        _wiki, pages, files = loaded
+        return (len(pages) + len(files)) or 1
 
     def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
-        wiki, pages, _documents = loaded
+        wiki, pages, _files = loaded
         if ctx.format == "json":
             return build_wiki_item(wiki, pages, ctx.now)
-        return build_wiki_document_item(wiki, pages, ctx)
+        return build_wiki_file_item(wiki, pages, ctx)
 
     def items(self, loaded: Loaded, ctx: BuildContext, /) -> tuple[RenderItem, ...]:
-        """The wiki, then each document filed in it — beside it as a file of
+        """The wiki, then each file filed in it — beside it as a file of
         its own, or inside its envelope with an upload's bytes beside it."""
-        wiki, pages, documents = loaded
+        wiki, pages, files = loaded
         if ctx.format == "json":
-            filed, uploads = filed_document_records(wiki, pages, documents, ctx)
-            return (build_wiki_item(wiki, pages, ctx.now, documents=filed), *uploads)
+            filed, uploads = filed_file_records(wiki, pages, files, ctx)
+            return (build_wiki_item(wiki, pages, ctx.now, files=filed), *uploads)
         return (
             self.item(loaded, ctx),
-            *(filed_document_item(document, ctx) for document in documents),
+            *(filed_file_item(file, ctx) for file in files),
         )
 
 
@@ -229,10 +231,10 @@ def _page_state(page: WikiPage, depth: int) -> dict[str, Any]:
     return {"root": {"type": "root", "version": 1, "children": children}}
 
 
-def build_wiki_document_item(
+def build_wiki_file_item(
     wiki: Wiki, pages: list[WikiPage], ctx: BuildContext
 ) -> RenderItem:
-    """The wiki as one document, in the format asked for."""
+    """The wiki as one file, in the format asked for."""
     from app.services.export.i18n import et, export_locale
     from app.services.export.lexical import blocks_from_editor_state
 
@@ -264,30 +266,30 @@ def build_wiki_document_item(
     )
 
 
-def filed_format(document: Document, format: str) -> str:
-    """The format a filed document travels in beside a wiki exported as
+def filed_format(file: File, format: str) -> str:
+    """The format a filed file travels in beside a wiki exported as
     ``format``: its own type decides what it can be."""
-    doc_type = getattr(document.document_type, "value", document.document_type)
-    if doc_type == DocumentType.native.value:
+    doc_type = getattr(file.file_type, "value", file.file_type)
+    if doc_type == FileType.native.value:
         return format
-    if doc_type == DocumentType.spreadsheet.value:
+    if doc_type == FileType.spreadsheet.value:
         return "json" if format == "json" else "xlsx"
-    if doc_type == DocumentType.file.value:
+    if doc_type == FileType.file.value:
         return "file"
-    if doc_type == DocumentType.smart_link.value:
+    if doc_type == FileType.smart_link.value:
         return "json" if format == "json" else "md"
     # A whiteboard is only ever its scene.
     return "json"
 
 
-def filed_document_item(document: Document, ctx: BuildContext) -> RenderItem:
-    """One filed document, under ``documents/`` in the wiki's download."""
-    from app.services.export.adapters.document import build_document_item
+def filed_file_item(file: File, ctx: BuildContext) -> RenderItem:
+    """One filed file, under ``files/`` in the wiki's download."""
+    from app.services.export.adapters.file import build_file_item
     from app.services.export.i18n import export_locale
 
-    format = filed_format(document, ctx.format)
-    item = build_document_item(
-        document,
+    format = filed_format(file, ctx.format)
+    item = build_file_item(
+        file,
         format,
         guild_id=ctx.guild_id,
         date=ctx.date,
@@ -296,10 +298,10 @@ def filed_document_item(document: Document, ctx: BuildContext) -> RenderItem:
     if format == "file":
         name = str(item.data.get("filename") or item.key)
     elif format == "json":
-        name = f"{envelope_key(Tool.document, document.name, ctx.date)}.json"
+        name = f"{envelope_key(Tool.file, file.name, ctx.date)}.json"
     else:
         name = f"{item.key}.{format}"
-    return replace(item, format=format, filename=f"{DOCUMENTS_DIR}{name}")
+    return replace(item, format=format, filename=f"{FILES_DIR}{name}")
 
 
 def build_wiki_item(
@@ -307,70 +309,60 @@ def build_wiki_item(
     pages: list[WikiPage],
     now: datetime,
     *,
-    documents: list[dict[str, Any]] | None = None,
+    files: list[dict[str, Any]] | None = None,
 ) -> RenderItem:
     # The envelope is importable machine data — stays canonical, never
     # localized (translating field keys breaks import).
     data = _envelope(wiki, pages)
-    if documents:
-        data["documents"] = documents
+    if files:
+        data["files"] = files
     return RenderItem(
         key=envelope_key(Tool.wiki, wiki.name, now.strftime("%Y-%m-%d")),
         data=data,
     )
 
 
-def filed_document_records(
-    wiki: Wiki, pages: list[WikiPage], documents: list[Document], ctx: BuildContext
+def filed_file_records(
+    wiki: Wiki, pages: list[WikiPage], files: list[File], ctx: BuildContext
 ) -> tuple[list[dict[str, Any]], list[RenderItem]]:
-    """Each filed document as the wiki's envelope carries it — whole, or for
+    """Each filed file as the wiki's envelope carries it — whole, or for
     an upload the row and the key its bytes are zipped under — and the upload
     blobs to zip beside it. An upload whose file is gone is left out."""
-    from app.services.export.adapters.document import build_document_item
+    from app.services.export.adapters.file import build_file_item
     from app.services.export.i18n import export_locale
     from app.services.storage import get_guild_storage
-    from app.services.tenant.wikis import document_parent, document_position
+    from app.services.tenant.wikis import file_parent, file_position
 
     slugs = {page.id: page.slug for page in pages}
     storage = get_guild_storage(ctx.guild_id)
     loc = export_locale(ctx.user)
     records: list[dict[str, Any]] = []
     uploads: list[RenderItem] = []
-    for document in documents:
-        parent = document_parent(wiki, document.id)
+    for file in files:
+        parent = file_parent(wiki, file.id)
         record: dict[str, Any] = {
             "page": slugs.get(parent) if parent is not None else None,
-            "position": document_position(wiki, document.id),
-            "external_ref": f"document:{document.id}",
+            "position": file_position(wiki, file.id),
+            "external_ref": f"file:{file.id}",
         }
-        doc_type = getattr(document.document_type, "value", document.document_type)
-        if doc_type == DocumentType.file.value:
-            version = document.current_version
-            key = version.file_url.split("/")[-1] if version is not None else ""
-            if version is None or not key or not storage.exists(key):
+        doc_type = getattr(file.file_type, "value", file.file_type)
+        if doc_type == FileType.file.value:
+            version = file.current_version
+            asset = asset_item(storage, version)
+            if version is None or asset is None:
                 continue
             record["upload"] = {
-                "name": document.name,
-                "storage_key": key,
+                "name": file.name,
+                "storage_key": asset.key,
                 "original_filename": version.original_filename,
                 "content_type": version.file_content_type,
-                "tags": sorted(tag.name for tag in document.tags or []),
-                "properties": exported_properties(document),
+                "tags": sorted(tag.name for tag in annotated_tags(file)),
+                "properties": exported_properties(file),
             }
-            uploads.append(
-                RenderItem(
-                    key=key,
-                    data={
-                        "storage_key": key,
-                        "content_type": version.file_content_type,
-                    },
-                    filename=f"assets/{key}",
-                    format="file",
-                )
-            )
+            uploads.append(asset)
         else:
-            record["envelope"] = build_document_item(
-                document, "json", guild_id=ctx.guild_id, date=ctx.date, loc=loc
+            record["envelope"] = build_file_item(
+                file, "json", guild_id=ctx.guild_id, date=ctx.date, loc=loc
             ).data
         records.append(record)
     return records, uploads
@@ -393,7 +385,7 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "show_updated_at": wiki.show_updated_at,
         "reading_width": wiki.reading_width,
         "accent_color": wiki.accent_color,
-        "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(wiki)),
         "properties": exported_properties(wiki),
         "pages": [_page_envelope(page, by_id) for page in pages],
     }
@@ -412,7 +404,7 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         # anyone yet, and a restore is not the moment to publish it for them.
         "is_draft": page.is_draft,
         "content": page.content or {},
-        "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(page)),
         "properties": exported_properties(page),
         # When it was written, and when it was last edited. A restore that
         # dated every page to the day it was restored lost the one thing a

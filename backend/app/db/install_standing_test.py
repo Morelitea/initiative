@@ -33,14 +33,14 @@ from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.initiative import PermissionKey
 from app.services.platform.identity_refs import ensure_ref
 from app.testing import (
     create_resource_grant,
     create_plugin_service_registration,
-    create_document,
+    create_file,
     create_guild_plugin,
     create_initiative,
     route_as,
@@ -150,11 +150,9 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
-    s, context = await _route(
-        role_session, install, ["documents:write", "comments:read"]
-    )
+    s, context = await _route(role_session, install, ["files:write", "comments:read"])
 
     # What a superuser reads from the same rows.
     await route_session_to_guild(session, install.guild.id)
@@ -169,15 +167,15 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
     )
     assert placed == sorted([install.a.id, install.b.id])
 
-    granted = _keys(placed, {"documents_enabled", "create_documents"})
+    granted = _keys(placed, {"files_enabled", "create_files"})
     assert context.live
     assert context.standing_guild_id == install.guild.id
     assert sorted(context.member_initiatives) == placed
     assert set(context.role_grants) == granted
     assert set(context.role_denies) == _keys(placed, _ALL_KEYS) - granted
     assert f"{install.a.id}:projects_enabled" in context.role_denies
-    assert set(context.install_read) == {"documents", "comments"}
-    assert set(context.install_write) == {"documents"}
+    assert set(context.install_read) == {"files", "comments"}
+    assert set(context.install_write) == {"files"}
     switched_on = {
         f"{initiative.id}:{tool.value}"
         for initiative in (
@@ -209,7 +207,7 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
     assert values[3] == ",".join(str(i) for i in placed)
     assert values[4] == "false"
     assert values[5] == "true"
-    assert values[6] == "documents"
+    assert values[6] == "files"
     assert values[7] == install.plugin.id
     assert install_context(s) == context
     await s.rollback()
@@ -219,14 +217,14 @@ async def test_a_narrowed_token_stands_in_one_initiative(
     session, acting_user, role_session
 ):
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     s, context = await _route(
-        role_session, install, ["documents:write"], initiative_id=install.a.id
+        role_session, install, ["files:write"], initiative_id=install.a.id
     )
     assert context.member_initiatives == (install.a.id,)
     assert set(context.role_grants) == _keys(
-        [install.a.id], {"documents_enabled", "create_documents"}
+        [install.a.id], {"files_enabled", "create_files"}
     )
     assert {pair.split(":")[0] for pair in context.role_denies} == {str(install.a.id)}
     await s.rollback()
@@ -237,36 +235,36 @@ async def test_a_narrowed_token_stands_in_one_initiative(
     [
         # The token asks for less than the seat granted.
         (
-            ["documents:write", "projects:write"],
-            ["documents:read"],
-            {"documents"},
+            ["files:write", "projects:write"],
+            ["files:read"],
+            {"files"},
             set(),
             ALL_SCOPES,
         ),
         # The seat granted less than the token asks for: what both name is
         # used, at the lower of the two levels.
         (
-            ["documents:read"],
-            ["documents:write", "projects:write"],
-            {"documents"},
+            ["files:read"],
+            ["files:write", "projects:write"],
+            {"files"},
             set(),
             ALL_SCOPES,
         ),
         (
-            ["documents:read", "projects:write"],
-            ["documents:write", "projects:write"],
-            {"documents", "projects"},
+            ["files:read", "projects:write"],
+            ["files:write", "projects:write"],
+            {"files", "projects"},
             {"projects"},
             ALL_SCOPES,
         ),
         # A token issued before the pinned version stopped requesting a scope
         # carries it, and it is used no more.
         (
-            ["documents:write", "projects:write"],
-            ["documents:write", "projects:write"],
-            {"documents"},
-            {"documents"},
-            ("documents:write",),
+            ["files:write", "projects:write"],
+            ["files:write", "projects:write"],
+            {"files"},
+            {"files"},
+            ("files:write",),
         ),
     ],
 )
@@ -333,9 +331,7 @@ async def _set_guild_status(
 async def test_an_install_that_may_not_act_is_refused(
     session, acting_user, role_session, reason
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     client = CLIENT
     if reason == "install_disabled":
         await _disable_install(session, install)
@@ -366,7 +362,7 @@ async def test_an_install_that_may_not_act_is_refused(
             guild_id=install.guild.id,
             install_id=install.plugin.id,
             client_id=client,
-            scopes=["documents:read"],
+            scopes=["files:read"],
         )
     # Refused with an empty standing: nothing a gate reads answers yes.
     values = (
@@ -385,14 +381,14 @@ async def test_an_install_that_may_not_act_is_refused(
 
 async def test_a_read_only_community_writes_nothing(session, acting_user, role_session):
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     await _set_guild_status(session, install, CommunityStatus.read_only)
-    s, context = await _route(role_session, install, ["documents:write"])
+    s, context = await _route(role_session, install, ["files:write"])
     assert context.live and context.content_hold
-    assert set(context.install_read) == {"documents"}
+    assert set(context.install_read) == {"files"}
     assert context.install_write == ()
-    assert not any(pair.endswith(":create_documents") for pair in context.role_grants)
+    assert not any(pair.endswith(":create_files") for pair in context.role_grants)
     await s.rollback()
 
 
@@ -406,7 +402,7 @@ async def test_a_community_that_is_gone_is_refused(session, role_session):
             guild_id=987_654_321,
             install_id=1,
             client_id=CLIENT,
-            scopes=["documents:read"],
+            scopes=["files:read"],
         )
     assert (await s.exec(text("SELECT current_user"))).one()[0] != (
         guild_role_name(987_654_321, GuildRoleKind.plugin)
@@ -415,9 +411,7 @@ async def test_a_community_that_is_gone_is_refused(session, role_session):
 
 
 async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     s = await role_session("app_user")
     with pytest.raises(InstallAccessError):
         await route_as_install(
@@ -425,7 +419,7 @@ async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
             guild_id=install.guild.id,
             install_id=install.plugin.id,
             client_id=CLIENT,
-            scopes=["documents:read", "everything:write"],
+            scopes=["files:read", "everything:write"],
         )
 
 
@@ -437,31 +431,25 @@ async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
 async def test_the_gates_answer_for_an_install(session, acting_user, role_session):
     """Placement is gate 2, the role keys its scopes give are gate 3, and a
     share with every member of an initiative it is placed in is gate 4. A
-    document shared with one person is not the install's."""
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
-    shared_a = await create_document(
-        session, install.a, install.seat.user, name="Shared A"
-    )
+    file shared with one person is not the install's."""
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    shared_a = await create_file(session, install.a, install.seat.user, name="Shared A")
     await create_resource_grant(session, shared_a, all_initiative_members=True)
-    await create_document(session, install.a, install.seat.user, name="Private A")
-    shared_b = await create_document(
-        session, install.b, install.seat.user, name="Shared B"
-    )
+    await create_file(session, install.a, install.seat.user, name="Private A")
+    shared_b = await create_file(session, install.b, install.seat.user, name="Shared B")
     await create_resource_grant(session, shared_b, all_initiative_members=True)
 
-    s, _context = await _route(role_session, install, ["documents:read"])
-    assert set((await s.exec(select(Document.name))).all()) == {
+    s, _context = await _route(role_session, install, ["files:read"])
+    assert set((await s.exec(select(File.name))).all()) == {
         "Shared A",
         "Shared B",
     }
     await s.rollback()
 
     narrowed, _context = await _route(
-        role_session, install, ["documents:read"], initiative_id=install.a.id
+        role_session, install, ["files:read"], initiative_id=install.a.id
     )
-    assert set((await narrowed.exec(select(Document.name))).all()) == {"Shared A"}
+    assert set((await narrowed.exec(select(File.name))).all()) == {"Shared A"}
     await narrowed.rollback()
 
 
@@ -471,21 +459,19 @@ async def test_an_install_without_a_tool_scope_reads_none_of_it(
     install = await _install(
         session, acting_user, role_session, granted=["comments:read"]
     )
-    shared = await create_document(session, install.a, install.seat.user)
+    shared = await create_file(session, install.a, install.seat.user)
     await create_resource_grant(session, shared, all_initiative_members=True)
     s, context = await _route(role_session, install, ["comments:read"])
-    assert f"{install.a.id}:documents_enabled" in context.role_denies
-    assert (await s.exec(select(Document.name))).all() == []
+    assert f"{install.a.id}:files_enabled" in context.role_denies
+    assert (await s.exec(select(File.name))).all() == []
     await s.rollback()
 
 
 async def test_the_plugin_role_cannot_read_the_communitys_settings(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
-    s, _context = await _route(role_session, install, ["documents:read"])
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    s, _context = await _route(role_session, install, ["files:read"])
     with pytest.raises(DBAPIError, match="permission denied"):
         await s.exec(
             text(
@@ -501,15 +487,15 @@ async def test_the_plugin_role_cannot_read_the_communitys_settings(
 # ---------------------------------------------------------------------------
 
 
-async def _documents(session, install: _Install, third=None) -> None:
-    """One document shared with every member and one shared with nobody, in
+async def _files(session, install: _Install, third=None) -> None:
+    """One file shared with every member and one shared with nobody, in
     each initiative, and in ``third`` when given."""
     for initiative in (install.a, install.b, *((third,) if third else ())):
-        shared = await create_document(
+        shared = await create_file(
             session, initiative, install.seat.user, name=f"Shared {initiative.name}"
         )
         await create_resource_grant(session, shared, all_initiative_members=True)
-        await create_document(
+        await create_file(
             session, initiative, install.seat.user, name=f"Private {initiative.name}"
         )
 
@@ -517,11 +503,11 @@ async def _documents(session, install: _Install, third=None) -> None:
 async def test_a_moderator_token_moderates_the_initiative_it_names(
     session, acting_user, role_session
 ):
-    """Manager with "Full access" there, as a moderator is: every document in
+    """Manager with "Full access" there, as a moderator is: every file in
     the initiative, whoever it is shared with, and nothing in the other."""
-    granted = ["documents:read", "initiatives:moderate"]
+    granted = ["files:read", "initiatives:moderate"]
     install = await _install(session, acting_user, role_session, granted=granted)
-    await _documents(session, install)
+    await _files(session, install)
 
     s, context = await _route(
         role_session, install, granted, initiative_id=install.a.id
@@ -530,7 +516,7 @@ async def test_a_moderator_token_moderates_the_initiative_it_names(
     assert context.override_initiatives == (install.a.id,)
     assert context.overrides_sharing(install.a.id)
     assert not context.is_admin
-    names = set((await s.exec(select(Document.name))).all())
+    names = set((await s.exec(select(File.name))).all())
     assert names == {f"Shared {install.a.name}", f"Private {install.a.name}"}
     await s.rollback()
 
@@ -538,14 +524,14 @@ async def test_a_moderator_token_moderates_the_initiative_it_names(
 async def test_a_moderator_scope_does_nothing_on_a_token_naming_no_initiative(
     session, acting_user, role_session
 ):
-    granted = ["documents:read", "initiatives:moderate"]
+    granted = ["files:read", "initiatives:moderate"]
     install = await _install(session, acting_user, role_session, granted=granted)
-    await _documents(session, install)
+    await _files(session, install)
 
     s, context = await _route(role_session, install, granted)
     assert context.manager_initiatives == ()
     assert context.override_initiatives == ()
-    names = set((await s.exec(select(Document.name))).all())
+    names = set((await s.exec(select(File.name))).all())
     assert names == {f"Shared {install.a.name}", f"Shared {install.b.name}"}
     await s.rollback()
 
@@ -554,11 +540,11 @@ async def test_a_moderator_scope_does_nothing_on_a_token_naming_no_initiative(
     ("granted", "token", "narrowed"),
     [
         # The token carries a standing the seat never granted.
-        (["documents:read"], ["documents:read", "initiatives:moderate"], True),
-        (["documents:read"], ["documents:read", "community:admin"], False),
+        (["files:read"], ["files:read", "initiatives:moderate"], True),
+        (["files:read"], ["files:read", "community:admin"], False),
         # The seat granted it and the token did not ask.
-        (["documents:read", "initiatives:moderate"], ["documents:read"], True),
-        (["documents:read", "community:admin"], ["documents:read"], False),
+        (["files:read", "initiatives:moderate"], ["files:read"], True),
+        (["files:read", "community:admin"], ["files:read"], False),
     ],
 )
 async def test_a_standing_needs_the_grant_and_the_token(
@@ -582,11 +568,11 @@ async def test_a_guild_admin_token_administers_the_community(
     session, acting_user, role_session
 ):
     """A guild admin's standing reaches every initiative, placed in or not."""
-    granted = ["documents:read", "community:admin"]
+    granted = ["files:read", "community:admin"]
     install = await _install(
         session, acting_user, role_session, granted=granted, placed="a"
     )
-    await _documents(session, install)
+    await _files(session, install)
 
     s, context = await _route(role_session, install, granted)
     assert context.is_admin
@@ -595,7 +581,7 @@ async def test_a_guild_admin_token_administers_the_community(
         await s.exec(text("SELECT current_setting('app.guild_admin', true)"))
     ).one()
     assert admin[0] == "true"
-    names = set((await s.exec(select(Document.name))).all())
+    names = set((await s.exec(select(File.name))).all())
     assert names == {
         f"{shared} {initiative.name}"
         for shared in ("Shared", "Private")
@@ -609,15 +595,15 @@ async def test_a_narrowed_guild_admin_token_administers_that_initiative(
 ):
     """The narrowing still confines it: everything in the initiative it names,
     nothing in the other."""
-    granted = ["documents:read", "community:admin"]
+    granted = ["files:read", "community:admin"]
     install = await _install(session, acting_user, role_session, granted=granted)
-    await _documents(session, install)
+    await _files(session, install)
 
     s, context = await _route(
         role_session, install, granted, initiative_id=install.a.id
     )
     assert context.is_admin
-    names = set((await s.exec(select(Document.name))).all())
+    names = set((await s.exec(select(File.name))).all())
     assert names == {f"Shared {install.a.name}", f"Private {install.a.name}"}
     await s.rollback()
 
@@ -631,7 +617,7 @@ async def test_a_standing_reaches_no_tool_its_scopes_do_not(
 ):
     granted = ["comments:read", standing]
     install = await _install(session, acting_user, role_session, granted=granted)
-    await _documents(session, install)
+    await _files(session, install)
 
     s, context = await _route(
         role_session,
@@ -640,7 +626,7 @@ async def test_a_standing_reaches_no_tool_its_scopes_do_not(
         initiative_id=install.a.id if narrowed else None,
     )
     assert context.is_admin or context.manager_initiatives
-    assert (await s.exec(select(Document.name))).all() == []
+    assert (await s.exec(select(File.name))).all() == []
     assert set(context.install_read) == {"comments"}
     await s.rollback()
 
@@ -651,9 +637,7 @@ async def test_a_standing_reaches_no_tool_its_scopes_do_not(
 
 
 async def test_the_seam_is_two_statements(session, acting_user, role_session):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     s = await role_session("app_user")
     await s.connection()
     statements: list[str] = []
@@ -669,7 +653,7 @@ async def test_the_seam_is_two_statements(session, acting_user, role_session):
             guild_id=install.guild.id,
             install_id=install.plugin.id,
             client_id=CLIENT,
-            scopes=["documents:read"],
+            scopes=["files:read"],
         )
     finally:
         event.remove(engine, "before_cursor_execute", count)
@@ -680,10 +664,8 @@ async def test_the_seam_is_two_statements(session, acting_user, role_session):
 async def test_a_new_transaction_replays_the_install(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
-    s, context = await _route(role_session, install, ["documents:read"])
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    s, context = await _route(role_session, install, ["files:read"])
     await s.commit()
     values = (
         await s.exec(
@@ -698,7 +680,7 @@ async def test_a_new_transaction_replays_the_install(
     assert tuple(values) == (
         guild_role_name(install.guild.id, GuildRoleKind.plugin),
         ",".join(str(i) for i in context.member_initiatives),
-        "documents",
+        "files",
         "true",
     )
     await s.commit()
@@ -806,9 +788,7 @@ async def _sector_refs(session, install: _Install) -> dict[str, str]:
 async def test_the_standing_resolves_only_the_install_s_own_references(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     refs = await _sector_refs(session, install)
 
     s = await role_session("app_user")
@@ -818,7 +798,7 @@ async def test_the_standing_resolves_only_the_install_s_own_references(
             guild_id=install.guild.id,
             install_id=install.plugin.id,
             client_id=CLIENT,
-            scopes=frozenset({"documents:read"}),
+            scopes=frozenset({"files:read"}),
         ),
         [*refs.values(), "uplu_nobody-at-all", "plain text"],
     )
@@ -838,11 +818,9 @@ async def test_the_standing_resolves_only_the_install_s_own_references(
 async def test_the_install_role_reads_and_mints_in_its_own_sector_only(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     refs = await _sector_refs(session, install)
-    s, _context = await _route(role_session, install, ["documents:read"])
+    s, _context = await _route(role_session, install, ["files:read"])
 
     visible = set(
         (await s.exec(text("SELECT ref FROM public.identity_refs"))).scalars().all()

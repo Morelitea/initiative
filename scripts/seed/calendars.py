@@ -19,7 +19,7 @@ from app.services.tenant import relationships as relationships_service
 from seed.common import NOW, Community, share, tag
 
 #: Each event. ``recurrence`` is RRULE lines repeating on the start's own
-#: weekday, ``attendees`` are ``(person, RSVP)``, and ``documents`` are
+#: weekday, ``attendees`` are ``(person, RSVP)``, and ``files`` are
 #: attached by the creator.
 EVENTS: dict[str, list[dict]] = {
     "primary": [
@@ -41,7 +41,7 @@ EVENTS: dict[str, list[dict]] = {
                 ("Platform Operator", RSVPStatus.pending),
             ],
             "tags": ["quest", "lore"],
-            "documents": ["NPC Roster: Curse of Strahd"],
+            "files": ["NPC Roster: Curse of Strahd"],
         },
         {
             "title": "Weekly Strahd Session",
@@ -123,7 +123,7 @@ EVENTS: dict[str, list[dict]] = {
                 ("Elara Moonwhisper", RSVPStatus.pending),
             ],
             "tags": ["combat"],
-            "documents": ["Setting Bible: The Exodus Protocol"],
+            "files": ["Setting Bible: The Exodus Protocol"],
         },
         {
             "title": "Bi-weekly Starfall Session",
@@ -168,7 +168,7 @@ EVENTS: dict[str, list[dict]] = {
                 ("Vex Shadowstep", RSVPStatus.accepted),
                 ("Kael Windrunner", RSVPStatus.pending),
             ],
-            "documents": ["One-Shot: Smuggler's Run Briefing"],
+            "files": ["One-Shot: Smuggler's Run Briefing"],
         },
     ],
     "tides": [
@@ -188,7 +188,7 @@ EVENTS: dict[str, list[dict]] = {
                 ("Seraphina Dawnlight", RSVPStatus.tentative),
                 ("Platform Owner", RSVPStatus.declined),
             ],
-            "documents": ["The Shattered Seas: World Guide"],
+            "files": ["The Shattered Seas: World Guide"],
         },
         {
             "title": "Voyage to the Abyssal Trench",
@@ -238,7 +238,7 @@ EVENTS: dict[str, list[dict]] = {
                 ("Finley Goldtongue", RSVPStatus.accepted),
                 ("Thorn Ironforge", RSVPStatus.pending),
             ],
-            "documents": ["Intelligence Report: Admiral Blackwood"],
+            "files": ["Intelligence Report: Admiral Blackwood"],
         },
         {
             "title": "Shore Leave (all-day)",
@@ -299,7 +299,7 @@ async def seed(c: Community) -> None:
             )
             c.ids["calendar_event_attendees"].append((event.id, name))
         tag(c, event, d.get("tags", ()))
-        for title in d.get("documents", ()):
+        for title in d.get("files", ()):
             await relationships_service.create(
                 c.session,
                 source=relationships_service.Endpoint(
@@ -307,7 +307,7 @@ async def seed(c: Community) -> None:
                 ),
                 relationship_type=RelationshipType.attached,
                 target=relationships_service.Endpoint(
-                    SearchEntityType.document, c.docs[title].id
+                    SearchEntityType.file, c.files[title].id
                 ),
                 created_by=creator.id,
             )

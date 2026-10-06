@@ -98,7 +98,7 @@ describe("BulkEditTagsDialog", () => {
           { id: 11, tags: [beta] },
           { id: 12, tags: [beta] },
         ]}
-        targetType="document"
+        targetType="file"
         communityId={1}
         onInvalidate={vi.fn()}
       />
@@ -112,7 +112,7 @@ describe("BulkEditTagsDialog", () => {
     await waitFor(() =>
       expect(bodies).toEqual([
         {
-          target_type: "document",
+          target_type: "file",
           target_ids: [11, 12],
           add_tag_ids: [],
           remove_tag_ids: [beta.id],

@@ -76,8 +76,8 @@ describe("resolveEntityPath", () => {
   // Deleted, or invisible to this reader — the caller lands on the community home
   // rather than a URL that 404s.
   it("returns null when the entity can't be read", async () => {
-    server.use(communityHttp.get("/documents/:id", () => new HttpResponse(null, { status: 404 })));
-    await expect(resolveEntityPath(queryClient, COMMUNITY, "document", 99)).resolves.toBeNull();
+    server.use(communityHttp.get("/files/:id", () => new HttpResponse(null, { status: 404 })));
+    await expect(resolveEntityPath(queryClient, COMMUNITY, "file", 99)).resolves.toBeNull();
   });
 
   it("returns null for an unknown ref type or a non-numeric id", async () => {
@@ -101,7 +101,7 @@ describe("normalizeLegacyTarget", () => {
   it("maps a stored pre-nesting target onto the resolver", () => {
     expect(normalizeLegacyTarget("/tasks/4")).toBe("/go/task/4");
     expect(normalizeLegacyTarget("/projects/12")).toBe("/go/project/12");
-    expect(normalizeLegacyTarget("/documents/3")).toBe("/go/document/3");
+    expect(normalizeLegacyTarget("/files/3")).toBe("/go/file/3");
     expect(normalizeLegacyTarget("/calendar-events/8")).toBe("/go/calendar-event/8");
     expect(normalizeLegacyTarget("/go/event/8")).toBe("/go/calendar-event/8");
   });

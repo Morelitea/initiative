@@ -688,6 +688,9 @@ class UserRead(UserBase):
     #: screen the way ``username_chosen`` false routes to the handle screen.
     #: Populated by ``/me``; defaults false elsewhere.
     legal_acceptance_required: bool = False
+    #: Whether this account's date of birth is kept. The date itself is never
+    #: sent, to its owner included; this is what says the question is answered.
+    birthdate_on_file: bool = False
     #: This account's cookie answer, so a browser it has never been asked in
     #: can adopt it instead of asking again. Null where it has never answered,
     #: which is different from having answered and allowed nothing. Populated

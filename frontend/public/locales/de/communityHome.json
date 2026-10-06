@@ -13,8 +13,8 @@
   "emptyState": {
     "title": "Du bist noch keiner Initiative beigetreten",
     "adminTitle": "Diese Community hat noch keine Initiativen",
-    "description": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
-    "adminDescription": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Erstelle die erste, um zu sagen, wofür diese Community da ist.",
+    "description": "Initiativen enthalten alles in einer Community — Projekte, Dateien und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
+    "adminDescription": "Initiativen enthalten alles in einer Community — Projekte, Dateien und den Rest. Erstelle die erste, um zu sagen, wofür diese Community da ist.",
     "nothingListedTitle": "Noch nichts zum Beitreten",
     "adminNothingListedTitle": "Erstelle die erste Initiative",
     "nothingListedDescription": "Derzeit ist keine Initiative dieser Community zum Beitreten offen. Ein Community-Admin oder Projektmanager kann dich hinzufügen.",
@@ -53,7 +53,7 @@
     "updated": "Zuletzt aktualisiert",
     "detail": {
       "projects": "Fortschritt",
-      "documents": "Typ",
+      "files": "Typ",
       "calendars": "Beschreibung",
       "dashboards": "Herkunft",
       "posts": "Vorschau"
@@ -63,8 +63,8 @@
     "tasksDone": "{{completed}} von {{total}} Aufgaben",
     "fromMarketplace": "Marktplatz",
     "builtHere": "Selbst erstellt",
-    "documentType": {
-      "native": "Dokument",
+    "fileType": {
+      "native": "Textdokument",
       "file": "Datei",
       "whiteboard": "Whiteboard",
       "smart_link": "Link",

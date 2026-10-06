@@ -1,7 +1,7 @@
 """Queue service layer — business logic for queue CRUD, turn management, and DAC.
 
 This module handles:
-  - Discretionary Access Control (DAC) for queues (mirroring the project/document
+  - Discretionary Access Control (DAC) for queues (mirroring the project/file
     pattern in ``permissions.py``)
   - Queue and queue-item fetching with eager-loaded relationships
   - Turn management (advance, previous, start, stop, reset, set active item)
@@ -40,7 +40,7 @@ from app.services.tenant import tags as tags_service
 def list_loader_options() -> list:
     """Eager-load what a queue *list* row needs: its sharing and the level the
     request holds on it. Lighter than :func:`get_queue`, which also loads the
-    items for the detail read."""
+    items the turn commands walk."""
     return [
         selectinload(Queue.grants),
         selectinload(Queue.initiative),
@@ -54,26 +54,41 @@ async def get_queue(
     *,
     populate_existing: bool = False,
 ) -> Queue | None:
-    """Fetch a queue with all relationships loaded for serialization."""
+    """Fetch a queue with what authorizing it, the grant flow and the turn
+    commands read: its sharing, its level and its items."""
+    stmt = (
+        select(Queue)
+        .where(Queue.id == queue_id)
+        .options(*list_loader_options(), selectinload(Queue.items))
+        .execution_options(populate_existing=populate_existing)
+    )
+    return (await session.exec(stmt)).one_or_none()
+
+
+async def get_queue_hydrated(
+    session: AsyncSession,
+    queue_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Queue | None:
+    """Fetch a queue with everything a serialized ``QueueRead`` reads: what
+    :func:`get_queue` loads, each item's person, and the tags and properties
+    of the queue and its items."""
     stmt = (
         select(Queue)
         .where(Queue.id == queue_id)
         .options(
+            *list_loader_options(),
             selectinload(Queue.items).selectinload(QueueItem.user),
-            selectinload(Queue.grants),
-            selectinload(Queue.initiative),
-            undefer(Queue.actions),
         )
+        .execution_options(populate_existing=populate_existing)
     )
-    if populate_existing:
-        stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    queue = result.one_or_none()
+    queue = (await session.exec(stmt)).one_or_none()
     if queue is not None:
         await tags_service.annotate_tags(session, [queue])
         await properties_service.annotate_properties(session, [queue])
-        await tags_service.annotate_tags(session, queue.items or [])
-        await properties_service.annotate_properties(session, queue.items or [])
+        await tags_service.annotate_tags(session, queue.items)
+        await properties_service.annotate_properties(session, queue.items)
     return queue
 
 

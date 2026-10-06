@@ -41,7 +41,7 @@ describe("PropertyPanel", () => {
     ];
     renderWithProviders(
       <PropertyPanel
-        target={PropertyTarget.document}
+        target={PropertyTarget.file}
         entityId={10}
         initiativeId={1}
         saved={properties}
@@ -116,7 +116,7 @@ describe("PropertyPanel", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={7} initiativeId={1} saved={props} />
+      <PropertyPanel target={PropertyTarget.file} entityId={7} initiativeId={1} saved={props} />
     );
 
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
@@ -128,7 +128,7 @@ describe("PropertyPanel", () => {
 
     // One PUT with the changed value.
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("/api/v1/properties/document/7");
+    expect(requests[0].url).toBe("/api/v1/properties/file/7");
     expect(requests[0].body).toEqual({ values: [{ property_id: 42, value: "Ada" }] });
   });
 
@@ -151,7 +151,7 @@ describe("PropertyPanel", () => {
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text, value: "" }),
     ];
     renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={props} />
     );
 
     expect(screen.getByText("Grace")).toBeInTheDocument();
@@ -217,7 +217,7 @@ describe("PropertyPanel", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={props} />
     );
 
     // The remove buttons carry the "Remove property" aria-label.
@@ -244,7 +244,7 @@ describe("PropertyPanel", () => {
     ];
     renderWithProviders(
       <PropertyPanel
-        target={PropertyTarget.document}
+        target={PropertyTarget.file}
         entityId={1}
         initiativeId={1}
         saved={props}
@@ -266,7 +266,7 @@ describe("PropertyPanel", () => {
     ];
     const { rerender } = renderWithProviders(
       <PropertyPanel
-        target={PropertyTarget.document}
+        target={PropertyTarget.file}
         entityId={1}
         initiativeId={1}
         saved={initialProps}
@@ -282,12 +282,7 @@ describe("PropertyPanel", () => {
       },
     ];
     rerender(
-      <PropertyPanel
-        target={PropertyTarget.document}
-        entityId={1}
-        initiativeId={1}
-        saved={updated}
-      />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={updated} />
     );
 
     expect((screen.getByPlaceholderText("Empty") as HTMLInputElement).value).toBe("Updated");
@@ -309,18 +304,13 @@ describe("PropertyPanel", () => {
       }),
     ];
     const { rerender } = renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={full} />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={full} />
     );
     expect(screen.getByText("Owner")).toBeInTheDocument();
     expect(screen.getByText("Zeta")).toBeInTheDocument();
 
     rerender(
-      <PropertyPanel
-        target={PropertyTarget.document}
-        entityId={1}
-        initiativeId={1}
-        saved={[full[0]]}
-      />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={[full[0]]} />
     );
     expect(screen.queryByText("Zeta")).not.toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
@@ -328,7 +318,7 @@ describe("PropertyPanel", () => {
 
   it("shows the 'no properties' empty state", () => {
     renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={[]} />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={[]} />
     );
     expect(screen.getByText(/No properties/i)).toBeInTheDocument();
   });
@@ -424,7 +414,7 @@ describe("PropertyPanel", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
+      <PropertyPanel target={PropertyTarget.file} entityId={1} initiativeId={1} saved={props} />
     );
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "A" } });
@@ -450,7 +440,7 @@ describe("PropertyPanel", () => {
     });
     renderWithProviders(
       <PropertyPanel
-        target={PropertyTarget.document}
+        target={PropertyTarget.file}
         entityId={1}
         initiativeId={1}
         saved={[selectDef]}

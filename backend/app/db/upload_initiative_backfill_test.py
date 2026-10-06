@@ -1,7 +1,8 @@
 """Migration 20260928_0414 places every existing upload in the initiative
 whose content shows it. Loaded by path and run on a guild the test builds, the
 way ``role_permission_backfill_migration_test`` runs its revision, after
-20261005_0459's downgrade puts back the file columns it reads."""
+20261006_0464's downgrade puts back the table names and 20261005_0459's the
+file columns it reads."""
 
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from app.services.storage import get_guild_storage
 from app.testing import (
     create_calendar,
     create_calendar_event,
-    create_document,
+    create_file,
     create_guild,
     create_initiative,
     create_project,
@@ -35,6 +36,7 @@ from app.testing.schema_harness import route_session_to_guild
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 _MIGRATION = _VERSIONS / "20260928_0414_an_upload_belongs_to_an_initiative.py"
 _FILE_VERSIONS = _VERSIONS / "20261005_0459_file_versions_by_pointer.py"
+_FILES = _VERSIONS / "20261006_0464_documents_are_files.py"
 
 
 def _load(path: Path = _MIGRATION) -> ModuleType:
@@ -72,7 +74,7 @@ async def test_the_backfill_places_copies_and_leaves_alone(
     def shows(name: str) -> str:
         return f"![shot](/uploads/{guild.id}/{name})"
 
-    await create_document(
+    await create_file(
         session, first, user, featured_image_url=f"/uploads/{guild.id}/shared.png"
     )
     once = await create_task(session, project, description=shows("one.png"))
@@ -91,7 +93,9 @@ async def test_the_backfill_places_copies_and_leaves_alone(
             text("SELECT set_config('search_path', :sp, true)"),
             {"sp": f"{schema}, public"},
         )
+        files = _load(_FILES)
         with Operations.context(MigrationContext.configure(bind)):
+            files._apply(False)
             _load(_FILE_VERSIONS)._apply_downgrade()
         _load()._place(bind, schema)
 

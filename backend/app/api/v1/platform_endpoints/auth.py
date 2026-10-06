@@ -487,6 +487,12 @@ async def _register_account(
         await session.flush()
         # The verification letter proves this row, so it is named by id.
         address_id = address.id
+        # The date of birth, kept encrypted beside the answer it gave, in the
+        # same transaction as the account: a registration that fails keeps none.
+        if details.birthdate is not None:
+            await users_service.keep_birthdate(
+                session, user_id=user.id, birthdate=details.birthdate
+            )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         # The way in. A password is on the row already; a key is a row of its
         # own, and the set of codes beside it is how an account holding no
@@ -1175,7 +1181,7 @@ async def issue_upload_token(
     """Mint a short-lived, uploads-scoped token for the authenticated user.
 
     Native (Capacitor) clients call this to load ``/uploads/*`` media and
-    document downloads via ``?token=`` without putting the long-lived session
+    file downloads via ``?token=`` without putting the long-lived session
     JWT in the URL. The
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.

@@ -32,7 +32,7 @@ export const COMMUNITY_SHELVES = [
  */
 export const UNSHELVED_KINDS = [
   ListingKind.project,
-  ListingKind.document,
+  ListingKind.file,
   ListingKind.queue,
   ListingKind.counter_group,
   ListingKind.calendar,

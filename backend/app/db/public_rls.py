@@ -2141,6 +2141,15 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    "user_birthdates": SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(
+            # An account's date of birth, encrypted — written when the person
+            # answers and read to check a plug-in's minimum age, both on the
+            # system engine. No request role sees a date.
+            app_admin=DML,
+        ),
+    ),
     "storage_backfill_state": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(

@@ -22,7 +22,7 @@ import {
 import { getReadCalendarQueryKey, readCalendar } from "@/api/generated/calendars/calendars";
 import { getReadCounterGroupQueryKey, readCounterGroup } from "@/api/generated/counters/counters";
 import { getReadDashboardQueryKey, readDashboard } from "@/api/generated/dashboards/dashboards";
-import { getReadDocumentQueryKey, readDocument } from "@/api/generated/documents/documents";
+import { getReadFileQueryKey, readFile } from "@/api/generated/files/files";
 import { getReadGalleryQueryKey, readGallery } from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadPostQueryKey, readPost } from "@/api/generated/posts/posts";
@@ -65,9 +65,9 @@ const TOOL_READS: Record<
     key: getReadProjectQueryKey,
     read: readProject,
   },
-  [Tool.document]: {
-    key: getReadDocumentQueryKey,
-    read: readDocument,
+  [Tool.file]: {
+    key: getReadFileQueryKey,
+    read: readFile,
   },
   [Tool.queue]: {
     key: getReadQueueQueryKey,
@@ -214,7 +214,7 @@ export async function resolveEntityPath(
 const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/tasks\/(\d+)(\/.*)?$/, (id) => `/go/task/${id}`],
   [/^\/projects\/(\d+)(\/.*)?$/, (id) => `/go/project/${id}`],
-  [/^\/documents\/(\d+)(\/.*)?$/, (id) => `/go/document/${id}`],
+  [/^\/files\/(\d+)(\/.*)?$/, (id) => `/go/file/${id}`],
   [/^\/calendar-events\/(\d+)(\/.*)?$/, (id) => `/go/calendar-event/${id}`],
   // A calendar event's ref type was `event` before every ref type became its
   // kind's kebab singular.
@@ -228,7 +228,7 @@ const LEGACY_LISTS = new Set([
   "/initiatives",
   "/tasks",
   "/projects",
-  "/documents",
+  "/files",
   "/queues",
   "/dashboards",
   "/counter-groups",

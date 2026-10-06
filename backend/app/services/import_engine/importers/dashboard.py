@@ -1,4 +1,5 @@
-"""``initiative-dashboard`` importer: the presentation spec and its canvas.
+"""``initiative-dashboard`` importer: the presentation spec, its canvas, and
+its tags.
 
 A dashboard owns no child content — the data it shows is fetched per viewer
 through the tools it points at — so applying one is creating a single row.
@@ -14,7 +15,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool, tool_envelope_type
@@ -22,12 +22,13 @@ from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import DashboardEnvelope
-from app.services.import_engine.common import unique_name
+from app.services.import_engine.common import unique_name_in_initiative
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
@@ -56,23 +57,15 @@ class DashboardImporter(NamesPeopleInPassing):
     ) -> EnvelopeImportResult:
         env: DashboardEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
 
-        existing_names = set(
-            (
-                await session.exec(
-                    select(Dashboard.name).where(
-                        Dashboard.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        )
-
         definition, config = _normalized_canvas(env.definition, env.config)
         listing_uid, listing_version = await _resolved_listing(
             session, env.listing_uid, env.listing_version
         )
 
         dashboard = Dashboard(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Dashboard, target_initiative.id, env.name
+            ),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -92,6 +85,8 @@ class DashboardImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags = TagRestore(session)
+        await tags.attach(dashboard, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -99,8 +94,12 @@ class DashboardImporter(NamesPeopleInPassing):
         return EnvelopeImportResult(
             entity_id=dashboard.id,
             entity_title=dashboard.name,
-            created={"dashboards": 1, "properties": props.created},
-            matched={"properties": props.matched},
+            created={
+                Tool.dashboard.plural: 1,
+                "tags": tags.created,
+                "properties": props.created,
+            },
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(dashboard),
         )
 

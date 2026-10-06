@@ -21,7 +21,7 @@
   "entityType": {
     "project": "Proyecto",
     "task": "Tarea",
-    "document": "Documento",
+    "file": "Archivo",
     "comment": "Comentario",
     "initiative": "Iniciativa",
     "tag": "Etiqueta",

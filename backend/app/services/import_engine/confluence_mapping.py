@@ -90,12 +90,12 @@ class MappedSpace:
     attachments: dict[str, list[str]] = field(default_factory=dict)
     #: The pictures the kept pages show, to travel as uploads.
     uploads: list[StoredImage] = field(default_factory=list)
-    #: Everything else the kept pages had attached, to become file documents
+    #: Everything else the kept pages had attached, to become uploaded files
     #: filed under the page each came from.
-    documents: list[PageFile] = field(default_factory=list)
+    files: list[PageFile] = field(default_factory=list)
     #: Pictures a page never shows, left behind because the initiative
-    #: cannot take documents.
-    documents_blocked: int = 0
+    #: cannot take files.
+    files_blocked: int = 0
     #: Comments carried onto the kept pages.
     comments: int = 0
 
@@ -217,7 +217,7 @@ def build_wiki_envelope(
     app_version: str,
     max_bytes: Optional[int] = None,
     media: Optional[dict[str, PageMedia]] = None,
-    documents: bool = True,
+    files_allowed: bool = True,
     comments: Optional[dict[str, list[SourceComment]]] = None,
 ) -> MappedSpace:
     """The space's pages as one wiki envelope.
@@ -228,7 +228,7 @@ def build_wiki_envelope(
 
     ``media`` is what each page's attachments became, by page id. A picture
     the page shows renders from its upload; a link to a file becomes a
-    mention of the document it will be. ``documents`` false is an initiative
+    mention of the file it will be. ``files_allowed`` false is an initiative
     that cannot take one, and only the shown pictures come.
 
     ``comments`` is what was said on each page, by page id; each is converted
@@ -301,7 +301,7 @@ def build_wiki_envelope(
                 image=files.images.get,
                 # A link to a picture goes to the picture.
                 attachment=files.images.get,
-                document=lambda name, files=files: (
+                file=lambda name, files=files: (
                     file_ref(files.files[name]) if name in files.files else None
                 ),
                 site_url=site_url,
@@ -365,14 +365,12 @@ def build_wiki_envelope(
         envelope_pages.append(entry)
         mapped.pages += 1
         mapped.uploads.extend(files.uploads(shown))
-        if documents:
-            mapped.documents.extend(
-                PageFile(stored, slugs[page.id]) for stored in files.documents(shown)
+        if files_allowed:
+            mapped.files.extend(
+                PageFile(stored, slugs[page.id]) for stored in files.as_files(shown)
             )
         else:
-            mapped.documents_blocked += len(files.stored_images) - len(
-                files.uploads(shown)
-            )
+            mapped.files_blocked += len(files.stored_images) - len(files.uploads(shown))
         for name in {name for name in (author, *mentions) if name}:
             mapped.people[name] += 1
         mapped.comments += len(page_comments)
@@ -446,9 +444,7 @@ def _comment_entry(
         user=lambda account: users.get(account),
         image=files.images.get,
         attachment=files.images.get,
-        document=lambda name: (
-            file_ref(files.files[name]) if name in files.files else None
-        ),
+        file=lambda name: file_ref(files.files[name]) if name in files.files else None,
         site_url=site_url,
     )
     dropped.update(result.dropped)

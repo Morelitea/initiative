@@ -16,9 +16,9 @@ from app.models.platform.guild import CommunityRole
 from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.testing import (
-    create_document,
+    create_file,
     create_initiative_member,
     create_project,
     create_task,
@@ -615,11 +615,11 @@ class TestAskingAboutTheReader:
         self, client, session, acting_user
     ):
         actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-        await create_document(
+        await create_file(
             session,
             actor.initiative,
             actor.user,
-            document_type=DocumentType.file,
+            file_type=FileType.file,
             file_url="/uploads/1/brief.pdf",
             file_size=2048,
         )
@@ -629,7 +629,7 @@ class TestAskingAboutTheReader:
             json={
                 "sql": (
                     "SELECT current_version.file_content_type AS type,"
-                    " current_version.file_size AS size FROM documents"
+                    " current_version.file_size AS size FROM files"
                 ),
                 "initiative_id": actor.initiative.id,
             },

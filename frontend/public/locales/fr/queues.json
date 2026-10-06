@@ -32,7 +32,7 @@
   "hidden": "Masqué",
   "unassigned": "Non assigné",
   "tags": "Étiquettes",
-  "documents": "Documents",
+  "files": "Fichiers",
   "tasks": "Tâches",
   "round": "Tour",
   "roundN": "Tour {{count}}",

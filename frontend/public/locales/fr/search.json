@@ -23,7 +23,7 @@
   "types": {
     "project": "Projet",
     "task": "Tâche",
-    "document": "Document",
+    "file": "Fichier",
     "queue": "File",
     "queue_item": "Élément de file",
     "counter_group": "Groupe de compteurs",

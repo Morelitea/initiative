@@ -197,10 +197,10 @@ describe("ModerationPage", () => {
       "/projects/12/tasks/88",
     ],
     [
-      "a comment on a document, to that document",
-      { target_link: { entity_type: "document", entity_id: 5, tool: "document", tool_id: 5 } },
+      "a comment on a file, to that file",
+      { target_link: { entity_type: "file", entity_id: 5, tool: "file", tool_id: 5 } },
       "A comment",
-      "/documents/5",
+      "/files/5",
     ],
     [
       "a reported task, to the task itself",

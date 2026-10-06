@@ -204,7 +204,7 @@ async def test_xlsx_preserves_numeric_cells():
     assert sheet.cell(row=2, column=2).data_type == "n"
 
 
-async def test_document_template_interleaves_nested_lists():
+async def test_file_template_interleaves_nested_lists():
     """A nested list must render directly beneath its parent item, not after
     all siblings — and the parent numbering must continue past the detour."""
     import io
@@ -256,7 +256,7 @@ async def test_document_template_interleaves_nested_lists():
     assert "3. CHARLIE" in text  # numbering survives the nested detour
 
 
-async def test_document_pdf_degrades_missing_asset(monkeypatch, tmp_path):
+async def test_file_pdf_degrades_missing_asset(monkeypatch, tmp_path):
     """Typst fails a compile on a missing image file, so an asset gone from
     storage must degrade its block to alt text — not fail the export."""
     import io
@@ -287,7 +287,7 @@ async def test_document_pdf_degrades_missing_asset(monkeypatch, tmp_path):
     artifacts = await LocalRenderBackend().render(request)
     text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
     assert "GONEALT" in text  # degraded to alt text
-    assert "AFTERWARDS" in text  # rest of the document survived
+    assert "AFTERWARDS" in text  # rest of the file survived
 
 
 async def test_tabular_formats_skip_template_resolution():
@@ -436,7 +436,7 @@ async def test_report_pdf_embeds_outfit_font():
     assert "Outfit-Bold" in families
 
 
-async def test_document_pdf_draws_callouts_columns_and_merged_cells():
+async def test_file_pdf_draws_callouts_columns_and_merged_cells():
     """The two block shapes that nest — a callout holding blocks, a table
     whose cells span — compile, and their words are all on the page."""
     import io

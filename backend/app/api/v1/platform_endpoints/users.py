@@ -1095,6 +1095,7 @@ async def claim_my_username(
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
@@ -1110,16 +1111,18 @@ async def confirm_my_age(
     answered under age, keeps every private community it belongs to and
     everything in them.
 
-    **The date is not kept.** It is read here, compared against the minimum, and
-    goes out of scope with the request — there is no column for it, nothing logs
-    it, and no audit record carries it. What is written is a timestamp saying
-    the question was answered, which is what shows the deployment asked.
+    **The date is kept, encrypted** (``user_birthdates``, system engine only),
+    because a plug-in's minimum age differs by country and one "old enough"
+    answer cannot say whether somebody may use it. Nothing logs it, no audit
+    record carries it, and no response returns it — ``birthdate_on_file`` says
+    only that it is there. Beside it is the timestamp saying the question was
+    answered, which is what shows the deployment asked.
+
+    **A kept date stands.** Answering again once one is on file is refused, as
+    an under-age answer is. Putting it right is the same support ticket.
 
     The comparison is the server's because it is the one that decides. A client
     could work out the same answer, and a client's answer is not evidence.
-
-    Saying it again is not an error and does not move the timestamp — the record
-    is when they first answered.
 
     **An answer of "under age" also stands.** It is recorded — the fact, not the
     date — and the question is not asked again, because a question you can
@@ -1133,8 +1136,11 @@ async def confirm_my_age(
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
+    # The date is kept first, and only one answer per account is kept.
     try:
-        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        kept = await users_service.keep_birthdate(
+            system_session, user_id=current_user.id, birthdate=payload.birthdate
+        )
     except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
@@ -1142,9 +1148,26 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
-    current_user.updated_at = datetime.now(timezone.utc)
-    session.add(current_user)
-    await session.commit()
+    if kept is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+    await system_session.commit()
+
+    # Then the answer. If it does not save, the date goes too, so the person can
+    # answer again.
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+    except BaseException:
+        await users_service.forget_birthdate(
+            system_session, user_id=current_user.id, only=kept
+        )
+        await system_session.commit()
+        raise
     if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1698,7 +1721,7 @@ async def delete_own_account(
     # action == "soft_delete"
     #
     # Nothing is erased here. The account moves to ``deleted`` and keeps
-    # everything — memberships, initiative roles, the documents it owns — so
+    # everything — memberships, initiative roles, the files it owns — so
     # that coming back restores it whole. It stops existing for everybody
     # else immediately, and ``account_purge`` erases it when the deployment's
     # window runs out. Signing in before then calls the whole thing off.

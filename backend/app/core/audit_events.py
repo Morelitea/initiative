@@ -97,11 +97,11 @@ class AuditEventType(str, Enum):
     #: every one of them, read or write. The grant says what somebody was let
     #: into; this says what they then did with it, which is the difference
     #: between "an operator held this community for an hour" and "an operator
-    #: opened four hundred documents". It records the reach, so it is not a
+    #: opened four hundred files". It records the reach, so it is not a
     #: write itself: a request that changed something records that separately,
     #: under the event for what it changed.
     PAM_REQUEST = "pam.request"
-    #: Somebody serving a grant changed a document's or a wiki page's body,
+    #: Somebody serving a grant changed a file's or a wiki page's body,
     #: which happens over a live editing socket rather than through a request.
     #: One line the first time they do it in a session: that they edited it is
     #: the fact worth having, and a line per keystroke would bury it.

@@ -53,7 +53,7 @@ async def test_a_key_set_published_at_its_address_authenticates(
     role_session,
     monkeypatch,
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     await _update(
         session,
         "UPDATE public.plugin_service_registrations "
@@ -79,7 +79,7 @@ async def test_a_key_set_published_at_its_address_authenticates(
 async def test_a_registration_with_no_key_set_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     await _update(
         session,
         "UPDATE public.plugin_service_registrations SET jwks = NULL "
@@ -95,7 +95,7 @@ async def test_a_registration_with_no_key_set_is_an_invalid_client(
 async def test_a_switched_off_publisher_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     await _update(
         session,
         "UPDATE public.publishers SET enabled = false WHERE id = "

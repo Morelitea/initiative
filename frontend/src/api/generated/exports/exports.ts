@@ -53,7 +53,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * Export the task list (the same visibility and filters as ``GET
- * /tasks/``) as a formatted document. Small results render inline and return
+ * /tasks/``) as a formatted file. Small results render inline and return
  * the file directly; large results return ``202`` with a queued job to poll
  * and download.
  * @summary Export Tasks
@@ -465,7 +465,7 @@ export function useEstimateAggregateExport<
 /**
  * Export a whole initiative as one zip: ``backup`` bundles every included
  * tool's importable JSON envelope plus a ``manifest.json`` (optionally with
- * the upload blobs the documents reference); ``report`` renders each tool in
+ * the upload blobs the files reference); ``report`` renders each tool in
  * the caller's chosen format. Requires reaching the initiative; per-entity
  * sharing applies throughout, and projects are included with read access.
  * Always returns ``202`` with a queued job to poll and download.

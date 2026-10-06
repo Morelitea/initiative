@@ -187,7 +187,7 @@ def _canonical_dashboard(envelope: dict[str, Any], *, what: str) -> dict[str, An
     here, by the same validator the create endpoint runs.
 
     ``config`` is dropped. It fills the binding slots a definition leaves open
-    with one community's own counters and documents, which a listing has none
+    with one community's own counters and files, which a listing has none
     of: that is the installer's to fill.
     """
     from app.services.tenant.dashboard_definition import (

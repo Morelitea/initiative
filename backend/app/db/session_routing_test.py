@@ -159,7 +159,7 @@ class TestTheInstallRoute:
                         token_scopes=frozenset(),
                     ),
                     "token_client_id": "tests.plugin",
-                    "token_scopes": frozenset({"documents:write", "comments:read"}),
+                    "token_scopes": frozenset({"files:write", "comments:read"}),
                     **overrides,
                 }
             )
@@ -178,7 +178,7 @@ class TestTheInstallRoute:
         ) == ("", "", "false", "false")
         assert out["current_install_id"] == "5"
         assert out["token_client_id"] == "tests.plugin"
-        assert out["token_scopes"] == "comments:read,documents:write"
+        assert out["token_scopes"] == "comments:read,files:write"
         assert out["scope_initiative_id"] == "9"
 
     def test_until_its_standing_is_computed_it_stands_nowhere(self):

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildCommunity,
-  buildDocumentSummary,
+  buildFileSummary,
   buildInitiative,
   buildProject,
   buildUser,
@@ -36,12 +36,12 @@ const page = (items: unknown[], totalCount = items.length) =>
 function stubMyTools({
   counts = {},
   projects = [],
-  documents = [],
+  files = [],
   queues = [],
 }: {
   counts?: Record<string, number>;
   projects?: unknown[];
-  documents?: unknown[];
+  files?: unknown[];
   queues?: unknown[];
 } = {}) {
   server.use(
@@ -49,7 +49,7 @@ function stubMyTools({
       HttpResponse.json({
         counts: {
           project: 0,
-          document: 0,
+          file: 0,
           queue: 0,
           counter_group: 0,
           calendar: 0,
@@ -59,7 +59,7 @@ function stubMyTools({
       })
     ),
     http.get("/api/v1/me/projects", () => page(projects)),
-    http.get("/api/v1/me/documents", () => page(documents)),
+    http.get("/api/v1/me/files", () => page(files)),
     http.get("/api/v1/me/queues", () => page(queues)),
     http.get("/api/v1/me/counter-groups", () => page([])),
     http.get("/api/v1/me/calendars", () => page([])),
@@ -92,7 +92,7 @@ describe("MyToolsPage", () => {
     expect(await screen.findByRole("link", { name: "Projects" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Queues" })).toBeInTheDocument();
     // Nothing in any of these anywhere, so no tab onto an empty table.
-    expect(screen.queryByRole("link", { name: "Documents" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Calendars" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboards" })).not.toBeInTheDocument();
   });
@@ -108,11 +108,11 @@ describe("MyToolsPage", () => {
 
   it("addresses each row in its own community", async () => {
     stubMyTools({
-      counts: { document: 2 },
-      documents: [buildDocumentSummary({ id: 5, name: "Campaign notes", community_id: AWAY.id })],
+      counts: { file: 2 },
+      files: [buildFileSummary({ id: 5, name: "Campaign notes", community_id: AWAY.id })],
     });
 
-    render({ tool: "documents" }, [HOME, AWAY]);
+    render({ tool: "files" }, [HOME, AWAY]);
 
     const link = await screen.findByRole("link", { name: "Campaign notes" });
     // The reader is standing in community 1; the row lives in community 2 and says so.

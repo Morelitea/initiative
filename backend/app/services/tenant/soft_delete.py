@@ -27,9 +27,9 @@ guild admin, so a non-admin DELETE is refused by Postgres, not just by app code.
 The two
 guild-level soft-delete tables (initiatives, tags) have RLS enabled solely to host
 that guard — not a membership gate (initiative is the gate; guilds gate at the
-schema). For Documents (and Initiatives whose cascade includes Documents), upload
+schema). For Files (and Initiatives whose cascade includes Files), upload
 cleanup runs before the DELETE so blobs on disk and ``Upload`` rows pinned only by
-the doomed documents are also removed.
+the doomed files are also removed.
 """
 
 from datetime import datetime, timedelta
@@ -47,7 +47,7 @@ from app.db.session import raise_flag
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.task import Task
@@ -279,7 +279,7 @@ _PURGE_LOADS: dict[type, tuple] = {
     Comment: (),
     GalleryImage: (),
     Task: (),
-    Document: (undefer(Document.content),),
+    File: (undefer(File.content),),
 }
 
 
@@ -309,12 +309,12 @@ async def hard_purge_entities(
     Descendants are walked through the same tree the soft-delete path uses,
     in the bin or not, then deleted a level at a time from the bottom up, one
     statement per table, so no foreign key is left pointing at a row that went
-    first. For Documents anywhere in the set, upload cleanup runs before the
-    DELETEs so ``Upload`` rows pinned only by the doomed documents go too.
+    first. For Files anywhere in the set, upload cleanup runs before the
+    DELETEs so ``Upload`` rows pinned only by the doomed files go too.
     """
-    from app.services.tenant.documents import unresolve_wikilinks_to_document
+    from app.services.tenant.files import unresolve_wikilinks_to_file
     from app.services.tenant.attachments import (
-        purge_document_uploads,
+        purge_file_uploads,
         purge_gallery_image_uploads,
         purge_initiative_uploads,
         purge_pasted_images,
@@ -326,7 +326,7 @@ async def hard_purge_entities(
     await session.flush()
 
     # Purge is the one lifecycle step that writes frozen content instead of only
-    # removing it — the wikilink unresolve below reaches documents that are
+    # removing it — the wikilink unresolve below reaches files that are
     # themselves in the trash. Transaction-local (see app.db.gucs.PURGING).
     await raise_flag(session, gucs.PURGING)
 
@@ -350,7 +350,7 @@ async def hard_purge_entities(
             )
 
     # A picture's blobs — every version and its thumbnail — go with it, the
-    # way a file document's do.
+    # way an uploaded file's do.
     released: set[str] = set()
     if loaded.get(GalleryImage):
         released |= await purge_gallery_image_uploads(session, loaded[GalleryImage])
@@ -361,14 +361,14 @@ async def hard_purge_entities(
         session, [*loaded.get(Task, ()), *loaded.get(Comment, ())]
     )
 
-    if loaded.get(Document):
-        released |= await purge_document_uploads(session, loaded[Document])
-        # Links in surviving documents that point at a doomed one are blanked
+    if loaded.get(File):
+        released |= await purge_file_uploads(session, loaded[File])
+        # Links in surviving files that point at a doomed one are blanked
         # before the row disappears, so they render as unresolved rather than
         # pointing at nothing. Runs before the DELETEs, while the edges naming
-        # it are still there to find the documents carrying those links.
-        for doc in loaded[Document]:
-            await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
+        # it are still there to find the files carrying those links.
+        for doc in loaded[File]:
+            await unresolve_wikilinks_to_file(session, deleted_file_id=doc.id)
 
     # What is left of an initiative's files goes with it.
     if doomed.get(Initiative):
@@ -376,8 +376,8 @@ async def hard_purge_entities(
 
     # Tombstones go with the edges: what one remembers is a link between two
     # things, and one of them is about to stop existing. Last of the sweeps,
-    # because the step above reads the edges pointing at a doomed document to
-    # find the documents whose links have to be blanked.
+    # because the step above reads the edges pointing at a doomed file to
+    # find the files whose links have to be blanked.
     await _purge_references(session, doomed)
     await session.flush()
 

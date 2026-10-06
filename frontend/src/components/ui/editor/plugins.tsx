@@ -260,7 +260,7 @@ export function Plugins({
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
-  /** This page, as a reference (`document:12`). Neither trigger offers it: a
+  /** This page, as a reference (`file:12`). Neither trigger offers it: a
    *  page does not point at itself, and a link to it would open the page the
    *  words are already on. */
   subject?: string | null;
@@ -282,7 +282,7 @@ export function Plugins({
    *  the same offset a writer sees, not shift left because of who is looking.
    *  Height is a separate question and does follow `readOnly`. */
   compact?: boolean;
-  onWikilinkNavigate?: (documentId: number) => void;
+  onWikilinkNavigate?: (fileId: number) => void;
   onCreateReferencedThing?: (
     name: string,
     onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void

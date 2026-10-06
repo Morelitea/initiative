@@ -53,11 +53,11 @@ def _embed(entity_type: str, entity_id: int, text: str) -> dict:
     return {**_mention(entity_type, entity_id, text), "type": "reference-embed"}
 
 
-def _wikilink(document_id: int, title: str) -> dict:
+def _wikilink(file_id: int, title: str) -> dict:
     return {
         "type": "wikilink",
         "version": 1,
-        "documentId": document_id,
+        "documentId": file_id,
         "documentTitle": title,
         "text": title,
     }
@@ -74,7 +74,7 @@ def test_a_markdown_reference_crosses_as_the_ref_it_had():
     # Every spelling the composer writes reads as its kind; a word that names
     # no kind, and a person, are not references and are left as they were.
     assert detached == (
-        "See #task[Fix the bug](task:41), #doc[Spec](document:7) and "
+        "See #task[Fix the bug](task:41), #doc[Spec](file:7) and "
         "#wiki-page[Start](wiki_page:3), not #widget[Nope](9) or @[Ada](4)"
     )
     # Nothing reads a detached reference as one until it is placed.
@@ -84,7 +84,7 @@ def test_a_markdown_reference_crosses_as_the_ref_it_had():
 
 
 def test_a_markdown_reference_is_placed_or_reduced_to_its_label():
-    detached = "See #task[Fix the bug](task:41) and #doc[Spec](document:7)"
+    detached = "See #task[Fix the bug](task:41) and #doc[Spec](file:7)"
 
     placed = place_markdown_references(
         detached, lambda ref: 90 if ref == "task:41" else None
@@ -112,7 +112,7 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
     assert text == {"type": "text", "text": "See "}
     assert (mention["entityId"], mention[SOURCE_REF]) == (0, "task:41")
     assert (chip["entityId"], chip[SOURCE_REF]) == (0, "task:41")
-    assert (wikilink["documentId"], wikilink[SOURCE_REF]) == (None, "document:7")
+    assert (wikilink["documentId"], wikilink[SOURCE_REF]) == (None, "file:7")
     # A node that names nothing yet is not something to carry.
     assert SOURCE_REF not in waiting
     assert references_in_body(detached) == set()
@@ -124,11 +124,11 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
 def test_an_exported_editor_reference_is_placed_or_left_as_words():
     content = _editor(
         _mention("task", 41, "Fix the bug"),
-        _mention("document", 8, "Gone"),
+        _mention("file", 8, "Gone"),
         _chip("task:status", 42, "Done"),
         _wikilink(7, "Spec"),
     )
-    content["root"]["children"].append(_embed("document", 8, "Gone"))
+    content["root"]["children"].append(_embed("file", 8, "Gone"))
     detached = detach_editor_references(content)
 
     placed = place_editor_references(

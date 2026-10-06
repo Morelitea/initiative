@@ -54,10 +54,10 @@
     "redactedItem": "Une tâche vous a été attribuée"
   },
   "mention": {
-    "document": {
-      "subject": "Vous avez été mentionné(e) dans {{document}}",
+    "file": {
+      "subject": "Vous avez été mentionné(e) dans {{file}}",
       "title": "Vous avez été mentionné(e)",
-      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Vous avez été mentionné(e) dans un commentaire",

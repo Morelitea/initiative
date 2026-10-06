@@ -271,7 +271,7 @@ export const notificationText = (
         email: data.email ?? t("notifications.plain.user"),
       });
     case "mention":
-      // A comment, a task's description, or a document.
+      // A comment, a task's description, or a file.
       if (data.comment_id) {
         return t("notifications.mentionComment", {
           mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
@@ -284,9 +284,9 @@ export const notificationText = (
           taskTitle: data.task_title ?? t("notifications.plain.item"),
         });
       }
-      return t("notifications.mentionDocument", {
+      return t("notifications.mentionFile", {
         mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
-        documentTitle: data.entity_name ?? t("notifications.plain.document"),
+        fileTitle: data.entity_name ?? t("notifications.plain.file"),
       });
     case "comment_on_task": {
       const { name, others, count } = commentSummary(data);
