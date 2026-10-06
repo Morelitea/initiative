@@ -47,7 +47,7 @@ import {
   useRelationsNeighbourhood,
   useUnrelate,
 } from "@/hooks/useRelationships";
-import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
+import { FILE_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { docsUrl } from "@/lib/links";
 import { toast } from "@/lib/mascotToast";
 import {
@@ -69,7 +69,7 @@ import { cn } from "@/lib/utils";
  * Fetched when somebody asks for the picture, not before.
  *
  * The graph brings a rendering library and a layout worker with it — around
- * 200KB that a project, a task and a document page would otherwise all carry for
+ * 200KB that a project, a task and a file page would otherwise all carry for
  * a view behind a menu that most readers never open.
  */
 const RelationsGraph = lazy(() =>
@@ -121,7 +121,7 @@ interface RelationsSectionProps {
   canEdit: boolean;
   /** Which headings this surface shows. Defaults to all of them. */
   groups?: RelationGroupKey[];
-  /** Extra header buttons — a "New document" shortcut, say. */
+  /** Extra header buttons — a "New file" shortcut, say. */
   headerActions?: ReactNode;
   /** Persist the collapsed state and the chosen density under this key. */
   collapseKey?: string;
@@ -180,8 +180,8 @@ export const RelationsSection = ({
   const shown = useMemo<RelationGroup[]>(() => groups.map((key) => RELATION_GROUPS[key]), [groups]);
   const assertable = useMemo(() => shown.filter((group) => group.assertable), [shown]);
 
-  // Uploading makes a document in this initiative, so it is offered only to
-  // somebody who has documents there and may make one — and only where a link
+  // Uploading makes a file in this initiative, so it is offered only to
+  // somebody who has files there and may make one — and only where a link
   // may be made at all. Unknown until the initiative loads, which reads as no.
   const canAdd = canEdit && assertable.length > 0;
   const { maxUploadBytes } = useAppConfig();
@@ -189,9 +189,7 @@ export const RelationsSection = ({
   const initiative = initiativesQuery.data?.find((item) => item.id === initiativeId);
   const canUpload =
     canAdd &&
-    Boolean(
-      initiative?.can.view.includes(Tool.document) && initiative.can.create.includes(Tool.document)
-    );
+    Boolean(initiative?.can.view.includes(Tool.file) && initiative.can.create.includes(Tool.file));
 
   const { data: rows = [], isLoading, isError } = useRelationshipsFor(entity);
   // Only walked while the picture is the thing on screen: a second hop is a
@@ -221,7 +219,7 @@ export const RelationsSection = ({
       const [first] = files;
       if (first) openDialog(first);
     },
-    { accept: DOCUMENT_UPLOAD_ACCEPT, maxBytes: maxUploadBytes }
+    { accept: FILE_UPLOAD_ACCEPT, maxBytes: maxUploadBytes }
   );
 
   const unrelate = useUnrelate(anchorTool, {

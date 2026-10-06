@@ -75,7 +75,7 @@
       "type": "image/png",
       "sizes": "2545x1271",
       "form_factor": "wide",
-      "label": "Project view with documents and task board"
+      "label": "Project view with files and task board"
     },
     {
       "src": "./screenshots/mobile-project.png",

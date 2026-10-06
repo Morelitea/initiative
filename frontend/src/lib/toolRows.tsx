@@ -17,7 +17,7 @@ import type {
   CalendarListResponse,
   CounterGroupListResponse,
   DashboardListResponse,
-  DocumentListResponse,
+  FileListResponse,
   GalleryListResponse,
   PostListResponse,
   ProjectListResponse,
@@ -57,7 +57,7 @@ export interface ToolRow {
  */
 export const TOOL_HAS_DETAIL: Record<Tool, boolean> = {
   [Tool.project]: true,
-  [Tool.document]: true,
+  [Tool.file]: true,
   [Tool.queue]: false,
   [Tool.counter_group]: false,
   [Tool.calendar]: true,
@@ -80,7 +80,7 @@ export const TOOL_HAS_DETAIL: Record<Tool, boolean> = {
  */
 export type ToolResponses = {
   [Tool.project]: ProjectListResponse | undefined;
-  [Tool.document]: DocumentListResponse | undefined;
+  [Tool.file]: FileListResponse | undefined;
   [Tool.queue]: QueueListResponse | undefined;
   [Tool.counter_group]: CounterGroupListResponse | undefined;
   [Tool.calendar]: CalendarListResponse | undefined;
@@ -154,19 +154,17 @@ export function buildToolRows(
           ),
         };
       });
-    case Tool.document:
-      return (data[Tool.document]?.items ?? []).map((document) => ({
-        id: document.id,
-        communityId: document.community_id ?? fallbackCommunityId,
-        name: document.name,
-        href: href(document.id, document.initiative_id),
+    case Tool.file:
+      return (data[Tool.file]?.items ?? []).map((file) => ({
+        id: file.id,
+        communityId: file.community_id ?? fallbackCommunityId,
+        name: file.name,
+        href: href(file.id, file.initiative_id),
         glyph: null,
-        initiativeId: document.initiative_id,
-        tags: document.tags,
-        updatedAt: document.updated_at,
-        detail: (
-          <Badge variant="secondary">{t(`detail.documentType.${document.document_type}`)}</Badge>
-        ),
+        initiativeId: file.initiative_id,
+        tags: file.tags,
+        updatedAt: file.updated_at,
+        detail: <Badge variant="secondary">{t(`detail.fileType.${file.file_type}`)}</Badge>,
       }));
     case Tool.queue:
       return (data[Tool.queue]?.items ?? []).map((queue) => ({

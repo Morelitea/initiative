@@ -186,15 +186,15 @@ describe("notificationText — mentions", () => {
     expect(line).toContain("notifications.mentionComment");
   });
 
-  it("names and links the document whose body mentioned you", () => {
+  it("names and links the file whose body mentioned you", () => {
     const mention = notice("mention", {
-      entity_type: "document",
+      entity_type: "file",
       entity_id: 9,
       entity_name: "Flight plan",
     });
 
     expect(notificationText(mention, t)).toContain("Flight plan");
-    expect(notificationLink(mention)).toBe("/go/document/9");
+    expect(notificationLink(mention)).toBe("/go/file/9");
   });
 });
 

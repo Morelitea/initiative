@@ -246,9 +246,9 @@ CONTENT_HOLD = Guc("app.content_hold", Kind.BOOL, standing=True)
 #: Transaction-local flag marking a transaction as a purge.
 #:
 #: Purge is the one lifecycle step that writes frozen content rather than only
-#: removing it: a document being purged leaves wikilinks behind in the documents
+#: removing it: a file being purged leaves wikilinks behind in the files
 #: that pointed at it, and those are unresolved before the row goes — including
-#: in documents that are themselves in the trash, which would otherwise be
+#: in files that are themselves in the trash, which would otherwise be
 #: restored holding a link to nothing.
 #:
 #: Raised by ``hard_purge_entity`` with ``app.db.session.raise_flag``, so it

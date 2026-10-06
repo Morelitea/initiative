@@ -42,7 +42,7 @@ from app.models.platform.user import Presence
 from app.db.request_context import Unattributed
 
 #: How long a person's tabs go without a sign of them before they read as idle.
-#: Long enough to sit through reading a document, short enough that a tab left
+#: Long enough to sit through reading a file, short enough that a tab left
 #: open overnight does not claim someone is at it.
 IDLE_AFTER_SECONDS = 10 * 60
 

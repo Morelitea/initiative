@@ -30,9 +30,9 @@ from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import (
-    Document,
-    DocumentFileVersion,
+from app.models.tenant.file import (
+    File,
+    FileVersion,
 )
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
@@ -179,8 +179,8 @@ __all__ = [
     "ProjectOrder",
     "RecentView",
     "Comment",
-    "Document",
-    "DocumentFileVersion",
+    "File",
+    "FileVersion",
     "Notification",
     "OIDCClaimMapping",
     "Tag",

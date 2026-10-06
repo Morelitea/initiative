@@ -49,8 +49,8 @@ interface WikiPageActionsProps {
   page: WikiPageSummary;
   canWrite: boolean;
   initiativeId: number;
-  /** Takes a document back out of the wiki. Only a document row has one. */
-  onRemoveDocument?: () => void;
+  /** Takes a file back out of the wiki. Only a file row has one. */
+  onRemoveFile?: () => void;
 }
 
 /**
@@ -66,7 +66,7 @@ export const WikiPageActions = ({
   page,
   canWrite,
   initiativeId,
-  onRemoveDocument,
+  onRemoveFile,
 }: WikiPageActionsProps) => {
   const { t } = useTranslation(["wikis", "common"]);
   const gp = useCommunityPath();
@@ -103,21 +103,21 @@ export const WikiPageActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          {page.kind === WikiPageKind.document ? (
+          {page.kind === WikiPageKind.file ? (
             <>
               <DropdownMenuItem asChild>
-                <Link to={gp(toolDetailRoute(Tool.document, initiativeId, page.id))}>
+                <Link to={gp(toolDetailRoute(Tool.file, initiativeId, page.id))}>
                   <ExternalLink className="size-4" aria-hidden />
-                  {t("documents.openDocument")}
+                  {t("files.openFile")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive hover:text-destructive"
-                onSelect={() => onRemoveDocument?.()}
+                onSelect={() => onRemoveFile?.()}
               >
                 <Trash2 className="size-4" aria-hidden />
-                {t("documents.remove")}
+                {t("files.remove")}
               </DropdownMenuItem>
             </>
           ) : (

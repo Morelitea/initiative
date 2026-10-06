@@ -23,8 +23,8 @@ import { cn } from "@/lib/utils";
 
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
-import { DocumentsView } from "./initiativeTools/documents/DocumentsPage";
 import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
+import { FilesView } from "./initiativeTools/files/FilesPage";
 import { GalleriesView } from "./initiativeTools/galleries/GalleriesPage";
 import { PostsView } from "./initiativeTools/posts/PostsPage";
 import { ProjectsView } from "./initiativeTools/projects/ProjectsPage";
@@ -39,7 +39,7 @@ type ToolViewProps = { fixedInitiativeId: number; canCreate: boolean };
 // community home's tool rail.
 const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
   [Tool.project]: ProjectsView,
-  [Tool.document]: DocumentsView,
+  [Tool.file]: FilesView,
   [Tool.queue]: QueuesView,
   [Tool.counter_group]: CounterGroupsView,
   [Tool.calendar]: CalendarsView,
@@ -245,7 +245,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
               {/* A real link, so a tab is shareable and answers the back
                     button. `search={{}}` clears the page cursor: all six tabs
                     now share one search schema, so a ?page from the queue tab
-                    would otherwise follow the reader into documents. */}
+                    would otherwise follow the reader into files. */}
               <Link to={gp(toolListRoute(tabTool, initiative.id))} search={{}}>
                 {t(`detail.${toolCamelPlural(tabTool)}` as never)}
               </Link>

@@ -32,7 +32,7 @@
   "hidden": "Oculto",
   "unassigned": "Sin asignar",
   "tags": "Etiquetas",
-  "documents": "Documentos",
+  "files": "Archivos",
   "tasks": "Tareas",
   "round": "Ronda",
   "roundN": "Ronda {{count}}",

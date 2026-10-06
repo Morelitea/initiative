@@ -18,7 +18,7 @@ is there (``import_engine.mentions``). A reference to another thing —
 ``#task[Title](task:41)``, and the restore points it at whatever that became
 (``import_engine.references``).
 
-Out of scope (see plan): documents, attachments, project-role permissions,
+Out of scope (see plan): files, attachments, project-role permissions,
 favorites, recents, queues. Those would extend the schema under a future
 ``schema_version`` bump.
 """

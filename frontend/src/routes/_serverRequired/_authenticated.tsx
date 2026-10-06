@@ -268,7 +268,7 @@ function AppLayout() {
     <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
-      <CreateToolWizard tool={Tool.document} />
+      <CreateToolWizard tool={Tool.file} />
       {/* A real height rather than a minimum: `min-h-screen` leaves every
           descendant sizing to its own content, so a page cannot ask for the
           height of what it is in. Scrolling moves from the document into

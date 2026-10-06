@@ -70,6 +70,23 @@ MAX_ENTITY_ID = 2_147_483_647
 _ID_DIGITS = frozenset("0123456789")
 
 
+#: Kinds stored content still names by an older spelling. A body keeps what
+#: was written into it, Yjs state included, so these are read for as long as
+#: such content exists: a file was called a document before it was a file.
+_LEGACY_KINDS: dict[str, SearchEntityType] = {"document": SearchEntityType.file}
+
+
+def _kind(value: str) -> SearchEntityType | None:
+    """The kind a reference names, or None if nothing is called that."""
+    legacy = _LEGACY_KINDS.get(value)
+    if legacy is not None:
+        return legacy
+    try:
+        return SearchEntityType(value)
+    except ValueError:
+        return None
+
+
 def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
     """The thing a bare reference names, or ``None`` for a string that names none.
 
@@ -86,11 +103,8 @@ def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
     entity_id = int(raw_id)
     if entity_id > MAX_ENTITY_ID:
         return None
-    try:
-        entity_type = SearchEntityType(kind)
-    except ValueError:
-        return None
-    if not is_referenceable(entity_type):
+    entity_type = _kind(kind)
+    if entity_type is None or not is_referenceable(entity_type):
         return None
     return entity_type, entity_id
 
@@ -117,12 +131,12 @@ BLOCK_REFERENCE_NODES = frozenset({"reference-embed"})
 
 def reference_node_kind(node: dict[str, Any]) -> SearchEntityType | None:
     """The kind a reference node names. A chip spells it as the first half of
-    its ``task:status``; a legacy wikilink is a document by construction and
+    its ``task:status``; a legacy wikilink is a file by construction and
     carries none."""
     chip_kind = node.get("chipKind")
     if isinstance(chip_kind, str):
         return _kind(chip_kind.split(REF_SEPARATOR)[0])
-    return _kind(node.get("entityType", SearchEntityType.document.value))
+    return _kind(node.get("entityType", SearchEntityType.file.value))
 
 
 def text_node(text: str, fmt: int = 0) -> dict[str, Any]:
@@ -162,17 +176,9 @@ def reference_as_text(node: dict[str, Any]) -> dict[str, Any]:
 #: writes it — see :func:`kind_for_trigger`.
 TEXT_REFERENCE = re.compile(r"#([\w-]+)\[([^\]]*)\]\((\d+)\)")
 
-#: What the composer wrote for a document before the trigger words were
+#: What the composer wrote for a file before the trigger words were
 #: derived from the kinds, and what stored comments still say.
-_LEGACY_TRIGGERS: dict[str, SearchEntityType] = {"doc": SearchEntityType.document}
-
-
-def _kind(value: str) -> SearchEntityType | None:
-    """The kind a reference names, or None if nothing is called that."""
-    try:
-        return SearchEntityType(value)
-    except ValueError:
-        return None
+_LEGACY_TRIGGERS: dict[str, SearchEntityType] = {"doc": SearchEntityType.file}
 
 
 def kind_for_trigger(word: str) -> SearchEntityType | None:
@@ -230,19 +236,19 @@ def references_in_text(content: str | None) -> set[tuple[SearchEntityType, int]]
 
 
 def unresolve_missing_wikilinks(
-    content: dict[str, Any], live_document_ids: set[int]
+    content: dict[str, Any], live_file_ids: set[int]
 ) -> bool:
-    """Blank the target of every ``[[ ]]`` pointing at a document that is gone.
+    """Blank the target of every ``[[ ]]`` pointing at a file that is gone.
 
     The node stays and renders as unresolved, which is what the editor shows for
     a link whose target was never picked. Returns whether anything changed.
     """
-    return _blank_wikilinks(content, lambda doc_id: doc_id not in live_document_ids)
+    return _blank_wikilinks(content, lambda doc_id: doc_id not in live_file_ids)
 
 
-def unresolve_wikilinks_to(content: dict[str, Any], document_id: int) -> bool:
-    """:func:`unresolve_missing_wikilinks` for one document that is going away."""
-    return _blank_wikilinks(content, lambda doc_id: doc_id == document_id)
+def unresolve_wikilinks_to(content: dict[str, Any], file_id: int) -> bool:
+    """:func:`unresolve_missing_wikilinks` for one file that is going away."""
+    return _blank_wikilinks(content, lambda doc_id: doc_id == file_id)
 
 
 def _blank_wikilinks(

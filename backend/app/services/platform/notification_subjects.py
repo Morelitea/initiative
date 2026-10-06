@@ -1,6 +1,6 @@
 """What a notification line is about, read at the moment the line is read.
 
-A notification names the thing it is about — a task, a document, the post
+A notification names the thing it is about — a task, a file, the post
 somebody published — and the bell needs that thing's title to say anything
 useful. The row itself carries only the identifiers, so the titles are read
 here, from the community's own schema, through the same seam a

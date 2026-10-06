@@ -72,7 +72,7 @@ def _identifies_the_caller(meta: AuditEventMeta) -> bool:
     Two families need it: getting in, and reaching past the communities you
     belong to. For a sign-in, the address is most of what tells one from
     another; for privileged access, it is part of what the access is reviewed
-    against. Somebody making a document in their own community is not either
+    against. Somebody making a file in their own community is not either
     of those, and their line carries the request id alone.
     """
     return meta.category is AuditCategory.AUTHENTICATION or meta.tier == 1

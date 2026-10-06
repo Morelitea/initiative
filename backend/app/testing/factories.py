@@ -57,7 +57,7 @@ from app.models.tenant.guild_plugin_secret import GuildPluginSecret
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 from app.core.guild_auth_options import CommunityAuthOption
@@ -1055,7 +1055,7 @@ async def create_property_value(
 
     Args:
         session: Database session
-        entity: The row to attach the value to (a task, a document, a queue, …)
+        entity: The row to attach the value to (a task, a file, a queue, …)
         definition: PropertyDefinition the value references
         commit: Whether to commit the transaction (default True)
         **value_kwargs: Typed column values
@@ -1810,7 +1810,7 @@ async def create_calendar_event(
     return event
 
 
-async def create_document(
+async def create_file(
     session: AsyncSession,
     initiative: Initiative,
     creator: User,
@@ -1818,10 +1818,10 @@ async def create_document(
     name: str | None = None,
     commit: bool = True,
     **overrides: Any,
-) -> Document:
-    """Create a test document with sensible defaults.
+) -> File:
+    """Create a test file with sensible defaults.
 
-    Defaults to a ``native`` (editor) document with empty content and an
+    Defaults to a ``native`` (editor) file with empty content and an
     owner grant for ``creator``, mirroring the create endpoint's DAC setup.
     File overrides (``file_url``, …) make its first version, as an upload does,
     typed ``application/pdf`` unless one is given.
@@ -1831,12 +1831,12 @@ async def create_document(
     stored = _file_overrides(overrides)
     defaults = {
         "initiative_id": initiative.id,
-        "name": name or f"Test Document {datetime.now(timezone.utc).timestamp()}",
-        "document_type": DocumentType.native,
+        "name": name or f"Test File {datetime.now(timezone.utc).timestamp()}",
+        "file_type": FileType.native,
         "created_by": creator.id,
     }
-    document = Document(**{**defaults, **overrides})
-    session.add(document)
+    file = File(**{**defaults, **overrides})
+    session.add(file)
 
     # The owner grant is part of the factory's contract in BOTH modes; with
     # commit=False it is flushed (id available) but left uncommitted with the
@@ -1844,18 +1844,16 @@ async def create_document(
     await (session.commit() if commit else session.flush())
     if commit:
         # Every column, the deferred body included: tests read it off the row.
-        await session.refresh(document, [c.key for c in Document.__table__.columns])
+        await session.refresh(file, [c.key for c in File.__table__.columns])
     await create_resource_grant(
-        session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
+        session, file, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )
     if stored:
         stored.setdefault("file_content_type", "application/pdf")
-        await file_versions.add_version(
-            session, document, created_by=creator.id, **stored
-        )
+        await file_versions.add_version(session, file, created_by=creator.id, **stored)
         await (session.commit() if commit else session.flush())
 
-    return document
+    return file
 
 
 def _file_overrides(overrides: dict[str, Any]) -> dict[str, Any]:
@@ -1881,7 +1879,7 @@ async def create_comment(
     task: Task | None = None,
     wiki_page: WikiPage | None = None,
     wiki: Wiki | None = None,
-    document: Document | None = None,
+    file: File | None = None,
     project: Project | None = None,
     queue: Queue | None = None,
     counter_group: CounterGroup | None = None,
@@ -1899,7 +1897,7 @@ async def create_comment(
         "task": task,
         "wiki_page": wiki_page,
         Tool.project.value: project,
-        Tool.document.value: document,
+        Tool.file.value: file,
         Tool.queue.value: queue,
         Tool.counter_group.value: counter_group,
         Tool.calendar.value: calendar,
@@ -2428,7 +2426,7 @@ async def create_wiki_page(
 
 TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.project: create_project,
-    Tool.document: create_document,
+    Tool.file: create_file,
     Tool.queue: create_queue,
     Tool.counter_group: create_counter_group,
     Tool.calendar: create_calendar,

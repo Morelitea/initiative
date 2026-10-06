@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
-from app.testing import create_document, create_queue, create_task
+from app.testing import create_file, create_queue, create_task
 
 
 async def test_a_tool_that_could_not_be_archived_before_can_be_now(
@@ -33,16 +33,12 @@ async def test_archiving_twice_answers_with_the_stamp_it_has(
     """The second call is a repeat, not a conflict — an archived row is
     read-only, and this is the write that made it so."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
-    first = await client.post(
-        a.g(f"/archive/document/{document.id}"), headers=a.headers
-    )
+    first = await client.post(a.g(f"/archive/file/{file.id}"), headers=a.headers)
     assert first.status_code == 200
 
-    again = await client.post(
-        a.g(f"/archive/document/{document.id}"), headers=a.headers
-    )
+    again = await client.post(a.g(f"/archive/file/{file.id}"), headers=a.headers)
     assert again.status_code == 200
     assert again.json()["archived_at"] == first.json()["archived_at"]
 
@@ -51,11 +47,9 @@ async def test_unarchiving_something_live_is_a_repeat_too(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
-    response = await client.post(
-        a.g(f"/unarchive/document/{document.id}"), headers=a.headers
-    )
+    response = await client.post(a.g(f"/unarchive/file/{file.id}"), headers=a.headers)
 
     assert response.status_code == 200
     assert response.json()["archived_at"] is None

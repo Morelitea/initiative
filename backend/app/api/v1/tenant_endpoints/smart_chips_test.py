@@ -29,7 +29,7 @@ from app.testing import (
     create_counter,
     create_comment,
     create_counter_group,
-    create_document,
+    create_file,
     create_queue,
     create_queue_item,
     create_task,
@@ -38,7 +38,7 @@ from app.testing import (
     create_wiki,
     create_wiki_page,
 )
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 
 
 ActingUser = Callable[..., Awaitable[Actor]]
@@ -54,7 +54,7 @@ async def _status_of(session, task) -> TaskStatus:
 
 
 async def _move_to(session, task, project, category: TaskStatusCategory) -> None:
-    """Move a card, the way a person would — the document is not touched."""
+    """Move a card, the way a person would — the file is not touched."""
     status = await create_task_status(
         session, project, name=category.value.title(), category=category
     )
@@ -90,7 +90,7 @@ async def test_a_task_chip_shows_the_column_it_sits_in(
 async def test_moving_the_card_moves_the_chip(
     client, session, acting_user: ActingUser
 ) -> None:
-    """The document is not edited and the chip still changes — which is the
+    """The file is not edited and the chip still changes — which is the
     whole point of a chip over a mention."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
@@ -280,22 +280,22 @@ async def _embeds(client, actor: Actor, *refs: str) -> dict[str, dict]:
     return {item["ref"]: item for item in response.json()["items"]}
 
 
-async def test_an_embedded_text_document_shows_its_body(
+async def test_an_embedded_text_file_shows_its_body(
     client, session, acting_user: ActingUser
 ) -> None:
-    """Prose embeds as what it says; a document that is not prose, one with
+    """Prose embeds as what it says; a file that is not prose, one with
     nothing written in it, and a kind with no body at all embed as a name."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
-    written = await create_document(
+    written = await create_file(
         session, a.initiative, a.user, name="Lore", content=_prose("Here be dragons.")
     )
-    blank = await create_document(session, a.initiative, a.user, name="Blank")
-    sheet = await create_document(
+    blank = await create_file(session, a.initiative, a.user, name="Blank")
+    sheet = await create_file(
         session,
         a.initiative,
         a.user,
         name="Ledger",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={"cells": {"A1": "1"}},
     )
     task = await create_task(session, a.project, title="Roll call")
@@ -303,16 +303,16 @@ async def test_an_embedded_text_document_shows_its_body(
     body = await _embeds(
         client,
         a,
-        f"document:{written.id}",
-        f"document:{blank.id}",
-        f"document:{sheet.id}",
+        f"file:{written.id}",
+        f"file:{blank.id}",
+        f"file:{sheet.id}",
         f"task:{task.id}",
     )
-    assert body[f"document:{written.id}"]["title"] == "Lore"
-    assert body[f"document:{written.id}"]["body"] == _prose("Here be dragons.")
-    assert body[f"document:{blank.id}"]["body"] is None
-    assert body[f"document:{sheet.id}"]["title"] == "Ledger"
-    assert body[f"document:{sheet.id}"]["body"] is None
+    assert body[f"file:{written.id}"]["title"] == "Lore"
+    assert body[f"file:{written.id}"]["body"] == _prose("Here be dragons.")
+    assert body[f"file:{blank.id}"]["body"] is None
+    assert body[f"file:{sheet.id}"]["title"] == "Ledger"
+    assert body[f"file:{sheet.id}"]["body"] is None
     assert body[f"task:{task.id}"]["body"] is None
 
 
@@ -500,7 +500,7 @@ async def test_a_reference_naming_nothing_is_simply_absent(
     client, session, acting_user: ActingUser
 ) -> None:
     """A build that stopped offering a chip leaves references behind in
-    documents; they read as nothing rather than as an error."""
+    files; they read as nothing rather than as an error."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
 
@@ -509,7 +509,7 @@ async def test_a_reference_naming_nothing_is_simply_absent(
         a,
         f"task:{task.id}:status",
         "task:999999:status",
-        "document:1:status",
+        "file:1:status",
         "not-a-ref",
         "task:abc:status",
     )
@@ -519,7 +519,7 @@ async def test_a_reference_naming_nothing_is_simply_absent(
 async def test_a_chip_reads_nothing_the_caller_could_not_open(
     client, session, acting_user: ActingUser
 ) -> None:
-    """The reference is in a document, which anyone in the initiative may read.
+    """The reference is in a file, which anyone in the initiative may read.
     What it points at is gated separately, and this is that gate."""
     owner = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True

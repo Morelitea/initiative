@@ -55,8 +55,8 @@ _SAFE_WRITES = {
     # Every tool an initiative holds: author it and edit it.
     "create_project",
     "update_project",
-    "create_document",
-    "update_document",
+    "create_file",
+    "update_file",
     "create_queue",
     "update_queue",
     "create_counter_group",
@@ -163,7 +163,7 @@ async def test_the_tool_reads_stop_short_of_these():
     """
     names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
 
-    # Bytes rather than an answer: a document, one of its versions, a calendar
+    # Bytes rather than an answer: a file, one of its versions, a calendar
     # file. None is something a tool result carries usefully.
     assert not [n for n in names if "download" in n or "export" in n]
     # People rather than work: who voted which way, who has read a notice.

@@ -90,7 +90,7 @@ class EnvelopeImporter(Protocol):
 
     def count(self, validated: BaseModel) -> int:
         """Cheap in-memory row proxy for the inline-vs-job split and the
-        hard ceiling (len(tasks), len(items), … — 1 for a lone document)."""
+        hard ceiling (len(tasks), len(items), … — 1 for a lone file)."""
         ...
 
     def people(self, validated: BaseModel) -> list["ManifestPerson"]:

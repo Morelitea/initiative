@@ -318,7 +318,7 @@ export const InitiativeSettingsRolesTab = ({
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* One list of every tool the initiative uses. Projects and
-                      documents used to sit above a section headed "Tools",
+                      files used to sit above a section headed "Tools",
                       which taught a split the app no longer has — they are
                       tools like the other six. */}
                   {tools.on.map((tool) => (

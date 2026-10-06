@@ -56,43 +56,43 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
   return resolved;
 }
 
-/** A document's own API path, inside its community. */
-const documentApiPath = (communityId: number, documentId: number): string =>
-  `/api/v1/c/${communityId}/${toolRouteSegment(Tool.document)}/${documentId}`;
+/** A file's own API path, inside its community. */
+const fileApiPath = (communityId: number, fileId: number): string =>
+  `/api/v1/c/${communityId}/${toolRouteSegment(Tool.file)}/${fileId}`;
 
 /**
- * Resolve a document ID to its authorized download URL (current version).
+ * Resolve a file ID to its authorized download URL (current version).
  *
  * The download is community-scoped (``/c/{communityId}/…``): served via iframe/
  * window.open, which can't send headers, so the community rides in the path.
  */
-export function resolveDocumentDownloadUrl(
-  documentId: number,
+export function resolveFileDownloadUrl(
+  fileId: number,
   communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !communityId) {
+  if (!fileId || !communityId) {
     return null;
   }
-  const base = `${documentApiPath(communityId, documentId)}/download`;
+  const base = `${fileApiPath(communityId, fileId)}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
 /**
  * Resolve the authorized download URL for a specific stored version of a file
- * document. Shares the native-platform auth handling with
- * {@link resolveDocumentDownloadUrl}.
+ * file. Shares the native-platform auth handling with
+ * {@link resolveFileDownloadUrl}.
  */
-export function resolveDocumentVersionDownloadUrl(
-  documentId: number,
+export function resolveFileVersionDownloadUrl(
+  fileId: number,
   versionId: number,
   communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !versionId || !communityId) {
+  if (!fileId || !versionId || !communityId) {
     return null;
   }
-  const base = `${documentApiPath(communityId, documentId)}/versions/${versionId}/download`;
+  const base = `${fileApiPath(communityId, fileId)}/versions/${versionId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 

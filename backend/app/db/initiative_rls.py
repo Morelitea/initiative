@@ -1320,8 +1320,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_filter_presets": via("projects", "project_id"),
-    # One hop -> documents
-    "document_file_versions": via("documents", "document_id"),
+    # One hop -> files
+    "file_versions": via("files", "file_id"),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
     # One hop -> counter_groups
@@ -1516,7 +1516,7 @@ class ReportsAs:
     """Report a table's changes as an update to a DIFFERENT resource.
 
     Some tables have an id of their own without being something a subscriber
-    fetches on its own: a project's statuses, a document's version history, an
+    fetches on its own: a project's statuses, a file's version history, an
     initiative's roles, a resource's sharing. Each is a facet of the thing it
     belongs to, and saying so is what keeps every event's id resolvable — the
     parent already has a detail route, so adding one of these owes no new API
@@ -1572,7 +1572,7 @@ def grants_report_on_their_resource() -> ReportsAs:
     """A grant is sharing ON something — report it against that something.
 
     ``resource_type`` holds the Tool value and ``resource_id`` its id, so the
-    event lands on the project (or document, queue, …) whose access changed.
+    event lands on the project (or file, queue, …) whose access changed.
     That is both what a subscriber wants to hear and already resolvable, where
     the grant row's own id resolves nowhere.
 
@@ -1878,9 +1878,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "project_filter_presets": Emit(
         reports_as=reports_as("projects", "project_id", "filter_presets")
     ),
-    "document_file_versions": Emit(
-        reports_as=reports_as("documents", "document_id", "versions")
-    ),
+    "file_versions": Emit(reports_as=reports_as("files", "file_id", "versions")),
     # A picture is read through its gallery rather than at an address of its
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.

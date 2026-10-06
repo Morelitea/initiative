@@ -138,9 +138,9 @@ def project_load_options(*, slim: bool = False) -> list:
     """Eager loads for a page of projects.
 
     The full set serializes a whole ``ProjectRead`` (owner, nested initiative,
-    linked documents with their DAC, tags, grants). The slim one carries only
+    linked files with their DAC, tags, grants). The slim one carries only
     what the level and the owner need — the grants and the level itself —
-    since the slim projection drops the owner, documents, tags and the
+    since the slim projection drops the owner, files, tags and the
     initiative.
     """
     if slim:
@@ -172,7 +172,7 @@ def visible_project_conditions(
     are the shared set (:func:`tool_listing.base_conditions`). An archived
     project shows only when asked for, as on every tool list; ``is_template``
     narrows to templates or to the rest, and unset leaves both, as it does for
-    documents.
+    files.
     """
     conditions = tool_listing.base_conditions(
         Tool.project,
@@ -234,7 +234,7 @@ def _slim_project_reads(
 
     Carries only ``{id, name, icon, initiative_id, can}`` plus
     the cheap scalar flags and who owns it (``owner_id``, or ``owner_plugin`` as
-    the caller annotated it); documents/grants/tags/the owner's profile/nested
+    the caller annotated it); files/grants/tags/the owner's profile/nested
     initiative are left at their defaults so no heavy relationship is
     serialized. ``description`` is dropped too (it would run rich-text
     sanitization for no picker benefit).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { FileType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   activeMention,
   entityMentionSyntax,
@@ -28,7 +28,9 @@ describe("what can be mentioned", () => {
   });
 
   it("still reads the shorthand already sitting in stored comments", () => {
-    expect(typeForTrigger("doc")).toBe(SearchEntityType.document);
+    expect(typeForTrigger("doc")).toBe(SearchEntityType.file);
+    // `#document[..](N)`: the kind's spelling before files were called files.
+    expect(typeForTrigger("document")).toBe(SearchEntityType.file);
   });
 
   // A name is what a mention points at, so it does not also spell one. The
@@ -94,14 +96,14 @@ describe("what gets written into the comment", () => {
 
 describe("where # is offered", () => {
   it("is a standard document and nothing else", () => {
-    expect(supportsEntityMentions(DocumentType.native)).toBe(true);
-    for (const type of Object.values(DocumentType)) {
-      if (type === DocumentType.native) continue;
+    expect(supportsEntityMentions(FileType.native)).toBe(true);
+    for (const type of Object.values(FileType)) {
+      if (type === FileType.native) continue;
       expect(supportsEntityMentions(type)).toBe(false);
     }
   });
 
-  it("is off while the document type is still unknown", () => {
+  it("is off while the file type is still unknown", () => {
     expect(supportsEntityMentions(null)).toBe(false);
     expect(supportsEntityMentions(undefined)).toBe(false);
   });

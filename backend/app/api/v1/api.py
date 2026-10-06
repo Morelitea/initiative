@@ -10,7 +10,7 @@ from app.core.tools import Tool
 # this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
 #   platform_endpoints/  — public-schema tables (auth, users, guilds, settings,
 #                          …); not tied to a single guild.
-#   tenant_endpoints/    — per-guild-schema tables (projects, tasks, documents,
+#   tenant_endpoints/    — per-guild-schema tables (projects, tasks, files,
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
@@ -32,7 +32,7 @@ from app.api.v1.tenant_endpoints import (
     collaboration,
     comments,
     counters,
-    documents,
+    files,
     events,
     exports,
     imports,
@@ -295,7 +295,7 @@ guild_router.include_router(
 guild_router.include_router(
     initiatives.router, prefix="/initiatives", tags=["initiatives"]
 )
-guild_router.include_router(documents.router, **_tool_mount(Tool.document))
+guild_router.include_router(files.router, **_tool_mount(Tool.file))
 guild_router.include_router(
     attachments.router, prefix="/attachments", tags=["attachments"]
 )

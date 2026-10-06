@@ -63,7 +63,8 @@ class GalleryCover(SanitizedBaseModel):
 class GallerySummary(GalleryBase, ToolSummaryBase):
     #: The chosen cover, or ``null`` where none was chosen. ``cover`` is that
     #: picture; ``preview`` is the newest few, which is what a list draws —
-    #: as a small grid — for a gallery nobody chose a cover for.
+    #: as a small grid — for a gallery nobody chose a cover for. Only a list
+    #: asked for ``include_preview`` carries it.
     cover_image_id: Optional[int] = None
     cover: Optional[GalleryCover] = None
     preview: List[GalleryCover] = Field(default_factory=list)
@@ -73,13 +74,7 @@ class GallerySummary(GalleryBase, ToolSummaryBase):
     def derived_fields(
         cls, row: Any, *, context: ActorContext, user_id: Optional[int]
     ) -> dict[str, Any]:
-        # Stamped by the service; a row that was never annotated shows its
-        # chosen cover alone and no preview.
-        previews = (gallery_cover(image) for image in getattr(row, "_preview", []))
-        return {
-            "cover": gallery_cover(getattr(row, "_cover", None) or row.cover_image),
-            "preview": [cover for cover in previews if cover is not None],
-        }
+        return {"cover": gallery_cover(row.cover_image)}
 
 
 class GalleryRead(GallerySummary):

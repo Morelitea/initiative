@@ -79,7 +79,7 @@ describe("a document written before references were one thing", () => {
       {
         type: "entity-mention",
         text: "Roadmap",
-        entityType: SearchEntityType.document,
+        entityType: SearchEntityType.file,
         entityId: 12,
       },
     ]);

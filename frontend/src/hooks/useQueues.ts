@@ -575,13 +575,13 @@ export const useReleaseHeld = (
  *
  * This was two hooks, one per kind, and the dialog that called them worked out
  * whether each list had changed by comparing it to the old one **position by
- * position** — so reordering the same documents counted as a change and swapping
+ * position** — so reordering the same files counted as a change and swapping
  * two of them did not.
  *
  * One slice of links is replaced per kind, which is the shape the endpoint is
  * built for. A kind is written only when its set of ids actually differs, and a
  * kind that has lost all its links is written as an empty set rather than
- * skipped — otherwise removing the last document of a kind would not stick.
+ * skipped — otherwise removing the last file of a kind would not stick.
  */
 interface QueueItemLinks {
   itemId: number;

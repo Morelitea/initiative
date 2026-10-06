@@ -167,7 +167,7 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
  * definitions. The panel behind the Properties tab of an initiative's
  * settings, which is its own route (``/settings/properties``). Pairs with
  * ``PropertyFilter``/``PropertyList``/``PropertyInput`` which render
- * individual values on documents and tasks.
+ * individual values on files and tasks.
  */
 export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId: number }) => {
   const { t } = useTranslation(["properties", "common"]);

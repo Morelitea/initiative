@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
+- **Documents are now called Files.** Text documents, whiteboards, spreadsheets, links and uploads live in the Files tool, and the API says so: `/api/v1/c/{community_id}/files/…`, `file_id`, `file_type` and `files_enabled`, webhook events `files.*`, plug-in scopes `files:read` and `files:write`, and the export type `initiative-file`. Upgrading moves what is already stored, including plug-in grants, webhook subscriptions and the SQL in dashboards. A plug-in manifest that still asks for `documents:read` or `documents:write` is refused until it is republished with plug-in kit 3.0.0. Links to the old `/documents/…` pages and `/go/document/…` no longer open, and saved list layouts for the tool start fresh. Backups made before the rename still restore.
 - **Queue API.** A queue reports `current_item_id` instead of the whole `current_item`, and queue items no longer carry `tasks` (read an item's links from the relationships API). Queue item routes sit under the `queues` tag, so an agent can read a queue item back. Plug-ins with a queue's or counter group's write scope can now add its items and counters, edit counters, reset all counters and sort them.
 - **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do. The API drops what nothing read: document list `projects`, `yjs_updated_at`, `sort_by`/`sort_dir` and the `ids` filter, and the attached-document fields on queue items and calendar events (link them as relationships).
 - **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
@@ -75,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An imported dashboard keeps its tags**, as other tools do.
 - **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
 - **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.
 - **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.

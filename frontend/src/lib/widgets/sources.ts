@@ -3,8 +3,8 @@
  *
  * Three, and they are not variations on a theme. A **query** is a statement
  * over this community's datasets. A **sheet_range** is a cell range in a
- * spreadsheet document; it answers with the same columns and rows a statement
- * does, and becomes a statement itself once documents are queryable. A **plug-in**
+ * spreadsheet file; it answers with the same columns and rows a statement
+ * does, and becomes a statement itself once files are queryable. A **plug-in**
  * is an installed listing's own endpoint, whose parameters are declared in its
  * manifest and checked at fetch time — the two slots here are the ones a
  * *definition* fills: which plug-in, and which of its sources.
@@ -26,7 +26,7 @@ import type { WidgetSource } from "@/lib/widgets/dataShapes";
 /** An entity a binding can point at. The kind decides which of the canvas's
  *  already-cached list queries resolves it to a name — never a fetch of its
  *  own, so a dense canvas costs no extra requests. */
-export type EntityKind = "document";
+export type EntityKind = "file";
 
 interface BaseParam {
   /** The binding key this parameter reads and writes. */
@@ -75,7 +75,7 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
   sheet_range: {
     rowNoun: "row",
     params: [
-      { kind: "entity", key: "document_id", entity: "document", required: true },
+      { kind: "entity", key: "file_id", entity: "file", required: true },
       { kind: "text", key: "sheet" },
       { kind: "text", key: "range", required: true, placeholder: "A1:B10" },
     ],

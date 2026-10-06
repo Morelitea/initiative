@@ -21,14 +21,14 @@ import type {
   CalendarListResponse,
   CounterGroupListResponse,
   DashboardListResponse,
-  DocumentListResponse,
+  FileListResponse,
   GalleryListResponse,
   GetMyToolCountsParams,
   HTTPValidationError,
   ListMyCalendarsParams,
   ListMyCounterGroupsParams,
   ListMyDashboardsParams,
-  ListMyDocumentsParams,
+  ListMyFilesParams,
   ListMyGalleriesParams,
   ListMyPostsParams,
   ListMyProjectsParams,
@@ -309,66 +309,66 @@ export function useListMyProjects<
 }
 
 /**
- * Documents that reach the current user across every guild they belong to.
+ * Files that reach the current user across every guild they belong to.
  *
  * An optional ``guild_ids`` filter narrows to a subset of guilds, and
  * ``created_by_me`` to the ones the caller wrote.
- * @summary List My Documents
+ * @summary List My Files
  */
-export const listMyDocuments = (
-  params?: ListMyDocumentsParams,
+export const listMyFiles = (
+  params?: ListMyFilesParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<DocumentListResponse>(
-    { url: `/api/v1/me/documents`, method: "GET", params, signal },
+  return apiMutator<FileListResponse>(
+    { url: `/api/v1/me/files`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListMyDocumentsQueryKey = (params?: ListMyDocumentsParams) => {
-  return [`/api/v1/me/documents`, ...(params ? [params] : [])] as const;
+export const getListMyFilesQueryKey = (params?: ListMyFilesParams) => {
+  return [`/api/v1/me/files`, ...(params ? [params] : [])] as const;
 };
 
-export const getListMyDocumentsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyDocuments>>,
+export const getListMyFilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyFiles>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyDocumentsParams,
+  params?: ListMyFilesParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDocuments>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyFiles>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListMyDocumentsQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListMyFilesQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyDocuments>>> = ({ signal }) =>
-    listMyDocuments(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyFiles>>> = ({ signal }) =>
+    listMyFiles(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyDocuments>>,
+    Awaited<ReturnType<typeof listMyFiles>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListMyDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyDocuments>>>;
-export type ListMyDocumentsQueryError = ErrorType<HTTPValidationError>;
+export type ListMyFilesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyFiles>>>;
+export type ListMyFilesQueryError = ErrorType<HTTPValidationError>;
 
-export function useListMyDocuments<
-  TData = Awaited<ReturnType<typeof listMyDocuments>>,
+export function useListMyFiles<
+  TData = Awaited<ReturnType<typeof listMyFiles>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListMyDocumentsParams,
+  params: undefined | ListMyFilesParams,
   options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDocuments>>, TError, TData>> &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyFiles>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDocuments>>,
+          Awaited<ReturnType<typeof listMyFiles>>,
           TError,
-          Awaited<ReturnType<typeof listMyDocuments>>
+          Awaited<ReturnType<typeof listMyFiles>>
         >,
         "initialData"
       >;
@@ -376,18 +376,18 @@ export function useListMyDocuments<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDocuments<
-  TData = Awaited<ReturnType<typeof listMyDocuments>>,
+export function useListMyFiles<
+  TData = Awaited<ReturnType<typeof listMyFiles>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyDocumentsParams,
+  params?: ListMyFilesParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDocuments>>, TError, TData>> &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyFiles>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDocuments>>,
+          Awaited<ReturnType<typeof listMyFiles>>,
           TError,
-          Awaited<ReturnType<typeof listMyDocuments>>
+          Awaited<ReturnType<typeof listMyFiles>>
         >,
         "initialData"
       >;
@@ -395,33 +395,33 @@ export function useListMyDocuments<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDocuments<
-  TData = Awaited<ReturnType<typeof listMyDocuments>>,
+export function useListMyFiles<
+  TData = Awaited<ReturnType<typeof listMyFiles>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyDocumentsParams,
+  params?: ListMyFilesParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDocuments>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyFiles>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List My Documents
+ * @summary List My Files
  */
 
-export function useListMyDocuments<
-  TData = Awaited<ReturnType<typeof listMyDocuments>>,
+export function useListMyFiles<
+  TData = Awaited<ReturnType<typeof listMyFiles>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyDocumentsParams,
+  params?: ListMyFilesParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDocuments>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyFiles>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyDocumentsQueryOptions(params, options);
+  const queryOptions = getListMyFilesQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

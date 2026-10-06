@@ -18,7 +18,7 @@ from app.testing.factories import (
     guild_administration,
     create_calendar_event,
     create_counter_group,
-    create_document,
+    create_file,
     create_import_job,
     create_initiative,
     create_queue,
@@ -84,6 +84,8 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
 
     envelope = await _export_json(client, a, "/exports/queue", {"ids": [queue.id]})
     assert envelope["type"] == "initiative-queue"
+    # A name listed again in another case is the same tag, attached once.
+    envelope["tags"].append("raid")
 
     target = await _second_initiative(session, a, queues_enabled=True)
     resp = await _import_envelope(client, a, envelope, target.id)
@@ -170,40 +172,40 @@ async def test_envelope_import_roundtrips_counter_group(client, acting_user, ses
     assert [tag.name for tag in annotated_tags(imported)] == ["Loot"]
 
 
-async def test_envelope_import_roundtrips_document_types(client, acting_user, session):
+async def test_envelope_import_roundtrips_file_types(client, acting_user, session):
     """Native, spreadsheet, smart link, and whiteboard envelopes import with
     their content models restored (whiteboard unwrapped from the Excalidraw
     file shape, spreadsheet re-normalized)."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
 
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     target = await _second_initiative(session, a)
 
-    native = await create_document(
+    native = await create_file(
         session,
         a.initiative,
         a.user,
         name="Notes",
         content={"root": {"type": "root", "children": []}},
     )
-    board = await create_document(
+    board = await create_file(
         session,
         a.initiative,
         a.user,
         name="Map",
-        document_type=DocumentType.whiteboard,
+        file_type=FileType.whiteboard,
         content={"elements": [{"type": "rectangle"}], "appState": {}, "files": {}},
     )
-    link = await create_document(
+    link = await create_file(
         session,
         a.initiative,
         a.user,
         name="Spec",
-        document_type=DocumentType.smart_link,
+        file_type=FileType.smart_link,
         content={"url": "https://example.com/spec"},
     )
 
@@ -212,15 +214,15 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         (board, "whiteboard"),
         (link, "smart_link"),
     ):
-        envelope = await _export_json(client, a, "/exports/document", {"ids": [doc.id]})
+        envelope = await _export_json(client, a, "/exports/file", {"ids": [doc.id]})
         resp = await _import_envelope(client, a, envelope, target.id)
         assert resp.status_code == 201, (doc_type, resp.text)
 
     imported = list(
         await session.exec(
-            select(Document)
-            .where(Document.initiative_id == target.id)
-            .options(undefer(Document.content))
+            select(File)
+            .where(File.initiative_id == target.id)
+            .options(undefer(File.content))
         )
     )
     by_name = {d.name: d for d in imported}
@@ -363,12 +365,13 @@ async def _tool_with_a_row(session, a, tool):
         "post",
     ],
 )
-async def test_a_tools_properties_survive_export_and_import(
+async def test_a_tools_tags_and_properties_survive_export_and_import(
     client, acting_user, session, monkeypatch, tmp_path, tool
 ):
-    """A value on the tool row and one on a row inside it come back on the
-    rows the import makes: matched by name into the target initiative, and a
-    person value placed on the member its handle names."""
+    """The tool row's tag comes back on the row the import makes, and so do a
+    value on the tool row and one on a row inside it: matched by name into the
+    target initiative, and a person value placed on the member its handle
+    names."""
     from sqlmodel import select
 
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
@@ -391,9 +394,18 @@ async def test_a_tools_properties_survive_export_and_import(
         session, a.initiative, name="Owner", type=PropertyType.user_reference
     )
     row, inner = await _tool_with_a_row(session, a, tool)
+    await assign_tag(session, row, await create_tag(session, a.guild, name="Flagship"))
     await create_property_value(session, row, stage, value_text="Draft")
+    # A row inside the tool keeps its own tag too, where its kind takes tags.
+    inner_tagged = inner is not None and any(
+        spec.entity is type(inner) for spec in tags_service.TAG_LINKS.values()
+    )
     if inner is not None:
         await create_property_value(session, inner, owner, value_user_id=a.user.id)
+    if inner_tagged:
+        await assign_tag(
+            session, inner, await create_tag(session, a.guild, name="Inner")
+        )
 
     exported = await client.get(
         a.g(f"/exports/{tool}"),
@@ -430,6 +442,8 @@ async def test_a_tools_properties_survive_export_and_import(
             select(spec.model).where(spec.model.initiative_id == target.id)
         )
     ).one()
+    await tags_service.annotate_tags(session, [restored])
+    assert [tag.name for tag in annotated_tags(restored)] == ["Flagship"]
     assert await values(tool, restored.id) == [("Stage", target.id, "Draft", None)]
     if inner is not None:
         inner_spec = link_for(inner)
@@ -443,6 +457,9 @@ async def test_a_tools_properties_survive_export_and_import(
         assert await values(inner_spec.target, restored_inner.id) == [
             ("Owner", target.id, None, a.user.id)
         ]
+        if inner_tagged:
+            await tags_service.annotate_tags(session, [restored_inner])
+            assert [tag.name for tag in annotated_tags(restored_inner)] == ["Inner"]
 
 
 async def test_a_renamed_property_is_one_definition_for_every_row(
@@ -556,9 +573,9 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     doc_envelope = {
-        "type": "initiative-document",
+        "type": "initiative-file",
         "schema_version": 1,
-        "document_type": "smart_link",
+        "file_type": "smart_link",
         "name": "Doc",
         "content": {"url": "https://example.com"},
         "tags": [],
@@ -584,7 +601,7 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
         a.initiative.id,
     )
     assert not_a_link.status_code == 400
-    assert not_a_link.json()["detail"] == "DOCUMENT_SMART_LINK_URL_INVALID"
+    assert not_a_link.json()["detail"] == "FILE_SMART_LINK_URL_INVALID"
 
     queue_envelope = {
         "type": "initiative-queue",
@@ -599,7 +616,7 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
     assert disabled.status_code == 400
     assert disabled.json()["detail"] == "IMPORT_TOOL_DISABLED"
 
-    # A plain member-role actor lacks create_documents (defaults False).
+    # A plain member-role actor lacks create_files (defaults False).
     b = await acting_user(
         guild_role=CommunityRole.member,
         guild=a.guild,
@@ -907,7 +924,7 @@ def _minimal_manifest(initiative_id=1, name="Restored", entries=None, assets=Non
                 "color": "#aabbcc",
                 "tools": {
                     "project": "included",
-                    "document": "included",
+                    "file": "included",
                     "queue": "included",
                     "counter_group": "disabled",
                     "calendar_event": "included",
@@ -943,10 +960,10 @@ def _queue_entry(initiative_id=1):
 
 
 def _file_entry(key, *, entity_id=1, title="Handout", tags=()):
-    """A manifest entry for a file document whose blob is ``assets/<key>``."""
+    """A manifest entry for an uploaded file whose blob is ``assets/<key>``."""
     return {
         "path": f"assets/{key}",
-        "tool": "document",
+        "tool": "file",
         "type": "file",
         "schema_version": None,
         "entity_id": entity_id,
@@ -1013,11 +1030,11 @@ async def test_backup_import_end_to_end_with_assets(
 ):
     """Upload → plan → confirm → worker apply: a new initiative appears with
     the manifest's tool switches and the importer as manager; entries apply
-    through the per-type importers; the file document's blob is restored
+    through the per-type importers; the uploaded file's blob is restored
     (deduped here — same guild, key already exists) and quota-checked."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.initiative import Initiative, InitiativeMember
     from app.models.tenant.queue import Queue
 
@@ -1050,7 +1067,7 @@ async def test_backup_import_end_to_end_with_assets(
                 "restore-me.pdf",
                 size_bytes=len(payload),
                 original_filename="Handout.pdf",
-                referenced_by=["initiatives/1-restored/documents/2-handout"],
+                referenced_by=["initiatives/1-restored/files/2-handout"],
             )
         ],
     )
@@ -1070,7 +1087,7 @@ async def test_backup_import_end_to_end_with_assets(
     plan = body["plan"]
     assert plan["source_community_name"] == "Source Guild"
     assert plan["initiatives"][0]["proposed_name"] == "Restored"
-    assert plan["initiatives"][0]["entry_counts"] == {"queue": 1, "document": 1}
+    assert plan["initiatives"][0]["entry_counts"] == {"queue": 1, "file": 1}
     assert plan["asset_count"] == 1
     assert plan["asset_bytes"] == len(payload)
 
@@ -1086,7 +1103,7 @@ async def test_backup_import_end_to_end_with_assets(
     assert job["status"] == ImportJobStatus.done.value, job.get("error")
     result = job["result"]
     assert result["per_tool"]["queue"]["created"] == 1
-    assert result["per_tool"]["document"]["created"] == 1
+    assert result["per_tool"]["file"]["created"] == 1
     # Same guild: the storage key already existed, so the blob deduped.
     assert result["assets_deduped"] == 1
     assert result["assets_restored"] == 0
@@ -1112,14 +1129,14 @@ async def test_backup_import_end_to_end_with_assets(
     assert queue.name == "Restored Queue"
     file_doc = (
         await session.exec(
-            select(Document).where(
-                Document.initiative_id == restored.id,
-                Document.document_type == DocumentType.file,
+            select(File).where(
+                File.initiative_id == restored.id,
+                File.file_type == FileType.file,
             )
         )
     ).one()
     assert file_doc.name == "Handout"
-    # The restored file is the document's version 1, typed from its bytes.
+    # The restored file is the file's version 1, typed from its bytes.
     version = file_doc.current_version
     assert version is not None and version.version_number == 1
     assert version.file_url.endswith("/restore-me.pdf")
@@ -1261,7 +1278,7 @@ def test_reject_non_flat_asset_keys_unit():
     def _file_entry(asset_ref):
         return ManifestEntry(
             path=asset_ref,
-            tool="document",
+            tool="file",
             type="file",
             entity_id=1,
             title="f",
@@ -1311,6 +1328,57 @@ async def test_backup_confirm_include_map_skips_tools(
     assert job["status"] == ImportJobStatus.done.value, job.get("error")
     assert job["result"]["per_tool"]["queue"]["skipped"] == 1
     assert job["result"]["per_tool"]["queue"]["created"] == 0
+
+
+async def test_an_archive_from_before_files_restores_its_documents(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An archive written while files were documents names them that way: the
+    manifest's tool and switch, the envelope type and the key holding the
+    file's type. A restore reads each as the file it is."""
+    from sqlmodel import select
+
+    from app.models.tenant.file import File, FileType
+
+    a = await acting_user(
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
+    )
+    envelope = {
+        "type": "initiative-document",
+        "schema_version": 1,
+        "document_type": "smart_link",
+        "name": "Old link",
+        "content": {"url": "https://example.com"},
+        "tags": [],
+        "properties": [],
+    }
+    entry = {
+        "path": "initiatives/1-restored/documents/1-old-link.json",
+        "tool": "document",
+        "type": "initiative-document",
+        "schema_version": 1,
+        "entity_id": 1,
+        "title": "Old link",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    manifest = _minimal_manifest(entries=[entry])
+    manifest["initiatives"][0]["tools"] = {"document": "included"}
+    job = await _apply_backup(
+        client,
+        a,
+        _make_backup_zip(manifest, {entry["path"]: json.dumps(envelope).encode()}),
+        monkeypatch,
+        role_session,
+    )
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["per_tool"]["file"]["created"] == 1
+
+    await route_session_to_guild(session, a.guild.id)
+    restored = (await session.exec(select(File).where(File.name == "Old link"))).one()
+    assert restored.file_type == FileType.smart_link
 
 
 async def test_backup_corrupt_entry_fails_alone(
@@ -1475,8 +1543,7 @@ async def test_backup_restores_fresh_assets_into_storage(
     client, acting_user, session, monkeypatch, role_session
 ):
     """A cross-guild restore: the storage key doesn't exist here, so the blob
-    is written into guild storage, an uploads row is registered, and the file
-    document serves from the restored key."""
+    is written into guild storage, an uploads row is registered, and the uploaded file serves from the restored key."""
     from pathlib import Path
 
     from sqlmodel import select
@@ -1639,7 +1706,7 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     reported, and the entry that needed it skipped."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.upload import Upload
     from app.testing import route_session_to_guild
 
@@ -1706,11 +1773,11 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     ).one()
     assert upload.content_type == "application/pdf"
     sheet = await session.get(
-        Document,
+        File,
         entries["Table"]["detail"]["entity_id"],
-        options=[undefer(Document.content)],
+        options=[undefer(File.content)],
     )
-    assert sheet.document_type == DocumentType.spreadsheet
+    assert sheet.file_type == FileType.spreadsheet
     assert sheet.content["sheets"][0]["cells"]
 
 
@@ -2003,22 +2070,22 @@ async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, ses
 # ---------------------------------------------------------------------------
 
 
-async def test_backup_attach_to_files_a_document_in_its_wiki(
+async def test_backup_attach_to_files_a_file_in_its_wiki(
     client, acting_user, session, monkeypatch, role_session
 ):
-    """A file document that sat in a wiki still sits in it after a restore,
+    """An uploaded file that sat in a wiki still sits in it after a restore,
     under the page it was filed under.
 
     The edge names two rows whose ids the archive cannot carry, so it crosses
-    as ``attach_to`` on the document's entry, pointing at the wiki's entry
+    as ``attach_to`` on the file's entry, pointing at the wiki's entry
     path. Both are applied as ordinary entries and the edge is written once
-    the pass runs — which is why the document entry can come first.
+    the pass runs — which is why the file entry can come first.
     """
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.wiki import Wiki
     from app.services.tenant import relationships as relationships_service
@@ -2093,28 +2160,28 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
     wiki = (
         await session.exec(select(Wiki).where(Wiki.initiative_id == restored.id))
     ).one()
-    document = (
+    file = (
         await session.exec(
-            select(Document).where(
-                Document.initiative_id == restored.id,
-                Document.document_type == DocumentType.file,
+            select(File).where(
+                File.initiative_id == restored.id,
+                File.file_type == FileType.file,
             )
         )
     ).one()
     assert await relationships_service.related_ids(
         session,
-        Endpoint(kind=SearchEntityType.document, id=document.id),
+        Endpoint(kind=SearchEntityType.file, id=file.id),
         relationship_type=RelationshipType.part_of,
         other_kind=SearchEntityType.wiki,
     ) == [wiki.id]
     # And under the page it was filed under.
     from app.models.tenant.wiki import WikiPage
-    from app.services.tenant.wikis import document_parent
+    from app.services.tenant.wikis import file_parent
 
     rules = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
     ).one()
-    assert document_parent(wiki, document.id) == rules.id
+    assert file_parent(wiki, file.id) == rules.id
 
 
 async def test_backup_applies_into_an_existing_initiative(
@@ -2625,18 +2692,18 @@ async def test_a_user_property_is_placed_by_the_people_step(
     assert [v.value_user_id for v in values] == [a.user.id]
 
 
-async def test_a_document_naming_somebody_in_a_property_asks_first(
+async def test_a_file_naming_somebody_in_a_property_asks_first(
     client, acting_user, session
 ):
-    """Documents used to be an envelope that names nobody. A user-type
+    """Files used to be an envelope that names nobody. A user-type
     property on one names somebody, so it stops to ask."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     envelope = {
-        "type": "initiative-document",
+        "type": "initiative-file",
         "schema_version": 1,
-        "document_type": "smart_link",
+        "file_type": "smart_link",
         "name": "Spec",
         "content": {"url": "https://example.com"},
         "tags": [],
@@ -2997,7 +3064,7 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
 ):
     """A mention names an account by id, and an id means nothing where a
     backup is restored. So the backup names the person by handle — in a task's
-    description, a comment, a document, a post and a wiki page — lists them for
+    description, a comment, a file, a post and a wiki page — lists them for
     the people step, and the restore links each mention to whoever that step
     says the handle is here: another account entirely, in this test, which is
     what a restore into a community where the id is somebody else looks like.
@@ -3011,7 +3078,7 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     )
     from app.core.user_display import handle_of
     from app.models.tenant.comment import Comment
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.post import Post
     from app.models.tenant.project import Project
     from app.models.tenant.task import Task
@@ -3043,7 +3110,7 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     await create_comment(
         session, a.user, task=task, content=f"@[Bea]({b.user.id}) agreed"
     )
-    await create_document(session, a.initiative, a.user, name="Plan", content=said)
+    await create_file(session, a.initiative, a.user, name="Plan", content=said)
     await create_post(session, a.initiative, a.user, name="Notice", body=said)
     wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
     await create_wiki_page(session, wiki, a.user, title="Start", content=said)
@@ -3089,11 +3156,11 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     ).one()
     assert comment.content == f"@[]({c.user.id}) agreed"
 
-    document = (
+    file = (
         await session.exec(
-            select(Document)
-            .where(Document.initiative_id == restored)
-            .options(undefer(Document.content))
+            select(File)
+            .where(File.initiative_id == restored)
+            .options(undefer(File.content))
         )
     ).one()
     post = (
@@ -3105,35 +3172,35 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     page = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored_wiki.id))
     ).one()
-    for content in (document.content, post.body, page.content):
+    for content in (file.content, post.body, page.content):
         [mention] = _mentions_in(content)
         assert mention["mentionUserId"] == c.user.id
         assert (mention["mentionName"], mention["text"]) == ("", "")
         assert "mentionHandle" not in mention
 
 
-async def test_a_documents_own_export_names_its_mentions_by_handle(
+async def test_a_files_own_export_names_its_mentions_by_handle(
     client, acting_user, session
 ):
-    """The single-document export writes the same handle a backup does, and
+    """The single-file export writes the same handle a backup does, and
     importing it links the mention to the member who answers to that handle —
     with no question asked, because the match is exact. The exported
-    document itself is left as it was."""
+    file itself is left as it was."""
     from sqlmodel import select
 
     from app.core.user_display import handle_of
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
 
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     target = await _second_initiative(session, a)
     said = _editor_state(_mention_node("Me", a.user.id))
-    source = await create_document(
+    source = await create_file(
         session, a.initiative, a.user, name="Notes", content=said
     )
 
-    envelope = await _export_json(client, a, "/exports/document", {"ids": [source.id]})
+    envelope = await _export_json(client, a, "/exports/file", {"ids": [source.id]})
     assert envelope["mention_handles"] == [handle_of(a.user)]
     [exported] = _mentions_in(envelope["content"])
     assert exported["mentionUserId"] is None
@@ -3144,9 +3211,9 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
 
     imported = (
         await session.exec(
-            select(Document)
-            .where(Document.initiative_id == target.id)
-            .options(undefer(Document.content))
+            select(File)
+            .where(File.initiative_id == target.id)
+            .options(undefer(File.content))
         )
     ).one()
     [mention] = _mentions_in(imported.content)
@@ -3159,20 +3226,20 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
 async def test_a_mention_nobody_places_is_restored_as_a_name(
     client, acting_user, session, monkeypatch, role_session
 ):
-    """A document naming somebody the restore cannot place keeps their name
+    """A file naming somebody the restore cannot place keeps their name
     and links to nobody — never to whoever holds the id it had at the source."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
 
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    target = await _second_initiative(session, a, documents_enabled=True)
+    target = await _second_initiative(session, a, files_enabled=True)
     envelope = {
-        "type": "initiative-document",
+        "type": "initiative-file",
         "schema_version": 1,
-        "document_type": "native",
+        "file_type": "native",
         "name": "Minutes",
         "content": _editor_state(
             {**_mention_node("Bea", None), "mentionHandle": "stranger#4321"}
@@ -3192,14 +3259,14 @@ async def test_a_mention_nobody_places_is_restored_as_a_name(
     assert confirm.status_code == 200, confirm.text
     await _run_import_worker(monkeypatch, role_session)
 
-    document = (
+    file = (
         await session.exec(
-            select(Document)
-            .where(Document.initiative_id == target.id)
-            .options(undefer(Document.content))
+            select(File)
+            .where(File.initiative_id == target.id)
+            .options(undefer(File.content))
         )
     ).one()
-    [mention] = _mentions_in(document.content)
+    [mention] = _mentions_in(file.content)
     assert mention["mentionUserId"] is None
     assert mention["mentionName"] == "Bea"
     assert "mentionHandle" not in mention
@@ -3225,11 +3292,11 @@ def _chip_node(chip_kind: str, entity_id: int, text: str) -> dict:
     }
 
 
-def _wikilink_node(document_id: int, title: str) -> dict:
+def _wikilink_node(file_id: int, title: str) -> dict:
     return {
         "type": "wikilink",
         "version": 1,
-        "documentId": document_id,
+        "documentId": file_id,
         "documentTitle": title,
         "text": title,
     }
@@ -3237,9 +3304,9 @@ def _wikilink_node(document_id: int, title: str) -> dict:
 
 async def _referencing_initiative(session, a) -> dict:
     """An initiative whose bodies name each other: a task naming a task, a
-    document and a document in another initiative; a comment naming a wiki
-    page; a document naming a task, its status, a counter's value and another
-    document; a post naming the project; a page naming the post."""
+    file and a file in another initiative; a comment naming a wiki
+    page; a file naming a task, its status, a counter's value and another
+    file; a post naming the project; a page naming the post."""
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
     from app.testing.factories import (
         create_comment,
@@ -3251,10 +3318,10 @@ async def _referencing_initiative(session, a) -> dict:
 
     await _all_tools_enabled(session, a.initiative)
     elsewhere = await _second_initiative(session, a)
-    outside = await create_document(session, elsewhere, a.user, name="Elsewhere")
+    outside = await create_file(session, elsewhere, a.user, name="Elsewhere")
 
     fix = await create_task(session, a.project, title="Fix the bug")
-    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    spec = await create_file(session, a.initiative, a.user, name="Spec")
     group = await create_counter_group(session, a.initiative, a.user, name="Tally")
     counter = await create_counter(session, group, name="Wins")
     post = await create_post(
@@ -3272,7 +3339,7 @@ async def _referencing_initiative(session, a) -> dict:
         title="Start",
         content=_editor_state(_reference_node("post", post.id, "Notice")),
     )
-    await create_document(
+    await create_file(
         session,
         a.initiative,
         a.user,
@@ -3290,7 +3357,7 @@ async def _referencing_initiative(session, a) -> dict:
         title="Ship it",
         description=(
             f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
-            f"and #document[Elsewhere]({outside.id})"
+            f"and #file[Elsewhere]({outside.id})"
         ),
     )
     await create_comment(
@@ -3332,7 +3399,7 @@ async def _restored(session, initiative_id: int) -> dict:
 
     from app.models.tenant.comment import Comment
     from app.models.tenant.counter import Counter, CounterGroup
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.post import Post
     from app.models.tenant.project import Project
     from app.models.tenant.task import Task
@@ -3349,13 +3416,13 @@ async def _restored(session, initiative_id: int) -> dict:
             await session.exec(select(Task).where(Task.project_id == project.id))
         ).all()
     }
-    documents = {
-        document.name: document
-        for document in (
+    files = {
+        file.name: file
+        for file in (
             await session.exec(
-                select(Document)
-                .where(Document.initiative_id == initiative_id)
-                .options(undefer(Document.content))
+                select(File)
+                .where(File.initiative_id == initiative_id)
+                .options(undefer(File.content))
             )
         ).all()
     }
@@ -3372,7 +3439,7 @@ async def _restored(session, initiative_id: int) -> dict:
     return {
         "project": project,
         "tasks": tasks,
-        "documents": documents,
+        "files": files,
         "counter": counter,
         "post": (
             await session.exec(select(Post).where(Post.initiative_id == initiative_id))
@@ -3398,7 +3465,7 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     """A reference names what it points at by id, and a restore makes new
     rows — so the backup carries each reference by the ref it had, and the
     restore points it at the copy that ref became: in a task's description, a
-    comment, a document (a mention, a live chip, a ``[[ ]]`` link), a post and
+    comment, a file (a mention, a live chip, a ``[[ ]]`` link), a post and
     a wiki page. Restored into the community it came from, a reference to
     something the backup did not carry still names what it named there. The
     restored bodies' references are edges from the start, as a save's are."""
@@ -3425,7 +3492,7 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     exported = json.loads(archive.read(project_entry))
     [ship_env] = [t for t in exported["tasks"] if t["title"] == "Ship it"]
     # The archive names what it points at by ref, never by a bare id.
-    assert f"#document[Elsewhere](document:{outside.id})" in ship_env["description"]
+    assert f"#file[Elsewhere](file:{outside.id})" in ship_env["description"]
     assert exported["source_guild_id"] == a.guild.id
 
     restored_id = await _restore_referencing_backup(
@@ -3433,11 +3500,11 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     )
     r = await _restored(session, restored_id)
     fix, ship = r["tasks"]["Fix the bug"], r["tasks"]["Ship it"]
-    spec, plan = r["documents"]["Spec"], r["documents"]["Plan"]
+    spec, plan = r["files"]["Spec"], r["files"]["Plan"]
 
     assert ship.description == (
         f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
-        f"and #document[Elsewhere]({outside.id})"
+        f"and #file[Elsewhere]({outside.id})"
     )
     assert r["comment"].content == f"Written up in #wiki-page[Start]({r['page'].id})"
     mention, status, value, wikilink = _nodes(plan.content)
@@ -3463,17 +3530,17 @@ async def test_a_restored_reference_points_at_the_restored_copy(
         )
         return {(row.target_type, row.target_id) for row in rows.all()}
 
-    # The document's edges are its mention, its chips and its ``[[ ]]`` link;
+    # The file's edges are its mention, its chips and its ``[[ ]]`` link;
     # a task's come from its description and from what is said on it.
-    assert await references(Endpoint(SearchEntityType.document, plan.id)) == {
+    assert await references(Endpoint(SearchEntityType.file, plan.id)) == {
         ("task", fix.id),
         ("counter", r["counter"].id),
-        ("document", spec.id),
+        ("file", spec.id),
     }
     assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
         ("task", fix.id),
-        ("document", spec.id),
-        ("document", outside.id),
+        ("file", spec.id),
+        ("file", outside.id),
         ("wiki_page", r["page"].id),
     }
     assert await references(Endpoint(SearchEntityType.wiki_page, r["page"].id)) == {
@@ -3501,7 +3568,7 @@ async def test_a_reference_restored_elsewhere_to_something_left_behind_is_its_ti
 
     assert ship.description == (
         f"After #task[Fix the bug]({fix.id}), "
-        f"per #doc[Spec]({r['documents']['Spec'].id}) and Elsewhere"
+        f"per #doc[Spec]({r['files']['Spec'].id}) and Elsewhere"
     )
 
 
@@ -3633,10 +3700,10 @@ async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, s
     assert restored.template_page_id == pages[0].id
 
 
-async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
+async def test_a_wiki_zip_brings_its_filed_files_back_where_they_were(
     client, acting_user, session
 ):
-    """Imported somewhere none of it exists, a wiki's zip files every document
+    """Imported somewhere none of it exists, a wiki's zip files every file
     it carried again: the text document and the spreadsheet recreated from the
     envelope, the upload over the bytes the zip brought, each joined to the
     wiki and under the page it sat under."""
@@ -3644,17 +3711,17 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
 
     from app.api.v1.tenant_endpoints.exports_test import (
         _all_tools_enabled,
-        _wiki_with_filed_documents,
+        _wiki_with_filed_files,
     )
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.wiki import Wiki, WikiPage
-    from app.services.tenant.wikis import document_parent, linked_documents
+    from app.services.tenant.wikis import file_parent, linked_files
     from app.testing import route_session_to_guild
 
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+    wiki = await _wiki_with_filed_files(session, a, acting_user)
     exported = await client.get(
         a.g("/exports/wiki"),
         headers=a.headers,
@@ -3668,21 +3735,18 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
         client, b, exported.content, b.initiative.id, "initiative-wiki"
     )
     assert resp.status_code == 201, resp.text
-    assert resp.json()["result"]["created"]["documents"] == 3
+    assert resp.json()["result"]["created"]["files"] == 3
 
     await route_session_to_guild(session, b.guild.id)
     restored = (
         await session.exec(select(Wiki).where(Wiki.initiative_id == b.initiative.id))
     ).one()
-    filed = {
-        document.name: document
-        for document in await linked_documents(session, restored.id)
-    }
+    filed = {file.name: file for file in await linked_files(session, restored.id)}
     assert set(filed) == {"Session notes", "Loot", "Handout"}
-    assert filed["Loot"].document_type == DocumentType.spreadsheet
+    assert filed["Loot"].file_type == FileType.spreadsheet
     handout = filed["Handout"]
-    assert handout.document_type == DocumentType.file
-    # The upload is the document's version 1, typed from its bytes.
+    assert handout.file_type == FileType.file
+    # The upload is the file's version 1, typed from its bytes.
     version = handout.current_version
     assert version is not None and version.version_number == 1
     assert version.file_url == f"/uploads/{b.guild.id}/handout-key.pdf"
@@ -3695,11 +3759,9 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
             )
         )
     ).one()
-    assert document_parent(restored, handout.id) == rules.id
+    assert file_parent(restored, handout.id) == rules.id
     assert (
-        await session.exec(
-            select(Document).where(Document.initiative_id == b.initiative.id)
-        )
+        await session.exec(select(File).where(File.initiative_id == b.initiative.id))
     ).all()
 
 
@@ -3780,7 +3842,7 @@ async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, ses
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     target = await _second_initiative(session, a)
-    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    spec = await create_file(session, a.initiative, a.user, name="Spec")
     fix = await create_task(session, a.project, title="Fix the bug")
     await create_task(
         session,
@@ -3993,7 +4055,7 @@ async def test_backup_restores_roles_and_places_members(
                     "is_manager": False,
                     "override_share_restrictions": False,
                     "position": 5,
-                    "permissions": ["create_documents"],
+                    "permissions": ["create_files"],
                 }
             ],
             "members": [{"handle": handle, "role": "lorekeeper"}],
@@ -4786,13 +4848,13 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     client, acting_user, session, monkeypatch, role_session
 ):
     """An attached image lands in the community's storage as an ordinary
-    upload, and the task shows it; a PDF beside it becomes a file document of
+    upload, and the task shows it; a PDF beside it becomes an uploaded file of
     its own, and the task is attached to it."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.task import Task
     from app.models.tenant.upload import Upload
     from app.services.import_engine import atlassian as atlassian_service
@@ -4858,21 +4920,19 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     blob = get_guild_storage(a.guild.id).open_readable(upload.filename)
     assert blob is not None
 
-    document = (
-        await session.exec(
-            select(Document).where(Document.document_type == DocumentType.file)
-        )
+    file = (
+        await session.exec(select(File).where(File.file_type == FileType.file))
     ).one()
-    assert document.current_version.original_filename == "spec.pdf"
+    assert file.current_version.original_filename == "spec.pdf"
     assert await relationships_service.related_ids(
         session,
         Endpoint(kind=SearchEntityType.task, id=task.id),
         relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-    ) == [document.id]
+        other_kind=SearchEntityType.file,
+    ) == [file.id]
 
 
-async def test_a_jira_file_stays_behind_when_the_initiative_has_no_documents(
+async def test_a_jira_file_stays_behind_when_the_initiative_has_no_files(
     client, acting_user, session, monkeypatch, role_session
 ):
     """The pictures still come; the file is counted rather than taking the
@@ -4898,7 +4958,7 @@ async def test_a_jira_file_stays_behind_when_the_initiative_has_no_documents(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    a.initiative.documents_enabled = False
+    a.initiative.files_enabled = False
     session.add(a.initiative)
     await session.commit()
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
@@ -5548,17 +5608,17 @@ def _attachment_site():
     )
 
 
-async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
+async def test_a_confluence_pages_attachments_arrive_as_uploads_and_files(
     client, acting_user, session, monkeypatch, role_session
 ):
     """A picture the page shows is an upload it renders from; a file it links
-    to is a document filed in the wiki, and the link is a mention of it; a
-    picture nobody shows is a document too, rather than lost."""
+    to is a file filed in the wiki, and the link is a mention of it; a
+    picture nobody shows is a file too, rather than lost."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.wiki import Wiki, WikiPage
     from app.services.import_engine import atlassian as atlassian_service
     from app.services.tenant import relationships as relationships_service
@@ -5594,55 +5654,55 @@ async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
     home = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
     ).one()
-    documents = {
+    files = {
         d.current_version.original_filename: d
         for d in (
             await session.exec(
-                select(Document).where(
-                    Document.initiative_id == a.initiative.id,
-                    Document.document_type == DocumentType.file,
+                select(File).where(
+                    File.initiative_id == a.initiative.id,
+                    File.file_type == FileType.file,
                 )
             )
         ).all()
     }
-    assert set(documents) == {"spec.pdf", "hidden.png"}
+    assert set(files) == {"spec.pdf", "hidden.png"}
     assert sorted(
         await relationships_service.related_ids(
             session,
             Endpoint(kind=SearchEntityType.wiki, id=wiki.id),
             relationship_type=RelationshipType.part_of,
-            other_kind=SearchEntityType.document,
+            other_kind=SearchEntityType.file,
         )
-    ) == sorted(d.id for d in documents.values())
+    ) == sorted(d.id for d in files.values())
 
     # Filed in the wiki under the page they were attached to.
     await session.refresh(wiki)
-    from app.services.tenant.wikis import document_parent
+    from app.services.tenant.wikis import file_parent
 
-    assert {document_parent(wiki, d.id) for d in documents.values()} == {home.id}
+    assert {file_parent(wiki, d.id) for d in files.values()} == {home.id}
 
     (paragraph,) = home.content["root"]["children"]
     image, mention = paragraph["children"]
     assert image["src"].startswith(f"/uploads/{a.guild.id}/")
-    assert mention["entityType"] == "document"
-    assert mention["entityId"] == documents["spec.pdf"].id
+    assert mention["entityType"] == "file"
+    assert mention["entityId"] == files["spec.pdf"].id
     assert mention["text"] == "the spec" and "importRef" not in mention
 
 
-async def test_an_initiative_without_documents_takes_only_the_pictures(
+async def test_an_initiative_without_files_takes_only_the_pictures(
     client, acting_user, session, monkeypatch, role_session
 ):
-    """Files would be documents, which this initiative has switched off: the
+    """Attachments would be files, which this initiative has switched off: the
     pictures the page shows still come, the rest are counted as left behind,
     and the import is not refused over them."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _attachment_site())
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    a.initiative.documents_enabled = False
+    a.initiative.files_enabled = False
     session.add(a.initiative)
     await session.commit()
 
@@ -5665,7 +5725,7 @@ async def test_an_initiative_without_documents_takes_only_the_pictures(
     done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert done["status"] == ImportJobStatus.done.value, done.get("error")
     session.expunge_all()
-    assert (await session.exec(select(Document))).all() == []
+    assert (await session.exec(select(File))).all() == []
 
 
 async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
@@ -5776,10 +5836,10 @@ async def test_a_confluence_html_export_becomes_a_wiki(
     token."""
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.wiki import Wiki, WikiPage
     from app.services.import_engine.confluence_export_test import export_bytes
-    from app.services.tenant.wikis import document_parent
+    from app.services.tenant.wikis import file_parent
 
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
@@ -5821,13 +5881,11 @@ async def test_a_confluence_html_export_becomes_a_wiki(
     assert wiki.home_page_id == pages["Home"].id
     assert pages["Guide"].parent_page_id == pages["Home"].id
     assert pages["Home"].created_by == b.user.id
-    document = (
-        await session.exec(
-            select(Document).where(Document.document_type == DocumentType.file)
-        )
+    file = (
+        await session.exec(select(File).where(File.file_type == FileType.file))
     ).one()
-    assert document.current_version.original_filename == "spec.pdf"
-    assert document_parent(wiki, document.id) == pages["Home"].id
+    assert file.current_version.original_filename == "spec.pdf"
+    assert file_parent(wiki, file.id) == pages["Home"].id
 
 
 async def test_an_upload_that_is_not_an_export_is_refused_up_front(client, acting_user):

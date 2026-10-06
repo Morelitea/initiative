@@ -1721,7 +1721,7 @@ async def delete_own_account(
     # action == "soft_delete"
     #
     # Nothing is erased here. The account moves to ``deleted`` and keeps
-    # everything — memberships, initiative roles, the documents it owns — so
+    # everything — memberships, initiative roles, the files it owns — so
     # that coming back restores it whole. It stops existing for everybody
     # else immediately, and ``account_purge`` erases it when the deployment's
     # window runs out. Signing in before then calls the whole thing off.

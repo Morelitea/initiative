@@ -1,11 +1,11 @@
 """Shared importer plumbing: version gating, envelope parsing, the owner
-grant every importer writes for what it creates, and by-name property-value
-restoring for envelopes that carry values without their definitions (every
-tool's but the project's)."""
+grant every importer writes for what it creates, by-name tag restoring, and
+by-name property-value restoring for envelopes that carry values without their
+definitions (every tool's but the project's)."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any, Iterable, Type
 
 from pydantic import BaseModel, ValidationError
 from sqlmodel import select
@@ -22,9 +22,13 @@ from app.schemas.tenant.import_envelopes import (
     MIN_SUPPORTED_IMPORT_VERSION,
     EnvelopePropertyValue,
 )
-from app.schemas.tenant.project_export import ProjectExportPropertyDefinition
+from app.schemas.tenant.project_export import (
+    ProjectExportPropertyDefinition,
+    ProjectExportTag,
+)
 from app.services.import_engine.common import (
     decode_property_value,
+    ensure_tag,
     load_initiative_member_handles,
     load_initiative_properties,
     options_compatible,
@@ -32,6 +36,7 @@ from app.services.import_engine.common import (
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.people import bring_in_named
+from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 from app.services.tenant.properties import link_for
 
@@ -59,8 +64,8 @@ class NamesPeopleInPassing:
     """An envelope that names people without quoting them: through user-type
     property values, and through the mentions in its body.
 
-    A document's properties and a calendar event's can say who somebody is —
-    an owner, a reviewer — and a document or a post can mention somebody.
+    A file's properties and a calendar event's can say who somebody is —
+    an owner, a reviewer — and a file or a post can mention somebody.
     Both are placed through the people step's answer, like an assignee is. So
     these envelopes are a question whenever they carry one: the wizard asks,
     rather than the value or the mention landing on whoever happens to share
@@ -140,6 +145,61 @@ async def grant_ownership(
         )
     )
     await session.flush()
+
+
+#: The colour a tag an envelope names by name alone is created in.
+_NAMED_TAG_COLOR = "#6b7280"
+
+
+class TagRestore:
+    """Binds the tags an envelope names to the community's own, attaches them
+    to the rows one import creates, and counts what that took across all of
+    them. Every importer restores tags through it.
+
+    A tag matches the community's of the same name in any case, and is
+    created otherwise (``ensure_tag``) — once each, however many rows name it.
+    A row gets each tag once, however often or in whatever case its list
+    names it.
+
+    One per savepoint: a tag created inside one that rolls back is gone with
+    it, so a restore that outlived it would attach a tag that is not there.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        #: Tags made, and matched, once each however many rows name them.
+        self.created = 0
+        self.matched = 0
+        #: Each tag's id by the name it is looked up under.
+        self._ids: dict[str, int] = {}
+
+    async def resolve(self, name: str, color: str = _NAMED_TAG_COLOR) -> int:
+        """The id of the community's tag named ``name``, made in ``color``
+        if there is none."""
+        key = name.strip().lower()
+        if (known := self._ids.get(key)) is not None:
+            return known
+        resolved = await ensure_tag(self._session, name=name, color=color)
+        if resolved.created:
+            self.created += 1
+        else:
+            self.matched += 1
+        self._ids[key] = resolved.id
+        return resolved.id
+
+    async def attach(self, row: Any, tags: Iterable[str | ProjectExportTag]) -> None:
+        """Tag ``row``, a persisted taggable row, with each of ``tags`` — a
+        name, or a name with the colour it is made in."""
+        tag_ids: dict[int, None] = {}
+        for tag in tags:
+            if isinstance(tag, str):
+                tag_ids[await self.resolve(tag)] = None
+            else:
+                tag_ids[await self.resolve(tag.name, tag.color)] = None
+        spec = tags_service.spec_for(row)
+        self._session.add_all(
+            tags_service.tag_edge(spec, row.id, tag_id) for tag_id in tag_ids
+        )
 
 
 def _options_for_value(pv: EnvelopePropertyValue) -> list[dict] | None:

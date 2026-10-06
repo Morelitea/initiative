@@ -27,7 +27,7 @@ import type {
   Token,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
+import { clearAllWhiteboardSceneCaches } from "@/components/files/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice, serveAccount } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
@@ -282,7 +282,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     (nextUser: UserRead | null, ended = false) => {
       identityEpochRef.current += 1;
       if (!nextUser && ended) {
-        // Whiteboard scenes are document content held on the device, so they
+        // Whiteboard scenes are file content held on the device, so they
         // end with the session however it ended — not only the tidy way.
         // Deliberately outside the offline cache's platform check: this matters
         // most on the web, where that cache is not enabled at all.

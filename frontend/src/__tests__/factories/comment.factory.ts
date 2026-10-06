@@ -18,7 +18,7 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
     created_by: 1,
     task_id: null,
     wiki_page_id: null,
-    document_id: null,
+    file_id: null,
     project_id: null,
     queue_id: null,
     counter_group_id: null,

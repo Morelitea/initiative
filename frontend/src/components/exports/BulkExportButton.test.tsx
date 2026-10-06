@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildDocumentSummary, ownerCan, writerCan } from "@/__tests__/factories";
+import { buildFileSummary, ownerCan, writerCan } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -51,26 +51,26 @@ describe("BulkExportButton", () => {
   });
 });
 
-describe("BulkExportButton for documents", () => {
+describe("BulkExportButton for files", () => {
   it("sends the selected ids and downloads the zip", async () => {
     let sent: string[] = [];
     server.use(
-      communityHttp.get("/exports/document", ({ request }) => {
+      communityHttp.get("/exports/file", ({ request }) => {
         sent = new URL(request.url).searchParams.getAll("ids");
         return new HttpResponse("PK-zip-bytes", {
           status: 200,
           headers: {
             "Content-Type": "application/zip",
-            "Content-Disposition": 'attachment; filename="document-2026-07-14.zip"',
+            "Content-Disposition": 'attachment; filename="file-2026-07-14.zip"',
           },
         });
       })
     );
     const docs = [
-      buildDocumentSummary({ id: 11, document_type: "native" }),
-      buildDocumentSummary({ id: 12, document_type: "native" }),
+      buildFileSummary({ id: 11, file_type: "native" }),
+      buildFileSummary({ id: 12, file_type: "native" }),
     ];
-    renderWithProviders(<BulkExportButton tool={Tool.document} items={docs} />);
+    renderWithProviders(<BulkExportButton tool={Tool.file} items={docs} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
     await userEvent.click(await screen.findByRole("button", { name: /json/i }));
@@ -79,15 +79,15 @@ describe("BulkExportButton for documents", () => {
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(sent).toEqual(["11", "12"]);
     // Server names the bundle; the client fallback stem never fires.
-    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("document-2026-07-14.zip");
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("file-2026-07-14.zip");
   });
 
   it("offers only the formats every selected type shares", async () => {
     const docs = [
-      buildDocumentSummary({ id: 1, document_type: "native" }),
-      buildDocumentSummary({ id: 2, document_type: "spreadsheet" }),
+      buildFileSummary({ id: 1, file_type: "native" }),
+      buildFileSummary({ id: 2, file_type: "spreadsheet" }),
     ];
-    renderWithProviders(<BulkExportButton tool={Tool.document} items={docs} />);
+    renderWithProviders(<BulkExportButton tool={Tool.file} items={docs} />);
 
     // json is the only shared format, so the wizard asks nothing and names it.
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
@@ -98,10 +98,10 @@ describe("BulkExportButton for documents", () => {
 
   it("says why when the selected types share no format", () => {
     const docs = [
-      buildDocumentSummary({ id: 1, document_type: "native" }),
-      buildDocumentSummary({ id: 2, document_type: "file" }),
+      buildFileSummary({ id: 1, file_type: "native" }),
+      buildFileSummary({ id: 2, file_type: "file" }),
     ];
-    renderWithProviders(<BulkExportButton tool={Tool.document} items={docs} />);
+    renderWithProviders(<BulkExportButton tool={Tool.file} items={docs} />);
 
     expect(
       screen.getByRole("button", { name: "These share no format they can all be exported to." })

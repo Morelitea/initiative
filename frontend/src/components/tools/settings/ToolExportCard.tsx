@@ -6,7 +6,7 @@
  * here rather than in the tool's header. It opens the export wizard for this
  * one entity. Everything it needs is derived from the tool: the endpoint, the
  * selector param and the formats. A tool whose formats depend on the entity (a
- * document's type) passes them as `exportOptions` on its settings layout.
+ * file's type) passes them as `exportOptions` on its settings layout.
  */
 
 import { useTranslation } from "react-i18next";

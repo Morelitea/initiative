@@ -32,7 +32,7 @@
   "hidden": "Hidden",
   "unassigned": "Unassigned",
   "tags": "Tags",
-  "documents": "Documents",
+  "files": "Files",
   "tasks": "Tasks",
   "round": "Round",
   "roundN": "Round {{count}}",

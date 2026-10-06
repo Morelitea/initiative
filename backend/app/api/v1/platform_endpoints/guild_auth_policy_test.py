@@ -35,7 +35,7 @@ from app.testing.factories import (
     satisfied_claims_for,
     create_access_grant,
     create_auth_provider,
-    create_document,
+    create_file,
     create_guild,
     create_guild_auth_policy,
     create_guild_membership,
@@ -511,25 +511,25 @@ async def test_me_aggregate_includes_policy_guild_only_when_satisfied(
     and its RLS keeps an unsatisfied session's aggregate empty for that guild
     without failing the whole request."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    await create_document(session, a.initiative, a.user, name="open doc")
+    await create_file(session, a.initiative, a.user, name="open doc")
 
     # The same person in a second community, which requires a sign-in.
     gated_guild = await create_guild(session)
     await create_guild_membership(session, user=a.user, guild=gated_guild)
     gated_initiative = await create_initiative(session, gated_guild, a.user)
-    await create_document(session, gated_initiative, a.user, name="gated doc")
+    await create_file(session, gated_initiative, a.user, name="gated doc")
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, gated_guild, provider)
     provider_id = provider.id
 
-    # Legacy/unsatisfied session: only the open guild's document.
-    unsatisfied = await client.get("/api/v1/me/documents", headers=a.headers)
+    # Legacy/unsatisfied session: only the open guild's file.
+    unsatisfied = await client.get("/api/v1/me/files", headers=a.headers)
     assert unsatisfied.status_code == 200, unsatisfied.text
     assert [d["name"] for d in unsatisfied.json()["items"]] == ["open doc"]
 
-    # A session that satisfied the provider sees both guilds' documents.
+    # A session that satisfied the provider sees both guilds' files.
     satisfied = await client.get(
-        "/api/v1/me/documents", headers=_sat_headers(a.user, [provider_id])
+        "/api/v1/me/files", headers=_sat_headers(a.user, [provider_id])
     )
     names = {d["name"] for d in satisfied.json()["items"]}
     assert names == {"open doc", "gated doc"}

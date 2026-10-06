@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.services.tenant.comments import (
     _ensure_parent_access,
     _load_parent,
@@ -63,25 +63,25 @@ async def test_task_comment_access_honors_grant(session: AsyncSession, reading_a
     await reader.rollback()
 
 
-async def test_document_comment_access_honors_grant(session: AsyncSession, reading_as):
+async def test_file_comment_access_honors_grant(session: AsyncSession, reading_as):
     """The other branch of the parent check: a tool entity answers for itself,
     where a task answers through its project."""
     owner = await create_user(session, email="owner-cmt2@example.com")
     grantee = await create_user(session, email="grantee-cmt2@example.com")
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
-    document = Document(
+    file = File(
         initiative_id=init.id,
         name="Doc",
         content={},
         created_by=owner.id,
     )
-    session.add(document)
+    session.add(file)
     await session.commit()
-    await session.refresh(document)
+    await session.refresh(file)
 
     ctx = await _load_parent(
-        session, column="document_id", entity_id=document.id, guild_id=guild.id
+        session, column="file_id", entity_id=file.id, guild_id=guild.id
     )
     assert ctx is not None
 

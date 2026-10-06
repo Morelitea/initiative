@@ -673,7 +673,7 @@ export const useReactivateUser = <TError = ErrorType<HTTPValidationError>, TCont
  * a deletion they made on somebody's behalf.
  *
  * Nothing is restored as such: the account never lost anything. It kept its
- * memberships, its initiative roles and the documents it owns for the whole
+ * memberships, its initiative roles and the files it owns for the whole
  * window, so this puts it back exactly where it was.
  *
  * Separate from ``reactivate``, which is for a *deactivated* account and

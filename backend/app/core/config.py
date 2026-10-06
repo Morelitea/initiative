@@ -54,7 +54,7 @@ def is_device(request: Request) -> bool:
 
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
-# the Content-Security-Policy (pentest MED-001). These are the document
+# the Content-Security-Policy (pentest MED-001). These are the file
 # "smart link" providers available in the editor (always present).
 CSP_EMBED_FRAME_ORIGINS = [
     "https://www.youtube-nocookie.com",
@@ -610,7 +610,7 @@ class Settings(BaseSettings):
         injected markup can't execute. ``style-src`` does allow
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
-        Fonts, document embeds, and — when configured — the captcha provider and
+        Fonts, file embeds, and — when configured — the captcha provider and
         app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 

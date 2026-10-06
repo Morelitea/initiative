@@ -23,7 +23,7 @@
   "types": {
     "project": "Project",
     "task": "Task",
-    "document": "Document",
+    "file": "File",
     "queue": "Queue",
     "queue_item": "Queue item",
     "counter_group": "Counter group",

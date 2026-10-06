@@ -34,7 +34,7 @@ const MANIFEST = {
   app_version: "0.56.0",
   exported_at: "2026-07-15T00:00:00Z",
   initiatives: [{ id: 1, name: "Lore", tools: {} }],
-  entries: [{ tool: "queue" }, { tool: "document" }],
+  entries: [{ tool: "queue" }, { tool: "file" }],
   assets: [{ size_bytes: 2_500_000 }],
 };
 
@@ -52,7 +52,7 @@ const STAGED_JOB = {
         source_id: 1,
         name: "Lore",
         proposed_name: "Lore (imported)",
-        entry_counts: { queue: 1, document: 1 },
+        entry_counts: { queue: 1, file: 1 },
       },
     ],
     asset_count: 1,

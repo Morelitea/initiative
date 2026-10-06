@@ -36,9 +36,9 @@
     }
   },
   "mention": {
-    "document": {
+    "file": {
       "title": "You were mentioned",
-      "body": "{{actor}} mentioned you in {{document}}"
+      "body": "{{actor}} mentioned you in {{file}}"
     },
     "comment": {
       "title": "You were mentioned",

@@ -308,20 +308,20 @@ def test_a_page_shows_its_pictures_and_mentions_its_files():
     assert image["src"] == "/uploads/1/key-chart.png"
     assert mention["importRef"] == "entry:assets/key-spec.pdf"
     assert [s.filename for s in mapped.uploads] == ["chart.png"]
-    # The picture the page never shows comes over as a document with the file.
-    assert [f.stored.filename for f in mapped.documents] == ["spec.pdf", "hidden.png"]
+    # The picture the page never shows comes over as a file too.
+    assert [f.stored.filename for f in mapped.files] == ["spec.pdf", "hidden.png"]
     # Each is filed under the page it was attached to.
-    assert {f.page_slug for f in mapped.documents} == {"home"}
+    assert {f.page_slug for f in mapped.files} == {"home"}
 
 
-def test_without_documents_a_picture_nobody_shows_is_counted():
+def test_without_files_a_picture_nobody_shows_is_counted():
     mapped = build(
         [page(1, "Home", body="<p>nothing shown</p>")],
         media={"1": media_of(images=("hidden.png",))},
-        documents=False,
+        files_allowed=False,
     )
-    assert mapped.documents == [] and mapped.uploads == []
-    assert mapped.documents_blocked == 1
+    assert mapped.files == [] and mapped.uploads == []
+    assert mapped.files_blocked == 1
 
 
 def test_a_page_left_out_for_size_leaves_its_attachments_too():
@@ -332,7 +332,7 @@ def test_a_page_left_out_for_size_leaves_its_attachments_too():
         max_bytes=8000,
     )
     assert mapped.over_limit == 1
-    assert mapped.documents == []
+    assert mapped.files == []
 
 
 def comment(
