@@ -124,11 +124,14 @@ export function DashboardWidget({
   const catalogQuery = useWidgetCatalog();
   const shape = shapeFor(widget.type, catalogQuery.data);
   const rows = data.source === "rows";
-  const slots = rows ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  // The author's overrides name columns of their own query, so sample rows are
+  // matched to the slots afresh.
+  const mapping = sampleData ? undefined : widget.mapping;
+  const slots = rows ? resolveMapping(data.columns, shape, mapping) : undefined;
   // A query edited under a saved widget can stop returning the shape it draws.
   // The table draws any shape, so it is what a tile falls back to — showing the
   // rows that did come back beats showing an empty chart.
-  const drawable = !rows || canDraw(data.columns, shape, widget.mapping);
+  const drawable = !rows || canDraw(data.columns, shape, mapping);
   const isLoading = sampleData ? false : live.isLoading;
   const errorCode = sampleData ? undefined : live.errorCode;
 
