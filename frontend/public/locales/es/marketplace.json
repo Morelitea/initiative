@@ -24,6 +24,7 @@
   "detail": {
     "installs_one": "{{count}} instalación",
     "installs_other": "{{count}} instalaciones",
+    "minimumAge": "Mayores de {{age}} años",
     "install": "Añadir a una iniciativa",
     "preview": "Vista previa",
     "previewIsSample": "Ejemplo con datos de muestra",

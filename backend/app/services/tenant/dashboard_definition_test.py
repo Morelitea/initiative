@@ -365,6 +365,36 @@ def test_config_is_scoped_to_the_definitions_widgets():
     assert config == {"widgets": {"w1": {"counter_id": 42}}}
 
 
+def test_config_fills_only_what_the_definition_left_open():
+    """Config carries parameter values. What the widget reads — its source,
+    statement, plug-in and endpoint — and any value the definition already set
+    stay the definition's."""
+    definition = normalize_dashboard_definition(
+        _definition(
+            {
+                "id": "w1",
+                "type": "table",
+                "binding": {"source": "sheet_range", "document_id": 3, "range": None},
+            }
+        )
+    )
+    config = normalize_dashboard_config(
+        {
+            "widgets": {
+                "w1": {
+                    "range": "A1:B4",
+                    "document_id": 9,
+                    "source": "query",
+                    "sql": "SELECT title FROM tasks",
+                    "initiative_id": 5,
+                }
+            }
+        },
+        definition,
+    )
+    assert config == {"widgets": {"w1": {"range": "A1:B4"}}}
+
+
 def test_config_for_a_removed_widget_is_dropped():
     """Updating to a definition without that widget can't leave config behind."""
     definition = normalize_dashboard_definition(
@@ -730,4 +760,26 @@ def test_only_a_repeatable_slot_takes_several_columns():
                     "mapping": {"value": [1, 2]},
                 }
             )
+        )
+
+
+def test_config_cannot_repoint_a_plugin_widget_and_is_checked_like_a_binding():
+    definition = normalize_dashboard_definition(_definition(_plugin_widget()))
+    config = normalize_dashboard_config(
+        {
+            "widgets": {
+                "w1": {
+                    "plugin_uid": OTHER_UID,
+                    "endpoint_id": "plugin.other.orders",
+                    "params": {"range": "30d"},
+                }
+            }
+        },
+        definition,
+    )
+    assert config == {"widgets": {"w1": {"params": {"range": "30d"}}}}
+
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_config(
+            {"widgets": {"w1": {"params": {"range": {"nested": True}}}}}, definition
         )

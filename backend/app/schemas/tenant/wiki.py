@@ -49,7 +49,6 @@ class WikiSettings(SanitizedBaseModel):
 
     #: How siblings are ordered in the tree.
     page_order: Optional[WikiPageOrder] = None
-    #: Whether the tree shows how many pages sit under each one.
     #: How deep the contents rail goes — 2 to 4 heading levels.
     contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
     #: Whether a page shows what links to it.
@@ -233,7 +232,6 @@ class WikiPageRead(WikiPageSummary):
     #: ``PATCH`` of ``content`` so the write merges into the body only if
     #: nobody has changed it since. ``null`` when the body was left out.
     content_version: Optional[str] = None
-    comment_count: int = 0
 
 
 class WikiPageTree(SanitizedBaseModel):
@@ -310,5 +308,4 @@ def serialize_wiki_page(page: "Any", *, context: ActorContext) -> WikiPageRead:
     return WikiPageRead(
         **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},
-        comment_count=getattr(page, "comment_count", 0),
     )

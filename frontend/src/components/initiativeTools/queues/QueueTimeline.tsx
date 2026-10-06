@@ -74,7 +74,7 @@ export const buildTimeline = (queue: QueueRead): TimelineRow[] => {
   }
 
   if (visible.length > 0) {
-    const currentId = queue.current_item?.id ?? null;
+    const currentId = queue.current_item_id;
     const foundIdx = currentId == null ? -1 : visible.findIndex((i) => i.id === currentId);
     const showWrap = queue.is_active && currentId != null;
     // When the queue isn't running we sort to default (position-desc) order
@@ -140,7 +140,7 @@ const timelineSignature = (queue: QueueRead): string => {
   // a no-op transition stall on Reset-while-stopped or on the server-response
   // refetch after Stop reinstates the persisted current item.
   const rotation = queue.is_active
-    ? `a|${queue.current_round}|${queue.current_item?.id ?? ""}`
+    ? `a|${queue.current_round}|${queue.current_item_id ?? ""}`
     : "i";
   return `${rotation}|${itemSig}`;
 };
@@ -176,7 +176,7 @@ export const QueueTimeline = ({ queue, onEdit, onSetActive, onAct }: QueueTimeli
   // "Current Turn" badge doesn't stick around after Stop. The persisted
   // `current_item_id` is still useful to the backend (and to a future Start
   // that wants to resume), it just isn't a "current turn" while inactive.
-  const currentId = displayQueue.is_active ? (displayQueue.current_item?.id ?? null) : null;
+  const currentId = displayQueue.is_active ? displayQueue.current_item_id : null;
 
   if (timeline.length === 0) return null;
 

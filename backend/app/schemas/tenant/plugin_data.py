@@ -37,6 +37,30 @@ class PluginDataTable(SanitizedBaseModel):
     rows: List[List[Any]] = []
 
 
+class PluginSummaryReturn(SanitizedBaseModel):
+    """One figure a plug-in's community summary declares: its key, its type,
+    the plug-in's own label for it, and what it is counted against."""
+
+    key: str
+    type: str
+    label: Optional[Dict[str, str]] = None
+    list: bool = False
+    of: Optional[str] = None
+
+
+class PluginSummaryRead(SanitizedBaseModel):
+    """An installed plug-in that says where the community stands with it."""
+
+    plugin_id: int
+    #: The install's name, which the community chose.
+    name: str
+    returns: List[PluginSummaryReturn] = []
+
+
+class PluginSummaryListResponse(SanitizedBaseModel):
+    items: List[PluginSummaryRead] = []
+
+
 class PluginDataResponse(SanitizedBaseModel):
     """One data source's answer, in the two shapes its endpoint declared."""
 

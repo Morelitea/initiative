@@ -22,11 +22,11 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
+    GuildContextDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    plugin_scope,
     get_current_active_user,
-    GuildContextDep,
+    plugin_scope,
 )
 from app.models.tenant.counter import (
     Counter,
@@ -132,7 +132,7 @@ async def create_counter_group(
     group = CounterGroup(
         initiative_id=initiative.id,
         created_by=guild_context.user_id,
-        name=group_in.name.strip(),
+        name=group_in.name,
         description=group_in.description,
     )
     session.add(group)
@@ -179,8 +179,8 @@ async def update_counter_group(
     updated = False
     update_data = group_in.model_dump(exclude_unset=True)
 
-    if "name" in update_data and update_data["name"] is not None:
-        group.name = update_data["name"].strip()
+    if "name" in update_data:
+        group.name = update_data["name"]
         updated = True
     if "description" in update_data:
         group.description = update_data["description"]
@@ -219,9 +219,9 @@ async def update_counter_group(
 async def add_counter(
     group_id: int,
     counter_in: CounterCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     group = await resource_access.load_authorized(
         session,
@@ -239,7 +239,7 @@ async def add_counter(
 
     counter = Counter(
         counter_group_id=group.id,
-        name=counter_in.name.strip(),
+        name=counter_in.name,
         color=counter_in.color,
         count=clamped,
         min=counter_in.min,
@@ -265,9 +265,9 @@ async def add_counter(
 async def update_counter(
     counter_id: int,
     counter_in: CounterUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     counter = await resource_access.load_child(
         session, Counter, counter_id, access="write"
@@ -312,10 +312,7 @@ async def update_counter(
         "position",
     ):
         if field in update_data:
-            value = update_data[field]
-            if field == "name" and value is not None:
-                value = value.strip()
-            setattr(counter, field, value)
+            setattr(counter, field, update_data[field])
             updated = True
 
     # Re-clamp count and initial_count to the new bounds
@@ -354,11 +351,7 @@ async def delete_counter(
     counter = await resource_access.load_child(
         session, Counter, counter_id, access="write"
     )
-    await trash(
-        session,
-        counter,
-        deleted_by_user_id=current_user.id,
-    )
+    await trash(session, counter, deleted_by_user_id=guild_context.user_id)
     await session.commit()
     sockets.signal(
         routed_guild_id(session),
@@ -502,9 +495,9 @@ async def reset_counter(
 @router.post("/{group_id}/reset-all", response_model=CounterGroupRead)
 async def reset_all_counters(
     group_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterGroupRead:
     group = await resource_access.load_authorized(
         session,
@@ -521,7 +514,7 @@ async def reset_all_counters(
     result = serialize_tool(
         CounterGroupRead,
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
     sockets.signal(
@@ -534,9 +527,9 @@ async def reset_all_counters(
 async def sort_counters(
     group_id: int,
     payload: CounterSortRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterGroupRead:
     group = await resource_access.load_authorized(
         session,
@@ -555,7 +548,7 @@ async def sort_counters(
     result = serialize_tool(
         CounterGroupRead,
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
     sockets.signal(

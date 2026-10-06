@@ -42,9 +42,10 @@ async def _data(client, actor, dashboard_id: int) -> dict:
     return response.json()["widgets"]
 
 
-async def _one(client, actor, dashboard_id: int, widget_id: str) -> dict:
-    response = await client.get(
-        actor.g(f"/dashboards/{dashboard_id}/widgets/{widget_id}/query"),
+async def _one(client, actor, sql: str) -> dict:
+    response = await client.post(
+        actor.g("/query"),
+        json={"sql": sql, "initiative_id": actor.initiative.id},
         headers=actor.headers,
     )
     assert response.status_code == 200, response.text
@@ -93,9 +94,10 @@ async def test_the_canvas_answers_what_each_widget_answers(
         canvas = await _data(client, author, dashboard_id)
 
     assert set(canvas) == {f"w{index + 1}" for index in range(len(statements))}
-    for widget_id, entry in canvas.items():
-        assert entry["error"] is None, (widget_id, entry)
-        assert entry["result"] == await _one(client, author, dashboard_id, widget_id)
+    for index, sql in enumerate(statements):
+        entry = canvas[f"w{index + 1}"]
+        assert entry["error"] is None, (sql, entry)
+        assert entry["result"] == await _one(client, author, sql)
     assert canvas["w1"]["result"]["rows"] == [[3]]
 
 

@@ -176,7 +176,6 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
             index=True,
         ),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
@@ -262,7 +261,6 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     )
     width: Optional[int] = Field(default=None, nullable=True)
     height: Optional[int] = Field(default=None, nullable=True)
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

@@ -9,6 +9,7 @@ pictures.
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -30,6 +31,7 @@ from app.testing import (
     create_wiki_page,
     guild_of,
     lexical_body,
+    png_bytes,
     route_session_to_guild,
 )
 from app.testing.plugin_clients import (
@@ -296,6 +298,8 @@ def test_the_plugin_document_lists_wiki_pages_and_gallery_pictures():
     assert operations["list_wiki_pages"]["x-plugin-scope"] == "wikis:read"
     assert operations["read_wiki_page"]["x-plugin-scope"] == "wikis:read"
     assert operations["list_gallery_images"]["x-plugin-scope"] == "galleries:read"
+    assert operations["create_wiki_page"]["x-plugin-scope"] == "wikis:write"
+    assert operations["upload_gallery_image"]["x-plugin-scope"] == "galleries:write"
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +330,8 @@ async def test_changing_anything_needs_the_write_scope(
     ]
     if tool.plural == "posts":
         attempts.append(("PUT", f"/posts/{row.id}/pin", {"pinned": True}))
+    if tool.plural == "wikis":
+        attempts.append(("POST", f"/wikis/{row.id}/pages", {}))
     for method, path, payload in attempts:
         response = await client.request(
             method, guild_url(guild_id, path), headers=headers, json=payload
@@ -388,6 +394,93 @@ async def test_what_it_creates_is_its_own(
     assert updated.status_code == 200, updated.text
     assert updated.json()["name"] == "Renamed"
     assert_names_nobody(updated.text, [seat.user.id, guild_id])
+
+
+async def test_writes_the_pages_of_a_wiki_it_may_write(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_plugin(
+        session, acting_user, role_session, granted=["wikis:write"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[2], installed.placed)
+    headers = install_headers(installed, ["wikis:write"])
+    wiki = await client.post(
+        guild_url(guild_id, "/wikis/"),
+        headers=headers,
+        json={"name": "Runbook", "initiative_id": installed.placed.id},
+    )
+    assert wiki.status_code == 201, wiki.text
+    pages = guild_url(guild_id, f"/wikis/{wiki.json()['id']}/pages")
+
+    created = await client.post(pages, headers=headers, json={"title": "Start"})
+    assert created.status_code == 201, created.text
+    assert created.json()["created_by"] is None
+    page_path = guild_url(guild_id, f"/wiki-pages/{created.json()['id']}")
+    under = await client.post(pages, headers=headers, json={"title": "Under"})
+    assert under.status_code == 201, under.text
+
+    updated = await client.patch(page_path, headers=headers, json={"title": "Begin"})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["title"] == "Begin"
+    moved = await client.post(
+        guild_url(guild_id, f"/wiki-pages/{under.json()['id']}/move"),
+        headers=headers,
+        json={"parent_page_id": created.json()["id"]},
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["parent_page_id"] == created.json()["id"]
+    for response in (created, updated, moved):
+        assert_names_nobody(response.text, [seat.user.id, guild_id])
+
+
+async def test_adds_pictures_to_a_gallery_it_may_write(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_plugin(
+        session, acting_user, role_session, granted=["galleries:write"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[1], installed.placed)
+    headers = install_headers(installed, ["galleries:write"])
+    gallery = await client.post(
+        guild_url(guild_id, "/galleries/"),
+        headers=headers,
+        json={"name": "Shots", "initiative_id": installed.placed.id},
+    )
+    assert gallery.status_code == 201, gallery.text
+    images = guild_url(guild_id, f"/galleries/{gallery.json()['id']}/images")
+
+    def picture() -> dict:
+        return {"file": ("shot.png", io.BytesIO(png_bytes()), "image/png")}
+
+    uploaded = await client.post(
+        images, headers=headers, files=picture(), data={"title": "Harbour"}
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    body = uploaded.json()
+    assert (body["title"], body["created_by"], body["file_url"]) == (
+        "Harbour",
+        None,
+        "",
+    )
+    image_path = f"{images}/{body['id']}"
+
+    version = await client.post(
+        f"{image_path}/versions", headers=headers, files=picture()
+    )
+    assert version.status_code == 201, version.text
+    assert (version.json()["version_number"], version.json()["file_url"]) == (2, "")
+    updated = await client.patch(image_path, headers=headers, json={"caption": "Dawn"})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["version_count"] == 2
+    for response in (uploaded, version, updated):
+        assert "/uploads/" not in response.text
+        assert_names_nobody(response.text, [seat.user.id, guild_id])
 
 
 async def test_pins_the_posts_it_may_write(client, session, acting_user, role_session):

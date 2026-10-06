@@ -4776,7 +4776,7 @@ export interface GalleryImageRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   uploader: CommentAuthor | null;
   created_at: string;
   updated_at: string;
@@ -4814,7 +4814,7 @@ export interface GalleryImageVersionRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   is_current: boolean;
 }
@@ -7241,6 +7241,33 @@ export interface PluginServiceVendorSetupStart {
   organization?: string | null;
 }
 
+export type PluginSummaryReturnLabel = { [key: string]: string } | null;
+
+/**
+ * One figure a plug-in's community summary declares: its key, its type,
+ * the plug-in's own label for it, and what it is counted against.
+ */
+export interface PluginSummaryReturn {
+  key: string;
+  type: string;
+  label?: PluginSummaryReturnLabel;
+  list?: boolean;
+  of?: string | null;
+}
+
+/**
+ * An installed plug-in that says where the community stands with it.
+ */
+export interface PluginSummaryRead {
+  plugin_id: number;
+  name: string;
+  returns?: PluginSummaryReturn[];
+}
+
+export interface PluginSummaryListResponse {
+  items?: PluginSummaryRead[];
+}
+
 export type PluginWidgetReadMeta = { [key: string]: unknown };
 
 export type PluginWidgetReadSampleData = { [key: string]: unknown };
@@ -7989,12 +8016,6 @@ export interface QueueItemCreate {
   task_ids?: number[] | null;
 }
 
-export interface QueueItemTaskRead {
-  task_id: number;
-  title?: string;
-  attached_at: string;
-}
-
 export interface QueueItemRead {
   /**
    * @minLength 1
@@ -8011,7 +8032,6 @@ export interface QueueItemRead {
   user: UserPublic | null;
   tags: TagSummary[];
   properties: PropertySummary[];
-  tasks: QueueItemTaskRead[];
   attachment_count: number;
   held_at_round: number | null;
   created_at: string;
@@ -8095,7 +8115,7 @@ export interface QueueRead {
   is_active: boolean;
   preview: QueueTurnPreview[] | null;
   items: QueueItemRead[];
-  current_item: QueueItemRead | null;
+  current_item_id: number | null;
 }
 
 /**
@@ -9821,7 +9841,6 @@ export interface WikiPageRead {
   smart_link_url: string | null;
   content: WikiPageReadContent;
   content_version: string | null;
-  comment_count: number;
 }
 
 /**

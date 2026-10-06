@@ -175,6 +175,8 @@ class CounterGroupUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[MentionStr] = None
 
+    _required = reject_null("name")
+
 
 class CounterPreview(SanitizedBaseModel):
     """One counter as a list's card draws it: its name, colour and count."""

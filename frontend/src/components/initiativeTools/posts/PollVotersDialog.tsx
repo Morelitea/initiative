@@ -69,6 +69,7 @@ export const PollVotersDialog = ({
 
   const byOption = new Map(voters.data?.options.map((entry) => [entry.option_id, entry.voters]));
   const waiting = voters.data?.not_voted ?? [];
+  const voted = voters.data?.options.some((entry) => entry.voters.length > 0) ?? false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,7 +102,7 @@ export const PollVotersDialog = ({
               ) : null;
             })}
             {waiting.length > 0 && <Group heading={t("poll.notVoted")} people={waiting} />}
-            {waiting.length === 0 && byOption.size === 0 && (
+            {waiting.length === 0 && !voted && (
               <p className="py-6 text-center text-muted-foreground text-sm">
                 {t("poll.nobodyYet")}
               </p>

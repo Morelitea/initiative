@@ -135,7 +135,7 @@ class GalleryImageRead(SanitizedBaseModel):
     #: reserve the right space for a picture before its bytes arrive.
     width: Optional[int] = None
     height: Optional[int] = None
-    created_by: PersonId
+    created_by: PersonId | None = None
     uploader: Optional[CommentAuthor] = None
     created_at: datetime
     updated_at: datetime
@@ -159,14 +159,14 @@ class GalleryImageVersionRead(SanitizedBaseModel):
 
     id: int
     version_number: int
-    file_url: str
-    thumbnail_url: Optional[str] = None
+    file_url: Annotated[str, UPLOAD_PATH]
+    thumbnail_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
     width: Optional[int] = None
     height: Optional[int] = None
-    created_by: int
+    created_by: PersonId | None = None
     created_at: datetime
     is_current: bool = False
 

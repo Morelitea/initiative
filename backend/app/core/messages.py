@@ -957,8 +957,6 @@ class DashboardMessages:
     BINDING_SOURCE_NOT_ALLOWED = "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
     BINDING_SQL_MISSING = "BINDING_SQL_MISSING"
-    #: A widget of this dashboard that holds no statement to run.
-    WIDGET_HAS_NO_QUERY = "DASHBOARD_WIDGET_HAS_NO_QUERY"
     #: Setting a dashboard to run as its initiative without the role
     #: permission for it (managers always hold it).
     VIEW_MODE_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_NOT_ALLOWED"
@@ -1133,7 +1131,6 @@ class MarketplaceRegistryMessages:
 
 class QueueMessages:
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
-    NOT_ACTIVE = "QUEUE_NOT_ACTIVE"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
