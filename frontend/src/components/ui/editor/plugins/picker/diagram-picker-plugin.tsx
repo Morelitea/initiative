@@ -9,8 +9,8 @@ import { ComponentPickerOption } from "@/components/ui/editor/plugins/picker/com
 
 /** A diagram written as text: a Mermaid code block with two boxes to start
  * from, drawn as it is typed. */
-export function DiagramPickerPlugin(t: TFunction<"documents">) {
-  return new ComponentPickerOption(t("editor.diagram"), {
+export function DiagramPickerPlugin(t: TFunction<"editor">) {
+  return new ComponentPickerOption(t("diagram"), {
     icon: <Workflow className="size-4" />,
     keywords: ["diagram", "mermaid", "flowchart", "sequence", "chart", "graph"],
     onSelect: (_, editor) =>

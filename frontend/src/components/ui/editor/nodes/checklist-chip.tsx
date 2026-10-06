@@ -25,7 +25,7 @@ interface ChecklistChipProps {
  * the server says this reader may change the task; the name opens it.
  */
 export function ChecklistChip({ entityId, fallback }: ChecklistChipProps) {
-  const { t } = useTranslation(["documents", "tasks"]);
+  const { t } = useTranslation(["editor", "tasks"]);
   const navigate = useNavigate();
   const communityId = useActiveCommunityId();
   const state = useChipState(chipRef(SmartChipKind["task:checklist"], entityId));

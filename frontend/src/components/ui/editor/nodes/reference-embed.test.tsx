@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import { Editor } from "@/components/documents/editor/editor";
+import { Editor } from "@/components/ui/editor/editor";
 
 const paragraph = (text: string) => ({
   type: "paragraph",

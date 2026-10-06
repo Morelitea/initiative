@@ -46,7 +46,7 @@ interface Preview {
  */
 export function MermaidPreviewPlugin() {
   const [editor] = useLexicalComposerContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const { resolvedTheme } = useTheme();
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function MermaidPreviewPlugin() {
         preview.url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
         const image = document.createElement("img");
         image.src = preview.url;
-        image.alt = t("editor.diagram");
+        image.alt = t("diagram");
         image.className = "mermaid-preview-image";
         preview.element.replaceChildren(image);
         preview.element.removeAttribute("data-error");
@@ -91,7 +91,7 @@ export function MermaidPreviewPlugin() {
         if (previews.get(key) !== preview || preview.source !== source) return;
         const message = document.createElement("p");
         message.className = "mermaid-preview-error";
-        message.textContent = t("editor.diagramError", {
+        message.textContent = t("diagramError", {
           message: error instanceof Error ? error.message.split("\n")[0] : "",
         });
         preview.element.replaceChildren(message);

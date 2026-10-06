@@ -10,7 +10,7 @@ import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
-import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
+import { DocumentOutlineTracker } from "@/components/ui/editor/DocumentOutline";
 import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";

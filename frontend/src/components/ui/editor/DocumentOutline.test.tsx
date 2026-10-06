@@ -14,9 +14,9 @@ import {
   DocumentOutlinePanel,
   DocumentOutlineScope,
   DocumentOutlineTracker,
-} from "@/components/documents/DocumentOutline";
-import { documentExtension } from "@/components/documents/editor/document-extension";
-import { Plugins } from "@/components/documents/editor/plugins";
+} from "@/components/ui/editor/DocumentOutline";
+import { documentExtension } from "@/components/ui/editor/document-extension";
+import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 

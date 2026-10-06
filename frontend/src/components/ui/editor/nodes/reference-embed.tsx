@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 // Lazy for the reason a post's body is, and because the editor is what draws
 // this component: importing it here would make the two modules each other's.
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 /**
@@ -85,7 +85,7 @@ export function ReferenceEmbed({
   collapsed,
   nodeKey,
 }: ReferenceEmbedProps) {
-  const { t } = useTranslation(["documents", "search"]);
+  const { t } = useTranslation(["editor", "search"]);
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const navigate = useNavigate();

@@ -71,7 +71,7 @@ export function EntityMentionsPlugin({
   subject,
 }: EntityMentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const navigate = useNavigate();
   const communityId = useActiveCommunityId();
   const [queryString, setQueryString] = useState<string | null>(null);

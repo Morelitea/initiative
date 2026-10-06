@@ -33,7 +33,7 @@ export default function DrawingCanvas({
   onSave,
   onCancel,
 }: DrawingCanvasProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
 
   const handleSave = () => {
@@ -77,9 +77,9 @@ export default function DrawingCanvas({
       </div>
       <div className="flex justify-end gap-2 border-t p-2">
         <Button variant="outline" onClick={onCancel}>
-          {t("editor.cancelDrawing")}
+          {t("cancelDrawing")}
         </Button>
-        <Button onClick={handleSave}>{t("editor.saveDrawing")}</Button>
+        <Button onClick={handleSave}>{t("saveDrawing")}</Button>
       </div>
     </div>
   );

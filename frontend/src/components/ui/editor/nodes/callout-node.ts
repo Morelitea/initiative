@@ -84,7 +84,7 @@ function showCollapsed(dom: HTMLElement, collapsed: boolean): void {
     toggle.setAttribute("aria-expanded", String(!collapsed));
     toggle.setAttribute(
       "aria-label",
-      i18n.t(collapsed ? "documents:editor.expandCallout" : "documents:editor.collapseCallout")
+      i18n.t(collapsed ? "editor:expandCallout" : "editor:collapseCallout")
     );
   }
 }

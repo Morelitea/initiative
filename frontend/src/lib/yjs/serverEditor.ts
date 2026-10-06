@@ -39,7 +39,7 @@ import {
   type Text as YText,
 } from "yjs";
 
-import { documentExtension } from "@/components/documents/editor/document-extension";
+import { documentExtension } from "@/components/ui/editor/document-extension";
 import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import { registerLegacyNodes } from "@/components/ui/editor/nodes/legacy-nodes";
 

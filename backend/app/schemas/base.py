@@ -5,12 +5,12 @@ from __future__ import annotations
 import html
 from enum import Enum
 from functools import lru_cache
-from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Dict, Final, get_args, get_origin, get_type_hints
 
 import nh3
 from pydantic import BaseModel, field_validator, model_validator
 
-from app.core.identity_boundary import MARKDOWN_MENTIONS
+from app.core.identity_boundary import LEXICAL_MENTIONS, MARKDOWN_MENTIONS
 
 # Hard ceiling on any plain-text field. Generous for names/titles/labels/tokens
 # while bounding both the stored size and the entity-decode loop in
@@ -44,6 +44,9 @@ app (``app.core.identity_boundary.Mentions``)."""
 
 RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
 """Rich text that may mention people, translated as :data:`MentionStr` is."""
+
+#: A Lexical editor state: a document's, a post's or a wiki page's body.
+LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 
 
 # ``#`` and ``@`` are syntax wherever a name is written or read back. A comment

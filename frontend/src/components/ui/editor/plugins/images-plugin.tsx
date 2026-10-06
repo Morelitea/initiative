@@ -70,7 +70,7 @@ export function InsertImageUploadedDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const communityId = useActiveCommunityId();
   const featured = useFeaturedImage();
   const featuredId = useId();

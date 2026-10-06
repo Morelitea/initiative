@@ -15,43 +15,43 @@ import { useTranslation } from "react-i18next";
 export type BlockFormatEntry = { label: string; icon: React.ReactNode };
 
 export function useBlockTypeToBlockName(): Record<string, BlockFormatEntry> {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   return useMemo(
     () => ({
       paragraph: {
-        label: t("editor.blockNormal"),
+        label: t("blockNormal"),
         icon: <TextIcon className="size-4" />,
       },
       h1: {
-        label: t("editor.blockH1"),
+        label: t("blockH1"),
         icon: <Heading1Icon className="size-4" />,
       },
       h2: {
-        label: t("editor.blockH2"),
+        label: t("blockH2"),
         icon: <Heading2Icon className="size-4" />,
       },
       h3: {
-        label: t("editor.blockH3"),
+        label: t("blockH3"),
         icon: <Heading3Icon className="size-4" />,
       },
       number: {
-        label: t("editor.numberedList"),
+        label: t("numberedList"),
         icon: <ListOrderedIcon className="size-4" />,
       },
       bullet: {
-        label: t("editor.bulletedList"),
+        label: t("bulletedList"),
         icon: <ListIcon className="size-4" />,
       },
       check: {
-        label: t("editor.checklist"),
+        label: t("checklist"),
         icon: <ListTodoIcon className="size-4" />,
       },
       code: {
-        label: t("editor.blockCode"),
+        label: t("blockCode"),
         icon: <CodeIcon className="size-4" />,
       },
       quote: {
-        label: t("editor.blockQuote"),
+        label: t("blockQuote"),
         icon: <QuoteIcon className="size-4" />,
       },
     }),

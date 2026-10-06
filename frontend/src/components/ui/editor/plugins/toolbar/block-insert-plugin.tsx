@@ -20,14 +20,14 @@ export function BlockInsertPlugin({
   supportsSmartChips: boolean;
   initiativeId: number | null;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const actions = useBlockInsertActions({ rich, supportsSmartChips, initiativeId });
 
   return (
     <Select value="">
       <SelectTrigger className="h-8! w-min gap-1">
         <PlusIcon className="size-4" />
-        <span>{t("editor.insert")}</span>
+        <span>{t("insert")}</span>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>

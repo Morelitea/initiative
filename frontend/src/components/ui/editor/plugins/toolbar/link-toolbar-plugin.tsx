@@ -21,7 +21,7 @@ export function LinkToolbarPlugin({
   setIsLinkEditMode: (isEditMode: boolean) => void;
 }) {
   const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [isLink, setIsLink] = useState(false);
   const toggleLink = useToggleLink(setIsLinkEditMode);
 
@@ -54,7 +54,7 @@ export function LinkToolbarPlugin({
       size="sm"
       className="size-8!"
       pressed={isLink}
-      aria-label={t("editor.insertLink")}
+      aria-label={t("insertLink")}
       onClick={toggleLink}
     >
       <LinkIcon className="h-4 w-4" />
