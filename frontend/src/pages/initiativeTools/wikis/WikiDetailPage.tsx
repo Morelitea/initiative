@@ -9,7 +9,7 @@ import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
+import { useAddWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, wikiPageRoute } from "@/lib/tools";
 
@@ -36,7 +36,7 @@ export const WikiDetailPage = () => {
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pagesQuery = useWikiPages(validIds ? wikiId : null);
   useReadOnOpen(Tool.wiki, wikiQuery.data?.id);
-  const createPage = useCreateWikiPage(wikiId);
+  const createPage = useAddWikiPage(wikiId, initiativeId);
 
   const pages = pagesQuery.data?.items ?? [];
   const addPage = () => createPage.mutate({});
@@ -86,7 +86,7 @@ export const WikiDetailPage = () => {
         </CardHeader>
         {canWrite ? (
           <CardContent>
-            <Button onClick={() => createPage.mutate({})} disabled={createPage.isPending}>
+            <Button onClick={addPage} disabled={createPage.isPending}>
               <Plus className="size-4" aria-hidden />
               {t("pages.createFirst")}
             </Button>
