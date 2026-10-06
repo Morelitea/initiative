@@ -144,8 +144,9 @@ async def test_omitting_the_location_leaves_it_and_null_clears_it(
         {"country": "USA"},
         {"country": "1A"},
         {"country": "US", "label": "x" * 61},
+        {"country": "US", "label": "Booth #4"},
     ],
-    ids=["no country", "three letters", "not letters", "label too long"],
+    ids=["no country", "three letters", "not letters", "label too long", "label sigil"],
 )
 async def test_a_malformed_location_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, location: dict
