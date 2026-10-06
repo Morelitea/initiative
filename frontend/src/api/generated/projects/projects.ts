@@ -26,7 +26,6 @@ import type {
   ProjectActivityFeedParams,
   ProjectActivityResponse,
   ProjectCreate,
-  ProjectFavoriteStatus,
   ProjectListResponse,
   ProjectRead,
   ProjectReorderRequest,
@@ -393,6 +392,8 @@ export function useFavoriteProjects<
 }
 
 /**
+ * Favorite a project. Idempotent: the pair is the row's key, so a second
+ * favorite is a no-op rather than a conflict.
  * @summary Favorite Project
  */
 export const favoriteProject = (
@@ -401,7 +402,7 @@ export const favoriteProject = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectFavoriteStatus>(
+  return apiMutator<void>(
     { url: `/api/v1/c/${communityId}/projects/${projectId}/favorite`, method: "POST", signal },
     options
   );
@@ -483,7 +484,7 @@ export const unfavoriteProject = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectFavoriteStatus>(
+  return apiMutator<void>(
     { url: `/api/v1/c/${communityId}/projects/${projectId}/favorite`, method: "DELETE", signal },
     options
   );
@@ -1034,6 +1035,8 @@ export const useDeleteProject = <TError = ErrorType<HTTPValidationError>, TConte
   return useMutation(getDeleteProjectMutationOptions(options), queryClient);
 };
 /**
+ * Put the reader's own projects in the order given. Ids the reader cannot
+ * see are ignored, and those left out keep their place after the rest.
  * @summary Reorder Projects
  */
 export const reorderProjects = (
@@ -1042,7 +1045,7 @@ export const reorderProjects = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectRead[]>(
+  return apiMutator<void>(
     {
       url: `/api/v1/c/${communityId}/projects/reorder`,
       method: "POST",

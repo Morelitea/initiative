@@ -356,7 +356,7 @@ async def test_list_projects_slim_projection(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """slim=true keeps id/name/initiative/can but drops the
-    heavy relationships (documents, grants, nested initiative)."""
+    heavy relationships (grants, tags, nested initiative)."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(
         session, admin.initiative, admin.user, name="Slim One"
@@ -371,7 +371,6 @@ async def test_list_projects_slim_projection(
     # Guild admin holds the owner's rung on every project.
     assert item["can"]["delete"] is True
     # Heavy fields collapse to their empty defaults in slim mode.
-    assert item["documents"] == []
     assert item["grants"] == []
     assert item["tags"] == []
     assert item["initiative"] is None
@@ -729,7 +728,11 @@ async def test_duplicate_project_copies_task_relations(
         json={"name": "Copy"},
     )
     assert response.status_code == 201
-    assert [d["document_id"] for d in response.json()["documents"]] == [attached.id]
+    copy_links = await client.get(
+        admin.g(f"/relationships/?entity=project:{response.json()['id']}"),
+        headers=admin.headers,
+    )
+    assert [r["other"]["id"] for r in copy_links.json()] == [attached.id]
 
     tasks = await _tasks_by_title(client, admin, response.json()["id"])
     new_first, new_second = tasks["Design"], tasks["Build"]
@@ -1147,8 +1150,9 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     url = user.g(f"/projects/{project.id}/favorite")
 
     added = await client.post(url, headers=user.headers)
-    assert added.status_code == 200
-    assert added.json()["is_favorited"] is True
+    assert added.status_code == 204
+    # Favoriting twice is a no-op, not a conflict.
+    assert (await client.post(url, headers=user.headers)).status_code == 204
 
     sent: list[str] = []
 
@@ -1166,14 +1170,13 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     # pass or the heavy relationships.
     assert item["initiative_id"] == user.initiative.id
     assert item["can"]["edit"] is True
-    assert (item["documents"], item["grants"], item["tags"]) == ([], [], [])
+    assert (item["grants"], item["tags"]) == ([], [])
     assert item["initiative"] is None
     assert sent
     assert not [statement for statement in sent if "FROM tasks" in statement], sent
 
     removed = await client.delete(url, headers=user.headers)
-    assert removed.status_code == 200
-    assert removed.json()["is_favorited"] is False
+    assert removed.status_code == 204
     listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
     assert listed.json() == []
 
@@ -1182,7 +1185,7 @@ async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The ids asked for lead, in that order, and the rest follow in the order
-    they held; the answer is the list as it now stands."""
+    they held."""
     user = await acting_user(guild_role=CommunityRole.member, initiative=True)
     first, second, third = [
         await create_project(session, user.initiative, user.user, name=name)
@@ -1190,22 +1193,22 @@ async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
     ]
     url = user.g("/projects/reorder")
 
+    async def listed() -> list[int]:
+        response = await client.get(user.g("/projects/"), headers=user.headers)
+        return [p["id"] for p in response.json()["items"]]
+
     moved = await client.post(
         url, headers=user.headers, json={"project_ids": [third.id]}
     )
-    assert moved.status_code == 200, moved.text
-    assert [(p["id"], p["sort_order"]) for p in moved.json()] == [
-        (third.id, 0.0),
-        (first.id, 1.0),
-        (second.id, 2.0),
-    ]
+    assert moved.status_code == 204, moved.text
+    assert await listed() == [third.id, first.id, second.id]
 
-    # The order it already holds changes nothing, and is answered the same.
+    # The order it already holds changes nothing.
     kept = await client.post(
         url, headers=user.headers, json={"project_ids": [third.id, first.id]}
     )
-    assert kept.status_code == 200, kept.text
-    assert [p["id"] for p in kept.json()] == [third.id, first.id, second.id]
+    assert kept.status_code == 204, kept.text
+    assert await listed() == [third.id, first.id, second.id]
 
 
 async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
@@ -1426,7 +1429,7 @@ async def test_project_shows_all_members_document_to_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A document attached to a project and shared with *all initiative members*
-    is visible to a plain member on the project view. Regression: the linked-doc
+    is among the project's links for a plain member. Regression: the linked-doc
     filter used to ignore all-members grants, so such docs vanished for anyone
     without a personal/role grant."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
@@ -1449,10 +1452,12 @@ async def test_project_shows_all_members_document_to_member(
         created_by=owner.user.id,
     )
 
-    r = await client.get(member.g(f"/projects/{project.id}"), headers=member.headers)
+    r = await client.get(
+        member.g(f"/relationships/?entity=project:{project.id}"),
+        headers=member.headers,
+    )
     assert r.status_code == 200, r.text
-    doc_ids = [d["document_id"] for d in r.json()["documents"]]
-    assert doc.id in doc_ids
+    assert doc.id in [link["other"]["id"] for link in r.json()]
 
 
 async def test_project_counts_by_initiative(

@@ -19,7 +19,6 @@ from app.schemas.tenant.archive import ToolCan, ToolState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
-from app.schemas.tenant.document import ProjectDocumentSummary
 from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -101,7 +100,6 @@ class ProjectRead(ProjectBase, ToolState):
     initiative_id: int
     #: The community this project lives in — the one fact a cross-guild list
     #: needs to address the row, and what every other tool summary carries.
-    #: Left out of the slim picker projection, which never leaves one guild.
     community_id: Optional[GuildId] = Field(
         default=None, validation_alias=AliasChoices("community_id", "guild_id")
     )
@@ -109,7 +107,7 @@ class ProjectRead(ProjectBase, ToolState):
     updated_at: datetime
     is_template: bool
     pinned_at: Optional[datetime] = None
-    default_view_mode: Optional[str] = None
+    default_view_mode: Optional[ProjectViewMode] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     #: The installed app holding the owner grant, or None when a person owns
     #: the project or nobody does. At most one of ``owner_id`` and this is set.
@@ -118,10 +116,8 @@ class ProjectRead(ProjectBase, ToolState):
     )
     initiative: Optional[InitiativeSummary] = None
     can: ProjectCan = Field(default_factory=ProjectCan)
-    sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
-    documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
     # The project's task statuses (ordered by position). Populated on the
     # single-project detail read and mutation responses so a caller has the
@@ -149,13 +145,6 @@ class ProjectListResponse(PageMeta):
 
 class ProjectReorderRequest(SanitizedBaseModel):
     project_ids: List[int] = Field(default_factory=list)
-
-
-class ProjectFavoriteStatus(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    project_id: int
-    is_favorited: bool
 
 
 class ProjectActivityEntry(SanitizedBaseModel):
