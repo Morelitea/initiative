@@ -12,6 +12,13 @@ depends on the network. This script is how the copy moves.
 Moving it is a deliberate act: a newer contract may declare terms this build
 does not act on yet, and ``contract_coverage_test`` fails until each one has a
 handler or the normalizer's inventory is brought into line.
+
+The kit also publishes the plug-in API's OpenAPI document
+(``schemas/plugin-api.json``), the contract plug-ins are generated against.
+Vendored beside the rest, it is what ``plugin_openapi_superset_test`` holds
+this build's plug-in API to: everything it names must still be served. Kit
+releases older than the first that publishes it have none, so a refresh to one
+of them vendors none (and removes a copy left by a newer one).
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ import argparse
 import json
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -41,20 +49,41 @@ FILES = {
     "plugin-manifest.json": "schemas/plugin-manifest.json",
 }
 
+#: What the kit publishes from some release on, and not before. Absent from the
+#: kit, it is absent here too: ``None`` in the bodies below.
+OPTIONAL_FILES = {
+    "plugin-api.json": "schemas/plugin-api.json",
+}
 
-def from_checkout(root: Path) -> dict[str, str]:
-    return {
+
+def from_checkout(root: Path) -> dict[str, str | None]:
+    bodies: dict[str, str | None] = {
         local: (root / remote).read_text(encoding="utf-8")
         for local, remote in FILES.items()
     }
+    for local, remote in OPTIONAL_FILES.items():
+        path = root / remote
+        bodies[local] = path.read_text(encoding="utf-8") if path.exists() else None
+    return bodies
 
 
-def from_ref(ref: str) -> dict[str, str]:
-    bodies = {}
-    for local, remote in FILES.items():
-        url = f"{RAW}/{ref}/{remote}"
-        with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
-            bodies[local] = response.read().decode("utf-8")
+def _fetch(ref: str, remote: str) -> str:
+    url = f"{RAW}/{ref}/{remote}"
+    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
+        return response.read().decode("utf-8")
+
+
+def from_ref(ref: str) -> dict[str, str | None]:
+    bodies: dict[str, str | None] = {
+        local: _fetch(ref, remote) for local, remote in FILES.items()
+    }
+    for local, remote in OPTIONAL_FILES.items():
+        try:
+            bodies[local] = _fetch(ref, remote)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            bodies[local] = None
     return bodies
 
 
@@ -98,7 +127,8 @@ def main() -> int:
 
     bodies = from_checkout(args.checkout) if args.checkout else from_ref(args.ref)
     for body in bodies.values():
-        json.loads(body)  # refuse to write something that is not JSON at all
+        if body is not None:
+            json.loads(body)  # refuse to write something that is not JSON at all
     bodies.update({k: f"{v}\n" for k, v in stamp(args.checkout, args.ref).items()})
 
     stale = False
@@ -111,6 +141,10 @@ def main() -> int:
         if args.check:
             print(f"{target} differs from the kit", file=sys.stderr)
             stale = True
+        elif body is None:
+            # The kit at this revision publishes no such file.
+            target.unlink()
+            print(f"removed {target}")
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(body, encoding="utf-8")

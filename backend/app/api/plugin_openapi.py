@@ -16,7 +16,11 @@ document (:func:`build_plugin_openapi`) is cut from it:
 - paths start after ``/api/v1/c/{community_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
-- the one credential is the installation's access token.
+- the one credential is the installation's access token;
+- its version is the plug-in API contract this build serves
+  (:data:`~app.services.marketplace.plugin_api.PLUGIN_API_VERSION`), not this
+  release's: a plug-in is built against an SDK version, and the SDK publishes
+  this document at its own.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from app.api.deps import route_plugin_scope_declaration
 from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
 from app.core.identity_boundary import MentionForm
 from app.schemas.platform.user import PluginPerson
+from app.services.marketplace.plugin_api import PLUGIN_API_VERSION
 
 #: The prefix every route a plug-in may call starts with.
 COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{community_id}}"
@@ -189,11 +194,10 @@ def build_plugin_openapi(
             reached[name] = _as_plugin_people(schemas[name], people)
             pending.extend(_schema_refs(reached[name]))
 
-    info = openapi_schema["info"]
     return _as_references(
         {
             "openapi": openapi_schema["openapi"],
-            "info": {"title": "Initiative plug-in API", "version": info["version"]},
+            "info": {"title": "Initiative plug-in API", "version": PLUGIN_API_VERSION},
             "servers": [{"url": PLUGIN_SERVER_URL}],
             "paths": paths,
             "components": {

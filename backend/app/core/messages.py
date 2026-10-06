@@ -1058,6 +1058,9 @@ class MarketplaceMessages:
     #: by its publisher, or its only versions need a newer app.
     LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
     LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
+    #: The version needs a plug-in API contract (``min_plugin_api``) this
+    #: deployment does not serve: a newer one, or another major version.
+    LISTING_PLUGIN_API_INCOMPATIBLE = "MARKETPLACE_LISTING_PLUGIN_API_INCOMPATIBLE"
     #: A dashboard that ships with a plug-in, asked for by a guild that does not
     #: have that plug-in installed. Its tiles draw that plug-in's widgets, so there
     #: would be nothing behind any of them.

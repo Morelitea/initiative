@@ -50,6 +50,7 @@ from app.services.marketplace.definitions import (
     reserved_prefix_problem,
 )
 from app.services.marketplace import contract
+from app.services.marketplace import plugin_api
 from app.services.marketplace import registration_lookup
 from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace.manifest_values import check_public_id
@@ -72,6 +73,7 @@ __all__ = [
     "withdraw_builtins_except",
     "bump_installs_count",
     "version_is_compatible",
+    "version_runs_here",
 ]
 
 #: Characters a version string may use. Deliberately an explicit set rather than
@@ -173,6 +175,42 @@ def version_is_compatible(min_app_version: Optional[str]) -> bool:
     if not min_app_version:
         return True
     return _version_tuple(get_version()) >= _version_tuple(min_app_version)
+
+
+def version_runs_here(version: MarketplaceListingVersion) -> bool:
+    """Whether this deployment can install a listing version: new enough
+    (:func:`version_is_compatible`), and serving the plug-in API contract it
+    needs (:func:`~app.services.marketplace.plugin_api.serves_plugin_api`)."""
+    return version_is_compatible(
+        version.min_app_version
+    ) and plugin_api.serves_plugin_api(version.min_plugin_api)
+
+
+def _min_plugin_api(manifest: dict[str, Any], public_id: str) -> Optional[str]:
+    """The contract a listing version needs, as its listing states it beside
+    ``min_app_version`` or its plug-in's manifest does. Both may: the registry
+    and the kit's packer write it in each place. When both do, they agree."""
+    raw_definition = manifest.get("definition")
+    stated = {
+        "listing": manifest.get("min_plugin_api"),
+        "manifest": raw_definition.get("min_plugin_api")
+        if isinstance(raw_definition, dict)
+        else None,
+    }
+    try:
+        found = {
+            where: plugin_api.check_min_plugin_api(value)
+            for where, value in stated.items()
+            if value is not None
+        }
+    except ValueError as exc:
+        raise CatalogError(f"{public_id}: {exc}") from exc
+    if len(set(found.values())) > 1:
+        raise CatalogError(
+            f"{public_id}: min_plugin_api {found['listing']!r} differs from its "
+            f"manifest's {found['manifest']!r}"
+        )
+    return next(iter(found.values()), None)
 
 
 # --- reads ------------------------------------------------------------------
@@ -413,6 +451,7 @@ async def upsert_listing(
     if kind not in LISTING_KINDS:
         raise CatalogError(f"unknown listing kind {kind!r}")
     version_str = _check_version(str(manifest.get("version", "")))
+    min_plugin_api = _min_plugin_api(manifest, public_id)
 
     try:
         definition = normalize_listing_definition(
@@ -554,6 +593,7 @@ async def upsert_listing(
             example=example,
             release_notes=release_notes,
             min_app_version=min_app_version,
+            min_plugin_api=min_plugin_api,
             awaiting_review=hold_for_review,
         )
         session.add(version)
@@ -563,6 +603,7 @@ async def upsert_listing(
         example,
         release_notes,
         min_app_version,
+        min_plugin_api,
     ):
         # A published version is immutable, for two reasons:
         #
@@ -608,7 +649,7 @@ async def upsert_listing(
 
 def _stored_body(
     kind: str, version: MarketplaceListingVersion
-) -> tuple[Any, Any, Any, Any] | None:
+) -> tuple[Any, Any, Any, Any, Any] | None:
     """A published version's content as today's code would write it. A field
     the definition format gained since then takes its default on both sides,
     so it is the content that is compared, not the format it was saved in."""
@@ -617,7 +658,13 @@ def _stored_body(
         example = normalize_listing_example(kind, version.example, definition)
     except ListingDefinitionError:
         return None
-    return definition, example, version.release_notes, version.min_app_version
+    return (
+        definition,
+        example,
+        version.release_notes,
+        version.min_app_version,
+        version.min_plugin_api,
+    )
 
 
 def _crosses_sources(existing: MarketplaceListing, source: str) -> bool:

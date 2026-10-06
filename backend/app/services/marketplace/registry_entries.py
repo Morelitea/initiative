@@ -238,6 +238,7 @@ class _Version:
     manifest: str
     sha256: str
     min_app_version: Optional[str]
+    min_plugin_api: Optional[str]
     release_notes: Optional[str]
 
 
@@ -265,6 +266,7 @@ def _versions(entry: Mapping[str, Any], directory: str) -> list[_Version]:
                 ),
                 sha256=_digest(item.get("sha256"), what=f"version {version}"),
                 min_app_version=_optional_text(item, "min_app_version"),
+                min_plugin_api=_optional_text(item, "min_plugin_api"),
                 release_notes=_optional_text(item, "release_notes"),
             )
         )
@@ -529,6 +531,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
             "images": images,
             "version": version.version,
             "min_app_version": version.min_app_version,
+            "min_plugin_api": version.min_plugin_api,
             "release_notes": version.release_notes,
             "registration": registration if latest else None,
         }

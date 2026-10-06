@@ -375,6 +375,7 @@
   "MARKETPLACE_LISTING_NEEDS_PLUGIN": "Este panel viene con un complemento que tu comunidad no tiene instalado. Instala primero el complemento y después añade el panel.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "Este elemento se ha retirado y ya no se puede instalar.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Este elemento necesita una versión más reciente de la aplicación. Pide a quien gestiona este servidor que la actualice y vuelve a intentarlo.",
+  "MARKETPLACE_LISTING_PLUGIN_API_INCOMPATIBLE": "Esta versión del complemento se creó para una API de complementos que este servidor no ofrece. Necesita un servidor más reciente o una versión del complemento hecha para este.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Esto se creó aquí en lugar de instalarse, así que no hay ningún elemento desde el que actualizarlo.",
   "MARKETPLACE_ALREADY_LATEST_VERSION": "Ya está en la última versión.",
   "MARKETPLACE_LISTING_HAS_NO_EXAMPLE": "Este elemento no tiene un ejemplo desde el que empezar.",

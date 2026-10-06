@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
+import json
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any
@@ -16,9 +19,11 @@ from app.api.plugin_openapi import COMMUNITY_PREFIX, build_plugin_openapi
 from app.db.search_index import written_columns
 from app.api.deps import ActorContext, plugin_scope, route_plugin_scope_declaration
 from app.main import app, plugin_openapi
+from app.services.marketplace.plugin_api import PLUGIN_API_VERSION
 from app.services.tenant.attachments import _upload_columns
 
 _APP_DIR = Path(__file__).resolve().parent.parent
+_BACKEND = _APP_DIR.parent
 _SCHEMA_REF = "#/components/schemas/"
 
 #: Where a person is written for an installed plug-in.
@@ -76,6 +81,29 @@ def test_every_plugin_route_is_in_the_plugin_document_once_with_its_scope():
     assert len(published) == len(expected)
     shapes = {type(scope).__name__ for _, _, scope in expected.values()}
     assert shapes == {"str", "dict"}
+
+
+@pytest.mark.always
+def test_the_plugin_document_is_versioned_as_the_vendored_sdk():
+    """A plug-in is built against an SDK version, which is the contract this
+    build serves: the version the vendored kit records, not this release's."""
+    vendored = (_BACKEND / "vendor" / "plugin-kit" / "KIT_VERSION").read_text()
+    assert PLUGIN_API_VERSION == vendored.strip()
+    assert plugin_openapi()["info"]["version"] == PLUGIN_API_VERSION
+
+
+def test_the_export_script_writes_the_plugin_document(tmp_path, monkeypatch):
+    path = _BACKEND / "scripts" / "export_openapi.py"
+    spec = importlib.util.spec_from_file_location("export_openapi", path)
+    assert spec is not None and spec.loader is not None
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    out = tmp_path / "plugin.json"
+    monkeypatch.setattr(sys, "argv", ["export_openapi.py", "--plugin", str(out)])
+    script.main()
+    exported = json.loads(out.read_text())
+    assert exported["info"]["version"] == PLUGIN_API_VERSION
+    assert exported == json.loads(json.dumps(plugin_openapi()))
 
 
 @pytest.mark.always
@@ -288,6 +316,7 @@ async def test_the_plugin_document_and_its_page_are_served(client: AsyncClient):
     document = await client.get("/api/v1/plugin-platform/openapi.json")
     assert document.status_code == 200
     assert document.json() == plugin_openapi()
+    assert document.json()["info"]["version"] == PLUGIN_API_VERSION
     page = await client.get("/api/v1/plugin-platform/docs")
     assert page.status_code == 200
     assert "/api/v1/plugin-platform/openapi.json" in page.text

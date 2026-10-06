@@ -87,6 +87,7 @@ One file per listing. Here's a complete dashboard listing:
 | `version` | ✅ | The version this file publishes, e.g. `1.2.0`. |
 | `release_notes` | | What changed, shown beside the version. |
 | `min_app_version` | | The oldest Initiative this version runs on. Newer-than-you versions are shown as needing an update rather than hidden. |
+| `min_plugin_api` | | For a plug-in: the oldest plug-in API it needs, as `MAJOR.MINOR` (e.g. `4.1`). The plug-in API is versioned as the plug-in SDK, and this server provides the one its build vendors. It runs a version needing the same major and at most its minor; any other is shown but can't be installed. The plug-in's manifest may say the same, and the two must agree. |
 | `definition` | ✅ | The body — what installing actually produces. |
 
 Everything is checked before it's published, by the same validation the built-in listings go through. A file that doesn't pass is skipped with the reason recorded, and the listings around it publish normally.
@@ -173,7 +174,7 @@ Work down this list — the scan result above answers most of it directly.
 | One file missing, the rest fine | That file was skipped. Its name and the reason are in the scan result and the server log. |
 | "reserved" in the reason | The `public_id` starts with `core.` — publish under your own prefix. |
 | "already published by the builtin catalog" | The `uid` or `public_id` belongs to another listing. Pick a new uid. |
-| A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a community already has it. |
+| A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, its `min_plugin_api` names a plug-in API this Initiative doesn't provide, or a community already has it. |
 | A plug-in listing never appears on the Plug-ins shelf | A plug-in is served by a program you run, and this server offers one only where that plug-in service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
 | Artwork is a broken image | The file isn't under the static `marketplace/` directory, or the path in the manifest doesn't match its name. |
 
