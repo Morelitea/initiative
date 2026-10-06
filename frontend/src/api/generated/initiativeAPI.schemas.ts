@@ -4062,6 +4062,7 @@ export const DatasetName = {
   task_assignees: "task_assignees",
   members: "members",
   documents: "documents",
+  document_versions: "document_versions",
   queues: "queues",
   queue_items: "queue_items",
   calendars: "calendars",
@@ -4069,6 +4070,7 @@ export const DatasetName = {
   posts: "posts",
   galleries: "galleries",
   gallery_images: "gallery_images",
+  gallery_image_versions: "gallery_image_versions",
   wikis: "wikis",
   wiki_pages: "wiki_pages",
 } as const;

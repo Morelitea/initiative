@@ -18,6 +18,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.upload import Upload
 from app.services.storage import get_guild_storage
+from app.services.tenant import file_versions
 from app.services.tenant import galleries as galleries_service
 
 from seed.common import Community, days_ago, gradient_png, share, tag
@@ -386,6 +387,10 @@ async def _picture(c: Community, gallery: Gallery, im: dict) -> GalleryImage:
     top, bottom = im["colours"]
     width, height = im["size"]
     versions = im.get("versions", 1)
+    filename = (
+        im.get("filename")
+        or f"{(im.get('title') or 'picture').lower().replace(' ', '-')}.png"
+    )
     image: GalleryImage | None = None
     for number in range(1, versions + 1):
         # Earlier renditions lean darker, so the history reads as a picture
@@ -417,14 +422,6 @@ async def _picture(c: Community, gallery: Gallery, im: dict) -> GalleryImage:
                 gallery_id=gallery.id,
                 title=im.get("title"),
                 caption=im.get("caption"),
-                file_url=file_url,
-                thumbnail_url=thumbnail_url,
-                file_content_type="image/png",
-                file_size=len(png),
-                original_filename=im.get("filename")
-                or f"{(im.get('title') or 'picture').lower().replace(' ', '-')}.png",
-                width=width,
-                height=height,
                 created_by=uploader,
                 created_at=created_at,
                 updated_at=version_at,
@@ -432,27 +429,20 @@ async def _picture(c: Community, gallery: Gallery, im: dict) -> GalleryImage:
             c.session.add(image)
             await c.session.flush()
             c.ids["gallery_images"].append(image.id)
-        else:
-            image.file_url = file_url
-            image.thumbnail_url = thumbnail_url
-            image.file_size = len(png)
-            image.updated_at = version_at
-            c.session.add(image)
-        c.session.add(
-            GalleryImageVersion(
-                gallery_image_id=image.id,
-                version_number=number,
-                file_url=file_url,
-                thumbnail_url=thumbnail_url,
-                file_content_type="image/png",
-                file_size=len(png),
-                original_filename=image.original_filename,
-                width=width,
-                height=height,
-                created_by=uploader,
-                created_at=version_at,
-            )
+        await file_versions.add_version(
+            c.session,
+            image,
+            file_url=file_url,
+            thumbnail_url=thumbnail_url,
+            file_content_type="image/png",
+            file_size=len(png),
+            original_filename=filename,
+            width=width,
+            height=height,
+            created_by=uploader,
+            created_at=version_at,
         )
+        image.updated_at = version_at
     assert image is not None
     await c.session.flush()
     c.ids["gallery_image_versions"].extend(
