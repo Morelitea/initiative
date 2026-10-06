@@ -20,6 +20,7 @@ from app.core.security import REFRESH_COOKIE_NAME
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user_email import UserEmail
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.testing.factories import (
     create_auth_provider,
     create_federated_identity,
@@ -127,9 +128,11 @@ async def test_a_provider_records_the_address_it_asserts(
 ):
     """An account a directory *links* rather than provisions already had an
     address. The one the directory asserts for it is new information, and it
-    is kept against the provider that asserted it."""
+    is kept against the provider that asserted it. The sign-in starts the
+    account's count of wrong answers over, as every sign-in does."""
     from sqlmodel import select as sqlmodel_select
 
+    from app.models.platform.sign_in_lock import SignInLock
     from app.models.platform.user_email_assertion import UserEmailAssertion
 
     provider = await _a_provider(session)
@@ -138,6 +141,8 @@ async def test_a_provider_records_the_address_it_asserts(
         session, user, subject="idp-subject-1", provider=provider
     )
     user_id, provider_id = user.id, provider.id
+    await sign_in_locks.record_failure(session, user_id)
+    await session.commit()
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
 
@@ -153,6 +158,7 @@ async def test_a_provider_records_the_address_it_asserts(
     assert "error=" not in response.headers["location"]
 
     session.expire_all()
+    assert (await session.get(SignInLock, user_id)).failures == 0
     rows = (
         await session.exec(
             sqlmodel_select(UserEmail).where(UserEmail.user_id == user_id)

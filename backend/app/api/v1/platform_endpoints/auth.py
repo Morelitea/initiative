@@ -68,8 +68,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
     REFRESH_COOKIE_PATH,
     clear_refresh_cookie,
     clear_session_cookie,
-    set_refresh_cookie,
-    set_session_cookie,
 )
 from app.api.v1.platform_endpoints.session_opening import (
     PASSWORD_LEG,
@@ -78,14 +76,13 @@ from app.api.v1.platform_endpoints.session_opening import (
     current_session_row,
     MOBILE_CALLBACK_URI,
     first_leg_of,
-    issue_session,
     mint_for,
     open_session,
     prove_password,
     refuse_if_locked,
     require_login_method,
     second_factor_outstanding,
-    session_store,
+    upgrade_session,
 )
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
@@ -1014,15 +1011,9 @@ async def refresh_access_token(
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     # Bounded by the row it renews, the same way the first token was.
-    access_token, access_max_age = mint_for(
-        issued.session, subject=subject, token_version=user.token_version
-    )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(
-        access_token=access_token,
-        refresh_token=issued.refresh_token if presented_in_body else None,
-    )
+    renewed = mint_for(issued, subject=subject, token_version=user.token_version)
+    renewed.set_cookies(response)
+    return renewed.to_token(include_refresh=presented_in_body)
 
 
 @router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
@@ -1212,6 +1203,7 @@ async def issue_upload_token(
 @router.post("/native/token", response_model=Token)
 async def redeem_native_sign_in(
     request: Request,
+    response: Response,
     system_session: SystemSessionDep,
     payload: NativeSignInRedeem,
 ) -> Token:
@@ -1234,31 +1226,23 @@ async def redeem_native_sign_in(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
         )
-    user_id, token_version = user.id, user.token_version
-    async with session_store(system_session, user_id=user_id):
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail={
-                "method": handoff.method,
-                "native": True,
-                "device_name": handoff.device_name,
-            },
-        )
-        await sign_in_locks.record_success(system_session, user_id)
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=handoff.amr,
-            satisfied_providers=handoff.satisfied_providers,
-            provider_auth=handoff.provider_auth,
-            device_name=handoff.device_name,
-            device=True,
-        )
-    return issued.to_token(include_refresh=True)
+    return await open_session(
+        request,
+        response,
+        system_session,
+        user_id=user.id,
+        token_version=user.token_version,
+        amr=handoff.amr,
+        audit_detail={
+            "method": handoff.method,
+            "native": True,
+            "device_name": handoff.device_name,
+        },
+        satisfied_providers=handoff.satisfied_providers,
+        provider_auth=handoff.provider_auth,
+        device_name=handoff.device_name,
+        device=True,
+    )
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -1883,10 +1867,9 @@ async def _complete_provider_login(
             logger.exception("Could not hand a native sign-in to user %s", user_id)
             return _error_redirect(True, OidcMessages.SESSION_STORE_UNAVAILABLE)
         return RedirectResponse(f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}")
-    # A step-up upgrades the session it interrupted rather than starting over:
-    # its factors and satisfied providers carry forward, and it is replaced.
-    # Satisfying one guild's requirement never un-satisfies another's. Only the
-    # same user's session merges; anything else is a fresh sign-in.
+    # A step-up upgrades the session it interrupted rather than starting over
+    # (see ``upgrade_session``). Only the same user's session merges; anything
+    # else is a fresh sign-in.
     #
     # The assurance record merges per provider: this provider's entry is
     # replaced by what it just asserted, and every other provider's account of
@@ -1899,46 +1882,49 @@ async def _complete_provider_login(
         )
         if prior is not None and prior.user_id != user_id:
             prior = None
-    if prior is not None:
-        amr = sorted(set(prior.amr) | set(amr))
-        satisfied = [*prior.satisfied_providers, *satisfied]
     provider_auth = record_for_provider(
         prior.provider_auth if prior is not None else None,
         provider_id=provider_id,
         assurance=assurance,
     )
+    audit_detail = {
+        "method": "oidc",
+        "provider": provider_slug,
+        "step_up": prior is not None,
+        # What the provider said about this authentication, in the same shape
+        # the session row keeps. Absent claims add no keys.
+        **assurance.as_record(),
+    }
     try:
-        async with session_store(system_session, user_id=user_id):
-            await audit_service.record(
-                system_session,
-                event_type=AuditEventType.AUTH_SIGNED_IN,
-                actor_user_id=user_id,
-                guild_id=None,
-                detail={
-                    "method": "oidc",
-                    "provider": provider_slug,
-                    "step_up": prior is not None,
-                    # What the provider said about this authentication, in the
-                    # same shape the session row keeps. Absent claims add no
-                    # keys.
-                    **assurance.as_record(),
-                },
-            )
-            issued = await issue_session(
+        if prior is None:
+            await open_session(
                 request,
+                oidc_response,
                 system_session,
                 user_id=user_id,
                 token_version=token_version,
                 amr=amr,
+                audit_detail=audit_detail,
                 satisfied_providers=satisfied,
                 provider_auth=provider_auth,
-                replaces=prior.id if prior is not None else None,
+                device=False,
+            )
+        else:
+            await upgrade_session(
+                request,
+                oidc_response,
+                system_session,
+                user=user,
+                add_amr=amr,
+                prior=prior,
+                add_providers=satisfied,
+                provider_auth=provider_auth,
+                audit_detail=audit_detail,
             )
     except HTTPException:
         # The provider authenticated them; we could not record it. Back to the
         # app with a code rather than a credential that cannot renew.
         return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
-    issued.set_cookies(oidc_response)
     return oidc_response
 
 
