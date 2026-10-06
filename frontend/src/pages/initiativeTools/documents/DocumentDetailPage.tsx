@@ -135,7 +135,7 @@ export const DocumentDetailPage = () => {
 
   // Track recently viewed documents so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
-  const recordViewMutation = useRecordRecentView("document", communityId);
+  const recordViewMutation = useRecordRecentView(Tool.document, communityId);
   const viewedDocumentId = documentQuery.data?.id;
   useReadOnOpen(Tool.document, viewedDocumentId);
   useEffect(() => {

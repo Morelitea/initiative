@@ -7,7 +7,12 @@ import type {
   GalleryImageVersionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  SearchEntityType,
+  TagTarget,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { PropertyPanel } from "@/components/properties";
@@ -135,7 +140,7 @@ export const GalleryImageSheet = ({
           <div className="flex items-start justify-between gap-2">
             <SheetTitle className="sr-only">{label || t("sheet.title")}</SheetTitle>
             <ReportButton
-              targetType="gallery_image"
+              targetType={TagTarget.gallery_image}
               targetId={image.id}
               authorId={image.created_by}
               className="shrink-0"

@@ -1,7 +1,7 @@
-import type { SerializedEditorState } from "lexical";
 import { lazy, Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeEditorState } from "@/lib/editorState";
 import { hasBody } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ export const PostBody = ({ body, className }: PostBodyProps) => {
     <div className={cn("text-sm", className)}>
       <Suspense fallback={<Skeleton className="h-16 w-full" />}>
         <Editor
-          editorSerializedState={body as unknown as SerializedEditorState}
+          editorSerializedState={normalizeEditorState(body)}
           readOnly
           showToolbar={false}
           variant="post"

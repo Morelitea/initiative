@@ -1,6 +1,6 @@
 import { useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { CalendarClock, Loader2, Pin, PinOff, Vote } from "lucide-react";
+import { CalendarClock, Loader2, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,35 +16,30 @@ import {
   pollDraftFromRead,
   pollDraftToWrite,
 } from "@/components/initiativeTools/posts/PollEditor";
+import { PostByline } from "@/components/initiativeTools/posts/PostByline";
+import { PostPinButton } from "@/components/initiativeTools/posts/PostPinButton";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
+import { DetailHeaderSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
-import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
-import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import {
-  useDeletePostPoll,
-  usePost,
-  useSetPostPin,
-  useSetPostPoll,
-  useUpdatePost,
-} from "@/hooks/usePosts";
+import { useDeletePostPoll, usePost, useSetPostPoll, useUpdatePost } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { normalizeEditorState } from "@/lib/editorState";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
-import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
+import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -74,7 +69,7 @@ export function PostDetailPage() {
   const post = postQuery.data;
   const initiativeId = useCanonicalInitiativeId(post?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("post", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.post, Number(communityId));
   const viewedPostId = post?.id;
   useReadOnOpen(Tool.post, viewedPostId);
   useEffect(() => {
@@ -105,10 +100,6 @@ export function PostDetailPage() {
   // Renaming gets its own too: the body's mutation clears the unsaved draft.
   const rename = useUpdatePost(parsedId, {
     onSuccess: () => toast.success(t("detailsUpdated")),
-  });
-  const setPin = useSetPostPin(parsedId, {
-    onSuccess: (updated) =>
-      toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
   });
 
   // The editor is uncontrolled once mounted, so the draft lives here and is
@@ -180,19 +171,7 @@ export function PostDetailPage() {
             <ToolChest tool={Tool.post} entity={post}>
               {canPin ? (
                 <ToolChestSegment>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={setPin.isPending}
-                    onClick={() => setPin.mutate({ pinned: !post.is_pinned })}
-                  >
-                    {post.is_pinned ? (
-                      <PinOff className="h-4 w-4" aria-hidden />
-                    ) : (
-                      <Pin className="h-4 w-4" aria-hidden />
-                    )}
-                    {post.is_pinned ? t("pin.unpin") : t("pin.pin")}
-                  </Button>
+                  <PostPinButton post={post} labelled />
                 </ToolChestSegment>
               ) : null}
             </ToolChest>
@@ -200,39 +179,11 @@ export function PostDetailPage() {
           title={post.name}
           onRename={canEdit ? (name) => rename.mutateAsync({ name }) : undefined}
         >
-          {/* Signed, the way the board signs it. A notice is somebody saying
-              something, and its own page is the last place that should be
-              left off. Under the headline here rather than above it, because
-              on a page the title comes first and the byline answers it. */}
-          {post.author ? (
-            <div className="flex min-w-0 items-center gap-2">
-              <ProfileAvatar
-                user={post.author}
-                decorations={post.author.profile_decorations}
-                presence={post.author.presence}
-                className="size-7 shrink-0"
-              />
-              <UserHandle user={post.author} className="text-sm" nameClassName="min-w-0 truncate" />
-              <span aria-hidden className="text-muted-foreground text-xs">
-                ·
-              </span>
-              <RelativeTime
-                date={post.published_at ?? post.created_at}
-                className="text-muted-foreground text-xs"
-              />
-            </div>
-          ) : null}
+          <PostByline post={post} inline />
           <PinnedBanner post={post} canPin={canPin} />
         </ToolPageHeader>
       ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-3" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-9 w-64" />
-        </div>
+        <DetailHeaderSkeleton actions={0} description={false} />
       )}
 
       <>
@@ -301,13 +252,7 @@ export function PostDetailPage() {
               <Suspense fallback={<Skeleton className="h-40 w-full" />}>
                 <Editor
                   key={post.id}
-                  // An empty object is not an empty editor state — Lexical refuses
-                  // one whose root has no children, and a notice that is only a
-                  // headline and a poll stores exactly that. Passing nothing lets
-                  // the editor build its own empty document.
-                  editorSerializedState={
-                    hasBody(post.body) ? (post.body as unknown as SerializedEditorState) : undefined
-                  }
+                  editorSerializedState={normalizeEditorState(post.body)}
                   onSerializedChange={setDraft}
                   readOnly={!canEdit}
                   showToolbar={canEdit}
@@ -329,9 +274,7 @@ export function PostDetailPage() {
                   <Button
                     size="sm"
                     disabled={update.isPending}
-                    onClick={() =>
-                      update.mutate({ body: draft as unknown as Record<string, unknown> })
-                    }
+                    onClick={() => update.mutate({ body: { ...draft } })}
                   >
                     {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                     {update.isPending ? t("saving") : t("common:save")}

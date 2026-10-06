@@ -139,8 +139,11 @@ export const useSetPostPin = (postId: number, options?: MutationOpts<PostRead, P
 const setCachedReadState = (postId: number, isRead: boolean) =>
   patchCachedPost(postId, (post) => {
     if (post.is_read === isRead) return post;
-    const count = typeof post.read_count === "number" ? post.read_count : 0;
-    return { ...post, is_read: isRead, read_count: Math.max(0, count + (isRead ? 1 : -1)) };
+    return {
+      ...post,
+      is_read: isRead,
+      read_count: Math.max(0, post.read_count + (isRead ? 1 : -1)),
+    };
   });
 
 /**
@@ -242,8 +245,7 @@ export const usePostPollVoters = (postId: number, options?: QueryOpts<PollVoters
  * does not change the board's order, and refetching the feed for one would
  * move rows under the cursor mid-scroll.
  */
-const seedCachedPost = (post: PostRead) =>
-  patchCachedPost(post.id, () => post as unknown as Record<string, unknown>);
+const seedCachedPost = (post: PostRead) => patchCachedPost(post.id, () => post);
 
 /**
  * This ballot, applied to the poll on screen.
@@ -278,9 +280,8 @@ const applyBallot = (poll: PollRead, optionIds: number[]): PollRead => {
 
 const setCachedBallot = (postId: number, optionIds: number[]) =>
   patchCachedPost(postId, (post) => {
-    const poll = post.poll as PollRead | null | undefined;
-    if (!poll) return post;
-    return { ...post, poll: applyBallot(poll, optionIds) };
+    if (!post.poll) return post;
+    return { ...post, poll: applyBallot(post.poll, optionIds) };
   });
 
 /**

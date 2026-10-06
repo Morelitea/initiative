@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  SearchEntityType,
   Tool,
   type WikiPageHeading,
   WikiPageKind,
@@ -296,7 +297,7 @@ const WikiPageRow = ({
                 {/* A borrowed document is read as the document it is. */}
                 {unread.hasSubject(
                   page.community_id,
-                  isDocument ? Tool.document : "wiki_page",
+                  isDocument ? Tool.document : SearchEntityType.wiki_page,
                   page.id
                 ) ? (
                   <UnreadDot />

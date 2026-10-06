@@ -944,7 +944,7 @@ export function CalendarFocusPage() {
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("calendar", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.calendar, Number(communityId));
   const viewedCalendarId = calendar?.id;
   useReadOnOpen(Tool.calendar, viewedCalendarId);
   useEffect(() => {

@@ -19,6 +19,7 @@
  * spelling rules.
  */
 
+import type { UseQueryResult } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { SortingState } from "@tanstack/react-table";
 import type { FlatNamespace } from "i18next";
@@ -76,25 +77,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropOverlay } from "@/components/ui/file-drop";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useDocumentsList } from "@/hooks/useDocuments";
 import { useFileDrop } from "@/hooks/useFileDrop";
-import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
-import { useProjects, useReorderProjects } from "@/hooks/useProjects";
-import { useQueuesList } from "@/hooks/useQueues";
+import { useReorderProjects } from "@/hooks/useProjects";
 import { useTagTreeSelection } from "@/hooks/useTagTreeSelection";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { useWikisList } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import type { AppColumnDef } from "@/lib/table";
@@ -103,6 +99,7 @@ import {
   TOOL_ICONS,
   type ToolView,
   type ToolViewParams,
+  toolCamelPlural,
   toolDetailRoute,
   toolListingKind,
   toolViewParams,
@@ -174,9 +171,9 @@ export type ToolIndexEntry = {
    * dialog's. Kept per tool rather than folded into one generic string: "No
    * counter groups match your filters" is written in four locales already, and
    * a shared wording would be a fifth thing to translate that says less.
+   * They are in the tool's own namespace, `toolCamelPlural(tool)`.
    */
   text: {
-    ns: FlatNamespace;
     /** Title of the create button, the bottom-nav action, and the dialog. */
     create: string;
     /** The line under the shared create dialog's title. */
@@ -240,207 +237,59 @@ export const toolIndexEntry = (tool: Tool): ToolIndexEntry | null => {
 // Each tool's list
 // ---------------------------------------------------------------------------
 
-const useProjectRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useProjects({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-  });
-
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((project) => ({
-        ...project,
-        card: <ProjectCard project={project} />,
-      })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
+/** What the shared page asks every tool's list for. */
+type ToolIndexParams = ToolIndexFilters["list"] &
+  ToolIndexFilters["sort"] & {
+    initiative_id: number;
+    page: number;
+    page_size: number;
+    /** What each card shows of what is inside it, read with the page. */
+    include_preview?: true;
   };
-};
 
-const useDocumentRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useDocumentsList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-  });
+/** A row of any listed tool, before its card is drawn. */
+type ToolIndexItem = Omit<ToolIndexRow, "card">;
 
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((document) => ({
-        ...document,
-        card: <DocumentCard document={document} />,
-      })),
-    [query.data]
-  );
+/**
+ * A tool's list hook, from its `TOOL_HOOKS` list and how one of its rows is
+ * drawn as a card. `extra` is what the tool asks its list for beyond the
+ * shared narrowing.
+ */
+const makeRows =
+  <TItem extends ToolIndexItem>(
+    useList: (
+      params: ToolIndexParams
+    ) => UseQueryResult<{ items: TItem[]; total_count: number; has_next: boolean }>,
+    drawCard: (item: TItem) => ReactNode,
+    extra?: Pick<ToolIndexParams, "include_preview">
+  ) =>
+  (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
+    const query = useList({
+      ...filters.list,
+      initiative_id: initiativeId,
+      ...filters.view,
+      ...filters.sort,
+      page: filters.page,
+      page_size: filters.pageSize,
+      ...extra,
+    });
 
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
+    const rows = useMemo(
+      () => (query.data?.items ?? []).map((item) => ({ ...item, card: drawCard(item) })),
+      [query.data]
+    );
+
+    return {
+      rows,
+      isLoading: query.isLoading,
+      isError: query.isError,
+      isPlaceholderData: query.isPlaceholderData,
+      totalCount: query.data?.total_count ?? 0,
+      hasNext: query.data?.has_next ?? false,
+    };
   };
-};
 
-const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useWikisList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-  });
-
-  const rows = useMemo(
-    () => (query.data?.items ?? []).map((wiki) => ({ ...wiki, card: <WikiCard wiki={wiki} /> })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
-  };
-};
-
-const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useGalleriesList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-  });
-
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((gallery) => ({
-        ...gallery,
-        card: <GalleryCard gallery={gallery} />,
-      })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
-  };
-};
-
-const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useQueuesList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-    // What each card shows of what is inside it, read with the page.
-    include_preview: true,
-  });
-
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((queue) => ({ ...queue, card: <QueueCard queue={queue} /> })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
-  };
-};
-
-const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useCounterGroupsList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-    // What each card shows of what is inside it, read with the page.
-    include_preview: true,
-  });
-
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((group) => ({
-        ...group,
-        card: <CounterGroupCard group={group} />,
-      })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
-  };
-};
-
-const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const query = useDashboardsList({
-    ...filters.list,
-    initiative_id: initiativeId,
-    ...filters.view,
-    ...filters.sort,
-    page: filters.page,
-    page_size: filters.pageSize,
-    // What each card shows of what is inside it, read with the page.
-    include_preview: true,
-  });
-
-  const rows = useMemo(
-    () =>
-      (query.data?.items ?? []).map((dashboard) => ({
-        ...dashboard,
-        card: <DashboardCard dashboard={dashboard} />,
-      })),
-    [query.data]
-  );
-
-  return {
-    rows,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    totalCount: query.data?.total_count ?? 0,
-    hasNext: query.data?.has_next ?? false,
-  };
-};
+const WITH_PREVIEW = { include_preview: true } as const;
 
 // ---------------------------------------------------------------------------
 // The table
@@ -456,9 +305,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   [Tool.post]: { ownPage: "PostsPage — a virtualized feed with a timeline rail" },
 
   [Tool.project]: {
-    useList: useProjectRows,
+    useList: makeRows(TOOL_HOOKS[Tool.project].useList, (project) => (
+      <ProjectCard project={project} />
+    )),
     text: {
-      ns: "projects",
       create: "addProject",
       noMatches: "noMatchingProjects",
       emptyTitle: "noProjects",
@@ -472,9 +322,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.document]: {
-    useList: useDocumentRows,
+    useList: makeRows(TOOL_HOOKS[Tool.document].useList, (document) => (
+      <DocumentCard document={document} />
+    )),
     text: {
-      ns: "documents",
       create: "newDocument",
       noMatches: "filters.noMatchingDocuments",
       emptyTitle: "noDocuments",
@@ -491,9 +342,12 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.queue]: {
-    useList: useQueueRows,
+    useList: makeRows(
+      TOOL_HOOKS[Tool.queue].useList,
+      (queue) => <QueueCard queue={queue} />,
+      WITH_PREVIEW
+    ),
     text: {
-      ns: "queues",
       create: "createQueue",
       createDescription: "noQueuesDescription",
       noMatches: "filters.noMatchingQueues",
@@ -503,9 +357,12 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.counter_group]: {
-    useList: useCounterGroupRows,
+    useList: makeRows(
+      TOOL_HOOKS[Tool.counter_group].useList,
+      (group) => <CounterGroupCard group={group} />,
+      WITH_PREVIEW
+    ),
     text: {
-      ns: "counterGroups",
       create: "createGroup",
       createDescription: "noGroupsDescription",
       noMatches: "filters.noMatchingGroups",
@@ -515,9 +372,12 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.dashboard]: {
-    useList: useDashboardRows,
+    useList: makeRows(
+      TOOL_HOOKS[Tool.dashboard].useList,
+      (dashboard) => <DashboardCard dashboard={dashboard} />,
+      WITH_PREVIEW
+    ),
     text: {
-      ns: "dashboards",
       create: "createDashboard",
       createDescription: "noDashboardsDescription",
       noMatches: "filters.noMatchingDashboards",
@@ -527,9 +387,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.gallery]: {
-    useList: useGalleryRows,
+    useList: makeRows(TOOL_HOOKS[Tool.gallery].useList, (gallery) => (
+      <GalleryCard gallery={gallery} />
+    )),
     text: {
-      ns: "galleries",
       create: "createGallery",
       createDescription: "createGalleryDescription",
       noMatches: "filters.noMatchingGalleries",
@@ -539,9 +400,8 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.wiki]: {
-    useList: useWikiRows,
+    useList: makeRows(TOOL_HOOKS[Tool.wiki].useList, (wiki) => <WikiCard wiki={wiki} />),
     text: {
-      ns: "wikis",
       create: "createWiki",
       createDescription: "createWikiDescription",
       noMatches: "filters.noMatchingWikis",
@@ -642,7 +502,8 @@ type ToolIndexBodyProps = ToolIndexPageProps & { entry: ToolIndexEntry };
 const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexBodyProps) => {
   // The namespace and most of the keys come from the table, so the loose
   // translate signature rather than the statically-typed one.
-  const { t: translate } = useTranslation([entry.text.ns, "common", "tags"]);
+  const ns = toolCamelPlural(tool) as FlatNamespace;
+  const { t: translate } = useTranslation([ns, "common", "tags"]);
   const t = translate as TranslateFn;
   const router = useRouter();
   const gp = useCommunityPath();
@@ -1075,7 +936,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
           open={createOpen}
           onOpenChange={handleCreateOpenChange}
           tool={tool}
-          text={entry.text}
+          text={{ ...entry.text, ns }}
           initiativeId={fixedInitiativeId}
           onSuccess={openCreated}
         />

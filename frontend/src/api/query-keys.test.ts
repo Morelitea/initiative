@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidate,
   patchCachedPost,
@@ -221,7 +221,7 @@ describe("patchCachedPost", () => {
     setInvalidationCommunity(null);
   });
 
-  const markRead = (post: Record<string, unknown>) => ({ ...post, is_read: true });
+  const markRead = (post: PostRead) => ({ ...post, is_read: true });
 
   it("patches a post inside an infinite feed's pages", () => {
     const key = ["/api/v1/c/5/posts/", { initiative_id: 1 }];

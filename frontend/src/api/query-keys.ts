@@ -34,7 +34,7 @@
  * `matches()` below, the only code in the app that decides whether a cached key
  * belongs to the current community.
  */
-import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 import { PARENT_TOOL, TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
@@ -486,14 +486,6 @@ const calendarEvent = (eventId: number): Spec => ({
  */
 const postTimeline = (): Spec => ({ communityPrefix: ["/api/v1/posts/timeline"] });
 
-// ── Galleries (community) ────────────────────────────────────────────────────────
-
-/** A gallery's pictures — every page of the list, the timeline rail, and
- *  each picture's own reads and versions — without the gallery row itself. */
-const galleryImages = (galleryId: number): Spec => ({
-  communityPrefix: [`/api/v1/galleries/${galleryId}/images`],
-});
-
 // ── Wikis (community) ────────────────────────────────────────────────────────────
 
 /** A wiki's pages — the tree and each page's own read — without the wiki row
@@ -677,7 +669,6 @@ export const q = {
   platformAIMode,
   platformCommunities,
   gallery,
-  galleryImages,
   post,
   postTimeline,
   project,
@@ -733,8 +724,7 @@ export const resetCommunityScopedQueries = (arrivingCommunityId?: number | null)
 
 // ── Rewriting a cached post in place (not an invalidation) ───────────────────
 
-type CachedPost = Record<string, unknown>;
-type CachedPage = { items?: CachedPost[] };
+type CachedPage = { items?: PostRead[] };
 
 /**
  * One page of posts, with this post rewritten. Returns the SAME object when
@@ -744,7 +734,7 @@ type CachedPage = { items?: CachedPost[] };
 const patchPostPage = (
   page: unknown,
   postId: number,
-  update: (post: CachedPost) => CachedPost
+  update: (post: PostRead) => PostRead
 ): unknown => {
   const asList = page as CachedPage;
   if (!Array.isArray(asList.items)) return page;
@@ -769,7 +759,7 @@ const patchPostPage = (
  * other two would leave every optimistic update invisible on the surface it
  * was made from.
  */
-export const patchCachedPost = (postId: number, update: (post: CachedPost) => CachedPost) => {
+export const patchCachedPost = (postId: number, update: (post: PostRead) => PostRead) => {
   const matcher = merge([allPosts()]);
   queryClient.setQueriesData<unknown>(
     { predicate: (query) => matches(matcher, query.queryKey) },
@@ -786,7 +776,7 @@ export const patchCachedPost = (postId: number, update: (post: CachedPost) => Ca
       const patched = patchPostPage(data, postId, update);
       if (patched !== data) return patched;
 
-      const asPost = data as CachedPost;
+      const asPost = data as PostRead;
       return asPost.id === postId ? update(asPost) : data;
     }
   );

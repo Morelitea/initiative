@@ -1,7 +1,7 @@
-import type { GalleryImageRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidate, q } from "@/api/query-keys";
+import { type GalleryImageRead, TagTarget } from "@/api/generated/initiativeAPI.schemas";
 import { BulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { invalidateImages } from "@/hooks/useGalleries";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditImageTagsDialogProps extends DialogWithSuccessProps {
@@ -22,11 +22,9 @@ export function BulkEditImageTagsDialog({
     <BulkEditTagsDialog
       {...dialogProps}
       items={images}
-      targetType="gallery_image"
+      targetType={TagTarget.gallery_image}
       communityId={communityId}
-      onInvalidate={() =>
-        void invalidate(q.galleryImages(galleryId), q.gallery(galleryId), q.allGalleries())
-      }
+      onInvalidate={() => void invalidateImages(galleryId)}
     />
   );
 }
