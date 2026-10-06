@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import UserSessionDep, CurrentUser, require_first_party_session
-from app.core.auth_context import session_credential
+from app.core import auth_context
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
     PushTokenUnregisterRequest,
@@ -44,7 +44,7 @@ async def register_push_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=NotificationMessages.PUSH_DISABLED,
         )
-    credential = session_credential()
+    credential = auth_context.current().session_credential
     await push_tokens.register_push_token(
         session=session,
         user_id=current_user.id,

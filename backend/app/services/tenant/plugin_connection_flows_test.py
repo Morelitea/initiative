@@ -569,8 +569,19 @@ class TestMemberFlow:
         code = vendor.authorize(start["code_challenge"])
 
         landing = await _callback(client, None, state=start["state"], code=code)
+        # A request that presents a bearer header is read by that header, so
+        # the session cookie beside it does not sign anyone in here.
+        beside_bearer = await client.get(
+            "/api/v1/plugin-connections/callback",
+            params={"state": start["state"], "code": code},
+            headers=_cookie(a) | a.headers,
+        )
 
         assert landing["outcome"] == "sign_in_required"
+        assert beside_bearer.status_code == 303
+        assert (
+            _landing(beside_bearer.headers["location"])["outcome"] == "sign_in_required"
+        )
         assert vendor.token_requests == []
         assert await _member_row(session, a.guild.id, plugin.id) is None
 

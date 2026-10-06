@@ -339,7 +339,7 @@ class _LiveAccountSession:
 async def streams(monkeypatch):
     """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
-    auth_context.set_session_credential(None)
+    auth_context.reset()
     register = ContentSockets()
 
     async def _admitted(*_a, **_k):

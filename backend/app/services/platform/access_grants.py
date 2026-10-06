@@ -361,7 +361,7 @@ async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
         auth_posture.rule_covers(
             await auth_posture.second_factor_requirement(session), actor.role
         )
-        and SECOND_FACTOR_AMR not in auth_context.session_amr()
+        and SECOND_FACTOR_AMR not in auth_context.current().session_amr
     )
 
 
