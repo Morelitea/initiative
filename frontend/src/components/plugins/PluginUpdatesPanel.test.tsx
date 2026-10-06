@@ -102,7 +102,7 @@ describe("PluginUpdatesPanel", () => {
     ));
 
     expect(await screen.findByText("Version 1.2.0 wants to:")).toBeInTheDocument();
-    expect(screen.getByText("Read and change documents")).toBeInTheDocument();
+    expect(screen.getByText("Read and change files")).toBeInTheDocument();
     expect(screen.getByText("Show “Planner” inside initiatives")).toBeInTheDocument();
     // The plain Update button is not offered beside the question.
     expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
