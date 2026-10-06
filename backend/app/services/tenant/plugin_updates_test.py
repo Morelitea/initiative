@@ -82,7 +82,7 @@ async def _publish(session: AsyncSession, uid: str, version: str, **overrides):
         session,
         uid=uid,
         public_id=f"tests.{uid.lower()}",
-        kind="app",
+        kind="plugin",
         version=version,
         definition=overrides.pop("definition", _definition()),
         **overrides,
@@ -108,7 +108,9 @@ async def _installed(session: AsyncSession, uid: str, **overrides) -> tuple:
 async def _reread(session: AsyncSession, guild_id: int, plugin_id: int) -> GuildPlugin:
     session.expunge_all()
     await route_session_to_guild(session, guild_id)
-    return (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).one()
+    return (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).one()
 
 
 async def _schedules(session: AsyncSession, guild_id: int) -> dict[str, datetime]:
@@ -206,7 +208,9 @@ class TestTheSweep:
             async with AsyncSession(engine) as admin:
                 await route_session_to_guild(admin, guild_id)
                 row = (
-                    await admin.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+                    await admin.exec(
+                        select(GuildPlugin).where(GuildPlugin.id == plugin_id)
+                    )
                 ).one()
                 ready.set()
                 row.config = {
@@ -528,7 +532,9 @@ class TestVersionsThatAskForMore:
         moved, asked = await _sweep(session, guild.id)
 
         assert moved == 0
-        assert asked == [AskedUpdate(plugin_id=app.id, plugin_name=app.name, version="1.1.0")]
+        assert asked == [
+            AskedUpdate(plugin_id=app.id, plugin_name=app.name, version="1.1.0")
+        ]
         waiting = await _reread(session, guild.id, app.id)
         assert waiting.listing_version == "1.0.0"
         assert waiting.pending_version == "1.1.0"

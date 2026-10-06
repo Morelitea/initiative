@@ -40,7 +40,7 @@ vi.mock("@/lib/widgets/runtime/host", () => ({ renderWidget, readWidgetMeta }));
 import { DashboardWidget } from "./DashboardWidget";
 
 const PLUGIN_UID = "SHOPAPP0000001";
-const WIDGET_TYPE = `app:${PLUGIN_UID}:summary`;
+const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
 const MODULE = "export const render = () => ({ scene: { kind: 'empty' } });";
 
 const binding: WidgetBinding = {

@@ -144,7 +144,7 @@ class PluginEndpointRead(SanitizedBaseModel):
 class PluginWidgetRead(SanitizedBaseModel):
     """One widget an installed app contributes."""
 
-    #: Namespaced ``app:<listing_uid>:<widget_id>``, so an app's widget can
+    #: Namespaced ``plugin:<listing_uid>:<widget_id>``, so an app's widget can
     #: never resolve to a built-in renderer or the other way round.
     type: str
     id: str

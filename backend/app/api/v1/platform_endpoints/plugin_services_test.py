@@ -48,7 +48,9 @@ NEW = {"public_id": "acme.widgets", "base_url": APP_URL}
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
     monkeypatch.setattr(
-        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"
+        settings,
+        "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+        "-----BEGIN PRIVATE KEY-----",
     )
 
 
@@ -85,7 +87,7 @@ async def _listed(client: AsyncClient, headers: dict[str, str], row_id: int) -> 
 async def test_non_owner_tiers_are_refused(
     client: AsyncClient, session: AsyncSession, role: UserRole
 ):
-    """``apps.manage`` is owner-only: wiring an app service is deployment
+    """``plugins.manage`` is owner-only: wiring an app service is deployment
     configuration, so no lower tier reaches any verb."""
     user = await create_user(session, role=role)
     headers = get_auth_headers(user)
@@ -507,7 +509,7 @@ async def _vendor_listing(session: AsyncSession) -> None:
         session,
         uid=LISTING_UID,
         public_id="acme.widgets",
-        kind="app",
+        kind="plugin",
         definition=VENDOR_DEFINITION,
     )
 
@@ -708,7 +710,7 @@ async def _github_registration(session: AsyncSession) -> PluginServiceRegistrati
         session,
         uid=LISTING_UID,
         public_id="acme.widgets",
-        kind="app",
+        kind="plugin",
         definition=GITHUB_DEFINITION,
     )
     return await _seed(session)
@@ -918,7 +920,7 @@ async def _republish(session: AsyncSession, **setup_values: str) -> None:
         session,
         uid=LISTING_UID,
         public_id="acme.widgets",
-        kind="app",
+        kind="plugin",
         version="1.1.0",
         definition=definition,
     )

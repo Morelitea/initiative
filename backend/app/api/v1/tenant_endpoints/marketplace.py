@@ -156,7 +156,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     # install and the registration's ceiling. Empty for anything not an app.
     requested: list[str] = []
     grantable: list[str] = []
-    if listing.kind == "app":
+    if listing.kind == "plugin":
         requested = guild_plugins_service.requested_scopes(definition)
         registration = await registration_lookup.registration_for_definition(definition)
         grantable = guild_plugins_service.grantable_scopes(
@@ -168,7 +168,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         grantable_scopes=grantable,
         plugin_names=await guild_plugins_service.plugin_scope_names(session, requested),
         has_initiative_surfaces=(
-            listing.kind == "app"
+            listing.kind == "plugin"
             and guild_plugins_service.has_initiative_surfaces(definition)
         ),
         long_description=listing.long_description,

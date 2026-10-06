@@ -196,7 +196,9 @@ async def _connected(
         user_id=actor.user.id,
         connection_ref=mint_connection_ref(),
         config={"login": "someone"},
-        config_secrets={"access_token": encrypt_field("gho_member", SALT_PLUGIN_CONFIG)},
+        config_secrets={
+            "access_token": encrypt_field("gho_member", SALT_PLUGIN_CONFIG)
+        },
         status="connected",
     )
     session.add(row)
@@ -239,7 +241,7 @@ class TestInstallKind:
             session,
             uid=uid,
             public_id="tests.service",
-            kind="app",
+            kind="plugin",
             definition=SERVICE_DEFINITION,
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)
@@ -249,7 +251,9 @@ class TestInstallKind:
         assert response.status_code == 201, response.text
         plugin_id = response.json()["id"]
 
-        detail = (await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)).json()
+        detail = (
+            await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)
+        ).json()
         assert [c["id"] for c in detail["connections"]] == ["admin", "github"]
 
 
@@ -386,7 +390,9 @@ class TestConfig:
             json={"values": {"stripe": {"key": "x"}}},
         )
         assert response.status_code == 400
-        assert response.json()["detail"] == GuildPluginMessages.CONFIG_UNKNOWN_CONNECTION
+        assert (
+            response.json()["detail"] == GuildPluginMessages.CONFIG_UNKNOWN_CONNECTION
+        )
 
     async def test_a_per_member_connection_is_not_set_through_the_form(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -519,7 +525,9 @@ class TestConnect:
             a.g(f"/plugins/{app.id}/connections/admin/connect"), headers=a.headers
         )
         assert response.status_code == 409
-        assert response.json()["detail"] == GuildPluginMessages.CONNECTION_NOT_INTERACTIVE
+        assert (
+            response.json()["detail"] == GuildPluginMessages.CONNECTION_NOT_INTERACTIVE
+        )
 
     async def test_an_admin_starts_the_guild_s_own_vendor_flow(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -742,7 +750,9 @@ class TestConnectionVisibility:
         started = await _connected(session, member, app)
         ref = started.connection_ref
 
-        response = await client.get(a.g(f"/plugins/{app.id}/members"), headers=a.headers)
+        response = await client.get(
+            a.g(f"/plugins/{app.id}/members"), headers=a.headers
+        )
         assert ref not in response.text
         assert "config_secrets" not in response.text
 
@@ -965,7 +975,7 @@ class TestUpgrade:
             session,
             uid=UPGRADE_UID,
             public_id="tests.upgradeable",
-            kind="app",
+            kind="plugin",
             version="1.0.0",
             definition=_tool_definition(),
         )
@@ -980,7 +990,7 @@ class TestUpgrade:
             session,
             uid=UPGRADE_UID,
             public_id="tests.upgradeable",
-            kind="app",
+            kind="plugin",
             version="1.1.0",
             definition={**_tool_definition(), "default_name": "Cal v2"},
         )
@@ -989,7 +999,9 @@ class TestUpgrade:
         offered = await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)
         assert offered.json()["update_version"] == "1.1.0"
 
-        response = await client.post(a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers)
+        response = await client.post(
+            a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers
+        )
         assert response.status_code == 200, response.text
         assert response.json()["listing_version"] == "1.1.0"
         # And the button goes away rather than offering the version just taken.
@@ -1011,7 +1023,7 @@ class TestUpgrade:
             session,
             uid=uid,
             public_id="tests.offbutinstalled",
-            kind="app",
+            kind="plugin",
             version="1.0.0",
             definition=SERVICE_DEFINITION,
         )
@@ -1031,7 +1043,7 @@ class TestUpgrade:
             session,
             uid=uid,
             public_id="tests.offbutinstalled",
-            kind="app",
+            kind="plugin",
             version="1.1.0",
             definition=SERVICE_DEFINITION,
         )
@@ -1040,7 +1052,9 @@ class TestUpgrade:
         assert detail.json()["update_version"] == "1.1.0"
         assert detail.json()["available"] is False
 
-        response = await client.post(a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers)
+        response = await client.post(
+            a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers
+        )
         assert response.status_code == 200, response.text
         assert response.json()["listing_version"] == "1.1.0"
 
@@ -1051,7 +1065,7 @@ class TestUpgrade:
             session,
             uid=marketplace_uid("alreadylatest"),
             public_id="tests.alreadylatest",
-            kind="app",
+            kind="plugin",
             definition=_tool_definition(),
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)

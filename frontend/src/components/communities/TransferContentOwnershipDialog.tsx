@@ -54,9 +54,9 @@ const useToolCounts = (counts: Record<string, number> | undefined) => {
   );
 };
 
-/** A recipient in the picker: an admin (`user:<id>`) or an app (`app:<id>`). */
+/** A recipient in the picker: an admin (`user:<id>`) or an app (`plugin:<id>`). */
 const personRecipient = (id: number) => `user:${id}`;
-const pluginRecipient = (id: number) => `app:${id}`;
+const pluginRecipient = (id: number) => `plugin:${id}`;
 
 /** The request body a picked recipient becomes. */
 const transferBody = (recipient: string): OwnershipTransferRequest => {

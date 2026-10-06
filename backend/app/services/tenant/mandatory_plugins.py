@@ -163,7 +163,9 @@ async def install_mandatory_plugins(
 
         existing = (
             await session.exec(
-                select(GuildPlugin).where(GuildPlugin.listing_uid == registration.listing_uid)
+                select(GuildPlugin).where(
+                    GuildPlugin.listing_uid == registration.listing_uid
+                )
             )
         ).first()
         if existing is not None:
@@ -184,7 +186,7 @@ async def install_mandatory_plugins(
 
         try:
             listing, version = await resolve_listing_install(
-                session, registration.listing_uid, kind="app"
+                session, registration.listing_uid, kind="plugin"
             )
         except ListingInstallError as exc:
             logger.info(

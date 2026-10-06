@@ -1,7 +1,7 @@
 {
   "uid": "H4TC7RN2WQ5JXB",
   "public_id": "core.guild-calendar",
-  "kind": "app",
+  "kind": "plugin",
   "name": "Community calendar",
   "publisher": "Initiative",
   "description": "Calendars your whole community shares — holidays, meetups, and one for each of you.",

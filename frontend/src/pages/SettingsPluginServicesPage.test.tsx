@@ -73,7 +73,7 @@ import { SettingsPluginServicesPage } from "./SettingsPluginServicesPage";
 
 const renderAsOperator = () =>
   renderWithProviders(<SettingsPluginServicesPage />, {
-    auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+    auth: { user: buildUser({ role: "owner", capabilities: ["plugins.manage"] }) },
   });
 
 describe("SettingsPluginServicesPage", () => {
@@ -538,7 +538,10 @@ describe("SettingsPluginServicesPage", () => {
         onSuccess([{ kid: "gh-1", fingerprint: "abc" }])
       );
       connectMutate.mockImplementation((_vars, { onError }) =>
-        onError({ isAxiosError: true, response: { data: { detail: "PLUGIN_SERVICE_KEYS_CHANGED" } } })
+        onError({
+          isAxiosError: true,
+          response: { data: { detail: "PLUGIN_SERVICE_KEYS_CHANGED" } },
+        })
       );
       renderAsOperator();
 
@@ -633,7 +636,7 @@ describe("SettingsPlatformIndexPage", () => {
   it("does not land an plugins-only operator on settings they cannot manage", async () => {
     const { SettingsPlatformIndexPage } = await import("@/pages/SettingsPlatformIndexPage");
     renderPage(SettingsPlatformIndexPage, {
-      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      auth: { user: buildUser({ role: "owner", capabilities: ["plugins.manage"] }) },
       initialRoute: "/settings/platform",
     });
     // Authentication settings belong to config.manage. Rendering them here
@@ -648,7 +651,7 @@ describe("SettingsVendorSetupPage", () => {
   it("hands GitHub's code and the setup's state to the server once", async () => {
     const { SettingsVendorSetupPage } = await import("@/pages/SettingsVendorSetupPage");
     renderPage(SettingsVendorSetupPage, {
-      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      auth: { user: buildUser({ role: "owner", capabilities: ["plugins.manage"] }) },
       initialRoute: "/settings/platform/integrations/vendor-setup/$registrationId",
       routeParams: { registrationId: "7" },
       routerSearch: { code: "abc123", state: "st" },
@@ -666,7 +669,7 @@ describe("SettingsVendorSetupPage", () => {
   it("says the setup failed when GitHub sent no code", async () => {
     const { SettingsVendorSetupPage } = await import("@/pages/SettingsVendorSetupPage");
     renderPage(SettingsVendorSetupPage, {
-      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      auth: { user: buildUser({ role: "owner", capabilities: ["plugins.manage"] }) },
       initialRoute: "/settings/platform/integrations/vendor-setup/$registrationId",
       routeParams: { registrationId: "7" },
     });

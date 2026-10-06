@@ -175,7 +175,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
         return {
             "uid": uid,
             "public_id": public_id,
-            "kind": "app",
+            "kind": "plugin",
             "name": public_id,
             "publisher": "Tests",
             "description": "A shipped listing.",
@@ -237,7 +237,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
         return {
             "uid": uid,
             "public_id": public_id,
-            "kind": "app",
+            "kind": "plugin",
             "name": public_id,
             "publisher": "Tests",
             "description": "A shipped app with a dashboard.",

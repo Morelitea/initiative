@@ -218,7 +218,7 @@ class TestDefinitions:
             await service.upsert_listing(
                 session,
                 _manifest(
-                    kind="app",
+                    kind="plugin",
                     definition={"plugin_kind": "tool_instance", "tool": "dashboard"},
                 ),
                 source="builtin",
@@ -229,7 +229,7 @@ class TestDefinitions:
         Initiative's own mark rather than refused over a picture — and the
         default is same-origin like everything else the catalog stores."""
         manifest = _manifest(
-            kind="app",
+            kind="plugin",
             definition={
                 "plugin_kind": "tool_instance",
                 "tool": "calendar",
@@ -246,7 +246,7 @@ class TestDefinitions:
     async def test_supplied_artwork_still_has_to_be_same_origin(self, session):
         """The default is not a way in for a remote URL."""
         manifest = _manifest(
-            kind="app",
+            kind="plugin",
             definition={
                 "plugin_kind": "tool_instance",
                 "tool": "calendar",
@@ -262,7 +262,7 @@ class TestDefinitions:
         listing = await service.upsert_listing(
             session,
             _manifest(
-                kind="app",
+                kind="plugin",
                 definition={
                     "plugin_kind": "tool_instance",
                     "tool": "calendar",
@@ -287,7 +287,7 @@ class TestDefinitions:
         listing = await service.upsert_listing(
             session,
             _manifest(
-                kind="app",
+                kind="plugin",
                 definition={
                     "plugin_kind": "service",
                     "service": {
@@ -512,7 +512,7 @@ class TestSearch:
         )
         found, _ = await service.list_listings(session, kind="dashboard")
         assert "tests.kind" in [listing.public_id for listing in found]
-        found, _ = await service.list_listings(session, kind="app")
+        found, _ = await service.list_listings(session, kind="plugin")
         assert found == []
 
 

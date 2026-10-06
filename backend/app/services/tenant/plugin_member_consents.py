@@ -163,7 +163,9 @@ async def list_install_consents(
     """Every member's rows for one install, for the seat's members view:
     grouped by member, app-wide first within each, then by purpose.
     ``user_ids`` narrows it to those members, one page of that view."""
-    stmt = select(PluginMemberConsent).where(PluginMemberConsent.install_id == install_id)
+    stmt = select(PluginMemberConsent).where(
+        PluginMemberConsent.install_id == install_id
+    )
     if user_ids is not None:
         stmt = stmt.where(PluginMemberConsent.user_id.in_(user_ids))
     rows = (await session.exec(stmt)).all()
@@ -252,7 +254,7 @@ async def grant(
         actor_user_id=actor_user_id,
         target_user_id=row.user_id,
         guild_id=routed_guild_id(session),
-        target_type="app",
+        target_type="plugin",
         target_id=row.install_id,
         detail={
             "consent_id": row.id,
@@ -297,7 +299,7 @@ async def revoke(
             actor_user_id=actor_user_id,
             target_user_id=row.user_id,
             guild_id=routed_guild_id(session),
-            target_type="app",
+            target_type="plugin",
             target_id=row.install_id,
             detail={"consent_id": row.id, "purpose": row.purpose, "via": via},
         )
@@ -372,7 +374,9 @@ async def delete_install_consents(session: AsyncSession, *, install_id: int) -> 
     """Every member's rows for one install, for its uninstall. Returns how many
     went, which the uninstall records."""
     result = await session.exec(
-        sa_delete(PluginMemberConsent).where(PluginMemberConsent.install_id == install_id)  # type: ignore[arg-type]
+        sa_delete(PluginMemberConsent).where(
+            PluginMemberConsent.install_id == install_id
+        )  # type: ignore[arg-type]
     )
     return result.rowcount or 0
 

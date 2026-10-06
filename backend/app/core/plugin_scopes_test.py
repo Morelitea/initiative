@@ -120,7 +120,7 @@ def test_a_plugin_scope_names_the_plugin_it_lets_one_call():
         "apps:github",
         "apps:Acme.github",
         "apps:acme github",
-        "app:acme.github",
+        "plugin:acme.github",
         "xapps:acme.github",
         "apps:" + "a." + "b" * MAX_PUBLIC_ID_LENGTH,
     ],

@@ -69,7 +69,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-_PURPOSE = IdentityPurpose.app
+_PURPOSE = IdentityPurpose.plugin
 
 #: How long a process remembers what an install calls somebody. A reference is
 #: stable, and one that has been replaced keeps resolving for its grace window.
@@ -246,7 +246,9 @@ async def _ensure_install_ref(
     return ref
 
 
-async def ensure_plugin_ref(*, guild_id: int, plugin_install_id: int, user_id: int) -> str:
+async def ensure_plugin_ref(
+    *, guild_id: int, plugin_install_id: int, user_id: int
+) -> str:
     """This member's reference at this install, minting one on first use.
 
     The table is reachable only on the system engine, and the caller is a
@@ -402,7 +404,8 @@ async def guild_for_plugin_ref(*, ref: str, public_id: str) -> int | None:
                     select(GuildPlugin.id).where(
                         GuildPlugin.id == plugin_install_id,
                         GuildPlugin.definition["plugin_kind"].astext == "service",
-                        GuildPlugin.definition["service"]["public_id"].astext == public_id,
+                        GuildPlugin.definition["service"]["public_id"].astext
+                        == public_id,
                     )
                 )
             ).first()

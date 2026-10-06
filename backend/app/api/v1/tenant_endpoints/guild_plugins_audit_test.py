@@ -65,7 +65,7 @@ async def calendar_plugin(session: AsyncSession):
         session,
         uid=CALENDAR_PLUGIN_UID,
         public_id="tests.auditcalendar",
-        kind="app",
+        kind="plugin",
         name="Community calendar",
         definition=_tool_definition(),
     )
@@ -170,13 +170,15 @@ class TestManaging:
             session,
             uid=UPGRADE_PLUGIN_UID,
             public_id="tests.auditupgrade",
-            kind="app",
+            kind="plugin",
             version="1.0.0",
             definition=_tool_definition(),
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)
         installed = await client.post(
-            a.g("/plugins/"), headers=a.headers, json={"listing_uid": UPGRADE_PLUGIN_UID}
+            a.g("/plugins/"),
+            headers=a.headers,
+            json={"listing_uid": UPGRADE_PLUGIN_UID},
         )
         assert installed.status_code == 201, installed.text
         plugin_id = installed.json()["id"]
@@ -185,12 +187,14 @@ class TestManaging:
             session,
             uid=UPGRADE_PLUGIN_UID,
             public_id="tests.auditupgrade",
-            kind="app",
+            kind="plugin",
             version="1.1.0",
             definition=_tool_definition(default_name="Community calendar v2"),
         )
         capfd.readouterr()
-        upgraded = await client.post(a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers)
+        upgraded = await client.post(
+            a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers
+        )
         assert upgraded.status_code == 200, upgraded.text
 
         (row,) = emitted(capfd, AuditEventType.PLUGIN_UPDATED)

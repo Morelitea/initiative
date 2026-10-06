@@ -150,7 +150,9 @@ class UpdateOffer:
         return self.update.version
 
 
-async def update_offer(session: AsyncSession, app: GuildPlugin) -> Optional[UpdateOffer]:
+async def update_offer(
+    session: AsyncSession, app: GuildPlugin
+) -> Optional[UpdateOffer]:
     """What the catalog offers this install and what taking it asks, or ``None``."""
     pending = await _resolve_pending(session, app)
     if pending is None:
@@ -182,7 +184,7 @@ async def _resolve_pending(
     """
     try:
         _, version = await resolve_listing_install(
-            session, app.listing_uid, kind="app", already_installed=True
+            session, app.listing_uid, kind="plugin", already_installed=True
         )
     except ListingInstallError:
         return None
@@ -251,7 +253,9 @@ async def apply_version(
         connection.get("id")
         for connection in plugin_config_service.definition_connections(definition)
     }
-    for row in await connections_service.list_plugin_connections(session, plugin_id=app.id):
+    for row in await connections_service.list_plugin_connections(
+        session, plugin_id=app.id
+    ):
         if row.connection_id not in surviving:
             await connections_service.disconnect(
                 session,
@@ -435,7 +439,9 @@ async def _update_guild(
             continue
         from_version = app.listing_version
         await apply_version(session, app, pending, guild_id=guild_id)
-        await plugin_schedules.reconcile(guild_id, app.id, app.definition, session=session)
+        await plugin_schedules.reconcile(
+            guild_id, app.id, app.definition, session=session
+        )
         applied += 1
         logger.info(
             "app auto-update: guild=%s app=%s listing=%s %s -> %s",

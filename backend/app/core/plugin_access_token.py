@@ -55,7 +55,7 @@ ACCESS_TOKEN_PREFIX = "iat_"
 #: How long an issued token is good for.
 ACCESS_TOKEN_LIFETIME_SECONDS = 600
 
-_KIND_PLUGIN = "app"
+_KIND_PLUGIN = "plugin"
 _KIND_INSTALL = "install"
 
 

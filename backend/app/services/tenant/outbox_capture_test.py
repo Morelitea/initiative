@@ -250,7 +250,7 @@ async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user
     rows = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps" and r.resource_id == app.id
+        if r.resource_type == "plugins" and r.resource_id == app.id
     ]
     assert rows, "installing an app produced no outbox row"
     assert rows[0].action == "created"
@@ -263,7 +263,7 @@ async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user
     updated = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps"
+        if r.resource_type == "plugins"
         and r.resource_id == app.id
         and r.action == "updated"
     ]

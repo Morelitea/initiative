@@ -205,7 +205,7 @@ class AuditEventType(str, Enum):
     #: A member took down a listing they shared.
     MARKETPLACE_LISTING_WITHDRAWN = "marketplace.listing_withdrawn"
     #: An installed app's own settings or configuration.
-    PLUGIN_UPDATED = "app.updated"
+    PLUGIN_UPDATED = "plugin.updated"
 
     # Lifecycle: accounts and communities coming and going, and the bulk
     # movements of data — out of the deployment, or gone for good.
@@ -248,8 +248,8 @@ class AuditEventType(str, Enum):
     API_KEY_DELETED = "api_key.deleted"
     #: Switched off by staff rather than deleted by its holder, who still sees it.
     API_KEY_REVOKED = "api_key.revoked"
-    PLUGIN_INSTALLED = "app.installed"
-    PLUGIN_UNINSTALLED = "app.uninstalled"
+    PLUGIN_INSTALLED = "plugin.installed"
+    PLUGIN_UNINSTALLED = "plugin.uninstalled"
     WEBHOOK_CREATED = "webhook.created"
     WEBHOOK_UPDATED = "webhook.updated"
     WEBHOOK_DELETED = "webhook.deleted"

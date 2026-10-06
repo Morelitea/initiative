@@ -12,7 +12,7 @@ Every app splits the same way, whatever published its listing
   none. Reference sectors are honoured only from the registry.
 * **The operator gives the deployment facts**: where the app runs, the keys
   its container signs with, its vendor values, the switch, the mandatory flag
-  and the origins. Through the ``apps.manage`` endpoints, or in
+  and the origins. Through the ``plugins.manage`` endpoints, or in
   ``PLUGIN_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
   entry's ``vendor_env`` names the environment variables holding its vendor
   values, which are sealed into the registration on each boot. An entry for an
@@ -416,7 +416,9 @@ async def list_registrations(
     session: AsyncSession,
 ) -> Sequence[PluginServiceRegistration]:
     result = await session.exec(
-        select(PluginServiceRegistration).order_by(PluginServiceRegistration.public_id.asc())
+        select(PluginServiceRegistration).order_by(
+            PluginServiceRegistration.public_id.asc()
+        )
     )
     return result.all()
 
@@ -1245,7 +1247,9 @@ def configured_facts(public_id: str) -> Optional[DeploymentFacts]:
     return None
 
 
-def apply_deployment_facts(row: PluginServiceRegistration, facts: DeploymentFacts) -> bool:
+def apply_deployment_facts(
+    row: PluginServiceRegistration, facts: DeploymentFacts
+) -> bool:
     """Write an entry's facts onto a registration, and say whether any moved.
 
     Vendor values are sealed from the environment variables the entry names.

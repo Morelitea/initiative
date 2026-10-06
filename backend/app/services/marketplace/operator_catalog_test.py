@@ -87,7 +87,7 @@ def _plugin_manifest(dashboards=None, **overrides) -> dict:
     manifest = {
         "uid": PLUGIN_UID,
         "public_id": "acme.tracker",
-        "kind": "app",
+        "kind": "plugin",
         "name": "Tracker",
         "publisher": "Acme",
         "description": "Track the things.",

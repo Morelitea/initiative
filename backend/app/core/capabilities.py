@@ -83,7 +83,7 @@ class Capability(str, Enum):
     # secret, and the powers the operator confers on them. owner only — this is
     # deployment configuration, the same class ``config.manage`` occupies, kept
     # as its own capability so the app catalog can be delegated separately later.
-    PLUGINS_MANAGE = "apps.manage"
+    PLUGINS_MANAGE = "plugins.manage"
 
 
 # Capability presets per platform role, least → most privileged. Each higher

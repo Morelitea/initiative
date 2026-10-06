@@ -103,7 +103,7 @@ class Identified:
         if isinstance(token, InstallAccessToken):
             return f"install:{token.client_id}:{token.guild_id}:{token.install_id}"
         if isinstance(token, PluginAccessToken):
-            return f"app:{token.client_id}"
+            return f"plugin:{token.client_id}"
         return None
 
 

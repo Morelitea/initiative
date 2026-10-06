@@ -8,7 +8,7 @@ field, and never on an install.
 
 They arrive three ways, all on the system engine:
 
-* the operator's registration form (``apps.manage``), which may also set them
+* the operator's registration form (``plugins.manage``), which may also set them
   on a registration the registry brought;
 * ``vendor_env`` on an ``PLUGIN_SERVICES_CONFIG`` entry, which names environment
   variables read at boot, so rotating one is changing the variable and

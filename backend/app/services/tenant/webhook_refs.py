@@ -44,7 +44,7 @@ def _sector(
 ) -> tuple[IdentityPurpose, int]:
     """The purpose and the id inside the guild that this subscriber is named by."""
     if plugin_install_id is not None:
-        return IdentityPurpose.app, plugin_install_id
+        return IdentityPurpose.plugin, plugin_install_id
     return IdentityPurpose.webhook, subscription_id
 
 

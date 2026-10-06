@@ -163,7 +163,7 @@ class TufRepository:
         if definition is None:
             definition = (
                 service_plugin_definition(public_id)
-                if kind == "app"
+                if kind == "plugin"
                 else dashboard_definition()
             )
 
@@ -200,7 +200,7 @@ class TufRepository:
             "versions": version_entries,
             "price": None,
         }
-        if kind == "app":
+        if kind == "plugin":
             entry["registration"] = registration or container_registration()
         entry.update(extra or {})
         files[base + "listing.json"] = _dump(entry)

@@ -54,7 +54,7 @@ the registry signed, ``operator`` for a listing this deployment published
 itself, or for a registration whose listing has not arrived yet.
 
 Lives in ``public``: a registration is platform-wide and carries no guild data.
-It is written on the system engine by ``apps.manage`` (owner) endpoints, by
+It is written on the system engine by ``plugins.manage`` (owner) endpoints, by
 boot reconciliation from ``PLUGIN_SERVICES_CONFIG``, and by listing applies.
 """
 

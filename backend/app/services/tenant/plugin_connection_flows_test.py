@@ -53,7 +53,11 @@ from app.models.tenant.guild_plugin_secret import GuildPluginSecret
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.services.marketplace import expressions
 from app.services.marketplace.registration_lookup import load_registrations
-from app.services.tenant import plugin_connection_flows, plugin_revocation, plugin_schedules
+from app.services.tenant import (
+    plugin_connection_flows,
+    plugin_revocation,
+    plugin_schedules,
+)
 from app.testing import (
     create_access_grant,
     create_plugin_service_registration,
@@ -255,7 +259,9 @@ async def _indexed(
 async def _reload(session: AsyncSession, guild_id: int, plugin_id: int) -> GuildPlugin:
     await route_session_to_guild(session, guild_id)
     session.expunge_all()
-    return (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).one()
+    return (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).one()
 
 
 async def _start(client: AsyncClient, actor, app: GuildPlugin, connection: str) -> dict:
@@ -1311,7 +1317,11 @@ def _connected(installation_id: str) -> dict:
 async def listing(session: AsyncSession, registration):
     """The listing whose manifest declares the webhooks."""
     return await create_marketplace_listing(
-        session, uid=LISTING_UID, public_id=PUBLIC_ID, kind="app", definition=DEFINITION
+        session,
+        uid=LISTING_UID,
+        public_id=PUBLIC_ID,
+        kind="plugin",
+        definition=DEFINITION,
     )
 
 
@@ -1451,7 +1461,11 @@ class TestVendorWebhooks:
             },
         }
         await create_marketplace_listing(
-            session, uid=LISTING_UID, public_id=PUBLIC_ID, kind="app", definition=moved
+            session,
+            uid=LISTING_UID,
+            public_id=PUBLIC_ID,
+            kind="plugin",
+            definition=moved,
         )
         seat = await acting_user(guild_role=CommunityRole.superadmin)
         await _install(session, seat, config=_connected("42"))
@@ -1634,12 +1648,14 @@ async def _declarative_listing(session: AsyncSession, definition: dict = DECLARA
         session,
         uid=DECLARATIVE_UID,
         public_id=DECLARATIVE_ID,
-        kind="app",
+        kind="plugin",
         definition=definition,
     )
 
 
-async def _declarative_install(session: AsyncSession, actor, **overrides) -> GuildPlugin:
+async def _declarative_install(
+    session: AsyncSession, actor, **overrides
+) -> GuildPlugin:
     return await create_guild_plugin(
         session,
         actor.guild,
@@ -1914,7 +1930,7 @@ class TestDeclarativePlugins:
             session,
             uid=DECLARATIVE_UID,
             public_id=DECLARATIVE_ID,
-            kind="app",
+            kind="plugin",
             version="2.0.0",
             definition=moved,
         )

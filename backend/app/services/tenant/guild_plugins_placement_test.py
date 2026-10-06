@@ -233,7 +233,7 @@ class TestExport:
             session,
             uid=PLACED_UID,
             public_id=PLACED_ID,
-            kind="app",
+            kind="plugin",
             name="Placed app",
             definition=DEFINITION,
         )

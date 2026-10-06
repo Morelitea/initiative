@@ -127,7 +127,9 @@ class ArtifactHandler:
     remove: Callable[..., Awaitable[None]]
 
 
-async def _create_calendar(session: AsyncSession, *, app: GuildPlugin, name: str) -> None:
+async def _create_calendar(
+    session: AsyncSession, *, app: GuildPlugin, name: str
+) -> None:
     calendar = Calendar(
         # No initiative: this belongs to the guild. Its grants decide who reads
         # and writes what it holds, exactly as for an initiative calendar.
@@ -232,7 +234,9 @@ async def artifacts_by_install(
     return grouped
 
 
-async def plugin_artifacts(session: AsyncSession, app: GuildPlugin) -> list[dict[str, Any]]:
+async def plugin_artifacts(
+    session: AsyncSession, app: GuildPlugin
+) -> list[dict[str, Any]]:
     """What one install produced; see :func:`artifacts_by_install`."""
     return (await artifacts_by_install(session, [app.id]))[app.id]
 
@@ -273,7 +277,9 @@ async def load_secrets(session: AsyncSession, app: GuildPlugin) -> dict[str, Any
     """
     stored = (
         await session.exec(
-            select(GuildPluginSecret.secrets).where(GuildPluginSecret.install_id == app.id)
+            select(GuildPluginSecret.secrets).where(
+                GuildPluginSecret.install_id == app.id
+            )
         )
     ).first()
     return dict(stored or {})
@@ -306,7 +312,9 @@ async def store_secrets(
     await session.refresh(app, ["secret_fields"])
 
 
-async def find_mounting_plugin(session: AsyncSession, *, tool: str) -> Optional[GuildPlugin]:
+async def find_mounting_plugin(
+    session: AsyncSession, *, tool: str
+) -> Optional[GuildPlugin]:
     """The install that mounts ``tool`` at guild scope, if this guild has one.
 
     A tool-instance install is the container for what it mounts, so this is the
@@ -398,7 +406,7 @@ async def install_plugin(
         event_type=AuditEventType.PLUGIN_INSTALLED,
         actor_user_id=actor_user_id,
         guild_id=guild_id,
-        target_type="app",
+        target_type="plugin",
         target_id=app.id,
         detail={
             "listing_uid": listing_uid,
@@ -464,7 +472,7 @@ async def uninstall_plugin(
         event_type=AuditEventType.PLUGIN_UNINSTALLED,
         actor_user_id=actor_user_id,
         guild_id=guild_id,
-        target_type="app",
+        target_type="plugin",
         target_id=install_id,
         detail={
             "listing_uid": listing_uid,
@@ -537,7 +545,9 @@ async def apply_static_config(
     before = _config_fields(config, secrets)
 
     for connection_id, submitted in values.items():
-        connection = plugin_config_service.connection_by_id(app.definition, connection_id)
+        connection = plugin_config_service.connection_by_id(
+            app.definition, connection_id
+        )
         if connection is None:
             raise plugin_config_service.PluginConfigError(
                 GuildPluginMessages.CONFIG_UNKNOWN_CONNECTION
@@ -578,7 +588,7 @@ async def apply_static_config(
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=actor_user_id,
             guild_id=routed_guild_id(session),
-            target_type="app",
+            target_type="plugin",
             target_id=app.id,
             detail={
                 "area": "config",
@@ -684,7 +694,9 @@ async def placements_by_install(
 async def placed_initiative_ids(session: AsyncSession, install_id: int) -> set[int]:
     """The initiatives this install is placed in."""
     rows = await session.exec(
-        select(PluginPlacement.initiative_id).where(PluginPlacement.install_id == install_id)
+        select(PluginPlacement.initiative_id).where(
+            PluginPlacement.install_id == install_id
+        )
     )
     return set(rows.all())
 

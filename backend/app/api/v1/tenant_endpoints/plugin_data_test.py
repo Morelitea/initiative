@@ -236,9 +236,9 @@ def _dashboard_definition(*endpoint_ids: str, sql: str | None = None) -> dict:
             "widgets": [
                 {
                     "id": f"w{index + 1}",
-                    "type": f"app:{PLUGIN_UID}:summary",
+                    "type": f"plugin:{PLUGIN_UID}:summary",
                     "binding": {
-                        "source": "app",
+                        "source": "plugin",
                         "plugin_uid": PLUGIN_UID,
                         "endpoint_id": endpoint_id,
                         **({"sql": sql} if sql else {}),
@@ -259,7 +259,9 @@ def _dashboard_definition(*endpoint_ids: str, sql: str | None = None) -> dict:
 def _signing_key(monkeypatch):
     """The app platform needs its own keypair; these tests are about the proxy
     rather than the fail-closed path, so give it a real one."""
-    monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM)
+    monkeypatch.setattr(
+        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM
+    )
     monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "plugin-platform-1")
 
 
@@ -904,7 +906,7 @@ class TestWidgetCatalog:
         assert entry["plugin_id"] == app.id
 
         widget = entry["widgets"][0]
-        assert widget["type"] == f"app:{PLUGIN_UID}:summary"
+        assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
         # Byte-for-byte: the module is JavaScript, and anything that rewrote a
         # ``<`` or an ``&`` on the way out would ship a module that cannot parse.
         assert widget["module_source"] == MODULE_SOURCE
@@ -947,7 +949,9 @@ def _options_url(actor, app, endpoint_id: str, param: str, **query) -> str:
     parts = [f"param={param}"]
     for key, value in query.items():
         parts.append(f"{key}={value}")
-    return actor.g(f"/plugins/{app.id}/endpoints/{endpoint_id}/options?{'&'.join(parts)}")
+    return actor.g(
+        f"/plugins/{app.id}/endpoints/{endpoint_id}/options?{'&'.join(parts)}"
+    )
 
 
 class TestParamOptions:
@@ -1257,7 +1261,8 @@ class TestListParams:
         many = json.dumps(
             {
                 "tags": [
-                    str(index) for index in range(plugin_data_service.MAX_PARAM_VALUES + 1)
+                    str(index)
+                    for index in range(plugin_data_service.MAX_PARAM_VALUES + 1)
                 ]
             }
         )

@@ -562,8 +562,8 @@ def test_a_community_event_needs_its_scope_and_no_placement():
 
 
 def test_an_event_no_scope_reaches_is_never_a_plugins():
-    subscription = _subscription(plugin_install_id=4, event_types=["apps.created"])
-    install = _row(1, 500, resource_type="apps", initiative_id=None)
+    subscription = _subscription(plugin_install_id=4, event_types=["plugins.created"])
+    install = _row(1, 500, resource_type="plugins", initiative_id=None)
     everything = frozenset(
         r.value for r in outbox_poller.webhook_events._read_scopes().values() if r
     )
@@ -631,7 +631,9 @@ def _plugin_event(**overrides) -> PluginEventOutbox:
     [(None, None, None), (11, None, 11), (None, 12, 12), (12, 12, 12)],
     ids=["community", "narrowed", "its-own-community", "its-own-narrowed"],
 )
-def test_a_plugin_event_is_one_change_carrying_its_payload(subscribed_in, about, carried):
+def test_a_plugin_event_is_one_change_carrying_its_payload(
+    subscribed_in, about, carried
+):
     """It carries the initiative it landed in: its own, or the one the
     subscription is narrowed to."""
     envelope = outbox_poller._envelope(

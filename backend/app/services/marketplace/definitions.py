@@ -273,7 +273,7 @@ def normalize_listing_definition(
         raise ListingDefinitionError(
             "automation listings are not installable in this build yet"
         )
-    if kind == "app":
+    if kind == "plugin":
         return _normalize_plugin_definition(definition, public_id=public_id)
     if kind == "profile_pack":
         return normalize_profile_pack_definition(definition)

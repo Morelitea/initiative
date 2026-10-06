@@ -16,7 +16,7 @@ import { matchActiveTab } from "@/lib/tabs";
 /**
  * App-wide *configuration* area: authentication, security, branding, email,
  * push notifications, integrations (AI and app service registrations), and
- * storage. Owner-only (`config.manage` / `apps.manage`).
+ * storage. Owner-only (`config.manage` / `plugins.manage`).
  * Operational tools (users, access) live in the separate Operator dashboard.
  */
 export const PlatformSettingsLayout = () => {
@@ -27,7 +27,7 @@ export const PlatformSettingsLayout = () => {
 
   const tabs = useMemo(() => {
     // Two capabilities reach this area: `config.manage` owns app-wide
-    // configuration, `apps.manage` owns app service registrations. A holder of
+    // configuration, `plugins.manage` owns app service registrations. A holder of
     // one shouldn't be shown the other's tabs — and Integrations, which holds
     // both the AI settings and the app service registrations, is shown to
     // either.

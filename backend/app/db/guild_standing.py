@@ -265,7 +265,7 @@ _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
 #: policies for the install floor hold every read and insert to
 #: (``app.db.public_rls``).
 _IN_INSTALL_SECTOR = (
-    f"r.purpose = '{IdentityPurpose.app.value}'"
+    f"r.purpose = '{IdentityPurpose.plugin.value}'"
     f" AND r.sector_guild_id = {gucs.GUILD_ID}"
     f" AND r.sector_id = {gucs.INSTALL_ID}"
 )
@@ -422,7 +422,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: sign-in rules, so that value too is what ``live`` says.
 #:
 #: Two more columns carry what the install calls things, both read only in its
-#: own sector (``purpose = 'app'``, the routed community and the routed
+#: own sector (``purpose = 'plugin'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
 #: ``named_refs``, the references in ``:named_refs`` that name somebody there,
 #: as ``{ref: [entity_type, entity_id, member]}``, where ``member`` says
@@ -1047,7 +1047,7 @@ def named_ref_candidates(values: Sequence[str]) -> list[str]:
     than a reference can be. What the install standing statement is asked to
     look up."""
     prefixes = tuple(
-        f"{ref_prefix(entity, IdentityPurpose.app)}_" for entity in IdentityEntity
+        f"{ref_prefix(entity, IdentityPurpose.plugin)}_" for entity in IdentityEntity
     )
     return sorted(
         {

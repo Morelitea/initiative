@@ -237,7 +237,7 @@ LIVE_WINDOW = (
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
 #: A reference in the routed install's own sector: what an installed app's
 #: request calls somebody, and nothing any other install or purpose holds.
-INSTALL_SECTOR = f"purpose = 'app' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
+INSTALL_SECTOR = f"purpose = 'plugin' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
 #: A reference an installed app's request mints: in its own sector, live, and
 #: naming a person or its own community.
 INSTALL_SECTOR_MINT = (

@@ -25,7 +25,7 @@ export const Capability = {
   accessRequest: "access.request",
   accessApprove: "access.approve",
   configManage: "config.manage",
-  pluginsManage: "apps.manage",
+  pluginsManage: "plugins.manage",
 } as const;
 
 export type Capability = (typeof Capability)[keyof typeof Capability];

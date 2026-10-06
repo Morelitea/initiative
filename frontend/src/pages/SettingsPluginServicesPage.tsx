@@ -13,13 +13,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/hooks/useAuth";
 import {
-  usePluginServices,
   useCreatePluginService,
   useDeletePluginService,
+  usePluginServices,
   useUpdatePluginService,
 } from "@/hooks/usePluginServices";
-import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -30,7 +30,7 @@ const hasKeys = (registration: PluginServiceRegistrationRead): boolean =>
   (registration.jwks !== null && Object.keys(registration.jwks).length > 0);
 
 /**
- * Deployment-level app service registrations (`apps.manage`).
+ * Deployment-level app service registrations (`plugins.manage`).
  *
  * The operator edits an app's deployment facts here: its addresses, keys and
  * reach, and the kill switch. What the app is and may do comes from its
@@ -103,7 +103,8 @@ export const SettingsPluginServicesPage = () => {
             toast.success(t("pluginServices.saved"));
             closeDialog();
           },
-          onError: (error) => toast.error(getErrorMessage(error, "settings:pluginServices.saveError")),
+          onError: (error) =>
+            toast.error(getErrorMessage(error, "settings:pluginServices.saveError")),
         }
       );
       return;
@@ -124,7 +125,8 @@ export const SettingsPluginServicesPage = () => {
           toast.success(t("pluginServices.created"));
           closeDialog();
         },
-        onError: (error) => toast.error(getErrorMessage(error, "settings:pluginServices.saveError")),
+        onError: (error) =>
+          toast.error(getErrorMessage(error, "settings:pluginServices.saveError")),
       }
     );
   };
@@ -141,7 +143,8 @@ export const SettingsPluginServicesPage = () => {
               : t("pluginServices.disabledToast", { name: registration.public_id })
           );
         },
-        onError: (error) => toast.error(getErrorMessage(error, "settings:pluginServices.toggleError")),
+        onError: (error) =>
+          toast.error(getErrorMessage(error, "settings:pluginServices.toggleError")),
       }
     );
   };

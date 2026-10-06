@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
+import type {
+  PluginServicePublishedKey,
+  PluginServiceRegistrationCreate,
+  PluginServiceRegistrationRead,
+  PluginServiceRegistrationUpdate,
+  PluginServiceVendorSetup,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   completePluginServiceVendorSetup,
   connectPluginService,
@@ -11,19 +18,12 @@ import {
   startPluginServiceVendorSetup,
   updatePluginService,
 } from "@/api/generated/plugin-services/plugin-services";
-import type {
-  PluginServicePublishedKey,
-  PluginServiceRegistrationCreate,
-  PluginServiceRegistrationRead,
-  PluginServiceRegistrationUpdate,
-  PluginServiceVendorSetup,
-} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-/** Every app service this deployment has wired up (`apps.manage`). */
+/** Every app service this deployment has wired up (`plugins.manage`). */
 export const usePluginServices = (options?: QueryOpts<PluginServiceRegistrationRead[]>) =>
   useQuery<PluginServiceRegistrationRead[]>({
     queryKey: getListPluginServicesQueryKey(),

@@ -426,7 +426,7 @@ async def upsert_listing(
 
     registration: Optional[registrations_service.ListingRegistration] = None
     if manifest.get("registration") is not None:
-        if kind != "app":
+        if kind != "plugin":
             raise CatalogError(f"{public_id}: only an app carries a registration")
         try:
             registration = await registrations_service.read_listing_registration(
@@ -577,7 +577,7 @@ async def upsert_listing(
         listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
-    if not version.awaiting_review and kind == "app":
+    if not version.awaiting_review and kind == "plugin":
         # What the latest version requires of the operator is part of whether
         # a registration speaking for this listing is live.
         await vendor_values_service.sync_required_for_listing(
@@ -588,7 +588,7 @@ async def upsert_listing(
                 session, registration
             )
 
-    if kind == "app":
+    if kind == "plugin":
         await _publish_bundled_dashboards(
             session,
             app=listing,
@@ -691,7 +691,11 @@ async def _publish_bundled_dashboards(
                 "type": plugin_widget_type(app.uid, widget["type"]),
                 **({"title": widget["title"]} if "title" in widget else {}),
                 **({"grid": widget["grid"]} if "grid" in widget else {}),
-                "binding": {"source": "app", "plugin_uid": app.uid, **widget["binding"]},
+                "binding": {
+                    "source": "plugin",
+                    "plugin_uid": app.uid,
+                    **widget["binding"],
+                },
             }
             for widget in entry["widgets"]
         ]
@@ -770,7 +774,7 @@ async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
     listing.updated_at = now
     session.add(listing)
 
-    if listing.kind == "app":
+    if listing.kind == "plugin":
         for bundled in await _bundled_dashboards_of(session, listing.uid):
             if bundled.available:
                 bundled.available = False

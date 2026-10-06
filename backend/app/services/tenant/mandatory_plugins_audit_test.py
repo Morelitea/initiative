@@ -44,7 +44,7 @@ async def mandatory_registration(session: AsyncSession):
         session,
         uid=PROVIDED_UID,
         public_id=PROVIDED_ID,
-        kind="app",
+        kind="plugin",
         name="Provided app",
         definition=PROVIDED_DEFINITION,
     )

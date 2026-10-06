@@ -7,7 +7,7 @@ operator gives the deployment facts here: its addresses, its public keys, its
 vendor values, the switch and the reach (``mandatory``) it confers. Vendor
 values may also come from the vendor's own setup flow, run from here. A publisher is the prefix of
 an app's ``public_id``, with a switch that stops every app under it. The whole
-surface is gated on ``apps.manage`` (owner tier).
+surface is gated on ``plugins.manage`` (owner tier).
 
 Every route runs on the system engine: neither table carries a request-path
 write grant. The logic lives in ``app.services.marketplace.registrations`` and
@@ -50,7 +50,9 @@ publishers_router = APIRouter()
 
 #: Wiring app services is deployment configuration — owner tier, like the rest
 #: of the platform settings wall.
-PluginsManageDep = Annotated[User, Depends(require_capability(Capability.PLUGINS_MANAGE))]
+PluginsManageDep = Annotated[
+    User, Depends(require_capability(Capability.PLUGINS_MANAGE))
+]
 
 
 def _to_read(
@@ -122,7 +124,7 @@ async def list_plugin_services(
     session: SystemSessionDep,
     _owner: PluginsManageDep,
 ) -> List[PluginServiceRegistrationRead]:
-    """Every app service this deployment has wired up (``apps.manage``)."""
+    """Every app service this deployment has wired up (``plugins.manage``)."""
     views = await registrations_service.registration_views(session)
     definitions = await _definitions(session, views)
     return [_to_read(view, definitions) for view in views]
@@ -182,7 +184,9 @@ async def update_plugin_service(
     return await _read_one(session, row.id)
 
 
-@router.get("/{registration_id}/connect", response_model=List[PluginServicePublishedKey])
+@router.get(
+    "/{registration_id}/connect", response_model=List[PluginServicePublishedKey]
+)
 async def read_plugin_service_keys(
     registration_id: int,
     session: SystemSessionDep,
@@ -192,7 +196,8 @@ async def read_plugin_service_keys(
     with its fingerprint, for the operator to confirm. Stores nothing."""
     keys = await registrations_service.published_keys(session, registration_id)
     return [
-        PluginServicePublishedKey(kid=key.kid, fingerprint=key.fingerprint) for key in keys
+        PluginServicePublishedKey(kid=key.kid, fingerprint=key.fingerprint)
+        for key in keys
     ]
 
 
@@ -292,7 +297,7 @@ async def list_plugin_publishers(
     session: SystemSessionDep,
     _owner: PluginsManageDep,
 ) -> List[PluginPublisherRead]:
-    """Every publisher of app services on this deployment (``apps.manage``)."""
+    """Every publisher of app services on this deployment (``plugins.manage``)."""
     rows = await publishers_service.list_publishers(session)
     return [_publisher_read(row) for row in rows]
 

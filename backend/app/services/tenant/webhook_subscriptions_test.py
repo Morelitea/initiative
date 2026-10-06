@@ -238,7 +238,7 @@ def test_an_install_may_subscribe_within_its_standing(
         pytest.param(
             {}, ["documents.created", "tasks.created"], None, id="one-type-uncovered"
         ),
-        pytest.param({}, ["apps.created"], None, id="no-scope-reaches-it"),
+        pytest.param({}, ["plugins.created"], None, id="no-scope-reaches-it"),
         pytest.param(
             {"scope_initiative_id": 11},
             ["documents.created"],
@@ -349,7 +349,9 @@ async def _grant_scopes(role_session, install, scopes: list[str]) -> None:
 
     s = await role_session("app_user")
     await route_as(s, user_id=install.seat.user.id, guild_id=install.guild.id)
-    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == install.app.id))).one()
+    row = (
+        await s.exec(select(GuildPlugin).where(GuildPlugin.id == install.app.id))
+    ).one()
     row.granted_scopes = scopes
     s.add(row)
     await s.commit()
@@ -359,7 +361,9 @@ async def _withdraw(session, role_session, install, what: str) -> None:
     """Take one part of the install's reach away."""
     from sqlalchemy import delete
 
-    from app.models.platform.plugin_service_registration import PluginServiceRegistration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
     from app.models.tenant.plugin_placement import PluginPlacement
     from app.models.tenant.guild_plugin import GuildPlugin
     from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -591,7 +595,11 @@ async def test_a_declarative_plugins_event_reaches_a_subscriber_as_a_containers_
         ),
     )
     await create_marketplace_listing(
-        session, uid=listing_uid, public_id=public_id, kind="app", definition=definition
+        session,
+        uid=listing_uid,
+        public_id=public_id,
+        kind="plugin",
+        definition=definition,
     )
     emitter = await create_guild_plugin(
         session,
@@ -643,7 +651,9 @@ async def test_a_declarative_plugins_event_reaches_a_subscriber_as_a_containers_
     await session.commit()
     invalidate_registrations()
     await route_session_to_guild(session, install.guild.id)
-    row = (await session.exec(select(GuildPlugin).where(GuildPlugin.id == emitter.id))).one()
+    row = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == emitter.id))
+    ).one()
     row.definition = {
         "plugin_kind": "service",
         "service": {"public_id": public_id, "protocol": 1},

@@ -49,7 +49,7 @@ class TestTheRenderedValue:
     def test_the_prefix_names_the_entity_and_the_purpose(self):
         assert ref_prefix(IdentityEntity.user, BILLING) == "ubil"
         assert ref_prefix(IdentityEntity.guild, BILLING) == "gbil"
-        assert ref_prefix(IdentityEntity.user, IdentityPurpose.app) == "uapp"
+        assert ref_prefix(IdentityEntity.user, IdentityPurpose.plugin) == "uapp"
 
     def test_two_mints_never_agree(self):
         assert mint_ref(IdentityEntity.user, BILLING) != mint_ref(
@@ -104,7 +104,7 @@ class TestMintingAndResolving:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -179,7 +179,7 @@ class TestReissuingOne:
             session,
             entity_type=IdentityEntity.guild,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -198,7 +198,7 @@ class TestReissuingOne:
                 session,
                 entity_type=IdentityEntity.guild,
                 entity_id=1,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=3,
                 sector_id=7,
             )
@@ -245,7 +245,7 @@ class TestReissuingEvery:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -265,7 +265,7 @@ class TestReissuingEvery:
                 session,
                 entity_type=IdentityEntity.user,
                 entity_id=1,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=3,
                 sector_id=7,
             )
@@ -311,7 +311,7 @@ class TestRemoval:
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -338,7 +338,7 @@ class TestRemoval:
             session,
             entity_type=IdentityEntity.user,
             entity_id=9,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=5,
             sector_id=2,
         )
@@ -450,7 +450,7 @@ class TestTheSweep:
                 session,
                 entity_type=IdentityEntity.user,
                 entity_id=active.id,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=guild_id,
                 sector_id=1,
             )

@@ -66,7 +66,7 @@ async def listing(session: AsyncSession):
         session,
         uid=SERVICE_UID,
         public_id=SERVICE_ID,
-        kind="app",
+        kind="plugin",
         name="ConsentCo",
         definition=_definition(),
     )
@@ -158,7 +158,10 @@ class TestConsentAtInstall:
     @pytest.mark.parametrize(
         ("body", "code"),
         [
-            ({"granted_scopes": ["tags:read"]}, GuildPluginMessages.SCOPE_NOT_REQUESTED),
+            (
+                {"granted_scopes": ["tags:read"]},
+                GuildPluginMessages.SCOPE_NOT_REQUESTED,
+            ),
             (
                 {"granted_scopes": ["projects:write"]},
                 GuildPluginMessages.SCOPE_ABOVE_CEILING,
@@ -237,7 +240,7 @@ class TestAPluginAskingToUseAnother:
             session,
             uid=target_uid,
             public_id="tests.gitco",
-            kind="app",
+            kind="plugin",
             name="GitCo",
             definition={
                 "plugin_kind": "service",
@@ -256,7 +259,7 @@ class TestAPluginAskingToUseAnother:
             session,
             uid=caller_uid,
             public_id="tests.callerco",
-            kind="app",
+            kind="plugin",
             name="CallerCo",
             definition={
                 "plugin_kind": "service",
@@ -329,7 +332,7 @@ class TestUpgradeConsent:
             session,
             uid=SERVICE_UID,
             public_id=SERVICE_ID,
-            kind="app",
+            kind="plugin",
             name="ConsentCo",
             version="1.1.0",
             definition=_wider(**wider),
@@ -340,9 +343,13 @@ class TestUpgradeConsent:
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        plugin_id = await self._installed_then_widened(client, session, a, surfaces=True)
+        plugin_id = await self._installed_then_widened(
+            client, session, a, surfaces=True
+        )
 
-        read = (await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)).json()
+        read = (
+            await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)
+        ).json()
 
         assert read["update_version"] == "1.1.0"
         assert read["pending_update"] == {
@@ -358,7 +365,9 @@ class TestUpgradeConsent:
         a = await acting_user(guild_role=CommunityRole.superadmin)
         plugin_id = await self._installed_then_widened(client, session, a)
 
-        response = await client.post(a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers)
+        response = await client.post(
+            a.g(f"/plugins/{plugin_id}/upgrade"), headers=a.headers
+        )
 
         assert response.status_code == 409, response.text
         assert response.json()["detail"] == {

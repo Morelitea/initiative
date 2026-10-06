@@ -151,12 +151,14 @@ class TestTheGuildPredicate:
             session,
             entity_type=IdentityEntity.guild,
             entity_id=guild.id,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=guild.id,
             sector_id=1,
         )
         await session.commit()
-        assert await resolve_plugin_ref(session, ref=as_guild, guild_id=guild.id) is None
+        assert (
+            await resolve_plugin_ref(session, ref=as_guild, guild_id=guild.id) is None
+        )
 
 
 class TestMovingOne:
@@ -176,7 +178,9 @@ class TestMovingOne:
 
         assert after != before
         # In flight during the swap still lands.
-        assert await resolve_plugin_ref(session, ref=before, guild_id=guild.id) is not None
+        assert (
+            await resolve_plugin_ref(session, ref=before, guild_id=guild.id) is not None
+        )
 
     async def test_every_member_at_one_install_can_be_moved_together(self, session):
         owner = await create_user(session)
@@ -223,9 +227,13 @@ class TestRemoval:
             guild_id=guild.id, plugin_install_id=staying.id, user_id=user.id
         )
 
-        assert await drop_install_refs(guild_id=guild.id, plugin_install_id=going.id) == 1
+        assert (
+            await drop_install_refs(guild_id=guild.id, plugin_install_id=going.id) == 1
+        )
         assert await resolve_plugin_ref(session, ref=gone, guild_id=guild.id) is None
-        assert await resolve_plugin_ref(session, ref=kept, guild_id=guild.id) is not None
+        assert (
+            await resolve_plugin_ref(session, ref=kept, guild_id=guild.id) is not None
+        )
 
     async def test_deleting_a_guild_removes_its_plugin_references(self, session):
         user = await create_user(session)
@@ -245,7 +253,9 @@ class TestRemoval:
         assert await drop_guild_plugin_refs(guild_id=here.id) == 1
         await session.commit()
         assert await resolve_plugin_ref(session, ref=gone, guild_id=here.id) is None
-        assert await resolve_plugin_ref(session, ref=kept, guild_id=there.id) is not None
+        assert (
+            await resolve_plugin_ref(session, ref=kept, guild_id=there.id) is not None
+        )
 
     async def test_the_deletion_sequence_its_callers_follow(self, session):
         """Delete, commit, then drop — the order `delete_guild` documents.

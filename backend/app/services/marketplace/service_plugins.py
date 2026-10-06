@@ -207,7 +207,7 @@ PLUGIN_PROTOCOL_VERSIONS: frozenset[int] = contract.int_enum("protocol")
 #: Widget type ids from an app are namespaced, so an app's widget can never
 #: resolve to a built-in renderer (or the other way round). ``:`` is outside the
 #: identifier character set, so the three parts stay separable.
-PLUGIN_WIDGET_TYPE_PREFIX = "app:"
+PLUGIN_WIDGET_TYPE_PREFIX = "plugin:"
 
 #: Every endpoint an app declares is namespaced under its own service id.
 ENDPOINT_ID_PREFIX = "app."
@@ -2009,7 +2009,7 @@ def _bundled_dashboard(
 
     * **It names widgets by bare id.** A manifest has no uid inside it — the uid
       lives in the document envelope — so widget types are resolved to
-      ``app:<uid>:<widget id>`` at publish, exactly as
+      ``plugin:<uid>:<widget id>`` at publish, exactly as
       :func:`plugin_widget_type` already does for the palette. The publisher never
       writes a uid into a widget type, so the two cannot disagree.
     * **It can only reference this manifest.** Every widget and every bound

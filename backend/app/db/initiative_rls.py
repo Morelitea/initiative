@@ -38,7 +38,13 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
-from app.db.authorization import IN_POLICY, STANDING, plugin_narrowed, plugin_scope, in_body
+from app.db.authorization import (
+    IN_POLICY,
+    STANDING,
+    plugin_narrowed,
+    plugin_scope,
+    in_body,
+)
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
@@ -1865,7 +1871,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # the moment an app becomes usable), or go away, and re-reads current state
     # through the API like any other event. Published as ``apps`` because that
     # is the segment the install's detail route lives at (``/plugins/{id}``).
-    "guild_plugins": Emit(guild_wide=True, resource_type="apps"),
+    "guild_plugins": Emit(guild_wide=True, resource_type="plugins"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
     # A property definition is read in its initiative's list, not at an

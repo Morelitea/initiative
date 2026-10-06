@@ -7,7 +7,7 @@ arrives:
 * **Boot seeds this project's own publisher** (:func:`seed_publishers`), once;
   a restart never changes a row that exists, so an operator's switch stays
   where they left it.
-* **An operator adds one** through the ``apps.manage`` endpoints, for a
+* **An operator adds one** through the ``plugins.manage`` endpoints, for a
   private app's prefix.
 * **A registration names a prefix no row has yet**, and one is added for it,
   unverified and enabled (:func:`ensure_publisher`). Whoever registered the

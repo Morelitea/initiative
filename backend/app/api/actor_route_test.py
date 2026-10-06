@@ -194,7 +194,9 @@ async def _second_install(session, role_session, installed, scopes):
         session, public_id=client_id, listing_uid=listing, jwks=client_jwks()
     )
     await route_session_to_guild(session, installed.guild.id)
-    session.add(PluginPlacement(install_id=second.id, initiative_id=installed.placed.id))
+    session.add(
+        PluginPlacement(install_id=second.id, initiative_id=installed.placed.id)
+    )
     await session.commit()
     s = await role_session("app_user")
     await route_as(s, user_id=installed.seat.user.id, guild_id=installed.guild.id)
@@ -251,7 +253,7 @@ async def test_an_install_reads_people_and_its_community_by_reference(
         row = await _ref_row(session, ref)
         assert (row.entity_type, row.entity_id) == (IdentityEntity.user, user_id)
         assert (row.purpose, row.sector_guild_id, row.sector_id) == (
-            IdentityPurpose.app,
+            IdentityPurpose.plugin,
             installed.guild.id,
             installed.app.id,
         )

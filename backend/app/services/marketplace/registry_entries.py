@@ -463,7 +463,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
     if not isinstance(kind, str) or kind not in LISTING_KINDS:
         raise UnsupportedEntry(f"{path} is a {kind!r} listing")
     registration = entry.get("registration")
-    if (registration is not None) != (kind == "app"):
+    if (registration is not None) != (kind == "plugin"):
         raise _invalid("an app carries a registration, and nothing else does")
 
     versions = _versions(entry, directory)

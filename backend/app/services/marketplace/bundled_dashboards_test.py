@@ -77,7 +77,7 @@ def _plugin_manifest(dashboards=None, version="1.0.0"):
     return {
         "uid": PLUGIN_UID,
         "public_id": "tests.tracker",
-        "kind": "app",
+        "kind": "plugin",
         "name": "Tracker",
         "publisher": "Tests",
         "description": "Track the things.",
@@ -134,9 +134,9 @@ class TestPublishing:
         # Resolved to the namespaced form here, from the app's own uid — a
         # publisher writes a bare widget id and never a uid, so the two cannot
         # disagree.
-        assert widget["type"] == f"app:{PLUGIN_UID}:open-items"
+        assert widget["type"] == f"plugin:{PLUGIN_UID}:open-items"
         assert widget["binding"] == {
-            "source": "app",
+            "source": "plugin",
             "plugin_uid": PLUGIN_UID,
             "endpoint_id": OPEN_ITEMS,
         }
@@ -156,7 +156,9 @@ class TestPublishing:
             "endpoint_id": OPEN_ITEMS,
             "params": {"labels": ["bug", "regression"], "state": "open"},
         }
-        await service.upsert_listing(session, _plugin_manifest([entry]), source="operator")
+        await service.upsert_listing(
+            session, _plugin_manifest([entry]), source="operator"
+        )
         await session.commit()
 
         dashboard = await _by_uid(session, DASH_UID)
@@ -319,11 +321,15 @@ class TestItCannotTakeOverSomebodyElsesListing:
     async def test_republishing_the_same_plugin_is_not_a_takeover(self, session):
         """The case all of this has to stay out of the way of."""
         await service.upsert_listing(
-            session, _plugin_manifest([_dashboard()], version="1.0.0"), source="operator"
+            session,
+            _plugin_manifest([_dashboard()], version="1.0.0"),
+            source="operator",
         )
         await session.commit()
         await service.upsert_listing(
-            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session,
+            _plugin_manifest([_dashboard()], version="2.0.0"),
+            source="operator",
         )
         await session.commit()
 
@@ -333,11 +339,15 @@ class TestItCannotTakeOverSomebodyElsesListing:
 class TestLifecycle:
     async def test_they_version_with_the_plugin(self, session):
         await service.upsert_listing(
-            session, _plugin_manifest([_dashboard()], version="1.0.0"), source="operator"
+            session,
+            _plugin_manifest([_dashboard()], version="1.0.0"),
+            source="operator",
         )
         await session.commit()
         await service.upsert_listing(
-            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session,
+            _plugin_manifest([_dashboard()], version="2.0.0"),
+            source="operator",
         )
         await session.commit()
 
@@ -351,13 +361,17 @@ class TestLifecycle:
         """Withdrawn, not deleted: a guild that installed it keeps what it has."""
         await service.upsert_listing(
             session,
-            _plugin_manifest([_dashboard(), _dashboard(OTHER_DASH_UID, "tests.second")]),
+            _plugin_manifest(
+                [_dashboard(), _dashboard(OTHER_DASH_UID, "tests.second")]
+            ),
             source="operator",
         )
         await session.commit()
 
         await service.upsert_listing(
-            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session,
+            _plugin_manifest([_dashboard()], version="2.0.0"),
+            source="operator",
         )
         await session.commit()
 

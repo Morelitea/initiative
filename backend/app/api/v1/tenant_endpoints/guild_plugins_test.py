@@ -52,7 +52,7 @@ async def calendar_plugin(session):
         session,
         uid=CALENDAR_PLUGIN_UID,
         public_id="core.guild-calendar",
-        kind="app",
+        kind="plugin",
         name="Community calendar",
         definition=_plugin_definition(),
     )
@@ -176,7 +176,9 @@ class TestInstall:
         a = await acting_user(guild_role=CommunityRole.superadmin)
         await _install(client, a)
         again = await client.post(
-            a.g("/plugins/"), headers=a.headers, json={"listing_uid": CALENDAR_PLUGIN_UID}
+            a.g("/plugins/"),
+            headers=a.headers,
+            json={"listing_uid": CALENDAR_PLUGIN_UID},
         )
         assert again.status_code == 409
         assert again.json()["detail"] == GuildPluginMessages.ALREADY_INSTALLED
@@ -280,7 +282,9 @@ class TestManage:
         assert response.json()["auto_update"] is False
 
         # And it is what the next reader sees, not just what the write echoed.
-        (listed,) = (await client.get(a.g("/plugins/"), headers=a.headers)).json()["items"]
+        (listed,) = (await client.get(a.g("/plugins/"), headers=a.headers)).json()[
+            "items"
+        ]
         assert listed["auto_update"] is False
 
     async def test_the_cadence_is_a_guild_admin_s_to_set(
@@ -428,7 +432,7 @@ class TestKindsThisBuildCanMount:
             session,
             uid=self.SERVICE_UID,
             public_id="tests.service-kind",
-            kind="app",
+            kind="plugin",
             name="A service app",
             definition={
                 "plugin_kind": "service",
@@ -442,7 +446,9 @@ class TestKindsThisBuildCanMount:
     ):
         # Wired up: the operator has said this deployment runs the app. Whether
         # its container is up yet is not asked.
-        await create_plugin_service_registration(session, public_id="tests.service-kind")
+        await create_plugin_service_registration(
+            session, public_id="tests.service-kind"
+        )
         a = await acting_user(guild_role=CommunityRole.superadmin)
 
         response = await client.post(

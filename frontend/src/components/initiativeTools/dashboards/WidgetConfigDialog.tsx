@@ -24,13 +24,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import {
   type PluginDataParam,
   type PluginEndpointRead,
   pluginWidgetEntry,
   pluginWidgetSource,
 } from "@/api/pluginData";
-import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { SqlEditor } from "@/components/initiativeTools/dashboards/SqlEditor";
 import { Button } from "@/components/ui/button";
@@ -53,10 +53,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePluginParamOptions, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDocumentsList } from "@/hooks/useDocuments";
+import { usePluginParamOptions, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useQueryBuilder } from "@/hooks/useQueryBuilder";
 import { useQueryShape } from "@/hooks/useQueryShape";
 import { useFieldCatalogs, useQueryVocabulary } from "@/hooks/useQueryVocabulary";
@@ -64,9 +64,9 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/pluginParams";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isPluginWidgetType } from "@/lib/widgets/definition";
+import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/pluginParams";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
 import {
@@ -145,7 +145,7 @@ export function WidgetConfigDialog({
    * The two catalogs answer different questions and are served separately: the
    * built-in one is this build's own vocabulary — size floors, bindable
    * sources, display options per primitive — while an app's widgets come from
-   * each install's pinned definition. A namespaced `app:<uid>:<widget>` type
+   * each install's pinned definition. A namespaced `plugin:<uid>:<widget>` type
    * has never been in the first, so `catalogEntry` missed, `sources` fell back
    * to `[]`, and the source list rendered empty for every app widget on the
    * canvas.
@@ -156,7 +156,7 @@ export function WidgetConfigDialog({
   const isPlugin = isPluginWidgetType(widget?.type ?? "");
   //: An app's *data*, whoever draws it — its own widget, or one of ours
   //: pointed at it with a statement.
-  const readsPlugin = isPlugin || binding.source === "app";
+  const readsPlugin = isPlugin || binding.source === "plugin";
   const pluginCatalog = usePluginWidgetCatalog(open && readsPlugin);
   // An app widget resolves its app from its own namespaced type. One of ours
   // has no such type, so it resolves the app it *named* — which is the only
@@ -164,7 +164,9 @@ export function WidgetConfigDialog({
   const app = useMemo(() => {
     const byType = pluginWidgetEntry(pluginCatalog.data, widget?.type ?? "");
     if (byType) return byType;
-    const named = (pluginCatalog.data?.items ?? []).find((item) => item.plugin_uid === binding.plugin_uid);
+    const named = (pluginCatalog.data?.items ?? []).find(
+      (item) => item.plugin_uid === binding.plugin_uid
+    );
     return named ? { entry: named, widget: undefined } : undefined;
   }, [pluginCatalog.data, widget?.type, binding.plugin_uid]);
 
@@ -217,14 +219,14 @@ export function WidgetConfigDialog({
   );
 
   // A binding for an app widget names its install. Filled in from the type
-  // rather than typed: `app:<uid>:<widget>` already carries the uid, and a
+  // rather than typed: `plugin:<uid>:<widget>` already carries the uid, and a
   // definition whose binding disagrees with its type is one the server refuses.
   const setForm = form.set;
   useEffect(() => {
     if (!open || !app) return;
     setForm(({ binding }) => ({
       binding:
-        binding.source === "app" && binding.plugin_uid === app.entry.plugin_uid
+        binding.source === "plugin" && binding.plugin_uid === app.entry.plugin_uid
           ? binding
           : { ...binding, source: "app", plugin_uid: app.entry.plugin_uid },
     }));
@@ -511,7 +513,9 @@ export function WidgetConfigDialog({
             options={options}
             initiativeId={initiativeId}
             dashboardId={dashboardId}
-            moduleSource={isPlugin ? pluginWidgetSource(pluginCatalog.data, widget.type) : undefined}
+            moduleSource={
+              isPlugin ? pluginWidgetSource(pluginCatalog.data, widget.type) : undefined
+            }
           />
         </div>
 

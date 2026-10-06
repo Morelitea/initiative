@@ -254,7 +254,9 @@ async def _load(
     app = (
         await guild_plugins_service.lock_install(session, plugin_id)
         if for_update
-        else (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).first()
+        else (
+            await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+        ).first()
     )
     if app is None:
         raise HTTPException(
@@ -391,7 +393,9 @@ async def list_community_plugins(
     remove.
     """
     apps = (
-        await session.exec(select(GuildPlugin).order_by(GuildPlugin.name, GuildPlugin.id))
+        await session.exec(
+            select(GuildPlugin).order_by(GuildPlugin.name, GuildPlugin.id)
+        )
     ).all()
     avatars = await catalog_service.listing_avatars(
         session, [app.listing_uid for app in apps]
@@ -437,7 +441,9 @@ async def get_community_plugin(
     return await _detail(session, app, guild_context, current_user.id)
 
 
-@router.post("/", response_model=CommunityPluginRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=CommunityPluginRead, status_code=status.HTTP_201_CREATED
+)
 async def install_community_plugin(
     payload: CommunityPluginInstall,
     session: SeatWriteSessionDep,
@@ -461,7 +467,9 @@ async def install_community_plugin(
     that exists now), and the built-in roles that open it in each. Anything
     refused is refused before the install exists.
     """
-    unknown_roles = set(payload.role_kinds) - set(guild_plugins_service.BUILTIN_ROLE_NAMES)
+    unknown_roles = set(payload.role_kinds) - set(
+        guild_plugins_service.BUILTIN_ROLE_NAMES
+    )
     if unknown_roles:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -469,11 +477,13 @@ async def install_community_plugin(
         )
 
     listing, version = await resolve_listing_install(
-        session, payload.listing_uid, kind="app"
+        session, payload.listing_uid, kind="plugin"
     )
 
     existing = (
-        await session.exec(select(GuildPlugin).where(GuildPlugin.listing_uid == listing.uid))
+        await session.exec(
+            select(GuildPlugin).where(GuildPlugin.listing_uid == listing.uid)
+        )
     ).first()
     if existing is not None:
         raise HTTPException(
@@ -576,7 +586,7 @@ async def upgrade_community_plugin(
     # withdrawn or missing one is reported as the HTTP answer it deserves
     # instead of reading as "nothing to update to".
     _, version = await resolve_listing_install(
-        session, app.listing_uid, kind="app", already_installed=True
+        session, app.listing_uid, kind="plugin", already_installed=True
     )
     if version.version == app.listing_version:
         raise HTTPException(
@@ -643,7 +653,7 @@ async def upgrade_community_plugin(
         event_type=AuditEventType.PLUGIN_UPDATED,
         actor_user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        target_type="app",
+        target_type="plugin",
         target_id=app.id,
         detail=record,
     )
@@ -690,7 +700,7 @@ async def decline_community_plugin_upgrade(
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
-            target_type="app",
+            target_type="plugin",
             target_id=app.id,
             detail={"area": "version", "declined": payload.version},
         )
@@ -760,7 +770,7 @@ async def update_community_plugin(
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
-            target_type="app",
+            target_type="plugin",
             target_id=app.id,
             detail={"area": "settings", **changed},
         )
@@ -791,7 +801,9 @@ async def uninstall_community_plugin(
     await _require_removable(app)
 
     install_id, guild_id = app.id, routed_guild_id(session)
-    await guild_plugins_service.uninstall_plugin(session, app, actor_user_id=current_user.id)
+    await guild_plugins_service.uninstall_plugin(
+        session, app, actor_user_id=current_user.id
+    )
     await session.commit()
     await plugin_installs_service.forget(guild_id, install_id)
     revocation_service.send_after_response(session, background_tasks)
@@ -805,7 +817,9 @@ async def _drop_install_refs(guild_id: int, install_id: int) -> None:
     from here. A reference left behind names an install that no longer exists,
     so it resolves to nobody."""
     try:
-        await plugin_refs.drop_install_refs(guild_id=guild_id, plugin_install_id=install_id)
+        await plugin_refs.drop_install_refs(
+            guild_id=guild_id, plugin_install_id=install_id
+        )
     except SQLAlchemyError:
         logger.warning(
             "app refs: references for install %s in guild %s were not removed",
@@ -860,7 +874,9 @@ async def update_community_plugin_config(
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{plugin_id}/placements/{initiative_id}", response_model=PluginPlacementRead)
+@router.put(
+    "/{plugin_id}/placements/{initiative_id}", response_model=PluginPlacementRead
+)
 async def put_community_plugin_placement(
     plugin_id: int,
     initiative_id: int,
@@ -875,7 +891,9 @@ async def put_community_plugin_placement(
     initiative's; guild admins open the app there whatever the roles say.
     """
     app = await _load(session, plugin_id)
-    before = await guild_plugins_service.placement_role_ids(session, app.id, initiative_id)
+    before = await guild_plugins_service.placement_role_ids(
+        session, app.id, initiative_id
+    )
     try:
         placement = await guild_plugins_service.set_placement_roles(
             session, app, initiative_id, payload.role_ids
@@ -901,7 +919,7 @@ async def put_community_plugin_placement(
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
-            target_type="app",
+            target_type="plugin",
             target_id=app.id,
             detail={"area": "placement", "initiative_id": initiative_id, **changed},
         )
@@ -939,7 +957,7 @@ async def put_community_plugin_scopes(
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
-            target_type="app",
+            target_type="plugin",
             target_id=app.id,
             detail={
                 "area": "scopes",
@@ -1210,7 +1228,9 @@ async def _own_consent(
     return row
 
 
-@router.put("/{plugin_id}/consents/{consent_id}", response_model=CommunityPluginConsentRead)
+@router.put(
+    "/{plugin_id}/consents/{consent_id}", response_model=CommunityPluginConsentRead
+)
 async def grant_my_consent(
     plugin_id: int,
     consent_id: int,
@@ -1327,7 +1347,9 @@ async def list_community_plugin_members(
         select(GuildPluginUserConnection.user_id).where(
             GuildPluginUserConnection.plugin_id == app.id
         ),
-        select(PluginMemberConsent.user_id).where(PluginMemberConsent.install_id == app.id),
+        select(PluginMemberConsent.user_id).where(
+            PluginMemberConsent.install_id == app.id
+        ),
     ).subquery()
     user_ids, total_count, actual_page = await paginated_query(
         session,

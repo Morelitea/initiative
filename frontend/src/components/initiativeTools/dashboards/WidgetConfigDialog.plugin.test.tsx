@@ -2,7 +2,7 @@
  * Configuring an installed app's widget — the three things that were missing.
  *
  * **The source list was empty.** An app widget's type is namespaced
- * `app:<uid>:<widget>`, and this dialog looked it up in the built-in widget
+ * `plugin:<uid>:<widget>`, and this dialog looked it up in the built-in widget
  * catalog, which only ever holds this build's own primitives. The lookup missed,
  * `sources` fell back to `[]`, and every app widget on every canvas offered a
  * data-source control with nothing in it.
@@ -38,7 +38,7 @@ vi.mock("@/lib/widgets/runtime/host", () => ({ renderWidget, readWidgetMeta }));
 import { WidgetConfigDialog } from "./WidgetConfigDialog";
 
 const PLUGIN_UID = "SHOPAPP0000001";
-const WIDGET_TYPE = `app:${PLUGIN_UID}:summary`;
+const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
 const ORDERS = "app.acme.shop.orders-summary";
 const REVENUE = "app.acme.shop.revenue";
 
@@ -159,7 +159,7 @@ const mount = (which: DefinitionWidget = widget) =>
 describe("configuring an app widget", () => {
   it("offers a data source, which the built-in catalog does not know about", async () => {
     // The bug, at its narrowest: the built-in catalog passed in here is empty,
-    // exactly as it is for any `app:` type, and the control still has an option.
+    // exactly as it is for any `plugin:` type, and the control still has an option.
     serve();
     mount();
 

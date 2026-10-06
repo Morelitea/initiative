@@ -187,7 +187,7 @@ def _plugin_manifest(**overrides) -> dict:
     return _counter_manifest(
         uid="VPR0ADAPP00001",
         public_id="ours.tracker",
-        kind="app",
+        kind="plugin",
         name="Tracker",
         definition=service_plugin_definition("ours.tracker"),
         **overrides,

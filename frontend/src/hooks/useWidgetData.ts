@@ -20,8 +20,8 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import { resolvePluginBinding } from "@/api/pluginData";
-import { usePluginData, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useDocument } from "@/hooks/useDocuments";
+import { usePluginData, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useSqlQuery, useWidgetQuery } from "@/hooks/useSqlQuery";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
@@ -157,9 +157,13 @@ export function useWidgetData(
   // The app palette is one request per community, shared by every app widget on the
   // canvas. It is what turns a binding's `plugin_uid` into an install id and tells
   // us what freshness the source asks for.
-  const isPlugin = source === "app";
+  const isPlugin = source === "plugin";
   const pluginCatalogQuery = usePluginWidgetCatalog(scoped && isPlugin);
-  const pluginBinding = resolvePluginBinding(pluginCatalogQuery.data, binding.plugin_uid, binding.endpoint_id);
+  const pluginBinding = resolvePluginBinding(
+    pluginCatalogQuery.data,
+    binding.plugin_uid,
+    binding.endpoint_id
+  );
   const pluginQuery = usePluginData({
     pluginId: pluginBinding?.entry.plugin_id,
     endpointId: binding.endpoint_id ?? undefined,

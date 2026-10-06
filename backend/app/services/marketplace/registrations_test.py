@@ -49,7 +49,9 @@ def _signing_key(monkeypatch):
     """The app platform requires its own keypair; these tests are about the
     registry rather than the fail-closed path, so give it one."""
     monkeypatch.setattr(
-        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"
+        settings,
+        "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+        "-----BEGIN PRIVATE KEY-----",
     )
 
 
@@ -150,9 +152,9 @@ def test_origins_default_to_the_browser_base_origin():
     """The list holds browser origins, so it is derived from the address a
     browser uses — the wire surface only when the app answers on one address."""
     assert service.normalize_origins(None, browser_base=BASE_URL) == [BASE_URL]
-    assert service.normalize_origins(None, browser_base=f"{EMBED_ORIGIN}/plugins/x") == [
-        EMBED_ORIGIN
-    ]
+    assert service.normalize_origins(
+        None, browser_base=f"{EMBED_ORIGIN}/plugins/x"
+    ) == [EMBED_ORIGIN]
 
 
 def test_embed_origin_accepts_a_base_and_reports_its_own_code():
@@ -431,7 +433,11 @@ async def test_connect_refuses_when_the_base_url_moved_during_the_read(
             502,
             PluginServiceMessages.KEYS_UNREADABLE,
         ),
-        (httpx.Response(200, json={"keys": []}), 400, PluginServiceMessages.INVALID_JWKS),
+        (
+            httpx.Response(200, json={"keys": []}),
+            400,
+            PluginServiceMessages.INVALID_JWKS,
+        ),
     ],
 )
 async def test_connect_refuses_what_is_not_a_key_set(session, answer, status, code):
@@ -505,7 +511,7 @@ def _plugin_listing(registration, *, uid=LISTING_UID, public_id="acme.widgets") 
     return {
         "uid": uid,
         "public_id": public_id,
-        "kind": "app",
+        "kind": "plugin",
         "name": "Widgets",
         "publisher": "Acme",
         "description": "Widgets for tests.",
@@ -666,7 +672,10 @@ DECLARATIVE = {"kind": "declarative", "scope_ceiling": []}
 
 
 def _declarative_listing(registration) -> dict:
-    return {**_plugin_listing(registration), "definition": declarative_plugin("acme.widgets")}
+    return {
+        **_plugin_listing(registration),
+        "definition": declarative_plugin("acme.widgets"),
+    }
 
 
 async def test_a_declarative_plugin_is_live_with_its_vendor_values_and_no_location(
@@ -716,7 +725,11 @@ async def test_a_container_republished_as_declarative_leaves_its_location(sessio
         _plugin_listing(DECLARATIVE),
         _declarative_listing({**DECLARATIVE, "image": IMAGE}),
     ],
-    ids=["declarative-plugin-container-block", "container-plugin-declarative-block", "image"],
+    ids=[
+        "declarative-plugin-container-block",
+        "container-plugin-declarative-block",
+        "image",
+    ],
 )
 async def test_a_registration_block_says_the_plugins_own_kind(session, listing):
     with pytest.raises(CatalogError):

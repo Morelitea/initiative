@@ -3,7 +3,7 @@
  *
  * Authentication is the landing page for the operator who configures the
  * platform, and stays that way. But the area is no longer reachable by
- * `config.manage` alone — `apps.manage` reaches it too, for the app service
+ * `config.manage` alone — `plugins.manage` reaches it too, for the app service
  * registrations on Integrations and nothing else — and rendering
  * authentication settings to that operator would contradict the tab their own
  * capability just selected.

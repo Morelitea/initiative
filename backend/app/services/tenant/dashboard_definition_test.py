@@ -402,9 +402,9 @@ OTHER_UID = "OTHERAPP000001"
 def _plugin_widget(**overrides) -> dict:
     return {
         "id": "w1",
-        "type": f"app:{PLUGIN_UID}:summary",
+        "type": f"plugin:{PLUGIN_UID}:summary",
         "binding": {
-            "source": "app",
+            "source": "plugin",
             "plugin_uid": PLUGIN_UID,
             "endpoint_id": "app.acme.shop.orders-summary",
         },
@@ -415,9 +415,9 @@ def _plugin_widget(**overrides) -> dict:
 def test_a_plugin_widget_keeps_its_namespaced_type():
     result = normalize_dashboard_definition(_definition(_plugin_widget()))
     widget = result["widgets"][0]
-    assert widget["type"] == f"app:{PLUGIN_UID}:summary"
+    assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
     assert widget["binding"] == {
-        "source": "app",
+        "source": "plugin",
         "plugin_uid": PLUGIN_UID,
         "endpoint_id": "app.acme.shop.orders-summary",
     }
@@ -430,7 +430,7 @@ def test_a_definition_outlives_the_plugin_its_widgets_came_from():
 
     A stored dashboard is the guild's, so re-normalizing it — an edit, an
     upgrade — must keep accepting its app widgets whether or not the app is
-    still installed. `app:<uid>:<widget>` with valid parts stores verbatim; the
+    still installed. `plugin:<uid>:<widget>` with valid parts stores verbatim; the
     client renders the not-installed state and asks for the app to be
     reconnected. Only a malformed type is a rejection (the tests below).
     """
@@ -448,7 +448,7 @@ def test_declared_parameters_are_kept_as_the_scalars_they_are():
         _definition(
             _plugin_widget(
                 binding={
-                    "source": "app",
+                    "source": "plugin",
                     "plugin_uid": PLUGIN_UID,
                     "endpoint_id": "app.acme.shop.orders",
                     "params": {"range": "30d", "limit": 5, "detailed": True},
@@ -477,7 +477,7 @@ def test_a_parameter_may_hold_several_values():
         _definition(
             _plugin_widget(
                 binding={
-                    "source": "app",
+                    "source": "plugin",
                     "plugin_uid": PLUGIN_UID,
                     "endpoint_id": "app.acme.shop.orders",
                     "params": {"labels": ["bug", "regression"], "state": "open"},
@@ -497,7 +497,7 @@ def test_values_inside_a_list_are_held_to_the_same_shapes():
             _definition(
                 _plugin_widget(
                     binding={
-                        "source": "app",
+                        "source": "plugin",
                         "plugin_uid": PLUGIN_UID,
                         "endpoint_id": "app.acme.shop.orders",
                         "params": {"labels": [{"nested": "object"}]},
@@ -513,7 +513,7 @@ def test_a_list_longer_than_a_definition_may_carry_is_refused():
             _definition(
                 _plugin_widget(
                     binding={
-                        "source": "app",
+                        "source": "plugin",
                         "plugin_uid": PLUGIN_UID,
                         "endpoint_id": "app.acme.shop.orders",
                         "params": {"labels": ["x"] * 65},
@@ -529,7 +529,7 @@ def test_a_plugin_widget_cannot_bind_another_plugins_data():
             _definition(
                 _plugin_widget(
                     binding={
-                        "source": "app",
+                        "source": "plugin",
                         "plugin_uid": OTHER_UID,
                         "endpoint_id": "app.acme.shop.orders",
                     }
@@ -552,7 +552,7 @@ def _builtin_over_a_plugin(**binding):
             "id": "w1",
             "type": "stat",
             "binding": {
-                "source": "app",
+                "source": "plugin",
                 "plugin_uid": PLUGIN_UID,
                 "endpoint_id": "app.acme.shop.orders",
                 **binding,
@@ -589,18 +589,18 @@ def test_the_plugin_source_is_not_in_the_builtin_vocabulary():
     served widget catalog and every drift test keep describing this build's
     renderers rather than whatever some guild happens to have installed."""
     assert "app" not in TABULAR_SOURCES
-    assert not any(name.startswith("app:") for name in WIDGET_TYPES)
+    assert not any(name.startswith("plugin:") for name in WIDGET_TYPES)
 
 
 @pytest.mark.parametrize(
     "widget_type",
     [
-        "app:",
-        "app:SHPAPP00000001",  # no widget id
-        "app:SHPAPP00000001:",  # empty widget id
-        "app:short:summary",  # uid is the wrong length
-        "app:SHOPAPP000000!:summary",  # outside the uid alphabet
-        "app:SHPAPP00000001:Summary!",  # outside the identifier set
+        "plugin:",
+        "plugin:SHPAPP00000001",  # no widget id
+        "plugin:SHPAPP00000001:",  # empty widget id
+        "plugin:short:summary",  # uid is the wrong length
+        "plugin:SHOPAPP000000!:summary",  # outside the uid alphabet
+        "plugin:SHPAPP00000001:Summary!",  # outside the identifier set
     ],
 )
 def test_a_malformed_plugin_widget_type_is_refused(widget_type):
@@ -611,23 +611,23 @@ def test_a_malformed_plugin_widget_type_is_refused(widget_type):
 @pytest.mark.parametrize(
     "binding",
     [
-        {"source": "app", "endpoint_id": "app.acme.shop.orders"},  # no app named
-        {"source": "app", "plugin_uid": PLUGIN_UID},  # no source named
-        {"source": "app", "plugin_uid": PLUGIN_UID, "endpoint_id": "Orders!"},
+        {"source": "plugin", "endpoint_id": "app.acme.shop.orders"},  # no app named
+        {"source": "plugin", "plugin_uid": PLUGIN_UID},  # no source named
+        {"source": "plugin", "plugin_uid": PLUGIN_UID, "endpoint_id": "Orders!"},
         {
-            "source": "app",
+            "source": "plugin",
             "plugin_uid": PLUGIN_UID,
             "endpoint_id": "app.acme.shop.orders",
             "params": [],
         },
         {
-            "source": "app",
+            "source": "plugin",
             "plugin_uid": PLUGIN_UID,
             "endpoint_id": "app.acme.shop.orders",
             "params": {"range": {"nested": 1}},
         },
         {
-            "source": "app",
+            "source": "plugin",
             "plugin_uid": PLUGIN_UID,
             "endpoint_id": "app.acme.shop.orders",
             "params": {"bad key": "x"},
@@ -646,7 +646,7 @@ def test_a_plugin_binding_still_has_nowhere_to_put_an_address():
         _definition(
             _plugin_widget(
                 binding={
-                    "source": "app",
+                    "source": "plugin",
                     "plugin_uid": PLUGIN_UID,
                     "endpoint_id": "app.acme.shop.orders",
                     "url": "https://evil.test/steal",

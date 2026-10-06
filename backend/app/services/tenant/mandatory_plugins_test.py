@@ -58,7 +58,7 @@ async def provided_listing(session: AsyncSession):
         session,
         uid=PROVIDED_UID,
         public_id=PROVIDED_ID,
-        kind="app",
+        kind="plugin",
         name="Provided app",
         definition=PROVIDED_DEFINITION,
     )
@@ -342,7 +342,7 @@ class TestScopes:
             session,
             uid=uid,
             public_id=public_id,
-            kind="app",
+            kind="plugin",
             name="Scoped app",
             definition={
                 "plugin_kind": "service",
@@ -413,7 +413,7 @@ class TestScopesOnAnInstallAlreadyThere:
             session,
             uid=self.UID,
             public_id=self.PUBLIC_ID,
-            kind="app",
+            kind="plugin",
             name="Scoped later",
             definition=self.DEFINITION,
         )
@@ -446,7 +446,9 @@ class TestScopesOnAnInstallAlreadyThere:
             async with cohorts.system_session(guild.id) as system:
                 await db_session.set_rls_context(system, SystemGuild(guild.id))
                 row = (
-                    await system.exec(select(GuildPlugin).where(GuildPlugin.id == app.id))
+                    await system.exec(
+                        select(GuildPlugin).where(GuildPlugin.id == app.id)
+                    )
                 ).one()
                 row.granted_scopes = granted
                 system.add(row)

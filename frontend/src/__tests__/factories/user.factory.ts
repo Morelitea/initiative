@@ -47,7 +47,7 @@ const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
   owner: [
     "access.approve",
     "announcements.manage",
-    "apps.manage",
+    "plugins.manage",
     "billing.insights",
     "config.manage",
     "content.moderate",

@@ -4,7 +4,7 @@
  *
  * Two halves under two capabilities. The AI settings and the marketplace
  * registry belong to `config.manage` and are a couple of choices each, so they
- * come first; the app service registrations belong to `apps.manage` and are a
+ * come first; the app service registrations belong to `plugins.manage` and are a
  * list that grows, so they sit below. An operator holding one capability is shown that half alone rather
  * than the other half's refusal.
  */

@@ -87,7 +87,7 @@ def _tracker_manifest(with_dashboard: bool = True) -> dict:
     return {
         "uid": PLUGIN_UID,
         "public_id": "tests.tracker",
-        "kind": "app",
+        "kind": "plugin",
         "name": "Tracker",
         "publisher": "Tests",
         "description": "Track the things.",
@@ -430,7 +430,7 @@ class TestAPluginNeedsItsServiceRegistered:
             session,
             uid=self.SERVICE_UID,
             public_id="tests.shop",
-            kind="app",
+            kind="plugin",
             name="Shop",
             definition={
                 "plugin_kind": "service",
@@ -443,14 +443,14 @@ class TestAPluginNeedsItsServiceRegistered:
         self, client, acting_user, service_plugin
     ):
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.shop" not in await _shelf(client, actor, kind="app")
+        assert "tests.shop" not in await _shelf(client, actor, kind="plugin")
 
     async def test_wiring_the_service_up_puts_it_on_the_shelf(
         self, client, acting_user, session, service_plugin
     ):
         await create_plugin_service_registration(session, public_id="tests.shop")
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.shop" in await _shelf(client, actor, kind="app")
+        assert "tests.shop" in await _shelf(client, actor, kind="plugin")
 
     async def test_the_kill_switch_takes_it_back_off(
         self, client, acting_user, session, service_plugin
@@ -465,7 +465,7 @@ class TestAPluginNeedsItsServiceRegistered:
         invalidate_registrations()
 
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.shop" not in await _shelf(client, actor, kind="app")
+        assert "tests.shop" not in await _shelf(client, actor, kind="plugin")
 
     async def test_a_publisher_switched_off_takes_it_back_off(
         self, client, acting_user, session, service_plugin
@@ -482,7 +482,7 @@ class TestAPluginNeedsItsServiceRegistered:
         invalidate_registrations()
 
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.shop" not in await _shelf(client, actor, kind="app")
+        assert "tests.shop" not in await _shelf(client, actor, kind="plugin")
 
     async def test_its_page_answers_the_same_as_a_listing_that_is_not_there(
         self, client, acting_user, service_plugin
@@ -517,12 +517,12 @@ class TestAPluginNeedsItsServiceRegistered:
             session,
             uid=uid,
             public_id="tests.issues",
-            kind="app",
+            kind="plugin",
             name="Issues",
             definition=declarative_plugin("tests.issues"),
         )
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.issues" not in await _shelf(client, actor, kind="app")
+        assert "tests.issues" not in await _shelf(client, actor, kind="plugin")
 
         await create_plugin_service_registration(
             session,
@@ -533,7 +533,7 @@ class TestAPluginNeedsItsServiceRegistered:
             jwks={},
             kind="declarative",
         )
-        assert "tests.issues" in await _shelf(client, actor, kind="app")
+        assert "tests.issues" in await _shelf(client, actor, kind="plugin")
         response = await client.get(
             actor.g("/marketplace/listings/tests.issues"), headers=actor.headers
         )
@@ -546,12 +546,12 @@ class TestAPluginNeedsItsServiceRegistered:
             session,
             uid=self.TOOL_UID,
             public_id="tests.guild-calendar",
-            kind="app",
+            kind="plugin",
             name="Community calendar",
             definition={"plugin_kind": "tool_instance", "tool": "calendar"},
         )
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert "tests.guild-calendar" in await _shelf(client, actor, kind="app")
+        assert "tests.guild-calendar" in await _shelf(client, actor, kind="plugin")
 
 
 class TestOneListingsPage:

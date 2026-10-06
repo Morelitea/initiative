@@ -413,7 +413,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
         session,
         entity_type=IdentityEntity.user,
         entity_id=victim.id,
-        purpose=IdentityPurpose.app,
+        purpose=IdentityPurpose.plugin,
         sector_guild_id=1,
         sector_id=1,
     )

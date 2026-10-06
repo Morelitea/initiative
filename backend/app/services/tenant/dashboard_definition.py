@@ -331,7 +331,7 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 # They are deliberately a *separate* vocabulary from the built-ins above rather
 # than an addition to it:
 #
-# * an app widget's type is namespaced ``app:<listing_uid>:<widget_id>``, so it
+# * an app widget's type is namespaced ``plugin:<listing_uid>:<widget_id>``, so it
 #   can never resolve to a built-in renderer, and a built-in can never resolve
 #   to an app's module;
 # * ``app`` is the only source an app widget binds, and no built-in binds it —
@@ -344,13 +344,13 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 # own session.
 #
 # The check here is deliberately shape, not an install lookup: a well-formed
-# ``app:<uid>:<widget>`` stores whether or not that app is installed, so a
+# ``plugin:<uid>:<widget>`` stores whether or not that app is installed, so a
 # stored dashboard outlives the app it drew from. What a guild built is the
 # guild's; the client renders the not-installed state and asks for the app to
 # be reconnected. Only a malformed type is a rejection.
 
 #: The one binding source an app widget may name.
-PLUGIN_BINDING_SOURCE = "app"
+PLUGIN_BINDING_SOURCE = "plugin"
 
 #: Size floors for an app widget. Uniform, because this build cannot know what
 #: a vendor's module draws; the floor is simply "big enough to read". It
@@ -404,7 +404,7 @@ def _check_uid(value: Any, code: str) -> str:
 
 
 def plugin_widget_parts(declared: str) -> tuple[str, str] | None:
-    """Split ``app:<listing_uid>:<widget_id>``, or None if it is not one.
+    """Split ``plugin:<listing_uid>:<widget_id>``, or None if it is not one.
 
     ``:`` is outside the identifier character set on both halves, so the three
     parts stay unambiguous however an app names its widget.
@@ -445,7 +445,9 @@ def _normalize_plugin_binding(
     app's widget at another app's data would be a definition choosing what
     crosses between two vendors.
     """
-    declared_uid = _check_uid(binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID)
+    declared_uid = _check_uid(
+        binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID
+    )
     if declared_uid != listing_uid:
         _fail(DashboardMessages.BINDING_INVALID)
     endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
@@ -453,7 +455,10 @@ def _normalize_plugin_binding(
     raw_params = binding.get("params")
     params: dict[str, Any] = {}
     if raw_params is not None:
-        if not isinstance(raw_params, dict) or len(raw_params) > MAX_PLUGIN_BINDING_PARAMS:
+        if (
+            not isinstance(raw_params, dict)
+            or len(raw_params) > MAX_PLUGIN_BINDING_PARAMS
+        ):
             _fail(DashboardMessages.BINDING_INVALID)
         for key, value in raw_params.items():
             params[_check_identifier(key)] = _check_plugin_param(value)

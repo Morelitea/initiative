@@ -870,7 +870,9 @@ class TestWidgets:
                         "module_source": "export const render = () => ({});",
                         "endpoints": [READ_ID],
                         "sample_data": {
-                            READ_ID: {"blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES}
+                            READ_ID: {
+                                "blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES
+                            }
                         },
                     }
                 ],
@@ -889,7 +891,7 @@ class TestWidgets:
 class TestWidgetTypeNamespacing:
     def test_a_plugin_widget_carries_its_listing(self):
         assert plugin_widget_type("K7M2QX8N4TVB9C", "summary") == (
-            "app:K7M2QX8N4TVB9C:summary"
+            "plugin:K7M2QX8N4TVB9C:summary"
         )
 
     def test_it_cannot_collide_with_a_built_in_type(self):
