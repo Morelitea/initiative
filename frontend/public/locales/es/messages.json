@@ -95,10 +95,6 @@
     "body": "Desaparece de este dispositivo, y la aplicación de la otra persona lo quita del suyo. Lo que ya leyeron, ya lo leyeron: esto no lo puede deshacer."
   },
   "removed": "Mensaje eliminado",
-  "days": {
-    "today": "Hoy",
-    "yesterday": "Ayer"
-  },
   "newDevice": {
     "title": "Se ha iniciado sesión en un dispositivo nuevo",
     "body": "{{device}} ha iniciado sesión en tu cuenta. Si es tuyo, verifícalo: las dos pantallas mostrarán las mismas cuatro imágenes para comparar.",

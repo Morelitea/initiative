@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { notificationLink, notificationText } from "@/components/notifications/notificationLine";
+import { notificationText, openNotification } from "@/components/notifications/notificationLine";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,30 +16,13 @@ import {
   useMarkNotificationUnread,
   useNotificationHistory,
 } from "@/hooks/useNotifications";
+import { formatDayHeading, localDayKey } from "@/lib/formatDate";
 import { useStoreSellingAnswer } from "@/lib/storeSelling";
+import type { TranslateFn } from "@/types/i18n";
 
 type Filter = "all" | "unread" | "personal";
 
 const FILTERS: Filter[] = ["all", "unread", "personal"];
-
-/** Day buckets, so a long list reads as a timeline rather than a wall. */
-const dayKey = (iso: string): string => iso.slice(0, 10);
-
-const dayLabel = (
-  key: string,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === today.toISOString().slice(0, 10)) return t("notifications.inbox.today");
-  if (key === yesterday.toISOString().slice(0, 10)) return t("notifications.inbox.yesterday");
-  return new Date(`${key}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-};
 
 /**
  * The record: everything that has happened, read and unread.
@@ -52,7 +35,8 @@ export const NotificationsInboxPage = () => {
   // Plan lines are worded by whether this device may sell; re-render once a
   // phone's store has said.
   useStoreSellingAnswer();
-  const { t } = useTranslation(["communities", "common"]);
+  // "exports" is loaded alongside for a finished export's download toasts.
+  const { t } = useTranslation(["communities", "common", "exports"]);
   const { user } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
@@ -79,7 +63,7 @@ export const NotificationsInboxPage = () => {
   const days = useMemo(() => {
     const buckets = new Map<string, NotificationRead[]>();
     for (const row of rows) {
-      const key = dayKey(row.created_at);
+      const key = localDayKey(row.created_at);
       const bucket = buckets.get(key);
       if (bucket) bucket.push(row);
       else buckets.set(key, [row]);
@@ -92,13 +76,12 @@ export const NotificationsInboxPage = () => {
     return communities?.find((community) => community.id === id)?.name ?? null;
   };
 
-  const open = (notification: NotificationRead) => {
-    if (!notification.read_at) markRead.mutate(notification.id);
-    const target = notificationLink(notification);
-    // A target carrying a query string (a plug-in's consent screen opens from
-    // `?plugin=`) goes as an href, so the query stays search rather than path.
-    if (target) router.navigate(target.includes("?") ? { href: target } : { to: target });
-  };
+  const open = (notification: NotificationRead) =>
+    openNotification(notification, {
+      markRead: markRead.mutate,
+      navigate: router.navigate,
+      t: t as TranslateFn,
+    });
 
   if (!user) return null;
 
@@ -164,7 +147,7 @@ export const NotificationsInboxPage = () => {
           {days.map(([key, bucket]) => (
             <section key={key} className="space-y-1">
               <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                {dayLabel(key, t as (k: string, o?: Record<string, unknown>) => string)}
+                {formatDayHeading(key, t as TranslateFn)}
               </h2>
               <ul className="divide-y rounded-md border">
                 {bucket.map((notification) => (
@@ -180,10 +163,7 @@ export const NotificationsInboxPage = () => {
                       <p
                         className={`text-sm ${notification.read_at ? "text-muted-foreground" : "text-foreground"}`}
                       >
-                        {notificationText(
-                          notification,
-                          t as (k: string, o?: Record<string, unknown>) => string
-                        )}
+                        {notificationText(notification, t as TranslateFn)}
                       </p>
                       <p className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
                         {communityName(notification.community_id) && (

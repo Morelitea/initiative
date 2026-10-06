@@ -6,6 +6,8 @@
  * and a second copy is how the two drift apart.
  */
 
+import type { NavigateFn } from "@tanstack/react-router";
+
 import { type NotificationRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { communityPath } from "@/lib/communityUrl";
 import {
@@ -14,9 +16,11 @@ import {
   normalizeLegacyTarget,
   normalizePluginTarget,
 } from "@/lib/entityResolver";
+import { downloadExportArtifact } from "@/lib/exportDownload";
 import { formatDate } from "@/lib/formatDate";
 import { storeSellingNow } from "@/lib/storeSelling";
 import { entityRefRoute, toolKebabSingular } from "@/lib/tools";
+import type { TranslateFn } from "@/types/i18n";
 
 /** Whether plan lines may ask the reader to choose a plan here. Not until a
  *  phone's store has answered (`@/lib/storeSelling`). */
@@ -523,7 +527,7 @@ export const notificationText = (
 
 /** Export artifacts are fetched, not navigated to — pull the ids the download
  * call needs, or null when the payload is malformed. */
-export const exportDownloadTarget = (
+const exportDownloadTarget = (
   notification: NotificationRead
 ): { communityId: number; jobId: number; source: string; format: string } | null => {
   if (notification.type !== "export_ready") {
@@ -541,4 +545,50 @@ export const exportDownloadTarget = (
     source: typeof data.source === "string" ? data.source : "tasks",
     format: typeof data.format === "string" ? data.format : "pdf",
   };
+};
+
+/**
+ * Open a notification: mark it read, then fetch a finished export or go to
+ * the line's destination. Returns whether it led anywhere.
+ *
+ * The bell, the inbox and the desktop app's system notifications all open a
+ * line through this. `t` must have the `exports` namespace loaded, for the
+ * download's toasts.
+ */
+export const openNotification = (
+  notification: NotificationRead,
+  {
+    markRead,
+    navigate,
+    t,
+  }: {
+    markRead: (id: number) => void;
+    navigate: NavigateFn;
+    t: TranslateFn;
+  }
+): boolean => {
+  if (!notification.read_at) {
+    markRead(notification.id);
+  }
+  // A finished export is fetched, not navigated to: the artifact lives behind
+  // the job-gated download endpoint, so opening it IS the download.
+  const exportTarget = exportDownloadTarget(notification);
+  if (exportTarget) {
+    void downloadExportArtifact(
+      exportTarget.communityId,
+      exportTarget.jobId,
+      t,
+      exportTarget.source,
+      exportTarget.format
+    );
+    return true;
+  }
+  const target = notificationLink(notification);
+  if (!target) {
+    return false;
+  }
+  // A target carrying a query string (a plug-in's consent screen opens from
+  // `?plugin=`) goes as an href, so the query stays search rather than path.
+  void navigate(target.includes("?") ? { href: target } : { to: target });
+  return true;
 };

@@ -95,10 +95,6 @@
     "body": "It goes from this device, and their client takes it off theirs. A message they already read is a message they already read — this cannot unsay it."
   },
   "removed": "Message removed",
-  "days": {
-    "today": "Today",
-    "yesterday": "Yesterday"
-  },
   "newDevice": {
     "title": "New device signed in",
     "body": "{{device}} signed in to your account. If it's yours, verify it: both screens will show the same four pictures to compare.",

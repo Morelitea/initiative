@@ -1,9 +1,12 @@
+import i18n from "i18next";
 import { describe, expect, it } from "vitest";
 
 import {
   formatDate,
   formatDateTime,
+  formatDayHeading,
   fromLocalDateTimeInput,
+  localDayKey,
   minutesLeft,
   parseDateValue,
   toLocalDateTimeInput,
@@ -39,6 +42,29 @@ describe("formatDate", () => {
 
   it("keeps the time for a timestamp", () => {
     expect(formatDateTime("2026-03-02T15:30:00Z")).toMatch(/2026/);
+  });
+});
+
+describe("day grouping", () => {
+  it("files an instant under the reader's local day, not the UTC one", () => {
+    // 11:30pm local. West of Greenwich that instant is already the next day in
+    // UTC; built from local parts, the expectation holds in any zone.
+    const lateEvening = new Date(2026, 2, 2, 23, 30).toISOString();
+
+    expect(localDayKey(lateEvening)).toBe("2026-03-02");
+    expect(localDayKey("2026-03-02")).toBe("2026-03-02");
+    expect(localDayKey("nope")).toBe("");
+  });
+
+  it("names today and yesterday, dates the rest, from a key or an instant", () => {
+    const t = i18n.t.bind(i18n) as (key: string) => string;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    expect(formatDayHeading(new Date().toISOString(), t)).toBe("Today");
+    expect(formatDayHeading(localDayKey(yesterday.toISOString()), t)).toBe("Yesterday");
+    expect(formatDayHeading("2026-03-02", t)).toBe("Mon, Mar 2, 2026");
+    expect(formatDayHeading("", t)).toBe("");
   });
 });
 

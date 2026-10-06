@@ -337,5 +337,9 @@
     "archived": "Archiviert",
     "none": "Keine",
     "template": "Vorlage"
+  },
+  "days": {
+    "today": "Heute",
+    "yesterday": "Gestern"
   }
 }

@@ -4,11 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  exportDownloadTarget,
-  notificationLink,
-  notificationText,
-} from "@/components/notifications/notificationLine";
+import { notificationText, openNotification } from "@/components/notifications/notificationLine";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,8 +17,8 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from "@/hooks/useNotifications";
-import { downloadExportArtifact } from "@/lib/exportDownload";
 import { useStoreSellingAnswer } from "@/lib/storeSelling";
+import type { TranslateFn } from "@/types/i18n";
 
 // How often the bell asks on its own, which is only ever when there is no
 // channel to ask for it.
@@ -90,35 +86,21 @@ export const NotificationBell = () => {
   const unreadCount = notificationsQuery.unreadCount;
   const hasUnread = unreadCount > 0;
 
-  const handleNotificationClick = async (notification: NotificationRead) => {
-    // Not awaited: the read is applied to the cache as it is sent, so the dot
-    // and the badge have already moved, and nothing below depends on the
-    // server having answered. Waiting for it only ever showed as a stall
-    // between the click and the page it opens.
+  const handleNotificationClick = (notification: NotificationRead) => {
+    // The read is not awaited: it is applied to the cache as it is sent, so
+    // the dot and the badge have already moved. The row keeps its place,
+    // dimmed, until the popover closes.
     if (!notification.read_at) {
       readWhileOpen.current.set(notification.id, notification);
       setJustRead((seen) => [...seen, notification.id]);
-      markReadMutation.mutate(notification.id);
     }
-    // A finished export is fetched, not navigated to: the artifact lives
-    // behind the job-gated download endpoint, so the click IS the download.
-    const exportTarget = exportDownloadTarget(notification);
-    if (exportTarget) {
-      setOpen(false);
-      await downloadExportArtifact(
-        exportTarget.communityId,
-        exportTarget.jobId,
-        t as (key: string, options?: Record<string, unknown>) => string,
-        exportTarget.source,
-        exportTarget.format
-      );
-      return;
-    }
-    const target = notificationLink(notification);
-    if (target) {
-      // A target carrying a query string (a plug-in's consent screen opens from
-      // `?plugin=`) goes as an href, so the query stays search rather than path.
-      router.navigate(target.includes("?") ? { href: target } : { to: target });
+    if (
+      openNotification(notification, {
+        markRead: markReadMutation.mutate,
+        navigate: router.navigate,
+        t: t as TranslateFn,
+      })
+    ) {
       setOpen(false);
     }
   };
@@ -149,14 +131,11 @@ export const NotificationBell = () => {
                 className={`flex w-full items-start gap-3 px-2 py-3 text-left transition hover:bg-accent/50 ${
                   justRead.includes(notification.id) ? "opacity-50" : ""
                 }`}
-                onClick={() => void handleNotificationClick(notification)}
+                onClick={() => handleNotificationClick(notification)}
               >
                 <div className="flex-1">
                   <p className="text-foreground text-sm">
-                    {notificationText(
-                      notification,
-                      t as (key: string, options?: Record<string, unknown>) => string
-                    )}
+                    {notificationText(notification, t as TranslateFn)}
                   </p>
                   <RelativeTime
                     date={notification.created_at}
