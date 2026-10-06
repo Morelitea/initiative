@@ -206,9 +206,12 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === READY) {
+        const failed = () => {
+          if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
+        };
         if (!spentRef.current) {
-          void send(target, handoff);
           spentRef.current = true;
+          send(target, handoff).catch(failed);
           return;
         }
         void mint()
@@ -216,7 +219,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
             // Dropped if the surface changed while this was in flight, or if
             // the frame that asked is no longer the mounted one.
             if (cancelled || iframeRef.current?.contentWindow !== target) return;
-            void send(target, fresh);
+            return send(target, fresh);
           })
           .catch(() => {
             if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
