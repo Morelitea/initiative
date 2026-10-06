@@ -86,8 +86,13 @@ class QueueImporter(NamesPeopleInPassing):
 
         async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
             nonlocal tags_created, tags_matched
+            # A name listed twice (or in another case) is one tag, attached once.
+            attached: set[int] = set()
             for tag_name in names:
                 resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
+                if resolved.id in attached:
+                    continue
+                attached.add(resolved.id)
                 if resolved.created:
                     tags_created += 1
                 else:
