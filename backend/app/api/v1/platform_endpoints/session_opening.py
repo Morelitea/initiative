@@ -433,26 +433,9 @@ async def second_factor_outstanding(
     )
 
 
-def mint_for(row: AuthSession, *, subject: str, token_version: int) -> tuple[str, int]:
-    """The access token for one session, bounded by the session.
-
-    The only place an access token is given its lifetime. Returns the token and
-    its lifetime in seconds.
-    """
-    return mint_access_token(
-        subject=subject,
-        token_version=token_version,
-        session_id=row.id,
-        amr=row.amr,
-        satisfied_providers=row.satisfied_providers,
-        provider_auth=row.provider_auth,
-        expires_in=access_ttl_for(row, now=row.created_at),
-    )
-
-
 @dataclass(frozen=True)
 class OpenedSession:
-    """A session staged by :func:`issue_session` and the tokens that carry it.
+    """A session and the tokens that carry it, as :func:`mint_for` hands it.
 
     ``refresh_token`` exists only here until a response carries it.
     """
@@ -471,6 +454,32 @@ class OpenedSession:
     def set_cookies(self, response: Response) -> None:
         set_session_cookie(response, self.access_token, max_age=self.access_max_age)
         set_refresh_cookie(response, self.refresh_token)
+
+
+def mint_for(
+    issued: session_service.IssuedSession, *, subject: str, token_version: int
+) -> OpenedSession:
+    """The access token for one session, bounded by the session.
+
+    The only place an access token is given its lifetime: a session opened
+    here and a session renewed by ``/auth/refresh`` both come through it.
+    """
+    row = issued.session
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=row.id,
+        amr=row.amr,
+        satisfied_providers=row.satisfied_providers,
+        provider_auth=row.provider_auth,
+        expires_in=access_ttl_for(row, now=row.created_at),
+    )
+    return OpenedSession(
+        session=row,
+        access_token=access_token,
+        access_max_age=access_max_age,
+        refresh_token=issued.refresh_token,
+    )
 
 
 @asynccontextmanager
@@ -541,15 +550,7 @@ async def issue_session(
         )
     # The name the token will carry, in the same transaction as the session.
     subject = await subject_service.subject_for_user(system_session, user_id=user_id)
-    access_token, access_max_age = mint_for(
-        issued.session, subject=subject, token_version=token_version
-    )
-    return OpenedSession(
-        session=issued.session,
-        access_token=access_token,
-        access_max_age=access_max_age,
-        refresh_token=issued.refresh_token,
-    )
+    return mint_for(issued, subject=subject, token_version=token_version)
 
 
 async def open_session(
@@ -561,19 +562,29 @@ async def open_session(
     token_version: int,
     amr: Sequence[str],
     audit_detail: dict[str, Any],
+    satisfied_providers: Sequence[int] = (),
+    provider_auth: dict[str, Any] | None = None,
     device_name: str | None = None,
+    device: bool | None = None,
 ) -> Token:
     """Open the session a sign-in earned, and hand back its token.
 
-    The access token carries sid/amr/sat; the rotating refresh cookie carries
-    the session. ``amr`` is what this sign-in proved. A device's sign-in
-    (:func:`is_device`) opens a device session and is handed the refresh token
+    Every sign-in comes through here: it is recorded, the wrong answers counted
+    against the account start over, and the session is written. The access
+    token carries sid/amr/sat; the rotating refresh cookie carries the session.
+    ``amr`` is what this sign-in proved, and ``satisfied_providers`` and
+    ``provider_auth`` the providers it satisfied and their own account of it.
+
+    A device's sign-in opens a device session and is handed the refresh token
     in the body too, since the app keeps its own; ``device_name`` labels it.
+    ``device`` is read from the request (:func:`is_device`) unless the caller
+    already knows the answer.
 
     Anything the caller staged in ``system_session`` — a credential's counter,
     a spent challenge — commits with the session, or goes with it.
     """
-    device = is_device(request)
+    if device is None:
+        device = is_device(request)
     async with session_store(system_session, user_id=user_id):
         await audit_service.record(
             system_session,
@@ -589,6 +600,8 @@ async def open_session(
             user_id=user_id,
             token_version=token_version,
             amr=amr,
+            satisfied_providers=satisfied_providers,
+            provider_auth=provider_auth,
             device_name=device_name if device else None,
             device=device,
         )
@@ -666,42 +679,64 @@ async def upgrade_session(
     *,
     user: User,
     add_amr: Sequence[str],
+    prior: AuthSession | None = None,
+    add_providers: Sequence[int] = (),
+    provider_auth: dict[str, Any] | None = None,
+    audit_detail: dict[str, Any] | None = None,
 ) -> Token:
     """Add what was just proved to the session already signed in.
 
     A community that asks for something a session never presented refuses it,
     and signing out to sign back in would be a strange way to answer that. So
-    the factor — a code, a passkey — is taken against the live session and this
-    is what records it.
+    the factor — a code, a passkey, a provider — is taken against the live
+    session and this is what records it. The wrong answers counted against the
+    account start over, as they do at a sign-in.
 
     The session is upgraded rather than replaced from nothing: its ``amr``, its
     satisfied providers and each provider's account of its own authentication
     carry forward, and the old chain is retired. Satisfying one community's
-    requirement never un-satisfies another's.
+    requirement never un-satisfies another's. ``add_providers`` joins the
+    satisfied set, and ``provider_auth``, where given, is the providers'
+    account the upgraded session keeps in place of ``prior``'s. A provider
+    step-up is a sign-in at that provider too, and records one from
+    ``audit_detail``.
 
-    The session upgraded is the one this request is *on*, named by its own
-    access token: every client carries that, and only a browser also carries a
-    refresh cookie. A credential that is not a session is refused — this
-    endpoint upgrades one, and there is nothing else here to add to.
+    ``prior`` is the session upgraded. Unless the caller found it, it is the
+    one this request is *on*, named by its own access token: every client
+    carries that, and only a browser also carries a refresh cookie. A
+    credential that is not a session is refused — this upgrades one, and there
+    is nothing else here to add to.
     """
-    prior = await live_session_of(
-        system_session, session_id=require_session_row(request), user_id=user.id
-    )
+    user_id, token_version = user.id, user.token_version
+    if prior is None:
+        prior = await live_session_of(
+            system_session, session_id=require_session_row(request), user_id=user_id
+        )
     if prior is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
         )
 
-    async with session_store(system_session, user_id=user.id):
+    async with session_store(system_session, user_id=user_id):
+        if audit_detail is not None:
+            await audit_service.record(
+                system_session,
+                event_type=AuditEventType.AUTH_SIGNED_IN,
+                actor_user_id=user_id,
+                detail=audit_detail,
+            )
+        await sign_in_locks.record_success(system_session, user_id)
         issued = await issue_session(
             request,
             system_session,
-            user_id=user.id,
-            token_version=user.token_version,
+            user_id=user_id,
+            token_version=token_version,
             amr=sorted(set(prior.amr) | set(add_amr)),
-            satisfied_providers=prior.satisfied_providers,
-            provider_auth=prior.provider_auth,
+            satisfied_providers=[*prior.satisfied_providers, *add_providers],
+            provider_auth=(
+                provider_auth if provider_auth is not None else prior.provider_auth
+            ),
             device=prior.device,
             replaces=prior.id,
         )

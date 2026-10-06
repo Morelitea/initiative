@@ -342,7 +342,6 @@ async def step_up_with_factor(
         await count_wrong_answer(system_session, current_user.id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    await sign_in_locks.record_success(system_session, current_user.id)
     return await upgrade_session(
         request,
         response,
