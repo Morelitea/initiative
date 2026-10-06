@@ -142,6 +142,9 @@
     "quarter": "T{{quarter}}",
     "today": "Aujourd'hui"
   },
+  "matrix": {
+    "label": "Carte d'activité"
+  },
   "provenance": {
     "title": "D'où viennent ces données",
     "source": "Source",

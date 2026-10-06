@@ -57,11 +57,12 @@ async def make_dashboard(client, actor, sql: str = COUNT_TASKS) -> int:
 
 async def widget_rows(client, actor, dashboard_id: int, widget_id: str = "w1"):
     response = await client.get(
-        actor.g(f"/dashboards/{dashboard_id}/widgets/{widget_id}/query"),
-        headers=actor.headers,
+        actor.g(f"/dashboards/{dashboard_id}/data"), headers=actor.headers
     )
     assert response.status_code == 200, response.text
-    return response.json()["rows"]
+    entry = response.json()["widgets"][widget_id]
+    assert entry["error"] is None, entry
+    return entry["result"]["rows"]
 
 
 async def two_people(session, acting_user):
@@ -274,8 +275,18 @@ class TestWhoMayChooseIt:
             initiative=admin.initiative,
             initiative_role="project_manager",
         )
-        dashboard_id = await make_dashboard(client, manager)
-        response = await set_mode(client, manager, dashboard_id, "initiative")
+        created = await client.post(
+            manager.g("/dashboards/"),
+            json={
+                "name": "Status",
+                "initiative_id": manager.initiative.id,
+                "definition": dashboard_body(),
+            },
+            headers=manager.headers,
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["can_run_as_initiative"] is True
+        response = await set_mode(client, manager, created.json()["id"], "initiative")
         assert response.status_code == 200, response.text
 
     async def test_widgets_change_only_with_the_permission(

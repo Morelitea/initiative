@@ -17,7 +17,6 @@ import type { DashboardRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { useUpgradeDashboard } from "@/hooks/useDashboards";
 import { useMarketplaceListingByUid } from "@/hooks/useMarketplace";
-import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
 export interface DashboardUpdateBadgeProps {
@@ -46,9 +45,6 @@ export function DashboardUpdateBadge({ dashboard, canEdit }: DashboardUpdateBadg
     upgrade.mutate(undefined, {
       onSuccess: (updated) => {
         toast.success(t("update.done", { version: updated.listing_version }));
-      },
-      onError: (error) => {
-        toast.error(getErrorMessage(error, "marketplace:update.failed"));
       },
     });
 

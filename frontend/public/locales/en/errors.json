@@ -243,7 +243,6 @@
   "QUERY_STAR_NOT_ALLOWED": "List the columns you want instead of *.",
   "QUERY_RESERVED_NAME": "“me” means the person reading, so nothing else can be called it.",
   "QUERY_VIEWER_NEEDS_A_PERSON": "Compare “me” with a field that holds a person.",
-  "DASHBOARD_WIDGET_HAS_NO_QUERY": "That widget has no query to run.",
   "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE": "A plug-in's access is granted in the plug-in's settings, not here.",
   "QUERY_TOO_EXPENSIVE": "This query asks for more work than one query may do. Narrow it — fewer tables, or a filter that cuts the rows down.",
   "QUERY_TIMED_OUT": "This query took too long and was stopped.",
