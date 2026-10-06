@@ -10,7 +10,8 @@ belongs to no transaction.
 Every task either one starts is held here until it finishes, as the event loop
 keeps only a weak reference to it. :func:`settle` waits for the steps a
 session's commits started, and :func:`settle_all` for every task, as before
-the pools close.
+the pools close; a task spawned with ``cancel_on_settle`` is cancelled there
+instead of waited for.
 """
 
 from __future__ import annotations
@@ -40,6 +41,8 @@ _STARTED_KEY = "post_commit_started"
 
 #: Every task started here, until it finishes.
 _running: set[asyncio.Task[None]] = set()
+#: The tasks :func:`settle_all` cancels rather than waits for.
+_cancel_on_settle: set[asyncio.Task[None]] = set()
 
 
 def after_commit(session: Any, step: StepT, key: Hashable | None = None) -> StepT:
@@ -66,10 +69,14 @@ def after_commit(session: Any, step: StepT, key: Hashable | None = None) -> Step
     return cast(StepT, steps.setdefault((txn, object() if key is None else key), step))
 
 
-def spawn(work: Awaitable[object]) -> None:
+def spawn(work: Awaitable[object], *, cancel_on_settle: bool = False) -> None:
     """Run ``work`` as a task of its own, held until it finishes. A failure is
-    logged. Outside an event loop it is closed unrun."""
-    _hold(work, _name(work))
+    logged. Outside an event loop it is closed unrun.
+
+    With ``cancel_on_settle``, :func:`settle_all` cancels it rather than
+    waiting for it: for long work that a later run can carry on from.
+    """
+    _hold(work, _name(work), *((_cancel_on_settle,) if cancel_on_settle else ()))
 
 
 async def settle(session: Any) -> None:
@@ -81,9 +88,15 @@ async def settle(session: Any) -> None:
 
 async def settle_all() -> None:
     """Wait for every task this process has started here, as before its pools
-    close."""
+    close, cancelling those spawned with ``cancel_on_settle`` first. Those get
+    one turn of the loop before the cancel, so work not yet started reaches its
+    own handler."""
+    if _cancel_on_settle:
+        await asyncio.sleep(0)
+    for task in _cancel_on_settle:
+        task.cancel()
     if _running:
-        await asyncio.gather(*_running)
+        await asyncio.gather(*_running, return_exceptions=True)
 
 
 def _name(work: object) -> str:
@@ -107,6 +120,10 @@ def _hold(work: Awaitable[object], name: str, *also: set[asyncio.Task[None]]) ->
             work.close()
         return
     task = loop.create_task(_logged(work, name))
+    if inspect.iscoroutine(work):
+        # Closes ``work`` when the task is cancelled before it starts.
+        close = work.close
+        task.add_done_callback(lambda _: close())
     for held in (_running, *also):
         held.add(task)
         task.add_done_callback(held.discard)

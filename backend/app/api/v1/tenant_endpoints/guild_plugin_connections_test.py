@@ -26,6 +26,7 @@ let go at the vendor. The teardown tests assert on the rows *and* on the
 recorded revocations, because deleting our copy is only half of it.
 """
 
+import asyncio
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -213,12 +214,13 @@ def recorded_revocations(monkeypatch):
 
     The transport itself belongs to the plug-in protocol; what this phase owes is
     that an intent is raised for every credential it deletes, addressed by the
-    handle the plug-in knows it by.
+    handle the plug-in knows it by. Recorded as the commit hands them over.
     """
     captured: list = []
 
-    async def _capture(intents):
+    def _capture(intents):
         captured.extend(intents)
+        return asyncio.sleep(0)
 
     monkeypatch.setattr(plugin_revocation, "dispatch_revocations", _capture)
     return captured

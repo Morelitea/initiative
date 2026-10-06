@@ -114,7 +114,6 @@ from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import plugin_connections as plugin_connections_service
-from app.services.tenant import plugin_revocation as plugin_revocation_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -1262,8 +1261,8 @@ async def delete_community(
     # the guild role in turn cannot do (``app_guild_base`` holds UPDATE on the
     # identity columns a guild admin edits, and deliberately not on ``status``).
     # The connections go first: a guild left live with its integrations ended
-    # is a thing its admin can see and put back, and the revocations are not
-    # dispatched until the deletion below has actually committed.
+    # is a thing its admin can see and put back. The plug-ins are told once
+    # this commits.
     await plugin_connections_service.delete_guild_connections(session)
     await session.commit()
 
@@ -1286,7 +1285,7 @@ async def delete_community(
     # the commit that made the deletion real. Billing keeps its name for the
     # guild until the purge, and is told to go and read what happened to it.
     # The references go after the revocations, which name the guild by them.
-    plugin_revocation_service.send_after_response(session, background_tasks)
+    background_tasks.add_task(post_commit.settle, session)
     background_tasks.add_task(
         plugin_refs.forget_guild, guild_id=guild_id, keep_billing=True
     )
@@ -1657,7 +1656,6 @@ async def leave_community(
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    background_tasks: BackgroundTasks,
 ) -> Response:
     """Leave a guild.
 
@@ -1715,8 +1713,4 @@ async def leave_community(
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await content_sockets.revoke_user(guild_id, current_user.id)
-    # …and tell this guild's plug-ins that the credentials this person connected
-    # under it are finished. After the commit, so a plug-in is never told to let go
-    # of something a rollback would have put back.
-    plugin_revocation_service.send_after_response(session, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

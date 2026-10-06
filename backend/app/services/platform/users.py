@@ -21,7 +21,7 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
 )
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.db.session import set_rls_context
 from app.models.platform.user import (
     ABSENT_STATUSES,
@@ -163,7 +163,7 @@ async def _in_each_guild(
             await set_rls_context(guild_session, SystemGuild(guild_id))
             await work(guild_session, guild_id, user_id=user_id)
             await guild_session.commit()
-            await _dispatch_queued_revocations(guild_session)
+            await post_commit.settle(guild_session)
 
 
 async def _member_guild_ids(session: AsyncSession, user_id: int) -> list[int]:
@@ -743,21 +743,6 @@ async def soft_delete_user(
     # Last, because the revocations sent from each guild above name this
     # person to each plug-in by the very references this removes.
     await identity_refs.forget_user(user_id=user_id)
-
-
-async def _dispatch_queued_revocations(session: AsyncSession) -> None:
-    """Tell each plug-in that this person's credentials are finished.
-
-    After the commit, always: a plug-in told to let go of a credential the database
-    then kept would be the one disagreement worth avoiding. Delivery is
-    best-effort — the account is closed either way, and our own delete is the
-    authoritative half.
-    """
-    from app.services.tenant import plugin_revocation as plugin_revocation_service
-
-    await plugin_revocation_service.dispatch_revocations(
-        plugin_revocation_service.drain_revocations(session)
-    )
 
 
 async def is_last_capability_holder(

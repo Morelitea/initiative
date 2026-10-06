@@ -247,7 +247,6 @@ async def sync_oidc_assignments(
     # guild's own transaction the way leaving is, so a guild whose half fails
     # keeps the member for the next sync to finish.
     from app.services.content_sockets import sockets as content_sockets
-    from app.services.tenant import plugin_revocation as plugin_revocation_service
     from app.services.tenant.initiatives import enroll_in_auto_join_initiatives
 
     async def drop_stale_initiatives(guild_session: AsyncSession, gid: int) -> None:
@@ -294,20 +293,12 @@ async def sync_oidc_assignments(
     async def leave(guild_session: AsyncSession, gid: int) -> None:
         await drop_stale_initiatives(guild_session, gid)
         await guild_session.flush()
-        try:
-            await guilds_service.remove_user_from_guild(
-                guild_session,
-                guild_id=gid,
-                user_id=user_id,
-                actor_user_id=None,
-                via=_VIA,
-            )
-        finally:
-            # Queued on the cohort's session, which goes on to other guilds.
-            revocations = plugin_revocation_service.drain_revocations(guild_session)
-        post_commit.after_commit(
+        await guilds_service.remove_user_from_guild(
             guild_session,
-            partial(plugin_revocation_service.dispatch_revocations, revocations),
+            guild_id=gid,
+            user_id=user_id,
+            actor_user_id=None,
+            via=_VIA,
         )
         post_commit.after_commit(
             guild_session, partial(content_sockets.revoke_user, gid, user_id)

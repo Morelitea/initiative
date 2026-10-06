@@ -4,7 +4,6 @@ from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -138,7 +137,6 @@ from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.core.tools import Tool
 from app.api import resource_access
-from app.services.tenant import plugin_revocation as plugin_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
@@ -1880,7 +1878,6 @@ async def remove_member(
     system_session: SystemSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """Remove a member from this guild.
 
@@ -1937,7 +1934,6 @@ async def remove_member(
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    plugin_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------
