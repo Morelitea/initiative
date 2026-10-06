@@ -80,8 +80,7 @@ export const useCreateWikiPage = (
   useCommunityMutation<WikiPageRead, WikiPageCreate>(
     {
       mutationFn: (communityId, data) => createWikiPage(communityId, wikiId, data),
-      // The tree gains a row and the wiki's page count changes with it.
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
@@ -94,8 +93,8 @@ export const useDuplicateWikiPage = (
   useCommunityMutation<WikiPageRead, number>(
     {
       mutationFn: (communityId, pageId) => duplicateWikiPage(communityId, pageId),
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
-      errorKey: "common:error",
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      errorKey: "wikis:error",
     },
     options
   );
@@ -105,13 +104,13 @@ export const useDuplicateWikiPage = (
  *
  * Neither writes the file. A file joins a wiki by an edge, so what
  * changes is what the wiki contains — which is why both invalidate the page
- * list and the wiki, and nothing belonging to the file itself.
+ * list, and nothing belonging to the file itself.
  */
 export const useAddWikiFile = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
   useCommunityMutation<WikiPageTree, number>(
     {
       mutationFn: (communityId, fileId) => addFileToWiki(communityId, wikiId, fileId),
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options

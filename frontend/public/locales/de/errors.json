@@ -243,7 +243,6 @@
   "QUERY_STAR_NOT_ALLOWED": "Nenne die gewünschten Spalten statt *.",
   "QUERY_RESERVED_NAME": "„me“ steht für die lesende Person und kann deshalb nichts anderes benennen.",
   "QUERY_VIEWER_NEEDS_A_PERSON": "Vergleiche „me“ mit einem Feld, das eine Person enthält.",
-  "DASHBOARD_WIDGET_HAS_NO_QUERY": "Dieses Widget hat keine Abfrage.",
   "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE": "Der Zugriff eines Plug-ins wird in den Einstellungen des Plug-ins erteilt, nicht hier.",
   "QUERY_TOO_EXPENSIVE": "Diese Abfrage verlangt mehr Arbeit, als eine Abfrage leisten darf. Grenze sie ein — weniger Tabellen oder ein Filter, der die Zeilen reduziert.",
   "QUERY_TIMED_OUT": "Diese Abfrage hat zu lange gedauert und wurde abgebrochen.",

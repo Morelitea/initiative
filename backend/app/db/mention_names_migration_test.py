@@ -2,7 +2,7 @@
 
 Loaded by path, as migrations are not on the import path, and run on one
 guild's schema the way the upgrade runs it on each, with the tables named as
-they were before 20261006_0462.
+they were before 20261006_0463.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from app.testing.factories import (
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 _REVISION = _VERSIONS / "20261002_0444_a_mention_keeps_no_name.py"
-_FILES = _VERSIONS / "20261006_0462_documents_are_files.py"
+_FILES = _VERSIONS / "20261006_0463_documents_are_files.py"
 
 
 def _revision(path: Path = _REVISION) -> ModuleType:

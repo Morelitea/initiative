@@ -172,11 +172,24 @@ class WikiImporter:
                 )
             ).all()
         }
+        # The settings an export carried; absent ones keep the model's defaults.
+        settings = env.model_dump(
+            include={
+                "page_order",
+                "contents_depth",
+                "show_connections",
+                "show_updated_at",
+                "reading_width",
+                "accent_color",
+            },
+            exclude_none=True,
+        )
         wiki = Wiki(
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
+            **settings,
         )
         session.add(wiki)
         await session.flush()
@@ -353,6 +366,10 @@ class WikiImporter:
             session.add(wiki)
         elif env.home_page:
             warnings.append("missing_home_page:1")
+        # A template that did not travel is left unset.
+        if env.template_page in pages_by_slug:
+            wiki.template_page_id = pages_by_slug[env.template_page]
+            session.add(wiki)
 
         filed = await _place_files(
             session,

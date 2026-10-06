@@ -3611,11 +3611,17 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
 
 async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, session):
     """A wiki's importable export is a zip, like every wiki download; importing
-    it restores the wiki and its pages."""
+    it restores the wiki, its settings and its pages, with the template naming
+    the page it became."""
     from sqlmodel import select
 
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
-    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.models.tenant.wiki import (
+        Wiki,
+        WikiPage,
+        WikiPageOrder,
+        WikiReadingWidth,
+    )
     from app.testing.factories import create_wiki, create_wiki_page
 
     a = await acting_user(
@@ -3623,8 +3629,19 @@ async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, s
     )
     await _all_tools_enabled(session, a.initiative)
     target = await _second_initiative(session, a, wikis_enabled=True)
-    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
-    await create_wiki_page(session, wiki, a.user, title="Start")
+    settings = {
+        "page_order": WikiPageOrder.title,
+        "contents_depth": 2,
+        "show_connections": False,
+        "show_updated_at": False,
+        "reading_width": WikiReadingWidth.comfortable,
+        "accent_color": "#336699",
+    }
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook", **settings)
+    start = await create_wiki_page(session, wiki, a.user, title="Start")
+    wiki.template_page_id = start.id
+    session.add(wiki)
+    await session.commit()
 
     exported = await client.get(
         a.g("/exports/wiki"),
@@ -3645,6 +3662,8 @@ async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, s
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored.id))
     ).all()
     assert [page.title for page in pages] == ["Start"]
+    assert {field: getattr(restored, field) for field in settings} == settings
+    assert restored.template_page_id == pages[0].id
 
 
 async def test_a_wiki_zip_brings_its_filed_files_back_where_they_were(

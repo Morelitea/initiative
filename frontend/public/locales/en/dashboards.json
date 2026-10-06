@@ -142,6 +142,9 @@
     "quarter": "Q{{quarter}}",
     "today": "Today"
   },
+  "matrix": {
+    "label": "Activity heatmap"
+  },
   "provenance": {
     "title": "Where this comes from",
     "source": "Source",

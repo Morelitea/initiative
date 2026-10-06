@@ -142,6 +142,9 @@
     "quarter": "T{{quarter}}",
     "today": "Hoy"
   },
+  "matrix": {
+    "label": "Mapa de calor de actividad"
+  },
   "provenance": {
     "title": "De dónde viene esto",
     "source": "Fuente",

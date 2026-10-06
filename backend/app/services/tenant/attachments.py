@@ -888,7 +888,7 @@ async def store_upload(
     filename: str,
     data: bytes,
     content_type: str | None,
-    created_by: int,
+    created_by: int | None,
     initiative_id: int | None = None,
 ) -> str:
     """Write ``data`` to the guild's storage as ``filename`` and record it in

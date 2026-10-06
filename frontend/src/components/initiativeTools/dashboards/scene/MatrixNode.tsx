@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { SceneNode } from "@/lib/widgets/sceneSpec";
 import { toneColor } from "@/lib/widgets/tone";
@@ -16,6 +17,7 @@ const GAP = 2;
  * rather than a hard-coded ramp that would fight the theme.
  */
 export function MatrixNode({ node }: { node: Node }) {
+  const { t } = useTranslation("dashboards");
   const { columns, rows, max } = useMemo(() => {
     let maxX = 0;
     let maxY = 0;
@@ -58,7 +60,7 @@ export function MatrixNode({ node }: { node: Node }) {
         width={labelWidth + columns * (CELL + GAP)}
         height={headerHeight + rows * (CELL + GAP)}
         role="img"
-        aria-label="Activity heatmap"
+        aria-label={t("matrix.label")}
       >
         {xLabels.map(({ label, column }) => (
           <text

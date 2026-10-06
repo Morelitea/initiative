@@ -7,6 +7,7 @@ is shown it) and the **web** (what a page's body names, and what names it
 back).
 """
 
+from datetime import datetime
 from types import SimpleNamespace
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -14,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_file,
+    create_tag,
     create_wiki,
     create_wiki_page,
     lexical_body,
@@ -100,21 +102,25 @@ async def test_create_page_records_its_author_and_slug(
     client: AsyncClient, acting_user, session
 ):
     """The regression this file exists for: a page is written with the caller
-    as its author, and its title becomes the slug that addresses it."""
+    as its author, and its title becomes the slug that addresses it. It
+    answers as a read does, with its tags and its body's version."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
+    tag = await create_tag(session, a.guild, name="rota")
 
     response = await client.post(
         a.g(f"/wikis/{wiki.id}/pages"),
         headers=a.headers,
-        json={"title": "The bar float"},
+        json={"title": "The bar float", "tag_ids": [tag.id]},
     )
 
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["created_by"] == a.user.id
     assert body["slug"] == "the-bar-float"
+    assert [t["name"] for t in body["tags"]] == ["rota"]
+    assert body["content_version"] is not None
 
 
 async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, session):
@@ -140,6 +146,9 @@ async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, sessio
 
     assert published.status_code == 200, published.text
     assert published.json()["is_draft"] is False
+    assert datetime.fromisoformat(
+        published.json()["updated_at"]
+    ) > datetime.fromisoformat(created.json()["updated_at"])
 
 
 async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, session):
@@ -1011,6 +1020,21 @@ async def test_home_page_has_to_be_one_of_this_wikis_pages(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "WIKI_HOME_NOT_IN_WIKI"
+
+    # A setting is saved, and the change dates the wiki.
+    before = (await client.get(a.g(f"/wikis/{mine.id}"), headers=a.headers)).json()
+    response = await client.patch(
+        a.g(f"/wikis/{mine.id}"),
+        headers=a.headers,
+        json={"show_updated_at": False},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["show_updated_at"] is False
+    assert datetime.fromisoformat(
+        response.json()["updated_at"]
+    ) > datetime.fromisoformat(before["updated_at"])
+    read = await client.get(a.g(f"/wikis/{mine.id}"), headers=a.headers)
+    assert read.json()["show_updated_at"] is False
 
 
 # ---------------------------------------------------------------------------

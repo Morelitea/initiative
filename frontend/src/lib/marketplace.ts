@@ -79,3 +79,30 @@ export const parseCommunityShelf = (value: unknown): CommunityShelf =>
 
 /** Whether this kind is bought by a person rather than by a community. */
 export const isUserShelf = (kind: ListingKind): boolean => USER_SHELF_KINDS.has(kind);
+
+/** The region of a BCP 47 tag (`en-US` → `US`), or null when it names none. */
+const regionOf = (tag: string | undefined): string | null => {
+  if (!tag) return null;
+  try {
+    return new Intl.Locale(tag).region ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** The minimum age a plug-in declares for somebody in the viewer's region: the
+ *  region's own entry, else `default`, else null (the plug-in sets none beyond
+ *  the deployment's). The region comes from the browser's language tag, the
+ *  only place a listing page can learn one; it is a hint for display, not a
+ *  gate. */
+export const minimumAgeFor = (
+  definition: Record<string, unknown> | null | undefined,
+  languageTag: string | undefined
+): number | null => {
+  const declared = definition?.minimum_age;
+  if (!declared || typeof declared !== "object") return null;
+  const ages = declared as Record<string, unknown>;
+  const region = regionOf(languageTag);
+  const age = (region ? ages[region] : undefined) ?? ages.default;
+  return typeof age === "number" ? age : null;
+};

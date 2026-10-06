@@ -1,4 +1,4 @@
-"""Migrations 20261006_0462 and 20261006_0463 call the documents tool files.
+"""Migrations 20261006_0463 and 20261006_0464 call the documents tool files.
 
 Loaded by path and run on a guild the test builds: down to the names an older
 release wrote, rows written that way, then up, down and up again, the way
@@ -154,7 +154,7 @@ async def test_guild_values_say_file_and_back(session) -> None:
     )
     await session.commit()
 
-    files = _load("20261006_0462_documents_are_files.py")
+    files = _load("20261006_0463_documents_are_files.py")
 
     def run(forward: bool):
         def apply(sync_session) -> None:
@@ -338,7 +338,7 @@ async def test_public_values_say_file_and_back(session) -> None:
             {"u": user.id, "k": key},
         )
     await session.commit()
-    migration = _load("20261006_0463_documents_are_files_in_public.py")
+    migration = _load("20261006_0464_documents_are_files_in_public.py")
     old = await _public_values(session, user.id, registration.id)
 
     def run(step):

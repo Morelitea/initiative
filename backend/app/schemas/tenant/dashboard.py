@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
@@ -18,6 +18,9 @@ from app.services.tenant.dashboard_definition import (
     WIDGET_PRESETS,
     WIDGET_SPECS,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import ActorContext
 
 
 # Derived from the widget registry rather than restated, the way TagTarget
@@ -115,6 +118,20 @@ class DashboardRead(DashboardSummary):
     #: change its widgets while it does: an initiative manager, a community
     #: admin, or a role holding ``dashboards_run_as_initiative``.
     can_run_as_initiative: bool = False
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        # Local imports avoid a schema -> service import cycle.
+        from app.db.guild_standing import GuildContext
+        from app.services.tenant import view_as
+
+        return {
+            **super().derived_fields(row, context=context, user_id=user_id),
+            "can_run_as_initiative": isinstance(context, GuildContext)
+            and view_as.may_run_as_initiative(context, row.initiative_id),
+        }
 
 
 class DashboardViewModeRequest(SanitizedBaseModel):

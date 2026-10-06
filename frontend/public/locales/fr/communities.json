@@ -432,6 +432,7 @@
     "usedOfMax": "{{used}} sur {{max}}",
     "usedOfUnlimited": "{{used}} utilisé · Illimité",
     "storageUnavailable": "Indisponible pour le moment",
+    "summaryUnavailable": "Indisponible pour le moment",
     "membersOfMax": "{{used}} sur {{max}}",
     "membersOfUnlimited": "{{used}} · Illimité",
     "currentPlan": "Forfait actuel :",
