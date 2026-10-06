@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { claimMyUsername } from "@/api/generated/users/users";
 import { type HandleCheck, UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +29,7 @@ export const ChooseHandle = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.patch("/me/username", {
+      await claimMyUsername({
         username: username.trim().toLowerCase(),
         offer: handle.offer ?? undefined,
       });

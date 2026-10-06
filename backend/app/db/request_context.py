@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
 from app.db import gucs
 from app.db.guild_standing import GuildContext, InstallContext, standing_values
+from app.db.public_rls import PLATFORM_ROUTES, platform_tier, role_name
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.schema_provisioning import GuildRoleKind
@@ -121,14 +122,10 @@ def _guild_schemas(guild_id: int, *, query: bool = False) -> tuple[str, ...]:
 
 
 def _tier_role(tier: Optional[str]) -> str:
-    from app.db.schema_provisioning import platform_role_name
-
-    return platform_role_name(tier) if tier is not None else "none"
+    return role_name(platform_tier(tier)) if tier is not None else "none"
 
 
 def _check_tier(tier: Optional[str]) -> None:
-    from app.db.schema_provisioning import PLATFORM_ROUTES
-
     if tier is not None and tier not in PLATFORM_ROUTES:
         raise ContextShapeError(f"Invalid platform_role: {tier!r}")
 
@@ -194,11 +191,9 @@ class Billing:
     attributed = False
 
     def route(self) -> Route:
-        from app.db.schema_provisioning import billing_role_name
-
         return Route(
             {gucs.BILLING_GUILD_ID: self.billing_guild_id},
-            billing_role_name(),
+            role_name("initiative_billing"),
             ("public",),
         )
 

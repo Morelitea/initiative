@@ -207,13 +207,6 @@ TOKEN_CLIENT_ID = Guc("app.token_client_id", Kind.TEXT)
 TOKEN_SCOPES = Guc("app.token_scopes", Kind.NAMES)
 TOKEN_PURPOSE = Guc("app.token_purpose", Kind.TEXT)
 
-# --- Somebody who filed a case ------------------------------------------------
-#: The tasks of the cases the routed account filed, read by the filer seam
-#: through the filer role's own row on ``intake_cases``. What the filer
-#: policies on a case's task and its comments admit, so neither has to read
-#: ``intake_cases`` back — whose own policy reads ``tasks``.
-FILER_CASES = Guc("app.filer_cases", Kind.IDS, read_once=True)
-
 # --- The standing -------------------------------------------------------------
 #: The community the standing was computed for.
 STANDING_GUILD_ID = Guc("app.standing_guild_id", Kind.INT, standing=True)
@@ -241,6 +234,13 @@ INSTALL_READ = Guc("app.install_read", Kind.NAMES, standing=True)
 INSTALL_WRITE = Guc("app.install_write", Kind.NAMES, standing=True)
 #: The community's content is on hold (``read_only``) for this reader.
 CONTENT_HOLD = Guc("app.content_hold", Kind.BOOL, standing=True)
+
+# --- Somebody who filed a case ------------------------------------------------
+#: The tasks of the cases the routed account filed, read by the filer seam
+#: through the filer role's own row on ``intake_cases``. What the filer
+#: policies on a case's task and its comments admit, so neither has to read
+#: ``intake_cases`` back — whose own policy reads ``tasks``.
+FILER_CASES = Guc("app.filer_cases", Kind.IDS, read_once=True)
 
 # --- Per-transaction flags ----------------------------------------------------
 #: Transaction-local flag marking a transaction as a purge.
@@ -271,42 +271,16 @@ PURGING = Guc("app.purging", Kind.BOOL)
 RESTRUCTURING = Guc("app.restructuring", Kind.BOOL)
 
 
-#: Everything a routing writes, in the order it writes them.
-REQUEST_GUCS: tuple[Guc, ...] = (
-    USER_ID,
-    GUILD_ID,
-    PAM_GUILD_ID,
-    SETTINGS_GUILD_ID,
-    PAM_READ,
-    PAM_WRITE,
-    SATISFIED_PROVIDERS,
-    SATISFIED_CLAIMS,
-    SESSION_AMR,
-    PLATFORM_ROLE,
-    PLATFORM_FACTOR,
-    BILLING_GUILD_ID,
-    SCOPE_INITIATIVE_ID,
-    QUERY,
-    GUILD_AUTH_OK,
-    INSTALL_ID,
-    TOKEN_CLIENT_ID,
-    TOKEN_SCOPES,
-    TOKEN_PURPOSE,
-    STANDING_GUILD_ID,
-    GUILD_ADMIN,
-    GUILD_SEAT,
-    SETTINGS_RUNG,
-    MEMBER_INITIATIVES,
-    MANAGER_INITIATIVES,
-    MEMBER_ROLE_IDS,
-    ROLE_GRANTS,
-    ROLE_DENIES,
-    ENABLED_TOOLS,
-    OVERRIDE_INITIATIVES,
-    INSTALL_READ,
-    INSTALL_WRITE,
-    CONTENT_HOLD,
-    FILER_CASES,
+#: Raised for one transaction by the code that needs them
+#: (``app.db.session.raise_flag``), never by a routing.
+FLAGS: tuple[Guc, ...] = (PURGING, RESTRUCTURING)
+
+#: Everything a routing writes: every variable declared above but the flags, in
+#: the order they are declared.
+REQUEST_GUCS: tuple[Guc, ...] = tuple(
+    value
+    for value in list(globals().values())
+    if isinstance(value, Guc) and value not in FLAGS
 )
 
 STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)
@@ -314,10 +288,6 @@ STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)
 #: The variables a policy reads once per statement, each through its
 #: ``setting_<bind>()``.
 READ_ONCE: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.read_once)
-
-#: Raised for one transaction by the code that needs them
-#: (``app.db.session.raise_flag``), never by a routing.
-FLAGS: tuple[Guc, ...] = (PURGING, RESTRUCTURING)
 
 
 #: The community this session reads, as text: a member routes with

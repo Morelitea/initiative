@@ -20,6 +20,7 @@ from app.api.v1.platform_endpoints.operator import (
 )
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
+from app.core.config import DEFAULT_OIDC_SCOPES
 from app.core.config import settings as app_config
 from app.core.intake import IntakeStream
 from app.db.query import build_paginated_response, paginated_query
@@ -157,7 +158,7 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
         provider_name=provider.display_name if provider else None,
         scopes=platform_provider_service.scopes_list(provider)
         if provider
-        else list(platform_provider_service.DEFAULT_OIDC_SCOPES),
+        else list(DEFAULT_OIDC_SCOPES),
     )
 
 

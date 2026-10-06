@@ -22,8 +22,6 @@ service: no raise-with-uncommitted-writes).
 
 from __future__ import annotations
 
-import hashlib
-
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -32,7 +30,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import false, or_, text
+from sqlalchemy import false, or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,6 +40,7 @@ from app.core.encryption import encrypt_token, normalize_email
 from app.core.login_methods import LoginMethod, methods_from_values
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
@@ -489,10 +488,6 @@ async def _find_identity(
     ).one_or_none()
 
 
-#: The lock the first registrations take turns on, so one of them bootstraps.
-_BOOTSTRAP_LOCK_KEY = 0x696E6974626F6F74
-
-
 async def any_account_exists(session: AsyncSession) -> bool:
     """Whether the deployment holds any account yet — the first one to arrive
     bootstraps it. One indexed probe rather than a count of every row.
@@ -503,9 +498,7 @@ async def any_account_exists(session: AsyncSession) -> bool:
     probe = select(User.id).limit(1)
     if (await session.exec(probe)).first() is not None:
         return True
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=_BOOTSTRAP_LOCK_KEY)
-    )
+    await advisory_lock(session, LockNamespace.FIRST_ACCOUNT)
     return (await session.exec(probe)).first() is not None
 
 
@@ -515,17 +508,6 @@ async def _registration_open(session: AsyncSession) -> bool:
     if settings.registration_open:
         return True
     return not await any_account_exists(session)
-
-
-def _address_lock_key(normalized: str) -> int:
-    """A stable 64-bit key naming one address, for ``pg_advisory_xact_lock``.
-
-    Not the stored hash: a lock key is an integer visible in ``pg_locks``, and
-    this one only has to be the same number for the same address on every
-    connection.
-    """
-    digest = hashlib.blake2b(normalized.encode("utf-8"), digest_size=8).digest()
-    return int.from_bytes(digest, "big", signed=True)
 
 
 class _AddressTaken(Exception):
@@ -562,9 +544,7 @@ async def _provision(
         # neither sees the other's uncommitted row; whichever waits here reads
         # the other's account in the check below and is answered the way a
         # sign-in that did not race is.
-        await session.exec(
-            select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
-        )
+        await advisory_lock(session, LockNamespace.ACCOUNT_ADDRESS, normalized)
 
     # A random handle, not one built from the claims, so an account abandoned
     # partway through is left holding nothing that identifies its owner.

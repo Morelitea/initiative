@@ -28,6 +28,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from app.db.public_rls import role_name
 from app.db.session import set_rls_context
 from app.testing import create_guild, create_guild_membership
 from app.db.request_context import Billing
@@ -252,9 +253,8 @@ async def test_billing_role_attributes_are_least_privilege(session):
     """The auditor-facing role facts: NOLOGIN, no superuser/BYPASSRLS/
     CREATEROLE, and the login role's membership is INHERIT FALSE — the
     boundary is reachable only via an explicit SET ROLE, never ambiently."""
-    from app.db.schema_provisioning import billing_role_name
 
-    role = billing_role_name()
+    role = role_name("initiative_billing")
     attrs = (
         await session.exec(
             text(

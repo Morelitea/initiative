@@ -15,17 +15,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
-const post = vi.fn();
+const confirmMyAge = vi.fn();
 
-vi.mock("@/api/client", () => ({
-  apiClient: { post: (...args: unknown[]) => post(...args) },
+vi.mock("@/api/generated/users/users", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/users/users")>()),
+  confirmMyAge: (...args: unknown[]) => confirmMyAge(...args),
 }));
 
 import { AgeConfirmationDialog } from "@/components/communities/AgeConfirmationDialog";
 
 describe("AgeConfirmationDialog", () => {
   beforeEach(() => {
-    post.mockReset().mockResolvedValue({ data: {} });
+    confirmMyAge.mockReset().mockResolvedValue(undefined);
   });
 
   const renderDialog = (user?: ReturnType<typeof buildUser>) =>
@@ -88,8 +89,8 @@ describe("AgeConfirmationDialog", () => {
     await enterBirthdate("1990-05-04");
     await userEvent.click(screen.getByRole("button", { name: "Confirm and join" }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith("/me/age-confirmation", {
+    await waitFor(() => expect(confirmMyAge).toHaveBeenCalledTimes(1));
+    expect(confirmMyAge).toHaveBeenCalledWith({
       birthdate: "1990-05-04",
     });
   });
@@ -99,7 +100,7 @@ describe("AgeConfirmationDialog", () => {
     await screen.findByLabelText("Date of birth");
 
     expect(screen.getByRole("button", { name: "Confirm and join" })).toBeDisabled();
-    expect(post).not.toHaveBeenCalled();
+    expect(confirmMyAge).not.toHaveBeenCalled();
   });
 
   it("offers no second attempt to an account whose answer stands", async () => {
@@ -137,7 +138,7 @@ describe("AgeConfirmationDialog", () => {
   });
 
   it("surfaces the server's answer when somebody is too young", async () => {
-    post.mockRejectedValue({
+    confirmMyAge.mockRejectedValue({
       isAxiosError: true,
       response: { status: 422, data: { detail: "USER_AGE_BELOW_MINIMUM" } },
     });

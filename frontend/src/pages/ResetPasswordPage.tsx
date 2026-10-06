@@ -2,7 +2,8 @@ import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { resetPassword } from "@/api/generated/auth/auth";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -14,11 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { checkNewPassword } from "@/lib/passwordPolicy";
 
 export const ResetPasswordPage = () => {
   // Include ``errors`` so ``getErrorMessage`` can map server codes
@@ -40,19 +39,15 @@ export const ResetPasswordPage = () => {
       setError(t("resetPassword.missingToken"));
       return;
     }
-    if (password !== confirmPassword) {
-      setError(t("resetPassword.passwordMismatch"));
-      return;
-    }
-    const policyError = validatePasswordLocal(password);
-    if (policyError) {
-      setError(policyError);
+    const passwordError = checkNewPassword(password, confirmPassword);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     setStatus("submitting");
     setError(null);
     try {
-      await apiClient.post("/auth/password/reset", { token, password });
+      await resetPassword({ token, password });
       setStatus("success");
     } catch (err) {
       console.error(err);
@@ -124,36 +119,14 @@ export const ResetPasswordPage = () => {
             </div>
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="new-password">{t("resetPassword.newPasswordLabel")}</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={PASSWORD_MIN_LENGTH}
-                  required
-                />
-                <p
-                  className={
-                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                      ? "text-destructive text-xs"
-                      : "text-muted-foreground text-xs"
-                  }
-                >
-                  {t("auth:passwordPolicy.minLengthHelp")}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">{t("resetPassword.confirmPasswordLabel")}</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  required
-                />
-              </div>
+              <NewPasswordFields
+                id="new-password"
+                label={t("resetPassword.newPasswordLabel")}
+                password={password}
+                confirm={confirmPassword}
+                onPasswordChange={setPassword}
+                onConfirmChange={setConfirmPassword}
+              />
               <Button className="w-full" type="submit" disabled={status === "submitting"}>
                 {status === "submitting"
                   ? t("resetPassword.submitting")

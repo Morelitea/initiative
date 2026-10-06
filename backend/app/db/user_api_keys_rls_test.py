@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import platform_tier, role_name
 from app.testing import as_role, create_user
 
 
@@ -49,14 +49,14 @@ async def test_user_api_keys_unreadable_on_request_path(session):
     assert seen >= 1
 
     # A different user, at the highest tier, is denied at the DB layer.
-    async with as_role(session, platform_role_name("owner"), other.id):
+    async with as_role(session, role_name(platform_tier("owner")), other.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(text("SELECT token_hash FROM user_api_keys"))
 
     # The key's own user is denied too — the request path never touches this
     # table (auth resolves it on the system engine).
-    async with as_role(session, platform_role_name("owner"), owner.id):
+    async with as_role(session, role_name(platform_tier("owner")), owner.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(text("SELECT id FROM user_api_keys"))

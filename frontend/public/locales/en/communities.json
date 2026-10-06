@@ -57,6 +57,7 @@
   "invite": {
     "title": "Join {{communityName}}",
     "titleDefault": "Community invite",
+    "thisCommunity": "this community",
     "checking": "Checking invite details…",
     "acceptDescription": "Accept to join this community.",
     "couldNotValidate": "This invite could not be validated.",

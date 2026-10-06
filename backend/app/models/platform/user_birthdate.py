@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_BIRTHDATE
+
 
 class UserBirthdate(SQLModel, table=True):
     """An account's date of birth, encrypted at rest.
@@ -14,8 +16,8 @@ class UserBirthdate(SQLModel, table=True):
 
     1:1 with the account — ``user_id`` is the PK and an FK to ``users.id``
     (``ON DELETE CASCADE``). ``birthdate_encrypted`` is the ISO date,
-    Fernet-encrypted with ``SALT_BIRTHDATE`` and registered in the secret-key
-    rotation registry. Erasing an account deletes the row
+    Fernet-encrypted with ``SALT_BIRTHDATE``, which its column declares for
+    the SECRET_KEY rotation. Erasing an account deletes the row
     (``users._erase_personal_rows``). The date is never sent back to anyone,
     the person included: an API says only whether one is on file.
     """
@@ -30,7 +32,9 @@ class UserBirthdate(SQLModel, table=True):
         )
     )
 
-    birthdate_encrypted: str = Field(sa_column=Column(Text, nullable=False))
+    birthdate_encrypted: str = Field(
+        sa_column=Column(Text, nullable=False, info={FERNET_SALT: SALT_BIRTHDATE})
+    )
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

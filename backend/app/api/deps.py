@@ -71,7 +71,7 @@ from app.db.guild_standing import (
     named_ref_candidates,
 )
 from app.models.platform.identity_ref import IdentityEntity
-from app.db.schema_provisioning import PLATFORM_SUSPENDED
+from app.db.public_rls import PLATFORM_SUSPENDED
 from app.db.request_context import (
     Filer,
     ContentGrantee,

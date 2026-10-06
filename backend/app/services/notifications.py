@@ -43,6 +43,7 @@ from app.core.tools import COMMENT_TARGETS, Tool
 from app.core.user_display import handle_of
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.initiative_rls import entity_tables, governing_path
 from app.db.session import (
     SystemSessionLocal,
@@ -168,7 +169,7 @@ async def _channels(
     session: AsyncSession,
     recipient: User,
     *,
-    notification_type: NotificationType,
+    category: NotificationCategory,
     guild_id: int | None = None,
     prefs: Mapping[str, Any] | None = None,
 ) -> Channels:
@@ -187,7 +188,7 @@ async def _channels(
     allowed = {
         channel: notification_prefs.reachable(
             prefs,
-            notification_type=notification_type,
+            category=category,
             channel=channel,
             guild_id=guild_id,
             tz_name=recipient.timezone,
@@ -197,7 +198,7 @@ async def _channels(
     }
     allowed[Channel.email] = notification_prefs.wants(
         prefs,
-        notification_type=notification_type,
+        category=category,
         channel=Channel.email,
         guild_id=guild_id,
     )
@@ -494,7 +495,7 @@ async def deliver_notices(
         channels = await _channels(
             session,
             recipient,
-            notification_type=notification_type,
+            category=category_of(notification_type),
             guild_id=notice.guild_id,
             prefs=prefs,
         )
@@ -648,18 +649,6 @@ def _nt(key: str, locale: str, **kwargs: str | int) -> str:
 MAX_ROLLED_UP_COMMENTERS = 10
 
 
-async def _lock_rollup_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
-
-    Every rollup in the app does the same thing — look for an unread line to
-    join, then write or extend it — so they all take this. Transaction-scoped,
-    and keyed narrowly enough that only events aimed at the same line ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
-
-
 def _same_commenter(
     entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
 ) -> bool:
@@ -755,7 +744,11 @@ async def _roll_up_comment(
     # one. Transaction-scoped and keyed per (recipient, thread), so only
     # comments aimed at the same line ever wait — the same lock the reaction
     # and direct-message rollups take.
-    await _lock_rollup_line(session, f"comment-line:{rollup_key}:{recipient.id}")
+    await advisory_lock(
+        session,
+        LockNamespace.NOTIFICATION_LINE,
+        f"comment-line:{rollup_key}:{recipient.id}",
+    )
     existing = await user_notifications.find_unread_by_data(
         session,
         user_id=recipient.id,
@@ -964,19 +957,14 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
     """
     locale = _recipient_locale(user)
     first = assignments[0]
-    if any(item.get("redacted") for item in assignments):
-        title, body = notification_policy.redacted_push(
-            NotificationType.task_assignment, locale
-        )
-    else:
-        title = _nt("task.assignment.title", locale)
-        body = _nt(
-            "task.assignment.body",
-            locale,
-            count=len(assignments),
-            title=first.get("task_title") or "",
-            project=first.get("project_name") or "",
-        )
+    title = _nt("task.assignment.title", locale)
+    body = _nt(
+        "task.assignment.body",
+        locale,
+        count=len(assignments),
+        title=first.get("task_title") or "",
+        project=first.get("project_name") or "",
+    )
     data: dict[str, str] = {
         "type": NotificationType.task_assignment.value,
         "count": str(len(assignments)),
@@ -993,11 +981,14 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
 
 
 async def _queue_push(
-    session: AsyncSession, user: User, push: push_notifications.Push
+    session: AsyncSession,
+    user: User,
+    push: push_notifications.Push,
+    communities: Iterable[int | None],
 ) -> bool:
     """Hand a push of its own to the notice worker, which sends it and tries
-    again if it fails. Returns whether one may go at all: none does from a
-    deployment that sends no push."""
+    again if it fails, under the switches of the ``communities`` it gathers
+    from as well as the deployment's. Returns whether one may go at all."""
     item = await notice_outbox.notice(
         session,
         user,
@@ -1006,6 +997,7 @@ async def _queue_push(
         guild_id=None,
         push=(push.title, push.body),
         push_data=push.data,
+        communities=communities,
         kind="push",
     )
     if item["push_title"] is None:
@@ -1079,10 +1071,9 @@ def wants_digest(
     clearing it because the email was switched off would silently take the
     push with it.
     """
-    sample = sample_type(category)
     return any(
         notification_prefs.wants(
-            prefs, notification_type=sample, channel=channel, guild_id=guild_id
+            prefs, category=category, channel=channel, guild_id=guild_id
         )
         for channel in (Channel.email, Channel.push)
     )
@@ -1095,27 +1086,23 @@ async def _digest_batch(
 
     A digest gathers from every community an account is in, so what may leave
     with it is answered one community at a time: items from one that declines a
-    channel are left out of it, and items from one asking for redacted
-    notifications are marked, so the composer writes the kind of thing that
-    happened rather than what it was about.
+    channel are left out of it. An email item from one asking for redacted
+    notifications is marked, so the composer writes that line as the kind of
+    thing that happened; a push is one line, sent under the switches of every
+    community its items come from.
 
-    Returns ``(for_email, for_push)`` — the same items, filtered and marked for
-    each channel.
+    Returns ``(for_email, for_push)`` — the items each channel carries.
     """
     policies = await notification_policy.for_send_many(
         session, {item.get("community_id") for item in batch}
     )
-
-    def prepared(item: dict, channel: str) -> dict | None:
-        policy = policies[item.get("community_id")]
-        if not getattr(policy, channel):
-            return None
-        return {**item, "redacted": True} if policy.redact else item
-
-    return (
-        [row for item in batch if (row := prepared(item, "email")) is not None],
-        [row for item in batch if (row := prepared(item, "push")) is not None],
-    )
+    for_email = [
+        {**item, "redacted": True} if policy.redact else item
+        for item in batch
+        if (policy := policies[item.get("community_id")]).email
+    ]
+    for_push = [item for item in batch if policies[item.get("community_id")].push]
+    return for_email, for_push
 
 
 def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
@@ -1224,9 +1211,7 @@ async def _send_digests(
         # Re-read the preferences off the row just reloaded, not the snapshot
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
-        channels = await _channels(
-            session, user, notification_type=sample_type(spec.category)
-        )
+        channels = await _channels(session, user, category=spec.category)
         email_batch, push_batch = await _digest_batch(session, batch)
         # Each channel is handed to its outbox, which tries a failed send again
         # itself, so the items never go back to waiting.
@@ -1248,7 +1233,12 @@ async def _send_digests(
                     user_id,
                 )
         if channels.push and push_batch:
-            await _queue_push(session, user, spec.push(user, push_batch))
+            await _queue_push(
+                session,
+                user,
+                spec.push(user, push_batch),
+                {item.get("community_id") for item in push_batch},
+            )
         if spec.stamp is not None:
             setattr(user, spec.stamp, now)
             session.add(user)
@@ -1559,8 +1549,9 @@ async def _roll_up_reaction(
     to, or start one."""
     data = notice.data
     guild_id = cast(int, notice.guild_id)
-    await _lock_rollup_line(
+    await advisory_lock(
         session,
+        LockNamespace.NOTIFICATION_LINE,
         f"reaction-bell:{guild_id}:{data['target_type']}:{data['target_id']}:"
         f"{recipient.id}",
     )
@@ -1602,7 +1593,7 @@ async def _roll_up_reaction(
     # line opens, as for a comment thread, so a flurry is one alert.
     if opened is not None and notification_prefs.reachable(
         prefs,
-        notification_type=NotificationType.comment_reaction,
+        category=NotificationCategory.reactions,
         channel=Channel.desktop,
         guild_id=guild_id,
         tz_name=recipient.timezone,
@@ -1635,8 +1626,9 @@ async def _take_back_reaction(
         return
     target_type, target_id = data["target_type"], data["target_id"]
     reactor_id = data["reactor_id"]
-    await _lock_rollup_line(
+    await advisory_lock(
         session,
+        LockNamespace.NOTIFICATION_LINE,
         f"reaction-bell:{guild_id}:{target_type}:{target_id}:{recipient.id}",
     )
     existing = await user_notifications.find_unread_by_data(
@@ -1709,20 +1701,15 @@ def _reaction_push(user: User, reactions: list[dict]) -> push_notifications.Push
     """
     locale = _recipient_locale(user)
     first = reactions[0]
-    if any(item.get("redacted") for item in reactions):
-        title, body = notification_policy.redacted_push(
-            NotificationType.comment_reaction, locale
-        )
-    else:
-        title = _nt("comment.reaction.title", locale)
-        body = _nt(
-            "comment.reaction.body",
-            locale,
-            count=len(reactions),
-            actor=first.get("reactor_name") or "",
-            emoji=first.get("emoji") or "",
-            context=first.get("context_title") or "",
-        )
+    title = _nt("comment.reaction.title", locale)
+    body = _nt(
+        "comment.reaction.body",
+        locale,
+        count=len(reactions),
+        actor=first.get("reactor_name") or "",
+        emoji=first.get("emoji") or "",
+        context=first.get("context_title") or "",
+    )
     data: dict[str, str] = {
         "type": NotificationType.comment_reaction.value,
         "count": str(len(reactions)),
@@ -1905,15 +1892,8 @@ def _overdue_push(user: User, tasks: list[dict]) -> push_notifications.Push:
     ``target_path`` as an app-level route.
     """
     locale = _recipient_locale(user)
-    if any(item.get("redacted") for item in tasks):
-        title, body = notification_policy.redacted_push(
-            NotificationType.overdue_tasks, locale
-        )
-    else:
-        title = _nt("task.overdue.title", locale)
-        body = _nt(
-            "task.overdue.body", locale, count=len(tasks), title=tasks[0]["title"]
-        )
+    title = _nt("task.overdue.title", locale)
+    body = _nt("task.overdue.body", locale, count=len(tasks), title=tasks[0]["title"])
     data = {
         "type": NotificationType.overdue_tasks.value,
         "count": str(len(tasks)),
@@ -2067,7 +2047,7 @@ async def _send_overdue(
         # channel switched off meanwhile stays quiet.
         delivered = False
         channels = await _channels(
-            session, user, notification_type=NotificationType.overdue_tasks
+            session, user, category=NotificationCategory.due_dates
         )
         email_tasks, push_tasks = await _digest_batch(session, tasks)
         if channels.email and email_tasks:
@@ -2090,7 +2070,12 @@ async def _send_overdue(
                 )
         if channels.push and push_tasks:
             delivered = (
-                await _queue_push(session, user, _overdue_push(user, push_tasks))
+                await _queue_push(
+                    session,
+                    user,
+                    _overdue_push(user, push_tasks),
+                    {item.get("community_id") for item in push_tasks},
+                )
                 or delivered
             )
         if delivered:
@@ -2165,7 +2150,7 @@ def _rows_for(
         for category, guild_id, count in rows
         if notification_prefs.wants(
             prefs,
-            notification_type=sample_type(category),
+            category=category,
             channel=channel,
             guild_id=guild_id,
         )
@@ -2327,6 +2312,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
                 _nt(f"{key}.body", locale, count=sum(count for _, _, count in rows)),
                 {"type": f"{lift.kind.value}_summary", "target_path": "/notifications"},
             ),
+            {guild_id for _, guild_id, _ in rows},
         )
         await _record_lift(
             session, user_id=user.id, prefs=prefs, lift=lift, summarised=summarised

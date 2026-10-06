@@ -34,8 +34,8 @@ from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, is_device, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.core import auth_context
-from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
+from app.core import audit_context, auth_context
+from app.core.rate_limit import MAIL_SENDS, limiter
 from app.core.encryption import (
     decrypt_field,
     normalize_email,
@@ -325,7 +325,7 @@ async def _registration_gate(
     # fresh deployment has nobody to protect, and its operator should not be
     # locked out by a captcha they have not finished wiring up.
     #
-    # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+    # ``audit_context.client_ip`` is whatever the ASGI server resolved.
     # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
     # ``BEHIND_PROXY`` is true, so behind a proxy the captcha provider sees the
     # client address rather than the proxy's.
@@ -335,12 +335,11 @@ async def _registration_gate(
     # case: it can only be reached with a challenge its begin issued, and the
     # begin is where the token was taken.
     if not is_first_user and check_captcha:
-        from app.core.rate_limit import get_real_client_ip
         from app.services import captcha as captcha_service
 
         await captcha_service.verify_or_raise(
             captcha_token,
-            remote_ip=get_real_client_ip(request),
+            remote_ip=audit_context.client_ip(),
         )
 
     # Address-aware: the address is taken if it reaches ANY account, not
@@ -891,8 +890,8 @@ async def refresh_access_token(
     result = await session_service.rotate_session(
         system_session,
         raw_refresh_token=raw,
-        user_agent=request.headers.get("user-agent"),
-        ip=get_inet_client_ip(request),
+        user_agent=audit_context.client_user_agent(),
+        ip=audit_context.client_ip(),
         idle=timedelta(seconds=(payload.idle_seconds or 0) if payload else 0),
     )
     if result.outcome is RefreshOutcome.REUSED and result.user_id is not None:
@@ -1388,7 +1387,7 @@ async def _begin_provider_login(
         value=_state_digest(begun.state),
         max_age=OIDC_NEXT_COOKIE_MAX_AGE,
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         samesite="lax",
         path=REFRESH_COOKIE_PATH,
     )
@@ -1398,7 +1397,7 @@ async def _begin_provider_login(
             value=next_path,
             max_age=OIDC_NEXT_COOKIE_MAX_AGE,
             httponly=True,
-            secure=settings.cookie_secure,
+            secure=settings.app_url_is_https,
             samesite="lax",
             path=REFRESH_COOKIE_PATH,
         )

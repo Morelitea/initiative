@@ -1,10 +1,9 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import type { CommunityInviteStatus } from "@/api/generated/initiativeAPI.schemas";
+import { acceptInvite, useGetInviteStatus } from "@/api/generated/communities/communities";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -27,50 +26,23 @@ export const CommunityInvitePage = () => {
   const { user, refreshUser } = useAuth();
   const { refreshCommunities } = useCommunities();
   const { t } = useTranslation(["communities", "common"]);
-  const [status, setStatus] = useState<CommunityInviteStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const inviteQuery = useGetInviteStatus(encodeURIComponent(normalizedCode), {
+    // One code's status is never a placeholder for another's: the card and the
+    // accept button describe the code in the URL.
+    query: { enabled: Boolean(normalizedCode), placeholderData: undefined },
+  });
+  const status = inviteQuery.data ?? null;
+  const loading = Boolean(normalizedCode) && inviteQuery.isPending;
+  const error = !normalizedCode
+    ? t("invite.codeMissing")
+    : inviteQuery.isError
+      ? t("invite.unableToLoad")
+      : status && !status.is_valid
+        ? (status.reason ?? t("invite.noLongerValid"))
+        : null;
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
-
-  useEffect(() => {
-    let ignore = false;
-    if (!normalizedCode) {
-      setStatus(null);
-      setLoading(false);
-      setError(t("invite.codeMissing"));
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setStatus(null);
-    apiClient
-      .get<CommunityInviteStatus>(`/communities/invite/${encodeURIComponent(normalizedCode)}`)
-      .then((response) => {
-        if (ignore) {
-          return;
-        }
-        setStatus(response.data);
-        if (!response.data.is_valid) {
-          setError(response.data.reason ?? t("invite.noLongerValid"));
-        }
-      })
-      .catch(() => {
-        if (ignore) {
-          return;
-        }
-        setError(t("invite.unableToLoad"));
-      })
-      .finally(() => {
-        if (!ignore) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [normalizedCode, t]);
 
   const handleAccept = async () => {
     if (!normalizedCode || !user) {
@@ -79,7 +51,7 @@ export const CommunityInvitePage = () => {
     setAccepting(true);
     setAcceptError(null);
     try {
-      await apiClient.post("/communities/invite/accept", { code: normalizedCode });
+      await acceptInvite({ code: normalizedCode });
       setAccepted(true);
       // Refresh both explicitly: joining changes the user's community list, and the
       // switcher only reloads when asked to. (It deliberately does not key off
@@ -95,7 +67,7 @@ export const CommunityInvitePage = () => {
 
   const inviteValid = Boolean(status?.is_valid);
   const inviteTitle = inviteValid
-    ? t("invite.title", { communityName: status?.community_name ?? "this community" })
+    ? t("invite.title", { communityName: status?.community_name ?? t("invite.thisCommunity") })
     : t("invite.titleDefault");
 
   return (

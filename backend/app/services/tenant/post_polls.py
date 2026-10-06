@@ -38,11 +38,11 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete as sa_delete, select, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import (
     PostPoll,
@@ -128,13 +128,7 @@ async def _turnstile(session: AsyncSession, poll: PostPoll, guild_id: int) -> No
     schemas. One key, always the same one, so there is no order for two of
     these to deadlock over.
     """
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(f"post_poll:{guild_id}:{poll.id}", 0)
-            )
-        )
-    )
+    await advisory_lock(session, LockNamespace.POST_POLL, f"{guild_id}:{poll.id}")
 
 
 async def lock_poll(session: AsyncSession, poll: PostPoll, *, guild_id: int) -> None:

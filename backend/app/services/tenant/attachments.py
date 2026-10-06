@@ -16,6 +16,7 @@ from fastapi import UploadFile
 
 from app.core.identity_boundary import UPLOAD_PATH_SHAPE
 from app.core.image_headers import read_image_header
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.query import ids_in
 from app.services.storage import get_guild_storage
 
@@ -937,12 +938,6 @@ async def get_guild_storage_usage(guild_id: int) -> int:
         ).one()
 
 
-# Advisory-lock namespace for per-guild storage-quota admission. A large fixed
-# tag (ASCII "STOR") so the two-int key (namespace, guild_id) can't collide with
-# the (user_id, guild_id) advisory locks used elsewhere (user ids are small).
-_QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
-
-
 async def _storage_limit(guild_id: int) -> int | None:
     """The guild's ``max_storage_bytes``, ``None`` for no limit. A setting of
     the community rather than of whoever is writing, so it is read on
@@ -987,18 +982,13 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     exceed the limit (a TOCTOU race). The lock releases on commit/rollback;
     uploads to other guilds are unaffected.
     """
-    from sqlalchemy import text
-
     limit = await _storage_limit(guild_id)
     if limit is None:
         return
     # Serialize concurrent uploads for this guild for the remainder of the
     # transaction so the usage check + the row insert that follows are atomic
     # w.r.t. other uploads to the same guild.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-        params={"ns": _QUOTA_LOCK_NAMESPACE, "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.STORAGE_QUOTA, guild_id)
     usage = await get_guild_storage_usage(guild_id)
     if usage + incoming_bytes > limit:
         raise StorageQuotaExceededError(

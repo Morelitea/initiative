@@ -33,6 +33,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.transitions import DM_SIGNED_DEVICES
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.dm_conversation import (
     DmConversation,
     DmConversationKind,
@@ -1061,13 +1062,7 @@ async def send(
     # overlapping rosters take the same mailboxes, and taking them in different
     # orders is how each ends up waiting on the other.
     for recipient in sorted(incoming):
-        await session.exec(
-            select(
-                func.pg_advisory_xact_lock(
-                    func.hashtextextended(f"dm-queue:{recipient}", 0)
-                )
-            )
-        )
+        await advisory_lock(session, LockNamespace.DM_QUEUE, recipient)
     full = {
         recipient
         for recipient in sorted(incoming)
@@ -1256,13 +1251,7 @@ async def send_verification(
     await _own_device(session, user_id=user_id, device_id=to_device_id)
     # Held to the end of the transaction, so two sends from one account count
     # and insert one after the other.
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(f"dm-verification:{user_id}", 0)
-            )
-        )
-    )
+    await advisory_lock(session, LockNamespace.DM_VERIFICATION, user_id)
     await _clear_expired_verifications(
         session,
         user_id=user_id,

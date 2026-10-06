@@ -20,10 +20,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, BinaryIO
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
 from app.models.platform.guild import CommunityRole
@@ -44,10 +45,6 @@ from app.services.import_engine.contract import (
     InlineImport,
 )
 from app.services.import_engine import limits as import_limits
-
-# Distinct namespace from the export engine's lock so the two caps don't
-# serialize against each other.
-_JOB_CAP_LOCK_NS = 0x494D50  # "IMP"
 
 # Statuses that count against the per-user active-job cap.
 _ACTIVE_STATUSES = (
@@ -305,10 +302,7 @@ async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None
     """Enforce the per-user active-job cap under a transaction-scoped
     advisory lock, so concurrent requests can't race past it (the lock is
     released at the caller's commit). Raises IMPORT_JOB_LIMIT_REACHED."""
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
-    )
+    await advisory_lock(session, LockNamespace.IMPORT_CAP, user.id)
     active = (
         await session.exec(
             select(func.count())

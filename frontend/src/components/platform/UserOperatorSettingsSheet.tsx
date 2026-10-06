@@ -41,6 +41,7 @@ import {
   useOperatorSetUsername,
   useOperatorUpdatePlatformRole,
 } from "@/hooks/useOperatorUsers";
+import { useServerForm } from "@/hooks/useServerForm";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { getUserHandle } from "@/lib/userDisplay";
@@ -125,8 +126,12 @@ export const UserOperatorSettingsSheet = ({
 }) => {
   const { t } = useTranslation(["settings", "common"]);
 
-  const [usernameDraft, setUsernameDraft] = useState("");
-  const [loadedFor, setLoadedFor] = useState<number | null>(null);
+  // The draft follows whichever account the sheet was opened for.
+  const form = useServerForm(
+    user ?? undefined,
+    (loaded) => ({ username: loaded?.username ?? "" }),
+    [open, user?.id]
+  );
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [roleConfirm, setRoleConfirm] = useState<UserRole | null>(null);
@@ -135,10 +140,7 @@ export const UserOperatorSettingsSheet = ({
 
   const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
-    onError: (err) => {
-      if (user) setUsernameDraft(user.username);
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
   const setSuspension = useOperatorSetSuspension({
@@ -186,12 +188,6 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
-  // The draft follows whichever account the sheet was opened for.
-  if (user && loadedFor !== user.id) {
-    setLoadedFor(user.id);
-    setUsernameDraft(user.username);
-  }
-
   if (!user) return null;
 
   const isSelf = user.id === actorId;
@@ -209,12 +205,17 @@ export const UserOperatorSettingsSheet = ({
   const showRole = abilities.canManageRoles && !isSelf && user.status === "active" && reachable;
 
   const commitUsername = () => {
-    const next = usernameDraft.trim().toLowerCase();
+    const sent = form.values;
+    const next = sent.username.trim().toLowerCase();
     if (!next || next === user.username) {
-      setUsernameDraft(user.username);
+      form.reset(sent);
       return;
     }
-    setUsername.mutate({ userId: user.id, username: next });
+    // A refused name goes back to the stored one.
+    setUsername.mutate(
+      { userId: user.id, username: next },
+      { onSuccess: () => form.settle(sent), onError: () => form.reset(sent) }
+    );
   };
 
   return (
@@ -238,9 +239,11 @@ export const UserOperatorSettingsSheet = ({
                       <Input
                         id="operator-user-username"
                         className="w-48"
-                        value={usernameDraft}
+                        value={form.values.username}
                         autoCapitalize="none"
-                        onChange={(event) => setUsernameDraft(event.target.value.toLowerCase())}
+                        onChange={(event) =>
+                          form.set({ username: event.target.value.toLowerCase() })
+                        }
                         onBlur={commitUsername}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") event.currentTarget.blur();

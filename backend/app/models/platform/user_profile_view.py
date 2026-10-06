@@ -30,78 +30,46 @@ still name it as a string, while its table stays out of ``SQLModel.metadata``.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Integer,
-    MetaData,
-    SmallInteger,
-    String,
-    Table,
-)
-from sqlalchemy.dialects.postgresql import ENUM, JSONB
+from sqlalchemy import Column, MetaData, String, Table
 from sqlmodel import SQLModel
 
-from app.models.platform.user import UserStatus
+from app.db.user_columns import PUBLIC_PROFILE_COLUMNS
+from app.models.platform.user import User, UserStatus
 
 #: Not ``SQLModel.metadata`` — see the module docstring.
 metadata = MetaData()
 
 
-def _status_column() -> Column:
-    """The real enum type, so a comparison against ``UserStatus`` binds as
-    ``user_status`` rather than text."""
-    return Column("status", ENUM(UserStatus, name="user_status", create_type=False))
+def _profile_view(name: str, *extra: Column) -> Table:
+    """A view over ``public.users``: the profile columns as the table declares
+    them, then ``extra``."""
+    return Table(
+        name,
+        metadata,
+        *(
+            Column(column.name, column.type, primary_key=column.primary_key)
+            for column in (User.__table__.c[name] for name in PUBLIC_PROFILE_COLUMNS)
+        ),
+        *extra,
+        schema="public",
+    )
 
 
-user_profiles = Table(
-    "user_profiles",
-    metadata,
-    Column("id", Integer, primary_key=True),
-    Column("username", String(32)),
-    Column("discriminator", SmallInteger),
-    Column("avatar_url", String),
-    _status_column(),
-    Column("custom_status", JSONB),
-    Column("profile_decorations", JSONB),
-    Column("created_at", DateTime(timezone=True)),
-    schema="public",
-)
+user_profiles = _profile_view("user_profiles")
 
-guild_member_profiles = Table(
-    "guild_member_profiles",
-    metadata,
-    Column("id", Integer, primary_key=True),
-    Column("username", String(32)),
-    Column("discriminator", SmallInteger),
-    Column("display_name", String),
-    Column("avatar_url", String),
-    _status_column(),
-    Column("custom_status", JSONB),
-    Column("profile_decorations", JSONB),
-    Column("created_at", DateTime(timezone=True)),
-    schema="public",
+guild_member_profiles = _profile_view(
+    "guild_member_profiles", Column("display_name", String)
 )
 
 
 #: The same projection, narrowed to the guild a request is routed into
 #: (migration 0244). What the query surface names, because a statement that
 #: named the unnarrowed one would list every account on the deployment.
-current_guild_members = Table(
+current_guild_members = _profile_view(
     "current_guild_members",
-    metadata,
-    Column("id", Integer, primary_key=True),
-    Column("username", String(32)),
-    Column("discriminator", SmallInteger),
-    Column("avatar_url", String),
-    _status_column(),
-    Column("custom_status", JSONB),
-    Column("profile_decorations", JSONB),
-    Column("created_at", DateTime(timezone=True)),
     #: The name to group by: the real one where the guild renders it, and the
     #: handle where it does not.
     Column("display_name", String),
-    schema="public",
 )
 
 

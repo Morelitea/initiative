@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import {
   AUTH_ACCOUNT_SUSPENDED_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
-  apiClient,
   forgetSessionActivity,
   renewSession,
   setAuthToken,
@@ -21,12 +20,22 @@ import {
   startSessionActivity,
   watchForActivity,
 } from "@/api/client";
+import {
+  answerSecondFactor,
+  stepUpWithFactor as answerStepUpWithFactor,
+  logout as endServerSession,
+  getBootstrapStatusQueryKey,
+  loginAccessToken,
+  registerUser,
+  verifyStepUpCode,
+} from "@/api/generated/auth/auth";
 import type {
-  NewCommunity,
   PasskeySignInResult,
   Token,
+  UserCreate,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { readMe } from "@/api/generated/users/users";
 import { clearAllWhiteboardSceneCaches } from "@/components/files/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice, serveAccount } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -85,28 +94,7 @@ interface EmailCodeStepUpPayload {
   code: string;
 }
 
-interface RegisterPayload {
-  email: string;
-  password: string;
-  /** The name part of the handle. The number behind it is drawn server-side. */
-  username: string;
-  inviteCode?: string;
-  /** Optional IANA timezone name resolved from the browser at submit
-   *  time. Forwarded so a new account starts at the user's wall clock
-   *  instead of the backend default of "UTC". */
-  timezone?: string;
-  /** Optional captcha token from the rendered widget when the
-   *  deployment has CAPTCHA_PROVIDER configured (see
-   *  ``GET /api/v1/config``). Backend validates server-side; missing
-   *  when the deployment has no captcha. */
-  captcha_token?: string;
-  /** The community the new account makes and owns. Omitted, it makes none. */
-  community?: NewCommunity;
-  /** ISO date, answering the age question at sign-up. */
-  birthdate?: string;
-  /** The signed number the name check showed beside the handle. */
-  username_offer?: string;
-}
+type RegisterPayload = UserCreate & { inviteCode?: string };
 
 interface AuthContextValue {
   user: UserRead | null;
@@ -131,6 +119,9 @@ interface AuthContextValue {
   completeOidcLogin: (credential?: NativeSession) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Take an account the server just answered with (a write's response) as
+   *  the newest read. */
+  acceptUser: (user: UserRead) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -331,7 +322,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     readSeqRef.current += 1;
     const readId = readSeqRef.current;
     const epoch = identityEpochRef.current;
-    const response = await apiClient.get<UserRead>("/me");
+    const me = await readMe();
     if (epoch !== identityEpochRef.current) {
       // Somebody signed in or out while this was in flight; it is about a
       // person who is no longer the one here.
@@ -343,8 +334,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     appliedReadRef.current = readId;
-    applyRead(response.data);
+    applyRead(me);
   }, [applyRead]);
+
+  const acceptUser = useCallback(
+    (nextUser: UserRead) => {
+      readSeqRef.current += 1;
+      appliedReadRef.current = readSeqRef.current;
+      applyRead(nextUser);
+    },
+    [applyRead]
+  );
+
+  /**
+   * Take up a session the server just issued and read the account it belongs
+   * to. Every way in ends here: a password, its second factor, a passkey, a
+   * code sent to an address, a provider, and a step-up of the session already
+   * open.
+   *
+   * The app keeps the refresh token it is handed and holds none otherwise; a
+   * browser's is the HttpOnly cookie the server set. The access token is kept
+   * in memory for this session only. A provider's browser sign-in hands back
+   * no token at all, since its cookie came with the redirect.
+   *
+   * `begin` is a sign-in, as opposed to a step-up of a session already open:
+   * it starts a new identity epoch, the route guard lets it through and the
+   * session's idle window starts.
+   */
+  const adoptSession = useCallback(
+    async (token: Token | null, { begin }: { begin: boolean }) => {
+      if (begin) identityEpochRef.current += 1;
+      if (token) {
+        if (Capacitor.isNativePlatform() && token.refresh_token) {
+          storeRefreshToken(token.refresh_token);
+        } else {
+          clearRefreshToken();
+        }
+        setAuthToken(token.access_token);
+        setTokenState(token.access_token);
+      }
+      await refreshUser();
+      if (begin) beginSession();
+    },
+    [refreshUser]
+  );
 
   // Bootstrap user on mount — always attempt /me.
   // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
@@ -352,8 +385,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const bootstrap = async () => {
       setLoading(true);
       try {
-        const response = await apiClient.get<UserRead>("/me");
-        setUser(response.data);
+        setUser(await readMe());
       } catch (error) {
         // Two different failures used to land here together. An answer of any
         // kind is the server's, and the cleanup below is right for it. Nothing
@@ -404,32 +436,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async ({ email, password, deviceName }: LoginPayload) => {
     try {
-      const native = Capacitor.isNativePlatform();
-      const params = new URLSearchParams();
-      params.append("username", email);
-      params.append("password", password);
-      params.append("grant_type", "password");
-      params.append("scope", "");
-      params.append("client_id", "");
-      params.append("client_secret", "");
-      if (native) params.append("device_name", deviceName || "Mobile Device");
-
-      const response = await apiClient.post<{
-        access_token: string;
-        refresh_token?: string | null;
-      }>("/auth/token", params, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      const token = await loginAccessToken({
+        username: email,
+        password,
+        grant_type: "password",
+        device_name: Capacitor.isNativePlatform() ? deviceName || "Mobile Device" : undefined,
       });
-      const { access_token: newToken, refresh_token: refreshToken } = response.data;
-      // The browser's refresh token is the HttpOnly cookie the server set; the
-      // app is handed its own to keep.
-      if (native && refreshToken) storeRefreshToken(refreshToken);
-      else clearRefreshToken();
-      // Kept in memory for this session only.
-      setAuthToken(newToken);
-      setTokenState(newToken);
-      await refreshUser();
-      beginSession();
+      await adoptSession(token, { begin: true });
     } catch (error) {
       const challenge = secondFactorChallenge(error);
       if (challenge) {
@@ -449,49 +462,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const completeSecondFactor = async ({ challenge, code, recoveryCode }: SecondFactorPayload) => {
     try {
-      const response = await apiClient.post<{
-        access_token: string;
-        refresh_token?: string | null;
-      }>("/auth/token/totp", {
+      const token = await answerSecondFactor({
         challenge,
         code: code ?? null,
         recovery_code: recoveryCode ?? null,
       });
-      const accessToken = response.data.access_token;
-      if (isNative) {
-        if (response.data.refresh_token) {
-          storeRefreshToken(response.data.refresh_token);
-        }
-      } else {
-        clearRefreshToken();
-      }
-      setAuthToken(accessToken);
-      setTokenState(accessToken);
-      await refreshUser();
-      beginSession();
+      await adoptSession(token, { begin: true });
     } catch (error) {
       throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
   };
-
-  /**
-   * Adopt a session a sign-in without a password leg produced: stop holding
-   * anything older and read the account the token belongs to. A browser's
-   * refresh token is the cookie the server set; the app keeps the one it is
-   * handed. (An app's passkey ceremony runs in the system browser and is
-   * finished by `useDeepLinks`.)
-   */
-  const adoptBrowserSession = useCallback(
-    async (accessToken: string, refreshToken?: string | null) => {
-      if (refreshToken) storeRefreshToken(refreshToken);
-      else clearRefreshToken();
-      setAuthToken(accessToken);
-      setTokenState(accessToken);
-      await refreshUser();
-      beginSession();
-    },
-    [refreshUser]
-  );
 
   const applyPasskeySignIn = useCallback(
     async (result: PasskeySignInResult) => {
@@ -499,40 +479,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!accessToken) {
         throw new Error(t("login.passkeyFailed"));
       }
-      await adoptBrowserSession(accessToken);
+      await adoptSession({ access_token: accessToken }, { begin: true });
     },
-    [adoptBrowserSession, t]
+    [adoptSession, t]
   );
 
-  /**
-   * Adopt the session a code sent to an address produced. A browser's refresh
-   * token is the cookie the server set; the app is handed its own to keep.
-   */
+  /** Adopt the session a code sent to an address produced. */
   const applyEmailOtpSignIn = useCallback(
     async (token: Token) => {
-      await adoptBrowserSession(token.access_token, isNative ? token.refresh_token : null);
+      await adoptSession(token, { begin: true });
     },
-    [adoptBrowserSession]
+    [adoptSession]
   );
-
-  /**
-   * Adopt the session a step-up produced.
-   *
-   * Both answers to a community's requirement end here. The server issues a
-   * new session carrying what was presented and retires the old one, so the
-   * credential this device holds is replaced the same way `completeSecondFactor`
-   * replaces it at the end of a sign-in.
-   */
-  const adoptSteppedUpSession = async (token: Token) => {
-    if (isNative && token.refresh_token) {
-      storeRefreshToken(token.refresh_token);
-    } else if (!isNative) {
-      clearRefreshToken();
-    }
-    setAuthToken(token.access_token);
-    setTokenState(token.access_token);
-    await refreshUser();
-  };
 
   /**
    * Add the account's second factor to the session already signed in.
@@ -542,11 +500,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * against the live session rather than a fresh one.
    */
   const stepUpWithFactor = async ({ code, recoveryCode }: StepUpPayload) => {
-    const response = await apiClient.post<Token>("/auth/step-up/totp", {
+    const token = await answerStepUpWithFactor({
       code: code ?? null,
       recovery_code: recoveryCode ?? null,
     });
-    await adoptSteppedUpSession(response.data);
+    await adoptSession(token, { begin: false });
   };
 
   /**
@@ -556,7 +514,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * comes back is the same session the code step-up produces.
    */
   const stepUpWithPasskey = async () => {
-    await adoptSteppedUpSession(await presentPasskeyForStepUp());
+    await adoptSession(await presentPasskeyForStepUp(), { begin: false });
   };
 
   /**
@@ -564,24 +522,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * addresses. `challenge` is the handle the send route handed back.
    */
   const stepUpWithEmailCode = async ({ challenge, code }: EmailCodeStepUpPayload) => {
-    const response = await apiClient.post<Token>("/auth/step-up/email-otp/verify", {
-      challenge,
-      code,
-    });
-    await adoptSteppedUpSession(response.data);
+    await adoptSession(await verifyStepUpCode({ challenge, code }), { begin: false });
   };
 
   const register = async ({ inviteCode, ...body }: RegisterPayload) => {
-    const response = await apiClient.post<UserRead>(
-      "/auth/register",
-      body,
-      inviteCode
-        ? {
-            params: { invite_code: inviteCode },
-          }
-        : undefined
-    );
-    return response.data;
+    const made = await registerUser(body, inviteCode ? { invite_code: inviteCode } : undefined);
+    // The first account changes the server's answer to "has anyone signed up",
+    // which decides whether /login shows first-run registration. The next visit
+    // asks again; the page on screen keeps its card and what it says.
+    void queryClient.invalidateQueries({
+      queryKey: getBootstrapStatusQueryKey(),
+      refetchType: "none",
+    });
+    return made;
   };
 
   // Memoized: the OIDC callback page calls this from an effect, and this
@@ -589,17 +542,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // that effect re-run on every render it causes — an endless /me loop.
   const completeOidcLogin = useCallback(
     async (credential?: NativeSession) => {
-      if (credential) {
-        storeRefreshToken(credential.refreshToken);
-        setAuthToken(credential.accessToken);
-        setTokenState(credential.accessToken);
-      }
-      // A browser's cookie was set by the server's redirect.
-      const me = await apiClient.get<UserRead>("/me");
-      replaceIdentity(me.data);
-      beginSession();
+      await adoptSession(
+        credential
+          ? { access_token: credential.accessToken, refresh_token: credential.refreshToken }
+          : null,
+        { begin: true }
+      );
     },
-    [setUser, replaceIdentity]
+    [adoptSession]
   );
 
   /** Everything sign-out does on this device, and nothing that leaves it. */
@@ -674,7 +624,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // cannot read and the request carries it anyway; a native client keeps
       // its own in storage, so it names it here.
       const refreshToken = readRefreshToken();
-      await apiClient.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : {});
+      await endServerSession(refreshToken ? { refresh_token: refreshToken } : {});
     } catch {
       // Ignore errors — proceed with local cleanup regardless.
     }
@@ -729,6 +679,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     completeOidcLogin,
     logout,
     refreshUser,
+    acceptUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

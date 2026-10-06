@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db import gucs
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db import session as db_session
 
 logger = logging.getLogger(__name__)
@@ -170,11 +171,11 @@ async def _role_exists(conn: AsyncConnection, role: str) -> bool:
 
 
 async def _provision(conn: AsyncConnection, guild_id: int) -> None:
-    from app.db.schema_provisioning import _exec_batch, _lock_guild, guild_schema_name
+    from app.db.schema_provisioning import _exec_batch, guild_schema_name
 
     schema = guild_schema_name(guild_id)
     role = filer_role_name(guild_id)
-    await _lock_guild(conn, guild_id, wait=True)
+    await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
     statements = []
     if not await _role_exists(conn, role):
         statements.append(f'CREATE ROLE "{role}" NOLOGIN')

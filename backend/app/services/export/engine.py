@@ -16,11 +16,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services import guild_work
@@ -34,9 +35,6 @@ from app.services.storage import get_guild_storage
 from app.services.export import limits as export_limits
 from app.core.user_input_validators import resolve_zone
 
-
-# Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
-_JOB_CAP_LOCK_NS = 0x455850  # "EXP"
 
 #: Called once per rendered artifact, so a job can show it is still going.
 Heartbeat = Callable[[], Awaitable[None]]
@@ -182,10 +180,7 @@ async def start_export(
 
     # Serialize count+insert per user so concurrent requests can't race past
     # the cap. Transaction-scoped advisory lock: released at the commit below.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
-    )
+    await advisory_lock(session, LockNamespace.EXPORT_CAP, user.id)
     active = (
         await session.exec(
             select(func.count())

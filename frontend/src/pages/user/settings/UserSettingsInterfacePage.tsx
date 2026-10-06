@@ -30,11 +30,7 @@ import {
 } from "@/lib/taskCompletionFeedback";
 import type { ThemeColors } from "@/lib/themes";
 import { getThemeList } from "@/lib/themes";
-import {
-  parseTimeFormat,
-  TIME_FORMAT_PREFERENCES,
-  type TimeFormatPreference,
-} from "@/lib/timeFormat";
+import { parseTimeFormat, TIME_FORMAT_PREFERENCES } from "@/lib/timeFormat";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import Desktop from "@/plugins/desktop";
@@ -201,35 +197,47 @@ function ThemePicker({
   );
 }
 
+/** The account's interface preferences, as the page shows them. */
+const prefsOf = (user: UserRead) => ({
+  week_starts_on: user.week_starts_on ?? 0,
+  time_format: parseTimeFormat(user.time_format),
+  recent_tabs_limit: user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT,
+  color_theme: user.color_theme ?? "kobold",
+  locale: user.locale ?? "en",
+  timezone: user.timezone ?? "UTC",
+  task_completion_visual_feedback: parseTaskCompletionVisualFeedback(
+    user.task_completion_visual_feedback
+  ),
+  task_completion_audio_feedback: user.task_completion_audio_feedback ?? true,
+  task_completion_haptic_feedback: user.task_completion_haptic_feedback ?? true,
+});
+type InterfacePrefs = ReturnType<typeof prefsOf>;
+
 interface UserSettingsInterfacePageProps {
   user: UserRead;
-  refreshUser: () => Promise<void>;
+  acceptUser: (user: UserRead) => void;
 }
 
-export const UserSettingsInterfacePage = ({
-  user,
-  refreshUser,
-}: UserSettingsInterfacePageProps) => {
+export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
-  const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
-  const [timeFormat, setTimeFormat] = useState<TimeFormatPreference>(() =>
-    parseTimeFormat(user.time_format)
-  );
-  const [recentTabsLimit, setRecentTabsLimit] = useState(
-    user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT
-  );
-  const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
-  const [locale, setLocale] = useState(user.locale ?? "en");
-  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
-  const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
-    parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
-  );
-  const [audioFeedback, setAudioFeedback] = useState<boolean>(
-    user.task_completion_audio_feedback ?? true
-  );
-  const [hapticFeedback, setHapticFeedback] = useState<boolean>(
-    user.task_completion_haptic_feedback ?? true
-  );
+  // What the server says, with each choice shown from the moment it is made
+  // until its save settles.
+  const [pendingPrefs, setPendingPrefs] = useState<Partial<InterfacePrefs>>({});
+  const saved = prefsOf(user);
+  const prefs: InterfacePrefs = { ...saved, ...pendingPrefs };
+  const showPrefs = (patch: Partial<InterfacePrefs>) =>
+    setPendingPrefs((previous) => ({ ...previous, ...patch }));
+  // A choice stops being shown once the save that sent it settles; a newer
+  // choice of the same field waits for its own.
+  const dropPrefs = (sent: { [K in keyof InterfacePrefs]?: unknown }) =>
+    setPendingPrefs(
+      (previous) =>
+        Object.fromEntries(
+          Object.entries(previous).filter(
+            ([key, value]) => !(key in sent && Object.is(sent[key as keyof InterfacePrefs], value))
+          )
+        ) as Partial<InterfacePrefs>
+    );
   const {
     enabled: keepAwake,
     setEnabled: setKeepAwake,
@@ -262,73 +270,44 @@ export const UserSettingsInterfacePage = ({
     }
   }, []);
 
-  useEffect(() => {
-    setWeekStartsOn(user.week_starts_on ?? 0);
-    setTimeFormat(parseTimeFormat(user.time_format));
-    setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
-    setColorTheme(user.color_theme ?? "kobold");
-    setLocale(user.locale ?? "en");
-    setTimezone(user.timezone ?? "UTC");
-    setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
-    setAudioFeedback(user.task_completion_audio_feedback ?? true);
-    setHapticFeedback(user.task_completion_haptic_feedback ?? true);
-  }, [user]);
-
   const updateInterfacePrefs = useUpdateCurrentUser({
-    onSuccess: async (_, variables) => {
-      if (variables.week_starts_on !== undefined) {
-        setWeekStartsOn(Number(variables.week_starts_on));
-      }
-      if (variables.time_format !== undefined) {
-        setTimeFormat(parseTimeFormat(variables.time_format));
-      }
+    onSuccess: (saved, variables) => {
       if (variables.recent_tabs_limit !== undefined) {
-        setRecentTabsLimit(Number(variables.recent_tabs_limit));
         // The header tabs bar caches recents for 30s; refetch so a higher
         // limit surfaces more items immediately.
         void invalidate(q.recents());
       }
-      if (variables.color_theme !== undefined) {
-        setColorTheme(String(variables.color_theme));
+      if (variables.locale) {
+        void i18n.changeLanguage(variables.locale);
       }
-      if (variables.locale !== undefined) {
-        const newLocale = String(variables.locale);
-        setLocale(newLocale);
-        void i18n.changeLanguage(newLocale);
-      }
-      if (variables.task_completion_visual_feedback !== undefined) {
-        setVisualFeedback(
-          parseTaskCompletionVisualFeedback(String(variables.task_completion_visual_feedback))
-        );
-      }
-      if (variables.task_completion_audio_feedback !== undefined) {
-        setAudioFeedback(Boolean(variables.task_completion_audio_feedback));
-      }
-      if (variables.task_completion_haptic_feedback !== undefined) {
-        setHapticFeedback(Boolean(variables.task_completion_haptic_feedback));
-      }
-      await refreshUser();
       toast.success(t("interface.updateSuccess"));
+      // The fields this save sent read from its answer; everything else on the
+      // account stays as the last full read had it.
+      acceptUser({
+        ...user,
+        ...Object.fromEntries(
+          Object.keys(variables).map((key) => [key, saved[key as keyof UserRead]])
+        ),
+      });
+      dropPrefs(variables);
     },
-    onError: () => {
+    onError: (_error, variables) => {
+      dropPrefs(variables);
       toast.error(t("interface.updateError"));
-      setWeekStartsOn(user.week_starts_on ?? 0);
-      setTimeFormat(parseTimeFormat(user.time_format));
-      setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
-      setColorTheme(user.color_theme ?? "kobold");
-      setLocale(user.locale ?? "en");
-      setTimezone(user.timezone ?? "UTC");
-      setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
-      setAudioFeedback(user.task_completion_audio_feedback ?? true);
-      setHapticFeedback(user.task_completion_haptic_feedback ?? true);
     },
   });
 
+  const savePrefs = (patch: Partial<InterfacePrefs>) => {
+    showPrefs(patch);
+    updateInterfacePrefs.mutate(patch);
+  };
+
   const commitRecentTabsLimit = () => {
-    const clamped = clampRecentTabsLimit(recentTabsLimit);
-    setRecentTabsLimit(clamped);
-    if (clamped !== (user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT)) {
-      updateInterfacePrefs.mutate({ recent_tabs_limit: clamped });
+    const clamped = clampRecentTabsLimit(prefs.recent_tabs_limit);
+    if (clamped === saved.recent_tabs_limit) {
+      dropPrefs({ recent_tabs_limit: prefs.recent_tabs_limit });
+    } else {
+      savePrefs({ recent_tabs_limit: clamped });
     }
   };
 
@@ -338,12 +317,9 @@ export const UserSettingsInterfacePage = ({
     <div className="space-y-6">
       <SettingsSection title={t("interface.appearanceTitle")}>
         <ThemePicker
-          value={colorTheme}
+          value={prefs.color_theme}
           disabled={pending}
-          onChange={(next) => {
-            setColorTheme(next);
-            updateInterfacePrefs.mutate({ color_theme: next });
-          }}
+          onChange={(next) => savePrefs({ color_theme: next })}
         />
         <SettingsRow
           label={t("interface.recentTabsLimit")}
@@ -355,8 +331,8 @@ export const UserSettingsInterfacePage = ({
             type="number"
             min={RECENT_TABS_LIMIT_MIN}
             max={RECENT_TABS_LIMIT_MAX}
-            value={recentTabsLimit}
-            onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
+            value={prefs.recent_tabs_limit}
+            onChange={(event) => showPrefs({ recent_tabs_limit: Number(event.target.value) })}
             onBlur={commitRecentTabsLimit}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -375,16 +351,13 @@ export const UserSettingsInterfacePage = ({
           description={t("interface.languageDescription")}
         >
           <Select
-            value={locale}
-            onValueChange={(next) => {
-              setLocale(next);
-              updateInterfacePrefs.mutate({ locale: next });
-            }}
+            value={prefs.locale}
+            onValueChange={(next) => savePrefs({ locale: next })}
             disabled={pending}
           >
             <SelectTrigger className="sm:w-52" aria-label={t("interface.language")}>
               <SelectValue>
-                {LANGUAGE_OPTIONS.find((l) => l.value === locale)?.label ?? "English"}
+                {LANGUAGE_OPTIONS.find((l) => l.value === prefs.locale)?.label ?? "English"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -401,11 +374,8 @@ export const UserSettingsInterfacePage = ({
           <div className="w-full sm:w-52">
             <SearchableCombobox
               items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-              value={timezone}
-              onValueChange={(next) => {
-                setTimezone(next);
-                updateInterfacePrefs.mutate({ timezone: next });
-              }}
+              value={prefs.timezone}
+              onValueChange={(next) => savePrefs({ timezone: next })}
               placeholder={t("profile.timezonePlaceholder")}
               emptyMessage={t("profile.timezoneEmpty")}
             />
@@ -417,19 +387,15 @@ export const UserSettingsInterfacePage = ({
           description={t("interface.weekStartsOnDescription")}
         >
           <Select
-            value={String(weekStartsOn)}
-            onValueChange={(next) => {
-              const value = Number(next);
-              setWeekStartsOn(value);
-              updateInterfacePrefs.mutate({ week_starts_on: value });
-            }}
+            value={String(prefs.week_starts_on)}
+            onValueChange={(next) => savePrefs({ week_starts_on: Number(next) })}
             disabled={pending}
           >
             <SelectTrigger className="sm:w-52" aria-label={t("interface.weekStartsOn")}>
               <SelectValue>
                 {t(
-                  (WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
-                    "dates:weekdays.sunday") as never
+                  (WEEK_START_OPTIONS.find((option) => option.value === prefs.week_starts_on)
+                    ?.labelKey ?? "dates:weekdays.sunday") as never
                 )}
               </SelectValue>
             </SelectTrigger>
@@ -448,16 +414,14 @@ export const UserSettingsInterfacePage = ({
           description={t("interface.timeFormat.description")}
         >
           <Select
-            value={timeFormat}
-            onValueChange={(next) => {
-              const value = parseTimeFormat(next);
-              setTimeFormat(value);
-              updateInterfacePrefs.mutate({ time_format: value });
-            }}
+            value={prefs.time_format}
+            onValueChange={(next) => savePrefs({ time_format: parseTimeFormat(next) })}
             disabled={pending}
           >
             <SelectTrigger className="sm:w-52" aria-label={t("interface.timeFormat.label")}>
-              <SelectValue>{t(`interface.timeFormat.options.${timeFormat}` as never)}</SelectValue>
+              <SelectValue>
+                {t(`interface.timeFormat.options.${prefs.time_format}` as never)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {TIME_FORMAT_PREFERENCES.map((value) => (
@@ -479,12 +443,10 @@ export const UserSettingsInterfacePage = ({
           description={t("interface.taskCompletionVisualFeedback.description")}
         >
           <Select
-            value={visualFeedback}
-            onValueChange={(next) => {
-              const value = next as TaskCompletionVisualFeedback;
-              setVisualFeedback(value);
-              updateInterfacePrefs.mutate({ task_completion_visual_feedback: value });
-            }}
+            value={prefs.task_completion_visual_feedback}
+            onValueChange={(next) =>
+              savePrefs({ task_completion_visual_feedback: next as TaskCompletionVisualFeedback })
+            }
             disabled={pending}
           >
             <SelectTrigger
@@ -492,7 +454,9 @@ export const UserSettingsInterfacePage = ({
               aria-label={t("interface.taskCompletionVisualFeedback.label")}
             >
               <SelectValue>
-                {t(`interface.taskCompletionVisualFeedback.options.${visualFeedback}` as never)}
+                {t(
+                  `interface.taskCompletionVisualFeedback.options.${prefs.task_completion_visual_feedback}` as never
+                )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -507,8 +471,10 @@ export const UserSettingsInterfacePage = ({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => dispatchTaskCompletionVisualFeedback(visualFeedback)}
-            disabled={visualFeedback === "none"}
+            onClick={() =>
+              dispatchTaskCompletionVisualFeedback(prefs.task_completion_visual_feedback)
+            }
+            disabled={prefs.task_completion_visual_feedback === "none"}
           >
             {t("interface.taskCompletionVisualFeedback.preview")}
           </Button>
@@ -527,11 +493,8 @@ export const UserSettingsInterfacePage = ({
             {t("interface.taskCompletionAudioFeedback.preview")}
           </Button>
           <Switch
-            checked={audioFeedback}
-            onCheckedChange={(next) => {
-              setAudioFeedback(next);
-              updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
-            }}
+            checked={prefs.task_completion_audio_feedback}
+            onCheckedChange={(next) => savePrefs({ task_completion_audio_feedback: next })}
             disabled={pending}
             aria-label={t("interface.taskCompletionAudioFeedback.label")}
           />
@@ -550,11 +513,8 @@ export const UserSettingsInterfacePage = ({
             {t("interface.taskCompletionHapticFeedback.preview")}
           </Button>
           <Switch
-            checked={hapticFeedback}
-            onCheckedChange={(next) => {
-              setHapticFeedback(next);
-              updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
-            }}
+            checked={prefs.task_completion_haptic_feedback}
+            onCheckedChange={(next) => savePrefs({ task_completion_haptic_feedback: next })}
             disabled={pending}
             aria-label={t("interface.taskCompletionHapticFeedback.label")}
           />
