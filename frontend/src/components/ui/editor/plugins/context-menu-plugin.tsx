@@ -7,6 +7,8 @@ import {
 } from "@lexical/react/LexicalNodeContextMenuPlugin";
 import {
   $createTextNode,
+  $getNearestNodeFromDOMNode,
+  $getNodeByKey,
   $getSelection,
   $isDecoratorNode,
   $isNodeSelection,
@@ -15,6 +17,7 @@ import {
   COPY_COMMAND,
   CUT_COMMAND,
   type LexicalNode,
+  type NodeKey,
   PASTE_COMMAND,
 } from "lexical";
 import {
@@ -84,6 +87,10 @@ export function ContextMenuPlugin(): JSX.Element {
     wordInfo: WordAtCursor | null;
   }>({ suggestions: [], wordInfo: null });
 
+  // A right-click on an inline decorator (a chip or mention) leaves the
+  // selection where it was, so remember which one the menu was opened on.
+  const decoratorKeyRef = useRef<NodeKey | null>(null);
+
   // Initialize spell checker on mount
   useEffect(() => {
     initSpellCheck().catch(() => {
@@ -113,9 +120,11 @@ export function ContextMenuPlugin(): JSX.Element {
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
-    const handler = () => {
-      editor.getEditorState().read(() => {
+    const handler = (event: MouseEvent) => {
+      editor.read(() => {
         updateSpellData();
+        const node = event.target instanceof Node ? $getNearestNodeFromDOMNode(event.target) : null;
+        decoratorKeyRef.current = $isDecoratorNode(node) ? node.getKey() : null;
       });
     };
 
@@ -276,6 +285,11 @@ export function ContextMenuPlugin(): JSX.Element {
       new NodeContextMenuSeparator(),
       new NodeContextMenuOption(`Delete Node`, {
         $onSelect: () => {
+          const decorator = decoratorKeyRef.current && $getNodeByKey(decoratorKeyRef.current);
+          if (decorator) {
+            decorator.remove();
+            return;
+          }
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
             const currentNode = selection.anchor.getNode();
