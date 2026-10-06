@@ -36,9 +36,8 @@ def _apply_upgrade() -> None:
 
 
 def downgrade() -> None:
-    run_for_each_guild_schema(op.get_bind(), _apply_downgrade)
-
-
-def _apply_downgrade() -> None:
-    for table in _TABLES:
-        op.alter_column(table, "created_by", existing_type=sa.Integer(), nullable=False)
+    raise NotImplementedError(
+        "A picture, picture version or upload a plug-in added has no creator, "
+        "so created_by cannot be made NOT NULL again without losing those rows. "
+        "Roll forward, or restore from a backup taken before this revision."
+    )
