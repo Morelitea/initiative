@@ -159,17 +159,26 @@ async def test_an_unassigned_task_says_so_rather_than_going_missing(
     assert body[f"task:{task.id}:assignee"]["tone"] == "muted"
 
 
-async def test_several_holders_are_named_by_the_first_and_counted(
+async def test_two_holders_are_named_and_more_are_counted(
     client, session, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     second = await create_user(session)
-    task = await create_task(
-        session, a.project, title="Shared", assignees=[a.user, second]
+    third = await create_user(session)
+    pair = await create_task(
+        session, a.project, title="Pair", assignees=[a.user, second]
+    )
+    crowd = await create_task(
+        session, a.project, title="Crowd", assignees=[a.user, second, third]
     )
 
-    body = await _chips(client, a, f"task:{task.id}:assignee")
-    assert body[f"task:{task.id}:assignee"]["text"].endswith("+1")
+    body = await _chips(
+        client, a, f"task:{pair.id}:assignee", f"task:{crowd.id}:assignee"
+    )
+    pair_text = body[f"task:{pair.id}:assignee"]["text"]
+    assert ", " in pair_text and "+" not in pair_text
+    crowd_text = body[f"task:{crowd.id}:assignee"]["text"]
+    assert crowd_text.startswith(pair_text) and crowd_text.endswith(" +1")
 
 
 async def test_a_priority_carries_its_own_urgency(

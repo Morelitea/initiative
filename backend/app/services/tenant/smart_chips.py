@@ -109,11 +109,16 @@ async def _task_status(
     }
 
 
+# Most tasks are held by one or two people, so two names covers the common
+# case in words; past that the chip counts.
+ASSIGNEES_NAMED = 2
+
+
 async def _task_assignee(
     session: AsyncSession, ids: list[int]
 ) -> dict[int, SmartChipValue]:
-    """Who holds a task. Several people can, so the chip names the first and
-    counts the rest rather than growing with the list."""
+    """Who holds a task. Several people can, so the chip names the first
+    ``ASSIGNEES_NAMED`` and counts the rest rather than growing with the list."""
     rows = (
         await session.exec(
             select(TaskAssignee.task_id, MemberProfile)
@@ -135,9 +140,11 @@ async def _task_assignee(
             continue
         # ``display_name`` reads the guild's own name-visibility setting, so a
         # chip shows exactly what every other surface here shows.
-        first = display_name(people[0])
-        extra = len(people) - 1
-        values[task_id] = SmartChipValue(text=f"{first} +{extra}" if extra else first)
+        named = ", ".join(display_name(p) for p in people[:ASSIGNEES_NAMED])
+        extra = len(people) - ASSIGNEES_NAMED
+        values[task_id] = SmartChipValue(
+            text=f"{named} +{extra}" if extra > 0 else named
+        )
     return values
 
 

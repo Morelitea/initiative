@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.
 - **Account deletion API.** `GET /me/deletion-eligibility` and the operator eligibility check no longer return `blockers` text; read `last_owner`, `sole_superadmin_communities` (and, for operators, `community_blockers`). Refusing to delete a community's only seat holder answers `CANNOT_VACATE_LAST_SUPERADMIN`.
 - **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
 - **Documents are now called Files.** Text documents, whiteboards, spreadsheets, links and uploads live in the Files tool, and the API says so: `/api/v1/c/{community_id}/files/…`, `file_id`, `file_type` and `files_enabled`, webhook events `files.*`, plug-in scopes `files:read` and `files:write`, and the export type `initiative-file`. Upgrading moves what is already stored, including plug-in grants, webhook subscriptions and the SQL in dashboards. A plug-in manifest that still asks for `documents:read` or `documents:write` is refused until it is republished with plug-in kit 3.0.0. Links to the old `/documents/…` pages and `/go/document/…` no longer open, and saved list layouts for the tool start fresh. Backups made before the rename still restore.
