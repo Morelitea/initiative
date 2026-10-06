@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 from enum import IntEnum, unique
 
-from sqlalchemy import BigInteger, Integer, func, literal, select
+from sqlalchemy import BigInteger, ColumnElement, Integer, Select, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
@@ -109,7 +109,8 @@ def _text_key(text: str) -> int:
     return int.from_bytes(digest, "big", signed=True)
 
 
-def _lock_call(name: str, namespace: LockNamespace, key: int | str | None):
+def _lock_call(name: str, namespace: LockNamespace, key: int | str | None) -> Select:
+    args: tuple[ColumnElement, ...]
     if key is None:
         args = (literal(int(namespace), BigInteger),)
     else:
@@ -118,11 +119,13 @@ def _lock_call(name: str, namespace: LockNamespace, key: int | str | None):
     return select(getattr(func, name)(*args))
 
 
-def _hashed(text: str):
+def _hashed(text: str) -> tuple[ColumnElement, ...]:
     return (func.hashtextextended(literal(text), 0),)
 
 
-def _previous_lock_args(namespace: LockNamespace, key: int | str) -> tuple | None:
+def _previous_lock_args(
+    namespace: LockNamespace, key: int | str
+) -> tuple[ColumnElement, ...] | None:
     """The key *namespace*'s lock on *key* had in the release before this
     registry, for the locks this registry renamed.
 
