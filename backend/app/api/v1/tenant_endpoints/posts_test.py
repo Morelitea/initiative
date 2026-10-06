@@ -847,14 +847,12 @@ async def test_the_board_dates_a_notice_by_when_it_went_up(
 async def test_a_draft_is_not_exported(board: Actor, session):
     """An export is a record of what a board has said, and a draft has said
     nothing yet — including to the author it belongs to."""
-    from app.services.tenant.posts import list_post_ids_for_export
+    from app.services.export.adapters.post import PostAdapter
 
     live = await create_post(session, board.initiative, board.user, name="Up")
     await _draft(session, board, name="Not up")
 
-    ids = await list_post_ids_for_export(
-        session, board.user, board.guild.id, initiative_ids=[board.initiative.id]
-    )
+    ids = await PostAdapter().initiative_ids(session, board.initiative.id)
     assert ids == [live.id]
 
 

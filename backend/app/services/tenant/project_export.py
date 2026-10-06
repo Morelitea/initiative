@@ -373,28 +373,6 @@ async def _load_links(
     return by_task
 
 
-async def list_project_ids_for_export(
-    session: AsyncSession, *, initiative_ids: list[int]
-) -> list[int]:
-    """Ids of the projects in ``initiative_ids`` whose initiative has projects
-    switched on and that the session's RLS lets it read, in id order. Each
-    project is authorized again when the export fetches it."""
-    from app.models.tenant.initiative import Initiative
-
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Project.id)
-        .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(
-            Project.initiative_id.in_(initiative_ids),
-            Initiative.projects_enabled.is_(True),
-        )
-        .order_by(Project.id.asc())
-    )
-    return list(await session.exec(statement))
-
-
 async def _portable_carry(
     session: AsyncSession,
     carry: dict[str, Any] | None,

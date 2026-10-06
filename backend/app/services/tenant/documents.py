@@ -12,7 +12,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document, DocumentType
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.messages import DocumentMessages
@@ -135,9 +134,7 @@ def list_loader_options() -> list:
         selectinload(Document.initiative),
         undefer(Document.actions),
         undefer(Document.smart_link_url),
-        selectinload(Document.grants).options(
-            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-        ),
+        selectinload(Document.grants).selectinload(ResourceGrant.user),
     ]
 
 
@@ -169,26 +166,6 @@ async def get_document_hydrated(
     return document
 
 
-async def list_document_ids_for_export(
-    session: AsyncSession, *, initiative_ids: list[int]
-) -> list[int]:
-    """Ids of the documents the session reaches in the given initiatives,
-    where documents are switched on. Deterministic order for stable backup
-    output."""
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Document.id)
-        .join(Initiative, Initiative.id == Document.initiative_id)
-        .where(
-            Document.initiative_id.in_(initiative_ids),
-            Initiative.documents_enabled == True,  # noqa: E712
-        )
-        .order_by(Document.id.asc())
-    )
-    return list(await session.exec(statement))
-
-
 async def get_document_for_grants(
     session: AsyncSession, document_id: int
 ) -> Document | None:
@@ -203,9 +180,7 @@ async def get_document_for_grants(
         .options(
             selectinload(Document.initiative),
             undefer(Document.actions),
-            selectinload(Document.grants).options(
-                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.user),
         )
     )
     return (await session.exec(statement)).one_or_none()

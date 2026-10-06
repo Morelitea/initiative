@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel
+from sqlalchemy import ColumnElement
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,6 +27,7 @@ from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
 from app.models.platform.user import User
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
@@ -40,6 +42,7 @@ from app.services.permissions import (
 )
 from app.services.platform.csv_export import safe_filename_component
 from app.services.tenant.initiatives import keeps_content_in
+from app.services.tenant.tool_listing import initiative_switch_clause
 from app.core.user_input_validators import resolve_zone
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
@@ -164,9 +167,9 @@ class ToolExportAdapter:
 
     A subclass names its ``Tool`` and fills in the tool-shaped hooks —
     :meth:`get_row` (how one row loads, when not the tool's registered
-    loader), :meth:`initiative_ids` (which of them one initiative holds),
-    :meth:`rows` (how many rows one entity is worth) and :meth:`item` (how one
-    entity serialises). Everything else — the registry key, the selection
+    loader), :meth:`in_initiative` (which of them one initiative's export
+    holds, when not every row the initiative has), :meth:`rows` (how many
+    rows one entity is worth) and :meth:`item` (how one entity serialises). Everything else — the registry key, the selection
     params, counting, and the ``RenderRequest`` — is the same for every tool
     and lives here.
     """
@@ -220,12 +223,29 @@ class ToolExportAdapter:
         config = RESOURCE_ACCESS[self.tool]
         return await (config.hydrated_loader or config.loader)(session, entity_id)
 
+    def in_initiative(self, initiative_id: int, /) -> list[ColumnElement[bool]]:
+        """The WHERE legs naming this tool's rows that an initiative or
+        community export of one initiative may include: that initiative's,
+        where it has the tool switched on."""
+        model = tool_models()[self.tool.plural]
+        return [
+            model.initiative_id == initiative_id,
+            initiative_switch_clause(self.tool, model),
+        ]
+
     async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+        self, session: AsyncSession, initiative_id: int, /
     ) -> list[int]:
         """The ids of this tool's entities in one initiative that an initiative
-        or community export may include, in a stable order."""
-        raise NotImplementedError
+        or community export may include, in id order."""
+        model = tool_models()[self.tool.plural]
+        return list(
+            await session.exec(
+                select(model.id)
+                .where(*self.in_initiative(initiative_id))
+                .order_by(model.id.asc())
+            )
+        )
 
     def title(self, entity: Any, /) -> str:
         """The entity's own name — what its archive entry is titled and its

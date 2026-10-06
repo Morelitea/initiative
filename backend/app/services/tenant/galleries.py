@@ -26,7 +26,6 @@ import logging
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import aliased, selectinload
@@ -36,8 +35,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -164,7 +161,7 @@ def list_loader_options() -> list:
     """Eager-load what a gallery *list* row needs: its sharing, the level the
     request holds on it, its tags, and the cover it chose."""
     return [
-        selectinload(Gallery.grants).selectinload(ResourceGrant.role),
+        selectinload(Gallery.grants),
         selectinload(Gallery.initiative),
         undefer(Gallery.actions),
         selectinload(Gallery.cover_image),
@@ -319,28 +316,3 @@ async def annotate_version_counts(
     counts = dict(result.all())
     for image in rows:
         object.__setattr__(image, "version_count", counts.get(image.id, 1))
-
-
-async def list_gallery_ids_for_export(
-    session: AsyncSession,
-    current_user: Any,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every gallery the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Gallery.id)
-        .join(Initiative, Initiative.id == Gallery.initiative_id)
-        .where(
-            Gallery.initiative_id.in_(initiative_ids),
-            Initiative.galleries_enabled == True,  # noqa: E712
-        )
-        .order_by(Gallery.id.asc())
-    )
-    return list(await session.exec(statement))

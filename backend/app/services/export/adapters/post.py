@@ -17,7 +17,7 @@ So does its close time, for the reason the pin is dropped: it said when the
 question stopped mattering on the board it came from.
 
 A notice that has not gone up is not exported at all — see
-``posts.list_post_ids_for_export``. An export is a record of what a board has
+``PostAdapter.in_initiative``. An export is a record of what a board has
 said, and a scheduled draft has said nothing yet.
 
 Access rule: READ on the post (exporting is a formatted read), enforced by the
@@ -30,11 +30,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import ColumnElement
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
-from app.models.tenant.post import Post
+from app.models.tenant.post import Post, is_published_clause
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
@@ -66,14 +67,9 @@ class PostAdapter(ToolExportAdapter):
         await properties_service.annotate_properties(session, [post])
         return post
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.posts import list_post_ids_for_export
-
-        return await list_post_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
+    def in_initiative(self, initiative_id: int, /) -> list[ColumnElement[bool]]:
+        """Only published posts: a draft is in no export."""
+        return [*super().in_initiative(initiative_id), is_published_clause()]
 
     def item(self, post: Post, ctx: BuildContext, /) -> RenderItem:
         return build_post_item(post, ctx.format, ctx.now)

@@ -25,7 +25,7 @@ async def get_project(session: AsyncSession, project_id: int) -> Project | None:
         select(Project)
         .where(Project.id == project_id)
         .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
+            selectinload(Project.grants),
             selectinload(Project.initiative),
             undefer(Project.actions),
         )
@@ -50,9 +50,7 @@ async def get_project_hydrated(
         select(Project)
         .where(Project.id == project_id)
         .options(
-            selectinload(Project.grants).options(
-                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-            ),
+            selectinload(Project.grants).selectinload(ResourceGrant.user),
             selectinload(Project.initiative),
             undefer(Project.actions),
             selectinload(Project.task_statuses),

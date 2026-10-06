@@ -164,17 +164,6 @@ class CalendarAdapter(ToolExportAdapter):
 
         return await get_calendar(session, calendar_id, with_events=True)
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        """None where the initiative has calendars switched off: the
-        enumeration applies the switch."""
-        from app.services.tenant.calendars import list_calendar_ids_for_export
-
-        return await list_calendar_ids_for_export(
-            session, user, guild_id, initiative_id=initiative_id
-        )
-
     def rows(self, calendar: Calendar, /) -> int:
         return len(calendar.events)
 
