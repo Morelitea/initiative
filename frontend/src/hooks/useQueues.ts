@@ -1,5 +1,3 @@
-import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
-
 import type {
   QueueItemCreate,
   QueueItemRead,
@@ -25,10 +23,7 @@ import {
 import { invalidate, q } from "@/api/query-keys";
 import { setRelated } from "@/api/relationships";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { useCommunityMutation } from "@/hooks/useApiMutation";
-import { getErrorMessage } from "@/lib/errorMessage";
-import { toast } from "@/lib/mascotToast";
+import { useCommunityMutation, useOptimisticMutation } from "@/hooks/useApiMutation";
 import { idsByKind, type LinkedRef, sameIds } from "@/lib/relationships";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -44,9 +39,6 @@ export const useUpdateQueue = queues.useUpdate;
 export const useDeleteQueue = queues.useDelete;
 export const useSetQueueGrants = queues.useSetGrants;
 
-/** An item changed, so the queue it belongs to and every list of it are stale. */
-const invalidateQueueAndList = (queueId: number) => invalidate(q.queue(queueId), q.allQueues());
-
 // ── Item Mutations ──────────────────────────────────────────────────────────
 
 export const useCreateQueueItem = (
@@ -56,7 +48,7 @@ export const useCreateQueueItem = (
   useCommunityMutation<QueueItemRead, QueueItemCreate>(
     {
       mutationFn: (communityId, data) => addQueueItem(communityId, queueId, data),
-      invalidate: () => invalidateQueueAndList(queueId),
+      invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
       errorKey: "queues:error",
     },
     options
@@ -69,7 +61,7 @@ export const useUpdateQueueItem = (
   useCommunityMutation<QueueItemRead, { itemId: number; data: QueueItemUpdate }>(
     {
       mutationFn: (communityId, { itemId, data }) => updateQueueItem(communityId, itemId, data),
-      invalidate: () => invalidateQueueAndList(queueId),
+      invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
       errorKey: "queues:error",
     },
     options
@@ -79,7 +71,7 @@ export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void,
   useCommunityMutation<void, number>(
     {
       mutationFn: (communityId, itemId) => deleteQueueItem(communityId, itemId),
-      invalidate: () => invalidateQueueAndList(queueId),
+      invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
       errorKey: "queues:error",
     },
     options
@@ -92,7 +84,7 @@ export const useDuplicateQueueItem = (
   useCommunityMutation<QueueItemRead, number>(
     {
       mutationFn: (communityId, itemId) => duplicateQueueItem(communityId, itemId),
-      invalidate: () => invalidateQueueAndList(queueId),
+      invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
       errorKey: "common:error",
     },
     options
@@ -101,12 +93,10 @@ export const useDuplicateQueueItem = (
 // ── Turn Control Mutations ──────────────────────────────────────────────────
 //
 // Turn changes are applied optimistically: the displayed current item and round
-// update instantly in the cache, then reconcile with the server on settle (and
-// via the queue WebSocket). The transition logic below mirrors
+// update instantly in the cache, then take the queue the server answers with
+// (and the queue WebSocket's refetches). The transition logic below mirrors
 // `_visible_items_desc` + advance/previous in `backend/app/services/queues.py`;
 // keep the two in sync.
-
-type QueueTurnContext = { previous?: QueueRead };
 
 /**
  * Visible items sorted by position-desc, including held items. Used by the
@@ -324,211 +314,62 @@ export const releaseHeldState = (
 };
 
 /**
- * Synchronously apply an optimistic turn transition. Returns the pre-mutation
- * snapshot so the caller can roll back on error.
- *
- * `cancelQueries` is fired without awaiting — it sends abort signals
- * synchronously, so a racing refetch (e.g. from the queue WebSocket
- * invalidation) won't clobber the value we're about to write. Any background
- * fetch is reconciled by `onSettled`'s invalidation either way.
+ * One turn change: applied to the cached queue at once, then replaced by the
+ * queue the server answers with. Only the lists are refetched.
  */
-const applyOptimisticTurn = (
-  communityId: number,
-  queryClient: QueryClient,
+const useTurn = <TVariables = void>(
   queueId: number,
-  apply: (queue: QueueRead) => QueueRead
-): QueueTurnContext => {
-  const key = getReadQueueQueryKey(communityId, queueId);
-  void queryClient.cancelQueries({ queryKey: key });
-  const previous = queryClient.getQueryData<QueueRead>(key);
-  if (previous) {
-    queryClient.setQueryData<QueueRead>(key, apply(previous));
-  }
-  return { previous };
-};
+  send: (communityId: number, variables: TVariables) => Promise<QueueRead>,
+  apply: (queue: QueueRead, variables: TVariables) => QueueRead,
+  options?: MutationOpts<QueueRead, TVariables>
+) =>
+  useOptimisticMutation<QueueRead, QueueRead, TVariables>(
+    {
+      queryKey: (communityId) => getReadQueueQueryKey(communityId, queueId),
+      apply,
+      seed: (_, queue) => queue,
+      mutationFn: send,
+      invalidate: () => invalidate(q.allQueues()),
+      errorKey: "queues:error",
+    },
+    options
+  );
 
-/** Restore the pre-mutation queue snapshot after a failed turn change. */
-const rollbackOptimisticTurn = (
-  communityId: number,
-  queryClient: QueryClient,
-  queueId: number,
-  context: QueueTurnContext | undefined
-) => {
-  if (context?.previous) {
-    queryClient.setQueryData(getReadQueueQueryKey(communityId, queueId), context.previous);
-  }
-};
+export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(queueId, (communityId) => advanceTurn(communityId, queueId), advanceQueueState, options);
 
-export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
+export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(
+    queueId,
+    (communityId) => previousTurn(communityId, queueId),
+    previousQueueState,
+    options
+  );
 
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return advanceTurn(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, advanceQueueState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
+export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(queueId, (communityId) => startQueue(communityId, queueId), startQueueState, options);
 
-export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
+export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(queueId, (communityId) => stopQueue(communityId, queueId), stopQueueState, options);
 
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return previousTurn(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, previousQueueState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
+export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(queueId, (communityId) => resetQueue(communityId, queueId), resetQueueState, options);
 
-export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
+export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRead, number>) =>
+  useTurn(
+    queueId,
+    (communityId, itemId) => setActiveItem(communityId, queueId, itemId),
+    setActiveItemState,
+    options
+  );
 
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return startQueue(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, startQueueState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
-
-export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
-
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return stopQueue(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, stopQueueState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
-
-export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
-
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return resetQueue(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, resetQueueState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
-
-export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRead, number>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
-
-  return useMutation<QueueRead, Error, number, QueueTurnContext>({
-    ...rest,
-    mutationFn: async (itemId: number) => {
-      return setActiveItem(communityId, queueId, itemId);
-    },
-    onMutate: (itemId) =>
-      applyOptimisticTurn(communityId, queryClient, queueId, (queue) =>
-        setActiveItemState(queue, itemId)
-      ),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
-
-export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
-
-  return useMutation<QueueRead, Error, void, QueueTurnContext>({
-    ...rest,
-    mutationFn: async () => {
-      return holdCurrentTurn(communityId, queueId);
-    },
-    onMutate: () => applyOptimisticTurn(communityId, queryClient, queueId, holdCurrentState),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
+export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead, void>) =>
+  useTurn(
+    queueId,
+    (communityId) => holdCurrentTurn(communityId, queueId),
+    holdCurrentState,
+    options
+  );
 
 export interface ReleaseHeldVariables {
   itemId: number;
@@ -539,34 +380,14 @@ export interface ReleaseHeldVariables {
 export const useReleaseHeld = (
   queueId: number,
   options?: MutationOpts<QueueRead, ReleaseHeldVariables>
-) => {
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
-
-  return useMutation<QueueRead, Error, ReleaseHeldVariables, QueueTurnContext>({
-    ...rest,
-    mutationFn: async ({ itemId, reposition }) => {
-      return releaseHeldItem(communityId, queueId, itemId, {
-        reposition: reposition ?? false,
-      });
-    },
-    onMutate: ({ itemId, reposition }) =>
-      applyOptimisticTurn(communityId, queryClient, queueId, (queue) =>
-        releaseHeldState(queue, itemId, { reposition })
-      ),
-    onSuccess,
-    onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(communityId, queryClient, queueId, onMutateResult);
-      toast.error(getErrorMessage(err, "queues:error"));
-      onError?.(err, vars, onMutateResult, context);
-    },
-    onSettled: (...args) => {
-      void invalidate(q.queue(queueId), q.allQueues());
-      onSettled?.(...args);
-    },
-  });
-};
+) =>
+  useTurn(
+    queueId,
+    (communityId, { itemId, reposition }) =>
+      releaseHeldItem(communityId, queueId, itemId, { reposition: reposition ?? false }),
+    (queue, { itemId, reposition }) => releaseHeldState(queue, itemId, { reposition }),
+    options
+  );
 
 // ── Item Association Mutations ──────────────────────────────────────────────
 
@@ -619,7 +440,7 @@ export const useSetQueueItemLinks = (
           );
         }
       },
-      invalidate: () => invalidateQueueAndList(queueId),
+      invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
       errorKey: "queues:error",
     },
     options

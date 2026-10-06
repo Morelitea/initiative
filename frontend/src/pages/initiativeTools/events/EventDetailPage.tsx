@@ -13,6 +13,7 @@ import {
 } from "@/components/recurrence/OccurrenceScopeDialog";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -473,20 +474,7 @@ export function EventDetailPage() {
             <CardTitle className="text-lg">{t("tags")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {event.tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="outline"
-                  style={{
-                    borderColor: tag.color,
-                    color: tag.color,
-                  }}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
+            <TagBadgeList tags={event.tags} limit={event.tags.length} className="gap-2" />
           </CardContent>
         </Card>
       )}

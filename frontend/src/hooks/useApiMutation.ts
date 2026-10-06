@@ -1,4 +1,4 @@
-import { onlineManager, useMutation } from "@tanstack/react-query";
+import { onlineManager, type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -31,13 +31,13 @@ interface ApiMutationConfig<TData, TVariables> {
  * Base mutation hook for personal/platform endpoints: composes the caller's
  * `onSuccess`/`onError`/`onSettled` with the hook's invalidation + error toast.
  */
-export function useApiMutation<TData, TVariables = void>(
+export function useApiMutation<TData, TVariables = void, TContext = unknown>(
   config: ApiMutationConfig<TData, TVariables>,
-  options?: MutationOpts<TData, TVariables>
+  options?: MutationOpts<TData, TVariables, Error, TContext>
 ) {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
-  return useMutation<TData, Error, TVariables>({
+  return useMutation<TData, Error, TVariables, TContext>({
     ...rest,
     mutationFn: (variables) => config.mutationFn(variables),
     // The caller's own work is waited on, but its failure is not the save's.
@@ -89,16 +89,71 @@ interface CommunityMutationConfig<TData, TVariables> {
  * (derived from the `/c/{communityId}` route) into `mutationFn`. Domain hooks stay
  * as thin named wrappers so their public signatures are unchanged.
  */
-export function useCommunityMutation<TData, TVariables = void>(
+export function useCommunityMutation<TData, TVariables = void, TContext = unknown>(
   config: CommunityMutationConfig<TData, TVariables>,
-  options?: MutationOpts<TData, TVariables>
+  options?: MutationOpts<TData, TVariables, Error, TContext>
 ) {
   const communityId = useActiveCommunityId();
-  return useApiMutation<TData, TVariables>(
+  return useApiMutation<TData, TVariables, TContext>(
     {
       ...config,
       mutationFn: (variables) => config.mutationFn(communityId, variables),
     },
     options
+  );
+}
+
+interface OptimisticMutationConfig<TCached, TData, TVariables>
+  extends CommunityMutationConfig<TData, TVariables> {
+  /** The cached read the write changes. */
+  queryKey: (communityId: number) => QueryKey;
+  /** What that read shows while the write is in flight. */
+  apply: (cached: TCached, variables: TVariables) => TCached;
+  /** What it shows once the server answers. Omit to keep the optimistic copy
+   *  until `invalidate` refetches it. */
+  seed?: (cached: TCached, data: TData) => TCached;
+}
+
+/**
+ * {@link useCommunityMutation} that shows its result before the server does:
+ * `apply` writes the cached read at once, a failure puts the previous copy
+ * back, and the answer is written over it with `seed`.
+ */
+export function useOptimisticMutation<TCached, TData, TVariables = void>(
+  { queryKey, apply, seed, ...config }: OptimisticMutationConfig<TCached, TData, TVariables>,
+  options?: MutationOpts<TData, TVariables>
+) {
+  const communityId = useActiveCommunityId();
+  const client = useQueryClient();
+  const key = queryKey(communityId);
+  const { onMutate: _ownedHere, onError, ...rest } = options ?? {};
+
+  return useCommunityMutation<TData, TVariables, { previous?: TCached }>(
+    {
+      ...config,
+      invalidate: (data, variables) => {
+        if (seed) {
+          client.setQueryData<TCached>(key, (cached) =>
+            cached === undefined ? cached : seed(cached, data)
+          );
+        }
+        return config.invalidate?.(data, variables);
+      },
+    },
+    {
+      ...rest,
+      // Not awaited: the abort goes out at once, so a refetch already in
+      // flight cannot land over the copy written below.
+      onMutate: (variables) => {
+        void client.cancelQueries({ queryKey: key });
+        const previous = client.getQueryData<TCached>(key);
+        if (previous !== undefined) client.setQueryData<TCached>(key, apply(previous, variables));
+        return { previous };
+      },
+      onError: (error, variables, context, mutationContext) => {
+        if (context?.previous !== undefined) client.setQueryData(key, context.previous);
+        onError?.(error, variables, context, mutationContext);
+      },
+    }
   );
 }
