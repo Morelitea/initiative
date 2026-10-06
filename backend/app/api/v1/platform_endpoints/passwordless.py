@@ -185,19 +185,18 @@ async def recover_with_code(
 
     # Counted by the address typed in as well as by the account, the same way
     # a password is, so an address nobody holds runs out like one somebody does.
-    address = payload.email.lower().strip()
-    if not await SIGN_IN_FAILURES.left(address):
+    if not await SIGN_IN_FAILURES.left(payload.email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
         )
     user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
-        await SIGN_IN_FAILURES.take(address)
+        await SIGN_IN_FAILURES.take(payload.email)
         raise _recovery_code_invalid()
     await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
-        await SIGN_IN_FAILURES.take(address)
+        await SIGN_IN_FAILURES.take(payload.email)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
     try:
@@ -211,7 +210,7 @@ async def recover_with_code(
         )
     except HTTPException as exc:
         if exc.status_code == status.HTTP_400_BAD_REQUEST:
-            await SIGN_IN_FAILURES.take(address)
+            await SIGN_IN_FAILURES.take(payload.email)
         raise
 
     # The spent code and its record land on the commit that sets the password.

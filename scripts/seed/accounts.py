@@ -127,9 +127,7 @@ async def _account(session: AsyncSession, email: str, name: str, **fields) -> Us
     # direct-message policy; an account seeded before addresses were rows of
     # their own catches up here. Asked of every row the account holds rather
     # than the proven ones, so a claim already recorded is left alone.
-    if hash_email(addresses.normalize(email)) not in await addresses.held_hashes(
-        session, user_id=user.id
-    ):
+    if hash_email(email) not in await addresses.held_hashes(session, user_id=user.id):
         addresses.record_address(
             session,
             user_id=user.id,

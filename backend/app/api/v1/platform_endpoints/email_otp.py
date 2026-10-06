@@ -44,6 +44,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     upgrade_session,
 )
 from app.core.config import is_device
+from app.core.encryption import normalize_email
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
@@ -65,7 +66,6 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ async def send_sign_in_code(
             detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
         )
 
-    address = addresses.normalize(payload.email)
+    address = normalize_email(payload.email)
     if not await MAIL_SENDS.take(address):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -294,16 +294,10 @@ async def verify_sign_in_code(
 
     # Arriving at the address is what proves it, so an address the account had
     # never proved is proved now — and what the account held before that goes.
-    retired = False
     if challenge.user_email_id is not None:
-        first_proof = await addresses.mark_proved(
-            system_session, address_id=challenge.user_email_id
+        await addresses.prove_at_sign_in(
+            system_session, user=user, address_id=challenge.user_email_id
         )
-        if first_proof:
-            await addresses.retire_credentials_predating_proof(
-                system_session, user=user
-            )
-            retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:
             row.last_login_at = datetime.now(timezone.utc)
@@ -317,11 +311,9 @@ async def verify_sign_in_code(
         session, system_session, user_id=user_id, leg=EMAIL_CODE_LEG, native=native
     )
     if challenge_response is not None:
-        if retired:
-            await content_sockets.revoke_user_everywhere(user_id)
         return challenge_response
 
-    opened = await open_session(
+    return await open_session(
         request,
         response,
         system_session,
@@ -330,10 +322,6 @@ async def verify_sign_in_code(
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method},
     )
-    if retired:
-        # Connections opened on the credentials retired above close now.
-        await content_sockets.revoke_user_everywhere(user_id)
-    return opened
 
 
 @router.post(

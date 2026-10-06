@@ -28,6 +28,7 @@ from app.core.encryption import (
     decrypt_field,
     encrypt_field,
     hash_email,
+    normalize_email,
 )
 from app.core.messages import AddressMessages
 from app.models.platform.user import User
@@ -47,14 +48,9 @@ SOURCE_SYNTHETIC = "synthetic"
 MAX_ADDRESSES_PER_ACCOUNT = 10
 
 
-def normalize(email: str) -> str:
-    """The form an address is hashed and stored in."""
-    return email.lower().strip()
-
-
 async def find_user_by_address(session: AsyncSession, email: str) -> User | None:
     """The account that signs in with ``email``, or ``None``."""
-    digest = hash_email(normalize(email))
+    digest = hash_email(email)
     return (
         await session.exec(
             select(User)
@@ -80,7 +76,7 @@ async def account_awaiting_confirmation(
     has been proved, so the sign-in that follows can refuse in the words that
     say what to do about it.
     """
-    digest = hash_email(normalize(email))
+    digest = hash_email(email)
     return (
         await session.exec(
             select(User)
@@ -117,23 +113,7 @@ async def row_for(session: AsyncSession, email: str) -> UserEmail | None:
     row, for a caller that has to say something about that particular address
     rather than about the account behind it.
     """
-    return await _by_hash(session, hash_email(normalize(email)))
-
-
-async def mark_proved(
-    session: AsyncSession, *, address_id: int, now: datetime | None = None
-) -> bool:
-    """Record that this address has been proved, and say whether that is new.
-
-    ``False`` where it was already proved, so a caller can tell the first
-    proof from every later one. Staged in the caller's transaction.
-    """
-    result = await session.exec(
-        update(UserEmail)
-        .where(UserEmail.id == address_id, UserEmail.verified_at.is_(None))
-        .values(verified_at=now or datetime.now(timezone.utc))
-    )
-    return bool(result.rowcount)
+    return await _by_hash(session, hash_email(email))
 
 
 async def note_sign_in(
@@ -145,7 +125,7 @@ async def note_sign_in(
     """
     await session.exec(
         update(UserEmail)
-        .where(UserEmail.email_hash == hash_email(normalize(email)))
+        .where(UserEmail.email_hash == hash_email(email))
         .values(last_login_at=now or datetime.now(timezone.utc))
     )
 
@@ -320,7 +300,7 @@ def _build_address(
 ) -> UserEmail:
     """The row, unattached — so a caller can stage it inside a savepoint."""
     moment = now or datetime.now(timezone.utc)
-    normalized = normalize(email)
+    normalized = normalize_email(email)
     return UserEmail(
         user_id=user_id,
         email_hash=hash_email(normalized),
@@ -386,7 +366,7 @@ async def ensure_address(
     choose, not a directory's.
     """
     moment = now or datetime.now(timezone.utc)
-    digest = hash_email(normalize(email))
+    digest = hash_email(email)
     existing = await _by_hash(session, digest)
 
     if existing is None:
@@ -505,7 +485,7 @@ async def add_for_user(
     The caller answers the same way whatever comes back. What it is for is
     deciding whether to write, and to which pending claim.
     """
-    digest = hash_email(normalize(email))
+    digest = hash_email(email)
     mine = await _pending_for_user(session, user_id=user_id, digest=digest)
     if mine is not None:
         return mine
@@ -751,31 +731,47 @@ async def _verified_count(session: AsyncSession, user_id: int) -> int:
     ).one()
 
 
-async def retire_credentials_predating_proof(
-    session: AsyncSession, *, user: User
-) -> None:
-    """Drop every credential the account held before this address was proved.
+async def prove_at_sign_in(
+    session: AsyncSession,
+    *,
+    user: User,
+    address_id: int,
+    now: datetime | None = None,
+) -> bool:
+    """Record that a sign-in proved this address, and say whether that is new.
 
-    Reached only where an address nobody had proved is proved for the first
-    time: by an emailed code, or by an identity provider vouching for it. The
-    account keeps its handle, its memberships and its content; what it gives
-    up is the password, its passkeys, its second factor and the standing
-    credentials that were set while the address was unproven. Whoever proved
-    it signs in, and sets up what they want afterwards.
+    Reached where arriving at an address proves it: an emailed code, or an
+    identity provider vouching for it. The first proof of an address nobody
+    had proved drops every credential the account held before it — the
+    password, its passkeys, its second factor and its sessions — and the
+    account's open connections are rechecked once the transaction commits.
+    The account keeps its handle, its memberships and its content; whoever
+    proved the address signs in, and sets up what they want afterwards.
+
+    ``False`` where it was already proved, and nothing else changes. Staged in
+    the caller's transaction, so the session the sign-in opens lands beside the
+    retirement and the account never sits with nothing.
     """
     from app.core.audit_events import AuditEventType
     from app.models.platform.user_passkey import UserPasskey
     from app.services import audit as audit_service
+    from app.services import content_sockets
     from app.services.auth import totp as totp_service
-    from app.services.platform import user_tokens
+    from app.services.platform import user_stream, user_tokens
+
+    result = await session.exec(
+        update(UserEmail)
+        .where(UserEmail.id == address_id, UserEmail.verified_at.is_(None))
+        .values(verified_at=now or datetime.now(timezone.utc))
+    )
+    if not result.rowcount:
+        return False
 
     user.hashed_password = None
     user.password_set_at = None
     session.add(user)
     await session.exec(delete(UserPasskey).where(UserPasskey.user_id == user.id))
     await totp_service.disable(session, user_id=user.id)
-    # Staged rather than committed: the session this sign-in opens lands in
-    # the same transaction, so the account never sits with nothing.
     await user_tokens.revoke_user_sessions(session, user=user)
     await audit_service.record(
         session,
@@ -786,3 +782,10 @@ async def retire_credentials_predating_proof(
         target_id=user.id,
         detail={"reason": "address_first_proved"},
     )
+    user_id = user.id
+    user_stream.after_commit(
+        session,
+        ("content_sockets", "recheck_user", user_id),
+        lambda: content_sockets.sockets.revoke_user_everywhere(user_id),
+    )
+    return True

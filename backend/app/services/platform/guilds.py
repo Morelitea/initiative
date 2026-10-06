@@ -17,7 +17,7 @@ from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.guild_auth_options import CommunityAuthOption
 from app.core.intake import IntakeStream
-from app.core.encryption import encrypt_field, SALT_EMAIL
+from app.core.encryption import encrypt_field, normalize_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.db import cohorts
 from app.db.advisory_locks import LockNamespace, advisory_lock
@@ -1970,7 +1970,7 @@ async def invite_awaiting_address(
     bound_email = invite.invitee_email
     if not bound_email:
         return None
-    if addresses.normalize(bound_email) != addresses.normalize(email):
+    if normalize_email(bound_email) != normalize_email(email):
         raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
     return invite
 
