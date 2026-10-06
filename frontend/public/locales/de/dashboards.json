@@ -1,25 +1,11 @@
 {
-  "title": "Dashboards",
-  "dashboard": "Dashboard",
-  "dashboards": "Dashboards",
   "noDashboards": "Noch keine Dashboards",
   "noDashboardsDescription": "Dashboards bündeln Diagramme, Kennzahlen und Zeitleisten auf einer Arbeitsfläche. Sie zeigen Daten nur an — nichts davon lässt sich aus einem Dashboard heraus bearbeiten.",
   "createDashboard": "Neues Dashboard",
-  "name": "Name",
   "namePlaceholder": "Dashboard-Namen eingeben",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Optionale Beschreibung",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
-  "tags": "Tags",
-  "permissions": "Berechtigungen",
-  "settings": "Einstellungen",
-  "details": "Details",
-  "access": "Zugriff",
-  "advanced": "Erweitert",
-  "dangerZone": "Gefahrenzone",
-  "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Dashboards landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
-  "detailsUpdated": "Dashboard-Details aktualisiert",
   "filters": {
     "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
@@ -30,7 +16,6 @@
   "loadError": "Dashboards konnten nicht geladen werden.",
   "loadingDashboard": "Dashboard wird geladen...",
   "creating": "Wird erstellt...",
-  "saving": "Wird gespeichert...",
   "notFound": "Dashboard nicht gefunden",
   "notFoundDescription": "Das gesuchte Dashboard existiert nicht oder wurde entfernt.",
   "noAccess": "Zugriff verweigert",
@@ -139,8 +124,7 @@
     "collapse": "{{name}} zuklappen",
     "expand": "{{name}} aufklappen",
     "label": "Zeitachse",
-    "quarter": "Q{{quarter}}",
-    "today": "Heute"
+    "quarter": "Q{{quarter}}"
   },
   "matrix": {
     "label": "Aktivitäts-Heatmap"
@@ -197,7 +181,6 @@
     "is_null": "ist leer"
   },
   "filterBuilder": {
-    "heading": "Filter",
     "add": "Filter hinzufügen",
     "remove": "Diesen Filter entfernen",
     "field": "Feld",
@@ -241,8 +224,7 @@
     "stage": "Stufe",
     "label": "Bezeichnung",
     "column": "Spalte",
-    "card": "Karte",
-    "due": "Fällig"
+    "card": "Karte"
   },
   "bindingParam": {
     "file": "Tabelle",

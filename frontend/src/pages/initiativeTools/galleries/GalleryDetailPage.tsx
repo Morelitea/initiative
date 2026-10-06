@@ -284,7 +284,7 @@ export function GalleryDetailPage() {
 
   const viewOptions = [
     { value: "masonry" as const, label: t("views.masonry"), icon: MasonryIcon },
-    { value: "grid" as const, label: t("views.grid"), icon: LayoutGrid },
+    { value: "grid" as const, label: t("common:toolbar.viewGrid"), icon: LayoutGrid },
     { value: "timeline" as const, label: t("views.timeline"), icon: Clock },
   ];
 
@@ -493,7 +493,7 @@ export function GalleryDetailPage() {
               onClick={() => setDetailsId(openId)}
             >
               <Info className="size-4" />
-              {t("lightbox.details")}
+              {t("common:toolbar.details")}
             </Button>
           ) : null
         }

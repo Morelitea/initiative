@@ -1,13 +1,9 @@
 {
   "title": "Wikis",
-  "wiki": "Wiki",
-  "wikis": "Wikis",
   "createWiki": "Nuevo wiki",
   "createWikiDescription": "Páginas que se enlazan entre sí: un manual, una referencia, las respuestas a lo que siempre se pregunta. Ponle nombre ahora; las páginas vienen después.",
   "creating": "Creando...",
-  "name": "Nombre",
   "namePlaceholder": "Manual del equipo, Biblia del mundo, Normas de la casa...",
-  "description": "Descripción",
   "descriptionPlaceholder": "De qué trata este wiki",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
@@ -28,7 +24,6 @@
     "searchPlaceholder": "Buscar en este wiki",
     "searchEmpty": "Ninguna página coincide con «{{query}}»",
     "newPage": "Nueva página",
-    "untitled": "Sin título",
     "titleLabel": "Título",
     "titlePlaceholder": "De qué trata esta página",
     "deleted": "Página movida a la papelera",
@@ -44,8 +39,6 @@
     "collapse": "Contraer",
     "expand": "Expandir",
     "draft": "Borrador",
-    "previous": "Anterior",
-    "next": "Siguiente",
     "nav": "Páginas a ambos lados de esta",
     "expandAll": "Expandir todo",
     "collapseAll": "Contraer todo",
@@ -117,7 +110,6 @@
     "drafted": "Página marcada como borrador"
   },
   "comments": "Comentarios",
-  "newPage": "Nueva página",
   "viewMode": {
     "read": "Ver como lector",
     "edit": "Editar esta página"

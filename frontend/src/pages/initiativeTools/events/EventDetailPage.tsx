@@ -306,7 +306,7 @@ export function EventDetailPage() {
         {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
         {event.all_day || canWrite ? (
           <div className="flex flex-wrap items-center gap-2">
-            {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
+            {event.all_day && <Badge variant="secondary">{t("common:calendar.allDay")}</Badge>}
             {canWrite && repeating && (
               <Button
                 variant="outline"
@@ -471,7 +471,7 @@ export function EventDetailPage() {
       {event.tags.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">{t("tags")}</CardTitle>
+            <CardTitle className="text-lg">{t("common:toolSettings.tags")}</CardTitle>
           </CardHeader>
           <CardContent>
             <TagBadgeList tags={event.tags} limit={event.tags.length} className="gap-2" />

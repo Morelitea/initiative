@@ -1,13 +1,9 @@
 {
   "title": "Wikis",
-  "wiki": "Wiki",
-  "wikis": "Wikis",
   "createWiki": "Nouveau wiki",
   "createWikiDescription": "Des pages qui se renvoient les unes aux autres : un manuel, une référence, les réponses à ce qu’on vous redemande sans cesse. Donnez-lui un nom ; les pages viendront ensuite.",
   "creating": "Création...",
-  "name": "Nom",
   "namePlaceholder": "Manuel de l’équipe, Bible de l’univers, Règles de la maison...",
-  "description": "Description",
   "descriptionPlaceholder": "Ce que couvre ce wiki",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
@@ -28,7 +24,6 @@
     "searchPlaceholder": "Rechercher dans ce wiki",
     "searchEmpty": "Aucune page ne correspond à « {{query}} »",
     "newPage": "Nouvelle page",
-    "untitled": "Sans titre",
     "titleLabel": "Titre",
     "titlePlaceholder": "De quoi parle cette page",
     "deleted": "Page mise à la corbeille",
@@ -44,8 +39,6 @@
     "collapse": "Réduire",
     "expand": "Développer",
     "draft": "Brouillon",
-    "previous": "Précédent",
-    "next": "Suivant",
     "nav": "Les pages de part et d’autre de celle-ci",
     "expandAll": "Tout déplier",
     "collapseAll": "Tout replier",
@@ -117,7 +110,6 @@
     "drafted": "Page marquée comme brouillon"
   },
   "comments": "Commentaires",
-  "newPage": "Nouvelle page",
   "viewMode": {
     "read": "Voir comme un lecteur",
     "edit": "Modifier cette page"

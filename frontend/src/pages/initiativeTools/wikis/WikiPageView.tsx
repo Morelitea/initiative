@@ -330,7 +330,7 @@ export const WikiPageView = () => {
 
   // The screen's primary create action is a page, not another wiki — this is
   // the inside of one.
-  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("pages.newPage") } : null);
 
   if (!validIds || pageQuery.isError) {
     return (
@@ -370,7 +370,7 @@ export const WikiPageView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={isEditing ? draftTitle : page?.title || t("pages.untitled")}
+          pageTitle={isEditing ? draftTitle : page?.title || t("common:untitled")}
           onRename={isEditing ? (value) => setDraft({ pageId, title: value }) : undefined}
           // Leaving the field sends the name now. Clicking a page in the tree
           // blurs before it navigates, so a rename typed and immediately

@@ -196,7 +196,7 @@ const WikiPageRow = ({
   /** The rows for what is filed under this page. */
   children: ReactNode[];
 }) => {
-  const { t } = useTranslation("wikis");
+  const { t } = useTranslation(["wikis", "common"]);
   const unread = useUnreadTree();
   const showing = landing?.key === rowKey(page) ? landing.intent : null;
   // Every page's headings come with the page, so a row is collapsible from the
@@ -292,7 +292,7 @@ const WikiPageRow = ({
                     page.is_draft && "text-muted-foreground"
                   )}
                 >
-                  {page.title || t("pages.untitled")}
+                  {page.title || t("common:untitled")}
                 </span>
                 {/* A borrowed file is read as the file it is. */}
                 {unread.hasSubject(

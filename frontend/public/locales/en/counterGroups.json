@@ -1,14 +1,8 @@
 {
-  "title": "Counters",
-  "group": "Counter Group",
-  "groups": "Counter Groups",
-  "counter": "Counter",
   "noGroups": "No counter groups yet",
   "noGroupsDescription": "Counter groups bundle related numeric values — like HP, ammo, or scores — that you can increment, decrement, or set directly.",
   "createGroup": "Create Counter Group",
-  "name": "Name",
   "namePlaceholder": "Enter group name",
-  "description": "Description",
   "descriptionPlaceholder": "Optional description",
   "initiative": "Initiative",
   "selectInitiative": "Select initiative",
@@ -31,7 +25,6 @@
   "viewModeRequiresBounds": "Progress bar and segmented clock require both min and max.",
   "increment": "Increment",
   "decrement": "Decrement",
-  "reset": "Reset",
   "resetAll": "Reset All",
   "resetAllConfirm": "Reset every counter in this group to its initial value?",
   "sort": "Sort",
@@ -41,12 +34,10 @@
   "sortCountDesc": "Count (high→low)",
   "noCounters": "No counters in this group",
   "noCountersDescription": "Add counters to start tracking values.",
-  "reorder": "Reorder",
   "dragToReorder": "Drag to reorder",
   "switchToGridView": "Switch to grid view",
   "switchToRowView": "Switch to row view",
   "more": "More actions",
-  "permissions": "Permissions",
   "error": "Something went wrong",
   "loading": "Loading counters...",
   "loadError": "Failed to load counters.",
@@ -69,16 +60,10 @@
     "notFound": "Counter not found in this group"
   },
   "createFirst": "Create Your First Counter Group",
-  "details": "Details",
-  "access": "Access",
-  "advanced": "Advanced",
-  "dangerZone": "Danger Zone",
-  "dangerZoneDescription": "Destructive actions. Deleted groups go to the trash and can be restored before the retention period ends.",
   "filters": {
     "heading": "Filters",
     "searchGroups": "Search counter groups...",
     "searchLabel": "Name or description",
     "noMatchingGroups": "No counter groups match your filters."
-  },
-  "tags": "Tags"
+  }
 }

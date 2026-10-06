@@ -1,25 +1,11 @@
 {
-  "title": "Paneles",
-  "dashboard": "Panel",
-  "dashboards": "Paneles",
   "noDashboards": "Aún no hay paneles",
   "noDashboardsDescription": "Los paneles reúnen gráficos, indicadores y cronogramas en un solo lienzo. Solo muestran datos: nada de lo que ves aquí puede editarse desde un panel.",
   "createDashboard": "Crear panel",
-  "name": "Nombre",
   "namePlaceholder": "Introduce el nombre del panel",
-  "description": "Descripción",
   "descriptionPlaceholder": "Descripción opcional",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
-  "tags": "Etiquetas",
-  "permissions": "Permisos",
-  "settings": "Configuración",
-  "details": "Detalles",
-  "access": "Acceso",
-  "advanced": "Avanzado",
-  "dangerZone": "Zona de peligro",
-  "dangerZoneDescription": "Acciones destructivas. Los paneles eliminados van a la papelera y se pueden restaurar antes de que finalice el período de retención.",
-  "detailsUpdated": "Detalles del panel actualizados",
   "filters": {
     "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
@@ -30,7 +16,6 @@
   "loadError": "No se pudieron cargar los paneles.",
   "loadingDashboard": "Cargando panel...",
   "creating": "Creando...",
-  "saving": "Guardando...",
   "notFound": "Panel no encontrado",
   "notFoundDescription": "El panel que buscas no existe o ha sido eliminado.",
   "noAccess": "Acceso denegado",
@@ -139,8 +124,7 @@
     "collapse": "Plegar {{name}}",
     "expand": "Desplegar {{name}}",
     "label": "Línea de tiempo",
-    "quarter": "T{{quarter}}",
-    "today": "Hoy"
+    "quarter": "T{{quarter}}"
   },
   "matrix": {
     "label": "Mapa de calor de actividad"
@@ -197,7 +181,6 @@
     "is_null": "está vacío"
   },
   "filterBuilder": {
-    "heading": "Filtros",
     "add": "Añadir filtro",
     "remove": "Quitar este filtro",
     "field": "Campo",
@@ -241,8 +224,7 @@
     "stage": "Etapa",
     "label": "Etiqueta",
     "column": "Columna",
-    "card": "Tarjeta",
-    "due": "Vence"
+    "card": "Tarjeta"
   },
   "bindingParam": {
     "file": "Hoja de cálculo",

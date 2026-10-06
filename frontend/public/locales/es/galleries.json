@@ -1,13 +1,8 @@
 {
-  "title": "Galerías",
-  "gallery": "Galería",
-  "galleries": "Galerías",
   "createGallery": "Nueva galería",
   "createGalleryDescription": "Una colección de imágenes: maquetas, capturas, diseños exportados. Ponle nombre ahora; las imágenes se añaden en su página, cuarenta de golpe si quieres.",
   "creating": "Creando...",
-  "name": "Nombre",
   "namePlaceholder": "Recursos de la tienda, Pantalla principal ronda 4...",
-  "description": "Descripción",
   "descriptionPlaceholder": "De qué son estas imágenes",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
@@ -31,7 +26,6 @@
   "views": {
     "label": "Vista",
     "masonry": "Mosaico",
-    "grid": "Cuadrícula",
     "timeline": "Cronología"
   },
   "groups": {
@@ -73,11 +67,7 @@
     "oldestFirst": "Más antiguas primero",
     "noMatchingPictures": "Ninguna imagen coincide con tus filtros."
   },
-  "lightbox": {
-    "details": "Detalles"
-  },
   "sheet": {
-    "title": "Imagen",
     "description": "Cómo se llama esta imagen, quién la añadió y su historial.",
     "titleLabel": "Título",
     "titlePlaceholder": "¿Qué es esto?",

@@ -114,7 +114,7 @@ export const WikiFileView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={file?.name || t("pages.untitled")}
+          pageTitle={file?.name || t("common:untitled")}
           pageUpdatedAt={file?.updated_at}
           // Writing happens where the file lives, so this screen offers no
           // mode to enter.

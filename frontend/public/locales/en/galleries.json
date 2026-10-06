@@ -1,13 +1,8 @@
 {
-  "title": "Galleries",
-  "gallery": "Gallery",
-  "galleries": "Galleries",
   "createGallery": "New Gallery",
   "createGalleryDescription": "A collection of pictures — mockups, screenshots, exported designs. Name it now; the pictures go in on its page, forty at a time if you like.",
   "creating": "Creating...",
-  "name": "Name",
   "namePlaceholder": "Store assets, Live screen round 4...",
-  "description": "Description",
   "descriptionPlaceholder": "What these pictures are of",
   "initiative": "Initiative",
   "selectInitiative": "Select initiative",
@@ -31,7 +26,6 @@
   "views": {
     "label": "View",
     "masonry": "Masonry",
-    "grid": "Grid",
     "timeline": "Timeline"
   },
   "groups": {
@@ -73,11 +67,7 @@
     "oldestFirst": "Oldest first",
     "noMatchingPictures": "No pictures match your filters."
   },
-  "lightbox": {
-    "details": "Details"
-  },
   "sheet": {
-    "title": "Picture",
     "description": "What this picture is called, who added it, and its history.",
     "titleLabel": "Title",
     "titlePlaceholder": "What is this?",

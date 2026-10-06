@@ -1,25 +1,11 @@
 {
-  "title": "Tableaux de bord",
-  "dashboard": "Tableau de bord",
-  "dashboards": "Tableaux de bord",
   "noDashboards": "Pas encore de tableaux de bord",
   "noDashboardsDescription": "Les tableaux de bord rassemblent graphiques, indicateurs et chronologies sur un même canevas. Ils se contentent d’afficher les données : rien de ce qui s’y trouve ne peut être modifié depuis un tableau de bord.",
   "createDashboard": "Créer un tableau de bord",
-  "name": "Nom",
   "namePlaceholder": "Saisissez le nom du tableau de bord",
-  "description": "Description",
   "descriptionPlaceholder": "Description facultative",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
-  "tags": "Étiquettes",
-  "permissions": "Autorisations",
-  "settings": "Paramètres",
-  "details": "Détails",
-  "access": "Accès",
-  "advanced": "Avancé",
-  "dangerZone": "Zone dangereuse",
-  "dangerZoneDescription": "Actions destructives. Les tableaux de bord supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
-  "detailsUpdated": "Détails du tableau de bord mis à jour",
   "filters": {
     "heading": "Filtres",
     "searchLabel": "Nom ou description",
@@ -30,7 +16,6 @@
   "loadError": "Échec du chargement des tableaux de bord.",
   "loadingDashboard": "Chargement du tableau de bord...",
   "creating": "Création...",
-  "saving": "Enregistrement...",
   "notFound": "Tableau de bord introuvable",
   "notFoundDescription": "Le tableau de bord que vous cherchez n’existe pas ou a été supprimé.",
   "noAccess": "Accès refusé",
@@ -139,8 +124,7 @@
     "collapse": "Replier {{name}}",
     "expand": "Déplier {{name}}",
     "label": "Frise chronologique",
-    "quarter": "T{{quarter}}",
-    "today": "Aujourd'hui"
+    "quarter": "T{{quarter}}"
   },
   "matrix": {
     "label": "Carte d'activité"
@@ -197,7 +181,6 @@
     "is_null": "est vide"
   },
   "filterBuilder": {
-    "heading": "Filtres",
     "add": "Ajouter un filtre",
     "remove": "Retirer ce filtre",
     "field": "Champ",
@@ -241,8 +224,7 @@
     "stage": "Étape",
     "label": "Libellé",
     "column": "Colonne",
-    "card": "Carte",
-    "due": "Échéance"
+    "card": "Carte"
   },
   "bindingParam": {
     "file": "Feuille de calcul",

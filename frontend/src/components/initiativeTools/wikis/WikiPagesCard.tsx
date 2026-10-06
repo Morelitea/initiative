@@ -42,7 +42,7 @@ const Setting = ({
 );
 
 export const WikiPagesCard = ({ wikiId }: { wikiId: number }) => {
-  const { t } = useTranslation("wikis");
+  const { t } = useTranslation(["wikis", "common"]);
   const isValidId = Number.isFinite(wikiId);
 
   const wikiQuery = useWiki(isValidId ? wikiId : null);
@@ -84,7 +84,7 @@ export const WikiPagesCard = ({ wikiId }: { wikiId: number }) => {
                 <SelectItem value="none">{t("settings.homeNone")}</SelectItem>
                 {pages.map((page) => (
                   <SelectItem key={page.id} value={String(page.id)}>
-                    {page.title || t("pages.untitled")}
+                    {page.title || t("common:untitled")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -112,7 +112,7 @@ export const WikiPagesCard = ({ wikiId }: { wikiId: number }) => {
                 <SelectItem value="none">{t("settings.templateNone")}</SelectItem>
                 {pages.map((page) => (
                   <SelectItem key={page.id} value={String(page.id)}>
-                    {page.title || t("pages.untitled")}
+                    {page.title || t("common:untitled")}
                   </SelectItem>
                 ))}
               </SelectContent>
