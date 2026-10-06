@@ -199,7 +199,7 @@ def test_the_schema_names_itself_stably():
     so a drifting `$id` invalidates both."""
     assert (
         contract.manifest_schema()["$id"]
-        == "https://initiative.morels.me/schemas/plugin-manifest-v1.json"
+        == "https://initiativetasks.com/schemas/plugin-manifest-v1.json"
     )
 
 
