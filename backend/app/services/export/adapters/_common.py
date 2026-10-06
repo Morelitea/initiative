@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement
@@ -28,7 +28,8 @@ from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
 from app.models.platform.user import User
 from app.models.tenant._mixins import tool_models
-from app.models.tenant.document import Document
+from app.models.tenant.document import Document, DocumentFileVersion
+from app.models.tenant.gallery import GalleryImageVersion
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
@@ -44,6 +45,9 @@ from app.services.platform.csv_export import safe_filename_component
 from app.services.tenant.initiatives import keeps_content_in
 from app.services.tenant.tool_listing import initiative_switch_clause
 from app.core.user_input_validators import resolve_zone
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.services.storage import StorageBackend
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
 # each id costs a fetch+authorize round trip at count AND build time.
@@ -140,6 +144,28 @@ def envelope_key(tool: Tool, name: str, date: str) -> str:
     """The item key for a tool's importable envelope: the entity's stem plus
     the ``initiative-<tool>`` suffix the importer answers to."""
     return f"{export_stem(name, date)}.{tool_envelope_type(tool)}"
+
+
+def storage_key_of(url: str | None) -> str:
+    """The stored blob's key, as the manifest and the importer name it."""
+    return (url or "").split("/")[-1]
+
+
+def asset_item(
+    storage: "StorageBackend",
+    version: DocumentFileVersion | GalleryImageVersion | None,
+) -> RenderItem | None:
+    """A stored file's bytes, zipped under ``assets/`` by its storage key
+    beside the envelope naming it — or ``None`` when the file is gone."""
+    key = storage_key_of(version.file_url) if version is not None else ""
+    if not key or not storage.exists(key):
+        return None
+    return RenderItem(
+        key=key,
+        data={"storage_key": key, "content_type": version.file_content_type},
+        filename=f"assets/{key}",
+        format="file",
+    )
 
 
 @dataclass(frozen=True)

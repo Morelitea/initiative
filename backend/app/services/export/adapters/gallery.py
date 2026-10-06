@@ -28,10 +28,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
+    asset_item,
     envelope_key,
+    storage_key_of,
 )
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
@@ -113,29 +116,8 @@ class GalleryAdapter(ToolExportAdapter):
 
         _gallery, images = loaded
         storage = get_guild_storage(ctx.guild_id)
-        pictures = []
-        for image in images:
-            version = image.current_version
-            key = storage_key_of(version.file_url)
-            if not key or not storage.exists(key):
-                continue
-            pictures.append(
-                RenderItem(
-                    key=key,
-                    data={
-                        "storage_key": key,
-                        "content_type": version.file_content_type,
-                    },
-                    filename=f"assets/{key}",
-                    format="file",
-                )
-            )
-        return (self.item(loaded, ctx), *pictures)
-
-
-def storage_key_of(url: str | None) -> str:
-    """The stored blob's key, as the manifest and the importer name it."""
-    return (url or "").split("/")[-1]
+        pictures = (asset_item(storage, image.current_version) for image in images)
+        return (self.item(loaded, ctx), *(p for p in pictures if p is not None))
 
 
 def build_gallery_item(
@@ -167,7 +149,7 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
             if cover is not None
             else None
         ),
-        "tags": sorted(tag.name for tag in getattr(gallery, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(gallery)),
         "properties": exported_properties(gallery),
         "images": [_image_envelope(image) for image in images],
     }
@@ -184,7 +166,7 @@ def _image_envelope(image: GalleryImage) -> dict[str, Any]:
         "original_filename": version.original_filename,
         "width": version.width,
         "height": version.height,
-        "tags": sorted(tag.name for tag in getattr(image, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(image)),
         "properties": exported_properties(image),
         # What a reference to this picture points at across one import.
         "external_ref": f"gallery_image:{image.id}",

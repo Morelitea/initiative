@@ -46,6 +46,7 @@ from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
     export_stem,
+    storage_key_of,
 )
 from app.services.export.contract import RenderItem
 from app.services.export.engine import ExportError
@@ -174,7 +175,7 @@ def build_document_item(
             data = {"title": document.name, "grid": document.content or {}}
     elif doc_type == DocumentType.file.value:
         version = document.current_version
-        storage_key = version.file_url.split("/")[-1]
+        storage_key = storage_key_of(version.file_url)
         data = {
             "storage_key": storage_key,
             "filename": version.original_filename or storage_key,
