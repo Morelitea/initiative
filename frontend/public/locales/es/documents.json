@@ -114,17 +114,13 @@
   "settings": {
     "notFound": "Documento no encontrado.",
     "title": "Configuración del documento",
-    "templateTitle": "Plantilla",
-    "templateDescription": "Los documentos de plantilla están diseñados para ser duplicados en lugar de editados directamente.",
-    "templateToggle": "Alternar estado de plantilla",
     "selectRole": "Seleccionar rol",
     "adding": "Agregando…",
     "removing": "Eliminando…",
     "filterByName": "Filtrar por nombre",
     "updateAccessError": "No se pudo actualizar el acceso",
     "dangerDescription": "Los documentos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención de la comunidad.",
-    "deleting": "Eliminando…",
-    "templateError": "No se pudo actualizar el estado de plantilla"
+    "deleting": "Eliminando…"
   },
   "sidePanel": {
     "summaryTab": "Resumen"

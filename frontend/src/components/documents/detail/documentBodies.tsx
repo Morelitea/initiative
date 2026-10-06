@@ -66,6 +66,8 @@ export interface DocumentBodyProps {
   settled: boolean;
   title: string;
   className?: string;
+  /** Prose only: the container already supplies the horizontal gutter. */
+  compact?: boolean;
   /** Reports what the body now holds — the edit the page saves. */
   onChange: (content: unknown) => void;
 }
@@ -124,6 +126,7 @@ const NativeBody = ({
   collaboration,
   live,
   className,
+  compact,
   onChange,
 }: DocumentBodyProps) => {
   const navigate = useNavigate();
@@ -168,6 +171,7 @@ const NativeBody = ({
         supportsEntityMentions={supportsEntityMentions(document.document_type)}
         onWikilinkNavigate={handleWikilinkNavigate}
         onCreateReferencedThing={handleCreateReferencedThing}
+        compact={compact}
       />
       {creating && (
         <CreateReferencedThingDialog

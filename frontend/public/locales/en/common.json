@@ -142,6 +142,11 @@
       "duplicated": "Copied to {{initiative}}",
       "error": "The copy could not be made."
     },
+    "template": {
+      "title": "Template",
+      "description": "A template is meant to be copied rather than worked in directly, and is listed with its initiative's templates.",
+      "toggle": "Toggle template status"
+    },
     "export": {
       "title": "Export",
       "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it."

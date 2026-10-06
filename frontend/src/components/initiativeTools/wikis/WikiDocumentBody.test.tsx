@@ -1,10 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDocumentSummary } from "@/__tests__/factories";
+import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { isWideDocument, WikiDocumentBody } from "./WikiDocumentBody";
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => vi.fn(),
+}));
 
 // Each kind's own renderer, stood in for by a line saying which it was and
 // whether it was told to stay read-only.
@@ -56,7 +62,7 @@ describe("WikiDocumentBody", () => {
     [documentOf({ document_type: "smart_link" }), "link"],
     [documentOf({ document_type: "native" }), "prose read-only"],
   ])("draws a document the way its own kind is drawn", async (document, expected) => {
-    render(<WikiDocumentBody document={document} initiativeId={1} />);
+    renderWithProviders(<WikiDocumentBody document={document} />);
     expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 

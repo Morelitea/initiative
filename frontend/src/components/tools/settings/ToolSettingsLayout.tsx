@@ -56,6 +56,8 @@ export interface ToolSettingsLayoutProps {
    * a document's name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
+  /** Marks it a template or takes it back — projects and documents. */
+  template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
   /** Extra cards for the Details section, e.g. a calendar's color. */
@@ -86,6 +88,7 @@ export const ToolSettingsLayout = ({
   isLoading,
   isError,
   update,
+  template,
   setGrants,
   remove,
   detailsExtra,
@@ -184,6 +187,7 @@ export const ToolSettingsLayout = ({
           tool,
           entity,
           update,
+          template,
           setGrants,
           remove,
           detailsExtra,

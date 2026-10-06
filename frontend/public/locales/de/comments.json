@@ -1,5 +1,6 @@
 {
   "contentRequired": "Inhalt ist erforderlich.",
+  "createError": "Dein Kommentar konnte nicht gepostet werden.",
   "contextPrefix": "{{type}}: {{name}}",
   "createKindPrompt": "Um was für eine Sache handelt es sich?",
   "createNamed": "„{{name}}\" erstellen",
@@ -8,8 +9,10 @@
   "deleteConfirmTitle": "Diesen Kommentar löschen?",
   "deleteConfirmDescription": "Er wird in den Papierkorb verschoben.",
   "deleteConfirmWithReplies": "Er wird zusammen mit den Antworten darunter in den Papierkorb verschoben.",
+  "deleteError": "Der Kommentar konnte nicht gelöscht werden.",
   "editPlaceholder": "Bearbeite deinen Kommentar...",
   "edited": "(bearbeitet)",
+  "updateError": "Deine Änderungen am Kommentar konnten nicht gespeichert werden.",
   "importedAuthor": "importiert",
   "pluginAuthor": "Ein Plug-in",
   "platformAuthor": "Plattform",

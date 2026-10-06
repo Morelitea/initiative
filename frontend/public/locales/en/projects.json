@@ -175,18 +175,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Task statuses",
-    "templateStatus": {
-      "title": "Template status",
-      "description": "Convert this project into a reusable template or revert it back to a standard project.",
-      "isTemplate": "This project is currently a template and appears on the Templates page.",
-      "isStandard": "This project behaves like a standard project.",
-      "convertToStandard": "Convert to standard project",
-      "markAsTemplate": "Mark as template",
-      "noWriteAccess": "You need write access to change template status.",
-      "viewAllTemplates": "View all templates",
-      "markedAsTemplate": "Project marked as template",
-      "removedFromTemplates": "Project removed from templates"
-    },
     "tabFilterPresets": "Views",
     "filterPresetsHeading": "Filter presets",
     "filterPresetsDescription": "Saved filter sets everyone in this project can pick from. The default is what the project opens on.",

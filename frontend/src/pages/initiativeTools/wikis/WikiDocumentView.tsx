@@ -154,10 +154,7 @@ export const WikiDocumentView = () => {
                   body waits for this visit's own fetch. */}
               {document_ && documentQuery.isFetchedAfterMount ? (
                 <>
-                  <WikiDocumentBody
-                    document={document_}
-                    initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
-                  />
+                  <WikiDocumentBody document={document_} />
                   {/* A borrowed document is a page of this wiki while you are
                       reading it here, so it leads on like one. */}
                   <WikiPageNav

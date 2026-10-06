@@ -175,18 +175,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Estados de tarea",
-    "templateStatus": {
-      "title": "Estado de plantilla",
-      "description": "Convierte este proyecto en una plantilla reutilizable o reviértelo a un proyecto estándar.",
-      "isTemplate": "Este proyecto es actualmente una plantilla y aparece en la página de Plantillas.",
-      "isStandard": "Este proyecto se comporta como un proyecto estándar.",
-      "convertToStandard": "Convertir a proyecto estándar",
-      "markAsTemplate": "Marcar como plantilla",
-      "noWriteAccess": "Necesitas acceso de escritura para cambiar el estado de plantilla.",
-      "viewAllTemplates": "Ver todas las plantillas",
-      "markedAsTemplate": "Proyecto marcado como plantilla",
-      "removedFromTemplates": "Proyecto eliminado de las plantillas"
-    },
     "tabFilterPresets": "Vistas",
     "filterPresetsHeading": "Preajustes de filtro",
     "filterPresetsDescription": "Conjuntos de filtros guardados que cualquiera del proyecto puede elegir. El predeterminado es con el que se abre el proyecto.",

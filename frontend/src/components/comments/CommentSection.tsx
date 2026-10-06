@@ -113,7 +113,7 @@ export const CommentSection = ({
       onCommentCreated?.(comment);
     },
     onError: (err) => {
-      setError(getErrorMessage(err, "documents:comments.errorCreate"));
+      setError(getErrorMessage(err, "comments:createError"));
     },
   });
 
@@ -123,7 +123,7 @@ export const CommentSection = ({
       onCommentDeleted?.(commentId);
     },
     onError: (err) => {
-      setDeleteError(getErrorMessage(err, "documents:comments.errorDelete"));
+      setDeleteError(getErrorMessage(err, "comments:deleteError"));
     },
   });
 
@@ -133,7 +133,7 @@ export const CommentSection = ({
       onCommentUpdated?.(comment);
     },
     onError: (err) => {
-      setEditError(getErrorMessage(err, "documents:comments.errorUpdate"));
+      setEditError(getErrorMessage(err, "comments:updateError"));
     },
   });
 

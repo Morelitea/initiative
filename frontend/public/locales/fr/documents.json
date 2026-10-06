@@ -114,17 +114,13 @@
   "settings": {
     "notFound": "Document introuvable.",
     "title": "Paramètres du document",
-    "templateTitle": "Modèle",
-    "templateDescription": "Les documents modèles sont destinés à être dupliqués plutôt qu'édités directement.",
-    "templateToggle": "Basculer le statut de modèle",
     "selectRole": "Sélectionner un rôle",
     "adding": "Ajout en cours…",
     "removing": "Suppression en cours…",
     "filterByName": "Filtrer par nom",
     "updateAccessError": "Impossible de mettre à jour l'accès",
     "dangerDescription": "Les documents supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention de la communauté.",
-    "deleting": "Suppression en cours…",
-    "templateError": "Impossible de mettre à jour le statut de modèle"
+    "deleting": "Suppression en cours…"
   },
   "sidePanel": {
     "summaryTab": "Résumé"

@@ -18,6 +18,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  type ToolMutation,
   type ToolSettingsEntity,
   ToolSettingsProvider,
 } from "@/components/tools/settings/ToolSettingsContext";
@@ -66,13 +67,15 @@ const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
 const renderSection = (
   Section: React.ComponentType,
   entity: ToolSettingsEntity,
-  tool: Tool = Tool.queue
+  tool: Tool = Tool.queue,
+  template?: ToolMutation<{ is_template: boolean }>
 ) =>
   renderPage(() => (
     <ToolSettingsProvider
       value={{
         tool,
         entity,
+        template,
         setGrants: noopMutation(),
         remove: noopMutation(),
       }}
@@ -170,6 +173,49 @@ describe("ToolSettingsDetailsPage comments switch", () => {
     await userEvent.click(toggle);
 
     await waitFor(() => expect(toggle).toBeChecked());
+  });
+});
+
+describe("ToolSettingsDetailsPage template switch", () => {
+  it("marks it a template", async () => {
+    const template = noopMutation();
+    renderSection(
+      ToolSettingsDetailsPage,
+      buildEntity({ is_template: false }),
+      Tool.project,
+      template
+    );
+
+    const toggle = await screen.findByRole("switch", { name: "Toggle template status" });
+    await userEvent.click(toggle);
+
+    expect(template.mutate).toHaveBeenCalledWith({ is_template: true }, expect.anything());
+    expect(toggle).toBeChecked();
+  });
+
+  it("puts the switch back when the write fails", async () => {
+    const template = {
+      mutate: vi.fn((_vars, options?: { onError?: () => void }) => options?.onError?.()),
+      isPending: false,
+    };
+    renderSection(
+      ToolSettingsDetailsPage,
+      buildEntity({ is_template: true }),
+      Tool.project,
+      template
+    );
+
+    const toggle = await screen.findByRole("switch", { name: "Toggle template status" });
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
+  it("is not offered for a tool without templates", async () => {
+    renderSection(ToolSettingsDetailsPage, buildEntity());
+
+    await screen.findByRole("switch", { name: "Enable comments" });
+    expect(screen.queryByRole("switch", { name: "Toggle template status" })).toBeNull();
   });
 });
 

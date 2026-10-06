@@ -14,6 +14,7 @@ import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyPanel } from "@/components/properties";
 import { TagPicker } from "@/components/tags";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
+import { ToolTemplateCard } from "@/components/tools/settings/ToolTemplateCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,6 +123,8 @@ export const ToolSettingsDetailsPage = () => {
       )}
 
       {detailsExtra}
+
+      <ToolTemplateCard />
 
       <Card>
         <CardHeader>

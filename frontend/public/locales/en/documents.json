@@ -114,17 +114,13 @@
   "settings": {
     "notFound": "Document not found.",
     "title": "Document settings",
-    "templateTitle": "Template",
-    "templateDescription": "Template documents are intended to be duplicated instead of edited directly.",
-    "templateToggle": "Toggle template status",
     "selectRole": "Select role",
     "adding": "Adding…",
     "removing": "Removing…",
     "filterByName": "Filter by name",
     "updateAccessError": "Unable to update access",
     "dangerDescription": "Deleted documents go to the trash and can be restored before the community's retention period ends.",
-    "deleting": "Deleting…",
-    "templateError": "Unable to update template status"
+    "deleting": "Deleting…"
   },
   "sidePanel": {
     "summaryTab": "Summary"
