@@ -1,8 +1,9 @@
-"""The custom property route an installed plug-in calls.
+"""The custom property routes an installed plug-in calls.
 
 ``PUT /properties/{target}/{id}`` answers to the write scope of the tool that
 governs the item, and a person-valued property names the person by the
-install's own reference for them, on the way in and on the way out.
+install's own reference for them, on the way in and on the way out. The
+definitions answer to ``properties``, and are read with any tool's scope too.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from app.core.messages import PluginMessages, QueryMessages
+from app.core.messages import InitiativeMessages, PluginMessages, QueryMessages
 from app.models.tenant.property import PropertyType
 from app.services.marketplace import plugin_refs
 from app.testing import (
@@ -114,7 +115,7 @@ async def test_setting_values_needs_the_tools_write(
     kind, client, session, acting_user, role_session
 ):
     tool = _KINDS[kind][0]
-    scopes = [f"{tool}:read", f"{tool}:write", "initiatives:read"]
+    scopes = [f"{tool}:read", f"{tool}:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     guild_id = installed.guild.id
     item_id = await _KINDS[kind][1](
@@ -139,6 +140,68 @@ async def test_setting_values_needs_the_tools_write(
     [value] = written.json()
     assert value["property_id"] == note.id
     assert value["value"] == "Set by the plug-in"
+
+
+async def test_definitions_are_read_with_any_tool_and_written_with_properties(
+    client, session, acting_user, role_session
+):
+    scopes = ["projects:write", "properties:write"]
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
+    url = guild_url(installed.guild.id, "/property-definitions/")
+    stage = await create_property_definition(
+        session,
+        installed.placed,
+        name="Stage",
+        type=PropertyType.select,
+        options=[{"value": "draft", "label": "Draft"}],
+    )
+
+    by_tool = await client.get(
+        url, headers=install_headers(installed, ["projects:read"])
+    )
+    assert by_tool.status_code == 200, by_tool.text
+    [listed] = by_tool.json()
+    assert listed["id"] == stage.id
+    assert [option["value"] for option in listed["options"]] == ["draft"]
+
+    unrelated = await client.get(
+        url, headers=install_headers(installed, ["members:read"])
+    )
+    assert unrelated.status_code == 403, unrelated.text
+
+    body = {
+        "initiative_id": installed.placed.id,
+        "name": "Client",
+        "type": "select",
+        "options": [{"value": "acme", "label": "Acme"}],
+    }
+    refused = await client.post(
+        url, headers=install_headers(installed, ["properties:read"]), json=body
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED
+
+    # Placed in the initiative, it creates and adds options as a member does;
+    # reshaping or removing one is a manager's.
+    headers = install_headers(installed, ["properties:write"])
+    created = await client.post(url, headers=headers, json=body)
+    assert created.status_code == 201, created.text
+    definition_url = f"{url}{created.json()['id']}"
+    added = await client.patch(
+        definition_url,
+        headers=headers,
+        json={"options": [{"value": "globex", "label": "Globex"}]},
+    )
+    assert added.status_code == 200, added.text
+    assert [o["value"] for o in added.json()["definition"]["options"]] == [
+        "acme",
+        "globex",
+    ]
+    renamed = await client.patch(
+        definition_url, headers=headers, json={"name": "Customer"}
+    )
+    assert renamed.status_code == 403, renamed.text
+    assert renamed.json()["detail"] == InitiativeMessages.MANAGER_REQUIRED
 
 
 # ---------------------------------------------------------------------------

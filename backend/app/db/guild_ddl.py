@@ -815,6 +815,12 @@ def _plugin_predicates(table: str) -> dict[str, str]:
     read = plugin_scope(access.resource, False, IN_POLICY)
     if table == "initiatives":
         read = f"({read} OR initiatives.id IN {_plugin_placed_initiatives()})"
+    elif table == "property_definitions":
+        # A value is set with the scope of the tool its item belongs to, and
+        # any item in the initiative may carry any of its definitions.
+        tools = ", ".join(f"'{tool_resource(tool).value}'" for tool in Tool)
+        held = IN_POLICY.field("install_read")
+        read = f"({read} OR {held} && ARRAY[{tools}]::text[])"
     elif table in _PLUGIN_MEMBER_OWN_READ:
         read = f"({read} OR {_PLUGIN_MEMBER_OWN_READ[table]})"
     write = (

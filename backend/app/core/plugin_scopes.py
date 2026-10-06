@@ -6,6 +6,8 @@ name, so a new tool is a new scope the moment it joins ``Tool``:
 
 - one resource per tool, spelled as the tool's plural;
 - ``comments``, ``relationships`` and ``tags``, the surfaces that span tools;
+- ``properties``, an initiative's custom property definitions. A value set on
+  an item answers to the scope of the tool that governs the item instead;
 - ``sharing``, a resource's grants: reading who has access, and changing it
   where the plug-in's own rung on the resource would let a person;
 - ``members`` and ``initiatives``, which are read-only.
@@ -39,7 +41,13 @@ from app.core.tools import Tool
 
 #: The resources that span tools, and the read-only ones. Everything else is a
 #: tool.
-_SHARED_RESOURCES: tuple[str, ...] = ("comments", "relationships", "tags", "sharing")
+_SHARED_RESOURCES: tuple[str, ...] = (
+    "comments",
+    "relationships",
+    "tags",
+    "properties",
+    "sharing",
+)
 _READ_ONLY_RESOURCES: tuple[str, ...] = ("members", "initiatives")
 
 # What a scope names: one member per tool, plus the surfaces that span tools.

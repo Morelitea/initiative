@@ -226,6 +226,7 @@
       "comments": "Comments",
       "relationships": "Links",
       "tags": "Tags",
+      "properties": "Properties",
       "sharing": "Sharing",
       "members": "Members",
       "initiatives": "Initiatives",
@@ -279,6 +280,10 @@
       "tags": {
         "read": "Read tags",
         "write": "Read and change tags"
+      },
+      "properties": {
+        "read": "Read custom properties and their options",
+        "write": "Read, create and change custom properties"
       },
       "sharing": {
         "read": "See who has access to what",

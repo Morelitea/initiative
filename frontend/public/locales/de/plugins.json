@@ -226,6 +226,7 @@
       "comments": "Kommentare",
       "relationships": "Verknüpfungen",
       "tags": "Tags",
+      "properties": "Eigenschaften",
       "sharing": "Freigaben",
       "members": "Mitglieder",
       "initiatives": "Initiativen",
@@ -279,6 +280,10 @@
       "tags": {
         "read": "Tags lesen",
         "write": "Tags lesen und ändern"
+      },
+      "properties": {
+        "read": "Eigene Eigenschaften und ihre Optionen lesen",
+        "write": "Eigene Eigenschaften lesen, anlegen und ändern"
       },
       "sharing": {
         "read": "Sehen, wer worauf Zugriff hat",

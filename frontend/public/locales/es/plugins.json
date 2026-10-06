@@ -226,6 +226,7 @@
       "comments": "Comentarios",
       "relationships": "Vínculos",
       "tags": "Etiquetas",
+      "properties": "Propiedades",
       "sharing": "Uso compartido",
       "members": "Miembros",
       "initiatives": "Iniciativas",
@@ -279,6 +280,10 @@
       "tags": {
         "read": "Leer etiquetas",
         "write": "Leer y cambiar etiquetas"
+      },
+      "properties": {
+        "read": "Leer propiedades personalizadas y sus opciones",
+        "write": "Leer, crear y cambiar propiedades personalizadas"
       },
       "sharing": {
         "read": "Ver quién tiene acceso a qué",

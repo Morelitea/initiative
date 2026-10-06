@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
 - **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
 - **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins Morelitea publishes have no flag.
+- **Plug-ins can create custom properties.** A community can grant a plug-in **Properties**, which lets it read an initiative's property definitions and add new ones. A plug-in that can change something, such as a task, can still fill in that thing's properties without it.
 
 ### Changed
 
