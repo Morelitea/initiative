@@ -8,7 +8,7 @@
  *
  * Plug-ins a community has already installed are not affected — the community
  * chose them — but the iPhone app shows a notice the first time a member opens
- * one that Morelitea does not publish (see `PluginProviderNotice`).
+ * one that BeyondersStudio does not publish (see `PluginProviderNotice`).
  */
 
 import { Capacitor } from "@capacitor/core";

@@ -260,10 +260,10 @@ class TestApplying:
     async def test_a_sector_is_kept_only_for_this_projects_own_plugins(
         self, session, repo, trusted
     ):
-        repo.add_publisher("morelitea", name="Morelitea")
+        repo.add_publisher("beyonders-studio", name="BeyondersStudio")
         sectored = container_registration(reference_sectors=["billing", "weather"])
         repo.add_listing(
-            "morelitea", "MRXT0000000001", slug="auto", registration=sectored
+            "beyonders-studio", "MRXT0000000001", slug="auto", registration=sectored
         )
         repo.add_listing("acme", PLUGIN_UID, slug="tracker", registration=sectored)
         repo.publish()
@@ -271,7 +271,7 @@ class TestApplying:
         result, _ = await _refresh(session, repo)
 
         assert result.ok, result
-        ours = await _registration(session, "morelitea.auto")
+        ours = await _registration(session, "beyonders-studio.auto")
         assert ours is not None and ours.reference_sectors == ["billing"]
         theirs = await _registration(session, "acme.tracker")
         assert theirs is not None and theirs.reference_sectors == []
@@ -376,21 +376,21 @@ class TestOtherSources:
     ):
         await create_publisher(
             session,
-            prefix="morelitea",
+            prefix="beyonders-studio",
             display_name="Seeded",
             enabled=False,
             source="seed",
         )
-        repo.add_publisher("morelitea", name="Morelitea")
-        repo.add_listing("morelitea", "MRXT0000000001", slug="github")
+        repo.add_publisher("beyonders-studio", name="BeyondersStudio")
+        repo.add_listing("beyonders-studio", "MRXT0000000001", slug="github")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
         assert result.ok, result
-        publisher = await _publisher(session, "morelitea")
+        publisher = await _publisher(session, "beyonders-studio")
         assert publisher is not None
-        assert publisher.display_name == "Morelitea"
+        assert publisher.display_name == "BeyondersStudio"
         assert publisher.enabled is False
 
     async def test_a_registration_another_listing_holds_is_not_taken(

@@ -1,7 +1,7 @@
 name: Registry re-sign
 
 # Starts the public plug-in registry's Registry workflow in
-# Morelitea/initiative-developer once a day. Its timestamp role expires after a
+# beyonders-studio/initiative-developer once a day. Its timestamp role expires after a
 # day, so the registry is re-signed and republished daily even when nothing
 # merges there. The schedule lives here because GitHub turns a repository's
 # schedules off after 60 days without a commit, and this one is never that
@@ -29,11 +29,11 @@ jobs:
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: Morelitea
+          owner: beyonders-studio
           repositories: initiative-developer
           permission-actions: write
 
       - name: Run the Registry workflow
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-        run: gh workflow run registry.yml --repo Morelitea/initiative-developer --ref main
+        run: gh workflow run registry.yml --repo beyonders-studio/initiative-developer --ref main

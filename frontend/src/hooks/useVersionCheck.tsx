@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getVersion } from "@/api/generated/version/version";
-import { compareVersions } from "@/hooks/useDockerHubVersion";
+import { compareVersions } from "@/hooks/useLatestVersion";
 import { getItem, setItem } from "@/lib/storage";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes

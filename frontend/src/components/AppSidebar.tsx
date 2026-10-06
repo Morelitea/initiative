@@ -49,7 +49,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
-import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
+import { compareVersions, useLatestVersion } from "@/hooks/useLatestVersion";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
@@ -288,8 +288,8 @@ export const AppSidebar = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storage-backed, re-read per collapse action
   }, [tagCollapseKey]);
 
-  // Fetch latest DockerHub version
-  const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
+  // Fetch the latest released version
+  const { data: latestVersion, isLoading: isLoadingVersion } = useLatestVersion();
   const currentVersion = __APP_VERSION__;
   const hasUpdate =
     latestVersion && currentVersion && compareVersions(latestVersion, currentVersion) > 0;

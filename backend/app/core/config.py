@@ -1075,7 +1075,7 @@ class Settings(BaseSettings):
     # repository signed under somebody else's keys. Listings and plug-ins from it
     # land as usual; reference sectors are honoured only under the shipped root.
     MARKETPLACE_REGISTRY_URL: str = (
-        "https://morelitea.github.io/initiative-developer/public/"
+        "https://beyonders-studio.github.io/initiative-developer/public/"
     )
     MARKETPLACE_REGISTRY_ROOT: str | None = None
     # A bearer token sent with registry requests, for a registry that asks for

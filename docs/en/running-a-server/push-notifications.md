@@ -10,11 +10,11 @@ Push is optional. Initiative works fine without it, and in-app and email notific
 
 Go to **Settings → Platform → Push notifications**, as the [owner](platform-roles.md), turn on **Send push notifications**, and save. That's it. Leave every other field empty.
 
-With no Firebase service account saved, your server sends pushes through **Morelitea's push relay**, which holds the app's credentials with Apple and Google so you don't have to. The app on people's phones picks it up the next time it opens. Nothing to restart, nothing to rebuild, no Firebase console.
+With no Firebase service account saved, your server sends pushes through **BeyondersStudio's push relay**, which holds the app's credentials with Apple and Google so you don't have to. The app on people's phones picks it up the next time it opens. Nothing to restart, nothing to rebuild, no Firebase console.
 
 | Phone | Goes through |
 |---|---|
-| **iPhone** | The relay, always. Apple only accepts pushes for the app signed with Morelitea's key, and nobody else can hold that key. |
+| **iPhone** | The relay, always. Apple only accepts pushes for the app signed with BeyondersStudio's key, and nobody else can hold that key. |
 | **Android**, no service account saved | The relay. |
 | **Android**, with your own service account | Your Firebase project, directly. The relay never sees it. |
 
@@ -93,7 +93,7 @@ The key is write-only: once it's saved, the field shows that a key is there, and
 |---|---|
 | "FCM not configured" | **Send push notifications** is off. Turn it on and save. |
 | "Push relay credentials unavailable" in the logs | The server couldn't register with the relay (it can't reach it, or the relay is busy). It tries again a few minutes later on its own. |
-| "Push relay refused this server" | The relay has suspended this server. Get in touch with Morelitea. |
+| "Push relay refused this server" | The relay has suspended this server. Get in touch with BeyondersStudio. |
 | App errors when enabling push | The server's Firebase settings don't match your project — check each field against step 4, and the `/api/v1/settings/fcm-config` endpoint. |
 | Push not received | Invalid credentials, the device token wasn't registered, the user disabled the category, or the `project_id` doesn't match — check backend logs and the user's notification settings. |
 

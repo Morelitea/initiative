@@ -240,7 +240,7 @@ describe("MarketplaceListingPage", () => {
     expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
   });
 
-  it("offers no report on a listing Morelitea publishes", async () => {
+  it("offers no report on a listing BeyondersStudio publishes", async () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.queryByRole("button", { name: "Report" })).toBeNull();

@@ -32,7 +32,7 @@ VENDOR = _BACKEND / "vendor" / "plugin-kit"
 FRONTEND_CONTRACT = (
     _BACKEND.parent / "frontend" / "src" / "contract" / "manifest.contract.json"
 )
-RAW = "https://raw.githubusercontent.com/Morelitea/initiative-plugin-sdk"
+RAW = "https://raw.githubusercontent.com/beyonders-studio/initiative-plugin-sdk"
 
 #: What the kit publishes and this build reads: the contract, and the schema
 #: generated from it that the conformance tests run.

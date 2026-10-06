@@ -2181,7 +2181,7 @@ export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, T
  *
  * Rate limited to 20 requests per minute to prevent abuse.
  *
- * With no service account configured, pushes go through Morelitea's push
+ * With no service account configured, pushes go through BeyondersStudio's push
  * relay, and the Firebase settings served are the relay's (fetched with this
  * server's relay key and cached); if the relay cannot say, ``enabled`` is
  * served alone.

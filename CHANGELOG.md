@@ -25,12 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
 - **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, with full read access to the initiative. A new role permission, **Run dashboards as Initiative**, says who may turn it on or change such a dashboard's tiles; managers always can.
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
-- **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
+- **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with BeyondersStudio's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
 - **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
 - **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
 - **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
-- **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins Morelitea publishes have no flag.
+- **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins BeyondersStudio publishes have no flag.
 - **Plug-ins can create custom properties.** A community can grant a plug-in **Properties**, which lets it read an initiative's property definitions and add new ones. A plug-in that can change something, such as a task, can still fill in that thing's properties without it.
 
 ### Changed
@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
 - **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
 - **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it: install the new one, sign in, then uninstall the old one. The old app keeps working with upgraded servers in the meantime. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
+- **The image is now `ghcr.io/beyonders-studio/initiative`**, on the GitHub Container Registry, and the project lives at `github.com/beyonders-studio/initiative`. Docker Hub's `morelitea/initiative` keeps the releases it has but gets no new ones: change your compose file's `image:` line to `ghcr.io/beyonders-studio/initiative:latest` (or `:stable`, or a version). The update notice now reads the project's GitHub releases.
+- **First-party plug-ins are published as `beyonders-studio`** (`beyonders-studio.github`, `beyonders-studio.automations`, …), and the default marketplace registry moves to `https://beyonders-studio.github.io/initiative-developer/public/`. **Self-hosted:** a plug-in installed under a `morelitea.` id is no longer treated as first-party; remove it and install its `beyonders-studio.` listing. If you set `MARKETPLACE_REGISTRY_URL` to the old address, change or unset it.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.**
 - **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.
@@ -57,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
 - **On iPhone, an app update is sent to the App Store**, not to an APK download.
-- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Plug-ins a community already added open too; one Morelitea doesn't publish shows a one-time note first saying who made it.
+- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Plug-ins a community already added open too; one BeyondersStudio doesn't publish shows a one-time note first saying who made it.
 - **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
 - **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
 - **An app installed from Google Play is sent back to Play** when it needs updating.
@@ -2575,13 +2577,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
 - **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+  curl -fsSL https://raw.githubusercontent.com/beyonders-studio/initiative/main/scripts/upgrade-to-baseline.sql \
     -o upgrade-to-baseline.sql
   psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
   ```
   If psql is not available on your host (e.g. Synology, Unraid), pipe through the Postgres container:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+  curl -fsSL https://raw.githubusercontent.com/beyonders-studio/initiative/main/scripts/upgrade-to-baseline.sql | \
     docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
   ```
   Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.

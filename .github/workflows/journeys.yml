@@ -56,7 +56,7 @@ jobs:
             APT_REFRESH=${{ steps.build.outputs.day }}
           cache-from: type=gha,scope=docker-build-linux-amd64
           load: true
-          tags: morelitea/initiative:latest
+          tags: ghcr.io/beyonders-studio/initiative:latest
 
       - name: Pull the image to run
         if: inputs.image != ''
@@ -64,11 +64,11 @@ jobs:
           IMAGE: ${{ inputs.image }}
         run: |
           docker pull "$IMAGE"
-          docker tag "$IMAGE" morelitea/initiative:latest
+          docker tag "$IMAGE" ghcr.io/beyonders-studio/initiative:latest
 
       - name: Start it as the example compose file does
         # The file as shipped, with the image under test as the
-        # morelitea/initiative:latest it names.
+        # ghcr.io/beyonders-studio/initiative:latest it names.
         run: |
           mkdir -p "$RUNNER_TEMP/install"
           cp docker-compose.example.yml "$RUNNER_TEMP/install/docker-compose.yml"

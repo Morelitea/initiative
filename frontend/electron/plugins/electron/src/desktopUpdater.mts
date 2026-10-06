@@ -2,7 +2,7 @@ import { app } from "./app.mjs";
 import { updater } from "./autoUpdater.mjs";
 
 /** Updates come only from the project's own releases. */
-const RELEASES = "https://github.com/Morelitea/initiative/releases/download";
+const RELEASES = "https://github.com/beyonders-studio/initiative/releases/download";
 
 /** "1.2.3" and nothing else: each part digits only. */
 const isReleaseVersion = (version: string) => {

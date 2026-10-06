@@ -30,9 +30,9 @@ After that it opens in its own window with no browser furniture around it, stays
 
 There's a proper Android app as well. Same Initiative inside, but it can do the thing a browser tab can't: **push notifications**, arriving on your phone while the app is shut. If whoever runs your server has [set that up](../running-a-server/push-notifications.md), this is the version you want.
 
-[![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png){ width="240" }](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative)
+[![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png){ width="240" }](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fbeyonders-studio%2Finitiative)
 
-[Obtainium](https://github.com/ImranR98/Obtainium) is a free app that watches a project's releases and keeps you updated from them. Install Obtainium first, then tap that button and it fills in the rest, including working back to the most recent release that actually carries an app. Doing it by hand instead: take the newest [release](https://github.com/Morelitea/initiative/releases) with an `.apk` on it. That often isn't the top one: the app is only rebuilt when it changes, and the releases in between are web-only.
+[Obtainium](https://github.com/ImranR98/Obtainium) is a free app that watches a project's releases and keeps you updated from them. Install Obtainium first, then tap that button and it fills in the rest, including working back to the most recent release that actually carries an app. Doing it by hand instead: take the newest [release](https://github.com/beyonders-studio/initiative/releases) with an `.apk` on it. That often isn't the top one: the app is only rebuilt when it changes, and the releases in between are web-only.
 
 Either way Android will check that you meant to install something from outside the Play Store. You did. Allow it for whichever app is doing the installing.
 
@@ -61,7 +61,7 @@ Restore your old phone's backup onto a new one and the app comes back with your 
 
 There's an app for Windows, Mac and Linux as well. Same Initiative, in its own window, and it signs in as one of your devices, the way the Android app does.
 
-Get it from the **Download** page on your community's Initiative, which picks the right file for your computer. Or take it from the newest [release](https://github.com/Morelitea/initiative/releases) that has one: the `.exe` for Windows, the `.dmg` for a Mac, the `.deb` for Debian and Ubuntu.
+Get it from the **Download** page on your community's Initiative, which picks the right file for your computer. Or take it from the newest [release](https://github.com/beyonders-studio/initiative/releases) that has one: the `.exe` for Windows, the `.dmg` for a Mac, the `.deb` for Debian and Ubuntu.
 
 !!! note "Your computer will ask whether you meant it"
     The installers aren't signed with a publisher's certificate yet, so Windows and macOS stop and check. On Windows, choose **More info**, then **Run anyway**. On a Mac, open it once, then go to **System Settings › Privacy & Security** and choose **Open Anyway**.

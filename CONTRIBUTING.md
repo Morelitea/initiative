@@ -113,7 +113,7 @@ cd frontend && ./scripts/test-changed.sh --staged
 
 The published app only installs updates signed with the release key, so it stays put on a server running the `dev` image. Use the dev app instead:
 
-1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/Morelitea/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
+1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/beyonders-studio/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
 2. Point it at a server running the `dev` (or `dev-<sha>`) image. Every push to `dev` then reaches it over the air.
 
 Install a newer dev APK when `dev` changes native code (a Capacitor plugin, anything under `frontend/android`), since an update can only swap web assets. The two apps share the `initiative://` sign-in link, so Android asks which one to open it with.
@@ -276,7 +276,7 @@ After that, `pnpm --dir electron run build:installer` builds the installer for t
 
 ## Reporting Issues
 
-Use the [issue templates](https://github.com/Morelitea/initiative/issues/new/choose) to file bug reports or feature requests.
+Use the [issue templates](https://github.com/beyonders-studio/initiative/issues/new/choose) to file bug reports or feature requests.
 
 ## Security Vulnerabilities
 

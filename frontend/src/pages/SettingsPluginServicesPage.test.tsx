@@ -346,7 +346,7 @@ describe("SettingsPluginServicesPage", () => {
 
     it("shows the compose service to copy, and its address as the base URL", async () => {
       const user = userEvent.setup();
-      const service = "github:\n  image: ghcr.io/morelitea/github@sha256:abc\n";
+      const service = "github:\n  image: ghcr.io/beyonders-studio/github@sha256:abc\n";
       registrations = [
         buildRegistration({
           base_url: null,

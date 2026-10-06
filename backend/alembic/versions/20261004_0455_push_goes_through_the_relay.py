@@ -1,7 +1,7 @@
 """Push goes through the relay
 
 A server sends iPhone pushes, and Android ones when it has no Firebase service
-account of its own, through Morelitea's push relay. It registers with the relay
+account of its own, through BeyondersStudio's push relay. It registers with the relay
 the first time it needs to and keeps what it is issued here, beside the service
 account: ``push_relay_server_id`` (not a secret) and
 ``push_relay_key_encrypted`` (Fernet, like the credentials beside it). Nothing

@@ -102,7 +102,7 @@ SEED = BACKEND / "scripts" / "upgrade_seed.py"
 DATABASE = "initiative"
 
 #: Where each release's image is published, tagged with its version.
-RELEASE_IMAGE = "docker.io/morelitea/initiative"
+RELEASE_IMAGE = "ghcr.io/beyonders-studio/initiative"
 
 #: Where a booted image answers, and the address it is told it has: a
 #: deployment reached at another one, over plain HTTP.

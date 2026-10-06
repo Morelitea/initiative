@@ -3,7 +3,7 @@ import Foundation
 
 /// Says whether the connected server sends push notifications. On iOS there is no Firebase to
 /// start: the app registers its APNs token with the server, and the server sends iPhone pushes
-/// through Morelitea's push relay, which holds the publisher's APNs key. The name and methods
+/// through BeyondersStudio's push relay, which holds the publisher's APNs key. The name and methods
 /// match the Android plugin so the web layer calls one interface.
 @objc(FirebaseRuntimePlugin)
 public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {

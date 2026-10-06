@@ -11,9 +11,6 @@ on:
         required: false
         default: ''
 
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
-
 jobs:
   decide:
     runs-on: ubuntu-24.04
@@ -275,6 +272,8 @@ jobs:
       - name: Find this tree's candidate
         id: find
         run: |
+          # GHCR repository names are lowercase; the owner's login may not be.
+          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative"
           tree=$(git rev-parse 'HEAD^{tree}' | cut -c1-12)
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           # Resolved once, here: what is published is this digest, whatever
@@ -296,6 +295,7 @@ jobs:
     if: needs.candidate.outputs.checked != 'true'
     permissions:
       contents: read
+      packages: write  # the push to GHCR
       id-token: write  # the image's signature
     uses: ./.github/workflows/docker-image.yml
     with:
@@ -315,13 +315,13 @@ jobs:
     uses: ./.github/workflows/upgrade.yml
     with:
       mode: walk
-      image: docker.io/morelitea/initiative@${{ needs.docker-public.outputs.digest }}
+      image: ${{ needs.docker-public.outputs.image }}@${{ needs.docker-public.outputs.digest }}
 
   journeys:
     needs: [candidate, docker-public]
     uses: ./.github/workflows/journeys.yml
     with:
-      image: docker.io/morelitea/initiative@${{ needs.docker-public.outputs.digest }}
+      image: ${{ needs.docker-public.outputs.image }}@${{ needs.docker-public.outputs.digest }}
 
   publish:
     # Tags the checked image as the release: the candidate, or the build
@@ -338,15 +338,17 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      packages: write
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag the checked image as this release
         # A tag, or a run given a version, publishes the version tags;
@@ -357,6 +359,7 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           [[ "$DIGEST" == sha256:* ]] || { echo "::error::No checked image digest to publish."; exit 1; }
+          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative"
           tags=(-t "$IMAGE_NAME:latest")
           if [[ "$GITHUB_REF" == refs/tags/* || -n "$INPUT_VERSION" ]]; then
             IFS=. read -r major minor _ <<< "$VERSION"
@@ -386,18 +389,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Sync the Docker Hub repository overview from .github/DOCKERHUB.md so the published
-      # description stays in version control. The description-update API needs a token with
-      # write scope (or the account password); if this 401s, widen DOCKERHUB_TOKEN's scope.
-      - name: Update Docker Hub description
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.IMAGE_NAME }}
-          short-description: "Self-hosted project management for friend groups, gaming communities, and small teams"
-          readme-filepath: ./.github/DOCKERHUB.md
+      - name: Name the image
+        # GHCR repository names are lowercase; the owner's login may not be.
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative" >> "$GITHUB_ENV"
 
       - name: Download Android APK
         if: needs.build-android.result == 'success'
@@ -418,8 +412,6 @@ jobs:
         id: changelog
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           APK_BUILT: ${{ needs.build-android.result == 'success' }}
           DESKTOP_BUILT: ${{ needs.build-desktop.result == 'success' }}
           VERSION: ${{ needs.decide.outputs.version }}
@@ -482,7 +474,7 @@ jobs:
           docker pull ${IMAGE_NAME}:${VERSION}
           \`\`\`
 
-          Or use \`latest\` tag. View on [Docker Hub](https://hub.docker.com/r/${DOCKERHUB_USERNAME}/initiative).
+          Or use the \`latest\` tag. View the [package on GitHub](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/initiative).
           ENDOFBODY
 
           # Remove leading whitespace from heredoc
@@ -519,4 +511,4 @@ jobs:
         uses: tsickert/discord-webhook@b217a69502f52803de774ded2b1ab7c282e99645 # v7.0.0
         with:
           webhook-url: ${{ secrets.WEBHOOK_URL }}
-          content: ":tada: Initiative ${{ needs.decide.outputs.version }} has been published! Download the apk from the [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) or pull the Docker image with tag `${{ needs.decide.outputs.version }}` from Docker Hub."
+          content: ":tada: Initiative ${{ needs.decide.outputs.version }} has been published! Download the apk from the [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) or pull `ghcr.io/beyonders-studio/initiative:${{ needs.decide.outputs.version }}`."

@@ -25,10 +25,10 @@ services:
       retries: 5
 
   initiative:
-    # Use the published Docker image from Docker Hub
+    # The published image, from the GitHub Container Registry
     # Available tags: latest, 0.1, 0.1.1, etc.
-    # See: https://hub.docker.com/r/morelitea/initiative
-    image: morelitea/initiative:latest
+    # See: https://github.com/beyonders-studio/initiative/pkgs/container/initiative
+    image: ghcr.io/beyonders-studio/initiative:latest
     container_name: initiative
     restart: unless-stopped
     # The same cap here. The audit stream is part of this container's output,

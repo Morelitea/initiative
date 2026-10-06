@@ -379,7 +379,7 @@
     "latestVersionLoading": "Cargando...",
     "latestVersionUnavailable": "No disponible",
     "upToDate": "Actualizado",
-    "newVersionOnDockerHub": "Una nueva versión está disponible en",
+    "newVersionOnGitHub": "Una nueva versión está disponible en",
     "changelog": "Registro de cambios",
     "noDetailedChanges": "No hay cambios detallados disponibles.",
     "noChangelog": "No hay registro de cambios disponible.",

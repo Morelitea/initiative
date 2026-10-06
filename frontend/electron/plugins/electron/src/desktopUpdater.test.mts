@@ -40,7 +40,7 @@ describe("the desktop app updater", () => {
     });
     expect(electron.autoUpdater.setFeedURL).toHaveBeenCalledWith({
       provider: "generic",
-      url: "https://github.com/Morelitea/initiative/releases/download/v0.80.0",
+      url: "https://github.com/beyonders-studio/initiative/releases/download/v0.80.0",
     });
     expect(electron.autoUpdater.downloadUpdate).toHaveBeenCalled();
   });

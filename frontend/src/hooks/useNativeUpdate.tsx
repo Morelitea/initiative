@@ -5,7 +5,7 @@ import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { compareVersions } from "@/hooks/useDockerHubVersion";
+import { compareVersions } from "@/hooks/useLatestVersion";
 import { useServer } from "@/hooks/useServer";
 import { autoUpdateConsented, desktopCanUpdate } from "@/lib/desktopUpdates";
 import { toast } from "@/lib/mascotToast";
