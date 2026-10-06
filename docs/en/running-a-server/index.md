@@ -55,9 +55,15 @@ Not sure you want to run a server at all? A paid hosted service is on the way â€
 
     [:octicons-arrow-right-24: Object storage](object-storage.md)
 
+-   :material-puzzle-outline: __Running plug-ins__
+
+    The Initiative registry, and what each plug-in needs from you.
+
+    [:octicons-arrow-right-24: Running plug-ins](plugins.md)
+
 -   :material-package-variant-plus: __Publishing your own listings__
 
-    Add your own dashboards and plug-ins to the marketplace.
+    Add your own dashboards, projects and plug-ins to the marketplace.
 
     [:octicons-arrow-right-24: Publishing listings](publishing-listings.md)
 

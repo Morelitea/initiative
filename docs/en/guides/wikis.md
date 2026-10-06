@@ -21,7 +21,7 @@ Open a wiki and it takes the screen. The navigation you were using slides away a
 
 That is deliberate. A wiki is read by moving around it, so the shape of it stays in front of you the whole time.
 
-Pages nest. Hover any page in the tree and a **+** appears to start one underneath it — so "Bar" can have "Float", "Stock" and "The till that hates everyone" filed under it. Nest as deep as makes sense, which is usually two levels and occasionally three.
+Pages nest. Hover any page in the tree and a **+** appears to start one underneath it, open and ready to type in — so "Bar" can have "Float", "Stock" and "The till that hates everyone" filed under it. Nest as deep as makes sense, which is usually two levels and occasionally three.
 
 **Duplicate**, in a page's menu, puts a copy beside it called "(Copy)". The pages filed under it stay where they are, so copying "Bar" gives you one page to rewrite rather than a second bar.
 

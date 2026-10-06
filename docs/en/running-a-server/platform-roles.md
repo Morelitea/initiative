@@ -145,6 +145,10 @@ Security notes, moderation reports, support requests and feedback each open a ca
 
 It's all one page, **Settings → Platform → Intake**. Pick the community, then say which of its projects each kind lands in — or choose **Set this up for me** and get a ready-made project with its own statuses and fields. Pause a kind and it stops receiving; choose no community at all and nothing is routed anywhere.
 
+Give security and moderation an initiative each, so only the people working those cases can read them. The page says so if two kinds share one.
+
+The people who asked follow their cases from **My Tickets**. Pick the status that means **Waiting on the requester**, and the one their answer moves a case to; **Set this up for me** picks both. With none picked, requesters see Received, In progress and Closed, and never "Waiting on you". Answer them from the panel on the case, which is kept apart from its comments, so the team's own discussion stays the team's.
+
 ## Who to contact
 
 Whenever Initiative tells somebody to get in touch, it names an address. You pick those under **Settings → Platform → Intake**, in **Who to contact**: one general address, then one for each kind of work.

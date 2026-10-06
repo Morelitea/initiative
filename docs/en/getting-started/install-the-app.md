@@ -4,7 +4,7 @@ icon: lucide/smartphone
 
 # Installing the app
 
-Initiative runs in a browser, and using it that way forever is a completely respectable life choice. But you can also give it its own icon, its own window, and — on Android — notifications that arrive when you aren't looking.
+Initiative runs in a browser, and using it that way forever is a completely respectable life choice. But you can also give it its own icon, its own window, and — on a phone — notifications that arrive when you aren't looking.
 
 A few ways to do that. None takes longer than finding the charger.
 
@@ -26,9 +26,20 @@ After that it opens in its own window with no browser furniture around it, stays
 !!! warning "The install option isn't there"
     Browsers only offer this over a secure `https://` address. If your group's Initiative is on plain `http://`, the option quietly won't appear — nothing is broken and you haven't missed a setting. It's a question for whoever set the server up.
 
-## The Android app
+## The phone apps
 
-There's a proper Android app as well. Same Initiative inside, but it can do the thing a browser tab can't: **push notifications**, arriving on your phone while the app is shut. If whoever runs your server has [set that up](../running-a-server/push-notifications.md), this is the version you want.
+There are proper apps for iPhone and Android as well. Same Initiative inside, but they do the thing a browser tab can't: **push notifications**, arriving on your phone while the app is shut. If whoever runs your server has [set that up](../running-a-server/push-notifications.md), this is the version you want.
+
+| Phone | Where to get it |
+|---|---|
+| **iPhone or iPad** | The App Store. Search for **Initiative**, by Beyonders Studio. |
+| **Android** | Google Play, same search. Or [without Google Play](#android-without-google-play), straight from the project. |
+
+The first launch asks which Initiative it's talking to, because there are a lot of them and it can't guess. See [the mobile app](signing-in.md#the-mobile-app).
+
+The apps only talk to servers on a secure `https://` address. A server on plain `http://` won't connect from the app, though the browser still reaches it. Same answer as above: a question for whoever set the server up.
+
+### Android, without Google Play
 
 [![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png){ width="240" }](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fbeyonders-studio%2Finitiative)
 
@@ -36,15 +47,11 @@ There's a proper Android app as well. Same Initiative inside, but it can do the 
 
 Either way Android will check that you meant to install something from outside the Play Store. You did. Allow it for whichever app is doing the installing.
 
-The first launch asks which Initiative it's talking to, because there are a lot of them and it can't guess. See [the mobile app](signing-in.md#the-mobile-app).
-
-It only talks to servers on a secure `https://` address. A server on plain `http://` won't connect from the app, though the browser still reaches it. Same answer as above: a question for whoever set the server up.
-
 ### It keeps itself current
 
-When your community's server moves to a new version, the app fetches the matching update in the background and offers to reload. You don't reinstall anything and you don't visit a store.
+When your community's server moves to a new version, the app fetches the matching update in the background and offers to reload. Most of the time, that's the whole story.
 
-Every so often a release changes the app's native shell rather than the web part, and then it'll say so and point you at a new APK. That's the only time it needs you.
+Every so often a release changes the app itself rather than what runs inside it. Then the app says so and sends you back to wherever it came from: the App Store, Google Play, or a new APK. On iPhone, each feature release arrives that way too, and the fixes in between come over the air.
 
 ### New phone, same app
 
@@ -55,11 +62,11 @@ Restore your old phone's backup onto a new one and the app comes back with your 
 
     It never goes back past the version the installed app shipped with. A server older than that leaves the app on what it already runs, so an old server can't swap in a bundle from before the app was built.
 
-    An over-the-air update can only replace web assets, never native code. Each bundle therefore declares a `minNativeVersion`, and the app refuses any bundle that needs a newer shell than the installed APK — prompting for a store or APK update instead. Release CI rebuilds the APK only when that floor moves, so most releases attach none at all. An updater watching the releases falls back to the last one that did — which is the build you want, because it is still the shell this bundle runs on. Re-attaching that same APK to later releases would be worse than attaching nothing: an updater reads the release, not the file, so it would see a new version each time and reinstall the app you already have.
+    An over-the-air update can only replace web assets, never native code. Each bundle therefore declares a `minNativeVersion`, and the app refuses any bundle that needs a newer shell than the installed APK — prompting for a store or APK update instead. On iPhone a bundle from another minor release is refused the same way, so feature releases come through the App Store. Release CI rebuilds the APK only when that floor moves, so most releases attach none at all. An updater watching the releases falls back to the last one that did — which is the build you want, because it is still the shell this bundle runs on. Re-attaching that same APK to later releases would be worse than attaching nothing: an updater reads the release, not the file, so it would see a new version each time and reinstall the app you already have.
 
 ## The desktop app
 
-There's an app for Windows, Mac and Linux as well. Same Initiative, in its own window, and it signs in as one of your devices, the way the Android app does.
+There's an app for Windows, Mac and Linux as well. Same Initiative, in its own window, and it signs in as one of your devices, the way the phone apps do.
 
 Get it from the **Download** page on your community's Initiative, which picks the right file for your computer. Or take it from the newest [release](https://github.com/beyonders-studio/initiative/releases) that has one: the `.exe` for Windows, the `.dmg` for a Mac, the `.deb` for Debian and Ubuntu.
 
@@ -73,10 +80,6 @@ Once in a while a release changes the app itself, and then it says so. On Window
 Notifications pop up on your computer whenever Initiative's window isn't the one in front, and clicking one takes you to it. The app's icon carries your unread count.
 
 Close the window on Windows or Linux and Initiative carries on in the tray, so notifications keep reaching you; **Quit** is on the tray icon. A Mac keeps it in the dock, as Macs do. **My Settings › Preferences** has the switches: **Keep running when the window closes** and **Open when the computer starts**.
-
-## On iPhone
-
-The home-screen install in the table above is the iPhone version — the icon, the standalone window, all of it. Notifications reach you by email and in the app's own bell.
 
 ## Next
 

@@ -45,13 +45,13 @@ Nothing in Initiative is held back to make the hosted version look better. What 
 
 ### Plug-ins that need something running behind them
 
-Some [marketplace plug-ins](guides/plugins-and-marketplace.md#adding-a-plug-in) aren't just a screen — they need a program running alongside Initiative to do their job.
+Some [marketplace plug-ins](guides/plugins-and-marketplace.md#adding-a-plug-in) aren't just a screen — they need something set up behind them to do their job.
 
-On a server you run, that's yours to stand up. On the hosted service it's already running. Two we're launching with:
+On a server you run, that's yours to set up. On the hosted service it's already done. Two we're launching with:
 
 **GitHub integration.** Connect a repository so the work in Initiative and the work in your codebase stop being two separate stories somebody has to reconcile by hand.
 
-This one is **open source like the rest of Initiative**, so if you run infrastructure and fancy standing it up yourself, nothing's stopping you. Being straight with you though: it's a real deployment rather than a config flag, and more than most people want on top of a `docker compose up`.
+This one is **open source like the rest of Initiative**, and runs inside it, so there's no extra program to stand up. On your own server it needs a GitHub App of its own, which takes one button and a confirmation on GitHub. See [Running plug-ins](running-a-server/plugins.md#a-plug-in-that-runs-inside-initiative).
 
 **Automations.** Rules that do the repetitive bit for you, so nobody has to remember to move the card every Friday. Hosted only, and priced separately from the subscription.
 
@@ -65,7 +65,7 @@ More will follow, of both kinds.
 
 **Let us host it if** you'd rather spend your evening on the actual work. A club treasurer, a small business owner, a PTA chair — none of you signed up to find out what a database is, and none of you should have to.
 
-It's also the only route to automations, and much the shortest one to the GitHub integration.
+It's also the only route to automations.
 
 You can start on one and move to the other, too. Same software, and the export formats are ordinary files rather than something only we can open.
 

@@ -23,12 +23,14 @@ If you only ever learn one part of Initiative, make it this one. It's where basi
 
 The top of the project shows how far along it is and its dates, beside its status, tags and properties — the same [header every tool has](tools.md#the-top-of-every-tool-page).
 
-### Favourites and pinning
+### Favourites, pinning and your own order
 
-- **Add to favourites** (the star) puts it in your **Favourites** list in the sidebar.
-- **Pin project** keeps it near the top of its initiative.
+Both live on each project's card.
 
-Both are just for you. Starring something doesn't inflict it on anybody else.
+- **Add to favourites** (the star) puts it in your **Favourites** list in the sidebar. Just for you: starring something doesn't inflict it on anybody else.
+- **Pin project** marks it as pinned for everyone in the initiative. That one takes a project manager.
+
+Drag projects on the first page of the list to put them in your own order.
 
 ## Adding tasks
 
@@ -203,7 +205,7 @@ Next time, start *from* it and skip the fiddling. Its checklists arrive exactly 
 
 **Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later. It's in **Project settings → Advanced**, next to deleting it, and it belongs to the same people: whoever owns the project, and anyone who can see everything in its initiative.
 
-The task list's own **Export** — the tasks you've filtered to, or the ones you've selected, as a PDF, a spreadsheet or Markdown — stays where it is.
+The task list has an **Export** of its own: the tasks you've filtered to, or the ones you've selected, as a PDF, a spreadsheet or Markdown.
 
 !!! note "People are named by handle"
     An export identifies assignees, event attendees and person-type fields by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't.
