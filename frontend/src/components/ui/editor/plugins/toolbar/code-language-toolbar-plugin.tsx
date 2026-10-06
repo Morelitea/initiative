@@ -37,14 +37,14 @@ export function useCurrentCodeLanguage() {
 }
 
 export function CodeLanguageToolbarPlugin() {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const codeLanguage = useCurrentCodeLanguage();
   const actions = useCodeLanguageActions();
 
   return (
     <Select value={codeLanguage}>
       <SelectTrigger className="h-8! w-min gap-1">
-        <span>{getLanguageFriendlyName(codeLanguage) || t("editor.selectLanguage")}</span>
+        <span>{getLanguageFriendlyName(codeLanguage) || t("selectLanguage")}</span>
       </SelectTrigger>
       <SelectContent>
         {actions.map((action) => (

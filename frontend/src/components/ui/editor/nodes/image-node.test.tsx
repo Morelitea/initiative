@@ -10,7 +10,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import { Editor } from "@/components/documents/editor/editor";
+import { Editor } from "@/components/ui/editor/editor";
 import { $isImageNode } from "@/components/ui/editor/nodes/image-node";
 
 const captionText = (text: string) => ({

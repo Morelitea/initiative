@@ -44,7 +44,7 @@ export function EntityReference({
   fallback,
   showIcon = true,
 }: EntityReferenceProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const navigate = useNavigate();
   const communityId = useActiveCommunityId();
   const live = useReferenceTitle(entityType, entityId);
@@ -99,7 +99,7 @@ export function EditorEntityReference({
   nodeKey,
   ...props
 }: EntityReferenceProps & { nodeKey: NodeKey }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const link = <EntityReference {...props} />;

@@ -5,8 +5,8 @@ import { INSERT_EXCALIDRAW_COMMAND } from "@/components/ui/editor/extensions/exc
 import { ComponentPickerOption } from "@/components/ui/editor/plugins/picker/component-picker-option";
 
 /** A drawing, drawn on the spot. */
-export function DrawingPickerPlugin(t: TFunction<"documents">) {
-  return new ComponentPickerOption(t("editor.drawing"), {
+export function DrawingPickerPlugin(t: TFunction<"editor">) {
+  return new ComponentPickerOption(t("drawing"), {
     icon: <PenTool className="size-4" />,
     keywords: ["drawing", "whiteboard", "excalidraw", "diagram", "sketch"],
     onSelect: (_, editor) => editor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),

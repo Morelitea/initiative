@@ -6,7 +6,7 @@ import { useClearFormatting } from "@/components/ui/editor/plugins/toolbar/toolb
 
 export function ClearFormattingToolbarPlugin() {
   const clearFormatting = useClearFormatting();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <Button
@@ -14,8 +14,8 @@ export function ClearFormattingToolbarPlugin() {
       size="icon-sm"
       className="size-8!"
       onClick={clearFormatting}
-      title={t("editor.clearFormatting")}
-      aria-label={t("editor.clearFormatting")}
+      title={t("clearFormatting")}
+      aria-label={t("clearFormatting")}
       type="button"
     >
       <EraserIcon className="size-4" />

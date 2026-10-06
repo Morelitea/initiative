@@ -7,8 +7,8 @@ import { useMemo } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import { documentExtension } from "@/components/documents/editor/document-extension";
-import { Plugins } from "@/components/documents/editor/plugins";
+import { documentExtension } from "@/components/ui/editor/document-extension";
+import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 

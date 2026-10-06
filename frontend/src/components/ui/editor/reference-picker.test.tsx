@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import { documentExtension } from "@/components/documents/editor/document-extension";
-import { Plugins } from "@/components/documents/editor/plugins";
+import { documentExtension } from "@/components/ui/editor/document-extension";
+import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 

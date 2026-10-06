@@ -11,7 +11,6 @@ import {
   WikiReadingWidth,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import {
   WikiConnectionsSheet,
@@ -22,6 +21,7 @@ import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateAc
 import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Editor } from "@/components/ui/editor/editor";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

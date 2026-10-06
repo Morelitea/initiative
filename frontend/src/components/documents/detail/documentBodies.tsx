@@ -30,7 +30,7 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 const FileDocumentViewer = lazy(() =>
   import("@/components/documents/FileDocumentViewer").then((m) => ({

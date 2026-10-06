@@ -8,8 +8,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import PersonId, with_mention_markup
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.document import LexicalState
+from app.schemas.base import LexicalState, MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations

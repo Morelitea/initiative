@@ -42,7 +42,7 @@ export function SmartChip(props: SmartChipProps) {
 }
 
 function ReadingChip({ chipKind, entityId, fallback }: SmartChipProps) {
-  const { t, i18n } = useTranslation(["documents", "search"]);
+  const { t, i18n } = useTranslation(["editor", "search"]);
   const navigate = useNavigate();
   const communityId = useActiveCommunityId();
   const state = useChipState(chipRef(chipKind, entityId));

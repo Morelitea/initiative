@@ -17,14 +17,14 @@ import { useMemo } from "react";
 import { describe, expect, it } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import { documentExtension } from "@/components/documents/editor/document-extension";
-import { Plugins } from "@/components/documents/editor/plugins";
+import { documentExtension } from "@/components/ui/editor/document-extension";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import {
   INSERT_STATUS_COMMAND,
   StatusExtension,
 } from "@/components/ui/editor/extensions/status-extension";
 import { $createStatusNode, $isStatusNode } from "@/components/ui/editor/nodes/status-node";
+import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 

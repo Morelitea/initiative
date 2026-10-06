@@ -57,7 +57,7 @@ interface ExcalidrawComponentProps {
  * canvas; closing that without drawing anything takes the empty drawing
  * away again. */
 export default function ExcalidrawComponent({ nodeKey, data, width }: ExcalidrawComponentProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
   const { resolvedTheme } = useTheme();
@@ -195,12 +195,7 @@ export default function ExcalidrawComponent({ nodeKey, data, width }: Excalidraw
           onDoubleClick={() => isEditable && setOpen(true)}
         >
           {picture ? (
-            <img
-              src={picture}
-              alt={t("editor.drawing")}
-              className="block max-w-full"
-              draggable={false}
-            />
+            <img src={picture} alt={t("drawing")} className="block max-w-full" draggable={false} />
           ) : (
             <span className="flex h-24 w-48 items-center justify-center text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -218,7 +213,7 @@ export default function ExcalidrawComponent({ nodeKey, data, width }: Excalidraw
               onClick={() => setOpen(true)}
             >
               <PenTool className="mr-1 h-3.5 w-3.5" />
-              {t("editor.editDrawing")}
+              {t("editDrawing")}
             </button>
           )}
         </span>

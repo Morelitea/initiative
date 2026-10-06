@@ -8,7 +8,7 @@ import { isWideDocument, WikiDocumentBody } from "./WikiDocumentBody";
 
 // Each kind's own renderer, stood in for by a line saying which it was and
 // whether it was told to stay read-only.
-vi.mock("@/components/documents/editor/editor", () => ({
+vi.mock("@/components/ui/editor/editor", () => ({
   Editor: ({ readOnly }: { readOnly?: boolean }) => <p>prose {readOnly ? "read-only" : ""}</p>,
 }));
 vi.mock("@/components/documents/FileDocumentViewer", () => ({
