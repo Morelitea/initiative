@@ -45,7 +45,8 @@ from app.core import auth_context
 from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
-from app.core.rate_limit import SIGN_IN_FAILURES, get_inet_client_ip
+from app.core import audit_context
+from app.core.rate_limit import SIGN_IN_FAILURES
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
@@ -612,8 +613,8 @@ async def issue_session(
         amr=list(dict.fromkeys(amr)),
         satisfied_providers=sorted(set(satisfied_providers)),
         provider_auth=provider_auth,
-        user_agent=request.headers.get("user-agent"),
-        ip=get_inet_client_ip(request),
+        user_agent=audit_context.client_user_agent(),
+        ip=audit_context.client_ip(),
         device_name=device_name,
         device=device,
     )

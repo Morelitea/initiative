@@ -17,19 +17,16 @@ from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware, _find_route_handler
-from starlette.datastructures import Headers
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.routing import Mount
 
-from app.core import identify, rate_limit
+from app.core import audit_context, identify, rate_limit
 from app.core.plugin_access_token import seal_install_token
 from app.core.config import settings
 from app.core.rate_limit import (
     _default_limits,
     build_limiter,
-    get_inet_client_ip,
-    get_real_client_ip,
     get_user_or_ip_key,
     limiter,
 )
@@ -38,7 +35,8 @@ from app.core.security import (
     create_upload_token,
     mint_access_token,
 )
-from app.main import _MOUNTED, _route_endpoint, app
+from app.core.routing import MOUNTED, route_endpoint
+from app.main import app
 from app.testing import create_user, get_auth_headers
 
 
@@ -100,11 +98,12 @@ class TestRouteResolution:
 
     Upstream picks one by scanning every route and keeping the LAST that
     matches; this app ends with a catch-all serving the SPA, which matches
-    everything. ``_route_endpoint`` resolves the way the router does instead.
+    everything. ``route_endpoint`` resolves the way the router does instead.
     """
 
-    def _endpoint(self, path: str, method: str = "GET", host=app):
-        scope = {
+    @staticmethod
+    def _scope(path: str, method: str = "GET", host=app) -> dict:
+        return {
             "type": "http",
             "method": method,
             "path": path,
@@ -112,11 +111,20 @@ class TestRouteResolution:
             "root_path": "",
             "app": host,
         }
-        return _route_endpoint(Request(scope))
+
+    def _endpoint(self, path: str, method: str = "GET", host=app):
+        return route_endpoint(self._scope(path, method, host))
 
     def test_resolves_the_route_the_router_runs(self):
         assert self._endpoint("/api/v1/version").__name__ == "get_version"
         assert self._endpoint("/api/v1/readyz").__name__ == "readyz"
+
+    def test_a_request_is_resolved_once_for_every_layer_that_asks(self):
+        """The body bound and the default limit share one resolution."""
+        scope = self._scope("/api/v1/version")
+        first = route_endpoint(scope)
+        scope["app"] = Starlette()
+        assert route_endpoint(scope) is first
 
     def test_upstream_would_have_answered_the_catch_all(self):
         """Pins why this app cannot use the stock middleware. Should a later
@@ -139,7 +147,7 @@ class TestRouteResolution:
         default limit. Built here rather than read off the app so the case is
         covered whether or not this configuration mounts anything."""
         host = Starlette(routes=[Mount("/sub", app=Starlette())])
-        assert self._endpoint("/sub/anything", host=host) is _MOUNTED
+        assert self._endpoint("/sub/anything", host=host) is MOUNTED
 
 
 class TestDefaultLimitThrottlesUndecoratedRoute:
@@ -202,53 +210,6 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
         assert all(code == 200 for code in statuses)
 
 
-class TestInetClientIp:
-    """``get_inet_client_ip`` returns a value suitable for Postgres ``inet``."""
-
-    @staticmethod
-    def _request(address: str):
-        class _Client:
-            host = address
-
-        class _Req:
-            headers = {}
-            client = _Client()
-
-        return _Req()
-
-    def test_an_ipv6_zone_identifier_is_removed(self):
-        req = self._request("fe80::1%eth0")
-        result = get_inet_client_ip(req)
-        assert result == "fe80::1"
-        assert "%" not in result
-
-    def test_addresses_come_back_normalized(self):
-        assert get_inet_client_ip(self._request("2001:DB8::1")) == "2001:db8::1"
-        assert get_inet_client_ip(self._request("203.0.113.9")) == "203.0.113.9"
-
-    def test_a_non_address_is_refused(self):
-        assert get_inet_client_ip(self._request("not-an-ip")) is None
-
-
-class TestRealClientIp:
-    def test_the_address_comes_from_the_asgi_server(self):
-        """The ASGI server, not application code, decides which proxy to trust."""
-
-        class _Client:
-            host = "198.51.100.7"
-
-        class _Request:
-            headers = Headers(
-                {
-                    "X-Forwarded-For": "203.0.113.9",
-                    "X-Real-IP": "203.0.113.10",
-                }
-            )
-            client = _Client()
-
-        assert get_real_client_ip(_Request()) == "198.51.100.7"
-
-
 def _session_token(subject: str) -> str:
     token, _ = mint_access_token(
         subject=subject,
@@ -279,6 +240,14 @@ class TestUserOrIpKey:
     admitted as, or before that, the one its credential names.
     """
 
+    @pytest.fixture(autouse=True)
+    def _from_one_address(self):
+        """The address the request's context holds, as the outermost
+        middleware reads it."""
+        _, token = audit_context.begin(request_id="x", source_ip="198.51.100.7")
+        yield
+        audit_context.end(token)
+
     @staticmethod
     def _request(
         *,
@@ -293,7 +262,6 @@ class TestUserOrIpKey:
                 "path": "/",
                 "headers": headers or [],
                 "query_string": query,
-                "client": ("198.51.100.7", 40404),
             }
         )
         if user_id is not None:
@@ -341,6 +309,11 @@ class TestUserOrIpKey:
 
     def test_the_address_is_the_counter_when_nobody_is_named(self):
         assert get_user_or_ip_key(self._request()) == "198.51.100.7"
+        _, token = audit_context.begin(request_id="y", source_ip="testclient")
+        try:
+            assert get_user_or_ip_key(self._request()) == "127.0.0.1"
+        finally:
+            audit_context.end(token)
 
     def test_an_installed_plugin_is_counted_by_client_and_install(self):
         request = self._request()

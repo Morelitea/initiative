@@ -18,7 +18,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_limits
-from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError
 
@@ -49,6 +48,7 @@ from app.core.security import (
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
+from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -298,25 +298,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
 
-#: Stands in for a request that lands on a mounted sub-app. A mount has no
-#: endpoint to read a marker off, which is a different answer from "no route
-#: matched" and gets different treatment below.
-_MOUNTED = object()
-
-
-def _route_endpoint(request: Request) -> object | None:
-    """The endpoint the router will run for this request.
-
-    Starlette dispatches to the FIRST route that fully matches, so this stops
-    there rather than reading on.
-    """
-    for route in request.app.routes:
-        match, _ = route.matches(request.scope)
-        if match == Match.FULL:
-            endpoint = getattr(route, "endpoint", None)
-            return _MOUNTED if endpoint is None else endpoint
-    return None
-
 
 class _DefaultRateLimit(SlowAPIMiddleware):
     """The global default limit, applied against the route that will run.
@@ -332,9 +313,9 @@ class _DefaultRateLimit(SlowAPIMiddleware):
       set deliberately ABOVE the default is silently held down to it.
     * Every request pays a full scan of all 600 routes — ~430µs, measured.
 
-    Resolving the way the router itself does settles all three, so this
-    replaces ``dispatch`` rather than wrapping it: delegating upward would run
-    the scan it is here to avoid.
+    Resolving the way the router itself does (``app.core.routing``) settles
+    all three, so this replaces ``dispatch`` rather than wrapping it:
+    delegating upward would run the scan it is here to avoid.
     """
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -342,8 +323,8 @@ class _DefaultRateLimit(SlowAPIMiddleware):
         if not request_limiter.enabled:
             return await call_next(request)
 
-        endpoint = _route_endpoint(request)
-        if endpoint is _MOUNTED:
+        endpoint = route_endpoint(request.scope)
+        if endpoint is MOUNTED:
             # Nothing to read a marker off, so a mount is limited like any
             # undecorated route — by the URL it was asked for.
             handler = None
