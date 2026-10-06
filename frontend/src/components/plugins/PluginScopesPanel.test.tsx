@@ -135,8 +135,8 @@ describe("PluginScopesPanel", () => {
     renderPage(() => (
       <PluginScopesPanel
         app={app({
-          requested_scopes: ["projects:read", "apps:acme.github"],
-          grantable_scopes: ["projects:read", "apps:acme.github"],
+          requested_scopes: ["projects:read", "plugins:acme.github"],
+          grantable_scopes: ["projects:read", "plugins:acme.github"],
           plugin_names: { "acme.github": "GitHub" },
         })}
       />
@@ -146,7 +146,7 @@ describe("PluginScopesPanel", () => {
     const save = screen.getByRole("button", { name: "Save" });
     await waitFor(() => expect(save).toBeEnabled());
     save.click();
-    await waitFor(() => expect(sent).toEqual([["apps:acme.github"]]));
+    await waitFor(() => expect(sent).toEqual([["plugins:acme.github"]]));
   });
 
   it("offers a change alone when the app asks only to change", async () => {

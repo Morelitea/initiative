@@ -31,8 +31,8 @@ pytestmark = pytest.mark.always
 
 
 # app/ package dir and the backend root the keys are expressed relative to.
-_PLUGIN_DIR = Path(__file__).resolve().parents[1]
-_BACKEND_DIR = _PLUGIN_DIR.parent
+_APP_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_DIR = _APP_DIR.parent
 
 # Callables whose SQL-string argument we care about.
 _SQL_CALLEES = {"text", "exec_driver_sql", "execute", "executescript"}
@@ -183,7 +183,7 @@ def _scan_file(path: Path) -> list[str]:
 
 def _inventory() -> set[str]:
     sites: set[str] = set()
-    for path in _PLUGIN_DIR.rglob("*.py"):
+    for path in _APP_DIR.rglob("*.py"):
         if path.name.endswith("_test.py"):
             continue
         sites.update(_scan_file(path))

@@ -1,9 +1,9 @@
-"""What an operator supplies for an app's vendor client.
+"""What an operator supplies for a plug-in's vendor client.
 
-An app's manifest may declare a ``vendor`` block: the values its vendor's own
+A plug-in's manifest may declare a ``vendor`` block: the values its vendor's own
 client needs on this deployment, such as a client id, a client secret or a
-signing key. Initiative runs the app's connection flows with them, so they are
-held on the app's registration (``vendor_values``), one Fernet ciphertext per
+signing key. Initiative runs the plug-in's connection flows with them, so they are
+held on the plug-in's registration (``vendor_values``), one Fernet ciphertext per
 field, and never on an install.
 
 They arrive three ways, all on the system engine:
@@ -218,7 +218,7 @@ def apply_vendor_env(
     if vendor_env is None:
         return []
     if not isinstance(vendor_env, dict):
-        logger.warning("app services: %r vendor_env is not an object", public_id)
+        logger.warning("plug-in services: %r vendor_env is not an object", public_id)
         return []
     stored = dict(row.vendor_values or {})
     current = _decrypt_all(stored, public_id=public_id)
@@ -226,13 +226,13 @@ def apply_vendor_env(
     for key, variable in vendor_env.items():
         if not isinstance(key, str) or not isinstance(variable, str) or not variable:
             logger.warning(
-                "app services: %r vendor_env entry %r is not a name", public_id, key
+                "plug-in services: %r vendor_env entry %r is not a name", public_id, key
             )
             continue
         raw = os.environ.get(variable, "")
         if not raw.strip():
             logger.warning(
-                "app services: %r names %s for vendor value %r, which is not set",
+                "plug-in services: %r names %s for vendor value %r, which is not set",
                 public_id,
                 variable,
                 key,
@@ -242,7 +242,7 @@ def apply_vendor_env(
             value = _checked(None, raw)
         except HTTPException:
             logger.warning(
-                "app services: %r vendor value %r from %s is too long",
+                "plug-in services: %r vendor value %r from %s is too long",
                 public_id,
                 key,
                 variable,
@@ -269,7 +269,7 @@ def _decrypt_all(stored: Mapping[str, Any], *, public_id: str) -> dict[str, str]
             values[key] = decrypt_field(ciphertext, SALT_PLUGIN_VENDOR)
         except (InvalidToken, UnicodeDecodeError):
             logger.warning(
-                "app services: %r vendor value %r does not decrypt", public_id, key
+                "plug-in services: %r vendor value %r does not decrypt", public_id, key
             )
     return values
 
@@ -313,7 +313,7 @@ def vendor_view(
 
 
 async def load_vendor_values(public_id: str) -> dict[str, str]:
-    """The decrypted values for one app, for the flow about to use them.
+    """The decrypted values for one plug-in, for the flow about to use them.
 
     Read on the system engine per call rather than cached, so a value an
     operator replaces is the one the next flow uses.

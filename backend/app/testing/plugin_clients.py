@@ -1,7 +1,7 @@
-"""An app that asks for tokens, for the suites that exercise the token endpoint
+"""A plug-in that asks for tokens, for the suites that exercise the token endpoint
 and the routes an installation token reaches.
 
-Holds the app's two keypairs (RSA and P-256), the key set its registration
+Holds the plug-in's two keypairs (RSA and P-256), the key set its registration
 publishes, the client assertion it signs, and an install set up the way a
 community sets one up: placed in an initiative, granted scopes by its seat,
 and registered by the operator.
@@ -64,7 +64,7 @@ _ec_key = ec.generate_private_key(ec.SECP256R1())
 
 
 def client_jwks() -> dict[str, Any]:
-    """The key set the app's registration publishes: one RSA key, one P-256."""
+    """The key set the plug-in's registration publishes: one RSA key, one P-256."""
     rsa_entry = json.loads(RSAAlgorithm.to_jwk(_rsa_key.public_key()))
     rsa_entry["kid"] = RSA_KID
     ec_entry = json.loads(ECAlgorithm.to_jwk(_ec_key.public_key()))
@@ -85,7 +85,7 @@ def mint_client_assertion(
     subject: Optional[str] = None,
     extra: Optional[dict[str, Any]] = None,
 ) -> str:
-    """A client assertion signed by one of the app's keys.
+    """A client assertion signed by one of the plug-in's keys.
 
     ``key`` picks the signing key; ``kid`` and ``algorithm`` default to that
     key's own, and either may be set to something else to make the header
@@ -119,7 +119,7 @@ class InstalledPlugin:
     it is placed in and one it is not."""
 
     seat: Any
-    app: GuildPlugin
+    plugin: GuildPlugin
     placed: Any
     unplaced: Any
 
@@ -148,7 +148,7 @@ async def install_plugin(
     the grant is what decides what a token carries."""
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     unplaced = await create_initiative(session, seat.guild, seat.user, name="B")
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         seat.guild,
         seat.user,
@@ -173,17 +173,21 @@ async def install_plugin(
         )
 
     await route_session_to_guild(session, seat.guild.id)
-    session.add(PluginPlacement(install_id=app.id, initiative_id=seat.initiative.id))
+    session.add(PluginPlacement(install_id=plugin.id, initiative_id=seat.initiative.id))
     await session.commit()
 
     if granted:
         s = await role_session("app_user")
         await route_as(s, user_id=seat.user.id, guild_id=seat.guild.id)
-        row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == app.id))).one()
+        row = (
+            await s.exec(select(GuildPlugin).where(GuildPlugin.id == plugin.id))
+        ).one()
         row.granted_scopes = list(granted)
         s.add(row)
         await s.commit()
-    return InstalledPlugin(seat=seat, app=app, placed=seat.initiative, unplaced=unplaced)
+    return InstalledPlugin(
+        seat=seat, plugin=plugin, placed=seat.initiative, unplaced=unplaced
+    )
 
 
 async def share_with_members(
@@ -215,7 +219,7 @@ def install_headers(
     carrying ``scopes`` and narrowed to ``initiative_id`` when one is given."""
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=install_id if install_id is not None else installed.app.id,
+        install_id=install_id if install_id is not None else installed.plugin.id,
         client_id=client_id,
         scopes=frozenset(scopes),
         initiative_id=initiative_id,

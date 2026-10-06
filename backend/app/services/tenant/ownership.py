@@ -17,12 +17,12 @@ and ``ownership_test.py`` fails if a tool is ever missing from it.
 **Ownership is optional.** There is no "ownerless" grant row — the
 ``resource_grants_one_grantee`` constraint requires every row to name one
 grantee — so having no owner is the *absence* of an owner grant, which is also
-the honest way to say it. The owner row names a person or an installed app
+the honest way to say it. The owner row names a person or an installed plug-in
 (:class:`Owner`), and one rule follows:
 
     An owner is a current member of the guild, a live install, or nobody.
 
-A live install is one that is switched on. What an app owns stays its own while
+A live install is one that is switched on. What a plug-in owns stays its own while
 it is off, and is listed as unowned until it is switched back on; uninstalling
 removes its owner rows with it (the foreign key cascades), so its content
 becomes unowned like a departed member's.
@@ -31,7 +31,7 @@ Leaving a guild drops the person's owner grants rather than handing them to
 someone else: nobody inherits privilege they did not ask for, which matters most
 in a guild with heavy turnover. Guild admins still administer unowned content
 through their guild-admin authority, and can claim it whenever they choose, or
-hand it to an app that may own it (:func:`eligible_plugin_owners`).
+hand it to a plug-in that may own it (:func:`eligible_plugin_owners`).
 """
 
 from collections.abc import Iterable, Sequence
@@ -132,13 +132,13 @@ class OwnedItem:
     tool: Tool
     id: int
     name: str
-    #: The initiative the row belongs to, which an app owner must be placed in.
+    #: The initiative the row belongs to, which a plug-in owner must be placed in.
     initiative_id: Optional[int] = None
 
 
 @dataclass(frozen=True)
 class Owner:
-    """Who holds a resource's owner grant: a person or an installed app.
+    """Who holds a resource's owner grant: a person or an installed plug-in.
     Exactly one of the two is set."""
 
     user_id: Optional[int] = None
@@ -146,7 +146,7 @@ class Owner:
 
     def __post_init__(self) -> None:
         if (self.user_id is None) == (self.plugin_install_id is None):
-            raise ValueError("an owner is a person or an app, and exactly one")
+            raise ValueError("an owner is a person or a plug-in, and exactly one")
 
 
 def _grant_owner(grant: Any) -> Optional[Owner]:
@@ -177,29 +177,29 @@ def owner_of(row: Any) -> Optional[Owner]:
 
 def owner_user_id_of(row: Any) -> Optional[int]:
     """The person holding this resource's owner grant, or None when nobody
-    does or an app does. Reads ``row.grants`` as :func:`owner_of` does."""
+    does or a plug-in does. Reads ``row.grants`` as :func:`owner_of` does."""
     owner = owner_of(row)
     return owner.user_id if owner is not None else None
 
 
-#: Where :func:`annotate_owner_plugins` leaves a row's owning app.
+#: Where :func:`annotate_owner_plugins` leaves a row's owning plug-in.
 _OWNER_PLUGIN_ATTRIBUTE = "_owner_plugin"
 
 
 def owner_plugin_of(row: Any) -> Optional[OwnerPluginSummary]:
-    """The installed app that owns ``row``, as :func:`annotate_owner_plugins`
+    """The installed plug-in that owns ``row``, as :func:`annotate_owner_plugins`
     left it; None when a person owns it, nobody does, or it was not
     annotated."""
     return getattr(row, _OWNER_PLUGIN_ATTRIBUTE, None)
 
 
 async def annotate_owner_plugins(session: AsyncSession, rows: Iterable[Any]) -> None:
-    """Set the owning app on each row an installed app owns, for its serializer
+    """Set the owning plug-in on each row an installed plug-in owns, for its serializer
     (:func:`owner_plugin_of`). Reads each row's eagerly loaded ``grants``.
 
     One query for the installs, and none when no row is plugin-owned. The picture
     is the listing's, read from the catalog for a person's request; an
-    installed app's response names the app without it.
+    installed plug-in's response names the plug-in without it.
     """
     owned: list[tuple[Any, int]] = []
     for row in rows:
@@ -265,7 +265,7 @@ async def _unowned_rows(
     Three situations, one condition, because they are the same problem: the
     resource has no owner grant at all (a member left and released it), its
     owner grant names someone who is no longer in the guild (content orphaned
-    before ownership was released on departure), or it names an app that is
+    before ownership was released on departure), or it names a plug-in that is
     switched off. Either way nobody who can act on it owns it, and an admin
     claiming it is the same click.
     """
@@ -322,11 +322,11 @@ async def summarize_unowned_content(
     return items
 
 
-# ── Which apps may own ───────────────────────────────────────────────────────
+# ── Which plug-ins may own ───────────────────────────────────────────────────────
 
 
 def _written_resources(scopes: Iterable[str]) -> frozenset[PluginScopeResource]:
-    """The resources ``scopes`` let an app write. A scope the vocabulary no
+    """The resources ``scopes`` let a plug-in write. A scope the vocabulary no
     longer names grants nothing."""
     known: list[str] = []
     for scope in scopes or ():
@@ -341,12 +341,12 @@ def _written_resources(scopes: Iterable[str]) -> frozenset[PluginScopeResource]:
 async def eligible_plugin_owners(
     session: AsyncSession, items: Sequence[OwnedItem]
 ) -> list[OwnerPluginSummary]:
-    """The installed apps that may own every one of ``items``, by name.
+    """The installed plug-ins that may own every one of ``items``, by name.
 
     An install may own a resource when it is switched on, the community's
     grant to it holds that tool's write scope, and it is placed in the
     resource's initiative: the same test the install passes when it creates
-    one. A resource that belongs to no initiative is placed nowhere, so no app
+    one. A resource that belongs to no initiative is placed nowhere, so no plug-in
     may own it. Nothing to own is nobody's to offer.
     """
     if not items:
@@ -392,7 +392,9 @@ async def eligible_plugin_owners(
         session, [listing_uid for _id, _name, listing_uid in eligible]
     )
     return [
-        OwnerPluginSummary(id=install_id, name=name, avatar_url=avatars.get(listing_uid))
+        OwnerPluginSummary(
+            id=install_id, name=name, avatar_url=avatars.get(listing_uid)
+        )
         for install_id, name, listing_uid in eligible
     ]
 
@@ -403,7 +405,7 @@ async def require_plugin_owner_eligible(
     """Raise 422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` unless ``install_id`` may own
     every one of ``items`` (:func:`eligible_plugin_owners`)."""
     eligible = await eligible_plugin_owners(session, items)
-    if not items or install_id not in {app.id for app in eligible}:
+    if not items or install_id not in {plugin.id for plugin in eligible}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.OWNER_PLUGIN_NOT_ELIGIBLE,
@@ -428,7 +430,7 @@ async def _clear_owner_grants(session: AsyncSession, *, tool: Tool, row: Any) ->
     ownership now. A role's or everyone's is demoted to ``write`` instead —
     dropping it would take editing away from people who have it today, and the
     sharing panel skips owner rows, so no admin ever saw one to decide about.
-    An installed app's is demoted to ``write`` too: it is the owner being
+    An installed plug-in's is demoted to ``write`` too: it is the owner being
     replaced, and it keeps editing what it managed. Nothing can collide with the
     demoted row: ``resource_grants_unique_grantee`` already allows each grantee
     one grant per resource.
@@ -463,7 +465,7 @@ async def set_resource_owner(
     session: AsyncSession, *, tool: Tool, row: Any, new_owner: Optional[Owner]
 ) -> None:
     """Make ``new_owner`` the resource's owner, or leave it unowned when None.
-    Caller commits, and has decided the new owner may hold it (an app, by
+    Caller commits, and has decided the new owner may hold it (a plug-in, by
     :func:`require_plugin_owner_eligible`).
 
     A person's owner row changes hands in place — one ``UPDATE`` — so the
@@ -632,7 +634,7 @@ async def _move(
     rows_by_tool: dict[Tool, list[Any]],
     to: Owner,
 ) -> dict[Tool, int]:
-    """Hand every row to ``to``, refusing an app that may not own all of them.
+    """Hand every row to ``to``, refusing a plug-in that may not own all of them.
     Returns a per-tool count; moving nothing is nothing to refuse."""
     items = [
         item for tool, rows in rows_by_tool.items() for item in _as_items(tool, rows)
@@ -661,7 +663,7 @@ async def transfer_content_ownership(
     """Move everything ``from_user_id`` owns in the routed guild to ``to``.
     Returns a per-tool count of what moved. Caller commits.
 
-    An app receives it only when it may own every item; otherwise nothing
+    A plug-in receives it only when it may own every item; otherwise nothing
     moves and the answer is 422 ``OWNER_PLUGIN_NOT_ELIGIBLE``. ``actor_user_id``
     is who did it; without one the move is unrecorded."""
     rows_by_tool = {
@@ -689,7 +691,7 @@ async def claim_unowned_content(
     """Give every resource no current member or live install owns to ``to``.
     Returns a per-tool count. Caller commits.
 
-    An app receives it only when it may own every item, as for a transfer.
+    A plug-in receives it only when it may own every item, as for a transfer.
     ``actor_user_id`` is who did it; without one the claim is unrecorded."""
     rows_by_tool = {
         tool: await _unowned_rows(session, tool, guild_id=guild_id) for tool in OWNABLE

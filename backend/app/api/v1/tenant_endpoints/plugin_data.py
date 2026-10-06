@@ -2,14 +2,14 @@
 
 Three reads, all guild-scoped, all under the caller's own session.
 
-``/plugins/widget-catalog`` is the palette: which installed apps contribute
+``/plugins/widget-catalog`` is the palette: which installed plug-ins contribute
 widgets, what each widget draws, and the module the browser will run in its
 sandbox. It comes from each install's **pinned** definition, so a canvas is
 authored against the version the guild chose.
 
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}`` is the proxy. A widget never names
-an address — it names a read endpoint on an installed app, and this route turns
-that into one bounded call to the app's own service. The request carries the dashboard the
+an address — it names a read endpoint on an installed plug-in, and this route turns
+that into one bounded call to the plug-in's own service. The request carries the dashboard the
 widget sits on, and that is what makes the gates run **before** anything else:
 
 * the URL is ``/c/{community_id}/…`` under a session that assumes the guild's own
@@ -18,7 +18,7 @@ widget sits on, and that is what makes the gates run **before** anything else:
   guild who is not in the dashboard's initiative gets the same answer they would
   get for the dashboard itself — nothing;
 * the dashboard has to actually bind this endpoint, so holding one dashboard is
-  not a key to every endpoint an app offers;
+  not a key to every endpoint a plug-in offers;
 * an endpoint marked ``admin_only`` is then read by the guild's admins alone.
 
 Only after all of that does the service layer look at the response cache, which
@@ -27,7 +27,7 @@ is why the cache is a cache of *responses* rather than of decisions.
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}/options`` fills a menu. It is the one
 read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
-caller cannot name what gets called: the source comes from the app's own
+caller cannot name what gets called: the source comes from the plug-in's own
 declaration, and it is fetched on the caller's own credentials.
 """
 
@@ -113,7 +113,7 @@ def _bound_bindings(
         override = overrides.get(widget.get("id"))
         effective = {**binding, **(override if isinstance(override, dict) else {})}
         if (
-            effective.get("source") == "app"
+            effective.get("source") == "plugin"
             and effective.get("plugin_uid") == plugin_uid
             and effective.get("endpoint_id") == endpoint_id
         ):
@@ -121,7 +121,7 @@ def _bound_bindings(
     return bound
 
 
-# Declared before ``/{plugin_id}`` on the apps router so the literal path wins the
+# Declared before ``/{plugin_id}`` on the plug-ins router so the literal path wins the
 # match (this router is included first for that reason).
 @router.get("/widget-catalog", response_model=PluginWidgetCatalogResponse)
 async def read_plugin_widget_catalog(
@@ -129,9 +129,9 @@ async def read_plugin_widget_catalog(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> PluginWidgetCatalogResponse:
-    """Which widgets this guild's installed apps contribute.
+    """Which widgets this guild's installed plug-ins contribute.
 
-    Every member may read it: an app's existence is guild-wide knowledge and the
+    Every member may read it: a plug-in's existence is guild-wide knowledge and the
     palette carries no guild data — declarations, module source, and sample
     rows, all from the pinned definition. An endpoint declared for guild admins
     is still listed, and still refused at fetch time to anyone else.
@@ -139,14 +139,16 @@ async def read_plugin_widget_catalog(
     Disabled installs are left out entirely: their widgets have nothing to draw,
     so offering them would be offering a binding that cannot resolve.
     """
-    apps = (
-        await session.exec(select(GuildPlugin).order_by(GuildPlugin.name, GuildPlugin.id))
+    plugins = (
+        await session.exec(
+            select(GuildPlugin).order_by(GuildPlugin.name, GuildPlugin.id)
+        )
     ).all()
 
     items: list[PluginWidgetCatalogEntry] = []
-    for app in apps:
-        definition = app.definition or {}
-        if not app.enabled or definition.get("plugin_kind") != "service":
+    for plugin in plugins:
+        definition = plugin.definition or {}
+        if not plugin.enabled or definition.get("plugin_kind") != "service":
             continue
         declared = definition.get("widgets")
         if not isinstance(declared, list):
@@ -160,7 +162,7 @@ async def read_plugin_widget_catalog(
             continue
 
         # Reads only. A picker offering a write would offer a tile that makes
-        # the app act every time somebody looks at a dashboard.
+        # the plug-in act every time somebody looks at a dashboard.
         readable = {
             endpoint["id"]: endpoint
             for endpoint in definition.get("endpoints") or []
@@ -180,13 +182,13 @@ async def read_plugin_widget_catalog(
         ]
         items.append(
             PluginWidgetCatalogEntry(
-                plugin_id=app.id,
-                plugin_uid=app.listing_uid,
-                name=app.name,
-                enabled=app.enabled,
+                plugin_id=plugin.id,
+                plugin_uid=plugin.listing_uid,
+                name=plugin.name,
+                enabled=plugin.enabled,
                 widgets=[
                     PluginWidgetRead(
-                        type=plugin_widget_type(app.listing_uid, widget["id"]),
+                        type=plugin_widget_type(plugin.listing_uid, widget["id"]),
                         id=widget["id"],
                         meta=widget.get("meta") or {},
                         module_source=widget.get("module_source") or "",
@@ -234,9 +236,9 @@ async def read_plugin_data(
         ),
     ] = None,
 ) -> PluginDataResponse:
-    """One of an app's read endpoints, resolved for this viewer.
+    """One of a plug-in's read endpoints, resolved for this viewer.
 
-    Returns the app's rows verbatim with the time they were obtained. An app
+    Returns the plug-in's rows verbatim with the time they were obtained. A plug-in
     that is unreachable, slow, oversized, or answering in a shape this build
     does not accept comes back as a named message code, so the canvas draws one
     error tile instead of the request becoming a server fault.
@@ -248,8 +250,10 @@ async def read_plugin_data(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
 
-    app = (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).first()
-    if app is None:
+    plugin = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).first()
+    if plugin is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
@@ -257,7 +261,7 @@ async def read_plugin_data(
     bound = _bound_bindings(
         dashboard.definition,
         dashboard.config,
-        plugin_uid=app.listing_uid,
+        plugin_uid=plugin.listing_uid,
         endpoint_id=endpoint_id,
     )
     if not bound:
@@ -269,7 +273,7 @@ async def read_plugin_data(
     try:
         result = await plugin_data_service.fetch_plugin_source(
             session,
-            app=app,
+            plugin=plugin,
             endpoint_id=endpoint_id,
             raw_params=params,
             user_id=current_user.id,
@@ -281,7 +285,7 @@ async def read_plugin_data(
     # After the fetch, so a statement is a transformation of a shared answer:
     # twenty viewers of the same binding are still one upstream call, whatever
     # each of their widgets asks of the rows.
-    table = _transformed(app, endpoint_id, bound.get(widget_id or ""), result)
+    table = _transformed(plugin, endpoint_id, bound.get(widget_id or ""), result)
     return PluginDataResponse(
         rows=result.rows,
         table=table,
@@ -292,23 +296,23 @@ async def read_plugin_data(
 
 
 def _transformed(
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     endpoint_id: str,
     binding: dict[str, Any] | None,
     result: "plugin_data_service.PluginDataResult",
 ) -> PluginDataTable | None:
     """What this widget's statement made of the rows, or nothing.
 
-    A binding with no statement draws the app's own rows, as it always has —
-    the app's widget module reads them by the names its manifest declared. A
+    A binding with no statement draws the plug-in's own rows, as it always has —
+    the plug-in's widget module reads them by the names its manifest declared. A
     binding with one gets a table beside them: described, and positional, so a
-    built-in widget can be pointed at an app.
+    built-in widget can be pointed at a plug-in.
     """
     statement = (binding or {}).get("sql")
     if not isinstance(statement, str) or not statement.strip():
         return None
 
-    endpoint = plugin_data_service.find_read_endpoint(app.definition, endpoint_id)
+    endpoint = plugin_data_service.find_read_endpoint(plugin.definition, endpoint_id)
     if endpoint is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -363,7 +367,7 @@ async def read_plugin_param_options(
     row whose gates could decide it.
 
     What decides it instead is that the caller never names what is called. The
-    source is read out of the app's own pinned declaration — the
+    source is read out of the plug-in's own pinned declaration — the
     ``options_from`` of the parameter being filled in — so the reachable set is
     exactly the reads a publisher marked as menu sources, and the arguments are
     the ones that source's ``needs`` names, mapped from answers this same form
@@ -373,8 +377,10 @@ async def read_plugin_param_options(
     A source that will not resolve is not an error: it comes back as
     ``unavailable`` with no options, and the parameter stays typeable.
     """
-    app = (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).first()
-    if app is None:
+    plugin = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).first()
+    if plugin is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
@@ -383,7 +389,7 @@ async def read_plugin_param_options(
     try:
         options, unavailable = await plugin_data_service.resolve_param_options(
             session,
-            app=app,
+            plugin=plugin,
             endpoint_id=endpoint_id,
             param_key=param,
             raw_params=params,

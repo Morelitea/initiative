@@ -7,7 +7,7 @@ issued against it, a rule tripping again. This module is the one writer of
 those notes, so every kind is worded in one place and every note looks alike.
 
 A note is an ordinary comment with no author and a ``system_kind`` naming what
-wrote it. That is what tells it from a comment an installed app wrote, which
+wrote it. That is what tells it from a comment an installed plug-in wrote, which
 names no author either. Notes are said to the case's members only: nothing the
 platform notes reaches the person who filed the case.
 

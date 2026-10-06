@@ -838,7 +838,9 @@ async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     await create_resource_grant(session, document, all_initiative_members=True)
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(
+            install_id=installed.plugin.id, initiative_id=installed.unplaced.id
+        )
     )
     await session.commit()
     await _set_description(client, seat, task.id, f"![shot]({in_task})")
@@ -905,7 +907,9 @@ async def test_a_plugin_moving_a_task_carries_its_picture(
     task = await create_task(session, here)
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(
+            install_id=installed.plugin.id, initiative_id=installed.unplaced.id
+        )
     )
     await session.commit()
     url = await _paste(client, seat)

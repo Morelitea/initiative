@@ -1,6 +1,6 @@
-"""An app installed into a guild.
+"""A plug-in installed into a guild.
 
-Guild-level by definition: an app belongs to the guild rather than to any
+Guild-level by definition: a plug-in belongs to the guild rather than to any
 initiative, which is the whole reason it exists — some content is guild-wide by
 nature (a club's own events calendar), and a tool that lives in one initiative
 cannot be that.
@@ -10,21 +10,21 @@ installed, at which version, and how the guild configured it (``config`` /
 ``secret_fields``). The content itself is an ordinary row in an ordinary table
 — a guild-level ``calendars`` row, for instance — owned by the install and
 governed by its own grants like anything else. That split is
-deliberate: apps mount existing tools at guild scope rather than introducing a
+deliberate: plug-ins mount existing tools at guild scope rather than introducing a
 parallel one.
 
 What an install produced is the guild-level content it owns: an owner grant
 naming the install (``resource_grants.plugin_install_id``), which goes when the
 install does. There is no list on this row to keep in step with it.
 
-The secret values a guild admin typed into an app's connection form live in
+The secret values a guild admin typed into a plug-in's connection form live in
 ``guild_plugin_secrets``, encrypted per key, which the seat and the system engine
 alone read. This row carries ``secret_fields``, which keys hold a value, so a
 read reports only whether a value is present.
 
-Managing apps is the seat's action, which only its role writes; the row is readable by any member of the
-guild, because the sidebar has to know an app is there. What a member may do
-*inside* an app is decided by that instance's grants, not here.
+Managing plug-ins is the seat's action, which only its role writes; the row is readable by any member of the
+guild, because the sidebar has to know a plug-in is there. What a member may do
+*inside* a plug-in is decided by that instance's grants, not here.
 """
 
 from datetime import datetime, timezone
@@ -56,13 +56,13 @@ class GuildPlugin(CreatedByMixin, table=True):
     # identity that means the same listing on every deployment.
     listing_uid: str = Field(sa_column=Column(String(14), nullable=False, index=True))
     listing_version: str = Field(sa_column=Column(String(32), nullable=False))
-    # Which kind of app this is, copied from the installed definition so the
+    # Which kind of plug-in this is, copied from the installed definition so the
     # sidebar can render it without re-reading the catalog.
     plugin_kind: str = Field(sa_column=Column(String(32), nullable=False))
 
     # Display name, seeded from the listing and renameable per guild.
     name: str = Field(sa_column=Column(String(255), nullable=False))
-    # Turned off without uninstalling: the app disappears from the sidebar and
+    # Turned off without uninstalling: the plug-in disappears from the sidebar and
     # its content stays exactly where it is.
     enabled: bool = Field(
         default=True, sa_column=Column(Boolean, nullable=False, server_default="true")
@@ -72,13 +72,13 @@ class GuildPlugin(CreatedByMixin, table=True):
     # On by default, because an install that quietly falls behind its publisher
     # is the worse resting state: a fix reaches the guild without anyone having
     # to notice it exists. A guild that would rather read each version first
-    # turns this off in its app settings and applies them by hand — the same
+    # turns this off in its plug-in settings and applies them by hand — the same
     # re-pin, asked for rather than swept in.
     auto_update: bool = Field(
         default=True, sa_column=Column(Boolean, nullable=False, server_default="true")
     )
 
-    # The pinned snapshot of what was installed, so the app keeps working at the
+    # The pinned snapshot of what was installed, so the plug-in keeps working at the
     # version this guild chose even if the listing changes or goes away.
     definition: dict[str, Any] = Field(
         default_factory=dict,
@@ -93,28 +93,28 @@ class GuildPlugin(CreatedByMixin, table=True):
     # The same shape, holding a SHA-256 hex digest of each ciphertext in
     # ``guild_plugin_secrets``: the keys say which secret fields hold a value, and
     # a digest changes when its value does. Written by the trigger on
-    # ``guild_plugin_secrets``, never by the app.
+    # ``guild_plugin_secrets``, never by the plug-in.
     secret_fields: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    # What the app reported back about the configuration it was given:
+    # What the plug-in reported back about the configuration it was given:
     # ``unverified`` until it says otherwise, then ``ok`` or ``invalid``.
     # Presence of values is what this build can know by itself; whether a
-    # credential carries the permissions it needs is the app's to report.
+    # credential carries the permissions it needs is the plug-in's to report.
     config_state: str = Field(
         default="unverified",
         sa_column=Column(String(16), nullable=False, server_default="unverified"),
     )
-    #: The app's own short code for an ``invalid`` state, shown beside it.
+    #: The plug-in's own short code for an ``invalid`` state, shown beside it.
     config_state_detail: Optional[str] = Field(
         default=None, sa_column=Column(String(120), nullable=True)
     )
 
-    # The opaque handle the app writes a guild-wide connection's result
+    # The opaque handle the plug-in writes a guild-wide connection's result
     # against, keyed by connection id: ``{"workspace": "9f3c…"}``.
     #
-    # Only for a ``static`` connection the app fills by running the vendor's own
+    # Only for a ``static`` connection the plug-in fills by running the vendor's own
     # flow — an organization-wide install, which a guild admin performs once for
     # everybody. A typed connection needs none: nothing comes back from anywhere
     # to be matched to it.
@@ -131,7 +131,7 @@ class GuildPlugin(CreatedByMixin, table=True):
 
     # Whether this install is placed in each initiative created after it.
     #
-    # Where an app appears is ``plugin_placements``, one row per initiative. An
+    # Where a plug-in appears is ``plugin_placements``, one row per initiative. An
     # ordinary install is placed only where the seat puts it. A mandatory one is
     # placed in every initiative when it is installed, and this flag has a
     # trigger on ``initiative_roles`` add a row, with the new initiative's

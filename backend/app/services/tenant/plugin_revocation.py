@@ -1,7 +1,7 @@
 """Ending a connection's grant at the vendor.
 
 Deleting our copy is the authoritative half of ending access: the platform
-will never hand the app a token for that credential again. It is not the whole
+will never hand the plug-in a token for that credential again. It is not the whole
 of it, because the grant is still live at the vendor until somebody ends it.
 Initiative holds the grant for every connection whose flow it ran, so it ends
 it too, the way the connection's manifest says (``flow.revoke``):
@@ -10,8 +10,8 @@ it too, the way the connection's manifest says (``flow.revoke``):
   with the vendor client's credentials;
 * ``github_grant`` — a ``DELETE`` to GitHub's grant address (``revoke_url``),
   with the vendor client's credentials and the access token;
-* ``hook`` — the app's revoke hook, with the tokens, for a vendor whose
-  revocation the app knows how to ask for;
+* ``hook`` — the plug-in's revoke hook, with the tokens, for a vendor whose
+  revocation the plug-in knows how to ask for;
 * absent — the tokens are deleted and nothing is sent.
 
 Two properties this module keeps:
@@ -95,7 +95,7 @@ class RevocationIntent:
     user_id: Optional[int] = None
     reason: str = "revoked"
     public_id: Optional[str] = None
-    #: The app is declarative, and is named by its listing.
+    #: The plug-in is declarative, and is named by its listing.
     declarative: bool = False
     flow: Optional[dict[str, Any]] = None
     fields: dict[str, Any] = field(default_factory=dict)
@@ -157,16 +157,16 @@ def _queue(session: Any, intent: RevocationIntent) -> None:
 
 def queue_install_revocations(
     session: Any,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     connection_ids: Iterable[str],
     *,
     secrets: Mapping[str, Any],
     reason: str,
 ) -> None:
-    """Record an intent for each of ``app``'s community connections whose
+    """Record an intent for each of ``plugin``'s community connections whose
     stored values are about to go.
 
-    Read from ``app.config``, ``secrets`` and ``app.definition`` as they are,
+    Read from ``plugin.config``, ``secrets`` and ``plugin.definition`` as they are,
     so it is called before any of them changes.
     """
     guild_id = routed_guild_id(session)
@@ -175,11 +175,11 @@ def queue_install_revocations(
             session,
             _intent_for(
                 guild_id=guild_id,
-                plugin_id=app.id,
-                listing_uid=app.listing_uid,
-                definition=app.definition,
+                plugin_id=plugin.id,
+                listing_uid=plugin.listing_uid,
+                definition=plugin.definition,
                 connection_id=connection_id,
-                config=(app.config or {}).get(connection_id),
+                config=(plugin.config or {}).get(connection_id),
                 secrets=secrets.get(connection_id),
                 reason=reason,
             ),
@@ -242,7 +242,7 @@ async def dispatch_revocations(intents: list[RevocationIntent]) -> None:
 
 async def _dispatch_one(intent: RevocationIntent) -> None:
     logger.info(
-        "app credential revoked: guild=%s app=%s listing=%s connection=%s "
+        "plug-in credential revoked: guild=%s plug-in=%s listing=%s connection=%s "
         "ref=%s reason=%s",
         intent.guild_id,
         intent.plugin_id,
@@ -255,7 +255,7 @@ async def _dispatch_one(intent: RevocationIntent) -> None:
         await _deliver(intent)
     except Exception:
         logger.exception(
-            "app credential revocation: guild=%s app=%s connection=%s failed",
+            "plug-in credential revocation: guild=%s plug-in=%s connection=%s failed",
             intent.guild_id,
             intent.plugin_id,
             intent.connection_id,
@@ -268,7 +268,7 @@ async def _deliver(intent: RevocationIntent) -> None:
     if method not in ("rfc7009", "github_grant", "hook") or not intent.sealed_tokens:
         return
     if intent.public_id is None and intent.declarative:
-        # A declarative app is its listing's: the registration that listing
+        # A declarative plug-in is its listing's: the registration that listing
         # applied names it.
         registration = await registration_lookup.declarative_registration(
             intent.listing_uid
@@ -277,7 +277,7 @@ async def _deliver(intent: RevocationIntent) -> None:
             intent = replace(intent, public_id=registration.public_id)
     if not intent.public_id:
         logger.info(
-            "app credential revocation: app %s names no service; dropped",
+            "plug-in credential revocation: plug-in %s names no service; dropped",
             intent.plugin_id,
         )
         return
@@ -300,7 +300,7 @@ async def _deliver(intent: RevocationIntent) -> None:
         )
     except flows.ConnectionFlowError as exc:
         logger.warning(
-            "app credential revocation: app %s connection %s cannot be sent (%s); "
+            "plug-in credential revocation: plug-in %s connection %s cannot be sent (%s); "
             "dropped",
             intent.public_id,
             intent.connection_id,
@@ -322,7 +322,7 @@ async def _with_tries(
         except Exception as exc:
             if attempt + 1 >= REVOKE_ATTEMPTS:
                 logger.warning(
-                    "app credential revocation: app %s connection %s was not "
+                    "plug-in credential revocation: plug-in %s connection %s was not "
                     "accepted after %s tries (%s)",
                     intent.public_id,
                     intent.connection_id,

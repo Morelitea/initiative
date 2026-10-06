@@ -41,7 +41,7 @@ async def minute_pass() -> None:
     visit per community.
 
     Webhook deliveries (retries that have come due, and anything a lost wake
-    left), apps' due schedules, data-job claims, both digests, event reminders
+    left), plug-ins' due schedules, data-job claims, both digests, event reminders
     and scheduled posts, and every :data:`OVERDUE_EVERY`-th pass the overdue
     digests. Posts are published in active communities only: a hold must not
     keep announcing new notices to its members.
@@ -100,9 +100,9 @@ async def slow_pass() -> None:
 
 async def hourly_pass() -> None:
     """Retention and upkeep: trash, expired exports and imports, delivered
-    webhook history, spent digest items, and app auto-updates.
+    webhook history, spent digest items, and plug-in auto-updates.
 
-    Trash is purged and apps updated in active communities only: a read-only
+    Trash is purged and plug-ins updated in active communities only: a read-only
     or suspended one is frozen until it returns. Exports and imports expire
     wherever the schema still exists.
     """

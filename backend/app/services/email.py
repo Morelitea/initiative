@@ -160,7 +160,7 @@ async def _smtp_password() -> str | None:
     granted to no request-path role, and a message goes out from whichever
     session its caller holds.
     """
-    secrets_row = await app_settings_service.load_plugin_setting_secrets()
+    secrets_row = await app_settings_service.load_app_setting_secrets()
     if not secrets_row.smtp_password_encrypted:
         return None
     return decrypt_field(secrets_row.smtp_password_encrypted, SALT_SMTP_PASSWORD)

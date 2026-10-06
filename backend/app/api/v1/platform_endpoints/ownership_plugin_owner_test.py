@@ -1,9 +1,9 @@
 """An owner is a person, a live install, or nobody — over HTTP.
 
-An installed app owns what it creates, and a guild admin may hand a member's
-content, or the unowned pile, to an app that may own all of it: one that is
+An installed plug-in owns what it creates, and a guild admin may hand a member's
+content, or the unowned pile, to a plug-in that may own all of it: one that is
 switched on, holds the tool's write scope and is placed in the content's
-initiative. What a live app owns is not unowned; what a switched-off one owns
+initiative. What a live plug-in owns is not unowned; what a switched-off one owns
 is, while it is off; uninstalling leaves its content unowned.
 """
 
@@ -43,7 +43,7 @@ async def _plugin(
     enabled: bool = True,
 ) -> GuildPlugin:
     """An install in ``admin``'s community, placed in their initiative."""
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         admin.guild,
         admin.user,
@@ -54,19 +54,23 @@ async def _plugin(
     )
     if placed:
         await route_session_to_guild(session, admin.guild.id)
-        session.add(PluginPlacement(install_id=app.id, initiative_id=admin.initiative.id))
+        session.add(
+            PluginPlacement(install_id=plugin.id, initiative_id=admin.initiative.id)
+        )
         await session.commit()
-    return app
+    return plugin
 
 
-async def _owned_by_plugin(session: AsyncSession, admin: Any, app: GuildPlugin) -> Any:
+async def _owned_by_plugin(
+    session: AsyncSession, admin: Any, plugin: GuildPlugin
+) -> Any:
     project = await create_project(session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
         session,
         tool=Tool.project,
         row=project,
-        new_owner=ownership_service.Owner(plugin_install_id=app.id),
+        new_owner=ownership_service.Owner(plugin_install_id=plugin.id),
     )
     await session.commit()
     return project
@@ -86,7 +90,7 @@ async def _unowned_ids(client: AsyncClient, admin: Any) -> set[int]:
 
 
 # ---------------------------------------------------------------------------
-# What an app owns
+# What a plug-in owns
 # ---------------------------------------------------------------------------
 
 
@@ -94,8 +98,8 @@ async def test_a_live_plugins_content_is_owned_and_a_claim_leaves_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
-    project = await _owned_by_plugin(session, admin, app)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    project = await _owned_by_plugin(session, admin, plugin)
 
     assert project.id not in await _unowned_ids(client, admin)
 
@@ -107,24 +111,24 @@ async def test_a_live_plugins_content_is_owned_and_a_claim_leaves_it(
     assert claimed.status_code == 200, claimed.text
     assert await _owner(
         session, admin.guild.id, Tool.project, project.id
-    ) == ownership_service.Owner(plugin_install_id=app.id)
+    ) == ownership_service.Owner(plugin_install_id=plugin.id)
 
 
 async def test_a_switched_off_plugins_content_is_unowned_while_it_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
-    project = await _owned_by_plugin(session, admin, app)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    project = await _owned_by_plugin(session, admin, plugin)
 
     await route_session_to_guild(session, admin.guild.id)
-    app.enabled = False
-    session.add(app)
+    plugin.enabled = False
+    session.add(plugin)
     await session.commit()
     assert project.id in await _unowned_ids(client, admin)
 
-    app.enabled = True
-    session.add(app)
+    plugin.enabled = True
+    session.add(plugin)
     await session.commit()
     assert project.id not in await _unowned_ids(client, admin)
 
@@ -133,11 +137,11 @@ async def test_uninstalling_leaves_its_content_unowned(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
-    project = await _owned_by_plugin(session, admin, app)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    project = await _owned_by_plugin(session, admin, plugin)
 
     await route_session_to_guild(session, admin.guild.id)
-    await session.delete(app)
+    await session.delete(plugin)
     await session.commit()
 
     assert await _owner(session, admin.guild.id, Tool.project, project.id) is None
@@ -147,13 +151,13 @@ async def test_uninstalling_leaves_its_content_unowned(
 async def test_a_claim_of_a_switched_off_plugins_content_keeps_it_writing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The app is the owner being replaced, so it keeps write."""
+    """The plug-in is the owner being replaced, so it keeps write."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS, enabled=True)
-    project = await _owned_by_plugin(session, admin, app)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS, enabled=True)
+    project = await _owned_by_plugin(session, admin, plugin)
     await route_session_to_guild(session, admin.guild.id)
-    app.enabled = False
-    session.add(app)
+    plugin.enabled = False
+    session.add(plugin)
     await session.commit()
 
     claimed = await client.post(
@@ -167,7 +171,9 @@ async def test_a_claim_of_a_switched_off_plugins_content_keeps_it_writing(
     rows = (
         await session.exec(
             select(
-                ResourceGrant.level, ResourceGrant.user_id, ResourceGrant.plugin_install_id
+                ResourceGrant.level,
+                ResourceGrant.user_id,
+                ResourceGrant.plugin_install_id,
             )
             .where(
                 ResourceGrant.resource_type == Tool.project.value,
@@ -177,11 +183,11 @@ async def test_a_claim_of_a_switched_off_plugins_content_keeps_it_writing(
         )
     ).all()
     assert (ResourceAccessLevel.owner, admin.user.id, None) in rows
-    assert (ResourceAccessLevel.write, None, app.id) in rows
+    assert (ResourceAccessLevel.write, None, plugin.id) in rows
 
 
 # ---------------------------------------------------------------------------
-# Handing content to an app
+# Handing content to a plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -200,7 +206,7 @@ async def test_a_members_content_goes_to_a_plugin_that_may_own_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
     member, project = await _members_project(session, admin, acting_user)
 
     listed = await client.get(
@@ -209,26 +215,26 @@ async def test_a_members_content_goes_to_a_plugin_that_may_own_it(
     )
     assert listed.status_code == 200, listed.text
     assert listed.json()["eligible_plugins"] == [
-        {"id": app.id, "name": "Automations", "avatar_url": None}
+        {"id": plugin.id, "name": "Automations", "avatar_url": None}
     ]
 
     moved = await client.post(
         admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
-        json={"new_owner_plugin_id": app.id},
+        json={"new_owner_plugin_id": plugin.id},
     )
     assert moved.status_code == 200, moved.text
     assert moved.json()["counts"] == {Tool.project.value: 1}
     assert await _owner(
         session, admin.guild.id, Tool.project, project.id
-    ) == ownership_service.Owner(plugin_install_id=app.id)
+    ) == ownership_service.Owner(plugin_install_id=plugin.id)
 
 
 async def test_the_unowned_pile_goes_to_a_plugin_that_may_own_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
     project = await create_project(session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
@@ -237,17 +243,17 @@ async def test_the_unowned_pile_goes_to_a_plugin_that_may_own_it(
     await session.commit()
 
     listed = await client.get(admin.g("/users/unowned-content"), headers=admin.headers)
-    assert [a["id"] for a in listed.json()["eligible_plugins"]] == [app.id]
+    assert [a["id"] for a in listed.json()["eligible_plugins"]] == [plugin.id]
 
     claimed = await client.post(
         admin.g("/users/unowned-content/claim"),
         headers=admin.headers,
-        json={"new_owner_plugin_id": app.id},
+        json={"new_owner_plugin_id": plugin.id},
     )
     assert claimed.status_code == 200, claimed.text
     assert await _owner(
         session, admin.guild.id, Tool.project, project.id
-    ) == ownership_service.Owner(plugin_install_id=app.id)
+    ) == ownership_service.Owner(plugin_install_id=plugin.id)
 
 
 @pytest.mark.parametrize("why", ["no_write_scope", "not_placed", "switched_off"])
@@ -255,7 +261,7 @@ async def test_content_is_not_handed_to_a_plugin_that_may_not_own_it(
     client: AsyncClient, session: AsyncSession, acting_user, why: str
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(
+    plugin = await _plugin(
         session,
         admin,
         granted=["projects:read"] if why == "no_write_scope" else _WRITES_PROJECTS,
@@ -273,7 +279,7 @@ async def test_content_is_not_handed_to_a_plugin_that_may_not_own_it(
     moved = await client.post(
         admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
-        json={"new_owner_plugin_id": app.id},
+        json={"new_owner_plugin_id": plugin.id},
     )
     assert moved.status_code == 422, moved.text
     assert moved.json()["detail"] == UserMessages.OWNER_PLUGIN_NOT_ELIGIBLE
@@ -285,10 +291,10 @@ async def test_content_is_not_handed_to_a_plugin_that_may_not_own_it(
 async def test_a_plugin_placed_elsewhere_takes_none_of_a_mixed_pile(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Eligibility is for every item moved: one project in an initiative the app
+    """Eligibility is for every item moved: one project in an initiative the plug-in
     is not placed in keeps the whole move from happening."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
     member, placed_project = await _members_project(session, admin, acting_user)
     elsewhere = await create_initiative(session, admin.guild, admin.user, name="B")
     await create_project(session, elsewhere, member.user)
@@ -296,7 +302,7 @@ async def test_a_plugin_placed_elsewhere_takes_none_of_a_mixed_pile(
     moved = await client.post(
         admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
-        json={"new_owner_plugin_id": app.id},
+        json={"new_owner_plugin_id": plugin.id},
     )
     assert moved.status_code == 422, moved.text
     assert await _owner(
@@ -308,8 +314,8 @@ async def test_a_transfer_names_exactly_one_recipient(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=_WRITES_PROJECTS)
-    for body in ({}, {"new_owner_id": admin.user.id, "new_owner_plugin_id": app.id}):
+    plugin = await _plugin(session, admin, granted=_WRITES_PROJECTS)
+    for body in ({}, {"new_owner_id": admin.user.id, "new_owner_plugin_id": plugin.id}):
         response = await client.post(
             admin.g("/users/unowned-content/claim"),
             headers=admin.headers,
@@ -319,7 +325,7 @@ async def test_a_transfer_names_exactly_one_recipient(
 
 
 # ---------------------------------------------------------------------------
-# The read models name the app
+# The read models name the plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -327,18 +333,20 @@ async def test_the_read_models_name_the_owning_plugin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await _plugin(session, admin, granted=["projects:write", "documents:write"])
-    project = await _owned_by_plugin(session, admin, app)
+    plugin = await _plugin(
+        session, admin, granted=["projects:write", "documents:write"]
+    )
+    project = await _owned_by_plugin(session, admin, plugin)
     document = await create_document(session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
         session,
         tool=Tool.document,
         row=document,
-        new_owner=ownership_service.Owner(plugin_install_id=app.id),
+        new_owner=ownership_service.Owner(plugin_install_id=plugin.id),
     )
     await session.commit()
-    owning_plugin = {"id": app.id, "name": "Automations", "avatar_url": None}
+    owning_plugin = {"id": plugin.id, "name": "Automations", "avatar_url": None}
 
     read = await client.get(admin.g(f"/projects/{project.id}"), headers=admin.headers)
     assert read.status_code == 200, read.text

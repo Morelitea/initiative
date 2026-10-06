@@ -207,7 +207,7 @@ def served_guild_id(connection: HTTPConnection) -> int | None:
     """The community a request is served in: the one its installation token
     names, when it carries one, and otherwise the one its path addresses.
 
-    An installed app's calls are about the community its token names, whatever
+    An installed plug-in's calls are about the community its token names, whatever
     the path says, so that community's cohort serves them."""
     token = bearer_plugin_token(connection)
     if isinstance(token, InstallAccessToken):
@@ -575,7 +575,7 @@ async def apply_install_standing(
     context: InstallContext,
     named_refs: Sequence[str] = (),
 ) -> InstallContext:
-    """Compute an installed app's standing and record it on the session.
+    """Compute an installed plug-in's standing and record it on the session.
 
     The second half of the install seam, as :func:`apply_guild_standing` is of
     the person seam. ``named_refs`` are the references the request names; the
@@ -637,13 +637,13 @@ def require_guild_context(session: AsyncSession) -> GuildContext:
 
 
 def install_context(session: AsyncSession) -> InstallContext | None:
-    """The installed app's standing this session was routed with, or ``None``."""
+    """The installed plug-in's standing this session was routed with, or ``None``."""
     return _standing(session, InstallContext)
 
 
 def require_actor_context(session: AsyncSession) -> GuildContext | InstallContext:
     """The standing this session was routed with, a person's or an installed
-    app's, for a caller on a route that serves either."""
+    plug-in's, for a caller on a route that serves either."""
     context = guild_context(session) or install_context(session)
     if context is None:
         raise RuntimeError(

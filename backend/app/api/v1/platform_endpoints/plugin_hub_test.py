@@ -1,13 +1,13 @@
-"""One installed app calling another through Initiative.
+"""One installed plug-in calling another through Initiative.
 
-The caller holds ``apps:<target>`` and calls
+The caller holds ``plugins:<target>`` and calls
 ``POST /plugin-platform/plugins/{public_id}/endpoints/{endpoint_id}`` on its own
 installation or member token. Initiative checks the call and makes it with a
 context token naming the caller, the actor and, for a member, the target's own
 reference for them.
 
 The seam these tests stub is ``plugin_data._read_body``, where the call leaves for
-the app called; everything above it runs for real.
+the plug-in called; everything above it runs for real.
 """
 
 from __future__ import annotations
@@ -48,18 +48,18 @@ from app.testing.fake_vendor import API_HOST, FakeVendor, declarative_plugin
 TARGET = "tests.github"
 TARGET_UID = "TESTGTHB000001"
 TARGET_BASE = "http://127.0.0.1:9200"
-PLUGINS_SCOPE = f"apps:{TARGET}"
+PLUGINS_SCOPE = f"plugins:{TARGET}"
 PURPOSE = "node-1"
 
 #: A read either actor may call, the community's and a member's connection
 #: either satisfying it.
-ISSUES = f"app.{TARGET}.issues"
+ISSUES = f"plugin.{TARGET}.issues"
 #: A write only a member may call.
-COMMENT = f"app.{TARGET}.comment"
+COMMENT = f"plugin.{TARGET}.comment"
 #: A write the community may call.
-OPEN_ISSUE = f"app.{TARGET}.open_issue"
+OPEN_ISSUE = f"plugin.{TARGET}.open_issue"
 #: A read that is not part of the public surface.
-PRIVATE = f"app.{TARGET}.private"
+PRIVATE = f"plugin.{TARGET}.private"
 #: Long after any test ends, as a stored token's expiry.
 _LATER = 4102444800
 
@@ -128,7 +128,9 @@ def _target_definition() -> dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
-    monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM)
+    monkeypatch.setattr(
+        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM
+    )
     monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "plugin-platform-1")
 
 
@@ -143,7 +145,7 @@ def _clean_cache():
 
 @pytest.fixture
 def upstream(monkeypatch):
-    """Stand in for the app called, recording every request it receives."""
+    """Stand in for the plug-in called, recording every request it receives."""
 
     class Recorder:
         def __init__(self) -> None:
@@ -178,7 +180,7 @@ async def _hub(
     declarative: bool = False,
     definition: Optional[dict[str, Any]] = None,
 ) -> tuple[InstalledPlugin, Optional[GuildPlugin]]:
-    """A caller asking for ``apps:tests.github``, and the target installed in
+    """A caller asking for ``plugins:tests.github``, and the target installed in
     the same community, placed where the caller is unless told otherwise. A
     ``declarative`` target is called by Initiative itself, on the community's
     stored token."""
@@ -243,7 +245,7 @@ def _installation_headers(
 ) -> dict[str, str]:
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(scopes),
         initiative_id=initiative_id,
@@ -268,7 +270,7 @@ async def _member(
     await route_session_to_guild(session, installed.guild.id)
     session.add(
         PluginMemberConsent(
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             user_id=member.user.id,
             purpose=PURPOSE,
             label="Comment as you",
@@ -284,7 +286,7 @@ async def _member(
 def _member_headers(installed: InstalledPlugin, member) -> dict[str, str]:
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset({PLUGINS_SCOPE}),
         initiative_id=None,
@@ -490,7 +492,7 @@ async def test_a_member_call_carries_the_targets_reference_never_the_callers(
     )
     caller_ref = await ensure_plugin_ref(
         guild_id=installed.guild.id,
-        plugin_install_id=installed.app.id,
+        plugin_install_id=installed.plugin.id,
         user_id=member.user.id,
     )
     assert claims["actor"] == "member"
@@ -636,7 +638,9 @@ async def test_a_member_token_for_a_member_who_left_is_refused(
     await route_session_to_guild(session, installed.guild.id)
     consent = (
         await session.exec(
-            select(PluginMemberConsent).where(PluginMemberConsent.user_id == member.user.id)
+            select(PluginMemberConsent).where(
+                PluginMemberConsent.user_id == member.user.id
+            )
         )
     ).one()
     consent.revoked_at = datetime.now(timezone.utc)
@@ -664,7 +668,7 @@ async def test_a_member_token_for_a_member_who_left_is_refused(
             {"body": [{"title": "Broken build"}]},
             200,
             {
-                "endpoint": f"app.{TARGET}.issues",
+                "endpoint": f"plugin.{TARGET}.issues",
                 "actor": "installation",
                 "result": {"titles": ["Broken build"], "total": 1},
             },
@@ -689,7 +693,7 @@ async def test_a_declarative_target_is_called_by_initiative(
 ):
     """The hub's checks are the same; the call is Initiative's own, on the
     community's credential. A read answers its unavailable code; a write is
-    refused with it; a throttle is the app being unavailable, which a caller
+    refused with it; a throttle is the plug-in being unavailable, which a caller
     retries."""
     vendor = FakeVendor()
     vendor.install(monkeypatch)
@@ -699,7 +703,7 @@ async def test_a_declarative_target_is_called_by_initiative(
     )
 
     response = await client.post(
-        _url(f"app.{TARGET}.{endpoint}"),
+        _url(f"plugin.{TARGET}.{endpoint}"),
         json={
             "params": {
                 "repo": "acme/web",

@@ -1,4 +1,4 @@
-"""What Initiative hands an app service, and what it deliberately does not.
+"""What Initiative hands a plug-in service, and what it deliberately does not.
 
 Four properties carry the weight, and each is here because losing it quietly
 would be hard to notice from the outside:
@@ -9,13 +9,13 @@ would be hard to notice from the outside:
   token is spent before it is useful.
 * **No person.** No ``sub``, no email, no name — anywhere in the payload. Where a
   member's own vendor credential is involved the token carries the *opaque*
-  handle instead, which is exactly the substitution that keeps an app from
+  handle instead, which is exactly the substitution that keeps a plug-in from
   accumulating identities.
-* **One audience.** ``initiative-plugin:<public_id>``, so a token minted for one app
+* **One audience.** ``initiative-plugin:<public_id>``, so a token minted for one plug-in
   is not accepted by another even if it somehow crosses.
 
 The JWKS is checked by actually verifying a minted token against it, rather than
-by comparing fields — that is what an app will do, and it is the only assertion
+by comparing fields — that is what a plug-in will do, and it is the only assertion
 that fails if the encoding is subtly wrong.
 """
 
@@ -46,7 +46,9 @@ KEY_ID = "plugin-platform-1"
 
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
-    monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM)
+    monkeypatch.setattr(
+        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM
+    )
     monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_KEY_ID", KEY_ID)
     # The document is memoized per key; a test that swaps the key must not read
     # the previous one's answer.
@@ -57,7 +59,7 @@ def _mint(**overrides) -> str:
     token, _ = context_jwt.mint_context_token(
         **{
             "public_id": PUBLIC_ID,
-            "guild_ref": "gapp_testguild7",
+            "guild_ref": "gplu_testguild7",
             "plugin_install_id": 3,
             "scope": "endpoint",
             **overrides,
@@ -77,8 +79,8 @@ def _claims(token: str) -> dict:
 
 class TestClaims:
     def test_the_token_is_pinned_to_one_guild_and_one_install(self):
-        claims = _claims(_mint(guild_ref="gapp_testguild42", plugin_install_id=9))
-        assert claims["community_ref"] == "gapp_testguild42"
+        claims = _claims(_mint(guild_ref="gplu_testguild42", plugin_install_id=9))
+        assert claims["community_ref"] == "gplu_testguild42"
         assert claims["plugin_install_id"] == 9
         assert claims["scope"] == "endpoint"
 
@@ -86,14 +88,14 @@ class TestClaims:
         token = _mint()
         assert _claims(token)["aud"] == f"initiative-plugin:{PUBLIC_ID}"
 
-        # Another app's service must not accept it, which is what verifying
+        # Another plug-in's service must not accept it, which is what verifying
         # against its own audience proves.
         with pytest.raises(jwt.InvalidAudienceError):
             jwt.decode(
                 token,
                 _keypair.public_key(),
                 algorithms=["RS256"],
-                audience="initiative-plugin:other.app",
+                audience="initiative-plugin:other.plugin",
             )
 
     def test_it_expires_in_about_a_minute(self):
@@ -139,8 +141,8 @@ class TestClaims:
     def test_the_endpoint_is_named_on_every_call(self):
         # One scope covers reads and writes, so the id is what narrows a token:
         # one minted to read the order summary cannot be spent changing an order.
-        claims = _claims(_mint(endpoint_id="app.acme.tracker.orders-summary"))
-        assert claims["endpoint_id"] == "app.acme.tracker.orders-summary"
+        claims = _claims(_mint(endpoint_id="plugin.acme.tracker.orders-summary"))
+        assert claims["endpoint_id"] == "plugin.acme.tracker.orders-summary"
         assert "endpoint_id" not in _claims(_mint())
 
     def test_every_token_has_its_own_jti(self):
@@ -167,7 +169,7 @@ class TestClaims:
 
 class TestJwks:
     def test_a_minted_token_verifies_against_the_published_key(self):
-        """The assertion an app actually makes."""
+        """The assertion a plug-in actually makes."""
         document = context_jwt.context_jwks()
         entry = document["keys"][0]
 
@@ -182,7 +184,7 @@ class TestJwks:
             algorithms=["RS256"],
             audience=f"initiative-plugin:{PUBLIC_ID}",
         )
-        assert claims["community_ref"] == "gapp_testguild7"
+        assert claims["community_ref"] == "gplu_testguild7"
 
     def test_it_publishes_the_kid_the_header_carries(self):
         entry = context_jwt.context_jwks()["keys"][0]
@@ -198,7 +200,7 @@ class TestJwks:
 
     def test_it_refuses_rather_than_publishing_an_empty_key_set(self, monkeypatch):
         """An empty ``keys`` array is a claim ("this platform has no keys") that
-        an app would cache. Absent configuration raises instead."""
+        a plug-in would cache. Absent configuration raises instead."""
         monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
         monkeypatch.setattr(context_jwt, "_jwks_cache", None, raising=False)
         with pytest.raises(PluginPlatformSigningNotConfiguredError):

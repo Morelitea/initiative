@@ -288,7 +288,7 @@ export const AppSidebar = () => {
 
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
-  const currentVersion = __PLUGIN_VERSION__;
+  const currentVersion = __APP_VERSION__;
   const hasUpdate =
     latestVersion && currentVersion && compareVersions(latestVersion, currentVersion) > 0;
 

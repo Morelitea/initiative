@@ -1,7 +1,7 @@
-"""The properties an app reference has to hold.
+"""The properties a plug-in reference has to hold.
 
 The sector is the install, so a member has one reference per install, and
-another again for the same app installed in a second guild. These hold that
+another again for the same plug-in installed in a second guild. These hold that
 each of those values is distinct, and that one stays put once minted.
 
 The guild check has its own group. The value lives in a platform-wide table
@@ -44,7 +44,7 @@ class TestOneReferencePerSector:
         guild = await create_guild(session, creator=user)
         one = await _install(session, guild, user)
         two = await _install(
-            session, guild, user, listing_uid="TESTAPP0000002", public_id="other.app"
+            session, guild, user, listing_uid="TESTAPP0000002", public_id="other.plugin"
         )
         await session.commit()
 
@@ -60,13 +60,13 @@ class TestOneReferencePerSector:
         owner = await create_user(session)
         other = await create_user(session)
         guild = await create_guild(session, creator=owner)
-        app = await _install(session, guild, owner)
+        plugin = await _install(session, guild, owner)
         await session.commit()
 
         assert await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=owner.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=owner.id
         ) != await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=other.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=other.id
         )
 
     async def test_one_plugin_in_two_guilds_names_one_person_differently(self, session):
@@ -86,14 +86,14 @@ class TestOneReferencePerSector:
     async def test_minting_twice_gives_the_same_reference(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await _install(session, guild, user)
+        plugin = await _install(session, guild, user)
         await session.commit()
 
         first = await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=user.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=user.id
         )
         assert first == await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=user.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=user.id
         )
 
     def test_the_value_fits_where_it_has_to_go(self):
@@ -105,26 +105,26 @@ class TestTheGuildPredicate:
     async def test_a_reference_resolves_inside_its_own_guild(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await _install(session, guild, user)
+        plugin = await _install(session, guild, user)
         await session.commit()
 
         ref = await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=user.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=user.id
         )
         row = await resolve_plugin_ref(session, ref=ref, guild_id=guild.id)
         assert row is not None
         assert row.entity_id == user.id
-        assert row.sector_id == app.id
+        assert row.sector_id == plugin.id
 
     async def test_it_does_not_resolve_for_another_guild(self, session):
         user = await create_user(session)
         here = await create_guild(session, creator=user)
         there = await create_guild(session, creator=user)
-        app = await _install(session, here, user)
+        plugin = await _install(session, here, user)
         await session.commit()
 
         ref = await ensure_plugin_ref(
-            guild_id=here.id, plugin_install_id=app.id, user_id=user.id
+            guild_id=here.id, plugin_install_id=plugin.id, user_id=user.id
         )
         assert await resolve_plugin_ref(session, ref=ref, guild_id=there.id) is None
 
@@ -165,14 +165,14 @@ class TestMovingOne:
     async def test_a_member_can_be_made_unrecognisable_to_an_install(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await _install(session, guild, user)
+        plugin = await _install(session, guild, user)
         await session.commit()
 
         before = await ensure_plugin_ref(
-            guild_id=guild.id, plugin_install_id=app.id, user_id=user.id
+            guild_id=guild.id, plugin_install_id=plugin.id, user_id=user.id
         )
         after = await reissue_plugin_ref(
-            session, guild_id=guild.id, plugin_install_id=app.id, user_id=user.id
+            session, guild_id=guild.id, plugin_install_id=plugin.id, user_id=user.id
         )
         await session.commit()
 
@@ -186,17 +186,17 @@ class TestMovingOne:
         owner = await create_user(session)
         other = await create_user(session)
         guild = await create_guild(session, creator=owner)
-        app = await _install(session, guild, owner)
+        plugin = await _install(session, guild, owner)
         await session.commit()
 
         before = {
             u.id: await ensure_plugin_ref(
-                guild_id=guild.id, plugin_install_id=app.id, user_id=u.id
+                guild_id=guild.id, plugin_install_id=plugin.id, user_id=u.id
             )
             for u in (owner, other)
         }
         moved = await reissue_install_refs(
-            session, guild_id=guild.id, plugin_install_id=app.id
+            session, guild_id=guild.id, plugin_install_id=plugin.id
         )
         await session.commit()
 
@@ -204,7 +204,7 @@ class TestMovingOne:
         for user_id, old in before.items():
             assert (
                 await ensure_plugin_ref(
-                    guild_id=guild.id, plugin_install_id=app.id, user_id=user_id
+                    guild_id=guild.id, plugin_install_id=plugin.id, user_id=user_id
                 )
                 != old
             )
@@ -216,7 +216,7 @@ class TestRemoval:
         guild = await create_guild(session, creator=user)
         going = await _install(session, guild, user)
         staying = await _install(
-            session, guild, user, listing_uid="TESTAPP0000002", public_id="other.app"
+            session, guild, user, listing_uid="TESTAPP0000002", public_id="other.plugin"
         )
         await session.commit()
 
@@ -262,19 +262,19 @@ class TestRemoval:
 
         The references are on a different connection and cannot join the
         deletion's transaction, so they go after the commit that made it real.
-        A guild whose deletion then failed still holds the identities its apps
+        A guild whose deletion then failed still holds the identities its plug-ins
         know its members by.
         """
         from app.services.platform import guilds as guilds_service
 
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await _install(session, guild, user)
+        plugin = await _install(session, guild, user)
         await session.commit()
 
         guild_id = guild.id
         ref = await ensure_plugin_ref(
-            guild_id=guild_id, plugin_install_id=app.id, user_id=user.id
+            guild_id=guild_id, plugin_install_id=plugin.id, user_id=user.id
         )
         await guilds_service.delete_guild(session, guild)
 
@@ -321,5 +321,5 @@ class TestRemoval:
         assert await resolve_plugin_ref(session, ref=live, guild_id=kept_id) is not None
 
     def test_the_grace_window_is_the_shared_one(self):
-        # App references retire on the same clock as every other sector's.
+        # Plug-in references retire on the same clock as every other sector's.
         assert REF_GRACE_PERIOD.days == 30

@@ -500,7 +500,7 @@ def test_a_system_write_names_no_actor():
 
 
 def test_the_envelope_names_the_plugin_that_wrote():
-    """An app recognises its own writes by ``actor_plugin``, its registration's
+    """A plug-in recognises its own writes by ``actor_plugin``, its registration's
     ``public_id``. Set on its own, beside or without a person."""
     subscription = _subscription()
     by_plugin = outbox_poller._envelope(
@@ -509,9 +509,9 @@ def test_the_envelope_names_the_plugin_that_wrote():
         [_row(1, 500, actor_user_id=None, actor_install_id=4)],
         guild_ref=_GUILD_REF,
         actor_ref=None,
-        actor_plugin="tests.app",
+        actor_plugin="tests.plugin",
     )
-    assert by_plugin["actor_plugin"] == "tests.app"
+    assert by_plugin["actor_plugin"] == "tests.plugin"
     assert by_plugin["actor_ref"] is None
     assert "actor_install_id" not in by_plugin
 
@@ -580,11 +580,11 @@ def test_the_reach_reads_what_the_grant_lets_it_read():
             "projects:write",
             "tags:read",
             "no-longer:a-scope",
-            "apps:tests.gh",
+            "plugins:tests.gh",
         ],
     )
     assert reach.readable == frozenset({"projects", "tags"})
-    assert reach.apps == frozenset({"tests.gh"})
+    assert reach.plugins == frozenset({"tests.gh"})
     assert reach.placed == frozenset()
     assert outbox_poller.InstallReach.from_row(
         live=None, placed=[1], granted_scopes=None
@@ -609,7 +609,7 @@ async def test_a_hint_wakes_the_drain_only_where_something_subscribes(monkeypatc
     assert outbox_poller.drain.pending == {7}
 
 
-_GH_EVENT = "app.tests.gh.issue_opened"
+_GH_EVENT = "plugin.tests.gh.issue_opened"
 
 
 def _plugin_event(**overrides) -> PluginEventOutbox:
@@ -650,7 +650,7 @@ def test_a_plugin_event_is_one_change_carrying_its_payload(
         {
             "event_type": _GH_EVENT,
             "initiative_id": carried,
-            "app": "tests.gh",
+            "plugin": "tests.gh",
             "payload": {"number": 12},
         }
     ]
@@ -658,11 +658,11 @@ def test_a_plugin_event_is_one_change_carrying_its_payload(
 
 def test_a_plugin_event_about_no_initiative_reaches_where_both_plugins_are_placed():
     """A vendor organization is not an initiative, so its events reach an
-    initiative's subscription where the emitting app is placed too."""
+    initiative's subscription where the emitting plug-in is placed too."""
     narrowed = _subscription(
         plugin_install_id=4, initiative_id=11, event_types=[_GH_EVENT]
     )
-    reach = _reach(apps=frozenset({"tests.gh"}))
+    reach = _reach(plugins=frozenset({"tests.gh"}))
     event = _plugin_event()
     matches = outbox_poller._matches_plugin_event
 
@@ -676,7 +676,7 @@ def test_a_plugin_event_about_no_initiative_reaches_where_both_plugins_are_place
 
 def test_a_plugin_event_about_an_initiative_reaches_only_that_initiative():
     event = _plugin_event(initiative_id=11)
-    reach = _reach(apps=frozenset({"tests.gh"}), placed=frozenset({11, 12}))
+    reach = _reach(plugins=frozenset({"tests.gh"}), placed=frozenset({11, 12}))
     matches = outbox_poller._matches_plugin_event
 
     for initiative_id, heard in ((11, True), (12, False), (None, True)):

@@ -49,7 +49,7 @@ class TestTheRenderedValue:
     def test_the_prefix_names_the_entity_and_the_purpose(self):
         assert ref_prefix(IdentityEntity.user, BILLING) == "ubil"
         assert ref_prefix(IdentityEntity.guild, BILLING) == "gbil"
-        assert ref_prefix(IdentityEntity.user, IdentityPurpose.plugin) == "uapp"
+        assert ref_prefix(IdentityEntity.user, IdentityPurpose.plugin) == "uplu"
 
     def test_two_mints_never_agree(self):
         assert mint_ref(IdentityEntity.user, BILLING) != mint_ref(
@@ -326,7 +326,7 @@ class TestRemoval:
     async def test_a_deleted_guild_leaves_neither_half(self, session):
         """A guild is in this table twice and both have to go.
 
-        Its members are named to each app installed there, in sectors the guild
+        Its members are named to each plug-in installed there, in sectors the guild
         owns. The guild itself is named by billing, whose sector is the whole
         deployment — so those rows carry no ``sector_guild_id`` and a sweep
         looking for one never finds them.

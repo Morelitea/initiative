@@ -498,7 +498,7 @@ async def test_a_hash_no_scheme_verifies_is_not_a_password(
     assert response.status_code == 200, response.text
 
 
-async def test_the_plugin_is_asked_for_the_code_and_keeps_its_refresh_token(
+async def test_the_app_is_asked_for_the_code_and_keeps_its_refresh_token(
     client: AsyncClient, session: AsyncSession
 ):
     """A proved factor is part of signing in from the app too. A browser reads

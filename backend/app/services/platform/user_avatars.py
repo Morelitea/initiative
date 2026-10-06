@@ -84,8 +84,8 @@ def uploaded_digest(user_id: int, url: str | None) -> str | None:
 
 
 def member_avatar_url(person: str, sha256: str) -> str:
-    """Where an installed app is served a member's uploaded picture: under the
-    app API, by the install's ``person`` reference rather than the row id."""
+    """Where an installed plug-in is served a member's uploaded picture: under the
+    plug-in API, by the install's ``person`` reference rather than the row id."""
     return f"{PLUGIN_SERVER_URL}/members/{person}/avatar/{sha256}"
 
 

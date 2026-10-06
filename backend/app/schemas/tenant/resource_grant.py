@@ -28,7 +28,7 @@ MAX_BULK_GRANT_ITEMS = 200
 class ResourceGrantSchema(SanitizedBaseModel):
     """One ``resource_grants`` row — exactly the columns that define a grant: a
     ``level`` for a user (``user_id``), an initiative role (``role_id``), all
-    initiative members (``all_initiative_members``), or an installed app
+    initiative members (``all_initiative_members``), or an installed plug-in
     (``plugin_install_id``). Exactly one grantee is set.
 
     The identical shape both reports a resource's grants (``grants`` is a list of
@@ -37,8 +37,8 @@ class ResourceGrantSchema(SanitizedBaseModel):
     grant. Role display names are resolved client-side from the initiative's roles
     by ``role_id``.
 
-    An **app install** grantee is reported here and not taken from here: kept by
-    the server whatever this list says. What an app may reach is the seat's to
+    A **plug-in install** grantee is reported here and not taken from here: kept by
+    the server whatever this list says. What a plug-in may reach is the seat's to
     decide, not a resource owner's sharing panel."""
 
     # from_attributes so a read model can validate straight off the ORM
@@ -50,7 +50,7 @@ class ResourceGrantSchema(SanitizedBaseModel):
     user_id: Optional[PersonId] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False
-    #: The installed app this grant is made to. Reported, never taken.
+    #: The installed plug-in this grant is made to. Reported, never taken.
     plugin_install_id: Optional[int] = None
 
     @model_validator(mode="after")

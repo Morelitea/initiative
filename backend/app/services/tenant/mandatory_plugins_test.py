@@ -1,4 +1,4 @@
-"""Apps the deployment places into every guild.
+"""Plug-ins the deployment places into every guild.
 
 The behaviour is one sentence — a registration marked ``mandatory`` is installed
 everywhere — and the tests are about the edges around it, because those are what
@@ -8,9 +8,9 @@ make it usable in production:
   nobody has to remember to run anything.
 * **An existing guild gets it at boot**, which is the only way a flag set today
   reaches guilds created last year.
-* **Twice is once.** The sweep is idempotent; a guild that already has the app
+* **Twice is once.** The sweep is idempotent; a guild that already has the plug-in
   is left exactly as it was, configuration and all.
-* **Nothing here fails a guild creation.** An app whose listing has not arrived
+* **Nothing here fails a guild creation.** A plug-in whose listing has not arrived
   is a gap the next boot closes, not a reason a guild cannot exist.
 * **The kill switch outranks the flag**, and clearing the flag deletes nothing.
 """
@@ -48,7 +48,7 @@ PROVIDED_DEFINITION = {
     "plugin_kind": "service",
     "service": {"public_id": PROVIDED_ID, "protocol": 1},
     "features": [],
-    "default_name": "Provided app",
+    "default_name": "Provided plug-in",
 }
 
 
@@ -59,7 +59,7 @@ async def provided_listing(session: AsyncSession):
         uid=PROVIDED_UID,
         public_id=PROVIDED_ID,
         kind="plugin",
-        name="Provided app",
+        name="Provided plug-in",
         definition=PROVIDED_DEFINITION,
     )
 
@@ -101,10 +101,10 @@ class TestAtGuildCreation:
         assert response.status_code == 201, response.text
         guild_id = response.json()["id"]
 
-        apps = await _installed_plugins(session, guild_id)
-        assert [app.listing_uid for app in apps] == [PROVIDED_UID]
-        assert apps[0].name == "Provided app"
-        assert apps[0].plugin_kind == "service"
+        plugins = await _installed_plugins(session, guild_id)
+        assert [plugin.listing_uid for plugin in plugins] == [PROVIDED_UID]
+        assert plugins[0].name == "Provided plug-in"
+        assert plugins[0].plugin_kind == "service"
 
     async def test_a_registration_switched_off_installs_nowhere(
         self, client: AsyncClient, session: AsyncSession, mandatory_registration
@@ -127,7 +127,7 @@ class TestAtGuildCreation:
     async def test_a_missing_listing_does_not_fail_the_creation(
         self, client: AsyncClient, session: AsyncSession
     ):
-        """The install is a local row; an app whose listing this deployment does
+        """The install is a local row; a plug-in whose listing this deployment does
         not hold yet is a gap the next boot closes."""
         await create_plugin_service_registration(
             session,
@@ -184,11 +184,11 @@ class TestBackfill:
         assert result.installed == 1
         assert result.failed == 0
 
-        apps = await _installed_plugins(session, guild.id)
-        assert [app.listing_uid for app in apps] == [PROVIDED_UID]
-        # Recorded against a guild admin: an app they did not choose is still
+        plugins = await _installed_plugins(session, guild.id)
+        assert [plugin.listing_uid for plugin in plugins] == [PROVIDED_UID]
+        # Recorded against a guild admin: a plug-in they did not choose is still
         # one they are responsible for.
-        assert apps[0].created_by == creator.id
+        assert plugins[0].created_by == creator.id
 
     async def test_several_guilds_each_get_their_own(
         self, session: AsyncSession, mandatory_registration
@@ -209,8 +209,8 @@ class TestBackfill:
 
         assert (result.installed, result.failed) == (3, 0)
         for guild in guilds:
-            apps = await _installed_plugins(session, guild.id)
-            assert [app.listing_uid for app in apps] == [PROVIDED_UID], (
+            plugins = await _installed_plugins(session, guild.id)
+            assert [plugin.listing_uid for plugin in plugins] == [PROVIDED_UID], (
                 f"guild {guild.id} did not get its own install"
             )
 
@@ -248,7 +248,7 @@ class TestBackfill:
         self, session: AsyncSession, mandatory_registration
     ):
         """The destructive path is deleting the registration, not clearing a
-        flag: an app that stops being compulsory keeps its install."""
+        flag: a plug-in that stops being compulsory keeps its install."""
         creator = await create_user(session, email="cleared@example.com")
         guild = await create_guild(session, creator=creator, name="Cleared guild")
         await create_guild_membership(
@@ -279,15 +279,15 @@ class TestPlacement:
         before = await create_initiative(session, guild, creator, name="Before")
 
         await backfill_mandatory_plugins()
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.follows_new_initiatives is True
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.follows_new_initiatives is True
 
         after = await create_initiative(session, guild, creator, name="After")
 
         await route_session_to_guild(session, guild.id)
         rows = (
             await session.exec(
-                select(PluginPlacement).where(PluginPlacement.install_id == app.id)
+                select(PluginPlacement).where(PluginPlacement.install_id == plugin.id)
             )
         ).all()
         placed = {row.initiative_id: list(row.role_ids) for row in rows}
@@ -319,12 +319,12 @@ class TestPlacement:
 
         await backfill_mandatory_plugins()
 
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.follows_new_initiatives is True
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.follows_new_initiatives is True
         await route_session_to_guild(session, guild.id)
         assert (
             await session.exec(
-                select(PluginPlacement).where(PluginPlacement.install_id == app.id)
+                select(PluginPlacement).where(PluginPlacement.install_id == plugin.id)
             )
         ).all() == []
 
@@ -343,7 +343,7 @@ class TestScopes:
             uid=uid,
             public_id=public_id,
             kind="plugin",
-            name="Scoped app",
+            name="Scoped plug-in",
             definition={
                 "plugin_kind": "service",
                 "service": {
@@ -352,7 +352,7 @@ class TestScopes:
                     "scopes": ["comments:read", "projects:read", "projects:write"],
                 },
                 "features": [],
-                "default_name": "Scoped app",
+                "default_name": "Scoped plug-in",
             },
         )
         await create_plugin_service_registration(
@@ -371,8 +371,8 @@ class TestScopes:
 
         await backfill_mandatory_plugins()
 
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.granted_scopes == ["projects:read", "projects:write"]
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.granted_scopes == ["projects:read", "projects:write"]
 
     async def test_a_manifest_asking_for_nothing_is_granted_nothing(
         self, session: AsyncSession, mandatory_registration
@@ -385,8 +385,8 @@ class TestScopes:
 
         await backfill_mandatory_plugins()
 
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.granted_scopes == []
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.granted_scopes == []
 
 
 class TestScopesOnAnInstallAlreadyThere:
@@ -430,7 +430,7 @@ class TestScopesOnAnInstallAlreadyThere:
         await create_guild_membership(
             session, user=creator, guild=guild, role=CommunityRole.admin
         )
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             guild,
             creator,
@@ -447,7 +447,7 @@ class TestScopesOnAnInstallAlreadyThere:
                 await db_session.set_rls_context(system, SystemGuild(guild.id))
                 row = (
                     await system.exec(
-                        select(GuildPlugin).where(GuildPlugin.id == app.id)
+                        select(GuildPlugin).where(GuildPlugin.id == plugin.id)
                     )
                 ).one()
                 row.granted_scopes = granted
@@ -460,8 +460,8 @@ class TestScopesOnAnInstallAlreadyThere:
 
         await backfill_mandatory_plugins()
 
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.granted_scopes == ["comments:read", "projects:read"]
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.granted_scopes == ["comments:read", "projects:read"]
 
     async def test_a_grant_the_seat_set_is_left_alone(self, session: AsyncSession):
         guild = await self._guild_with_install(
@@ -470,5 +470,5 @@ class TestScopesOnAnInstallAlreadyThere:
 
         await backfill_mandatory_plugins()
 
-        [app] = await _installed_plugins(session, guild.id)
-        assert app.granted_scopes == ["comments:read"]
+        [plugin] = await _installed_plugins(session, guild.id)
+        assert plugin.granted_scopes == ["comments:read"]

@@ -66,9 +66,9 @@ def _managed(key: str = "owner") -> dict:
 
 
 def _service(**overrides) -> dict:
-    """A minimal service app: declares nothing, ships nothing, and is valid.
+    """A minimal service plug-in: declares nothing, ships nothing, and is valid.
 
-    An app with no local features is a legitimate install — an integration that
+    A plug-in with no local features is a legitimate install — an integration that
     exists to give an external system a foothold in a guild has nothing to
     render — so the smallest valid manifest is the right starting point.
     """
@@ -82,7 +82,7 @@ def _service(**overrides) -> dict:
 
 
 def _normalize(**overrides) -> dict:
-    return normalize_listing_definition("app", _service(**overrides))
+    return normalize_listing_definition("plugin", _service(**overrides))
 
 
 class TestAttribution:
@@ -138,7 +138,7 @@ class TestPluginKinds:
         assert "service" in PLUGIN_KINDS
 
     def test_service_is_installable_into_a_guild(self):
-        """A service app has somewhere to land now: the registration supplies
+        """A service plug-in has somewhere to land now: the registration supplies
         the address and the powers, and the install is the pinned definition
         plus whatever the guild configures against it."""
         assert "service" in GUILD_INSTALLABLE_PLUGIN_KINDS
@@ -150,15 +150,15 @@ class TestPluginKinds:
         assert GUILD_INSTALLABLE_PLUGIN_KINDS <= PLUGIN_KINDS
 
     def test_an_unknown_kind_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown app kind"):
-            normalize_listing_definition("app", {"plugin_kind": "daemon"})
+        with pytest.raises(ListingDefinitionError, match="unknown plug-in kind"):
+            normalize_listing_definition("plugin", {"plugin_kind": "daemon"})
 
 
 class TestServiceIdentity:
     def test_a_service_names_itself(self):
         with pytest.raises(ListingDefinitionError, match="service.public_id"):
             normalize_listing_definition(
-                "app", {"plugin_kind": "service", "service": {}, "features": []}
+                "plugin", {"plugin_kind": "service", "service": {}, "features": []}
             )
 
     def test_the_service_id_is_publisher_scoped(self):
@@ -171,7 +171,7 @@ class TestServiceIdentity:
 
     def test_the_protocol_defaults_to_the_one_this_build_speaks(self):
         definition = normalize_listing_definition(
-            "app",
+            "plugin",
             {
                 "plugin_kind": "service",
                 "service": {"public_id": "tests.widget-co"},
@@ -199,7 +199,7 @@ class TestFeaturesMatchBlocks:
         with pytest.raises(ListingDefinitionError, match="is not declared"):
             _normalize(
                 endpoints=[
-                    {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+                    {"id": "plugin.tests.widget-co.thing-happened", "direction": "emit"}
                 ],
             )
 
@@ -226,7 +226,7 @@ class TestFeaturesMatchBlocks:
         definition = _normalize(
             features=["endpoints", "embeds", "endpoints"],
             endpoints=[
-                {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+                {"id": "plugin.tests.widget-co.thing-happened", "direction": "emit"}
             ],
             embeds=[{"id": "main", "path": "/embed", "name": _label()}],
         )
@@ -263,8 +263,8 @@ class TestConnections:
             )
 
     def test_the_retired_connect_path_is_no_way_in(self):
-        """The app no longer runs a flow of its own: a connection naming only
-        where the app's page was has no flow, and is refused as one."""
+        """The plug-in no longer runs a flow of its own: a connection naming only
+        where the plug-in's page was has no flow, and is refused as one."""
         with pytest.raises(ListingDefinitionError, match="declares a flow"):
             _normalize(
                 connections=[
@@ -317,7 +317,7 @@ class TestConnections:
                     "flow": {
                         **FLOW,
                         "install_url": (
-                            "https://vendor.test/plugins/{vendor.app_slug}/install"
+                            "https://vendor.test/apps/{vendor.app_slug}/install"
                         ),
                     },
                     "fields": [_managed()],
@@ -328,7 +328,7 @@ class TestConnections:
         assert connection["fields"][0]["managed"] is True
 
     def test_a_flow_holds_only_managed_values(self):
-        """Its values come from the app's after_connect hook; a typed field
+        """Its values come from the plug-in's after_connect hook; a typed field
         would be one nobody fills in."""
         with pytest.raises(ListingDefinitionError, match="only managed values"):
             _normalize(
@@ -620,12 +620,12 @@ class TestConnections:
 
 
 #: The id the fixtures below read, spelled once. Namespaced under the fixture
-#: app's own service id, which is what every endpoint id has to be.
-READ_ID = "app.tests.widget-co.orders"
+#: plug-in's own service id, which is what every endpoint id has to be.
+READ_ID = "plugin.tests.widget-co.orders"
 
 
 def _with_source(**endpoint_overrides) -> dict:
-    """A service app with one connection and one read endpoint that needs it."""
+    """A service plug-in with one connection and one read endpoint that needs it."""
     endpoint = {
         "id": READ_ID,
         "direction": "read",
@@ -700,10 +700,10 @@ class TestRequires:
 
 class TestEndpoints:
     def test_an_id_is_namespaced_under_the_plugin(self):
-        # Two apps offering `create-issue` would be two different things under
+        # Two plug-ins offering `create-issue` would be two different things under
         # one name, and a caller resolving the wrong one would do the wrong
         # thing successfully.
-        for value in ("orders", "app.someone.else.orders", "app.tests.widget-co."):
+        for value in ("orders", "plugin.someone.else.orders", "plugin.tests.widget-co."):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 _with_source(id=value)
 
@@ -1072,23 +1072,23 @@ class TestAdminOnlySurfaces:
 
 class TestEmissions:
     def _emit(self, **overrides) -> dict:
-        endpoint = {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+        endpoint = {"id": "plugin.tests.widget-co.order-created", "direction": "emit"}
         endpoint.update(overrides)
         return _normalize(features=["endpoints"], endpoints=[endpoint])
 
     def test_an_id_is_namespaced_under_the_plugin(self):
-        for value in ("order_created", "app.someone.else.order_created"):
+        for value in ("order_created", "plugin.someone.else.order_created"):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 self._emit(id=value)
 
     def test_the_namespace_alone_is_not_an_id(self):
         with pytest.raises(ListingDefinitionError, match="must start with"):
-            self._emit(id="app.tests.widget-co.")
+            self._emit(id="plugin.tests.widget-co.")
 
     def test_a_declared_one_is_kept(self):
         definition = self._emit()
         assert definition["endpoints"] == [
-            {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+            {"id": "plugin.tests.widget-co.order-created", "direction": "emit"}
         ]
 
     def test_two_of_the_same_id_are_refused(self):
@@ -1098,8 +1098,8 @@ class TestEmissions:
             _normalize(
                 features=["endpoints"],
                 endpoints=[
-                    {"id": "app.tests.widget-co.order-created", "direction": "emit"},
-                    {"id": "app.tests.widget-co.order-created", "direction": "read"},
+                    {"id": "plugin.tests.widget-co.order-created", "direction": "emit"},
+                    {"id": "plugin.tests.widget-co.order-created", "direction": "read"},
                 ],
             )
 
@@ -1119,7 +1119,7 @@ class TestCanonicalShape:
         }
 
     def test_a_definition_holds_no_address_of_the_plugin(self):
-        """The governing rule, asserted on a manifest that tries: an app says
+        """The governing rule, asserted on a manifest that tries: a plug-in says
         which route, and the deployment's registration says where. The one kind
         of address it may hold is its vendor's, in a flow Initiative runs."""
         definition = _normalize(
@@ -1164,7 +1164,7 @@ class TestCanonicalShape:
             }
             for index in range(service_plugins.MAX_WIDGETS)
         ]
-        with pytest.raises(ListingDefinitionError, match="service app definition"):
+        with pytest.raises(ListingDefinitionError, match="service plug-in definition"):
             _normalize(features=["widgets"], widgets=widgets)
 
     def test_a_block_longer_than_its_cap_is_refused_not_truncated(self):
@@ -1203,7 +1203,7 @@ class TestWhatAnEndpointSaysItIs:
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.tests.widget-co.order-created",
+                    "id": "plugin.tests.widget-co.order-created",
                     "direction": "emit",
                     "label": _label("An order is placed"),
                     "returns": [{"key": "order_id", "type": "int"}],
@@ -1222,7 +1222,7 @@ class TestWhatAnEndpointSaysItIs:
                 features=["endpoints"],
                 endpoints=[
                     {
-                        "id": "app.tests.widget-co.order-created",
+                        "id": "plugin.tests.widget-co.order-created",
                         "direction": "emit",
                         "label": _label("An order is placed"),
                         "params": [{"key": "x", "type": "string", "label": _label()}],
@@ -1281,7 +1281,7 @@ class TestWhatAParameterTakes:
     """A manifest describes the API, not the control a consumer draws for it.
 
     ``picker`` named one of an automation editor's own controls inside a third
-    party's manifest, so an app could only ask for something that editor had
+    party's manifest, so a plug-in could only ask for something that editor had
     already thought of — and a consumer that writes its own step needs no term
     here at all. What survives is what a caller cannot infer: whether to send
     one value or an array.
@@ -1321,7 +1321,7 @@ class TestWhatAParameterTakes:
         assert "list" not in cleaned["connections"][0]["fields"][0]
 
 
-LOOKUP_ID = "app.tests.widget-co.boards"
+LOOKUP_ID = "plugin.tests.widget-co.boards"
 
 
 def _with_option_source(source: dict, *, siblings: list | None = None) -> dict:
@@ -1357,7 +1357,7 @@ def _with_option_source(source: dict, *, siblings: list | None = None) -> dict:
 
 
 class TestWhereAParametersValuesComeFrom:
-    """Values a manifest cannot list because only the app can enumerate them.
+    """Values a manifest cannot list because only the plug-in can enumerate them.
 
     A repository, a channel, a board: the set differs per install and changes
     after it, so a parameter names the read that answers instead of carrying the
@@ -1390,7 +1390,7 @@ class TestWhereAParametersValuesComeFrom:
 
     def test_an_endpoint_from_another_plugin_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="not declared here"):
-            _with_option_source({"endpoint": "app.other.co.boards", "key": "ids"})
+            _with_option_source({"endpoint": "plugin.other.co.boards", "key": "ids"})
 
     def test_a_write_cannot_fill_in_a_form(self):
         with pytest.raises(ListingDefinitionError, match="does not read"):

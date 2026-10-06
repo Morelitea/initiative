@@ -562,14 +562,14 @@ def create_billing_insights_handoff_token(
 class PluginPlatformSigningNotConfiguredError(RuntimeError):
     """Raised when plugin-platform signing material is needed but absent.
 
-    The app platform has its own dedicated keypair and deliberately no
-    fallback to any other configured key: an app verifies context JWTs against
+    The plug-in platform has its own dedicated keypair and deliberately no
+    fallback to any other configured key: a plug-in verifies context JWTs against
     the published public half, and two boundaries sharing one key would share
     one rotation. Callers translate this into a fail-closed 503.
     """
 
 
-#: The key the deployment generated for the app platform, as
+#: The key the deployment generated for the plug-in platform, as
 #: ``(private_pem, kid)``, loaded at startup. Used only while
 #: ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
 _stored_plugin_platform_key: tuple[str, str] | None = None
@@ -582,7 +582,7 @@ def use_stored_plugin_platform_signing_key(private_pem: str, kid: str) -> None:
 
 
 def plugin_platform_signing_enabled() -> bool:
-    """True when this deployment can sign for the app platform."""
+    """True when this deployment can sign for the plug-in platform."""
     return bool(
         settings.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_plugin_platform_key
     )
@@ -602,26 +602,26 @@ def resolve_plugin_platform_signing_material() -> tuple[str, str, str | None]:
         stored_pem, kid = _stored_plugin_platform_key
         return stored_pem, "RS256", kid
     raise PluginPlatformSigningNotConfiguredError(
-        "no app platform signing key is loaded; it has no fallback to another "
+        "no plug-in platform signing key is loaded; it has no fallback to another "
         "service's key"
     )
 
 
 # Pinned on both sides of the boundary — not deployment knobs.
-#: ``iss`` on the tokens this deployment mints for app services.
+#: ``iss`` on the tokens this deployment mints for plug-in services.
 PLUGIN_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
-#: for one app is not accepted by another.
+#: for one plug-in is not accepted by another.
 PLUGIN_PLATFORM_AUDIENCE_PREFIX = "initiative-plugin:"
-#: ``typ`` in the header of each kind of token an app receives (RFC 8725
-#: §3.11): a call to an endpoint or a hook, and a page handoff. An app checks it
+#: ``typ`` in the header of each kind of token a plug-in receives (RFC 8725
+#: §3.11): a call to an endpoint or a hook, and a page handoff. A plug-in checks it
 #: to take each kind only where it expects that kind.
 PLUGIN_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
 PLUGIN_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
 
 
 def plugin_platform_audience(public_id: str) -> str:
-    """The ``aud`` a token minted for one app service carries."""
+    """The ``aud`` a token minted for one plug-in service carries."""
     return f"{PLUGIN_PLATFORM_AUDIENCE_PREFIX}{public_id}"
 
 

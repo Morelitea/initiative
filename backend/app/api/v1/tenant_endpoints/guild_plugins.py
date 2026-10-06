@@ -1,8 +1,8 @@
-"""Apps installed into a guild.
+"""Plug-ins installed into a guild.
 
-Reading is open to every member — the sidebar has to know which apps are there,
-and an app's existence is guild-wide knowledge. Installing, renaming, disabling,
-upgrading, configuring and removing are guild-admin actions: an app mounts a
+Reading is open to every member — the sidebar has to know which plug-ins are there,
+and a plug-in's existence is guild-wide knowledge. Installing, renaming, disabling,
+upgrading, configuring and removing are guild-admin actions: a plug-in mounts a
 guild-wide surface, which is the guild's shape rather than any one member's.
 
 **Who connects follows what the credential is.** Where a vendor authorizes a
@@ -16,14 +16,14 @@ Admins govern the install and its guild-wide credentials either way; they can
 see who connected as which vendor account and end that access, but they neither
 perform another member's connection nor read its values.
 
-What a member may *do* inside an app is not decided here. The content an app
+What a member may *do* inside a plug-in is not decided here. The content a plug-in
 creates carries its own grants, and the tool that owns it enforces them exactly
-as it does for initiative content. An app's *embedded* surfaces are the
+as it does for initiative content. A plug-in's *embedded* surfaces are the
 exception, because they have no local content to carry grants: the handoff mint
-is where who-may-open-this is settled, against where the seat placed the app
+is where who-may-open-this is settled, against where the seat placed the plug-in
 and which roles it allowed there.
 
-Two things a guild admin does not govern. An app the deployment marks mandatory
+Two things a guild admin does not govern. A plug-in the deployment marks mandatory
 is installed everywhere and is neither removable nor disableable here — the
 operator's registration decides whether it exists. And the operator's kill
 switch outranks everything: a service whose registration is switched off reaches
@@ -122,7 +122,7 @@ router = APIRouter()
 
 #: The same installs, reached from inside one initiative. Mounted at the guild
 #: root rather than under ``/plugins`` because the initiative comes first in the
-#: path — it is what the request is scoped to, and an app is what it is asking
+#: path — it is what the request is scoped to, and a plug-in is what it is asking
 #: about.
 initiative_router = APIRouter()
 
@@ -130,7 +130,7 @@ initiative_router = APIRouter()
 #: What an admin sets on an install itself, as opposed to its configuration or
 #: its version. A record of one of these says which of them moved; placement is
 #: recorded beside them as ``placed_initiative_ids``.
-_APP_SETTINGS_FIELDS = ("name", "enabled", "auto_update")
+_PLUGIN_SETTINGS_FIELDS = ("name", "enabled", "auto_update")
 
 
 # ---------------------------------------------------------------------------
@@ -152,10 +152,10 @@ def _config_fields(config: dict, secrets: dict) -> dict[str, Any]:
     return fields
 
 
-async def _plugin_avatar(session: AsyncSession, app: GuildPlugin) -> Optional[str]:
+async def _plugin_avatar(session: AsyncSession, plugin: GuildPlugin) -> Optional[str]:
     """The artwork for one install's listing."""
-    avatars = await catalog_service.listing_avatars(session, [app.listing_uid])
-    return avatars.get(app.listing_uid)
+    avatars = await catalog_service.listing_avatars(session, [plugin.listing_uid])
+    return avatars.get(plugin.listing_uid)
 
 
 async def _load_initiative(
@@ -184,14 +184,14 @@ async def _load_initiative(
     return initiative
 
 
-async def _placements(session: AsyncSession, app: GuildPlugin) -> list:
+async def _placements(session: AsyncSession, plugin: GuildPlugin) -> list:
     """One install's placement rows, for its serializer."""
-    grouped = await guild_plugins_service.placements_by_install(session, [app.id])
-    return grouped.get(app.id, [])
+    grouped = await guild_plugins_service.placements_by_install(session, [plugin.id])
+    return grouped.get(plugin.id, [])
 
 
 async def _set_placement(
-    session: RLSSessionDep, app: GuildPlugin, initiative_ids: list[int]
+    session: RLSSessionDep, plugin: GuildPlugin, initiative_ids: list[int]
 ) -> None:
     """Place the install in exactly these initiatives, or a 422.
 
@@ -200,7 +200,7 @@ async def _set_placement(
     """
     try:
         await guild_plugins_service.set_placed_initiatives(
-            session, app, set(initiative_ids)
+            session, plugin, set(initiative_ids)
         )
     except guild_plugins_service.PlacementError as exc:
         raise HTTPException(
@@ -210,11 +210,11 @@ async def _set_placement(
 
 
 async def _plugin_names(
-    session: RLSSessionDep, app: GuildPlugin, offer: Any
+    session: RLSSessionDep, plugin: GuildPlugin, offer: Any
 ) -> dict[str, str]:
-    """The names of the apps the install's ``apps:`` scopes name, and those a
+    """The names of the plug-ins the install's ``plugins:`` scopes name, and those a
     pending version's new ones name."""
-    scopes = list(guild_plugins_service.requested_scopes(app.definition))
+    scopes = list(guild_plugins_service.requested_scopes(plugin.definition))
     if offer is not None:
         scopes.extend(offer.asks.added_scopes)
     return await guild_plugins_service.plugin_scope_names(session, scopes)
@@ -251,25 +251,25 @@ async def _load(
     connect writes the handle map, both of which someone
     else may be changing at the same moment.
     """
-    app = (
+    plugin = (
         await guild_plugins_service.lock_install(session, plugin_id)
         if for_update
         else (
             await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
         ).first()
     )
-    if app is None:
+    if plugin is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildPluginMessages.NOT_FOUND,
         )
-    return app
+    return plugin
 
 
 def _require_installable_kind(definition: dict) -> None:
     """Two separate refusals, because they are two different mistakes.
 
-    A listing that is not an app at all is one answer; an app of a *kind* this
+    A listing that is not a plug-in at all is one answer; a plug-in of a *kind* this
     build cannot mount is another. Every kind the vocabulary declares is
     mountable today, so the second refusal is the guard for a kind added ahead
     of the machinery that serves it — reaching the installer with one would
@@ -288,18 +288,18 @@ def _require_installable_kind(definition: dict) -> None:
         )
 
 
-async def _require_removable(app: GuildPlugin) -> None:
-    """Refuse to remove or turn off an app the deployment provides.
+async def _require_removable(plugin: GuildPlugin) -> None:
+    """Refuse to remove or turn off a plug-in the deployment provides.
 
-    Mandatory constrains guild admins, not the operator: an app marked so on
+    Mandatory constrains guild admins, not the operator: a plug-in marked so on
     its registration stays in every guild until the operator says otherwise.
     The UI omits the affordances entirely, so this answers a request that
     arrived some other way — and it is read from the registration each time, so
-    the moment an operator clears the flag the same app becomes removable with
+    the moment an operator clears the flag the same plug-in becomes removable with
     nothing migrated.
     """
     state = await registration_lookup.install_state(
-        app.definition, listing_uid=app.listing_uid
+        plugin.definition, listing_uid=plugin.listing_uid
     )
     if state.mandatory:
         raise HTTPException(
@@ -308,8 +308,10 @@ async def _require_removable(app: GuildPlugin) -> None:
         )
 
 
-def _connection_or_404(app: GuildPlugin, connection_id: str) -> dict:
-    connection = plugin_config_service.connection_by_id(app.definition, connection_id)
+def _connection_or_404(plugin: GuildPlugin, connection_id: str) -> dict:
+    connection = plugin_config_service.connection_by_id(
+        plugin.definition, connection_id
+    )
     if connection is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -319,24 +321,24 @@ def _connection_or_404(app: GuildPlugin, connection_id: str) -> dict:
 
 
 async def _read(
-    session: AsyncSession, app: GuildPlugin, context: GuildContext
+    session: AsyncSession, plugin: GuildPlugin, context: GuildContext
 ) -> CommunityPluginRead:
     """One install as the list reads it."""
     return serialize_guild_plugin(
-        app,
+        plugin,
         install_state=await registration_lookup.install_state(
-            app.definition, listing_uid=app.listing_uid
+            plugin.definition, listing_uid=plugin.listing_uid
         ),
-        avatar_url=await _plugin_avatar(session, app),
+        avatar_url=await _plugin_avatar(session, plugin),
         context=context,
-        placements=await _placements(session, app),
-        artifacts=await guild_plugins_service.plugin_artifacts(session, app),
+        placements=await _placements(session, plugin),
+        artifacts=await guild_plugins_service.plugin_artifacts(session, plugin),
     )
 
 
 async def _detail(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     context: GuildContext,
     user_id: int,
     *,
@@ -347,21 +349,21 @@ async def _detail(
     ``offer`` is the update offered, read here when not given.
     """
     if offer is None:
-        offer = await plugin_updates_service.update_offer(session, app)
+        offer = await plugin_updates_service.update_offer(session, plugin)
     return serialize_guild_plugin_detail(
-        app,
-        avatar_url=await _plugin_avatar(session, app),
-        member_rows=await _member_rows(session, plugin_id=app.id, user_id=user_id),
+        plugin,
+        avatar_url=await _plugin_avatar(session, plugin),
+        member_rows=await _member_rows(session, plugin_id=plugin.id, user_id=user_id),
         install_state=await registration_lookup.install_state(
-            app.definition, listing_uid=app.listing_uid
+            plugin.definition, listing_uid=plugin.listing_uid
         ),
         update_offer=offer,
-        plugin_names=await _plugin_names(session, app, offer),
+        plugin_names=await _plugin_names(session, plugin, offer),
         context=context,
-        placements=await _placements(session, app),
-        artifacts=await guild_plugins_service.plugin_artifacts(session, app),
+        placements=await _placements(session, plugin),
+        artifacts=await guild_plugins_service.plugin_artifacts(session, plugin),
         consent_rows=await consents_service.list_member_consents(
-            session, install_id=app.id, user_id=user_id
+            session, install_id=plugin.id, user_id=user_id
         ),
     )
 
@@ -384,41 +386,41 @@ async def list_community_plugins(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> CommunityPluginListResponse:
-    """Every app installed in this guild, enabled or not.
+    """Every plug-in installed in this guild, enabled or not.
 
     Disabled ones are included so an admin can find and re-enable them; the
-    sidebar filters to enabled. A service app whose registration is gone or
+    sidebar filters to enabled. A service plug-in whose registration is gone or
     switched off comes back too, marked unavailable — an install that quietly
     vanished would leave an admin with nothing to look at and nothing to
     remove.
     """
-    apps = (
+    plugins = (
         await session.exec(
             select(GuildPlugin).order_by(GuildPlugin.name, GuildPlugin.id)
         )
     ).all()
     avatars = await catalog_service.listing_avatars(
-        session, [app.listing_uid for app in apps]
+        session, [plugin.listing_uid for plugin in plugins]
     )
     placements = await guild_plugins_service.placements_by_install(
-        session, [app.id for app in apps]
+        session, [plugin.id for plugin in plugins]
     )
     artifacts = await guild_plugins_service.artifacts_by_install(
-        session, [app.id for app in apps]
+        session, [plugin.id for plugin in plugins]
     )
     return CommunityPluginListResponse(
         items=[
             serialize_guild_plugin(
-                app,
+                plugin,
                 install_state=await registration_lookup.install_state(
-                    app.definition, listing_uid=app.listing_uid
+                    plugin.definition, listing_uid=plugin.listing_uid
                 ),
-                avatar_url=avatars.get(app.listing_uid),
+                avatar_url=avatars.get(plugin.listing_uid),
                 context=guild_context,
-                placements=placements.get(app.id, []),
-                artifacts=artifacts.get(app.id, []),
+                placements=placements.get(plugin.id, []),
+                artifacts=artifacts.get(plugin.id, []),
             )
-            for app in apps
+            for plugin in plugins
         ]
     )
 
@@ -437,8 +439,8 @@ async def get_community_plugin(
     values to everybody but the seat that sets them, so there is nothing here
     that belongs to somebody else.
     """
-    app = await _load(session, plugin_id)
-    return await _detail(session, app, guild_context, current_user.id)
+    plugin = await _load(session, plugin_id)
+    return await _detail(session, plugin, guild_context, current_user.id)
 
 
 @router.post(
@@ -450,20 +452,20 @@ async def install_community_plugin(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> CommunityPluginRead:
-    """Install a listing as a guild app.
+    """Install a listing as a guild plug-in.
 
     The request names a listing; everything stored comes from the catalog row
-    and from what the install creates here. One install per listing: an app
+    and from what the install creates here. One install per listing: a plug-in
     mounts a single guild-wide surface, so a second copy would have nothing to
     be — rename or re-share the one that exists instead.
 
-    Nothing about connections gates this. An app whose credentials are all
+    Nothing about connections gates this. A plug-in whose credentials are all
     supplied per member installs with none present, and members connect their
     own accounts afterwards if they want what those unlock.
 
     The install dialog is the seat's consent, and it lands with the install in
     one transaction: the scopes granted (checked as ``PUT …/scopes`` checks
-    them), the initiatives the app is placed in (``"all"`` is every initiative
+    them), the initiatives the plug-in is placed in (``"all"`` is every initiative
     that exists now), and the built-in roles that open it in each. Anything
     refused is refused before the install exists.
     """
@@ -498,7 +500,7 @@ async def install_community_plugin(
 
     name = (payload.name or definition.get("default_name") or listing.name).strip()
     try:
-        app = await guild_plugins_service.install_plugin(
+        plugin = await guild_plugins_service.install_plugin(
             session,
             listing_uid=listing.uid,
             listing_version=version.version,
@@ -512,7 +514,7 @@ async def install_community_plugin(
         if payload.placements:
             await guild_plugins_service.place_with_roles(
                 session,
-                app,
+                plugin,
                 None if payload.placements == "all" else payload.placements,
                 payload.role_kinds,
             )
@@ -538,13 +540,13 @@ async def install_community_plugin(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildPluginMessages.ALREADY_INSTALLED,
         ) from exc
-    await session.refresh(app)
-    await plugin_installs_service.record(guild_context.guild_id, app)
+    await session.refresh(plugin)
+    await plugin_installs_service.record(guild_context.guild_id, plugin)
     await plugin_schedules_service.reconcile(
-        guild_context.guild_id, app.id, app.definition
+        guild_context.guild_id, plugin.id, plugin.definition
     )
 
-    installed = await _read(session, app, guild_context)
+    installed = await _read(session, plugin, guild_context)
     await count_install(guild_context.guild_id, listing.id)
     return installed
 
@@ -558,7 +560,7 @@ async def upgrade_community_plugin(
     background_tasks: BackgroundTasks,
     payload: Optional[CommunityPluginUpgrade] = None,
 ) -> CommunityPluginDetail:
-    """Re-pin an installed app to its listing's current version, now.
+    """Re-pin an installed plug-in to its listing's current version, now.
 
     The button an admin presses when their guild has turned automatic updates
     off — and the shortcut past the sweep for one that has not. Either way it is
@@ -578,17 +580,17 @@ async def upgrade_community_plugin(
     for; so is a consent naming a version the catalog no longer offers.
     """
     # Upgrading prunes both configuration maps to the new definition, so it
-    # takes the row: an app writing a flow's result back at the same moment
+    # takes the row: a plug-in writing a flow's result back at the same moment
     # must land on one side of the prune or the other.
-    app = await _load(session, plugin_id, for_update=True)
+    plugin = await _load(session, plugin_id, for_update=True)
 
     # The listing is resolved here rather than inside the shared apply, so a
     # withdrawn or missing one is reported as the HTTP answer it deserves
     # instead of reading as "nothing to update to".
     _, version = await resolve_listing_install(
-        session, app.listing_uid, kind="plugin", already_installed=True
+        session, plugin.listing_uid, kind="plugin", already_installed=True
     )
-    if version.version == app.listing_version:
+    if version.version == plugin.listing_version:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MarketplaceMessages.ALREADY_LATEST_VERSION,
@@ -599,7 +601,7 @@ async def upgrade_community_plugin(
 
     registration = await registration_lookup.registration_for_definition(definition)
     asks = plugin_updates_service.upgrade_asks(
-        app, definition, registration.scope_ceiling if registration else ()
+        plugin, definition, registration.scope_ceiling if registration else ()
     )
     if (payload is not None and payload.version != version.version) or (
         payload is None and asks.asks_more
@@ -615,18 +617,18 @@ async def upgrade_community_plugin(
                 **upgrade_asks_read(
                     version.version,
                     asks,
-                    declined=app.declined_version == version.version,
+                    declined=plugin.declined_version == version.version,
                 ).model_dump(),
             },
         )
     add_scopes = set(payload.add_scopes) if payload is not None else set()
     await _require_grantable(add_scopes, definition)
 
-    previous_version = app.listing_version
-    previous_grant = sorted(app.granted_scopes or [])
+    previous_version = plugin.listing_version
+    previous_grant = sorted(plugin.granted_scopes or [])
     await plugin_updates_service.apply_version(
         session,
-        app,
+        plugin,
         plugin_updates_service.PendingUpdate(
             version=version.version, definition=definition
         ),
@@ -638,14 +640,14 @@ async def upgrade_community_plugin(
         "from": previous_version,
         "to": version.version,
     }
-    if sorted(app.granted_scopes or []) != previous_grant:
+    if sorted(plugin.granted_scopes or []) != previous_grant:
         # Scope names are the platform's own vocabulary, so the values are
         # recorded rather than only the fact that they moved.
         record["changed"] = ["granted_scopes"]
         record["values"] = {
             "granted_scopes": {
                 "from": previous_grant,
-                "to": sorted(app.granted_scopes or []),
+                "to": sorted(plugin.granted_scopes or []),
             }
         }
     await audit_service.record(
@@ -654,16 +656,16 @@ async def upgrade_community_plugin(
         actor_user_id=current_user.id,
         guild_id=guild_context.guild_id,
         target_type="plugin",
-        target_id=app.id,
+        target_id=plugin.id,
         detail=record,
     )
     await session.commit()
     revocation_service.send_after_response(session, background_tasks)
-    await session.refresh(app)
+    await session.refresh(plugin)
     await plugin_schedules_service.reconcile(
-        guild_context.guild_id, app.id, app.definition
+        guild_context.guild_id, plugin.id, plugin.definition
     )
-    return await _detail(session, app, guild_context, current_user.id)
+    return await _detail(session, plugin, guild_context, current_user.id)
 
 
 @router.post("/{plugin_id}/upgrade/decline", response_model=CommunityPluginDetail)
@@ -680,8 +682,8 @@ async def decline_community_plugin_upgrade(
     The sweep does not ask about the declined version again; a newer one is
     asked about afresh. Accepting it later is still the Update button.
     """
-    app = await _load(session, plugin_id, for_update=True)
-    offer = await plugin_updates_service.update_offer(session, app)
+    plugin = await _load(session, plugin_id, for_update=True)
+    offer = await plugin_updates_service.update_offer(session, plugin)
     if offer is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -692,21 +694,21 @@ async def decline_community_plugin_upgrade(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildPluginMessages.UPGRADE_VERSION_MOVED,
         )
-    if app.declined_version != payload.version:
-        plugin_updates_service.decline_version(app, payload.version)
-        session.add(app)
+    if plugin.declined_version != payload.version:
+        plugin_updates_service.decline_version(plugin, payload.version)
+        session.add(plugin)
         await audit_service.record(
             session,
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
             target_type="plugin",
-            target_id=app.id,
+            target_id=plugin.id,
             detail={"area": "version", "declined": payload.version},
         )
     await session.commit()
-    await session.refresh(app)
-    return await _detail(session, app, guild_context, current_user.id, offer=offer)
+    await session.refresh(plugin)
+    return await _detail(session, plugin, guild_context, current_user.id, offer=offer)
 
 
 @router.patch("/{plugin_id}", response_model=CommunityPluginRead)
@@ -717,50 +719,50 @@ async def update_community_plugin(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> CommunityPluginRead:
-    """Rename an app, place it, choose how it updates, or turn it off.
+    """Rename a plug-in, place it, choose how it updates, or turn it off.
 
-    Renaming is always allowed — a guild may call an app whatever it likes.
-    Turning one off is a different matter for an app the deployment provides:
+    Renaming is always allowed — a guild may call a plug-in whatever it likes.
+    Turning one off is a different matter for a plug-in the deployment provides:
     that switch belongs to the operator, so it is refused by name here.
 
     ``auto_update`` is the guild's own cadence, and it is on until an admin says
-    otherwise. Turning it off does not freeze the app — it moves the decision to
+    otherwise. Turning it off does not freeze the plug-in — it moves the decision to
     this page, where the Update button applies exactly what the sweep would
     have. It is offered on every install, provided ones included: the operator
-    decides whether an app exists, and the guild decides when it changes under
+    decides whether a plug-in exists, and the guild decides when it changes under
     them.
 
-    ``placed_initiative_ids`` is the whole set of initiatives an app's
+    ``placed_initiative_ids`` is the whole set of initiatives a plug-in's
     initiative-scoped surfaces appear in. An initiative that stays placed keeps
     the roles it had, a new one starts with its moderator role, and one left out
-    is removed. It is the community's own answer to where an app belongs rather
+    is removed. It is the community's own answer to where a plug-in belongs rather
     than a permission, so it reads the same for everyone, admins included.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
 
     before = {
-        **audit_service.snapshot(app, _APP_SETTINGS_FIELDS),
+        **audit_service.snapshot(plugin, _PLUGIN_SETTINGS_FIELDS),
         "placed_initiative_ids": sorted(
-            await guild_plugins_service.placed_initiative_ids(session, app.id)
+            await guild_plugins_service.placed_initiative_ids(session, plugin.id)
         ),
     }
     data = payload.model_dump(exclude_unset=True)
     if data.get("name"):
-        app.name = data["name"].strip()
+        plugin.name = data["name"].strip()
     if "enabled" in data and data["enabled"] is not None:
         if not data["enabled"]:
-            await _require_removable(app)
-        app.enabled = data["enabled"]
+            await _require_removable(plugin)
+        plugin.enabled = data["enabled"]
     if data.get("auto_update") is not None:
-        app.auto_update = data["auto_update"]
+        plugin.auto_update = data["auto_update"]
     if data.get("placed_initiative_ids") is not None:
-        await _set_placement(session, app, data["placed_initiative_ids"])
-    app.updated_at = datetime.now(timezone.utc)
-    session.add(app)
+        await _set_placement(session, plugin, data["placed_initiative_ids"])
+    plugin.updated_at = datetime.now(timezone.utc)
+    session.add(plugin)
     after = {
-        **audit_service.snapshot(app, _APP_SETTINGS_FIELDS),
+        **audit_service.snapshot(plugin, _PLUGIN_SETTINGS_FIELDS),
         "placed_initiative_ids": sorted(
-            await guild_plugins_service.placed_initiative_ids(session, app.id)
+            await guild_plugins_service.placed_initiative_ids(session, plugin.id)
         ),
     }
     changed = audit_service.changed_fields(before, after)
@@ -771,13 +773,13 @@ async def update_community_plugin(
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
             target_type="plugin",
-            target_id=app.id,
+            target_id=plugin.id,
             detail={"area": "settings", **changed},
         )
     await session.commit()
-    await session.refresh(app)
-    await plugin_installs_service.record(guild_context.guild_id, app)
-    return await _read(session, app, guild_context)
+    await session.refresh(plugin)
+    await plugin_installs_service.record(guild_context.guild_id, plugin)
+    return await _read(session, plugin, guild_context)
 
 
 @router.delete("/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -788,21 +790,21 @@ async def uninstall_community_plugin(
     guild_context: SeatWriteContextDep,
     background_tasks: BackgroundTasks,
 ) -> None:
-    """Remove an app, ending its access and trashing what it created
+    """Remove a plug-in, ending its access and trashing what it created
     (:func:`~app.services.tenant.guild_plugins.uninstall_plugin`).
 
-    An app the deployment provides to every guild is not removable here (§7.7):
+    A plug-in the deployment provides to every guild is not removable here (§7.7):
     the operator's registration decides whether it exists at all.
     """
     # Held for the rest of this transaction, so a calendar being given to the
-    # app either lands before this read and is trashed with everything else, or
+    # plug-in either lands before this read and is trashed with everything else, or
     # finds no install and is refused.
-    app = await _load(session, plugin_id, for_update=True)
-    await _require_removable(app)
+    plugin = await _load(session, plugin_id, for_update=True)
+    await _require_removable(plugin)
 
-    install_id, guild_id = app.id, routed_guild_id(session)
+    install_id, guild_id = plugin.id, routed_guild_id(session)
     await guild_plugins_service.uninstall_plugin(
-        session, app, actor_user_id=current_user.id
+        session, plugin, actor_user_id=current_user.id
     )
     await session.commit()
     await plugin_installs_service.forget(guild_id, install_id)
@@ -822,7 +824,7 @@ async def _drop_install_refs(guild_id: int, install_id: int) -> None:
         )
     except SQLAlchemyError:
         logger.warning(
-            "app refs: references for install %s in guild %s were not removed",
+            "plug-in refs: references for install %s in guild %s were not removed",
             install_id,
             guild_id,
         )
@@ -841,7 +843,7 @@ async def update_community_plugin_config(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> CommunityPluginDetail:
-    """Set the guild-wide values an app's connections ask for.
+    """Set the guild-wide values a plug-in's connections ask for.
 
     Validated against the *pinned* definition, so what an install accepts is the
     form it was configured against rather than whatever the catalog says today.
@@ -849,24 +851,24 @@ async def update_community_plugin_config(
     response reports which fields hold a value.
 
     Only guild-scoped connections are settable here. A per-member one is that
-    member's to make, and the fields an app marks ``managed`` come from its
+    member's to make, and the fields a plug-in marks ``managed`` come from its
     ``after_connect`` hook when a flow completes rather than through a form.
     """
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — a flow completing is doing the same thing to the same values.
-    app = await _load(session, plugin_id, for_update=True)
+    plugin = await _load(session, plugin_id, for_update=True)
     try:
         await guild_plugins_service.apply_static_config(
-            session, app, payload.values, actor_user_id=current_user.id
+            session, plugin, payload.values, actor_user_id=current_user.id
         )
     except plugin_config_service.PluginConfigError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
     await session.commit()
-    await session.refresh(app)
-    await plugin_installs_service.record(guild_context.guild_id, app)
-    return await _detail(session, app, guild_context, current_user.id)
+    await session.refresh(plugin)
+    await plugin_installs_service.record(guild_context.guild_id, plugin)
+    return await _detail(session, plugin, guild_context, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -885,18 +887,18 @@ async def put_community_plugin_placement(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> PluginPlacementRead:
-    """Place the app in one initiative with exactly these roles.
+    """Place the plug-in in one initiative with exactly these roles.
 
     Creates the placement or replaces its roles. Every role must be one of that
-    initiative's; guild admins open the app there whatever the roles say.
+    initiative's; guild admins open the plug-in there whatever the roles say.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
     before = await guild_plugins_service.placement_role_ids(
-        session, app.id, initiative_id
+        session, plugin.id, initiative_id
     )
     try:
         placement = await guild_plugins_service.set_placement_roles(
-            session, app, initiative_id, payload.role_ids
+            session, plugin, initiative_id, payload.role_ids
         )
     except guild_plugins_service.PlacementRoleError as exc:
         raise HTTPException(
@@ -920,7 +922,7 @@ async def put_community_plugin_placement(
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
             target_type="plugin",
-            target_id=app.id,
+            target_id=plugin.id,
             detail={"area": "placement", "initiative_id": initiative_id, **changed},
         )
     await session.commit()
@@ -937,28 +939,28 @@ async def put_community_plugin_scopes(
 ) -> CommunityPluginRead:
     """Grant the install exactly these scopes.
 
-    Each must be one the app's manifest requests and one the deployment's
-    registration allows the app (its ceiling). The whole set is replaced: a
+    Each must be one the plug-in's manifest requests and one the deployment's
+    registration allows the plug-in (its ceiling). The whole set is replaced: a
     scope left out is withdrawn.
     """
-    app = await _load(session, plugin_id, for_update=True)
+    plugin = await _load(session, plugin_id, for_update=True)
 
     granted = set(payload.granted)
-    await _require_grantable(granted, app.definition)
+    await _require_grantable(granted, plugin.definition)
 
-    before = sorted(app.granted_scopes or [])
+    before = sorted(plugin.granted_scopes or [])
     after = sorted(granted)
     if before != after:
-        app.granted_scopes = after
-        app.updated_at = datetime.now(timezone.utc)
-        session.add(app)
+        plugin.granted_scopes = after
+        plugin.updated_at = datetime.now(timezone.utc)
+        session.add(plugin)
         await audit_service.record(
             session,
             event_type=AuditEventType.PLUGIN_UPDATED,
             actor_user_id=current_user.id,
             guild_id=guild_context.guild_id,
             target_type="plugin",
-            target_id=app.id,
+            target_id=plugin.id,
             detail={
                 "area": "scopes",
                 "changed": ["granted_scopes"],
@@ -968,8 +970,8 @@ async def put_community_plugin_scopes(
             },
         )
     await session.commit()
-    await session.refresh(app)
-    return await _read(session, app, guild_context)
+    await session.refresh(plugin)
+    return await _read(session, plugin, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -985,20 +987,20 @@ async def create_community_plugin_handoff(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> CommunityPluginHandoff:
-    """Mint the short-lived credential for one of this app's embedded surfaces.
+    """Mint the short-lived credential for one of this plug-in's embedded surfaces.
 
     Whether the surface may be opened is decided here, under the caller's real
-    session, so the app never makes that call and never sees a request from
+    session, so the plug-in never makes that call and never sees a request from
     somebody who failed it. At the community level only the guild's admins open
     a surface.
 
     The token goes to the iframe by ``postMessage`` — never a query string —
     and expires in a minute.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
     handoff = await handoff_service.mint_embed_handoff(
         session,
-        app,
+        plugin,
         surface_id=surface_id,
         context=guild_context,
         # This route reaches a guild and names no initiative. A surface that
@@ -1014,7 +1016,7 @@ async def create_community_plugin_handoff(
 @initiative_router.post(
     "/initiatives/{initiative_id}/plugins/{plugin_id}/handoff/{surface_id}",
     response_model=CommunityPluginHandoff,
-    tags=["apps"],
+    tags=["plugins"],
 )
 async def create_initiative_plugin_handoff(
     initiative_id: int,
@@ -1031,19 +1033,19 @@ async def create_initiative_plugin_handoff(
 
     Three gates, outermost first. The initiative must be one this caller can
     reach. The manifest must declare the surface for this scope, and the seat
-    must have placed the app here. And the caller must hold one of the roles
+    must have placed the plug-in here. And the caller must hold one of the roles
     that placement allows — or be a guild admin, as everywhere in their own
     guild. A surface marked ``admin_only`` is for the admins alone.
 
     The initiative in the minted token is this route's, never the caller's to
-    supply, so an app can scope what it shows without asking a second question
+    supply, so a plug-in can scope what it shows without asking a second question
     or trusting a parameter.
     """
     initiative = await _load_initiative(session, initiative_id, current_user.id)
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
     handoff = await handoff_service.mint_embed_handoff(
         session,
-        app,
+        plugin,
         surface_id=surface_id,
         context=guild_context,
         initiative_id=initiative.id,
@@ -1100,13 +1102,13 @@ async def connect_community_plugin(
     installs), and the vendor returns the person to Initiative's callback.
     Nothing is stored until it does.
     """
-    app = await _load(session, plugin_id)
-    if not app.enabled:
+    plugin = await _load(session, plugin_id)
+    if not plugin.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildPluginMessages.DISABLED
         )
 
-    connection = _connection_or_404(app, connection_id)
+    connection = _connection_or_404(plugin, connection_id)
     if not plugin_config_service.runs_vendor_flow(connection):
         # Nothing to run and nowhere to send anybody. A guild-wide connection
         # without a flow is a form, and is filled in through the config route.
@@ -1119,21 +1121,21 @@ async def connect_community_plugin(
         require_seat(guild_context)
         require_grant_writes(guild_context)
 
-    registration = await handoff_service.require_live_registration(app)
+    registration = await handoff_service.require_live_registration(plugin)
 
     if guild_wide:
-        stored_config = (app.config or {}).get(connection_id) or {}
+        stored_config = (plugin.config or {}).get(connection_id) or {}
         satisfied = plugin_config_service.is_satisfied(
             connection,
             stored_config,
-            (app.secret_fields or {}).get(connection_id) or {},
+            (plugin.secret_fields or {}).get(connection_id) or {},
         )
         current_status = "connected" if satisfied else "pending"
         user_id = None
     else:
         existing = await connections_service.get_connection(
             session,
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id=connection_id,
             user_id=current_user.id,
         )
@@ -1148,7 +1150,7 @@ async def connect_community_plugin(
 
     try:
         connect_url = await flows_service.start_url(
-            app=app,
+            plugin=plugin,
             connection=connection,
             guild_id=guild_context.guild_id,
             user_id=user_id,
@@ -1183,20 +1185,22 @@ async def disconnect_community_plugin(
     else's uses the Members endpoints, which record who acted. Clearing a
     guild-wide credential is an admin action, since it is the guild's.
     """
-    app = await _load(session, plugin_id)
-    connection = _connection_or_404(app, connection_id)
+    plugin = await _load(session, plugin_id)
+    connection = _connection_or_404(plugin, connection_id)
 
     if connection.get("scope") == "static":
         require_seat(guild_context)
         require_grant_writes(guild_context)
-        # Clearing rewrites both configuration maps, so it takes the row: an app
+        # Clearing rewrites both configuration maps, so it takes the row: a plug-in
         # writing back at the same moment must not put back what was cleared.
-        app = await _load(session, plugin_id, for_update=True)
-        await guild_plugins_service.clear_static_connection(session, app, connection_id)
+        plugin = await _load(session, plugin_id, for_update=True)
+        await guild_plugins_service.clear_static_connection(
+            session, plugin, connection_id
+        )
     else:
         await connections_service.disconnect(
             session,
-            app=app,
+            plugin=plugin,
             connection_id=connection_id,
             user_id=current_user.id,
         )
@@ -1204,8 +1208,8 @@ async def disconnect_community_plugin(
     await session.commit()
     revocation_service.send_after_response(session, background_tasks)
     if connection.get("scope") == "static":
-        await session.refresh(app)
-        await plugin_installs_service.record(guild_context.guild_id, app)
+        await session.refresh(plugin)
+        await plugin_installs_service.record(guild_context.guild_id, plugin)
 
 
 # ---------------------------------------------------------------------------
@@ -1216,7 +1220,7 @@ async def disconnect_community_plugin(
 async def _own_consent(
     session: AsyncSession, *, plugin_id: int, consent_id: int, user_id: int
 ) -> PluginMemberConsent:
-    """One of the caller's own requests from this app, or 404."""
+    """One of the caller's own requests from this plug-in, or 404."""
     row = await consents_service.get_member_consent(
         session, consent_id=consent_id, install_id=plugin_id, user_id=user_id
     )
@@ -1240,15 +1244,15 @@ async def grant_my_consent(
     guild_context: GuildContextDep,
     credential: Annotated[str, Depends(require_first_party_session)],
 ) -> CommunityPluginConsentRead:
-    """Allow this app to act as you for one of its requests, at ``access``.
+    """Allow this plug-in to act as you for one of its requests, at ``access``.
 
-    Never more than the app asked for. Acts on the caller alone and takes no
+    Never more than the plug-in asked for. Acts on the caller alone and takes no
     user id. Signed-in only (``require_first_party_session``), and the way you
     signed in is recorded with the answer.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
     row = await _own_consent(
-        session, plugin_id=app.id, consent_id=consent_id, user_id=current_user.id
+        session, plugin_id=plugin.id, consent_id=consent_id, user_id=current_user.id
     )
     try:
         row = await consents_service.grant(
@@ -1278,11 +1282,11 @@ async def revoke_my_consent(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> None:
-    """Decline one of this app's requests, or withdraw what you allowed. The
-    app stops acting as you for it on its next request."""
-    app = await _load(session, plugin_id)
+    """Decline one of this plug-in's requests, or withdraw what you allowed. The
+    plug-in stops acting as you for it on its next request."""
+    plugin = await _load(session, plugin_id)
     row = await _own_consent(
-        session, plugin_id=app.id, consent_id=consent_id, user_id=current_user.id
+        session, plugin_id=plugin.id, consent_id=consent_id, user_id=current_user.id
     )
     await consents_service.revoke(
         session,
@@ -1307,14 +1311,14 @@ async def list_community_plugin_members(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> CommunityPluginMembersResponse:
-    """Who has connected which of this app's per-member connections, and who
+    """Who has connected which of this plug-in's per-member connections, and who
     answered its requests to act as them — a page of members at a time.
 
     Guild admins only, and never secret values: what this supports is governance
     — seeing which vendor account somebody connected as, and ending it — rather
     than looking at credentials.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
 
     member_count = (
         await session.exec(
@@ -1323,10 +1327,10 @@ async def list_community_plugin_members(
             )
         )
     ).one()
-    tallies = await connections_service.connection_tallies(session, plugin_id=app.id)
+    tallies = await connections_service.connection_tallies(session, plugin_id=plugin.id)
 
     summary: list[CommunityPluginConnectionSummary] = []
-    for connection in plugin_config_service.definition_connections(app.definition):
+    for connection in plugin_config_service.definition_connections(plugin.definition):
         if connection.get("scope") != "interactive":
             continue
         connection_id = connection.get("id") or ""
@@ -1341,14 +1345,14 @@ async def list_community_plugin_members(
             )
         )
 
-    # Everybody with a connection to this app or an answer to one of its
+    # Everybody with a connection to this plug-in or an answer to one of its
     # requests, once each.
     members = union(
         select(GuildPluginUserConnection.user_id).where(
-            GuildPluginUserConnection.plugin_id == app.id
+            GuildPluginUserConnection.plugin_id == plugin.id
         ),
         select(PluginMemberConsent.user_id).where(
-            PluginMemberConsent.install_id == app.id
+            PluginMemberConsent.install_id == plugin.id
         ),
     ).subquery()
     user_ids, total_count, actual_page = await paginated_query(
@@ -1360,12 +1364,14 @@ async def list_community_plugin_members(
     )
 
     rows = await connections_service.list_plugin_connections(
-        session, plugin_id=app.id, user_ids=user_ids
+        session, plugin_id=plugin.id, user_ids=user_ids
     )
     consents = await consents_service.list_install_consents(
-        session, install_id=app.id, user_ids=user_ids
+        session, install_id=plugin.id, user_ids=user_ids
     )
-    consent_tallies = await consents_service.consent_tallies(session, install_id=app.id)
+    consent_tallies = await consents_service.consent_tallies(
+        session, install_id=plugin.id
+    )
     return CommunityPluginMembersResponse(
         **build_paginated_response(
             [serialize_member_connection(row) for row in rows],
@@ -1397,12 +1403,12 @@ async def revoke_member_connection(
     background_tasks: BackgroundTasks,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
-    app = await _load(session, plugin_id)
-    _connection_or_404(app, connection_id)
+    plugin = await _load(session, plugin_id)
+    _connection_or_404(plugin, connection_id)
 
     await connections_service.disconnect(
         session,
-        app=app,
+        plugin=plugin,
         connection_id=connection_id,
         user_id=user_id,
         reason="admin_revoked",
@@ -1427,14 +1433,14 @@ async def block_member_connection(
     """Revoke a member's connection and refuse the next one.
 
     The lever for "this person should no longer reach that system through us"
-    that does not mean uninstalling the app for everyone.
+    that does not mean uninstalling the plug-in for everyone.
     """
-    app = await _load(session, plugin_id)
-    _connection_or_404(app, connection_id)
+    plugin = await _load(session, plugin_id)
+    _connection_or_404(plugin, connection_id)
 
     await connections_service.block_member_connection(
         session,
-        app=app,
+        plugin=plugin,
         connection_id=connection_id,
         user_id=user_id,
         blocked_by_id=current_user.id,
@@ -1456,11 +1462,11 @@ async def unblock_member_connection(
     guild_context: SeatWriteContextDep,
 ) -> None:
     """Lift a block, so the member may connect their own account again."""
-    app = await _load(session, plugin_id)
-    _connection_or_404(app, connection_id)
+    plugin = await _load(session, plugin_id)
+    _connection_or_404(plugin, connection_id)
 
     await connections_service.unblock_member_connection(
-        session, app=app, connection_id=connection_id, user_id=user_id
+        session, plugin=plugin, connection_id=connection_id, user_id=user_id
     )
     await session.commit()
 
@@ -1476,18 +1482,18 @@ async def revoke_member_consents(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> None:
-    """End every answer one member gave this app's requests to act as them,
+    """End every answer one member gave this plug-in's requests to act as them,
     pending requests included.
 
     An admin ends an answer and cannot give one: the member allows a request
     again themselves, or nobody does. Governance runs one way here, which is
-    what keeps "the app acts as me" something its subject actually decided.
+    what keeps "the plug-in acts as me" something its subject actually decided.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
 
     await consents_service.revoke_member_consents(
         session,
-        install_id=app.id,
+        install_id=plugin.id,
         user_id=user_id,
         revoked_by_id=current_user.id,
         actor_user_id=current_user.id,
@@ -1502,19 +1508,19 @@ async def revoke_all_member_consents(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> None:
-    """Stop this app acting as anybody, without uninstalling it.
+    """Stop this plug-in acting as anybody, without uninstalling it.
 
-    Ends every member's answer to the app's requests to act as them, pending
+    Ends every member's answer to the plug-in's requests to act as them, pending
     ones included. The companion to ``revoke-all`` for connections: for a
-    suspected app compromise, reacting fast should not cost the guild its
+    suspected plug-in compromise, reacting fast should not cost the guild its
     configuration. Members may allow requests again once the guild is
     satisfied.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
 
     await consents_service.revoke_all(
         session,
-        install_id=app.id,
+        install_id=plugin.id,
         revoked_by_id=current_user.id,
         actor_user_id=current_user.id,
     )
@@ -1531,11 +1537,11 @@ async def revoke_all_member_connections(
 ) -> None:
     """End every member's connection at once, leaving the install standing.
 
-    For a suspected app or vendor compromise: reacting fast should not cost the
+    For a suspected plug-in or vendor compromise: reacting fast should not cost the
     guild its configuration.
     """
-    app = await _load(session, plugin_id)
+    plugin = await _load(session, plugin_id)
 
-    await connections_service.revoke_all(session, app=app)
+    await connections_service.revoke_all(session, plugin=plugin)
     await session.commit()
     revocation_service.send_after_response(session, background_tasks)

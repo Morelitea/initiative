@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   define: {
-    __PLUGIN_VERSION__: JSON.stringify("0.0.0-test"),
+    __APP_VERSION__: JSON.stringify("0.0.0-test"),
     __IS_CAPACITOR__: JSON.stringify(false),
     // The app serves its own emoji dataset rather than reaching a CDN, and the
     // path is a build-time constant. Without it here the identifier survives

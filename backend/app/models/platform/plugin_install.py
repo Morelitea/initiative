@@ -1,4 +1,4 @@
-"""Which communities have installed which app, in one place.
+"""Which communities have installed which plug-in, in one place.
 
 An install is a row in its community's own schema (``guild_plugins``). This is
 the index of them across communities: the listing an install came from, the
@@ -6,9 +6,9 @@ community and install, whether the install is switched on, and the value a
 vendor webhook is routed to it by. It holds no content.
 
 It answers two questions without visiting a guild schema: which installs an
-app has (``GET /plugin-platform/installations``), and which installs a vendor
+plug-in has (``GET /plugin-platform/installations``), and which installs a vendor
 delivery belongs to (``POST /plugin-hooks/{public_id}``). ``hook_route`` is the
-stored value of the field the app's ``webhooks.route`` names, written when a
+stored value of the field the plug-in's ``webhooks.route`` names, written when a
 connect stores it and cleared when it is removed.
 
 Kept in step by :mod:`app.services.marketplace.plugin_installs`. Reached only by

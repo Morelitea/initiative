@@ -21,16 +21,16 @@ grant. The seat accepts it from the Update button, adding the scopes it
 consents to, or declines it, which stops the asking until a newer version is
 published. A version asking for nothing new applies as before.
 
-**A required app does not wait.** The deployment's registration is what
+**A required plug-in does not wait.** The deployment's registration is what
 installed it and granted what it requests within the ceiling, with no seat
 asked; its newer versions are applied the same way, adding the new scopes
 within the ceiling. A community with no seat holder would otherwise keep a
-required app on a version it can no longer serve.
+required plug-in on a version it can no longer serve.
 
 What survives an upgrade is the same either way. Stored configuration is pruned
 to what the new definition still declares — a value cannot outlive the field it
 was typed into — and a connection the new version dropped is *revoked* rather
-than merely forgotten, since the app is still holding whatever that credential
+than merely forgotten, since the plug-in is still holding whatever that credential
 bought it.
 """
 
@@ -78,7 +78,7 @@ __all__ = [
 ]
 
 #: Where the seat answers a pending version, inside the community: the
-#: integrations settings, which list every app with its updates.
+#: integrations settings, which list every plug-in with its updates.
 UPDATES_TARGET_PATH = "/settings/integrations"
 
 
@@ -111,18 +111,18 @@ class UpgradeAsks:
 
 
 def upgrade_asks(
-    app: GuildPlugin, definition: dict, ceiling: Iterable[str]
+    plugin: GuildPlugin, definition: dict, ceiling: Iterable[str]
 ) -> UpgradeAsks:
-    """What moving ``app`` to ``definition`` would ask the seat for."""
-    held = set(app.granted_scopes or ()) | set(
-        guild_plugins_service.requested_scopes(app.definition)
+    """What moving ``plugin`` to ``definition`` would ask the seat for."""
+    held = set(plugin.granted_scopes or ()) | set(
+        guild_plugins_service.requested_scopes(plugin.definition)
     )
     added_scopes = tuple(
         scope
         for scope in guild_plugins_service.grantable_scopes(definition, ceiling)
         if scope not in held
     )
-    current = guild_plugins_service.initiative_surface_ids(app.definition)
+    current = guild_plugins_service.initiative_surface_ids(plugin.definition)
     added_surfaces = tuple(
         {"id": embed["id"], "name": embed.get("name") or {}}
         for embed in guild_plugins_service.declared_surfaces(definition)
@@ -151,17 +151,17 @@ class UpdateOffer:
 
 
 async def update_offer(
-    session: AsyncSession, app: GuildPlugin
+    session: AsyncSession, plugin: GuildPlugin
 ) -> Optional[UpdateOffer]:
     """What the catalog offers this install and what taking it asks, or ``None``."""
-    pending = await _resolve_pending(session, app)
+    pending = await _resolve_pending(session, plugin)
     if pending is None:
         return None
-    asks = upgrade_asks(app, pending.definition, await _ceiling(pending.definition))
+    asks = upgrade_asks(plugin, pending.definition, await _ceiling(pending.definition))
     return UpdateOffer(update=pending, asks=asks)
 
 
-async def update_version(session: AsyncSession, app: GuildPlugin) -> Optional[str]:
+async def update_version(session: AsyncSession, plugin: GuildPlugin) -> Optional[str]:
     """The version this install would get if it updated now, or ``None``.
 
     ``None`` covers every reason there is nothing to offer — the listing is
@@ -169,12 +169,12 @@ async def update_version(session: AsyncSession, app: GuildPlugin) -> Optional[st
     answer here because they are one answer to the only question being asked:
     is there something to move to.
     """
-    pending = await _resolve_pending(session, app)
+    pending = await _resolve_pending(session, plugin)
     return pending.version if pending else None
 
 
 async def _resolve_pending(
-    session: AsyncSession, app: GuildPlugin
+    session: AsyncSession, plugin: GuildPlugin
 ) -> Optional[PendingUpdate]:
     """What the catalog offers this install, or ``None`` if it offers nothing.
 
@@ -184,11 +184,11 @@ async def _resolve_pending(
     """
     try:
         _, version = await resolve_listing_install(
-            session, app.listing_uid, kind="plugin", already_installed=True
+            session, plugin.listing_uid, kind="plugin", already_installed=True
         )
     except ListingInstallError:
         return None
-    if version.version == app.listing_version:
+    if version.version == plugin.listing_version:
         return None
     definition = dict(version.definition)
     if definition.get("plugin_kind") not in GUILD_INSTALLABLE_PLUGIN_KINDS:
@@ -198,7 +198,7 @@ async def _resolve_pending(
 
 async def apply_version(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     pending: PendingUpdate,
     *,
     guild_id: int,
@@ -218,48 +218,48 @@ async def apply_version(
     carries is the grant intersected with what the pinned version requests.
 
     The caller commits — an upgrade is one transaction with whatever else it is
-    part of — and drains the queued revocations afterwards, so an app is told a
+    part of — and drains the queued revocations afterwards, so a plug-in is told a
     credential is finished only once the write that finished it is durable.
     """
     definition = pending.definition
-    previous = app.definition
+    previous = plugin.definition
     added = set(add_scopes)
-    if added - set(app.granted_scopes or ()):
-        app.granted_scopes = sorted(set(app.granted_scopes or ()) | added)
+    if added - set(plugin.granted_scopes or ()):
+        plugin.granted_scopes = sorted(set(plugin.granted_scopes or ()) | added)
     # Whatever was waiting or declined was a question about an older version
     # than the one this install is now on.
-    app.pending_version = None
-    app.declined_version = None
+    plugin.pending_version = None
+    plugin.declined_version = None
 
-    stored_secrets = await guild_plugins_service.load_secrets(session, app)
+    stored_secrets = await guild_plugins_service.load_secrets(session, plugin)
     config, secrets, dropped = plugin_config_service.prune_to_definition(
-        definition, app.config, stored_secrets
+        definition, plugin.config, stored_secrets
     )
     revocation_service.queue_install_revocations(
-        session, app, dropped, secrets=stored_secrets, reason="upgraded"
+        session, plugin, dropped, secrets=stored_secrets, reason="upgraded"
     )
-    app.config = config
-    app.definition = definition
-    app.listing_version = pending.version
-    # The app has not seen the new configuration shape yet, so whatever it said
+    plugin.config = config
+    plugin.definition = definition
+    plugin.listing_version = pending.version
+    # The plug-in has not seen the new configuration shape yet, so whatever it said
     # about the old one is no longer an answer to the current question.
-    app.config_state = "unverified"
-    app.config_state_detail = None
-    guild_plugins_service.touch(app)
-    session.add(app)
-    await guild_plugins_service.store_secrets(session, app, secrets)
+    plugin.config_state = "unverified"
+    plugin.config_state_detail = None
+    guild_plugins_service.touch(plugin)
+    session.add(plugin)
+    await guild_plugins_service.store_secrets(session, plugin, secrets)
 
     surviving = {
         connection.get("id")
         for connection in plugin_config_service.definition_connections(definition)
     }
     for row in await connections_service.list_plugin_connections(
-        session, plugin_id=app.id
+        session, plugin_id=plugin.id
     ):
         if row.connection_id not in surviving:
             await connections_service.disconnect(
                 session,
-                app=app,
+                plugin=plugin,
                 connection_id=row.connection_id,
                 user_id=row.user_id,
                 reason="upgraded",
@@ -267,18 +267,18 @@ async def apply_version(
             )
     # The new version may route its webhooks by another value, or have
     # dropped the connection that held it.
-    await plugin_installs.record(guild_id, app)
-    return app
+    await plugin_installs.record(guild_id, plugin)
+    return plugin
 
 
-def decline_version(app: GuildPlugin, version: str) -> None:
+def decline_version(plugin: GuildPlugin, version: str) -> None:
     """Keep the pinned version, and stop asking about ``version``.
 
     A newer version than this one is asked about afresh.
     """
-    app.declined_version = version
-    app.pending_version = None
-    guild_plugins_service.touch(app)
+    plugin.declined_version = version
+    plugin.pending_version = None
+    guild_plugins_service.touch(plugin)
 
 
 # --- the sweep --------------------------------------------------------------
@@ -346,7 +346,7 @@ async def _update_guild(
     """Apply what the catalog offers to one guild's tracking installs.
 
     Runs on a session already routed into that guild. A disabled install is
-    updated too: ``auto_update`` says this guild tracks the listing, and an app
+    updated too: ``auto_update`` says this guild tracks the listing, and a plug-in
     switched back on months later should not come back on a version its
     publisher has long since replaced.
 
@@ -376,78 +376,78 @@ async def _update_guild(
 
     applied = 0
     for plugin_id in candidates:
-        app = (
+        plugin = (
             await session.exec(
                 select(GuildPlugin).where(GuildPlugin.id == plugin_id).with_for_update()
             )
         ).first()
         # Gone, or no longer tracking, since the scan.
-        if app is None or not app.auto_update:
+        if plugin is None or not plugin.auto_update:
             continue
-        offer = await update_offer(session, app)
+        offer = await update_offer(session, plugin)
         if offer is None:
             continue
         pending = offer.update
         mandatory = (
             await registration_lookup.install_state(
-                app.definition, listing_uid=app.listing_uid
+                plugin.definition, listing_uid=plugin.listing_uid
             )
         ).mandatory
         if offer.asks.asks_more and mandatory:
             # The registration stands in for the seat, as at install.
-            from_version = app.listing_version
+            from_version = plugin.listing_version
             await apply_version(
                 session,
-                app,
+                plugin,
                 pending,
                 guild_id=guild_id,
                 add_scopes=offer.asks.added_scopes,
             )
             await plugin_schedules.reconcile(
-                guild_id, app.id, app.definition, session=session
+                guild_id, plugin.id, plugin.definition, session=session
             )
             applied += 1
             logger.info(
-                "app auto-update: guild=%s app=%s listing=%s required, %s -> %s",
+                "plug-in auto-update: guild=%s plug-in=%s listing=%s required, %s -> %s",
                 guild_id,
-                app.id,
-                app.listing_uid,
+                plugin.id,
+                plugin.listing_uid,
                 from_version,
                 pending.version,
             )
             continue
         if offer.asks.asks_more:
-            if pending.version not in (app.pending_version, app.declined_version):
-                app.pending_version = pending.version
-                guild_plugins_service.touch(app)
-                session.add(app)
+            if pending.version not in (plugin.pending_version, plugin.declined_version):
+                plugin.pending_version = pending.version
+                guild_plugins_service.touch(plugin)
+                session.add(plugin)
                 if asked is not None:
                     asked.append(
                         AskedUpdate(
-                            plugin_id=app.id,
-                            plugin_name=app.name,
+                            plugin_id=plugin.id,
+                            plugin_name=plugin.name,
                             version=pending.version,
                         )
                     )
                 logger.info(
-                    "app auto-update: guild=%s app=%s listing=%s %s waits for the seat",
+                    "plug-in auto-update: guild=%s plug-in=%s listing=%s %s waits for the seat",
                     guild_id,
-                    app.id,
-                    app.listing_uid,
+                    plugin.id,
+                    plugin.listing_uid,
                     pending.version,
                 )
             continue
-        from_version = app.listing_version
-        await apply_version(session, app, pending, guild_id=guild_id)
+        from_version = plugin.listing_version
+        await apply_version(session, plugin, pending, guild_id=guild_id)
         await plugin_schedules.reconcile(
-            guild_id, app.id, app.definition, session=session
+            guild_id, plugin.id, plugin.definition, session=session
         )
         applied += 1
         logger.info(
-            "app auto-update: guild=%s app=%s listing=%s %s -> %s",
+            "plug-in auto-update: guild=%s plug-in=%s listing=%s %s -> %s",
             guild_id,
-            app.id,
-            app.listing_uid,
+            plugin.id,
+            plugin.listing_uid,
             from_version,
             pending.version,
         )
@@ -469,10 +469,10 @@ async def update_guild(session: AsyncSession, guild_id: int) -> None:
         await session.commit()
     except Exception:
         # The queued revocations are dropped with the writes they belonged
-        # to: nothing was taken away, so there is nothing to tell an app.
+        # to: nothing was taken away, so there is nothing to tell a plug-in.
         revocation_service.drain_revocations(session)
         raise
-    # After the commit, always: an app is told a credential is finished only
+    # After the commit, always: a plug-in is told a credential is finished only
     # once the write that finished it is durable.
     intents = revocation_service.drain_revocations(session)
     if intents:
@@ -486,6 +486,6 @@ async def update_guild(session: AsyncSession, guild_id: int) -> None:
             await session.commit()
         except Exception:
             logger.exception(
-                "app auto-update: guild %s seat could not be told", guild_id
+                "plug-in auto-update: guild %s seat could not be told", guild_id
             )
             await session.rollback()

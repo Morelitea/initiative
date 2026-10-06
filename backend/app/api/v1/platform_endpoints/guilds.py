@@ -1345,9 +1345,9 @@ async def delete_community(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # End the guild's app access. The guild has withdrawn its authorization, so
-    # each app is told to let go now rather than at the end of the retention
-    # window — a restored guild comes back with its apps disconnected, and an
+    # End the guild's plug-in access. The guild has withdrawn its authorization, so
+    # each plug-in is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its plug-ins disconnected, and an
     # admin reconnects them.
     #
     # On the REQUEST session, which is the one that can reach these rows: they
@@ -1845,8 +1845,8 @@ async def leave_community(
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await content_sockets.revoke_user(guild_id, current_user.id)
-    # …and tell this guild's apps that the credentials this person connected
-    # under it are finished. After the commit, so an app is never told to let go
+    # …and tell this guild's plug-ins that the credentials this person connected
+    # under it are finished. After the commit, so a plug-in is never told to let go
     # of something a rollback would have put back.
     plugin_revocation_service.send_after_response(session, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

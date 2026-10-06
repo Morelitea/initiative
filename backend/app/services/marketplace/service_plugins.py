@@ -1,8 +1,8 @@
-"""Service apps: what a manifest may declare, and nothing else.
+"""Service plug-ins: what a manifest may declare, and nothing else.
 
-A ``service`` app is a container the operator runs, or declarative: one with no
+A ``service`` plug-in is a container the operator runs, or declarative: one with no
 ``service`` block, whose calls Initiative makes itself from requests and JSONata
-expressions in the manifest. One app is never both. Its definition is the
+expressions in the manifest. One plug-in is never both. Its definition is the
 widest thing this build accepts from a publisher, so it is also the strictest:
 a closed vocabulary, an explicit cap on every string, list and opaque body, and
 unknown keys dropped rather than stored (an endpoint's refused).
@@ -12,22 +12,22 @@ keep and later hand to a guild:
 
 * **It names capabilities, not its own address.** Every route a container
   offers is a *path*; the base URL comes from a deployment-level registration.
-  The hosts a declarative app names are its vendor's, which every request it
+  The hosts a declarative plug-in names are its vendor's, which every request it
   renders is held to.
 * **No code in it runs here.** ``module_source`` is a widget's browser-side
   module: it is measured and stored as an opaque string, and this build has no
   path that parses, compiles, imports, or evaluates it. The browser's sandbox is
-  the only thing that ever executes it. A declarative app's expressions are
+  the only thing that ever executes it. A declarative plug-in's expressions are
   standard JSONata, evaluated with bounds in worker processes
   (:mod:`app.services.marketplace.expressions`).
 * **Blocks this build assigns no meaning to stay opaque.** The ``automation``
   body belongs to the automation service; it is checked for shape and size and
   passed through verbatim, with no vocabulary here describing its contents.
 
-Features are the app's own statement of what it contributes, and they are
+Features are the plug-in's own statement of what it contributes, and they are
 cross-checked against the blocks present in both directions so the statement
 cannot drift from the manifest. They inform install dialogs, deployment-fit
-messaging, and review — they never gate installation. An app may declare no
+messaging, and review — they never gate installation. A plug-in may declare no
 local features at all: an integration that exists to give an external system a
 foothold in a guild is a legitimate install with nothing to render.
 """
@@ -85,7 +85,7 @@ __all__ = [
 
 # --- vocabulary -------------------------------------------------------------
 
-#: Capability classes an app can contribute. Closed: a manifest naming anything
+#: Capability classes a plug-in can contribute. Closed: a manifest naming anything
 #: else is refused rather than stored as a claim nothing can act on.
 FEATURES: frozenset[str] = contract.enum("feature")
 
@@ -140,7 +140,7 @@ FIELD_PATH_CHARS = contract.charset("fieldPath")
 
 #: Field kinds a connection form can render. The same closed enum the automation
 #: service's node contract settled on, so one generic form renderer draws every
-#: app's settings page.
+#: plug-in's settings page.
 FIELD_TYPES: frozenset[str] = contract.enum("fieldType")
 
 #: What a data source may take as a query parameter. ``secret`` is absent: a
@@ -151,12 +151,12 @@ PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 #: Where a surface renders. Not a choice between the two: a surface may declare
 #: either, or both, and one that declares both gets a community-wide entry *and* an
 #: entry inside each initiative — the same page, told which initiative it was
-#: opened in. Closed, and defaulting to ``["community"]``, so an app that says
+#: opened in. Closed, and defaulting to ``["community"]``, so a plug-in that says
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
-#: How many ``apps:<public_id>`` scopes a service may ask for beside the fixed
-#: ones: one per app it calls through Initiative.
+#: How many ``plugins:<public_id>`` scopes a service may ask for beside the fixed
+#: ones: one per plug-in it calls through Initiative.
 MAX_PLUGIN_SCOPES = contract.cap("pluginScopes")
 
 #: A term an earlier contract used to say who opens a surface or reads an
@@ -184,7 +184,7 @@ def is_admin_only(declared: Any) -> bool:
 
 #: Browser features an embedded surface may ask its frame for.
 #:
-#: A frame is granted nothing it did not name here, so an app that says nothing
+#: A frame is granted nothing it did not name here, so a plug-in that says nothing
 #: gets a frame with every one of these denied. The vocabulary is closed for the
 #: same reason every other one in this module is: a value outside it is refused
 #: with a reason rather than stored as a request nothing resolves.
@@ -199,26 +199,26 @@ EMBED_CAPABILITIES: frozenset[str] = contract.enum("embedCapability")
 #: this many is describing something other than an embedded page.
 MAX_EMBED_CAPABILITIES = contract.cap("embedCapabilities")
 
-#: Protocol versions this build speaks to an app service. A manifest naming a
-#: newer one is refused by name — the version floor (`min_plugin_version`) is how a
+#: Protocol versions this build speaks to a plug-in service. A manifest naming a
+#: newer one is refused by name — the version floor (`min_app_version`) is how a
 #: publisher says "this needs a newer Initiative".
 PLUGIN_PROTOCOL_VERSIONS: frozenset[int] = contract.int_enum("protocol")
 
-#: Widget type ids from an app are namespaced, so an app's widget can never
+#: Widget type ids from a plug-in are namespaced, so a plug-in's widget can never
 #: resolve to a built-in renderer (or the other way round). ``:`` is outside the
 #: identifier character set, so the three parts stay separable.
 PLUGIN_WIDGET_TYPE_PREFIX = "plugin:"
 
-#: Every endpoint an app declares is namespaced under its own service id.
-ENDPOINT_ID_PREFIX = "app."
+#: Every endpoint a plug-in declares is namespaced under its own service id.
+ENDPOINT_ID_PREFIX = "plugin."
 ENDPOINT_ID_CHARS = contract.charset("namespacedId")
 
 #: Which way a call across an endpoint travels.
 #:
 #: ``read`` and ``write`` are both request/response and differ only in whether
-#: the caller expects the app to change something at its vendor — which decides
+#: the caller expects the plug-in to change something at its vendor — which decides
 #: whether an answer may be cached. ``emit`` is the other direction: a
-#: subscriber registers a URL and the app posts to it, so there is nothing to
+#: subscriber registers a URL and the plug-in posts to it, so there is nothing to
 #: call and nothing to cache.
 #:
 #: An endpoint belongs to no particular consumer. A widget reads one, an
@@ -232,7 +232,7 @@ DIRECTIONS: frozenset[str] = contract.enum("direction")
 #: answers; nothing constrains an automation the same way.
 WIDGET_BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
 
-#: Whose credential an endpoint runs on. The app resolves it; this is the
+#: Whose credential an endpoint runs on. The plug-in resolves it; this is the
 #: vocabulary it states its preference in, best first.
 ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
 
@@ -246,7 +246,7 @@ ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
 #: when the thing eventually runs.
 RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
-#: A declarative app's requests: the methods, how paging ends, what an error
+#: A declarative plug-in's requests: the methods, how paging ends, what an error
 #: rule matches, the states a connection is in, and the codes Initiative itself
 #: answers ``unavailable`` with. ``transient`` is an error rule's word for a
 #: passing failure, which is answered as one to retry.
@@ -296,7 +296,7 @@ MAX_TOKEN_LIFETIME_SECONDS = contract.cap("tokenLifetimeSeconds")
 MAX_TEMPLATE_LENGTH = contract.cap("urlLength")
 MAX_SELECT_OPTIONS = contract.cap("selectOptions")
 MAX_ACCESS_HINT_SCOPES = contract.cap("accessHintScopes")
-#: How many schedules an app may declare, and the bounds of each interval.
+#: How many schedules a plug-in may declare, and the bounds of each interval.
 MAX_SCHEDULES = contract.cap("schedules")
 SCHEDULE_MIN_MINUTES = contract.cap("scheduleMinMinutes")
 SCHEDULE_MAX_MINUTES = contract.cap("scheduleMaxMinutes")
@@ -309,11 +309,11 @@ MAX_WIDGET_ENDPOINTS = contract.cap("widgetEndpoints")
 MAX_ENDPOINTS = contract.cap("endpoints")
 MAX_PARAMS_PER_ENDPOINT = contract.cap("paramsPerEndpoint")
 #: What one endpoint may name as coming back. Higher than the param cap on
-#: purpose: describing an answer is cheaper than asking for one, and an app
+#: purpose: describing an answer is cheaper than asking for one, and a plug-in
 #: that returns a dozen fields is ordinary where one taking a dozen is not.
 MAX_RETURNS_PER_ENDPOINT = contract.cap("returnsPerEndpoint")
 MAX_EMBEDS = contract.cap("embeds")
-#: An app ships a handful of arrangements of its own widgets, not a library of
+#: A plug-in ships a handful of arrangements of its own widgets, not a library of
 #: them. Each becomes a catalog row, so this is also how many listings a single
 #: publish can create.
 MAX_BUNDLED_DASHBOARDS = contract.cap("bundledDashboards")
@@ -337,7 +337,7 @@ MAX_ENDPOINT_ID_LENGTH = contract.cap("endpointIdLength")
 MAX_CACHE_TTL_SECONDS = contract.cap("cacheTtlSeconds")
 #: Returns that may be joined into one address. An address, not a record.
 MAX_IDENTITY_KEY_PARTS = contract.cap("identityKeyParts")
-#: A declarative app's requests.
+#: A declarative plug-in's requests.
 MAX_HOSTS = contract.cap("hosts")
 MAX_HOST_LENGTH = contract.cap("hostLength")
 MAX_STEPS = contract.cap("steps")
@@ -370,7 +370,7 @@ MAX_SERVICE_DEFINITION_BYTES = contract.cap("serviceDefinitionBytes")
 def _label(raw: Any, *, what: str, max_length: int = MAX_TEXT_LENGTH) -> dict[str, str]:
     """A localized label, read by the same rules a widget's own strings are.
 
-    One rule for every human-readable string an app supplies, so an app names
+    One rule for every human-readable string a plug-in supplies, so a plug-in names
     its connections in as many languages as it names its widgets.
     """
     label = localized_text(raw, max_length)
@@ -473,19 +473,19 @@ def _field(
             fail(f"{what} {key!r}: a select field must offer at least one option")
         cleaned["options"] = values
     # Cardinality is a fact about the value rather than about a control, so it
-    # is the app's to state and a caller has to know it: whether to send one
+    # is the plug-in's to state and a caller has to know it: whether to send one
     # value or an array is not something a consumer can infer.
     if allow_list and field.get("list") is True:
         cleaned["list"] = True
 
-    # Where the permitted values come from, when only the app can know them.
+    # Where the permitted values come from, when only the plug-in can know them.
     # `options` is the other case: a set that is the same on every deployment.
     if allow_list:
         source = _options_from(field.get("options_from"), what=f"{what} {key!r}")
         if source is not None:
             cleaned["options_from"] = source
-    # Keys the app writes back itself, rather than the admin typing them: a
-    # vendor flow returns its result through the app's own write path.
+    # Keys the plug-in writes back itself, rather than the admin typing them: a
+    # vendor flow returns its result through the plug-in's own write path.
     if allow_managed and field.get("managed") is True:
         cleaned["managed"] = True
     return cleaned
@@ -495,7 +495,7 @@ def _options_from(raw: Any, *, what: str) -> dict[str, Any] | None:
     """Where a parameter's values come from, as a reference and nothing more.
 
     A repository, a channel, a board, a project: values that differ per install,
-    change after it, and can only be enumerated by the app holding that
+    change after it, and can only be enumerated by the plug-in holding that
     install's credential. None of them can be written into a manifest, which is
     published once and is identical on every deployment — so a parameter names
     the read endpoint that answers instead.
@@ -564,7 +564,7 @@ def _access_hint(raw: Any, *, what: str) -> dict[str, Any] | None:
     """What a connection says it will use the credential for.
 
     Display-only truth in advertising: the settings form names the API and the
-    permissions the app wants, so an admin can mint a minimal credential. No
+    permissions the plug-in wants, so an admin can mint a minimal credential. No
     other system's permissions can be enforced from here, and none is claimed
     to be — this only makes least privilege the visible default.
     """
@@ -593,34 +593,36 @@ def _access_hint(raw: Any, *, what: str) -> dict[str, Any] | None:
 
 
 def _vendor(raw: Any) -> dict[str, Any] | None:
-    """What an operator supplies for the app's vendor client, declared and
+    """What an operator supplies for the plug-in's vendor client, declared and
     never valued: every value is entered on the deployment."""
     if raw is None:
         return None
-    vendor = require_mapping(raw, "service app: vendor")
+    vendor = require_mapping(raw, "service plug-in: vendor")
     entries = require_list(
-        vendor.get("fields"), "service app: vendor fields", MAX_VENDOR_FIELDS
+        vendor.get("fields"), "service plug-in: vendor fields", MAX_VENDOR_FIELDS
     )
     if not entries:
-        fail("service app: vendor must declare at least one field")
+        fail("service plug-in: vendor must declare at least one field")
     fields: list[dict[str, Any]] = []
     seen: set[str] = set()
     for entry in entries:
-        field = require_mapping(entry, "service app: vendor field")
-        key = check_identifier(field.get("key"), what="service app: vendor field key")
+        field = require_mapping(entry, "service plug-in: vendor field")
+        key = check_identifier(
+            field.get("key"), what="service plug-in: vendor field key"
+        )
         if key in seen:
-            fail(f"service app: two vendor fields share the key {key!r}")
+            fail(f"service plug-in: two vendor fields share the key {key!r}")
         seen.add(key)
         field_type = field.get("type")
         if field_type not in VENDOR_FIELD_TYPES:
-            fail(f"service app: vendor field {key!r}: unknown type {field_type!r}")
+            fail(f"service plug-in: vendor field {key!r}: unknown type {field_type!r}")
         fields.append(
             {
                 "key": key,
                 "type": field_type,
                 "required": field.get("required") is True,
                 "label": _label(
-                    field.get("label"), what=f"service app: vendor field {key!r}"
+                    field.get("label"), what=f"service plug-in: vendor field {key!r}"
                 ),
             }
         )
@@ -638,7 +640,7 @@ def check_setup_values(values: Any, *, fields: list[dict[str, Any]]) -> None:
     declared field, each answer GitHub gives written at most once, and the
     secret ones only to a secret field. Read when a manifest is published and
     again when a setup finishes against the manifest current then."""
-    what = "service app: vendor.setup.values"
+    what = "service plug-in: vendor.setup.values"
     if not isinstance(values, dict) or not values:
         fail(f"{what} must name at least one value")
     types = {field["key"]: field.get("type") for field in fields}
@@ -658,7 +660,7 @@ def check_setup_values(values: Any, *, fields: list[dict[str, Any]]) -> None:
 def _vendor_setup(raw: Any, *, fields: list[dict[str, Any]]) -> dict[str, Any]:
     """The vendor's own flow for making its client, and which vendor field
     each value it answers with is written to."""
-    what = "service app: vendor.setup"
+    what = "service plug-in: vendor.setup"
     setup = require_mapping(raw, what)
     if setup.get("kind") != GITHUB_APP_MANIFEST:
         fail(f"{what}: unknown kind {setup.get('kind')!r}")
@@ -700,14 +702,14 @@ def _vendor_setup(raw: Any, *, fields: list[dict[str, Any]]) -> dict[str, Any]:
     values = require_mapping(setup.get("values"), f"{what}.values")
     check_setup_values(values, fields=fields)
 
-    cleaned_plugin: dict[str, Any] = {
+    cleaned_app: dict[str, Any] = {
         "name": name,
         "url": url,
         "public": public,
         "default_permissions": dict(sorted(permissions.items())),
         "default_events": events,
     }
-    return {"kind": setup["kind"], "app": cleaned_plugin, "values": dict(values)}
+    return {"kind": setup["kind"], "app": cleaned_app, "values": dict(values)}
 
 
 def _template(
@@ -788,11 +790,11 @@ def _flow(
     }
     if declarative and cleaned["after_connect"] is True:
         fail(
-            f"{what}: a declarative app gives after_connect's request and map; "
+            f"{what}: a declarative plug-in gives after_connect's request and map; "
             "there is no hook to call"
         )
     if not declarative and isinstance(cleaned["after_connect"], dict):
-        fail(f"{what}: a container app sets after_connect true and answers it")
+        fail(f"{what}: a container plug-in sets after_connect true and answers it")
     secret = template("client_secret", required=False)
     if secret is not None:
         cleaned["client_secret"] = secret
@@ -843,7 +845,7 @@ def _flow(
         if revoke not in REVOKE_METHODS:
             fail(f"{what} flow: unknown revoke {revoke!r}")
         if declarative and revoke == "hook":
-            fail(f"{what} flow: a declarative app has no revoke hook")
+            fail(f"{what} flow: a declarative plug-in has no revoke hook")
         cleaned["revoke"] = revoke
     revoke_url = template("revoke_url", required=False, https=True)
     if revoke_url is not None:
@@ -970,7 +972,9 @@ def _connection(
         cleaned["access_hint"] = hint
     if connection.get("health") is not None:
         if not declarative:
-            fail(f"{what}: health is a declarative app's; a container checks its own")
+            fail(
+                f"{what}: health is a declarative plug-in's; a container checks its own"
+            )
         cleaned["health"] = _health(
             connection["health"], what=f"{what} health", auth_header=auth_header
         )
@@ -996,19 +1000,19 @@ def _webhooks(
     connections: list[dict[str, Any]],
     declarative: bool,
 ) -> dict[str, Any] | None:
-    """How Initiative receives the vendor's webhooks for the app: the signature
+    """How Initiative receives the vendor's webhooks for the plug-in: the signature
     it checks, the header naming a delivery, and the static connection field a
     delivery is routed by."""
     if raw is None:
         return None
-    hooks = require_mapping(raw, "service app: webhooks")
-    verify = require_mapping(hooks.get("verify"), "service app: webhooks.verify")
+    hooks = require_mapping(raw, "service plug-in: webhooks")
+    verify = require_mapping(hooks.get("verify"), "service plug-in: webhooks.verify")
     scheme = verify.get("scheme")
     if scheme not in WEBHOOK_SCHEMES:
-        fail(f"service app: webhooks.verify: unknown scheme {scheme!r}")
+        fail(f"service plug-in: webhooks.verify: unknown scheme {scheme!r}")
     encoding = verify.get("encoding")
     if encoding not in WEBHOOK_ENCODINGS:
-        fail(f"service app: webhooks.verify: unknown encoding {encoding!r}")
+        fail(f"service plug-in: webhooks.verify: unknown encoding {encoding!r}")
     secret = verify.get("secret")
     key = (
         secret[len("{vendor.") : -1]
@@ -1019,7 +1023,7 @@ def _webhooks(
     )
     if key not in vendor_keys:
         fail(
-            "service app: webhooks.verify.secret must be one value the vendor "
+            "service plug-in: webhooks.verify.secret must be one value the vendor "
             "block declares, written '{vendor.<key>}'"
         )
 
@@ -1030,79 +1034,85 @@ def _webhooks(
 
     cleaned_verify: dict[str, Any] = {
         "scheme": scheme,
-        "header": header(verify.get("header"), "service app: webhooks.verify.header"),
+        "header": header(
+            verify.get("header"), "service plug-in: webhooks.verify.header"
+        ),
         "encoding": encoding,
         "secret": secret,
     }
     prefix = clean_text(
         verify.get("prefix"),
-        what="service app: webhooks.verify.prefix",
+        what="service plug-in: webhooks.verify.prefix",
         limit=MAX_IDENTIFIER_LENGTH,
         required=False,
     )
     if prefix is not None:
         cleaned_verify["prefix"] = check_single_line(
-            prefix, what="service app: webhooks.verify.prefix"
+            prefix, what="service plug-in: webhooks.verify.prefix"
         )
 
-    route = require_mapping(hooks.get("route"), "service app: webhooks.route")
+    route = require_mapping(hooks.get("route"), "service plug-in: webhooks.route")
     connection_id = check_identifier(
-        route.get("connection"), what="service app: webhooks.route.connection"
+        route.get("connection"), what="service plug-in: webhooks.route.connection"
     )
     field = check_identifier(
-        route.get("field"), what="service app: webhooks.route.field"
+        route.get("field"), what="service plug-in: webhooks.route.field"
     )
     connection = next((c for c in connections if c["id"] == connection_id), None)
     if connection is None or connection["scope"] != "static":
         fail(
-            f"service app: webhooks.route names {connection_id!r}, which is not a "
-            "static connection this app declares"
+            f"service plug-in: webhooks.route names {connection_id!r}, which is not a "
+            "static connection this plug-in declares"
         )
     if field not in {entry["key"] for entry in connection["fields"]}:
         fail(
-            f"service app: webhooks.route names {field!r}, which is not a field of "
+            f"service plug-in: webhooks.route names {field!r}, which is not a field of "
             f"the connection {connection_id!r}"
         )
     # Exactly one of a body path and a header carries the routed value.
     if (route.get("path") is None) == (route.get("header") is None):
-        fail("service app: webhooks.route names exactly one of 'path' and 'header'")
+        fail("service plug-in: webhooks.route names exactly one of 'path' and 'header'")
     cleaned_route: dict[str, Any] = (
         {
             "path": _drawn_from(
                 route["path"],
-                what="service app: webhooks.route.path",
+                what="service plug-in: webhooks.route.path",
                 chars=FIELD_PATH_CHARS,
                 limit=MAX_PATH_LENGTH,
             )
         }
         if route.get("path") is not None
-        else {"header": header(route["header"], "service app: webhooks.route.header")}
+        else {
+            "header": header(route["header"], "service plug-in: webhooks.route.header")
+        }
     )
     cleaned: dict[str, Any] = {
         "verify": cleaned_verify,
-        "dedup": header(hooks.get("dedup"), "service app: webhooks.dedup"),
+        "dedup": header(hooks.get("dedup"), "service plug-in: webhooks.dedup"),
         "route": {**cleaned_route, "connection": connection_id, "field": field},
     }
 
     events = require_list(
-        hooks.get("events"), "service app: webhooks.events", MAX_WEBHOOK_EVENTS
+        hooks.get("events"), "service plug-in: webhooks.events", MAX_WEBHOOK_EVENTS
     )
     statuses = require_list(
-        hooks.get("status"), "service app: webhooks.status", MAX_WEBHOOK_STATUSES
+        hooks.get("status"), "service plug-in: webhooks.status", MAX_WEBHOOK_STATUSES
     )
     if not declarative:
         if events or statuses:
-            fail("service app: a container app's webhook hook receives each delivery")
+            fail(
+                "service plug-in: a container plug-in's webhook hook receives each delivery"
+            )
         return cleaned
     if not events and not statuses:
         fail(
-            "service app: a declarative app maps deliveries with 'events' or "
+            "service plug-in: a declarative plug-in maps deliveries with 'events' or "
             "'status'; there is no hook to forward them to"
         )
     if events:
         cleaned["events"] = []
         for index, entry in enumerate(events):
-            what = f"service app: webhooks.events.{index}"
+            what = f"service plug-in: webhooks.events.{index}"
             row = require_mapping(entry, what)
             cleaned["events"].append(
                 {
@@ -1115,11 +1125,11 @@ def _webhooks(
         declared = {entry["id"] for entry in connections}
         cleaned["status"] = []
         for index, entry in enumerate(statuses):
-            what = f"service app: webhooks.status.{index}"
+            what = f"service plug-in: webhooks.status.{index}"
             row = require_mapping(entry, what)
             named = check_identifier(row.get("connection"), what=f"{what}.connection")
             if named not in declared:
-                fail(f"{what}: {named!r} is not a connection this app declares")
+                fail(f"{what}: {named!r} is not a connection this plug-in declares")
             state = row.get("state")
             if state not in CONNECTION_STATES - {"unavailable"}:
                 fail(
@@ -1149,19 +1159,20 @@ def schedule_minutes(every: str) -> int:
 
 
 def _schedules(raw: Any) -> list[dict[str, str]]:
-    """The intervals at which Initiative calls the app's ``schedule`` hook:
+    """The intervals at which Initiative calls the plug-in's ``schedule`` hook:
     each a unique id and a whole number of minutes or hours, within the
     bounds."""
     schedules: list[dict[str, str]] = []
-    for entry in require_list(raw, "service app: schedules", MAX_SCHEDULES):
-        schedule = require_mapping(entry, "service app: schedule")
+    for entry in require_list(raw, "service plug-in: schedules", MAX_SCHEDULES):
+        schedule = require_mapping(entry, "service plug-in: schedule")
         schedule_id = check_identifier(
-            schedule.get("id"), what="service app: schedule id"
+            schedule.get("id"), what="service plug-in: schedule id"
         )
         if any(kept["id"] == schedule_id for kept in schedules):
-            fail(f"service app: two schedules share the id {schedule_id!r}")
+            fail(f"service plug-in: two schedules share the id {schedule_id!r}")
         every = _every(
-            schedule.get("every"), what=f"service app: schedule {schedule_id!r} every"
+            schedule.get("every"),
+            what=f"service plug-in: schedule {schedule_id!r} every",
         )
         schedules.append({"id": schedule_id, "every": every})
     return schedules
@@ -1185,9 +1196,9 @@ def _every(every: Any, *, what: str) -> str:
     return every
 
 
-# --- what a declarative app calls -------------------------------------------
+# --- what a declarative plug-in calls -------------------------------------------
 #
-# A declarative app has no container: Initiative makes its calls itself, from
+# A declarative plug-in has no container: Initiative makes its calls itself, from
 # requests and JSONata expressions written here. Shape and parsing are checked
 # on publish; what an expression answers is the executor's to read.
 
@@ -1222,7 +1233,7 @@ def _host(raw: Any) -> str:
     """A host, exact or with one leading ``*.`` label: lowercase labels of 1
     to 63 characters, not edged with '-', and a name rather than an address."""
     if not isinstance(raw, str) or not raw or len(raw) > MAX_HOST_LENGTH:
-        fail(f"service app: host {raw!r} is not a host name")
+        fail(f"service plug-in: host {raw!r} is not a host name")
     labels = (raw[2:] if raw.startswith("*.") else raw).split(".")
     if (
         len(labels) < 2
@@ -1235,33 +1246,35 @@ def _host(raw: Any) -> str:
         )
         or all(character in "0123456789" for character in labels[-1])
     ):
-        fail(f"service app: {raw!r} is not a host name")
+        fail(f"service plug-in: {raw!r} is not a host name")
     return raw
 
 
 def _hosts(raw: Any) -> list[str]:
     hosts = [
-        _host(entry) for entry in require_list(raw, "service app: hosts", MAX_HOSTS)
+        _host(entry) for entry in require_list(raw, "service plug-in: hosts", MAX_HOSTS)
     ]
     if len(set(hosts)) != len(hosts):
-        fail("service app: hosts names a host twice")
+        fail("service plug-in: hosts names a host twice")
     return hosts
 
 
 def _auth(raw: Any) -> dict[str, str]:
     """How the credential is put on a request; absent, ``Authorization: Bearer``."""
-    auth = require_mapping(raw, "service app: auth")
+    auth = require_mapping(raw, "service plug-in: auth")
     prefix = auth.get("prefix", DEFAULT_AUTH_PREFIX)
     if not isinstance(prefix, str) or len(prefix) > MAX_IDENTIFIER_LENGTH:
-        fail(f"service app: auth.prefix is at most {MAX_IDENTIFIER_LENGTH} characters")
+        fail(
+            f"service plug-in: auth.prefix is at most {MAX_IDENTIFIER_LENGTH} characters"
+        )
     return {
         "header": _drawn_from(
             auth.get("header", DEFAULT_AUTH_HEADER),
-            what="service app: auth.header",
+            what="service plug-in: auth.header",
             chars=HEADER_NAME_CHARS,
             limit=MAX_IDENTIFIER_LENGTH,
         ),
-        "prefix": check_single_line(prefix, what="service app: auth.prefix"),
+        "prefix": check_single_line(prefix, what="service plug-in: auth.prefix"),
     }
 
 
@@ -1415,7 +1428,7 @@ def _vendor_request(
     else:
         connection = check_identifier(connection, what=f"{what}.connection")
         if connection not in connection_ids:
-            fail(f"{what}: {connection!r} is not a connection this app declares")
+            fail(f"{what}: {connection!r} is not a connection this plug-in declares")
         cleaned["connection"] = connection
     if request.get("paging") is not None:
         cleaned["paging"] = _paging(
@@ -1493,7 +1506,7 @@ def _status_match(raw: Any, *, what: str) -> int | str:
 
 
 def _after_connect(raw: Any, *, what: str, auth_header: str) -> bool | dict[str, Any]:
-    """``true`` (a container's hook), or a declarative app's request and map."""
+    """``true`` (a container's hook), or a declarative plug-in's request and map."""
     if raw is None or isinstance(raw, bool):
         return raw is True
     after = require_mapping(raw, what)
@@ -1607,7 +1620,7 @@ def _unavailable_codes(endpoint: dict[str, Any], *, what: str) -> list[str]:
     return codes
 
 
-# --- what an app offers -----------------------------------------------------
+# --- what a plug-in offers -----------------------------------------------------
 
 
 def _endpoint_identity(raw: Any, *, what: str) -> dict[str, Any] | None:
@@ -1656,11 +1669,11 @@ def _check_identity_returns(
 
 
 def _endpoint_id(raw: Any, *, service_public_id: str, what: str) -> str:
-    """One endpoint id, namespaced under the app's own service id.
+    """One endpoint id, namespaced under the plug-in's own service id.
 
     The prefix is checked here and again at ingress against the declaring
-    registration, so an app can answer and announce only under its own name. Two
-    apps offering ``create-issue`` would be two different things under one name,
+    registration, so a plug-in can answer and announce only under its own name. Two
+    plug-ins offering ``create-issue`` would be two different things under one name,
     and a caller that resolved the wrong one would do the wrong thing
     successfully — which is worse than an error.
     """
@@ -1686,14 +1699,14 @@ def _endpoint(
     auth_header: str,
     interactive_ids: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """One thing the app will do when something connects to it.
+    """One thing the plug-in will do when something connects to it.
 
     A single vocabulary for every caller and every direction. A widget filling a
-    tile, an automation service asking the app to act, and a subscriber waiting
+    tile, an automation service asking the plug-in to act, and a subscriber waiting
     to be told all name an id from this list, and what separates them is which
     token they prove themselves with rather than which route they found.
 
-    The id is the address. There is no path to choose, so two apps cannot answer
+    The id is the address. There is no path to choose, so two plug-ins cannot answer
     the same question at different URLs and a caller that knows the id needs
     nothing else to make the call.
     """
@@ -1750,7 +1763,7 @@ def _endpoint(
     if returns:
         cleaned["returns"] = returns
 
-    # Where a consumer that groups an app's endpoints should file this one, and
+    # Where a consumer that groups a plug-in's endpoints should file this one, and
     # what it needs to already have in hand. Both are opaque identifiers: the
     # vocabularies belong to whoever consumes them — the automation service
     # names the subjects a run can be about — and a second reading of a list
@@ -1762,7 +1775,7 @@ def _endpoint(
     if needs is not None:
         cleaned["needs_subject"] = check_identifier(needs, what=f"{what} needs_subject")
 
-    # What this touched, or what it is about — the one thing here only the app
+    # What this touched, or what it is about — the one thing here only the plug-in
     # can know. A read has none: it touched nothing. Declaring the same kind and
     # key on a write and on the emission about it is what lets a consumer
     # recognise the change an automation made as its own, rather than firing
@@ -1795,7 +1808,7 @@ def _endpoint(
     codes = _unavailable_codes(endpoint, what=what)
     if codes:
         cleaned["unavailable"] = codes
-    # A declarative app's reads and writes are a request and a map; a
+    # A declarative plug-in's reads and writes are a request and a map; a
     # container's are its handler, and carry neither.
     if declarative:
         _declarative_endpoint(
@@ -1808,12 +1821,14 @@ def _endpoint(
     else:
         for term in DECLARATIVE_ENDPOINT_TERMS:
             if endpoint.get(term) is not None:
-                fail(f"{what}: a container app's endpoint is answered by its handler")
+                fail(
+                    f"{what}: a container plug-in's endpoint is answered by its handler"
+                )
 
     # Whoever the call is for, stored whichever way it was declared so every
     # pinned endpoint answers the question the same way.
     cleaned["admin_only"] = _admin_only(endpoint, what=what)
-    # Whether other apps may call it through Initiative. Stored only when it
+    # Whether other plug-ins may call it through Initiative. Stored only when it
     # is, so an endpoint published before the term reads the same as one that
     # left it out.
     if _public(endpoint, what=what):
@@ -1909,12 +1924,12 @@ def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
 
 
 def _actors(raw: Any, *, what: str) -> list[str]:
-    """Whose credential the app will run this on, best first.
+    """Whose credential the plug-in will run this on, best first.
 
-    A list rather than a set because the order is the app's preference, and a
+    A list rather than a set because the order is the plug-in's preference, and a
     caller reads it to know what it is asking for: an endpoint offering only
     ``member`` refuses when the member has connected nothing, rather than
-    quietly acting as the app instead.
+    quietly acting as the plug-in instead.
     """
     if raw is None:
         return []
@@ -1996,11 +2011,11 @@ def _widget(
 def _bundled_dashboard(
     raw: Any, *, widget_ids: set[str], readable_ids: set[str]
 ) -> dict[str, Any]:
-    """One dashboard an app ships with itself.
+    """One dashboard a plug-in ships with itself.
 
     A publisher who declares widgets otherwise leaves every guild to arrange
-    them. This is a ready-made arrangement of *this app's own* widgets, which
-    becomes an ordinary ``dashboard`` catalog listing when the app is published —
+    them. This is a ready-made arrangement of *this plug-in's own* widgets, which
+    becomes an ordinary ``dashboard`` catalog listing when the plug-in is published —
     so a guild installs it the same way it installs any other dashboard, and
     what it gets afterwards is an ordinary dashboard of its own.
 
@@ -2014,7 +2029,7 @@ def _bundled_dashboard(
       writes a uid into a widget type, so the two cannot disagree.
     * **It can only reference this manifest.** Every widget and every bound
       source is checked against what the same document declares, so a bundled
-      dashboard cannot name a widget the app does not have — the failure a
+      dashboard cannot name a widget the plug-in does not have — the failure a
       separately published dashboard can only hit at install, and silently.
 
     The ``uid`` and ``public_id`` are the publisher's own, and are what make the
@@ -2079,7 +2094,7 @@ def _bundled_dashboard(
 def _bundled_dashboard_widget(
     raw: Any, *, widget_ids: set[str], readable_ids: set[str], what: str
 ) -> dict[str, Any]:
-    """One tile, naming one of this app's widgets and one of its sources."""
+    """One tile, naming one of this plug-in's widgets and one of its sources."""
     widget = require_mapping(raw, f"{what} widget")
     widget_type = check_identifier(widget.get("type"), what=f"{what} widget type")
     if widget_type not in widget_ids:
@@ -2140,8 +2155,8 @@ def _bundled_binding_params(raw: Any, *, what: str) -> dict[str, Any]:
 
     An array is one of the shapes, because an endpoint may declare a parameter
     ``list`` and a bundled tile is entitled to fix several values for it — the
-    same shape a guild's own binding may hold, so a dashboard shipped with an
-    app and one built by hand can express the same things.
+    same shape a guild's own binding may hold, so a dashboard shipped with a
+    plug-in and one built by hand can express the same things.
     """
     params = require_mapping(raw, f"{what} widget binding params")
     if len(params) > MAX_DASHBOARD_BINDING_PARAMS:
@@ -2288,7 +2303,7 @@ def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
 def plugin_widget_type(listing_uid: str, widget_id: str) -> str:
     """The type id a listing's widget is offered under.
 
-    Namespaced with the catalog uid, so two apps can both ship a ``summary``
+    Namespaced with the catalog uid, so two plug-ins can both ship a ``summary``
     widget and neither can shadow a built-in type. ``:`` is outside the
     identifier character set, so the parts stay unambiguous — and the id is
     re-checked here, so that stays true wherever this is called from.
@@ -2298,16 +2313,16 @@ def plugin_widget_type(listing_uid: str, widget_id: str) -> str:
 
 
 def _service_block(raw: Any) -> dict[str, Any]:
-    service = require_mapping(raw, "service app: service")
+    service = require_mapping(raw, "service plug-in: service")
     public_id = check_public_id(
-        service.get("public_id"), what="service app: service.public_id"
+        service.get("public_id"), what="service plug-in: service.public_id"
     )
     protocol = service.get("protocol", 1)
     if isinstance(protocol, bool) or not isinstance(protocol, int):
-        fail("service app: service.protocol must be a whole number")
+        fail("service plug-in: service.protocol must be a whole number")
     if protocol not in PLUGIN_PROTOCOL_VERSIONS:
         fail(
-            f"service app: protocol {protocol} is not one this build speaks "
+            f"service plug-in: protocol {protocol} is not one this build speaks "
             f"({sorted(PLUGIN_PROTOCOL_VERSIONS)})"
         )
     cleaned: dict[str, Any] = {"public_id": public_id, "protocol": protocol}
@@ -2320,14 +2335,14 @@ def _service_block(raw: Any) -> dict[str, Any]:
 def _requested_scopes(raw: Any) -> list[str]:
     """The scopes a service asks a community to grant, canonically.
 
-    Absent means none. Each must be in the vocabulary, or an ``apps:`` scope
-    naming another app's public id, and named once; stored sorted, so
+    Absent means none. Each must be in the vocabulary, or a ``plugins:`` scope
+    naming another plug-in's public id, and named once; stored sorted, so
     re-publishing the same manifest produces the same document.
     """
     if raw is None:
         return []
     declared = require_list(
-        raw, "service app: service.scopes", len(ALL_SCOPES) + MAX_PLUGIN_SCOPES
+        raw, "service plug-in: service.scopes", len(ALL_SCOPES) + MAX_PLUGIN_SCOPES
     )
     scopes: set[str] = set()
     plugin_scopes = 0
@@ -2335,25 +2350,27 @@ def _requested_scopes(raw: Any) -> list[str]:
         # Typed before it is looked up: set membership is defined only for a
         # hashable value.
         if not isinstance(entry, str):
-            fail(f"service app: {entry!r} is not a scope an app may request")
+            fail(f"service plug-in: {entry!r} is not a scope a plug-in may request")
         if plugin_scope_target(entry) is not None:
             plugin_scopes += 1
         elif entry not in ALL_SCOPES:
-            fail(f"service app: {entry!r} is not a scope an app may request")
+            fail(f"service plug-in: {entry!r} is not a scope a plug-in may request")
         if entry in scopes:
-            fail(f"service app: service.scopes names {entry!r} twice")
+            fail(f"service plug-in: service.scopes names {entry!r} twice")
         scopes.add(entry)
     if plugin_scopes > MAX_PLUGIN_SCOPES:
-        fail(f"service app: service.scopes names more than {MAX_PLUGIN_SCOPES} apps")
+        fail(
+            f"service plug-in: service.scopes names more than {MAX_PLUGIN_SCOPES} plug-ins"
+        )
     return sorted(scopes)
 
 
 def _features(raw: Any) -> list[str]:
-    declared = require_list(raw, "service app: features", len(FEATURES))
+    declared = require_list(raw, "service plug-in: features", len(FEATURES))
     features: set[str] = set()
     for entry in declared:
         if entry not in FEATURES:
-            fail(f"service app: unknown feature {entry!r}")
+            fail(f"service plug-in: unknown feature {entry!r}")
         features.add(entry)
     # Sorted, so a re-publish of the same manifest produces the same document.
     return sorted(features)
@@ -2362,7 +2379,7 @@ def _features(raw: Any) -> list[str]:
 def _check_features(features: list[str], cleaned: dict[str, Any]) -> None:
     """Both directions, because either mismatch is a manifest that lies.
 
-    A feature declared with no block behind it would advertise something the app
+    A feature declared with no block behind it would advertise something the plug-in
     cannot do; a block with no feature declared would ship a capability the
     install dialog never disclosed and review never looked at.
     """
@@ -2374,12 +2391,12 @@ def _check_features(features: list[str], cleaned: dict[str, Any]) -> None:
         present = block in cleaned
         if feature in declared and not present:
             fail(
-                f"service app: the {feature!r} feature is declared but "
+                f"service plug-in: the {feature!r} feature is declared but "
                 f"{block} is missing"
             )
         if present and feature not in declared:
             fail(
-                f"service app: {block} is present but the {feature!r} feature "
+                f"service plug-in: {block} is present but the {feature!r} feature "
                 "is not declared"
             )
 
@@ -2391,7 +2408,7 @@ def _check_option_sources(
 
     Three things have to hold, and each of them fails silently downstream:
 
-    * the endpoint is one this manifest declares — an id from another app is a
+    * the endpoint is one this manifest declares — an id from another plug-in is a
       cross-plugin read with no consent story behind it;
     * it *reads*, because filling in a form must not write anything;
     * the keys it names are returns of that endpoint, and are lists. One value
@@ -2415,9 +2432,7 @@ def _check_option_sources(
             source = param.get("options_from")
             if not source:
                 continue
-            what = (
-                f"service app: endpoint {endpoint['id']!r} parameter {param['key']!r}"
-            )
+            what = f"service plug-in: endpoint {endpoint['id']!r} parameter {param['key']!r}"
             named = source["endpoint"]
 
             if named not in returns_by_id:
@@ -2463,13 +2478,13 @@ def _check_option_sources(
 def normalize_service_plugin_definition(
     definition: Any, *, public_id: Optional[str] = None
 ) -> dict[str, Any]:
-    """Validate and canonicalize a service app's definition.
+    """Validate and canonicalize a service plug-in's definition.
 
-    A container app names itself in its ``service`` block. A declarative app
+    A container plug-in names itself in its ``service`` block. A declarative plug-in
     has none, and is named by its listing's ``public_id``, which its endpoints
-    are namespaced under. One app is never both.
+    are namespaced under. One plug-in is never both.
     """
-    body = require_mapping(definition, "service app definition")
+    body = require_mapping(definition, "service plug-in definition")
 
     declarative = body.get("service") is None
     service: dict[str, Any] | None = None
@@ -2477,24 +2492,24 @@ def normalize_service_plugin_definition(
     auth: dict[str, str] | None = None
     if declarative:
         if public_id is None:
-            fail("service app: a declarative app is named by its listing")
-        plugin_public_id = check_public_id(public_id, what="service app: public_id")
+            fail("service plug-in: a declarative plug-in is named by its listing")
+        plugin_public_id = check_public_id(public_id, what="service plug-in: public_id")
         hosts = _hosts(body.get("hosts"))
         if not hosts:
-            fail("service app: a declarative app names the hosts it calls")
+            fail("service plug-in: a declarative plug-in names the hosts it calls")
         if body.get("auth") is not None:
             auth = _auth(body["auth"])
         for term in ("schedules", "embeds"):
             if body.get(term) is not None:
-                fail(f"service app: a declarative app has no {term}")
+                fail(f"service plug-in: a declarative plug-in has no {term}")
     else:
         service = _service_block(body.get("service"))
         plugin_public_id = service["public_id"]
         for term in ("hosts", "auth"):
             if body.get(term) is not None:
                 fail(
-                    f"service app: {term!r} is a declarative app's term; a "
-                    "container app makes its own calls"
+                    f"service plug-in: {term!r} is a declarative plug-in's term; a "
+                    "container plug-in makes its own calls"
                 )
     auth_header = (auth or {}).get("header", DEFAULT_AUTH_HEADER)
     vendor = _vendor(body.get("vendor"))
@@ -2508,13 +2523,13 @@ def normalize_service_plugin_definition(
             auth_header=auth_header,
         )
         for entry in require_list(
-            body.get("connections"), "service app: connections", MAX_CONNECTIONS
+            body.get("connections"), "service plug-in: connections", MAX_CONNECTIONS
         )
     ]
     connection_ids: set[str] = set()
     for connection in connections:
         if connection["id"] in connection_ids:
-            fail(f"service app: two connections share the id {connection['id']!r}")
+            fail(f"service plug-in: two connections share the id {connection['id']!r}")
         connection_ids.add(connection["id"])
     webhooks = _webhooks(
         body.get("webhooks"),
@@ -2538,14 +2553,14 @@ def normalize_service_plugin_definition(
             ),
         )
         for entry in require_list(
-            body.get("endpoints"), "service app: endpoints", MAX_ENDPOINTS
+            body.get("endpoints"), "service plug-in: endpoints", MAX_ENDPOINTS
         )
     ]
     endpoint_ids: set[str] = set()
     readable_ids: set[str] = set()
     for endpoint in endpoints:
         if endpoint["id"] in endpoint_ids:
-            fail(f"service app: two endpoints share the id {endpoint['id']!r}")
+            fail(f"service plug-in: two endpoints share the id {endpoint['id']!r}")
         endpoint_ids.add(endpoint["id"])
         if endpoint["direction"] in WIDGET_BINDABLE_DIRECTIONS:
             readable_ids.add(endpoint["id"])
@@ -2555,8 +2570,8 @@ def normalize_service_plugin_definition(
     for index, event in enumerate((webhooks or {}).get("events", [])):
         if event["emit"] not in emits:
             fail(
-                f"service app: webhooks.events.{index} emits {event['emit']!r}, "
-                "which is not an emit endpoint this app declares"
+                f"service plug-in: webhooks.events.{index} emits {event['emit']!r}, "
+                "which is not an emit endpoint this plug-in declares"
             )
 
     # A parameter naming where its values come from, checked once every endpoint
@@ -2568,23 +2583,25 @@ def normalize_service_plugin_definition(
     widgets = [
         _widget(entry, readable_ids=readable_ids, connection_ids=connection_ids)
         for entry in require_list(
-            body.get("widgets"), "service app: widgets", MAX_WIDGETS
+            body.get("widgets"), "service plug-in: widgets", MAX_WIDGETS
         )
     ]
     widget_ids: set[str] = set()
     for widget in widgets:
         if widget["id"] in widget_ids:
-            fail(f"service app: two widgets share the id {widget['id']!r}")
+            fail(f"service plug-in: two widgets share the id {widget['id']!r}")
         widget_ids.add(widget["id"])
 
     embeds = [
         _embed(entry, connection_ids=connection_ids)
-        for entry in require_list(body.get("embeds"), "service app: embeds", MAX_EMBEDS)
+        for entry in require_list(
+            body.get("embeds"), "service plug-in: embeds", MAX_EMBEDS
+        )
     ]
     embed_ids: set[str] = set()
     for embed in embeds:
         if embed["id"] in embed_ids:
-            fail(f"service app: two embeds share the id {embed['id']!r}")
+            fail(f"service plug-in: two embeds share the id {embed['id']!r}")
         embed_ids.add(embed["id"])
 
     cleaned: dict[str, Any] = {
@@ -2597,7 +2614,7 @@ def normalize_service_plugin_definition(
         cleaned["hosts"] = hosts
         if auth is not None:
             cleaned["auth"] = auth
-    # Empty blocks are left out entirely, so "does this app offer widgets?" has
+    # Empty blocks are left out entirely, so "does this plug-in offer widgets?" has
     # one answer rather than two shapes that mean the same thing.
     if vendor is not None:
         cleaned["vendor"] = vendor
@@ -2620,7 +2637,9 @@ def normalize_service_plugin_definition(
     dashboards = [
         _bundled_dashboard(entry, widget_ids=widget_ids, readable_ids=readable_ids)
         for entry in require_list(
-            body.get("dashboards"), "service app: dashboards", MAX_BUNDLED_DASHBOARDS
+            body.get("dashboards"),
+            "service plug-in: dashboards",
+            MAX_BUNDLED_DASHBOARDS,
         )
     ]
     if dashboards:
@@ -2631,15 +2650,17 @@ def normalize_service_plugin_definition(
             # whose identities are unique, and a manifest that collides with
             # itself would fail halfway through a publish.
             if dashboard["uid"] in seen_uids:
-                fail(f"service app: two dashboards share the uid {dashboard['uid']}")
+                fail(
+                    f"service plug-in: two dashboards share the uid {dashboard['uid']}"
+                )
             if dashboard["public_id"] in seen_public_ids:
                 fail(
-                    "service app: two dashboards share the public_id "
+                    "service plug-in: two dashboards share the public_id "
                     f"{dashboard['public_id']!r}"
                 )
             if dashboard["public_id"] == plugin_public_id:
                 fail(
-                    f"service app: dashboard {dashboard['uid']} uses the app's own "
+                    f"service plug-in: dashboard {dashboard['uid']} uses the plug-in's own "
                     "public_id; a bundled dashboard is its own listing"
                 )
             seen_uids.add(dashboard["uid"])
@@ -2648,24 +2669,24 @@ def normalize_service_plugin_definition(
 
     # After the endpoints, because it names one of them. A summary is a read:
     # it reports where this community stands, and a deployment that renders it is
-    # drawing an answer, not asking the app to do anything.
+    # drawing an answer, not asking the plug-in to do anything.
     summary = body.get("community_summary")
     if summary is not None:
         summary_id = _endpoint_id(
             summary,
             service_public_id=plugin_public_id,
-            what="service app: community_summary",
+            what="service plug-in: community_summary",
         )
         if summary_id not in readable_ids:
             fail(
-                f"service app: community_summary names {summary_id!r}, which is not "
-                "an endpoint this app answers reads on"
+                f"service plug-in: community_summary names {summary_id!r}, which is not "
+                "an endpoint this plug-in answers reads on"
             )
         cleaned["community_summary"] = summary_id
 
     default_name = clean_text(
         body.get("default_name"),
-        what="service app: default_name",
+        what="service plug-in: default_name",
         limit=MAX_NAME_LENGTH,
         required=False,
     )
@@ -2675,7 +2696,7 @@ def normalize_service_plugin_definition(
     _check_features(cleaned["features"], cleaned)
     check_json_size(
         cleaned,
-        what="service app definition",
+        what="service plug-in definition",
         limit=MAX_SERVICE_DEFINITION_BYTES,
     )
     return cleaned

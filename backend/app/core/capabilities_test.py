@@ -39,9 +39,11 @@ def test_config_manage_is_owner_only():
 
 
 def test_plugins_manage_is_owner_only():
-    """Wiring an app service is deployment configuration — the same tier
+    """Wiring a plug-in service is deployment configuration — the same tier
     ``config.manage`` occupies, and no lower one."""
-    assert roles_with_capability(Capability.PLUGINS_MANAGE) == frozenset({UserRole.owner})
+    assert roles_with_capability(Capability.PLUGINS_MANAGE) == frozenset(
+        {UserRole.owner}
+    )
 
 
 def test_data_bypass_is_operator_and_owner():

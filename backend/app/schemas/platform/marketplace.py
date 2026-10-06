@@ -52,7 +52,7 @@ class MarketplaceVersionRead(SanitizedBaseModel):
 
     version: str
     release_notes: Optional[str] = None
-    min_plugin_version: Optional[str] = None
+    min_app_version: Optional[str] = None
     published_at: datetime
     #: Whether this deployment is new enough to install it. A version needing a
     #: newer app is shown, not hidden, so the reason is legible.
@@ -103,18 +103,18 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: supplied their own, always present, and never installable. Display
     #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
-    #: For an app: the scopes its latest version asks a community to grant,
+    #: For a plug-in: the scopes its latest version asks a community to grant,
     #: in vocabulary order. Empty for every other kind.
     requested_scopes: List[str] = []
     #: The requested scopes this deployment's registration lets a community
     #: grant. What the install dialog offers ticked; the rest are shown
     #: disabled.
     grantable_scopes: List[str] = []
-    #: For each requested ``apps:`` scope, the name the app it lets this one
-    #: use goes by, keyed by that app's public id. Its public id when the
+    #: For each requested ``plugins:`` scope, the name the plug-in it lets this one
+    #: use goes by, keyed by that plug-in's public id. Its public id when the
     #: catalog has no name for it.
     plugin_names: Dict[str, str] = {}
-    #: Whether the app offers a surface inside initiatives, and so has
+    #: Whether the plug-in offers a surface inside initiatives, and so has
     #: somewhere to be placed.
     has_initiative_surfaces: bool = False
 
@@ -259,9 +259,9 @@ def serialize_version(
     return MarketplaceVersionRead(
         version=version.version,
         release_notes=version.release_notes,
-        min_plugin_version=version.min_plugin_version,
+        min_app_version=version.min_app_version,
         published_at=version.published_at,
-        compatible=version_is_compatible(version.min_plugin_version),
+        compatible=version_is_compatible(version.min_app_version),
     )
 
 

@@ -1,7 +1,7 @@
-"""Endpoint tests for the app service registry and its publishers.
+"""Endpoint tests for the plug-in service registry and its publishers.
 
 Only the owner tier reaches this surface. It writes a registration's
-deployment facts; its app facts come from the app's listing. A registration is
+deployment facts; its plug-in facts come from the plug-in's listing. A registration is
 shown whole, since none of it is secret.
 """
 
@@ -40,9 +40,9 @@ from app.testing.factories import (
 
 BASE = "/api/v1/plugin-services/"
 PUBLISHERS = "/api/v1/plugin-publishers/"
-APP_URL = "http://127.0.0.1:9100"
+PLUGIN_URL = "http://127.0.0.1:9100"
 LISTING_UID = "K7M2QX8N4TVB9C"
-NEW = {"public_id": "acme.widgets", "base_url": APP_URL}
+NEW = {"public_id": "acme.widgets", "base_url": PLUGIN_URL}
 
 
 @pytest.fixture(autouse=True)
@@ -63,8 +63,8 @@ async def _seed(session: AsyncSession, **overrides) -> PluginServiceRegistration
     return await create_plugin_service_registration(
         session,
         public_id=overrides.pop("public_id", "acme.widgets"),
-        base_url=overrides.pop("base_url", APP_URL),
-        allowed_origins=overrides.pop("allowed_origins", [APP_URL]),
+        base_url=overrides.pop("base_url", PLUGIN_URL),
+        allowed_origins=overrides.pop("allowed_origins", [PLUGIN_URL]),
         listing_uid=overrides.pop("listing_uid", LISTING_UID),
         **overrides,
     )
@@ -87,7 +87,7 @@ async def _listed(client: AsyncClient, headers: dict[str, str], row_id: int) -> 
 async def test_non_owner_tiers_are_refused(
     client: AsyncClient, session: AsyncSession, role: UserRole
 ):
-    """``plugins.manage`` is owner-only: wiring an app service is deployment
+    """``plugins.manage`` is owner-only: wiring a plug-in service is deployment
     configuration, so no lower tier reaches any verb."""
     user = await create_user(session, role=role)
     headers = get_auth_headers(user)
@@ -152,7 +152,7 @@ async def test_owner_creates_a_registration_as_stated(
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["public_id"] == "acme.widgets"
-    # Its app facts wait for its listing.
+    # Its plug-in facts wait for its listing.
     assert (body["listing_uid"], body["scope_ceiling"]) == (None, [])
     assert body["publisher_prefix"] == "acme"
     assert body["publisher_enabled"] is True
@@ -205,15 +205,15 @@ async def test_the_key_set_address_round_trips(
     client: AsyncClient, session: AsyncSession
 ):
     headers = await _owner_headers(session)
-    row = await _seed(session, base_url="https://app.example.com", jwks={})
+    row = await _seed(session, base_url="https://plugin.example.com", jwks={})
 
     set_it = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"jwks_uri": "https://app.example.com/jwks.json", "jwks": {}},
+        json={"jwks_uri": "https://plugin.example.com/jwks.json", "jwks": {}},
     )
     assert set_it.status_code == 200, set_it.text
-    assert set_it.json()["jwks_uri"] == "https://app.example.com/jwks.json"
+    assert set_it.json()["jwks_uri"] == "https://plugin.example.com/jwks.json"
     assert set_it.json()["jwks"] is None
     assert set_it.json()["live"] is True
 
@@ -251,7 +251,7 @@ async def test_connect_pins_the_key_set_the_operator_confirmed(
     assert shown.status_code == 200, shown.text
     (confirmed,) = shown.json()
     assert confirmed["kid"] == "acme.widgets-1"
-    assert fetched == [f"{APP_URL}/.well-known/jwks.json"]
+    assert fetched == [f"{PLUGIN_URL}/.well-known/jwks.json"]
     assert (await _listed(client, owner.headers, row.id))["jwks"] is None
 
     capfd.readouterr()
@@ -267,7 +267,7 @@ async def test_connect_pins_the_key_set_the_operator_confirmed(
     assert record["actor_user_id"] == owner.user.id
     assert record["detail"]["changed"] == ["jwks"]
 
-    # The app's set moves: nothing follows it until the operator connects again.
+    # The plug-in's set moves: nothing follows it until the operator connects again.
     served[0] = jwks_doc(OTHER_KEY, kid="acme.widgets-1")
     stale = await client.post(
         f"{BASE}{row.id}/connect",
@@ -310,10 +310,10 @@ async def test_the_browser_address_round_trips_and_clears(
     set_it = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"embed_origin": "https://app.example.com"},
+        json={"embed_origin": "https://plugin.example.com"},
     )
     assert set_it.status_code == 200, set_it.text
-    assert set_it.json()["embed_origin"] == "https://app.example.com"
+    assert set_it.json()["embed_origin"] == "https://plugin.example.com"
 
     cleared = await client.patch(
         f"{BASE}{row.id}", headers=headers, json={"embed_origin": ""}
@@ -327,19 +327,19 @@ async def test_the_browser_address_round_trips_and_clears(
     [
         (
             "a malformed base url",
-            {**NEW, "base_url": "ftp://app.example.com"},
+            {**NEW, "base_url": "ftp://plugin.example.com"},
             PluginServiceMessages.INVALID_BASE_URL,
         ),
         # Its own code, so an operator is told which of the two addresses the
         # registry would not take.
         (
             "a malformed embed origin",
-            {**NEW, "embed_origin": "ftp://app.example.com"},
+            {**NEW, "embed_origin": "ftp://plugin.example.com"},
             PluginServiceMessages.INVALID_EMBED_ORIGIN,
         ),
         (
             "an origin carrying a path",
-            {**NEW, "allowed_origins": ["https://app.example.com/embed"]},
+            {**NEW, "allowed_origins": ["https://plugin.example.com/embed"]},
             PluginServiceMessages.INVALID_ORIGIN,
         ),
     ],
@@ -363,7 +363,7 @@ async def test_create_refuses_a_registration_it_cannot_store(
 async def test_create_fails_closed_without_a_signing_key(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The plugin-platform keypair is required and has no fallback, so the request
+    """The plug-in platform keypair is required and has no fallback, so the request
     is refused with a code an operator can act on."""
     monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
     headers = await _owner_headers(session)
@@ -409,13 +409,13 @@ async def test_owner_adds_and_lists_a_publisher(
     created = await client.post(
         PUBLISHERS,
         headers=headers,
-        json={"prefix": "Private-Plugins", "display_name": "Our own apps"},
+        json={"prefix": "Private-Plugins", "display_name": "Our own plug-ins"},
     )
 
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["prefix"] == "private-plugins"
-    assert body["display_name"] == "Our own apps"
+    assert body["display_name"] == "Our own plug-ins"
     assert body["verified"] is False
     assert body["enabled"] is True
 
@@ -565,7 +565,7 @@ async def test_a_secret_is_written_and_shown_only_as_set(
     kept = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"vendor_values": {"client_id": "widget-plugin-2"}},
+        json={"vendor_values": {"client_id": "widget-app-2"}},
     )
     assert kept.json()["vendor_set"] == ["client_id", "client_secret"]
     cleared = await client.patch(
@@ -654,7 +654,7 @@ GITHUB_DEFINITION: dict[str, Any] = {
         "fields": [
             {"key": key, "type": kind, "required": True, "label": {"en": key}}
             for key, kind in (
-                ("plugin_id", "string"),
+                ("app_id", "string"),
                 ("client_id", "string"),
                 ("client_secret", "secret"),
                 ("private_key", "secret"),
@@ -665,7 +665,7 @@ GITHUB_DEFINITION: dict[str, Any] = {
             "kind": "github_app_manifest",
             "app": GITHUB_APP,
             "values": {
-                "plugin_id": "id",
+                "app_id": "id",
                 "client_id": "client_id",
                 "client_secret": "client_secret",
                 "private_key": "pem",
@@ -736,7 +736,7 @@ async def test_the_github_setup_carries_initiatives_own_addresses(
     started = await _start(client, a.headers, row.id)
 
     app_url = settings.APP_URL.rstrip("/")
-    assert started["action"] == "https://github.com/settings/plugins/new"
+    assert started["action"] == "https://github.com/settings/apps/new"
     assert started["state"]
     assert json.loads(started["manifest"]) == {
         **GITHUB_APP,
@@ -753,7 +753,7 @@ async def test_the_github_setup_carries_initiatives_own_addresses(
     }
     owned = await _start(client, a.headers, row.id, organization="acme-org")
     assert owned["action"] == (
-        "https://github.com/organizations/acme-org/settings/plugins/new"
+        "https://github.com/organizations/acme-org/settings/apps/new"
     )
     refused = await client.post(
         f"{BASE}{row.id}/vendor-setup",
@@ -798,9 +798,9 @@ async def test_completing_the_github_setup_writes_the_vendor_values(
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["vendor_values"] == {"plugin_id": "4242", "client_id": "Iv1.widgets"}
+    assert body["vendor_values"] == {"app_id": "4242", "client_id": "Iv1.widgets"}
     assert body["vendor_set"] == [
-        "plugin_id",
+        "app_id",
         "client_id",
         "client_secret",
         "private_key",
@@ -815,7 +815,7 @@ async def test_completing_the_github_setup_writes_the_vendor_values(
         "/plugin-manifests/abc123/conversions",
     )
     assert await load_vendor_values("acme.widgets") == {
-        "plugin_id": "4242",
+        "app_id": "4242",
         "client_id": "Iv1.widgets",
         "client_secret": "client-secret",
         "private_key": CONVERSION["pem"].strip(),
@@ -824,7 +824,7 @@ async def test_completing_the_github_setup_writes_the_vendor_values(
     (record,) = emitted(capfd, AuditEventType.PLUGIN_SERVICE_UPDATED)
     assert record["actor_user_id"] == a.user.id
     assert record["detail"]["vendor_values"] == [
-        "plugin_id",
+        "app_id",
         "client_id",
         "client_secret",
         "private_key",
@@ -934,12 +934,12 @@ async def test_a_setup_writes_by_the_mapping_it_started_with(
     row = await _github_registration(session)
     started = await _start(client, a.headers, row.id)
     stored = GITHUB_DEFINITION["vendor"]["setup"]["values"]
-    await _republish(session, **{**stored, "plugin_id": "slug"})
+    await _republish(session, **{**stored, "app_id": "slug"})
 
     response = await _complete(client, a.headers, row.id, started["state"])
 
     assert response.status_code == 200, response.text
-    assert response.json()["vendor_values"]["plugin_id"] == "4242"
+    assert response.json()["vendor_values"]["app_id"] == "4242"
 
 
 async def test_a_setup_naming_a_field_the_listing_dropped_is_refused(

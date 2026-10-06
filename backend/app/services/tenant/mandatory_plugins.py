@@ -1,8 +1,8 @@
-"""Apps the deployment provides, rather than a guild choosing them.
+"""Plug-ins the deployment provides, rather than a guild choosing them.
 
-Some apps are not an optional extra: they are part of what a deployment *is*.
+Some plug-ins are not an optional extra: they are part of what a deployment *is*.
 An operator says so on the registration (``mandatory``), and this is what that
-statement does — every guild has the app, already there, with no admin
+statement does — every guild has the plug-in, already there, with no admin
 discovering it in a catalog and no admin able to remove it.
 
 Six properties, and each one is a deliberate choice:
@@ -11,11 +11,11 @@ Six properties, and each one is a deliberate choice:
   same sweep pattern that reprovisions stale schemas, so the flag reaches guilds
   that predate it without anyone running anything.
 * **Installing never fails guild creation.** The install is a local row; the
-  app's container may be down, its listing may not have arrived yet, and none of
+  plug-in's container may be down, its listing may not have arrived yet, and none of
   that is a reason a guild cannot be created. What is missing is logged, and the
   next boot tries again.
 * **The kill switch outranks the flag.** A registration the operator turned off
-  installs nowhere new — deactivating an app stops it exactly like any other.
+  installs nowhere new — deactivating a plug-in stops it exactly like any other.
 * **It is granted what it asks for, within the ceiling.** The manifest's
   requested scopes, capped by the registration's ``scope_ceiling``: the
   operator's registration is the consent a seat would otherwise give. An
@@ -25,12 +25,12 @@ Six properties, and each one is a deliberate choice:
   installed, and each one created afterwards (``follows_new_initiatives``). The
   seat may still remove it from any single initiative, and that stays removed:
   nothing sweeps the initiatives that already exist.
-* **Clearing the flag destroys nothing.** Nothing here removes an install, so an
-  app that stops being mandatory simply becomes an ordinary one a guild admin
-  may now remove. Tearing an app down is uninstalling it, which is a different
+* **Clearing the flag destroys nothing.** Nothing here removes an install, so a
+  plug-in that stops being mandatory simply becomes an ordinary one a guild admin
+  may now remove. Tearing a plug-in down is uninstalling it, which is a different
   path with different consequences.
 
-A self-hosted build that registered no app service has nothing marked mandatory,
+A self-hosted build that registered no plug-in service has nothing marked mandatory,
 so nothing here installs anything and nothing is displayed — the mechanism ships,
 and a deployment's configuration decides whether anything uses it.
 """
@@ -94,7 +94,7 @@ async def _installer_user_id(
     """Who an automatic install is recorded against.
 
     The install row names a person because every other install does, and a
-    guild admin is the honest answer: this is an app they are responsible for
+    guild admin is the honest answer: this is a plug-in they are responsible for
     even though they did not choose it. The guild's own creator is preferred
     when the caller knows them; otherwise the longest-standing admin.
     """
@@ -119,11 +119,11 @@ async def install_mandatory_plugins(
     guild_id: int,
     created_by: Optional[int] = None,
 ) -> list[str]:
-    """Install every mandatory app this guild does not have yet.
+    """Install every mandatory plug-in this guild does not have yet.
 
     The session must already be routed into the guild's schema. Rows are
     flushed, not committed: the caller owns the transaction, so a guild creation
-    commits its apps together with the rest of its seed.
+    commits its plug-ins together with the rest of its seed.
 
     Returns the listing uids installed. Anything that could not be installed —
     a registration naming no listing, a listing this deployment does not hold,
@@ -145,7 +145,7 @@ async def install_mandatory_plugins(
     )
     if installer_id is None:
         logger.warning(
-            "mandatory apps: guild %s has no admin to record an install against",
+            "mandatory plug-ins: guild %s has no admin to record an install against",
             guild_id,
         )
         return []
@@ -156,7 +156,7 @@ async def install_mandatory_plugins(
             # A registration from before the listing was stated names none,
             # so there is nothing to install.
             logger.info(
-                "mandatory apps: %s names no listing to install",
+                "mandatory plug-ins: %s names no listing to install",
                 registration.public_id,
             )
             continue
@@ -190,7 +190,7 @@ async def install_mandatory_plugins(
             )
         except ListingInstallError as exc:
             logger.info(
-                "mandatory apps: %s cannot be installed into guild %s (%s)",
+                "mandatory plug-ins: %s cannot be installed into guild %s (%s)",
                 registration.public_id,
                 guild_id,
                 exc.code,
@@ -200,12 +200,12 @@ async def install_mandatory_plugins(
         definition = dict(version.definition)
         if definition.get("plugin_kind") not in GUILD_INSTALLABLE_PLUGIN_KINDS:
             logger.warning(
-                "mandatory apps: %s is not a kind this build mounts",
+                "mandatory plug-ins: %s is not a kind this build mounts",
                 registration.public_id,
             )
             continue
 
-        app = await guild_plugins_service.install_plugin(
+        plugin = await guild_plugins_service.install_plugin(
             session,
             listing_uid=listing.uid,
             listing_version=version.version,
@@ -218,25 +218,27 @@ async def install_mandatory_plugins(
             granted_scopes=mandatory_grant(definition, registration),
         )
         # Placed in every initiative there is, and in each one created later.
-        app.follows_new_initiatives = True
-        session.add(app)
+        plugin.follows_new_initiatives = True
+        session.add(plugin)
         await session.flush()
-        await guild_plugins_service.place_in_every_initiative(session, app)
+        await guild_plugins_service.place_in_every_initiative(session, plugin)
         # Indexed now, before the caller commits: a guild whose seed fails is
         # removed, and its index rows with it.
-        await plugin_installs.record(guild_id, app)
-        await plugin_schedules.reconcile(guild_id, app.id, definition, session=session)
+        await plugin_installs.record(guild_id, plugin)
+        await plugin_schedules.reconcile(
+            guild_id, plugin.id, definition, session=session
+        )
         installed.append(listing.uid)
 
     return installed
 
 
 async def backfill_mandatory_plugins() -> BackfillResult:
-    """Place mandatory apps into guilds that predate the flag.
+    """Place mandatory plug-ins into guilds that predate the flag.
 
     Runs at boot, visiting every guild whose schema exists on a system session
     from its cohort. A guild that fails is rolled back and logged; the others
-    still get their app, and the next boot tries again.
+    still get their plug-in, and the next boot tries again.
 
     Returns immediately when nothing is marked mandatory, which is every
     deployment that has not asked for this.

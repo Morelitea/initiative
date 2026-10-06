@@ -1,10 +1,10 @@
-"""The community's side of an app acting as its members.
+"""The community's side of a plug-in acting as its members.
 
-A member answers an app's request to act as them on their own consent screen
+A member answers a plug-in's request to act as them on their own consent screen
 (``plugin_member_tokens_test``). The community's seat sees every answer an install
 holds and can end them, one member's or everybody's, and never give one. And an
 answer lasts only as long as the relationship behind it: a member leaving the
-community, or the app being uninstalled, takes it with them.
+community, or the plug-in being uninstalled, takes it with them.
 
 Every answer is in the audit log naming both the person who acted and the
 member whose consent it was, with ``via`` telling the member's own withdrawal
@@ -45,11 +45,11 @@ async def _member(acting_user, installed: InstalledPlugin):
 
 
 async def _asked(client: AsyncClient, installed: InstalledPlugin, member) -> int:
-    """The app asks ``member`` for one purpose; returns the request's id, as
+    """The plug-in asks ``member`` for one purpose; returns the request's id, as
     the member's own list shows it."""
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(["documents:read"]),
         initiative_id=None,
@@ -59,7 +59,7 @@ async def _asked(client: AsyncClient, installed: InstalledPlugin, member) -> int
         json={
             "member": await ensure_plugin_ref(
                 guild_id=installed.guild.id,
-                plugin_install_id=installed.app.id,
+                plugin_install_id=installed.plugin.id,
                 user_id=member.user.id,
             ),
             "purpose": "node-1",
@@ -70,7 +70,7 @@ async def _asked(client: AsyncClient, installed: InstalledPlugin, member) -> int
     )
     assert asked.status_code in (200, 201), asked.text
     listed = await client.get(
-        member.g(f"/plugins/{installed.app.id}"), headers=member.headers
+        member.g(f"/plugins/{installed.plugin.id}"), headers=member.headers
     )
     (row,) = listed.json()["consents"]
     return row["id"]
@@ -79,7 +79,7 @@ async def _asked(client: AsyncClient, installed: InstalledPlugin, member) -> int
 async def _granted(client: AsyncClient, installed: InstalledPlugin, member) -> int:
     consent_id = await _asked(client, installed, member)
     answered = await client.put(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers=member.headers,
         json={"access": "read"},
     )
@@ -89,7 +89,7 @@ async def _granted(client: AsyncClient, installed: InstalledPlugin, member) -> i
 
 async def _statuses(client: AsyncClient, installed: InstalledPlugin) -> dict[int, str]:
     members = await client.get(
-        installed.seat.g(f"/plugins/{installed.app.id}/members"),
+        installed.seat.g(f"/plugins/{installed.plugin.id}/members"),
         headers=installed.seat.headers,
     )
     assert members.status_code == 200, members.text
@@ -101,7 +101,9 @@ async def _rows_for(session: AsyncSession, guild_id: int, user_id: int) -> list:
     return list(
         (
             await session.exec(
-                select(PluginMemberConsent).where(PluginMemberConsent.user_id == user_id)
+                select(PluginMemberConsent).where(
+                    PluginMemberConsent.user_id == user_id
+                )
             )
         ).all()
     )
@@ -120,7 +122,7 @@ async def test_the_seat_sees_every_members_answers(
     await _asked(client, installed, waiting)
 
     members = await client.get(
-        installed.seat.g(f"/plugins/{installed.app.id}/members"),
+        installed.seat.g(f"/plugins/{installed.plugin.id}/members"),
         headers=installed.seat.headers,
     )
 
@@ -144,7 +146,7 @@ async def test_a_member_does_not_get_the_members_view(
     member = await _member(acting_user, installed)
 
     response = await client.get(
-        member.g(f"/plugins/{installed.app.id}/members"), headers=member.headers
+        member.g(f"/plugins/{installed.plugin.id}/members"), headers=member.headers
     )
 
     assert response.status_code == 403
@@ -160,7 +162,9 @@ async def test_the_seat_ends_one_members_answers_and_nobody_elses(
         await _granted(client, installed, member)
 
     response = await client.delete(
-        installed.seat.g(f"/plugins/{installed.app.id}/members/{ended.user.id}/consents"),
+        installed.seat.g(
+            f"/plugins/{installed.plugin.id}/members/{ended.user.id}/consents"
+        ),
         headers=installed.seat.headers,
     )
 
@@ -180,11 +184,11 @@ async def test_a_member_cannot_end_anybodys(
     await _granted(client, installed, other)
 
     everyone = await client.post(
-        member.g(f"/plugins/{installed.app.id}/consents/revoke-all"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/revoke-all"),
         headers=member.headers,
     )
     one = await client.delete(
-        member.g(f"/plugins/{installed.app.id}/members/{other.user.id}/consents"),
+        member.g(f"/plugins/{installed.plugin.id}/members/{other.user.id}/consents"),
         headers=member.headers,
     )
 
@@ -199,7 +203,7 @@ async def test_a_member_cannot_end_anybodys(
 async def test_leaving_the_community_takes_their_answers(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    """A member who leaves has not left an app able to act as them."""
+    """A member who leaves has not left a plug-in able to act as them."""
     installed = await _installed(session, acting_user, role_session)
     leaver = await _member(acting_user, installed)
     await _granted(client, installed, leaver)
@@ -221,7 +225,8 @@ async def test_uninstalling_takes_every_answer_and_counts_them(
     capfd.readouterr()
 
     removed = await client.delete(
-        installed.seat.g(f"/plugins/{installed.app.id}"), headers=installed.seat.headers
+        installed.seat.g(f"/plugins/{installed.plugin.id}"),
+        headers=installed.seat.headers,
     )
 
     assert removed.status_code == 204, removed.text
@@ -246,7 +251,7 @@ async def test_allowing_a_request_records_the_member_and_the_depth(
     assert row["actor_user_id"] == member.user.id
     assert row["target_user_id"] == member.user.id
     assert row["guild_id"] == installed.guild.id
-    assert row["target"] == {"type": "app", "id": installed.app.id}
+    assert row["target"] == {"type": "plugin", "id": installed.plugin.id}
     assert row["detail"] == {
         "consent_id": consent_id,
         "purpose": "node-1",
@@ -264,7 +269,9 @@ async def test_the_seat_ending_an_answer_names_both_of_them(
     capfd.readouterr()
 
     response = await client.delete(
-        installed.seat.g(f"/plugins/{installed.app.id}/members/{member.user.id}/consents"),
+        installed.seat.g(
+            f"/plugins/{installed.plugin.id}/members/{member.user.id}/consents"
+        ),
         headers=installed.seat.headers,
     )
     assert response.status_code == 204, response.text
@@ -283,14 +290,14 @@ async def test_declining_a_request_records_nothing(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, capfd
 ):
     """Nothing was in force, so nothing ended: the log is what says whether an
-    app could act as somebody."""
+    plug-in could act as somebody."""
     installed = await _installed(session, acting_user, role_session)
     member = await _member(acting_user, installed)
     consent_id = await _asked(client, installed, member)
     capfd.readouterr()
 
     response = await client.delete(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers=member.headers,
     )
 

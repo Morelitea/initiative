@@ -1,6 +1,6 @@
 """An install reaching the audit log.
 
-An app is a standing arrangement between a community and somebody outside it,
+A plug-in is a standing arrangement between a community and somebody outside it,
 so the four moments worth writing down are the ones that change what that
 arrangement is: it arrives, its settings move, its configuration moves, its
 version moves, and it goes.
@@ -87,13 +87,13 @@ class TestInstalling:
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
         capfd.readouterr()
-        app = await _install(client, a)
+        plugin = await _install(client, a)
 
         (row,) = emitted(capfd, AuditEventType.PLUGIN_INSTALLED)
         assert row["actor_user_id"] == a.user.id
         assert row["target_user_id"] is None
         assert row["guild_id"] == a.guild.id
-        assert row["target"] == {"type": "app", "id": app["id"]}
+        assert row["target"] == {"type": "plugin", "id": plugin["id"]}
         assert row["detail"] == {
             "listing_uid": CALENDAR_PLUGIN_UID,
             "version": "1.0.0",
@@ -127,11 +127,11 @@ class TestManaging:
         """A name is a string, so the record says it moved and stops there;
         a flag is copied, because its type rules out anything else."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         capfd.readouterr()
 
         response = await client.patch(
-            a.g(f"/plugins/{app['id']}"),
+            a.g(f"/plugins/{plugin['id']}"),
             headers=a.headers,
             json={"name": "Club nights", "auto_update": False},
         )
@@ -140,7 +140,7 @@ class TestManaging:
         (row,) = emitted(capfd, AuditEventType.PLUGIN_UPDATED)
         assert row["actor_user_id"] == a.user.id
         assert row["guild_id"] == a.guild.id
-        assert row["target"] == {"type": "app", "id": app["id"]}
+        assert row["target"] == {"type": "plugin", "id": plugin["id"]}
         detail = row["detail"]
         assert detail["area"] == "settings"
         assert detail["changed"] == ["auto_update", "name"]
@@ -151,13 +151,13 @@ class TestManaging:
         self, client: AsyncClient, acting_user, calendar_plugin, capfd
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         capfd.readouterr()
 
         response = await client.patch(
-            a.g(f"/plugins/{app['id']}"),
+            a.g(f"/plugins/{plugin['id']}"),
             headers=a.headers,
-            json={"name": app["name"], "auto_update": app["auto_update"]},
+            json={"name": plugin["name"], "auto_update": plugin["auto_update"]},
         )
         assert response.status_code == 200, response.text
 
@@ -199,7 +199,7 @@ class TestManaging:
 
         (row,) = emitted(capfd, AuditEventType.PLUGIN_UPDATED)
         assert row["actor_user_id"] == a.user.id
-        assert row["target"] == {"type": "app", "id": plugin_id}
+        assert row["target"] == {"type": "plugin", "id": plugin_id}
         assert row["detail"] == {
             "area": "version",
             "from": "1.0.0",
@@ -220,13 +220,13 @@ class TestConfiguring:
         self, client: AsyncClient, session: AsyncSession, acting_user, capfd
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session, a.guild, a.user, definition=SERVICE_DEFINITION
         )
         capfd.readouterr()
 
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={
                 "values": {
@@ -239,7 +239,7 @@ class TestConfiguring:
         (row,) = emitted(capfd, AuditEventType.PLUGIN_UPDATED)
         assert row["actor_user_id"] == a.user.id
         assert row["guild_id"] == a.guild.id
-        assert row["target"] == {"type": "app", "id": app.id}
+        assert row["target"] == {"type": "plugin", "id": plugin.id}
         detail = row["detail"]
         assert detail["area"] == "config"
         assert sorted(detail["changed"]) == ["admin.admin_token", "admin.shop_domain"]
@@ -254,16 +254,18 @@ class TestUninstalling:
         self, client: AsyncClient, acting_user, calendar_plugin, capfd
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         capfd.readouterr()
 
-        response = await client.delete(a.g(f"/plugins/{app['id']}"), headers=a.headers)
+        response = await client.delete(
+            a.g(f"/plugins/{plugin['id']}"), headers=a.headers
+        )
         assert response.status_code == 204, response.text
 
         (row,) = emitted(capfd, AuditEventType.PLUGIN_UNINSTALLED)
         assert row["actor_user_id"] == a.user.id
         assert row["guild_id"] == a.guild.id
-        assert row["target"] == {"type": "app", "id": app["id"]}
+        assert row["target"] == {"type": "plugin", "id": plugin["id"]}
         assert row["detail"] == {
             "listing_uid": CALENDAR_PLUGIN_UID,
             "connections": 0,

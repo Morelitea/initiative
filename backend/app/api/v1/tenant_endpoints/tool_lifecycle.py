@@ -18,7 +18,7 @@ had, so the generated client is unchanged.
 ``POST /{tool}/{id}/duplicate`` copies a tool into an initiative: its own, or
 the one the body names. The steps are ``app.api.tool_copy``'s, the same for
 every tool, and the answer is the copy as the tool's own read returns it. An
-installed app reaches it for each tool that serves apps, under the tool's
+installed plug-in reaches it for each tool that serves plug-ins, under the tool's
 write scope, as it reaches the tool's create.
 """
 
@@ -102,7 +102,7 @@ _DUPLICATE_DOC = (
     "Copy it, with everything inside it, into an initiative: its own unless the "
     "body names another. Read is enough to copy a template; anything else needs "
     "write. The copy is shared as its source is while it stays in the same "
-    "initiative, and carries the tags its maker may set: an installed app's "
+    "initiative, and carries the tags its maker may set: an installed plug-in's "
     "copy carries them only when it holds the scope to tag."
 )
 
@@ -157,7 +157,9 @@ def _mount_duplicate(
         return await spec.read_row(session, copy_id, current_user, guild_context)
 
     if spec.serves_plugins:
-        ToolWrite = Annotated[ActorContext, Depends(plugin_scope(f"{tool.plural}:write"))]
+        ToolWrite = Annotated[
+            ActorContext, Depends(plugin_scope(f"{tool.plural}:write"))
+        ]
 
         async def duplicate(
             entity_id: entity_id_param,

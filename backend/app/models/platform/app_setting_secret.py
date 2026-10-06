@@ -11,7 +11,7 @@ class AppSettingSecret(SQLModel, table=True):
     A companion to the settings singleton, read and written only by the system
     engine. The settings row carries everything the settings pages show; this
     row carries the credentials they only report as set or not set, and the
-    app platform's generated signing key, which they do not show at all.
+    plug-in platform's generated signing key, which they do not show at all.
 
     1:1 with the singleton — ``id`` is the PK and an FK to ``app_settings.id``
     (``ON DELETE CASCADE``), so it is ``1`` like the row it belongs to. Each
@@ -61,7 +61,7 @@ class AppSettingSecret(SQLModel, table=True):
         default=None, sa_column=Column(String(8000), nullable=True)
     )
 
-    # The app platform's signing key as a PEM
+    # The plug-in platform's signing key as a PEM
     # (``SALT_PLUGIN_PLATFORM_SIGNING_KEY``): generated at the first start that
     # finds PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM unset, and read by every
     # process after it. Never shown on a settings page.

@@ -129,7 +129,7 @@ DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 #
 # Empty, and that is the point: every tool has an export source. What used to
 # sit here (``Tool.dashboard``) is now handled where it belongs — an entity
-# built on an app this build does not ship is filtered by provenance in
+# built on a plug-in this build does not ship is filtered by provenance in
 # ``services.export.provenance``, which is a property of the ROW, not of the
 # tool. A whole tool is the wrong unit for that rule: most dashboards are
 # hand-built here and are ordinary content.

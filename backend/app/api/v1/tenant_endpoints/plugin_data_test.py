@@ -8,7 +8,7 @@ That is the hard isolation boundary, and it is enforced by loading the dashboard
 through the ordinary resource path rather than by a check in the proxy.
 
 **A dashboard is not a skeleton key.** Holding one dashboard lets you fetch the
-sources *it displays*. Naming a different source of the same app is refused, so
+sources *it displays*. Naming a different source of the same plug-in is refused, so
 the surface a viewer can reach is the surface they can see.
 
 **Both kill switches are real.** The guild's install and the operator's
@@ -21,7 +21,7 @@ who connected different vendor accounts must never see each other's rows. That i
 the assertion the whole cache exists to survive, so it is tested end to end
 through two real sessions rather than by inspecting a key.
 
-**An app that misbehaves costs one tile.** Unreachable, slow, oversized, or
+**A plug-in that misbehaves costs one tile.** Unreachable, slow, oversized, or
 answering in a shape we will not pass on — all of it comes back as a named code
 with a 4xx/502, never a server fault.
 
@@ -66,19 +66,19 @@ from app.testing import (
 PLUGIN_UID = "SHPAPP00000001"
 PUBLIC_ID = "acme.shop"
 
-#: What the fixture app declares. Namespaced under its own service id, which is
+#: What the fixture plug-in declares. Namespaced under its own service id, which is
 #: what every endpoint id has to be.
-ORDERS_SUMMARY = f"app.{PUBLIC_ID}.orders-summary"
-REVENUE = f"app.{PUBLIC_ID}.revenue"
+ORDERS_SUMMARY = f"plugin.{PUBLIC_ID}.orders-summary"
+REVENUE = f"plugin.{PUBLIC_ID}.revenue"
 #: Pinned before ``admin_only`` existed, under the earlier contract's term.
-LEGACY_REPORT = f"app.{PUBLIC_ID}.legacy-report"
-MY_PRS = f"app.{PUBLIC_ID}.my-prs"
-REFUND = f"app.{PUBLIC_ID}.refund"
+LEGACY_REPORT = f"plugin.{PUBLIC_ID}.legacy-report"
+MY_PRS = f"plugin.{PUBLIC_ID}.my-prs"
+REFUND = f"plugin.{PUBLIC_ID}.refund"
 #: The two reads that exist to fill a menu rather than a tile. Which shops
 #: there are is a fact about one install, so it cannot be written into a
 #: manifest — the manifest names these instead.
-LIST_SHOPS = f"app.{PUBLIC_ID}.list-shops"
-LIST_AISLES = f"app.{PUBLIC_ID}.list-aisles"
+LIST_SHOPS = f"plugin.{PUBLIC_ID}.list-shops"
+LIST_AISLES = f"plugin.{PUBLIC_ID}.list-aisles"
 BASE_URL = "http://127.0.0.1:9100"
 
 #: A widget module with the characters a plain-text sanitizer would mangle.
@@ -114,7 +114,7 @@ GITHUB_CONNECTION = {
 
 
 def _definition() -> dict:
-    """A service app offering several sources: one for guild admins (and one
+    """A service plug-in offering several sources: one for guild admins (and one
     pinned as such under the earlier contract), one that runs on the caller's
     own vendor account, and ordinary ones."""
     return {
@@ -130,7 +130,7 @@ def _definition() -> dict:
                 "params": [
                     _field("range", "select", options=["7d", "30d"]),
                     _field("limit", "int"),
-                    # A menu the app fills, and a second that cannot be filled
+                    # A menu the plug-in fills, and a second that cannot be filled
                     # until the first has been: an aisle belongs to a shop.
                     _field(
                         "shop",
@@ -257,7 +257,7 @@ def _dashboard_definition(*endpoint_ids: str, sql: str | None = None) -> dict:
 
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
-    """The app platform needs its own keypair; these tests are about the proxy
+    """The plug-in platform needs its own keypair; these tests are about the proxy
     rather than the fail-closed path, so give it a real one."""
     monkeypatch.setattr(
         settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM
@@ -278,11 +278,11 @@ def _clean_cache():
 
 @pytest.fixture
 def upstream(monkeypatch):
-    """Stand in for the app service, recording every call it receives.
+    """Stand in for the plug-in service, recording every call it receives.
 
     Returns a recorder whose ``calls`` holds the outgoing `httpx.Request`s — so a
     test can assert on the minted token and the URL — and whose ``rows`` and
-    ``values`` are what the app answers with next.
+    ``values`` are what the plug-in answers with next.
     """
 
     class Recorder:
@@ -336,7 +336,7 @@ async def _install(session: AsyncSession, actor, **overrides):
 async def _workspace(
     session: AsyncSession, acting_user, *sources: str, sql: str | None = None
 ):
-    """A guild admin with a dashboards-enabled initiative, an installed app, a
+    """A guild admin with a dashboards-enabled initiative, an installed plug-in, a
     live registration, and a dashboard binding the given sources."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.dashboards_enabled = True
@@ -344,21 +344,21 @@ async def _workspace(
     await session.commit()
 
     await _register(session)
-    app = await _install(session, a)
+    plugin = await _install(session, a)
     dashboard = await create_dashboard(
         session,
         a.initiative,
         a.user,
         definition=_dashboard_definition(*(sources or (ORDERS_SUMMARY,)), sql=sql),
     )
-    return a, app, dashboard
+    return a, plugin, dashboard
 
 
-def _url(actor, app, endpoint_id: str, dashboard, **params) -> str:
+def _url(actor, plugin, endpoint_id: str, dashboard, **params) -> str:
     query = f"dashboard_id={dashboard.id}"
     for key, value in params.items():
         query = f"{query}&{key}={value}"
-    return actor.g(f"/plugins/{app.id}/endpoints/{endpoint_id}?{query}")
+    return actor.g(f"/plugins/{plugin.id}/endpoints/{endpoint_id}?{query}")
 
 
 # ---------------------------------------------------------------------------
@@ -370,10 +370,10 @@ class TestGates:
     async def test_a_member_reads_a_source_their_dashboard_displays(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -386,12 +386,12 @@ class TestGates:
     ):
         """An endpoint's ``list`` returns become rows and its single ones stay
         whole, and the route carries both."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         upstream.rows = [{"days": "mon", "totals": 4}]
         upstream.values = {"total": 4}
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -401,15 +401,15 @@ class TestGates:
     async def test_a_guild_member_outside_the_initiative_reaches_nothing(
         self, client, acting_user, session, upstream
     ):
-        """The hard isolation boundary. The app is installed guild-wide and this
+        """The hard isolation boundary. The plug-in is installed guild-wide and this
         person is a member of the guild — but the dashboard belongs to an
         initiative they are not in, so RLS hides the row and the read is a 404
-        before the app is ever contacted."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        before the plug-in is ever contacted."""
+        a, plugin, dashboard = await _workspace(session, acting_user)
         outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
-            _url(outsider, app, ORDERS_SUMMARY, dashboard), headers=outsider.headers
+            _url(outsider, plugin, ORDERS_SUMMARY, dashboard), headers=outsider.headers
         )
         assert response.status_code == 404
         assert upstream.count == 0
@@ -418,10 +418,12 @@ class TestGates:
         self, client, acting_user, session, upstream
     ):
         """The dashboard names which sources it displays; anything else is not
-        reachable through it, even though the same app offers it."""
-        a, app, dashboard = await _workspace(session, acting_user, ORDERS_SUMMARY)
+        reachable through it, even though the same plug-in offers it."""
+        a, plugin, dashboard = await _workspace(session, acting_user, ORDERS_SUMMARY)
 
-        response = await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
+        response = await client.get(
+            _url(a, plugin, REVENUE, dashboard), headers=a.headers
+        )
         assert response.status_code == 404
         assert response.json()["detail"] == PluginDataMessages.ENDPOINT_NOT_FOUND
         assert upstream.count == 0
@@ -429,10 +431,10 @@ class TestGates:
     async def test_a_source_the_plugin_does_not_declare_is_refused(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "made_up")
+        a, plugin, dashboard = await _workspace(session, acting_user, "made_up")
 
         response = await client.get(
-            _url(a, app, "made_up", dashboard), headers=a.headers
+            _url(a, plugin, "made_up", dashboard), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == PluginDataMessages.ENDPOINT_NOT_FOUND
@@ -444,9 +446,11 @@ class TestAdminOnly:
     async def test_an_admin_only_source_is_open_to_an_admin(
         self, client, acting_user, session, upstream, source
     ):
-        a, app, dashboard = await _workspace(session, acting_user, source)
+        a, plugin, dashboard = await _workspace(session, acting_user, source)
 
-        response = await client.get(_url(a, app, source, dashboard), headers=a.headers)
+        response = await client.get(
+            _url(a, plugin, source, dashboard), headers=a.headers
+        )
         assert response.status_code == 200, response.text
 
     @pytest.mark.parametrize("source", [REVENUE, LEGACY_REPORT])
@@ -457,7 +461,7 @@ class TestAdminOnly:
         definition — including one pinned under the earlier contract's
         ``visibility: "guild_admin"`` — not against anything the request
         supplied."""
-        a, app, dashboard = await _workspace(session, acting_user, source)
+        a, plugin, dashboard = await _workspace(session, acting_user, source)
         member = await acting_user(
             guild_role=CommunityRole.member,
             guild=a.guild,
@@ -466,7 +470,7 @@ class TestAdminOnly:
         )
 
         response = await client.get(
-            _url(member, app, source, dashboard), headers=member.headers
+            _url(member, plugin, source, dashboard), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == PluginDataMessages.ADMIN_ONLY
@@ -477,14 +481,14 @@ class TestKillSwitches:
     async def test_a_disabled_install_stops_the_call(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         await route_session_to_guild(session, a.guild.id)
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == PluginDataMessages.PLUGIN_DISABLED
@@ -493,7 +497,7 @@ class TestKillSwitches:
     async def test_the_operators_kill_switch_stops_the_call(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         registration = (await session.exec(select(PluginServiceRegistration))).first()
         registration.enabled = False
         session.add(registration)
@@ -501,7 +505,7 @@ class TestKillSwitches:
         invalidate_registrations()
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == PluginDataMessages.SERVICE_DISABLED
@@ -512,9 +516,9 @@ class TestKillSwitches:
     ):
         """The operator's switch is read before the response cache, so an
         entry cached a moment earlier is not served after it flips."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         first = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert first.status_code == 200
 
@@ -525,7 +529,7 @@ class TestKillSwitches:
         invalidate_registrations()
 
         second = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert second.status_code == 409
 
@@ -536,7 +540,7 @@ class TestKillSwitches:
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         dashboard = await create_dashboard(
             session,
             a.initiative,
@@ -545,7 +549,7 @@ class TestKillSwitches:
         )
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == PluginDataMessages.SERVICE_NOT_REGISTERED
@@ -555,10 +559,10 @@ class TestParams:
     async def test_declared_parameters_reach_the_plugin(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
             headers=a.headers,
         )
         assert response.status_code == 200, response.text
@@ -582,10 +586,10 @@ class TestParams:
     async def test_anything_the_source_did_not_declare_is_refused(
         self, client, acting_user, session, upstream, params
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params=params),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params=params),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -597,8 +601,8 @@ class TestContextToken:
     async def test_the_call_carries_a_guild_pinned_token_with_no_user(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
-        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
+        a, plugin, dashboard = await _workspace(session, acting_user)
+        await client.get(_url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers)
 
         header = upstream.calls[0].headers["Authorization"]
         assert header.startswith("Bearer ")
@@ -609,10 +613,10 @@ class TestContextToken:
         )
         # Named the way this install knows the guild, and by nothing else.
         assert claims["community_ref"] == await ensure_plugin_guild_ref(
-            guild_id=a.guild.id, plugin_install_id=app.id
+            guild_id=a.guild.id, plugin_install_id=plugin.id
         )
         assert "guild_id" not in claims
-        assert claims["plugin_install_id"] == app.id
+        assert claims["plugin_install_id"] == plugin.id
         assert claims["scope"] == "endpoint"
         assert claims["endpoint_id"] == ORDERS_SUMMARY
         assert claims["aud"] == f"initiative-plugin:{PUBLIC_ID}"
@@ -628,12 +632,12 @@ class TestContextToken:
 # ---------------------------------------------------------------------------
 
 
-async def _connect(session: AsyncSession, *, app, user_id: int, ref: str) -> None:
+async def _connect(session: AsyncSession, *, plugin, user_id: int, ref: str) -> None:
     """Give one member a completed per-member connection."""
-    await route_session_to_guild(session, guild_of(app))
+    await route_session_to_guild(session, guild_of(plugin))
     session.add(
         GuildPluginUserConnection(
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id="github",
             user_id=user_id,
             connection_ref=ref,
@@ -648,9 +652,11 @@ class TestConnections:
     async def test_a_member_who_has_not_connected_is_told_to(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
+        a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
 
-        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        response = await client.get(
+            _url(a, plugin, MY_PRS, dashboard), headers=a.headers
+        )
         assert response.status_code == 409
         assert response.json()["detail"] == PluginDataMessages.CONNECTION_REQUIRED
         assert upstream.count == 0
@@ -658,11 +664,11 @@ class TestConnections:
     async def test_a_blocked_member_is_refused_by_name(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
+        a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
         await route_session_to_guild(session, a.guild.id)
         session.add(
             GuildPluginUserConnection(
-                plugin_id=app.id,
+                plugin_id=plugin.id,
                 connection_id="github",
                 user_id=a.user.id,
                 connection_ref="cr_blocked",
@@ -672,7 +678,9 @@ class TestConnections:
         )
         await session.commit()
 
-        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        response = await client.get(
+            _url(a, plugin, MY_PRS, dashboard), headers=a.headers
+        )
         assert response.status_code == 403
         assert response.json()["detail"] == GuildPluginMessages.CONNECTION_BLOCKED
         assert upstream.count == 0
@@ -680,10 +688,12 @@ class TestConnections:
     async def test_the_token_carries_the_opaque_handle_not_the_person(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
-        await _connect(session, app=app, user_id=a.user.id, ref="cr_alice")
+        a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
+        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
 
-        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        response = await client.get(
+            _url(a, plugin, MY_PRS, dashboard), headers=a.headers
+        )
         assert response.status_code == 200, response.text
 
         claims = jwt.decode(
@@ -699,7 +709,7 @@ class TestConnections:
         self, client, acting_user, session, upstream
     ):
         """A source needing the guild's own credential says so rather than
-        calling an app that would fail."""
+        calling a plug-in that would fail."""
         definition = _definition()
         definition["endpoints"][0]["requires"] = {"all_of": ["admin"]}
 
@@ -708,7 +718,7 @@ class TestConnections:
         session.add(a.initiative)
         await session.commit()
         await _register(session)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session, a.guild, a.user, definition=definition, listing_uid=PLUGIN_UID
         )
         dashboard = await create_dashboard(
@@ -719,7 +729,7 @@ class TestConnections:
         )
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == PluginDataMessages.NEEDS_CONFIGURATION
@@ -730,9 +740,9 @@ class TestCache:
     async def test_repeat_reads_of_guild_data_cost_one_upstream_call(
         self, client, acting_user, session, upstream
     ):
-        """Twenty viewers of a dashboard are one call to the app, which is what
+        """Twenty viewers of a dashboard are one call to the plug-in, which is what
         keeps a single-replica community container comfortable."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         member = await acting_user(
             guild_role=CommunityRole.member,
             guild=a.guild,
@@ -741,10 +751,10 @@ class TestCache:
         )
 
         first = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         second = await client.get(
-            _url(member, app, ORDERS_SUMMARY, dashboard), headers=member.headers
+            _url(member, plugin, ORDERS_SUMMARY, dashboard), headers=member.headers
         )
 
         assert first.status_code == 200
@@ -756,14 +766,14 @@ class TestCache:
     async def test_different_parameters_are_different_entries(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"7d"}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"range":"7d"}'),
             headers=a.headers,
         )
         await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
             headers=a.headers,
         )
         assert upstream.count == 2
@@ -777,20 +787,20 @@ class TestCache:
         dashboard. Their vendor accounts differ, so their rows differ, and a
         shared entry would show one person the other's data.
         """
-        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
+        a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
         b = await acting_user(
             guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _connect(session, app=app, user_id=a.user.id, ref="cr_alice")
-        await _connect(session, app=app, user_id=b.user.id, ref="cr_bob")
+        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
+        await _connect(session, plugin=plugin, user_id=b.user.id, ref="cr_bob")
 
         upstream.rows = [{"pr": "alice"}]
-        alice = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        alice = await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)
         upstream.rows = [{"pr": "bob"}]
-        bob = await client.get(_url(b, app, MY_PRS, dashboard), headers=b.headers)
+        bob = await client.get(_url(b, plugin, MY_PRS, dashboard), headers=b.headers)
 
         assert alice.status_code == 200, alice.text
         assert bob.status_code == 200, bob.text
@@ -803,11 +813,11 @@ class TestCache:
     async def test_one_members_repeated_reads_still_collapse(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
-        await _connect(session, app=app, user_id=a.user.id, ref="cr_alice")
+        a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
+        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
 
-        await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
-        again = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)
+        again = await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)
 
         assert again.json()["cached"] is True
         assert upstream.count == 1
@@ -815,17 +825,17 @@ class TestCache:
     async def test_a_rotated_credential_retires_the_answers_it_produced(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
-        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
+        a, plugin, dashboard = await _workspace(session, acting_user)
+        await client.get(_url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers)
         assert upstream.count == 1
 
         await route_session_to_guild(session, a.guild.id)
-        app.config = {"admin": {"shop_domain": "rotated.example"}}
-        session.add(app)
+        plugin.config = {"admin": {"shop_domain": "rotated.example"}}
+        session.add(plugin)
         await session.commit()
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.json()["cached"] is False
         assert upstream.count == 2
@@ -833,10 +843,10 @@ class TestCache:
     async def test_a_source_asking_for_no_cache_is_not_cached(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
+        a, plugin, dashboard = await _workspace(session, acting_user, REVENUE)
 
-        await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
-        await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
+        await client.get(_url(a, plugin, REVENUE, dashboard), headers=a.headers)
+        await client.get(_url(a, plugin, REVENUE, dashboard), headers=a.headers)
         assert upstream.count == 2
 
 
@@ -844,13 +854,13 @@ class TestFailureIsOneTile:
     async def test_an_unreachable_plugin_is_a_named_code_not_a_server_fault(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         upstream.error = plugin_data_service.PluginDataError(
             PluginDataMessages.SERVICE_UNAVAILABLE, 502, "down"
         )
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 502
         assert response.json()["detail"] == PluginDataMessages.SERVICE_UNAVAILABLE
@@ -858,16 +868,16 @@ class TestFailureIsOneTile:
     async def test_a_failed_call_is_not_cached(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         upstream.error = plugin_data_service.PluginDataError(
             PluginDataMessages.SERVICE_UNAVAILABLE, 502, "down"
         )
-        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
+        await client.get(_url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers)
 
         upstream.error = None
         upstream.rows = [{"id": 2}]
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200
         assert response.json()["rows"] == [{"id": 2}]
@@ -876,8 +886,8 @@ class TestFailureIsOneTile:
         self, client, acting_user, session, upstream, monkeypatch
     ):
         """The in-flight cap is refused rather than queued: waiting behind a
-        stalled app is the same outage with a longer fuse."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        stalled plug-in is the same outage with a longer fuse."""
+        a, plugin, dashboard = await _workspace(session, acting_user)
         monkeypatch.setitem(
             plugin_data_service._inflight,
             PUBLIC_ID,
@@ -885,7 +895,7 @@ class TestFailureIsOneTile:
         )
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 503
         assert response.json()["detail"] == PluginDataMessages.BUSY
@@ -896,14 +906,14 @@ class TestWidgetCatalog:
     async def test_it_serves_the_pinned_module_and_samples(
         self, client, acting_user, session
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(a.g("/plugins/widget-catalog"), headers=a.headers)
         assert response.status_code == 200, response.text
 
         entry = response.json()["items"][0]
         assert entry["plugin_uid"] == PLUGIN_UID
-        assert entry["plugin_id"] == app.id
+        assert entry["plugin_id"] == plugin.id
 
         widget = entry["widgets"][0]
         assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
@@ -929,10 +939,10 @@ class TestWidgetCatalog:
     async def test_a_disabled_install_offers_no_widgets(
         self, client, acting_user, session
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         await route_session_to_guild(session, a.guild.id)
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
 
         response = await client.get(a.g("/plugins/widget-catalog"), headers=a.headers)
@@ -945,12 +955,12 @@ class TestWidgetCatalog:
 # ---------------------------------------------------------------------------
 
 
-def _options_url(actor, app, endpoint_id: str, param: str, **query) -> str:
+def _options_url(actor, plugin, endpoint_id: str, param: str, **query) -> str:
     parts = [f"param={param}"]
     for key, value in query.items():
         parts.append(f"{key}={value}")
     return actor.g(
-        f"/plugins/{app.id}/endpoints/{endpoint_id}/options?{'&'.join(parts)}"
+        f"/plugins/{plugin.id}/endpoints/{endpoint_id}/options?{'&'.join(parts)}"
     )
 
 
@@ -961,18 +971,18 @@ class TestParamOptions:
     point of it: a form is filled in *before* a widget is placed, so there is no
     dashboard row whose gates could decide it. What stands in for that is that
     the caller never names what gets called — the source is read out of the
-    app's own declaration — and that the source's own visibility is enforced on
+    plug-in's own declaration — and that the source's own visibility is enforced on
     the caller's own credentials.
     """
 
     async def test_a_member_gets_the_values_the_plugin_answers_with(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"names": "north"}, {"names": "south"}]
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "shop"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -985,21 +995,21 @@ class TestParamOptions:
         self, client, acting_user, session, upstream
     ):
         """The case the route exists for: a widget nobody has placed yet."""
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"names": "north"}]
 
-        url = _options_url(a, app, ORDERS_SUMMARY, "shop")
+        url = _options_url(a, plugin, ORDERS_SUMMARY, "shop")
         assert "dashboard" not in url
         assert (await client.get(url, headers=a.headers)).status_code == 200
 
     async def test_an_opaque_value_carries_what_a_person_reads(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"codes": "A1", "names": "Baking"}]
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
+            _options_url(a, plugin, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
             headers=a.headers,
         )
         assert response.status_code == 200, response.text
@@ -1015,10 +1025,10 @@ class TestParamOptions:
         source anyway would offer every shop's aisles, which is not a menu
         anybody can use.
         """
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "aisle"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "aisle"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"options": [], "unavailable": "needs-sibling"}
@@ -1027,11 +1037,11 @@ class TestParamOptions:
     async def test_a_sibling_answered_is_what_the_source_is_told(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"codes": "A1"}]
 
         await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
+            _options_url(a, plugin, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
             headers=a.headers,
         )
         assert json.loads(upstream.calls[0].content)["params"] == {"shop": "north"}
@@ -1041,13 +1051,13 @@ class TestParamOptions:
     ):
         """The form holds more answers than the source needs, and the source is
         told exactly the ones its ``needs`` names."""
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"codes": "A1"}]
 
         await client.get(
             _options_url(
                 a,
-                app,
+                plugin,
                 ORDERS_SUMMARY,
                 "aisle",
                 params='{"shop":"north","range":"30d","limit":5}',
@@ -1059,10 +1069,10 @@ class TestParamOptions:
     async def test_a_parameter_naming_no_source_says_so(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "limit"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "limit"), headers=a.headers
         )
         assert response.status_code == 200
         assert response.json() == {"options": [], "unavailable": "no-source"}
@@ -1071,10 +1081,10 @@ class TestParamOptions:
     async def test_a_parameter_the_endpoint_does_not_declare_is_a_404(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "nonesuch"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "nonesuch"), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == PluginDataMessages.PARAM_NOT_FOUND
@@ -1085,9 +1095,9 @@ class TestParamOptions:
         """A vendor outage must not become a value nobody can enter.
 
         The alternative — a disabled control — makes a configuration that would
-        have worked unreachable for as long as the app is down.
+        have worked unreachable for as long as the plug-in is down.
         """
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         # The same seam every other failure case uses: `_read_answer` is where
         # the network is, and it is what turns an unreachable host into this.
         upstream.error = plugin_data_service.PluginDataError(
@@ -1095,7 +1105,7 @@ class TestParamOptions:
         )
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "shop"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"options": [], "unavailable": "unresolved"}
@@ -1105,12 +1115,12 @@ class TestParamOptions:
     ):
         """The source's own ``admin_only`` decides, exactly as it does for a
         tile. A member asking for the values of a parameter sourced from an
-        admin-only read gets the same answer as one whose app is down."""
-        a, app, _ = await _workspace(session, acting_user)
+        admin-only read gets the same answer as one whose plug-in is down."""
+        a, plugin, _ = await _workspace(session, acting_user)
         member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
-            _options_url(member, app, ORDERS_SUMMARY, "tier"), headers=member.headers
+            _options_url(member, plugin, ORDERS_SUMMARY, "tier"), headers=member.headers
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"options": [], "unavailable": "unresolved"}
@@ -1121,11 +1131,11 @@ class TestParamOptions:
     ):
         """Refused before the parameter is looked for: the form belongs to an
         endpoint this caller may not read."""
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
-            _options_url(member, app, REVENUE, "anything"), headers=member.headers
+            _options_url(member, plugin, REVENUE, "anything"), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == PluginDataMessages.ADMIN_ONLY
@@ -1134,11 +1144,11 @@ class TestParamOptions:
     async def test_a_guild_admin_reads_that_same_source(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"tiers": "gold"}]
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "tier"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "tier"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         assert [o["value"] for o in response.json()["options"]] == ["gold"]
@@ -1146,7 +1156,7 @@ class TestParamOptions:
     async def test_a_repeated_value_is_offered_once_in_the_order_given(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [
             {"names": "south"},
             {"names": "north"},
@@ -1155,21 +1165,21 @@ class TestParamOptions:
         ]
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "shop"), headers=a.headers
         )
         assert [o["value"] for o in response.json()["options"]] == ["south", "north"]
 
     async def test_a_disabled_install_fills_no_menu(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         await route_session_to_guild(session, a.guild.id)
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "shop"), headers=a.headers
         )
         assert response.status_code == 200
         assert response.json()["unavailable"] == "unresolved"
@@ -1178,11 +1188,11 @@ class TestParamOptions:
         self, client, acting_user, session, upstream
     ):
         """Reads only, the same rule the fetch path keeps: filling in a form
-        must not be a way to make an app act."""
-        a, app, _ = await _workspace(session, acting_user)
+        must not be a way to make a plug-in act."""
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(
-            _options_url(a, app, REFUND, "shop"), headers=a.headers
+            _options_url(a, plugin, REFUND, "shop"), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == PluginDataMessages.ENDPOINT_NOT_FOUND
@@ -1191,7 +1201,7 @@ class TestParamOptions:
 class TestListParams:
     """A parameter declaring several values.
 
-    ``list`` exists so an app does not have to declare a string and document a
+    ``list`` exists so a plug-in does not have to declare a string and document a
     comma — a convention nothing on this side could validate or complete. That
     only holds if an array is what actually travels, so these pin the shape
     rather than the convention.
@@ -1200,10 +1210,12 @@ class TestListParams:
     async def test_several_values_reach_the_plugin_as_several(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red","blue"]}'),
+            _url(
+                a, plugin, ORDERS_SUMMARY, dashboard, params='{"tags":["red","blue"]}'
+            ),
             headers=a.headers,
         )
         assert response.status_code == 200, response.text
@@ -1216,10 +1228,10 @@ class TestListParams:
     ):
         """Cardinality is the declaration's, not the caller's. A single value
         sent bare would be a second encoding of the same thing."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":"red"}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"tags":"red"}'),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -1245,10 +1257,10 @@ class TestListParams:
     ):
         """Cardinality and type are both read off the declaration, and a value
         that answers neither is refused here rather than forwarded."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params=params),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params=params),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -1257,7 +1269,7 @@ class TestListParams:
     async def test_more_values_than_a_request_may_carry_are_refused(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
         many = json.dumps(
             {
                 "tags": [
@@ -1268,7 +1280,7 @@ class TestListParams:
         )
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params=many), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params=many), headers=a.headers
         )
         assert response.status_code == 400
         assert upstream.count == 0
@@ -1278,11 +1290,11 @@ class TestListParams:
     ):
         """Where the values come from does not change with how many are wanted:
         one source answers both."""
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
         upstream.rows = [{"names": "north"}, {"names": "south"}]
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "tags"), headers=a.headers
+            _options_url(a, plugin, ORDERS_SUMMARY, "tags"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         assert [o["value"] for o in response.json()["options"]] == ["north", "south"]
@@ -1290,10 +1302,10 @@ class TestListParams:
     async def test_a_sibling_answered_with_nothing_is_unanswered(
         self, client, acting_user, session, upstream
     ):
-        a, app, _ = await _workspace(session, acting_user)
+        a, plugin, _ = await _workspace(session, acting_user)
 
         response = await client.get(
-            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":""}'),
+            _options_url(a, plugin, ORDERS_SUMMARY, "aisle", params='{"shop":""}'),
             headers=a.headers,
         )
         assert response.json()["unavailable"] == "needs-sibling"
@@ -1309,10 +1321,10 @@ class TestListParams:
         which is exactly the failure a configured widget would hit on its first
         draw rather than on save.
         """
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":[1,2]}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"floors":[1,2]}'),
             headers=a.headers,
         )
         assert response.status_code == 200, response.text
@@ -1323,10 +1335,10 @@ class TestListParams:
     async def test_a_string_where_an_integer_was_declared_is_refused(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":["1"]}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"floors":["1"]}'),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -1336,10 +1348,10 @@ class TestListParams:
     async def test_a_bool_is_not_an_integer_inside_a_list_either(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user)
+        a, plugin, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":[true]}'),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, params='{"floors":[true]}'),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -1347,9 +1359,9 @@ class TestListParams:
 
 
 class TestAStatementOverTheRows:
-    """A built-in widget pointed at an app.
+    """A built-in widget pointed at a plug-in.
 
-    The app's own rows are read by its own module, by the names its manifest
+    The plug-in's own rows are read by its own module, by the names its manifest
     declared. A statement is what lets a chart or a table be pointed at them
     instead — evaluated here, over the answer the proxy already fetched, so
     twenty viewers are still one upstream call.
@@ -1363,14 +1375,15 @@ class TestAStatementOverTheRows:
             {"days": "mon", "totals": 4},
             {"days": "tue", "totals": 5},
         ]
-        a, app, dashboard = await _workspace(
+        a, plugin, dashboard = await _workspace(
             session,
             acting_user,
             ORDERS_SUMMARY,
             sql="SELECT days AS day, sum(totals) AS total FROM rows GROUP BY days",
         )
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="w1"), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, widget_id="w1"),
+            headers=a.headers,
         )
         assert response.status_code == 200, response.json()
         body = response.json()
@@ -1386,14 +1399,15 @@ class TestAStatementOverTheRows:
         """Positional, for the reason every read of this surface is: a mapping
         would keep one of the two."""
         upstream.rows = [{"days": "mon", "totals": 3}]
-        a, app, dashboard = await _workspace(
+        a, plugin, dashboard = await _workspace(
             session,
             acting_user,
             ORDERS_SUMMARY,
             sql="SELECT days, totals AS days FROM rows",
         )
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="w1"), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, widget_id="w1"),
+            headers=a.headers,
         )
         assert response.status_code == 200, response.json()
         assert response.json()["table"]["rows"] == [["mon", 3]]
@@ -1401,10 +1415,10 @@ class TestAStatementOverTheRows:
     async def test_a_binding_with_no_statement_is_untouched(
         self, client, session, acting_user, upstream
     ):
-        """The app's own widget still reads its own rows, by its own names."""
-        a, app, dashboard = await _workspace(session, acting_user)
+        """The plug-in's own widget still reads its own rows, by its own names."""
+        a, plugin, dashboard = await _workspace(session, acting_user)
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200
         body = response.json()
@@ -1416,14 +1430,14 @@ class TestAStatementOverTheRows:
     ):
         """Naming a widget that is not on this dashboard changes nothing —
         there is nowhere for a request to put a statement of its own."""
-        a, app, dashboard = await _workspace(
+        a, plugin, dashboard = await _workspace(
             session,
             acting_user,
             ORDERS_SUMMARY,
             sql="SELECT days AS day FROM rows",
         )
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, widget_id="nope"),
+            _url(a, plugin, ORDERS_SUMMARY, dashboard, widget_id="nope"),
             headers=a.headers,
         )
         assert response.status_code == 200
@@ -1432,7 +1446,7 @@ class TestAStatementOverTheRows:
 
 
 # ---------------------------------------------------------------------------
-# A declarative app: Initiative calls the vendor itself
+# A declarative plug-in: Initiative calls the vendor itself
 # ---------------------------------------------------------------------------
 
 
@@ -1441,7 +1455,7 @@ class TestDeclarative:
     request, sent to the vendor with the community's credential, and its map.
     What reaches the tile is read exactly as a container's answer is."""
 
-    ISSUES = "app.acme.issues.issues"
+    ISSUES = "plugin.acme.issues.issues"
 
     async def _workspace(self, session, acting_user, monkeypatch):
         vendor = FakeVendor()
@@ -1462,7 +1476,7 @@ class TestDeclarative:
         config, secrets = seal_tokens(
             TokenSet(access_token="gho_community"), config={}, secrets={}
         )
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             a.guild,
             a.user,
@@ -1478,7 +1492,9 @@ class TestDeclarative:
             a.user,
             definition=_dashboard_definition(self.ISSUES),
         )
-        url = _url(a, app, self.ISSUES, dashboard, params=quote('{"repo": "acme/web"}'))
+        url = _url(
+            a, plugin, self.ISSUES, dashboard, params=quote('{"repo": "acme/web"}')
+        )
         return a, vendor, url
 
     async def test_the_vendor_answers_through_the_plugins_own_mapping(

@@ -1,9 +1,9 @@
-"""An installed app asking to act as a member, the member answering, and the
+"""An installed plug-in asking to act as a member, the member answering, and the
 member token that follows.
 
-An app asks on its installation token (``POST /plugin-platform/consent-requests``)
+A plug-in asks on its installation token (``POST /plugin-platform/consent-requests``)
 for one purpose; the member is notified and answers on their consent screen
-(``/c/{community_id}/plugins/{plugin_id}/consents/{consent_id}``); the app then presents
+(``/c/{community_id}/plugins/{plugin_id}/consents/{consent_id}``); the plug-in then presents
 a JWT-bearer assertion at the token endpoint and is issued a member token only
 while that answer stands. The token's reach is the install standing's member branch
 (``app/db/member_standing_test.py``); here the probe route reads through it.
@@ -35,7 +35,10 @@ from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.services.marketplace import plugin_oauth
-from app.services.marketplace.plugin_refs import ensure_plugin_guild_ref, ensure_plugin_ref
+from app.services.marketplace.plugin_refs import (
+    ensure_plugin_guild_ref,
+    ensure_plugin_ref,
+)
 from app.testing import create_document, route_session_to_guild, drain_notices
 from app.testing.plugin_clients import (
     CLIENT,
@@ -81,7 +84,7 @@ def _bearer(token: str) -> dict[str, str]:
 def _installation_token(installed: InstalledPlugin, **overrides) -> str:
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(overrides.pop("scopes", ["documents:read"])),
         initiative_id=overrides.pop("initiative_id", None),
@@ -101,7 +104,9 @@ async def _member(acting_user, installed: InstalledPlugin):
 
 async def _ref(installed: InstalledPlugin, user_id: int) -> str:
     return await ensure_plugin_ref(
-        guild_id=installed.guild.id, plugin_install_id=installed.app.id, user_id=user_id
+        guild_id=installed.guild.id,
+        plugin_install_id=installed.plugin.id,
+        user_id=user_id,
     )
 
 
@@ -122,7 +127,7 @@ async def _grant_token(
 ):
     extra: dict[str, Any] = {
         "installation": await ensure_plugin_guild_ref(
-            guild_id=installed.guild.id, plugin_install_id=installed.app.id
+            guild_id=installed.guild.id, plugin_install_id=installed.plugin.id
         )
     }
     if purpose is not None:
@@ -138,7 +143,7 @@ async def _grant_token(
 
 async def _answer(client, member, installed, consent_id: int, access: str):
     return await client.put(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers=member.headers,
         json={"access": access},
     )
@@ -146,7 +151,7 @@ async def _answer(client, member, installed, consent_id: int, access: str):
 
 async def _consent_id(client, member, installed) -> int:
     listed = await client.get(
-        member.g(f"/plugins/{installed.app.id}"), headers=member.headers
+        member.g(f"/plugins/{installed.plugin.id}"), headers=member.headers
     )
     assert listed.status_code == 200, listed.text
     (row,) = listed.json()["consents"]
@@ -194,8 +199,8 @@ async def test_a_request_notifies_the_member_once_and_repeats_as_it_stands(
     ).all()
     assert len(notices) == 1
     assert notices[0].guild_id == installed.guild.id
-    assert notices[0].data["plugin_id"] == installed.app.id
-    assert notices[0].data["target_path"] == f"/?app={installed.app.id}"
+    assert notices[0].data["plugin_id"] == installed.plugin.id
+    assert notices[0].data["target_path"] == f"/?plugin={installed.plugin.id}"
 
     # Another purpose is another request.
     other = await _ask(client, installed, member=member_ref, purpose="node-2")
@@ -211,7 +216,7 @@ async def test_a_request_names_a_member_by_this_install_s_reference(
     member = await _member(acting_user, installed)
     elsewhere = await ensure_plugin_ref(
         guild_id=installed.guild.id,
-        plugin_install_id=installed.app.id + 1000,
+        plugin_install_id=installed.plugin.id + 1000,
         user_id=member.user.id,
     )
 
@@ -310,7 +315,7 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     consent_id = await _consent_id(client, member, installed)
 
     theirs = await client.get(
-        other.g(f"/plugins/{installed.app.id}"), headers=other.headers
+        other.g(f"/plugins/{installed.plugin.id}"), headers=other.headers
     )
     assert theirs.json()["consents"] == []
     not_theirs = await _answer(client, other, installed, consent_id, "read")
@@ -327,17 +332,17 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     assert granted.json()["granted_access"] == "read"
 
     detail = await client.get(
-        member.g(f"/plugins/{installed.app.id}"), headers=member.headers
+        member.g(f"/plugins/{installed.plugin.id}"), headers=member.headers
     )
     assert [c["status"] for c in detail.json()["consents"]] == ["granted"]
 
     withdrawn = await client.delete(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers=member.headers,
     )
     assert withdrawn.status_code == 204
     listed = await client.get(
-        member.g(f"/plugins/{installed.app.id}"), headers=member.headers
+        member.g(f"/plugins/{installed.plugin.id}"), headers=member.headers
     )
     assert listed.json()["consents"][0]["status"] == "revoked"
 
@@ -359,7 +364,7 @@ async def test_an_api_key_cannot_answer(
     await session.commit()
 
     response = await client.put(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers={"Authorization": f"Bearer {secret}"},
         json={"access": "read"},
     )
@@ -382,7 +387,7 @@ async def test_the_seat_revokes_every_answer_at_once(
     assert (await _grant_token(client, installed, member_ref)).status_code == 200
 
     stopped = await client.post(
-        installed.seat.g(f"/plugins/{installed.app.id}/consents/revoke-all"),
+        installed.seat.g(f"/plugins/{installed.plugin.id}/consents/revoke-all"),
         headers=installed.seat.headers,
     )
     assert stopped.status_code == 204, stopped.text
@@ -445,7 +450,9 @@ async def test_a_member_token_is_issued_within_the_ceiling(
 ):
     """Narrowing the registration's ceiling narrows the member's next token as
     it does the installation's."""
-    from app.models.platform.plugin_service_registration import PluginServiceRegistration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
     from app.services.marketplace import registration_lookup
     from app.testing.plugin_clients import CLIENT
 
@@ -555,7 +562,7 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     assert regrant.json()["error"] == "consent_required"
 
     await client.delete(
-        member.g(f"/plugins/{installed.app.id}/consents/{consent_id}"),
+        member.g(f"/plugins/{installed.plugin.id}/consents/{consent_id}"),
         headers=member.headers,
     )
     after_revoking = await client.get(url, headers=_bearer(token))
@@ -576,7 +583,9 @@ async def test_the_member_grant_is_its_own_client_authentication(
         installed,
         member_ref,
         client_assertion_type=plugin_oauth.ASSERTION_TYPE,
-        client_assertion=mint_client_assertion(audience=plugin_oauth.token_endpoint_url()),
+        client_assertion=mint_client_assertion(
+            audience=plugin_oauth.token_endpoint_url()
+        ),
     )
     assert beside.status_code == 400
     assert beside.json()["error"] == "invalid_request"
@@ -599,7 +608,7 @@ async def test_the_member_grant_is_its_own_client_authentication(
 
 
 # ---------------------------------------------------------------------------
-# How often an app may ask
+# How often a plug-in may ask
 # ---------------------------------------------------------------------------
 
 

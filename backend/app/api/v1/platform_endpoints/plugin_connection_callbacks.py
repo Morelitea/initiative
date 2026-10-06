@@ -1,7 +1,7 @@
-"""Where a vendor returns a person during an app connection's flow.
+"""Where a vendor returns a person during a plug-in connection's flow.
 
 Two addresses an operator registers with each vendor client, the same for
-every app on this deployment:
+every plug-in on this deployment:
 
 * ``GET /plugin-connections/callback`` — the OAuth redirect: ``state`` and
   ``code`` (or ``error``).

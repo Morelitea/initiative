@@ -85,9 +85,9 @@ async def test_upload_and_duplicate_each_start_at_version_one(
 async def test_a_plugin_copies_a_file_document_under_its_uploader(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ) -> None:
-    """An app with the document scopes copies the file a document shows, and
-    the copy's version 1 names the file's uploader: an app is never an
-    author. The app reads each stored file as an empty string and a cover from
+    """A plug-in with the document scopes copies the file a document shows, and
+    the copy's version 1 names the file's uploader: a plug-in is never an
+    author. The plug-in reads each stored file as an empty string and a cover from
     elsewhere as it is; a person reads the paths."""
     scopes = ["documents:read", "documents:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
@@ -124,7 +124,7 @@ async def test_a_plugin_copies_a_file_document_under_its_uploader(
     assert person.json()["file_url"].startswith(f"/uploads/{installed.guild.id}/")
     assert person.json()["file_url"] != doc["file_url"]
 
-    # A cover from elsewhere reaches the app as it is; a PDF shows none.
+    # A cover from elsewhere reaches the plug-in as it is; a PDF shows none.
     cover = "https://pictures.example/cover.png"
     updated = await client.patch(
         installed.seat.g(f"/documents/{copy['id']}"),

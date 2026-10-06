@@ -1,6 +1,6 @@
-"""Managing the deployment's app publishers.
+"""Managing the deployment's plug-in publishers.
 
-A publisher is the ``<prefix>`` half of every ``<prefix>.<slug>`` app id this
+A publisher is the ``<prefix>`` half of every ``<prefix>.<slug>`` plug-in id this
 deployment registers (:mod:`app.models.platform.publisher`). Three ways a row
 arrives:
 
@@ -8,10 +8,10 @@ arrives:
   a restart never changes a row that exists, so an operator's switch stays
   where they left it.
 * **An operator adds one** through the ``plugins.manage`` endpoints, for a
-  private app's prefix.
+  private plug-in's prefix.
 * **A registration names a prefix no row has yet**, and one is added for it,
   unverified and enabled (:func:`ensure_publisher`). Whoever registered the
-  app chose its prefix, so the row records that choice rather than refusing it.
+  plug-in chose its prefix, so the row records that choice rather than refusing it.
 * **The registry brings one** with a verified listing
   (:mod:`app.services.marketplace.registry_entries`). It keeps its own rows
   and the seeded one up to date, and never touches an operator's.

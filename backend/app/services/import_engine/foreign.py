@@ -85,11 +85,11 @@ def read_preview(source: ForeignSource, content: str) -> list[SourceOption]:
 
 
 def build(
-    source: ForeignSource, content: str, *, selection: str, plugin_version: str
+    source: ForeignSource, content: str, *, selection: str, app_version: str
 ) -> MappedProject:
     """The chosen part of the upload as a project envelope."""
     try:
-        return source.build(content, selection=selection, plugin_version=plugin_version)
+        return source.build(content, selection=selection, app_version=app_version)
     except ImportEngineError:
         raise
     except Exception as exc:  # noqa: BLE001 - as above

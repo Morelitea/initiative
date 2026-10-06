@@ -12,7 +12,7 @@ from app.services.tenant.guild_plugins import ARTIFACT_HANDLERS
 
 class TestHandlerCoverage:
     def test_every_mountable_tool_can_be_unmade(self):
-        """A tool an app may mount must have a handler, or uninstalling it would
+        """A tool a plug-in may mount must have a handler, or uninstalling it would
         leave the row it created behind with nothing pointing at it."""
         assert MOUNTABLE_TOOLS <= set(ARTIFACT_HANDLERS)
 

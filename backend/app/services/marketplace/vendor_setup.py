@@ -1,17 +1,17 @@
-"""A vendor's own flow for making an app's vendor client.
+"""A vendor's own flow for making a plug-in's vendor client.
 
-An app's manifest may declare ``vendor.setup``: a flow at the vendor that
-creates the client the app's connections use on this deployment, and answers
+A plug-in's manifest may declare ``vendor.setup``: a flow at the vendor that
+creates the client the plug-in's connections use on this deployment, and answers
 with its values. Initiative runs it from the operator's browser and writes the
 answers into the registration's vendor values through the write the settings
 form uses, so none is typed or copied.
 
 ``github_app_manifest`` is the one flow. GitHub creates a GitHub App from a
 manifest the browser posts to it, sends the operator back with a code, and
-exchanges that code once for the new app's id, slug, client id and secret,
+exchanges that code once for the new GitHub App's id, slug, client id and secret,
 webhook secret and private key.
 
-* :func:`start` builds the manifest, the app's own declaration with the
+* :func:`start` builds the manifest, the plug-in's own declaration with the
   addresses Initiative already knows filled in, and a state for the operator's
   browser to carry to GitHub and back.
 * :func:`complete` checks the state, exchanges the code, and writes each value
@@ -70,7 +70,7 @@ __all__ = [
     "start",
 ]
 
-#: How long an operator has to confirm the app on GitHub and come back.
+#: How long an operator has to confirm the GitHub App on GitHub and come back.
 STATE_TTL = timedelta(hours=1)
 
 GITHUB_URL = "https://github.com"
@@ -162,7 +162,7 @@ async def start(
     organization: Optional[str],
     actor_user_id: int,
 ) -> VendorSetupStart:
-    """Build the manifest for the app's GitHub App, owned by ``organization``
+    """Build the manifest for the plug-in's GitHub App, owned by ``organization``
     or by the operator's own account, and open the state that brings the
     operator back."""
     row = await registrations_service.get_registration(session, registration_id)
@@ -175,9 +175,9 @@ async def start(
     setup = definition["vendor"]["setup"]
     owner = _organization(organization)
     action = (
-        f"{GITHUB_URL}/organizations/{owner}/settings/plugins/new"
+        f"{GITHUB_URL}/organizations/{owner}/settings/apps/new"
         if owner
-        else f"{GITHUB_URL}/settings/plugins/new"
+        else f"{GITHUB_URL}/settings/apps/new"
     )
     manifest = {
         **setup["app"],
@@ -251,7 +251,7 @@ async def _spend_state(
 
 
 async def _convert(code: str) -> dict[str, Any]:
-    """GitHub's answer for the code: the new app's values."""
+    """GitHub's answer for the code: the new GitHub App's values."""
     if not code or len(code) > _MAX_CODE or any(c not in _CODE_CHARS for c in code):
         raise _failed()
     url = f"{GITHUB_API_URL}/plugin-manifests/{quote(code, safe='')}/conversions"
@@ -272,11 +272,11 @@ async def _convert(code: str) -> dict[str, Any]:
         WebhookTargetUrlPrivateError,
         ValueError,
     ) as exc:
-        logger.warning("app services: the GitHub App conversion failed (%s)", exc)
+        logger.warning("plug-in services: the GitHub App conversion failed (%s)", exc)
         raise _failed() from exc
     if not isinstance(body, dict):
         logger.warning(
-            "app services: GitHub answered the conversion with %s",
+            "plug-in services: GitHub answered the conversion with %s",
             response.status_code,
         )
         raise _failed()
@@ -315,7 +315,7 @@ async def complete(
                 mapping, fields=vendor_values_service.vendor_fields(definition)
             )
         except ListingDefinitionError as exc:
-            logger.info("app services: a vendor setup no longer fits (%s)", exc)
+            logger.info("plug-in services: a vendor setup no longer fits (%s)", exc)
             raise _expired() from exc
     answer = await _convert(code)
     values: dict[str, Optional[str]] = {}

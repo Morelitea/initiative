@@ -1,12 +1,12 @@
-"""The app platform's token endpoint: who is asking, and what they are given.
+"""The plug-in platform's token endpoint: who is asking, and what they are given.
 
-Initiative is the authorization server for the apps a deployment registers.
-One endpoint, form-encoded per RFC 6749, authenticates the app by a JWT it
+Initiative is the authorization server for the plug-ins a deployment registers.
+One endpoint, form-encoded per RFC 6749, authenticates the plug-in by a JWT it
 signs with a key its registration publishes (RFC 7523 §2.2,
 ``private_key_jwt``) and issues one of two sealed access tokens
 (:mod:`app.core.plugin_access_token`):
 
-* ``client_credentials`` alone: an **app token**, which lists the app's installs;
+* ``client_credentials`` alone: a **plug-in token**, which lists the plug-in's installs;
 * ``client_credentials`` with ``installation``: an **installation token** for
   that install, optionally down-scoped (``scope``, RFC 6749 §3.3) and narrowed
   to one initiative it is placed in (``resource``, RFC 8707). ``level`` asks
@@ -141,7 +141,7 @@ def _invalid_grant(description: str) -> OAuthError:
 
 
 def _consent_required(description: str) -> OAuthError:
-    """No live consent covers the request: the app asks the member again
+    """No live consent covers the request: the plug-in asks the member again
     (the error OpenID Connect names ``consent_required``)."""
     return OAuthError("consent_required", description)
 
@@ -189,7 +189,7 @@ async def verify_client_assertion(
     client_id: str | None = None,
     now: float | None = None,
 ) -> RegistrationSnapshot:
-    """Authenticate the app behind a client assertion, and spend the assertion.
+    """Authenticate the plug-in behind a client assertion, and spend the assertion.
 
     Returns the registration it verified against. Raises :class:`OAuthError`
     (``invalid_client``) on any failure.
@@ -279,7 +279,7 @@ async def _verify_signed_assertion(
         raise fail("client_id does not match the assertion")
 
     snapshot = (await registration_lookup.load_registrations()).get(issuer)
-    # Only a container signs: a declarative app has no code to hold a key.
+    # Only a container signs: a declarative plug-in has no code to hold a key.
     if snapshot is None or not snapshot.live or snapshot.declarative:
         raise fail("unknown client")
     key = await plugin_keys.key_for(snapshot, kid)
@@ -380,7 +380,7 @@ def _covered(requested: frozenset[str], granted: frozenset[str]) -> bool:
     may be asked for at read."""
     readable, writable = expand(granted)
     wanted_read, wanted_write = expand(requested)
-    # An ``apps:`` scope names no resource; it is covered only by itself.
+    # A ``plugins:`` scope names no resource; it is covered only by itself.
     wanted_plugins = {scope for scope in requested if plugin_scope_target(scope)}
     return (
         wanted_read <= readable
@@ -556,7 +556,7 @@ def _read_only_scopes(scopes: frozenset[str]) -> frozenset[str]:
         if is_standing_scope(scope):
             continue
         if plugin_scope_target(scope) is not None:
-            # Calling another app is not a write of the community's; which of
+            # Calling another plug-in is not a write of the community's; which of
             # its endpoints a read-only consent reaches is the hub's to decide.
             out.add(scope)
             continue
@@ -595,7 +595,9 @@ async def _member_token(
     guild_id, install_id = resolved
 
     # The member, by the reference this install holds for them.
-    member_ref = await plugin_refs.resolve_plugin_ref(session, ref=subject, guild_id=guild_id)
+    member_ref = await plugin_refs.resolve_plugin_ref(
+        session, ref=subject, guild_id=guild_id
+    )
     if member_ref is None or member_ref.sector_id != install_id:
         raise _invalid_grant("unknown member")
     user_id = int(member_ref.entity_id)
@@ -717,11 +719,11 @@ async def issue_token(
 
     if installation is None:
         if _requested_scopes(scope) is not None:
-            raise OAuthError("invalid_scope", "an app token carries no scope")
+            raise OAuthError("invalid_scope", "a plug-in token carries no scope")
         if resource is not None:
-            raise OAuthError("invalid_target", "an app token names no resource")
+            raise OAuthError("invalid_target", "a plug-in token names no resource")
         if level is not None:
-            raise OAuthError("invalid_request", "an app token takes no level")
+            raise OAuthError("invalid_request", "a plug-in token takes no level")
         token, _exp = seal_plugin_token(client_id=client.public_id)
         return IssuedToken(
             access_token=token, expires_in=ACCESS_TOKEN_LIFETIME_SECONDS, scope=""
@@ -738,7 +740,7 @@ async def issue_token(
     )
 
 
-# --- the app's installs -------------------------------------------------------
+# --- the plug-in's installs -------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -758,7 +760,7 @@ async def list_installations(
 
     Read from the install index alone (:mod:`plugin_installs`), so no community
     is visited. Each says whether it is active: switched on, in a community in
-    use. An app tells an install that is only paused from one that is gone by
+    use. A plug-in tells an install that is only paused from one that is gone by
     whether it is listed at all; what an install was granted is in the token
     issued for it.
     """

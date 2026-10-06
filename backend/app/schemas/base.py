@@ -40,7 +40,7 @@ RawTextStr = Annotated[str, _RawTextMarker()]
 
 MentionStr = Annotated[str, MARKDOWN_MENTIONS]
 """str that may mention people (``@[Name](id)``), translated for an installed
-app (``app.core.identity_boundary.Mentions``)."""
+plug-in (``app.core.identity_boundary.Mentions``)."""
 
 RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
 """Rich text that may mention people, translated as :data:`MentionStr` is."""

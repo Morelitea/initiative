@@ -114,7 +114,7 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 ]
 
 # Shared-table JSONB columns holding one ciphertext per key: what an operator
-# supplied for an app's vendor client.
+# supplied for a plug-in's vendor client.
 _PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
     ("plugin_service_registrations", "vendor_values", SALT_PLUGIN_VENDOR),
 ]
@@ -142,7 +142,7 @@ _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
 ]
 
 # Guild-schema columns holding SEVERAL ciphertexts inside one JSONB map, rather
-# than one per column. An app declares many connection fields, so its values
+# than one per column. A plug-in declares many connection fields, so its values
 # cannot each have a column of their own; they are keyed instead, and every
 # string leaf of the map is a Fernet token. (table, column, salt, key) —
 # rewritten by the primary key column ``key``, because the value as a whole is

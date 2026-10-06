@@ -317,7 +317,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
 
 #: What a binding may name. Three, and only the first is ours to write: a
 #: **query** is a statement over this guild's datasets, a **sheet_range** is a
-#: cell range in a spreadsheet document, and **app** is an installed listing's
+#: cell range in a spreadsheet document, and **plugin** is an installed listing's
 #: own endpoint. The first two both answer with columns and rows, so a widget
 #: draws them by the same path and never learns which it was given.
 QUERY_SOURCE = "query"
@@ -325,40 +325,40 @@ SHEET_SOURCE = "sheet_range"
 TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 
 
-# --- app widgets ------------------------------------------------------------
+# --- plug-in widgets ------------------------------------------------------------
 #
-# A service app contributes its own widgets and its own data sources (§7, §9.1).
+# A service plug-in contributes its own widgets and its own data sources (§7, §9.1).
 # They are deliberately a *separate* vocabulary from the built-ins above rather
 # than an addition to it:
 #
-# * an app widget's type is namespaced ``plugin:<listing_uid>:<widget_id>``, so it
+# * a plug-in widget's type is namespaced ``plugin:<listing_uid>:<widget_id>``, so it
 #   can never resolve to a built-in renderer, and a built-in can never resolve
-#   to an app's module;
-# * ``app`` is the only source an app widget binds, and no built-in binds it —
-#   an app's rows are opaque here, so nothing in this build could draw them.
+#   to a plug-in's module;
+# * ``plugin`` is the only source a plug-in widget binds, and no built-in binds it —
+#   a plug-in's rows are opaque here, so nothing in this build could draw them.
 #
 # The binding names a listing and a source; it never names an address, and there
 # is still nowhere in a definition to put one. What that source *is* — its
-# parameters, its credentials, its freshness — lives in the installed app's
+# parameters, its credentials, its freshness — lives in the installed plug-in's
 # pinned definition and is enforced when the data is fetched, under the caller's
 # own session.
 #
 # The check here is deliberately shape, not an install lookup: a well-formed
-# ``plugin:<uid>:<widget>`` stores whether or not that app is installed, so a
-# stored dashboard outlives the app it drew from. What a guild built is the
-# guild's; the client renders the not-installed state and asks for the app to
+# ``plugin:<uid>:<widget>`` stores whether or not that plug-in is installed, so a
+# stored dashboard outlives the plug-in it drew from. What a guild built is the
+# guild's; the client renders the not-installed state and asks for the plug-in to
 # be reconnected. Only a malformed type is a rejection.
 
-#: The one binding source an app widget may name.
+#: The one binding source a plug-in widget may name.
 PLUGIN_BINDING_SOURCE = "plugin"
 
-#: Size floors for an app widget. Uniform, because this build cannot know what
+#: Size floors for a plug-in widget. Uniform, because this build cannot know what
 #: a vendor's module draws; the floor is simply "big enough to read". It
-#: declares no shape: an app's rows are its own, described in its manifest, and
+#: declares no shape: a plug-in's rows are its own, described in its manifest, and
 #: the module that draws them ships alongside — there is nothing here to map.
 PLUGIN_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
 
-#: What one app binding may carry, mirroring the manifest's per-source cap.
+#: What one plug-in binding may carry, mirroring the manifest's per-source cap.
 MAX_PLUGIN_BINDING_PARAMS = 12
 #: A parameter value is a scalar the endpoint declared a type for, or several
 #: of them where it declared ``list``. Checked again against that type at fetch
@@ -382,9 +382,9 @@ def _check_endpoint_id(value: Any) -> str:
     """One endpoint id on a binding.
 
     A different character set from an identifier: an endpoint id is namespaced
-    under its app's service id, so it carries dots. The prefix itself is checked
+    under its plug-in's service id, so it carries dots. The prefix itself is checked
     where the manifest is normalized — a dashboard definition is not the place
-    that knows which app it belongs to.
+    that knows which plug-in it belongs to.
     """
     if not isinstance(value, str) or not value or len(value) > MAX_ENDPOINT_ID_LENGTH:
         _fail(DashboardMessages.BINDING_INVALID)
@@ -407,7 +407,7 @@ def plugin_widget_parts(declared: str) -> tuple[str, str] | None:
     """Split ``plugin:<listing_uid>:<widget_id>``, or None if it is not one.
 
     ``:`` is outside the identifier character set on both halves, so the three
-    parts stay unambiguous however an app names its widget.
+    parts stay unambiguous however a plug-in names its widget.
     """
     if not declared.startswith(PLUGIN_WIDGET_TYPE_PREFIX):
         return None
@@ -425,7 +425,7 @@ def plugin_widget_parts(declared: str) -> tuple[str, str] | None:
     return listing_uid, widget_id
 
 
-#: How a caller looks up what an endpoint hands back: given an app and one of
+#: How a caller looks up what an endpoint hands back: given a plug-in and one of
 #: its endpoints, the columns its rows hold, or ``None`` where this caller
 #: cannot say. A dashboard is saved through a request that can look up the
 #: install; a listing is validated with its own manifest in hand; a factory has
@@ -438,11 +438,11 @@ def _normalize_plugin_binding(
     listing_uid: str,
     endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
-    """An ``app`` binding: which installed app, which source, which parameters.
+    """A ``plugin`` binding: which installed plug-in, which source, which parameters.
 
-    ``plugin_uid`` has to be the app the widget came from. A widget is one app's
-    module and its endpoints are that app's, so letting a definition point one
-    app's widget at another app's data would be a definition choosing what
+    ``plugin_uid`` has to be the plug-in the widget came from. A widget is one plug-in's
+    module and its endpoints are that plug-in's, so letting a definition point one
+    plug-in's widget at another plug-in's data would be a definition choosing what
     crosses between two vendors.
     """
     declared_uid = _check_uid(
@@ -489,7 +489,7 @@ def _checked_row_statement(
     Its shape is checked here whatever the caller knows — one ``SELECT``, the
     allowed nodes and functions, and ``rows`` as its only relation. Its
     *columns* are checked too wherever the caller can say what the endpoint
-    hands back, which is what keeps a widget naming a column its app does not
+    hands back, which is what keeps a widget naming a column its plug-in does not
     send from being storable.
     """
     if raw is None or (isinstance(raw, str) and not raw.strip()):
@@ -521,7 +521,7 @@ def _check_plugin_param(value: Any) -> Any:
     An array is a stored value like any other because an endpoint may declare a
     parameter ``list`` — several labels, several assignees — and a binding that
     could hold only one of them could not express what such a parameter is for.
-    Which parameters those are is the app's declaration and is checked where it
+    Which parameters those are is the plug-in's declaration and is checked where it
     is enforced, at fetch time; what is checked here is only the shape and the
     bound, which is all a definition can know about somebody else's manifest.
     """
@@ -654,7 +654,7 @@ def _normalize_binding(
     source = binding.get("source")
 
     if plugin_listing_uid is not None:
-        # An app widget draws its own app's data and nothing else, so this is a
+        # A plug-in widget draws its own plug-in's data and nothing else, so this is a
         # total branch rather than an extra allowed value.
         if source != PLUGIN_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
@@ -662,15 +662,15 @@ def _normalize_binding(
 
     if source == PLUGIN_BINDING_SOURCE:
         # A widget of this build's own — a chart, a table, a total — reading an
-        # app, which is possible exactly as far as the rows are described. A
+        # plug-in, which is possible exactly as far as the rows are described. A
         # statement makes them so: it names the columns it returns, and the
-        # endpoint declared the ones it reads. Without one they are the app's
-        # own shape, which only the app's own module knows how to draw.
+        # endpoint declared the ones it reads. Without one they are the plug-in's
+        # own shape, which only the plug-in's own module knows how to draw.
         if not str(binding.get("sql") or "").strip():
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        # It has no module of its own to be one app's, so it names the app it
+        # It has no module of its own to be one plug-in's, so it names the plug-in it
         # reads rather than inheriting one. What it may see is decided exactly
-        # where an app widget's is: the dashboard's gates and the binding the
+        # where a plug-in widget's is: the dashboard's gates and the binding the
         # definition stores.
         return _normalize_plugin_binding(
             binding,
@@ -788,8 +788,8 @@ def _normalize_widget(
     if not isinstance(declared, str):
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
 
-    # An app's widget keeps its namespaced type verbatim: the module that draws
-    # it lives in the installed app's pinned definition, and this build resolves
+    # A plug-in's widget keeps its namespaced type verbatim: the module that draws
+    # it lives in the installed plug-in's pinned definition, and this build resolves
     # it there rather than in the built-in registry.
     plugin_parts = plugin_widget_parts(declared)
     if plugin_parts is not None:

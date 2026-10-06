@@ -131,7 +131,7 @@ MAX_IMAGE_PAGE_SIZE = 200
 router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
-#: The routes an installed app may call, under the galleries scopes.
+#: The routes an installed plug-in may call, under the galleries scopes.
 GalleriesRead = Annotated[ActorContext, Depends(plugin_scope("galleries:read"))]
 GalleriesWrite = Annotated[ActorContext, Depends(plugin_scope("galleries:write"))]
 

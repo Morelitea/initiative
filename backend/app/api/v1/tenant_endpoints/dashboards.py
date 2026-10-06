@@ -88,21 +88,21 @@ router = APIRouter()
 
 
 async def _endpoint_columns(session: AsyncSession):
-    """What each installed app says its read endpoints hand back.
+    """What each installed plug-in says its read endpoints hand back.
 
-    Read once per save rather than per widget: a canvas of app tiles is a
+    Read once per save rather than per widget: a canvas of plug-in tiles is a
     handful of installs, and this is what lets a statement over an endpoint's
     rows be refused while its author is looking at it.
     """
     installed = (await session.exec(select(GuildPlugin))).all()
     declared: dict[tuple[str, str], tuple] = {}
-    for app in installed:
-        for endpoint in (app.definition or {}).get("endpoints") or []:
+    for plugin in installed:
+        for endpoint in (plugin.definition or {}).get("endpoints") or []:
             if not isinstance(endpoint, dict) or endpoint.get("direction") != "read":
                 continue
             endpoint_id = endpoint.get("id")
             if isinstance(endpoint_id, str):
-                declared[(app.listing_uid, endpoint_id)] = row_columns(endpoint)
+                declared[(plugin.listing_uid, endpoint_id)] = row_columns(endpoint)
 
     def columns(plugin_uid: str, endpoint_id: str):
         return declared.get((plugin_uid, endpoint_id))

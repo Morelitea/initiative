@@ -177,7 +177,7 @@ const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 export default defineConfig({
   base: isCapacitorBuild ? "" : "/",
   define: {
-    __PLUGIN_VERSION__: JSON.stringify(getVersion()),
+    __APP_VERSION__: JSON.stringify(getVersion()),
     __IS_CAPACITOR__: JSON.stringify(isCapacitorBuild),
     // Absolute, on native too: the Capacitor WebView serves index.html from
     // its origin root, so a relative URL would resolve against whatever route

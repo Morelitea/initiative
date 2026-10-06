@@ -1,8 +1,8 @@
-"""The app API's document: the routes an installed app may call, as it calls
+"""The plug-in API's document: the routes an installed plug-in may call, as it calls
 them.
 
-The main document marks each operation an app may call with ``x-plugin-scope``,
-read from the route's scope dependency (:func:`mark_plugin_scopes`). The app's
+The main document marks each operation a plug-in may call with ``x-plugin-scope``,
+read from the route's scope dependency (:func:`mark_plugin_scopes`). The plug-in's
 document (:func:`build_plugin_openapi`) is cut from it:
 
 - only the marked operations, and the component schemas they reach;
@@ -31,7 +31,7 @@ from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
 from app.core.identity_boundary import MentionForm
 from app.schemas.platform.user import PluginPerson
 
-#: The prefix every route an app may call starts with.
+#: The prefix every route a plug-in may call starts with.
 COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{community_id}}"
 
 _SCHEMA_REF = "#/components/schemas/"
@@ -65,7 +65,7 @@ _UPLOAD = (
 def _scoped_operations(
     openapi_schema: dict[str, Any], routes: Iterable[Any]
 ) -> Iterator[tuple[APIRoute, str, Any, dict[str, Any]]]:
-    """Each operation of a route that declares an app scope, with the route,
+    """Each operation of a route that declares a plug-in scope, with the route,
     its method and the declaration."""
     paths = openapi_schema["paths"]
     for route in routes:
@@ -84,7 +84,7 @@ def _scoped_operations(
 
 
 def mark_plugin_scopes(openapi_schema: dict[str, Any], routes: Iterable[Any]) -> None:
-    """Set ``x-plugin-scope`` on each operation an app may call, as its route's
+    """Set ``x-plugin-scope`` on each operation a plug-in may call, as its route's
     dependency declares it."""
     for _, _, declaration, operation in _scoped_operations(openapi_schema, routes):
         operation["x-plugin-scope"] = declaration
@@ -146,8 +146,8 @@ def _as_references(node: Any) -> Any:
 def build_plugin_openapi(
     openapi_schema: dict[str, Any], routes: Iterable[Any]
 ) -> dict[str, Any]:
-    """The app's document, cut from the main one (``openapi_schema``, already
-    marked by :func:`mark_plugin_scopes`). Raises on a route an app may call
+    """The plug-in's document, cut from the main one (``openapi_schema``, already
+    marked by :func:`mark_plugin_scopes`). Raises on a route a plug-in may call
     outside a community, or on two such routes with one name."""
     paths: dict[str, dict[str, Any]] = {}
     named: dict[str, str] = {}
@@ -158,7 +158,7 @@ def build_plugin_openapi(
         where = f"{method.upper()} {path}"
         if route.name in named:
             raise RuntimeError(
-                f"two app routes are named {route.name}: {named[route.name]} and {where}"
+                f"two plug-in routes are named {route.name}: {named[route.name]} and {where}"
             )
         named[route.name] = where
         parameters = [
@@ -193,7 +193,7 @@ def build_plugin_openapi(
     return _as_references(
         {
             "openapi": openapi_schema["openapi"],
-            "info": {"title": "Initiative app API", "version": info["version"]},
+            "info": {"title": "Initiative plug-in API", "version": info["version"]},
             "servers": [{"url": PLUGIN_SERVER_URL}],
             "paths": paths,
             "components": {

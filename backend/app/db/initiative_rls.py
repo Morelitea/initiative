@@ -218,7 +218,7 @@ def _tool_gate(
     the tool's create right, where every other command asks to view it, and it
     asks gate 4 nothing.
 
-    An installed app is asked two more things first: that it holds the tool's
+    An installed plug-in is asked two more things first: that it holds the tool's
     scope, read for SELECT and write for every other command, and, where its
     token is narrowed to one initiative, that the row belongs to an initiative
     at all.
@@ -379,7 +379,7 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: :mod:`app.db.authorization`.
 _GUILD_ADMIN = _P.system_or_admin
 
-#: An installed app acting in this community on a token that is not narrowed
+#: An installed plug-in acting in this community on a token that is not narrowed
 #: to one initiative.
 _UNNARROWED_INSTALL = _P.unnarrowed_install
 
@@ -450,7 +450,7 @@ def direct_or_guild() -> InitiativePath:
     A row naming an initiative is gated like any :func:`direct` row. A row
     naming none belongs to the guild, where the initiative gate has nothing to
     decide: every member reads it as its sharing allows, and writing it is the
-    guild admin's (or a live write grant's), or the installed app's on a token
+    guild admin's (or a live write grant's), or the installed plug-in's on a token
     not narrowed to one initiative. Sharing still applies on top, which is how
     the admin decides who writes what the row holds. ``resource_actions``
     asks the same writer for ``edit``.
@@ -1157,10 +1157,10 @@ def webhook_subscription_path() -> InitiativePath:
     ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
     nothing to decide", which admits any member. A guild-wide subscription
     reports across every initiative, so reaching it is guild-admin authority —
-    the one role that already spans them — or an installed app's whose token is
-    not narrowed to one initiative. An app sees and changes only the
+    the one role that already spans them — or an installed plug-in's whose token is
+    not narrowed to one initiative. A plug-in sees and changes only the
     subscriptions it registered (the ``plugin_scope_*`` policies), and what one
-    delivers is capped by where the app is placed and the scopes it holds.
+    delivers is capped by where the plug-in is placed and the scopes it holds.
     """
     return InitiativePath(
         predicate=lambda t, w: (
@@ -1303,7 +1303,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # through the REST path, where sharing decides. The initiative gate is
     # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
-    # The events installed apps emit, scoped by the initiative an event names
+    # The events installed plug-ins emit, scoped by the initiative an event names
     # like the change log beside it. Written by the system engine alone
     # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
     "plugin_event_outbox": direct(),
@@ -1865,11 +1865,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # ``published_at`` is the fact, where ``scheduled_for`` is only the
     # intention — the same column ``is_published_clause`` reads.
     "posts": Emit(quiet_when=lambda r: f"{r}.published_at IS NULL"),
-    # Installed apps, same reasoning: the install row is guild-wide knowledge
+    # Installed plug-ins, same reasoning: the install row is guild-wide knowledge
     # (every member's sidebar lists it), so its lifecycle emits guild-wide too.
     # A subscriber hears an install appear, change (``config_state`` moving is
-    # the moment an app becomes usable), or go away, and re-reads current state
-    # through the API like any other event. Published as ``apps`` because that
+    # the moment a plug-in becomes usable), or go away, and re-reads current state
+    # through the API like any other event. Published as ``plugins`` because that
     # is the segment the install's detail route lives at (``/plugins/{id}``).
     "guild_plugins": Emit(guild_wide=True, resource_type="plugins"),
     # -- Facets of their parent ---------------------------------------------

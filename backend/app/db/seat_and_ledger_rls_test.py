@@ -163,11 +163,11 @@ async def test_a_member_reads_placements_and_does_not_write_one(
     session, acting_user, role_session
 ):
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session, seat.guild, seat.user, definition=_PLUGIN_DEFINITION
     )
     await route_session_to_guild(session, seat.guild.id)
-    session.add(PluginPlacement(install_id=app.id, initiative_id=seat.initiative.id))
+    session.add(PluginPlacement(install_id=plugin.id, initiative_id=seat.initiative.id))
     await session.commit()
     other = await create_initiative(session, seat.guild, seat.user)
 
@@ -176,7 +176,7 @@ async def test_a_member_reads_placements_and_does_not_write_one(
     assert list(await s.exec(select(PluginPlacement.initiative_id))) == [
         seat.initiative.id
     ]
-    s.add(PluginPlacement(install_id=app.id, initiative_id=other.id))
+    s.add(PluginPlacement(install_id=plugin.id, initiative_id=other.id))
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.commit()
     await s.rollback()
@@ -187,9 +187,11 @@ async def test_an_admin_below_the_seat_does_not_place_a_plugin(
     session, acting_user, role_session
 ):
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await create_guild_plugin(session, a.guild, a.user, definition=_PLUGIN_DEFINITION)
+    plugin = await create_guild_plugin(
+        session, a.guild, a.user, definition=_PLUGIN_DEFINITION
+    )
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
-    s.add(PluginPlacement(install_id=app.id, initiative_id=a.initiative.id))
+    s.add(PluginPlacement(install_id=plugin.id, initiative_id=a.initiative.id))
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.commit()
     await s.rollback()
@@ -199,11 +201,11 @@ async def test_an_admin_below_the_seat_does_not_place_a_plugin(
 async def test_the_seat_places_a_plugin(session, acting_user, role_session):
     """On the content route the placement endpoint uses."""
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session, seat.guild, seat.user, definition=_PLUGIN_DEFINITION
     )
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
-    s.add(PluginPlacement(install_id=app.id, initiative_id=seat.initiative.id))
+    s.add(PluginPlacement(install_id=plugin.id, initiative_id=seat.initiative.id))
     await s.commit()
     assert await _placed_initiatives(session, seat.guild.id) == [seat.initiative.id]
 
@@ -216,7 +218,9 @@ async def test_the_seat_places_a_plugin(session, acting_user, role_session):
 async def _granted(session, guild_id: int, install_id: int) -> list[str]:
     await route_session_to_guild(session, guild_id)
     session.expunge_all()
-    row = (await session.exec(select(GuildPlugin).where(GuildPlugin.id == install_id))).one()
+    row = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == install_id))
+    ).one()
     return list(row.granted_scopes)
 
 
@@ -226,30 +230,32 @@ async def test_an_admin_below_the_seat_does_not_write_an_install(
     """Installing, configuring and granting are the seat's: an admin below it
     reads the install and changes nothing on it."""
     a = await acting_user(guild_role=CommunityRole.admin)
-    app = await create_guild_plugin(session, a.guild, a.user, definition=_PLUGIN_DEFINITION)
+    plugin = await create_guild_plugin(
+        session, a.guild, a.user, definition=_PLUGIN_DEFINITION
+    )
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
     result = await s.exec(
         text(
             "UPDATE guild_plugins SET name = 'Renamed', "
             "granted_scopes = ARRAY['documents:read'] WHERE id = :id"
-        ).bindparams(id=app.id)
+        ).bindparams(id=plugin.id)
     )
     assert result.rowcount == 0
     await s.rollback()
-    assert await _granted(session, a.guild.id, app.id) == []
+    assert await _granted(session, a.guild.id, plugin.id) == []
 
 
 async def test_the_seat_grants_scopes(session, acting_user, role_session):
     seat = await acting_user(guild_role=CommunityRole.superadmin)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session, seat.guild, seat.user, definition=_PLUGIN_DEFINITION
     )
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
-    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == app.id))).one()
+    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == plugin.id))).one()
     row.granted_scopes = ["documents:read"]
     s.add(row)
     await s.commit()
-    assert await _granted(session, seat.guild.id, app.id) == ["documents:read"]
+    assert await _granted(session, seat.guild.id, plugin.id) == ["documents:read"]
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +267,7 @@ async def test_only_the_seat_and_the_system_engine_read_secrets(
     session, acting_user, role_session
 ):
     seat = await acting_user(guild_role=CommunityRole.superadmin)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         seat.guild,
         seat.user,
@@ -283,7 +289,7 @@ async def test_only_the_seat_and_the_system_engine_read_secrets(
         "SELECT install_id FROM guild_plugin_secrets "
         "UNION ALL SELECT connection_id FROM guild_ai_connection_keys"
     )
-    both = [(app.id,), (connection.id,)]
+    both = [(plugin.id,), (connection.id,)]
 
     s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
     assert list(await s.exec(read)) == []
@@ -300,11 +306,11 @@ async def test_secret_fields_follow_the_stored_values(
     """Each key that holds a value, with the digest of its ciphertext, written
     by the trigger as the seat stores, replaces and removes the values."""
     seat = await acting_user(guild_role=CommunityRole.superadmin)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session, seat.guild, seat.user, definition=_PLUGIN_DEFINITION
     )
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
-    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == app.id))).one()
+    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == plugin.id))).one()
     assert row.secret_fields == {}
 
     for value in ("first", "second"):

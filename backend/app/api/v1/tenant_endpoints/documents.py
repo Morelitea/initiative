@@ -123,7 +123,7 @@ async def attached_projects(
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the documents scopes.
+#: The routes an installed plug-in may call, under the documents scopes.
 DocumentsRead = Annotated[ActorContext, Depends(plugin_scope("documents:read"))]
 DocumentsWrite = Annotated[ActorContext, Depends(plugin_scope("documents:write"))]
 
@@ -896,7 +896,7 @@ async def update_document(
             )
         await attachments_service.claim_uploads(session, document)
         # What the edit took out goes once nothing else shows it. An installed
-        # app does not manage the community's uploads; what its edit let go of
+        # plug-in does not manage the community's uploads; what its edit let go of
         # stays for a person to clear.
         await session.commit()
         if current_user is not None and removed_upload_urls:

@@ -11,7 +11,7 @@ dashboard's canvas to the same widget validator the guild-scoped API uses.
 That reuse is the point: catalog content is held to the same vocabulary as
 anything authored or imported in the app, by the same code.
 
-The pieces this file leans on live beside it, because a service app's manifest is
+The pieces this file leans on live beside it, because a service plug-in's manifest is
 too large a vocabulary to read in one sitting:
 
 * ``manifest_values`` — the bounded primitives every value goes through.
@@ -90,13 +90,13 @@ TOOL_LISTING_KINDS: dict[str, Tool] = {tool.value: tool for tool in BULK_EXPORT_
 #: the catalog does not need to know: publishing, browsing and versioning are
 #: the same for it as for anything else, and only the install path differs.
 LISTING_KINDS: frozenset[str] = frozenset(
-    {"app", "auto", "profile_pack", *TOOL_LISTING_KINDS}
+    {"plugin", "auto", "profile_pack", *TOOL_LISTING_KINDS}
 )
 
 #: Who a listing installs to.
 #:
 #: Every kind but one installs to a **guild** — a tool's content lands in an
-#: initiative, an app mounts in a community. A profile pack installs to a
+#: initiative, a plug-in mounts in a community. A profile pack installs to a
 #: **user**: its decorations land in one account's own library and belong to
 #: that person across every community they are in.
 #:
@@ -106,7 +106,7 @@ LISTING_KINDS: frozenset[str] = frozenset(
 LISTING_AUDIENCES: frozenset[str] = frozenset({"guild", "user"})
 
 KIND_AUDIENCE: dict[str, str] = {
-    "app": "guild",
+    "plugin": "guild",
     "auto": "guild",
     "profile_pack": "user",
     **{kind: "guild" for kind in TOOL_LISTING_KINDS},
@@ -137,21 +137,21 @@ LISTING_SOURCES: frozenset[str] = frozenset(
 #: The source a deployment's own additions publish under.
 LOCAL_SOURCE = "local"
 
-#: How an app presents itself.
+#: How a plug-in presents itself.
 #:
-#: ``tool_instance`` mounts one of the app's own tools at guild scope — the app
+#: ``tool_instance`` mounts one of the plug-in's own tools at guild scope — the plug-in
 #: creates an ordinary row in an ordinary table and the existing UI renders it.
 #: ``embed`` hosts an external surface in an iframe, driven by the signed handoff
 #: machinery. ``service`` declares features a container the operator runs will
 #: serve.
 PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
-#: The app kinds the guild install path can mount.
+#: The plug-in kinds the guild install path can mount.
 #:
-#: All three, now that a ``service`` app has somewhere to land: the deployment's
+#: All three, now that a ``service`` plug-in has somewhere to land: the deployment's
 #: registration supplies the address, the secret and the powers, and the install
 #: is the pinned definition plus whatever the guild configures against it. A
-#: service app creates no local content, so installing one is the row and
+#: service plug-in creates no local content, so installing one is the row and
 #: nothing else.
 #:
 #: The set is still separate from :data:`PLUGIN_KINDS` because the two answer
@@ -160,7 +160,7 @@ PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 #: refused by name rather than half-mounted.
 GUILD_INSTALLABLE_PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
-#: Tools an app may mount at guild scope. A tool qualifies when its content is
+#: Tools a plug-in may mount at guild scope. A tool qualifies when its content is
 #: meaningful without an initiative — a calendar of the guild's own events is;
 #: a dashboard, which binds to one initiative's data, is not (and is not
 #: planned to be).
@@ -218,7 +218,7 @@ def reserved_prefix_problem(public_id: str, *, source: str) -> Optional[str]:
 def _normalize_plugin_definition(
     definition: Any, *, public_id: Optional[str]
 ) -> dict[str, Any]:
-    """An app's body: which kind it is, and what that kind needs.
+    """A plug-in's body: which kind it is, and what that kind needs.
 
     ``tool_instance`` and ``embed`` are deliberately narrow — a kind and one
     thing, either which of this build's tools to mount or which configured embed
@@ -230,11 +230,11 @@ def _normalize_plugin_definition(
     than stored, so a definition always has canonical shape.
     """
     if not isinstance(definition, dict):
-        raise ListingDefinitionError("app definition must be an object")
+        raise ListingDefinitionError("plug-in definition must be an object")
 
     plugin_kind = definition.get("plugin_kind")
     if plugin_kind not in PLUGIN_KINDS:
-        raise ListingDefinitionError(f"unknown app kind {plugin_kind!r}")
+        raise ListingDefinitionError(f"unknown plug-in kind {plugin_kind!r}")
 
     if plugin_kind == "service":
         return normalize_service_plugin_definition(definition, public_id=public_id)
@@ -265,7 +265,7 @@ def normalize_listing_definition(
 
     A tool's listing is that tool's export envelope, held to the tool's own
     importer (``tool_listings``); the other kinds each have their own shape.
-    ``public_id`` is the listing's, which names a declarative app.
+    ``public_id`` is the listing's, which names a declarative plug-in.
     """
     if kind not in LISTING_KINDS:
         raise ListingDefinitionError(f"unknown listing kind {kind!r}")

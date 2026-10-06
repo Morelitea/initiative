@@ -84,7 +84,7 @@ router = APIRouter(route_class=ActorRoute)
 
 _S = TypeVar("_S", bound=Select)
 
-#: The routes an installed app may call, under the initiatives scope.
+#: The routes an installed plug-in may call, under the initiatives scope.
 InitiativesRead = Annotated[ActorContext, Depends(plugin_scope("initiatives:read"))]
 
 
@@ -314,7 +314,7 @@ async def list_initiatives(
     # member, from the request GUCs), the same predicate the content-table RLS
     # uses. A time-bound grantee holds no memberships in the guild, so their
     # session stays on that predicate too: the grant is what they navigate by.
-    # An installed app's workspace is the initiatives it is placed in, which
+    # An installed plug-in's workspace is the initiatives it is placed in, which
     # its standing carries.
     if current_user is None:
         scope_clause = Initiative.id.in_(guild_context.member_initiatives)
@@ -742,7 +742,7 @@ async def get_initiative(
     )
     result = await session.exec(statement)
     initiative = result.first()
-    # An installed app reads the initiatives it is placed in; any other is not
+    # An installed plug-in reads the initiatives it is placed in; any other is not
     # there for it.
     if not initiative or (
         current_user is None and initiative.id not in guild_context.member_initiatives

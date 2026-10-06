@@ -1,27 +1,27 @@
-"""What a registration does to an installed app.
+"""What a registration does to an installed plug-in.
 
 Three statements only an operator can make, and this file is about what each one
 does to a guild that never asked.
 
-**Mandatory.** The deployment installs the app into every guild, at creation and
+**Mandatory.** The deployment installs the plug-in into every guild, at creation and
 by the boot sweep, and a guild admin can neither remove nor disable it. The
 refusal is by name because the affordance is absent in the UI — a request that
 arrives anyway is answered, not accepted.
 
-**The kill switch.** Switching a registration off stops the app in every guild:
+**The kill switch.** Switching a registration off stops the plug-in in every guild:
 its surfaces refuse, its vendor flows refuse, and the install reports itself as
 unavailable rather than quietly looking fine. It outranks ``mandatory``, because
 mandatory constrains guild admins rather than the operator.
 
 **Clearing the flag.** Non-destructive by construction: whether an install is
-mandatory is read from the registration every time, so an app that stops being
+mandatory is read from the registration every time, so a plug-in that stops being
 compulsory becomes an ordinary one with the same row, the same configuration,
 and nothing migrated.
 
-The handoff mint is here too, because who may open an app's surface is settled
-by where the seat placed the app and which roles it allowed there, under the
+The handoff mint is here too, because who may open a plug-in's surface is settled
+by where the seat placed the plug-in and which roles it allowed there, under the
 caller's real session — before any token exists — and because a deployment with
-no signing key must fail closed rather than mint something no app can verify.
+no signing key must fail closed rather than mint something no plug-in can verify.
 So are the seat's own routes for placement and scopes.
 """
 
@@ -44,9 +44,15 @@ from app.core.messages import (
 )
 from app.models.platform.publisher import Publisher
 from app.models.platform.guild import CommunityRole
-from app.services.marketplace.plugin_refs import ensure_plugin_guild_ref, ensure_plugin_ref
+from app.services.marketplace.plugin_refs import (
+    ensure_plugin_guild_ref,
+    ensure_plugin_ref,
+)
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.services.tenant.guild_plugins import set_placed_initiatives, set_placement_roles
+from app.services.tenant.guild_plugins import (
+    set_placed_initiatives,
+    set_placement_roles,
+)
 from app.services.tenant.initiatives import get_moderator_role, get_role_by_name
 from app.testing import (
     create_plugin_service_registration,
@@ -74,7 +80,7 @@ _SIGNING_KEY_PEM = (
 
 
 def _service_definition(**overrides) -> dict:
-    """A service app declaring one surface for each case the handoff decides."""
+    """A service plug-in declaring one surface for each case the handoff decides."""
     definition = {
         "plugin_kind": "service",
         "service": {
@@ -137,7 +143,7 @@ async def registration(session: AsyncSession):
 
 async def _installed(session: AsyncSession, actor, *, placed: Sequence[int] = ()):
     """The install, placed in ``placed`` the way the seat places it."""
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         actor.guild,
         actor.user,
@@ -147,9 +153,9 @@ async def _installed(session: AsyncSession, actor, *, placed: Sequence[int] = ()
     )
     if placed:
         await route_session_to_guild(session, actor.guild.id)
-        await set_placed_initiatives(session, app, set(placed))
+        await set_placed_initiatives(session, plugin, set(placed))
         await session.commit()
-    return app
+    return plugin
 
 
 async def _role_id(session: AsyncSession, actor, initiative_id: int, name: str) -> int:
@@ -160,11 +166,11 @@ async def _role_id(session: AsyncSession, actor, initiative_id: int, name: str) 
     return role.id
 
 
-async def _allow(session: AsyncSession, actor, app, initiative_id: int, *names: str):
-    """Place ``app`` in one initiative, allowing exactly the named roles."""
+async def _allow(session: AsyncSession, actor, plugin, initiative_id: int, *names: str):
+    """Place ``plug-in`` in one initiative, allowing exactly the named roles."""
     role_ids = [await _role_id(session, actor, initiative_id, name) for name in names]
     await route_session_to_guild(session, actor.guild.id)
-    await set_placement_roles(session, app, initiative_id, role_ids)
+    await set_placement_roles(session, plugin, initiative_id, role_ids)
     await session.commit()
 
 
@@ -209,7 +215,7 @@ class TestInstallState:
     async def test_the_kill_switch_makes_it_unavailable(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """Deactivating stops the app in every guild. The install stays — this
+        """Deactivating stops the plug-in in every guild. The install stays — this
         is a stop, not a teardown — and says it is doing nothing."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
@@ -222,7 +228,7 @@ class TestInstallState:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """Installed here, wired up nowhere: nothing it offers can be reached,
-        and the read says so rather than showing a working app."""
+        and the read says so rather than showing a working plug-in."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
 
@@ -249,7 +255,7 @@ class TestInstallState:
 
 
 # ---------------------------------------------------------------------------
-# Mandatory apps
+# Mandatory plug-ins
 # ---------------------------------------------------------------------------
 
 
@@ -258,25 +264,25 @@ class TestMandatory:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
-        response = await client.delete(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        response = await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.MANDATORY
         # Still there, untouched.
         items = (await client.get(a.g("/plugins/"), headers=a.headers)).json()["items"]
-        assert [item["id"] for item in items] == [app.id]
+        assert [item["id"] for item in items] == [plugin.id]
 
     async def test_the_seat_cannot_disable_one(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"), headers=a.headers, json={"enabled": False}
+            a.g(f"/plugins/{plugin.id}"), headers=a.headers, json={"enabled": False}
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.MANDATORY
@@ -287,11 +293,11 @@ class TestMandatory:
         """A guild may call it whatever it likes; what it cannot do is make it
         go away."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"), headers=a.headers, json={"name": "Ours"}
+            a.g(f"/plugins/{plugin.id}"), headers=a.headers, json={"name": "Ours"}
         )
         assert response.status_code == 200, response.text
         assert response.json()["name"] == "Ours"
@@ -300,34 +306,38 @@ class TestMandatory:
     async def test_clearing_the_flag_leaves_the_install_and_frees_it(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """Nothing is deleted when an app stops being compulsory: the same
+        """Nothing is deleted when a plug-in stops being compulsory: the same
         install becomes an ordinary one a guild admin may now remove."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
         await _mark(session, registration, mandatory=False)
 
-        read = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        read = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert read["mandatory"] is False
         assert read["name"] == "WidgetCo"
 
-        removed = await client.delete(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        removed = await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert removed.status_code == 204
 
     async def test_the_kill_switch_outranks_the_flag(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """Mandatory constrains guild admins, not the operator: a deactivated
-        registration stops a mandatory app exactly like any other."""
+        registration stops a mandatory plug-in exactly like any other."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, mandatory=True, enabled=False)
 
-        read = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        read = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert read["available"] is False
 
         opened = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
         assert opened.status_code == 409
         assert opened.json()["detail"] == GuildPluginMessages.SERVICE_NOT_REGISTERED
@@ -352,11 +362,11 @@ class TestHandoff:
         """At the community level only the guild's admins open a surface,
         whether or not it is marked ``admin_only``."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            member.g(f"/plugins/{app.id}/handoff/board"), headers=member.headers
+            member.g(f"/plugins/{plugin.id}/handoff/board"), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == GuildPluginMessages.SURFACE_ADMIN_ONLY
@@ -365,10 +375,10 @@ class TestHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -381,7 +391,7 @@ class TestHandoff:
     async def test_the_iframe_opens_at_the_browser_address(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """A deployment may call an app somewhere a browser cannot reach, so the
+        """A deployment may call a plug-in somewhere a browser cannot reach, so the
         iframe is built from the address the operator published, not the one the
         server dials."""
         await _mark(
@@ -391,10 +401,10 @@ class TestHandoff:
             embed_origin="https://widgetco.example.test",
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
 
         assert response.status_code == 200, response.text
@@ -405,14 +415,16 @@ class TestHandoff:
     async def test_the_token_names_the_guild_the_install_and_the_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """And nothing else about the person: an app receives an identity here
+        """And nothing else about the person: a plug-in receives an identity here
         because a human is opening a surface, not a profile it never asked
         for."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         body = (
-            await client.post(a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers)
+            await client.post(
+                a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
+            )
         ).json()
         claims = jwt.decode(
             body["handoff_token"],
@@ -422,10 +434,10 @@ class TestHandoff:
         # The guild by reference for the same reason as the subject below: an
         # index names a row to us, not an entity to somebody else.
         assert claims["community_ref"] == await ensure_plugin_guild_ref(
-            guild_id=a.guild.id, plugin_install_id=app.id
+            guild_id=a.guild.id, plugin_install_id=plugin.id
         )
         assert "guild_id" not in claims
-        assert claims["plugin_install_id"] == app.id
+        assert claims["plugin_install_id"] == plugin.id
         assert claims["surface_id"] == "board"
         assert claims["jti"]
         assert "email" not in claims and "guild_role" not in claims
@@ -439,22 +451,22 @@ class TestHandoff:
         assert "initiative_moderator" not in claims
 
         # The subject is pairwise (OIDC Core §8.1): it names the member to this
-        # install and is not the row id, so an app storing `sub` as its key for
-        # a person is not storing something another app would recognize.
+        # install and is not the row id, so a plug-in storing `sub` as its key for
+        # a person is not storing something another plug-in would recognize.
         assert claims["sub"] != str(a.user.id)
         assert claims["sub"] == await ensure_plugin_ref(
-            guild_id=a.guild.id, plugin_install_id=app.id, user_id=a.user.id
+            guild_id=a.guild.id, plugin_install_id=plugin.id, user_id=a.user.id
         )
 
     async def test_a_member_may_not_open_an_admin_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            member.g(f"/plugins/{app.id}/handoff/console"), headers=member.headers
+            member.g(f"/plugins/{plugin.id}/handoff/console"), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == GuildPluginMessages.SURFACE_ADMIN_ONLY
@@ -463,10 +475,10 @@ class TestHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/console"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/console"), headers=a.headers
         )
         assert response.status_code == 200, response.text
 
@@ -477,12 +489,12 @@ class TestHandoff:
         this route names no initiative, so a surface declared only for one is
         not found here, for everyone."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         for actor in (member, a):
             response = await client.post(
-                actor.g(f"/plugins/{app.id}/handoff/inside"), headers=actor.headers
+                actor.g(f"/plugins/{plugin.id}/handoff/inside"), headers=actor.headers
             )
             assert response.status_code == 404, response.text
             assert response.json()["detail"] == GuildPluginMessages.SURFACE_NOT_FOUND
@@ -496,13 +508,13 @@ class TestHandoff:
         roles decide; out here only admins open it.
         """
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         pm = await acting_user(
             guild_role=CommunityRole.member, guild=a.guild, initiative=True
         )
 
         response = await client.post(
-            pm.g(f"/plugins/{app.id}/handoff/runs"), headers=pm.headers
+            pm.g(f"/plugins/{plugin.id}/handoff/runs"), headers=pm.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == GuildPluginMessages.SURFACE_ADMIN_ONLY
@@ -511,10 +523,10 @@ class TestHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/runs"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/runs"), headers=a.headers
         )
         assert response.status_code == 200, response.text
 
@@ -522,9 +534,9 @@ class TestHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/nope"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/nope"), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == GuildPluginMessages.SURFACE_NOT_FOUND
@@ -533,9 +545,9 @@ class TestHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.SERVICE_NOT_REGISTERED
@@ -551,11 +563,11 @@ class TestHandoff:
     ):
         """The mint reads the same definition of live as the data plane."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _take_out_of_service(session, registration, how)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.SERVICE_NOT_REGISTERED
@@ -566,7 +578,7 @@ class TestInitiativeHandoff:
 
     The gates stack here, and each is asserted on its own: the initiative has
     to be one the caller can reach, the surface has to have asked to render in
-    an initiative, the seat has to have placed the app there, and the caller
+    an initiative, the seat has to have placed the plug-in there, and the caller
     has to hold one of the roles that placement allows — or be a guild admin.
     """
 
@@ -587,7 +599,9 @@ class TestInitiativeHandoff:
 
     @staticmethod
     def _path(actor, initiative_id: int, plugin_id: int, surface: str) -> str:
-        return actor.g(f"/initiatives/{initiative_id}/plugins/{plugin_id}/handoff/{surface}")
+        return actor.g(
+            f"/initiatives/{initiative_id}/plugins/{plugin_id}/handoff/{surface}"
+        )
 
     async def _member(self, acting_user, a, role: str = "member"):
         return await acting_user(
@@ -601,12 +615,12 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id, "member")
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id, "member")
         member = await self._member(acting_user, a)
 
         response = await client.post(
-            self._path(member, a.initiative.id, app.id, "inside"),
+            self._path(member, a.initiative.id, plugin.id, "inside"),
             headers=member.headers,
         )
         assert response.status_code == 200, response.text
@@ -621,11 +635,11 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         moderator = await self._member(acting_user, a, role="moderator")
 
         response = await client.post(
-            self._path(moderator, a.initiative.id, app.id, "inside"),
+            self._path(moderator, a.initiative.id, plugin.id, "inside"),
             headers=moderator.headers,
         )
 
@@ -640,12 +654,12 @@ class TestInitiativeHandoff:
         """A project manager manages the initiative without "Full access", and
         moderating takes both."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id, "project_manager")
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id, "project_manager")
         manager = await self._member(acting_user, a, role="project_manager")
 
         response = await client.post(
-            self._path(manager, a.initiative.id, app.id, "inside"),
+            self._path(manager, a.initiative.id, plugin.id, "inside"),
             headers=manager.headers,
         )
 
@@ -658,7 +672,7 @@ class TestInitiativeHandoff:
         """An admin rung below the seat carries the same fact: the claim is the
         standing's admin leg, not the seat."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         admin = await acting_user(
             guild_role=CommunityRole.admin,
             guild=a.guild,
@@ -667,7 +681,7 @@ class TestInitiativeHandoff:
         )
 
         response = await client.post(
-            self._path(admin, a.initiative.id, app.id, "runs"), headers=admin.headers
+            self._path(admin, a.initiative.id, plugin.id, "runs"), headers=admin.headers
         )
 
         assert response.status_code == 200, response.text
@@ -677,14 +691,14 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """Placed with the moderator role only, so a plain member of the same
-        initiative is refused — and told it is their role, not the app."""
+        initiative is refused — and told it is their role, not the plug-in."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         member = await self._member(acting_user, a)
 
         for surface in ("inside", "runs"):
             response = await client.post(
-                self._path(member, a.initiative.id, app.id, surface),
+                self._path(member, a.initiative.id, plugin.id, surface),
                 headers=member.headers,
             )
             assert response.status_code == 403, surface
@@ -696,17 +710,17 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id)
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id)
         moderator = await self._member(acting_user, a, "moderator")
 
         refused = await client.post(
-            self._path(moderator, a.initiative.id, app.id, "inside"),
+            self._path(moderator, a.initiative.id, plugin.id, "inside"),
             headers=moderator.headers,
         )
         assert refused.status_code == 403
         opened = await client.post(
-            self._path(a, a.initiative.id, app.id, "inside"), headers=a.headers
+            self._path(a, a.initiative.id, plugin.id, "inside"), headers=a.headers
         )
         assert opened.status_code == 200, opened.text
 
@@ -714,14 +728,14 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """Not placed is not found, for the admin as much as for anyone: the
-        seat's answer to where the app belongs, not a rule about who."""
+        seat's answer to where the plug-in belongs, not a rule about who."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member = await self._member(acting_user, a)
 
         for actor in (member, a):
             response = await client.post(
-                self._path(actor, a.initiative.id, app.id, "inside"),
+                self._path(actor, a.initiative.id, plugin.id, "inside"),
                 headers=actor.headers,
             )
             assert response.status_code == 404, response.text
@@ -732,12 +746,12 @@ class TestInitiativeHandoff:
     ):
         """``admin_only`` outranks the placement's roles."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id, "member", "moderator")
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id, "member", "moderator")
         member = await self._member(acting_user, a)
 
         response = await client.post(
-            self._path(member, a.initiative.id, app.id, "settings"),
+            self._path(member, a.initiative.id, plugin.id, "settings"),
             headers=member.headers,
         )
         assert response.status_code == 403
@@ -747,33 +761,33 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         response = await client.post(
-            self._path(a, a.initiative.id, app.id, "settings"), headers=a.headers
+            self._path(a, a.initiative.id, plugin.id, "settings"), headers=a.headers
         )
         assert response.status_code == 200, response.text
 
     async def test_the_token_names_the_initiative_it_was_opened_in(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """The route's answer, not the caller's — so an app can scope what it
+        """The route's answer, not the caller's — so a plug-in can scope what it
         shows without trusting a parameter or asking a second question."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         body = (
             await client.post(
-                self._path(a, a.initiative.id, app.id, "runs"), headers=a.headers
+                self._path(a, a.initiative.id, plugin.id, "runs"), headers=a.headers
             )
         ).json()
         claims = self._claims(body)
         assert claims["initiative_id"] == a.initiative.id
         assert claims["community_ref"] == await ensure_plugin_guild_ref(
-            guild_id=a.guild.id, plugin_install_id=app.id
+            guild_id=a.guild.id, plugin_install_id=plugin.id
         )
         assert "guild_id" not in claims
-        assert claims["plugin_install_id"] == app.id
+        assert claims["plugin_install_id"] == plugin.id
         assert claims["surface_id"] == "runs"
 
     async def test_the_guild_wide_route_names_no_initiative(
@@ -782,10 +796,12 @@ class TestInitiativeHandoff:
         """Absent rather than null: "which initiative is this?" has one answer
         guild-wide, not two shapes that both mean none."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         body = (
-            await client.post(a.g(f"/plugins/{app.id}/handoff/runs"), headers=a.headers)
+            await client.post(
+                a.g(f"/plugins/{plugin.id}/handoff/runs"), headers=a.headers
+            )
         ).json()
         assert "initiative_id" not in self._claims(body)
 
@@ -795,11 +811,11 @@ class TestInitiativeHandoff:
         """Opening a surface in an initiative means reaching the initiative,
         under the same scope rule that governs its content."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            self._path(outsider, a.initiative.id, app.id, "inside"),
+            self._path(outsider, a.initiative.id, plugin.id, "inside"),
             headers=outsider.headers,
         )
         assert response.status_code == 404
@@ -809,13 +825,13 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         elsewhere = await acting_user(
             guild_role=CommunityRole.member, guild=a.guild, initiative=True
         )
 
         response = await client.post(
-            self._path(elsewhere, a.initiative.id, app.id, "runs"),
+            self._path(elsewhere, a.initiative.id, plugin.id, "runs"),
             headers=elsewhere.headers,
         )
         assert response.status_code == 404
@@ -830,10 +846,10 @@ class TestInitiativeHandoff:
         admin = await acting_user(
             guild_role=CommunityRole.superadmin, guild=owner.guild
         )
-        app = await _installed(session, admin, placed=[owner.initiative.id])
+        plugin = await _installed(session, admin, placed=[owner.initiative.id])
 
         response = await client.post(
-            self._path(admin, owner.initiative.id, app.id, "runs"),
+            self._path(admin, owner.initiative.id, plugin.id, "runs"),
             headers=admin.headers,
         )
         assert response.status_code == 200, response.text
@@ -844,18 +860,18 @@ class TestInitiativeHandoff:
         """The mirror of the guild route's refusal. A surface that never asked
         to render in an initiative must not pick one up as a claim."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         for surface in ("board", "console"):
             response = await client.post(
-                self._path(a, a.initiative.id, app.id, surface), headers=a.headers
+                self._path(a, a.initiative.id, plugin.id, surface), headers=a.headers
             )
             assert response.status_code == 404, response.text
             assert response.json()["detail"] == GuildPluginMessages.SURFACE_NOT_FOUND
 
 
 class TestOpenability:
-    """What the app read tells the viewer about where each surface opens.
+    """What the plug-in read tells the viewer about where each surface opens.
 
     Computed by the same decision the handoff makes, so each answer here is
     checked against the handoff for the same viewer.
@@ -879,8 +895,8 @@ class TestOpenability:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id, "member")
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id, "member")
         member = await acting_user(
             guild_role=CommunityRole.member,
             guild=a.guild,
@@ -890,18 +906,19 @@ class TestOpenability:
         surfaces = ("board", "console", "runs", "inside", "settings")
 
         for actor in (member, a):
-            access = await self._access(client, actor, app.id)
+            access = await self._access(client, actor, plugin.id)
             assert set(access) == set(surfaces)
             for surface in surfaces:
                 guild_wide = await client.post(
-                    actor.g(f"/plugins/{app.id}/handoff/{surface}"), headers=actor.headers
+                    actor.g(f"/plugins/{plugin.id}/handoff/{surface}"),
+                    headers=actor.headers,
                 )
                 assert (guild_wide.status_code == 200) is access[surface][
                     "openable_community_wide"
                 ], (surface, guild_wide.text)
                 inside = await client.post(
                     actor.g(
-                        f"/initiatives/{a.initiative.id}/plugins/{app.id}/handoff/{surface}"
+                        f"/initiatives/{a.initiative.id}/plugins/{plugin.id}/handoff/{surface}"
                     ),
                     headers=actor.headers,
                 )
@@ -913,8 +930,8 @@ class TestOpenability:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
-        await _allow(session, a, app, a.initiative.id, "member")
+        plugin = await _installed(session, a)
+        await _allow(session, a, plugin, a.initiative.id, "member")
         member = await acting_user(
             guild_role=CommunityRole.member,
             guild=a.guild,
@@ -922,22 +939,22 @@ class TestOpenability:
             initiative_role="member",
         )
 
-        access = await self._access(client, member, app.id)
+        access = await self._access(client, member, plugin.id)
         assert access["inside"]["openable_initiatives"] == [a.initiative.id]
         assert access["runs"]["openable_initiatives"] == [a.initiative.id]
         assert access["runs"]["openable_community_wide"] is False
         assert access["settings"]["openable_initiatives"] == []
         assert access["board"]["openable_community_wide"] is False
 
-        admin_access = await self._access(client, a, app.id)
+        admin_access = await self._access(client, a, plugin.id)
         assert admin_access["settings"]["openable_initiatives"] == [a.initiative.id]
         assert admin_access["board"]["openable_community_wide"] is True
 
 
 class TestPlacement:
-    """Which initiatives an app's initiative surfaces appear in.
+    """Which initiatives a plug-in's initiative surfaces appear in.
 
-    Placement is the seat's answer to where an app belongs, not an audience
+    Placement is the seat's answer to where a plug-in belongs, not an audience
     rule — so unlike the roles a placement allows, it reads the same for a
     guild admin as for anyone else.
     """
@@ -951,12 +968,14 @@ class TestPlacement:
 
     @staticmethod
     def _path(actor, initiative_id: int, plugin_id: int, surface: str) -> str:
-        return actor.g(f"/initiatives/{initiative_id}/plugins/{plugin_id}/handoff/{surface}")
+        return actor.g(
+            f"/initiatives/{initiative_id}/plugins/{plugin_id}/handoff/{surface}"
+        )
 
     async def test_an_install_starts_placed_nowhere(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """An ordinary app is never placed on its own: each placement is the
+        """An ordinary plug-in is never placed on its own: each placement is the
         seat's consent for that initiative."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         await _installed(session, a)
@@ -968,12 +987,12 @@ class TestPlacement:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         moderator = await get_moderator_role(session, initiative_id=a.initiative.id)
         assert moderator is not None
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"),
+            a.g(f"/plugins/{plugin.id}"),
             headers=a.headers,
             json={"placed_initiative_ids": [a.initiative.id]},
         )
@@ -982,17 +1001,19 @@ class TestPlacement:
             {"initiative_id": a.initiative.id, "role_ids": [moderator.id]}
         ]
 
-        detail = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        detail = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert [p["initiative_id"] for p in detail["placements"]] == [a.initiative.id]
 
     async def test_leaving_placement_out_leaves_it_alone(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"), headers=a.headers, json={"name": "Renamed"}
+            a.g(f"/plugins/{plugin.id}"), headers=a.headers, json={"name": "Renamed"}
         )
         assert response.status_code == 200, response.text
         assert [p["initiative_id"] for p in response.json()["placements"]] == [
@@ -1007,10 +1028,10 @@ class TestPlacement:
         guilds' numbering can coincide and a borrowed id would only be refused
         when the numbers happened to differ."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"),
+            a.g(f"/plugins/{plugin.id}"),
             headers=a.headers,
             json={"placed_initiative_ids": [a.initiative.id + 10_000]},
         )
@@ -1021,11 +1042,11 @@ class TestPlacement:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.patch(
-            member.g(f"/plugins/{app.id}"),
+            member.g(f"/plugins/{plugin.id}"),
             headers=member.headers,
             json={"placed_initiative_ids": []},
         )
@@ -1034,28 +1055,28 @@ class TestPlacement:
     async def test_a_surface_placed_elsewhere_is_not_in_this_initiative(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """And not for the admin who placed it either — this is where the app
+        """And not for the admin who placed it either — this is where the plug-in
         goes, which is their own answer rather than a rule about them."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         other = await acting_user(
             guild_role=CommunityRole.superadmin, guild=a.guild, initiative=True
         )
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
 
         response = await client.patch(
-            a.g(f"/plugins/{app.id}"),
+            a.g(f"/plugins/{plugin.id}"),
             headers=a.headers,
             json={"placed_initiative_ids": [other.initiative.id]},
         )
         assert response.status_code == 200, response.text
 
         placed = await client.post(
-            self._path(a, other.initiative.id, app.id, "runs"), headers=a.headers
+            self._path(a, other.initiative.id, plugin.id, "runs"), headers=a.headers
         )
         assert placed.status_code == 200, placed.text
 
         elsewhere = await client.post(
-            self._path(a, a.initiative.id, app.id, "runs"), headers=a.headers
+            self._path(a, a.initiative.id, plugin.id, "runs"), headers=a.headers
         )
         assert elsewhere.status_code == 404
         assert elsewhere.json()["detail"] == GuildPluginMessages.SURFACE_NOT_FOUND
@@ -1064,15 +1085,15 @@ class TestPlacement:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         await client.patch(
-            a.g(f"/plugins/{app.id}"),
+            a.g(f"/plugins/{plugin.id}"),
             headers=a.headers,
             json={"placed_initiative_ids": []},
         )
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/runs"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/runs"), headers=a.headers
         )
         assert response.status_code == 200, response.text
 
@@ -1087,7 +1108,7 @@ class TestPlacementRoutes:
 
     @staticmethod
     async def _placements(client: AsyncClient, actor, plugin_id: int):
-        """The placements as the app's own read carries them."""
+        """The placements as the plug-in's own read carries them."""
         read = await client.get(actor.g(f"/plugins/{plugin_id}"), headers=actor.headers)
         assert read.status_code == 200, read.text
         return read.json()["placements"]
@@ -1096,11 +1117,11 @@ class TestPlacementRoutes:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         member_role = await _role_id(session, a, a.initiative.id, "member")
 
         response = await client.put(
-            self._path(a, app.id, a.initiative.id),
+            self._path(a, plugin.id, a.initiative.id),
             headers=a.headers,
             json={"role_ids": [member_role]},
         )
@@ -1110,7 +1131,7 @@ class TestPlacementRoutes:
             "role_ids": [member_role],
         }
 
-        assert await self._placements(client, a, app.id) == [
+        assert await self._placements(client, a, plugin.id) == [
             {"initiative_id": a.initiative.id, "role_ids": [member_role]}
         ]
 
@@ -1118,39 +1139,39 @@ class TestPlacementRoutes:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         member_role = await _role_id(session, a, a.initiative.id, "member")
 
         response = await client.put(
-            self._path(a, app.id, a.initiative.id),
+            self._path(a, plugin.id, a.initiative.id),
             headers=a.headers,
             json={"role_ids": [member_role]},
         )
         assert response.status_code == 200, response.text
-        assert await self._placements(client, a, app.id) == [
+        assert await self._placements(client, a, plugin.id) == [
             {"initiative_id": a.initiative.id, "role_ids": [member_role]}
         ]
 
     async def test_every_member_may_read_the_placements(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """As on the app read itself: placement is where the app belongs."""
+        """As on the plug-in read itself: placement is where the plug-in belongs."""
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
-        placements = await self._placements(client, admin, app.id)
+        placements = await self._placements(client, admin, plugin.id)
         assert [p["initiative_id"] for p in placements] == [a.initiative.id]
 
     async def test_an_admin_below_the_seat_does_not_place(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
+        plugin = await _installed(session, a, placed=[a.initiative.id])
         admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
         put = await client.put(
-            self._path(admin, app.id, a.initiative.id),
+            self._path(admin, plugin.id, a.initiative.id),
             headers=admin.headers,
             json={"role_ids": []},
         )
@@ -1164,11 +1185,11 @@ class TestPlacementRoutes:
         other = await acting_user(
             guild_role=CommunityRole.superadmin, guild=a.guild, initiative=True
         )
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         foreign = await _role_id(session, a, other.initiative.id, "member")
 
         response = await client.put(
-            self._path(a, app.id, a.initiative.id),
+            self._path(a, plugin.id, a.initiative.id),
             headers=a.headers,
             json={"role_ids": [foreign]},
         )
@@ -1179,10 +1200,10 @@ class TestPlacementRoutes:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.put(
-            self._path(a, app.id, a.initiative.id + 10_000),
+            self._path(a, plugin.id, a.initiative.id + 10_000),
             headers=a.headers,
             json={"role_ids": []},
         )
@@ -1204,11 +1225,11 @@ class TestScopesRoute:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
         response = await client.put(
-            self._path(a, app.id),
+            self._path(a, plugin.id),
             headers=a.headers,
             json={"granted": ["projects:read", "comments:read"]},
         )
@@ -1216,7 +1237,7 @@ class TestScopesRoute:
         assert response.json()["granted_scopes"] == ["comments:read", "projects:read"]
 
         withdrawn = await client.put(
-            self._path(a, app.id), headers=a.headers, json={"granted": []}
+            self._path(a, plugin.id), headers=a.headers, json={"granted": []}
         )
         assert withdrawn.status_code == 200, withdrawn.text
         assert withdrawn.json()["granted_scopes"] == []
@@ -1224,13 +1245,13 @@ class TestScopesRoute:
     async def test_a_scope_the_manifest_does_not_request_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """``tags:read`` is within the ceiling but the app never asked."""
+        """``tags:read`` is within the ceiling but the plug-in never asked."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
         response = await client.put(
-            self._path(a, app.id), headers=a.headers, json={"granted": ["tags:read"]}
+            self._path(a, plugin.id), headers=a.headers, json={"granted": ["tags:read"]}
         )
         assert response.status_code == 422
         assert response.json()["detail"] == GuildPluginMessages.SCOPE_NOT_REQUESTED
@@ -1241,11 +1262,11 @@ class TestScopesRoute:
         """``projects:write`` is requested, but the deployment does not allow
         it."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
         response = await client.put(
-            self._path(a, app.id),
+            self._path(a, plugin.id),
             headers=a.headers,
             json={"granted": ["projects:write"]},
         )
@@ -1259,10 +1280,12 @@ class TestScopesRoute:
         requested but not grantable; ``tags:read`` is allowed but never asked
         for, so it is neither."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
-        read = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        read = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert read["requested_scopes"] == [
             "projects:read",
             "projects:write",
@@ -1278,9 +1301,11 @@ class TestScopesRoute:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
-        read = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        read = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert read["requested_scopes"] == [
             "projects:read",
             "projects:write",
@@ -1292,13 +1317,13 @@ class TestScopesRoute:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
         for role in (CommunityRole.admin, CommunityRole.member):
             actor = await acting_user(guild_role=role, guild=a.guild)
             response = await client.put(
-                self._path(actor, app.id),
+                self._path(actor, plugin.id),
                 headers=actor.headers,
                 json={"granted": ["projects:read"]},
             )
@@ -1317,14 +1342,14 @@ class TestHandoffWithoutASigningKey:
         registration,
         monkeypatch,
     ):
-        """The app platform's keypair has no fallback: an unconfigured
-        deployment refuses rather than minting a token no app can verify."""
+        """The plug-in platform's keypair has no fallback: an unconfigured
+        deployment refuses rather than minting a token no plug-in can verify."""
         monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/handoff/board"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/handoff/board"), headers=a.headers
         )
         assert response.status_code == 503
         assert response.json()["detail"] == PluginServiceMessages.SIGNING_NOT_CONFIGURED
@@ -1337,7 +1362,7 @@ class TestHandoffWithoutASigningKey:
 
 class TestConnectLaunch:
     """Initiative runs the flow, so what a member is sent to is the vendor's
-    authorization endpoint with this deployment's client, never the app's own
+    authorization endpoint with this deployment's client, never the plug-in's own
     address. The whole trip is in ``plugin_connection_flows_test``."""
 
     CONNECT_DEFINITION = {
@@ -1392,10 +1417,10 @@ class TestConnectLaunch:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await self._install(session, a)
+        plugin = await self._install(session, a)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/github/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/github/connect"), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -1423,7 +1448,7 @@ class TestConnectLaunch:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             a.guild,
             a.user,
@@ -1435,7 +1460,7 @@ class TestConnectLaunch:
         )
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/github/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/github/connect"), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.SERVICE_NOT_REGISTERED
@@ -1444,19 +1469,19 @@ class TestConnectLaunch:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await self._install(session, a)
+        plugin = await self._install(session, a)
         await _mark(session, registration, enabled=False)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/github/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/github/connect"), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildPluginMessages.SERVICE_NOT_REGISTERED
 
 
 class TestUninstallStopsDeliveries:
-    """An install is what makes an app present in a guild, so removing it ends
-    what that app is sent.
+    """An install is what makes a plug-in present in a guild, so removing it ends
+    what that plug-in is sent.
 
     The subscription outlives the install as a record of what was going where,
     and a reinstall registers afresh — but it stops matching events, and it
@@ -1471,13 +1496,13 @@ class TestUninstallStopsDeliveries:
         from app.models.tenant.webhook_subscription import WebhookSubscription
 
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         now = datetime.now(timezone.utc)
         theirs = WebhookSubscription(
             initiative_id=a.initiative.id,
             created_by=a.user.id,
-            plugin_install_id=app.id,
+            plugin_install_id=plugin.id,
             target_url="https://widgetco.example/in",
             hmac_secret="s" * 40,
             event_types=["tasks.created"],
@@ -1502,7 +1527,7 @@ class TestUninstallStopsDeliveries:
         session.add(mine)
         await session.commit()
 
-        removed = await client.delete(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        removed = await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert removed.status_code in (200, 204), removed.text
 
         await session.refresh(theirs)
@@ -1517,7 +1542,7 @@ class TestUninstallStopsDeliveries:
         one transaction, and commits once at the end.
 
         A commit in the middle would make everything staged before it durable
-        while the install is still there to fail on — leaving an app installed
+        while the install is still there to fail on — leaving a plug-in installed
         with its credentials and deliveries already gone.
         """
         from datetime import datetime, timezone
@@ -1528,13 +1553,13 @@ class TestUninstallStopsDeliveries:
         )
 
         a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
-        app = await _installed(session, a)
+        plugin = await _installed(session, a)
 
         now = datetime.now(timezone.utc)
         sub = WebhookSubscription(
             initiative_id=a.initiative.id,
             created_by=a.user.id,
-            plugin_install_id=app.id,
+            plugin_install_id=plugin.id,
             target_url="https://widgetco.example/staged",
             hmac_secret="s" * 40,
             event_types=["tasks.created"],
@@ -1546,7 +1571,7 @@ class TestUninstallStopsDeliveries:
         await session.commit()
 
         switched = await webhook_subscriptions_service.deactivate_for_install(
-            session, guild_id=a.guild.id, plugin_install_id=app.id
+            session, guild_id=a.guild.id, plugin_install_id=plugin.id
         )
         assert switched == 1
 

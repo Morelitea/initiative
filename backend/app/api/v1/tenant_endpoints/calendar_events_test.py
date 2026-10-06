@@ -1069,7 +1069,7 @@ class TestGuildCalendarEvents:
     """A guild calendar holds its own events and reaches into no initiative.
 
     Two questions, and they pull in opposite directions. Its events have to be
-    *visible* — the app's page and a member's own calendar are where they show,
+    *visible* — the plug-in's page and a member's own calendar are where they show,
     and until now every one of those queries required an initiative, so they
     showed nowhere at all. And its events must stay *out* of anything belonging
     to an initiative, which is the same NULL read the other way.
@@ -1093,7 +1093,7 @@ class TestGuildCalendarEvents:
     async def test_a_member_in_no_initiative_sees_them(
         self, client: AsyncClient, acting_user, session
     ):
-        """The point of the app: someone in none of the guild's initiatives
+        """The point of the plug-in: someone in none of the guild's initiatives
         still has the guild's own calendar."""
         a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)

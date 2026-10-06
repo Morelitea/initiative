@@ -5,8 +5,8 @@ guild is offered is a guild question, so the shelf and a listing's page are
 addressed like every other guild surface and answered on the guild-routed
 session.
 
-The case that makes them one is the bundled dashboard: a dashboard an app ships
-with itself draws that app's widgets, so it belongs where the app is installed
+The case that makes them one is the bundled dashboard: a dashboard a plug-in ships
+with itself draws that plug-in's widgets, so it belongs where the plug-in is installed
 and nowhere else. All three surfaces read the guild's installs the same way, so
 a card that appears opens a page that offers it and an install that takes it —
 and one that does not appear is refused the same way at each step.
@@ -34,8 +34,8 @@ PLUGIN_UID = "TYG4VVZKAWRMBZ"
 BUNDLED_UID = "J9H7S9T7GP7FAG"
 STANDALONE_UID = "P3R9WT5HZ2NM6D"
 
-#: The read a bundled tile draws, namespaced under the app's own service id.
-OPEN_ITEMS = "app.tests.tracker.open-items"
+#: The read a bundled tile draws, namespaced under the plug-in's own service id.
+OPEN_ITEMS = "plugin.tests.tracker.open-items"
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ async def listing(session):
 
 
 def _tracker_manifest(with_dashboard: bool = True) -> dict:
-    """An app that ships one dashboard with itself."""
+    """A plug-in that ships one dashboard with itself."""
     definition: dict[str, Any] = {
         "plugin_kind": "service",
         "service": {"public_id": "tests.tracker", "protocol": 1},
@@ -225,9 +225,9 @@ class TestNoWrites:
 
 
 class TestABundledDashboardFollowsItsPlugin:
-    """A dashboard an app ships with is offered where the app is.
+    """A dashboard a plug-in ships with is offered where the plug-in is.
 
-    It draws that app's widgets, so anywhere else it would install as a canvas
+    It draws that plug-in's widgets, so anywhere else it would install as a canvas
     of tiles with nothing behind them. The rule is the guild's installs, which
     is why the shelf is addressed by guild at all.
     """
@@ -290,7 +290,7 @@ class TestABundledDashboardFollowsItsPlugin:
         self, client, acting_user, session, published
     ):
         actor = await acting_user(guild_role=CommunityRole.admin)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
@@ -302,8 +302,8 @@ class TestABundledDashboardFollowsItsPlugin:
         )
         assert "tests.tracker-overview" in await _shelf(client, actor, kind="dashboard")
 
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
 
         assert "tests.tracker-overview" not in await _shelf(
@@ -348,10 +348,10 @@ class TestABundledDashboardFollowsItsPlugin:
         self, client, acting_user, session, published
     ):
         """An installed board looks its listing up by uid to see if there is a
-        newer version. With the app gone there is nothing it could take, and
+        newer version. With the plug-in gone there is nothing it could take, and
         the lookup says so rather than offering an upgrade that is refused."""
         actor = await acting_user(guild_role=CommunityRole.admin)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
@@ -364,8 +364,8 @@ class TestABundledDashboardFollowsItsPlugin:
         by_uid = actor.g(f"/marketplace/listings/by-uid/{BUNDLED_UID}")
         assert (await client.get(by_uid, headers=actor.headers)).status_code == 200
 
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
 
         assert (await client.get(by_uid, headers=actor.headers)).status_code == 404
@@ -411,13 +411,13 @@ class TestABundledDashboardFollowsItsPlugin:
 class TestAPluginNeedsItsServiceRegistered:
     """What this deployment carries is narrower than what its catalog holds.
 
-    A catalog reaches every deployment the same way, but an app is realized by
+    A catalog reaches every deployment the same way, but a plug-in is realized by
     a service the operator runs — so the registration is what says this one
     offers it. Until there is one the shelf leaves the listing out and its page
-    answers 404, which is what a guild admin needs: no shelf full of apps that
+    answers 404, which is what a guild admin needs: no shelf full of plug-ins that
     would install into nothing.
 
-    An app that mounts one of this build's own tools is the other half of the
+    A plug-in that mounts one of this build's own tools is the other half of the
     rule: nothing has to be wired up for it, so nothing gates it.
     """
 
@@ -470,7 +470,7 @@ class TestAPluginNeedsItsServiceRegistered:
     async def test_a_publisher_switched_off_takes_it_back_off(
         self, client, acting_user, session, service_plugin
     ):
-        """A publisher's switch reaches every app under its prefix, the shelf
+        """A publisher's switch reaches every plug-in under its prefix, the shelf
         included."""
         registration = await create_plugin_service_registration(
             session, public_id="tests.shop"
@@ -568,7 +568,7 @@ class TestOneListingsPage:
         # The dashboard's export envelope, around the canvas it installs.
         assert body["definition"]["type"] == "initiative-dashboard"
         assert body["definition"]["definition"]["kind"] == "dashboard"
-        # One app, one current version. The shelf offers the latest and
+        # One plug-in, one current version. The shelf offers the latest and
         # nothing else; which version an install is running, and upgrading
         # it, belong to guild settings.
         assert body["latest_version"]["version"] == "1.0.0"
@@ -646,14 +646,14 @@ class TestOneListingsPage:
         )
         assert response.status_code == 403
 
-    async def test_a_listing_needing_a_newer_plugin_says_so_rather_than_hiding(
+    async def test_a_listing_needing_a_newer_app_says_so_rather_than_hiding(
         self, client, acting_user, session
     ):
         await create_marketplace_listing(
             session,
             uid="TNEW0000000001",
             public_id="tests.toonew",
-            min_plugin_version="999.0.0",
+            min_app_version="999.0.0",
         )
         actor = await acting_user(guild_role=CommunityRole.member)
         body = (

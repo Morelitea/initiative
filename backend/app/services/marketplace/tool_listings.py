@@ -113,7 +113,7 @@ def _wrap_dashboard_definition(body: dict[str, Any]) -> dict[str, Any]:
     Its body is the canvas alone — ``{widgets, layout, ...}`` — which is the
     ``definition`` field of a dashboard's envelope. Anything that has no
     ``type`` of its own is read that way, so a publisher still writing the
-    older shape (an app's bundled dashboards among them) lands in the same
+    older shape (a plug-in's bundled dashboards among them) lands in the same
     stored form as one writing the envelope.
     """
     return {

@@ -55,7 +55,7 @@ class AuthMessages:
     SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
     #: The action hands out authority, so it is taken while signed in rather
-    #: than through a standing credential (an API key, an app acting on
+    #: than through a standing credential (an API key, a plug-in acting on
     #: someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
     #: The account holds no password to re-check, and the session is not fresh
@@ -511,8 +511,8 @@ class SharingMessages:
     been given the wording for it.
     """
 
-    #: A grant naming an installed app, sent to a resource's own sharing. What
-    #: an app may reach is granted by the community's seat, so this list
+    #: A grant naming an installed plug-in, sent to a resource's own sharing. What
+    #: a plug-in may reach is granted by the community's seat, so this list
     #: neither writes nor removes one.
     PLUGIN_INSTALL_GRANT_NOT_SET_HERE = "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE"
 
@@ -729,7 +729,7 @@ class UserMessages:
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_COMMUNITY_ADMIN = "OWNER_MUST_BE_COMMUNITY_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
-    #: The installed app named as the new owner may not own that content: it
+    #: The installed plug-in named as the new owner may not own that content: it
     #: is off or gone, lacks the tool's write scope, or is not placed in the
     #: content's initiative.
     OWNER_PLUGIN_NOT_ELIGIBLE = "OWNER_PLUGIN_NOT_ELIGIBLE"
@@ -922,12 +922,12 @@ class AnnouncementMessages:
 
 
 class CalendarMessages:
-    # A guild calendar lives inside the calendar app, which is what reaches it
-    # and what its removal takes with it. Without the app there is nowhere to
+    # A guild calendar lives inside the calendar plug-in, which is what reaches it
+    # and what its removal takes with it. Without the plug-in there is nowhere to
     # put one.
     GUILD_PLUGIN_REQUIRED = "CALENDAR_COMMUNITY_PLUGIN_REQUIRED"
-    # An installed app creates a calendar in an initiative; a guild calendar
-    # is recorded on the calendar app's install, which is the community's own
+    # An installed plug-in creates a calendar in an initiative; a guild calendar
+    # is recorded on the calendar plug-in's install, which is the community's own
     # configuration.
     PLUGIN_INITIATIVE_REQUIRED = "CALENDAR_PLUGIN_INITIATIVE_REQUIRED"
 
@@ -1061,8 +1061,8 @@ class MarketplaceMessages:
     #: by its publisher, or its only versions need a newer app.
     LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
     LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
-    #: A dashboard that ships with an app, asked for by a guild that does not
-    #: have that app installed. Its tiles draw that app's widgets, so there
+    #: A dashboard that ships with a plug-in, asked for by a guild that does not
+    #: have that plug-in installed. Its tiles draw that plug-in's widgets, so there
     #: would be nothing behind any of them.
     LISTING_NEEDS_PLUGIN = "MARKETPLACE_LISTING_NEEDS_PLUGIN"
     #: An upgrade was asked for on a dashboard that was authored here, not
@@ -1166,13 +1166,13 @@ class TrashMessages:
 
 class GuildPluginMessages:
     NOT_FOUND = "COMMUNITY_PLUGIN_NOT_FOUND"
-    #: The listing named is not an app, or names an app kind this build cannot
+    #: The listing named is not a plug-in, or names a plug-in kind this build cannot
     #: install.
     NOT_A_PLUGIN = "COMMUNITY_PLUGIN_LISTING_NOT_A_PLUGIN"
-    #: This guild already has this listing installed. Apps mount one guild-wide
+    #: This guild already has this listing installed. Plug-ins mount one guild-wide
     #: surface each, so a second copy has nothing to be.
     ALREADY_INSTALLED = "COMMUNITY_PLUGIN_ALREADY_INSTALLED"
-    #: A valid app of a kind this build does not mount into a guild yet — see
+    #: A valid plug-in of a kind this build does not mount into a guild yet — see
     #: GUILD_INSTALLABLE_PLUGIN_KINDS. Publishable and browsable, not installable
     #: here, and told so by name rather than half-mounted.
     KIND_NOT_INSTALLABLE = "COMMUNITY_PLUGIN_KIND_NOT_INSTALLABLE"
@@ -1188,7 +1188,7 @@ class GuildPluginMessages:
     CONFIG_VALUE_TOO_LONG = "COMMUNITY_PLUGIN_CONFIG_VALUE_TOO_LONG"
     #: A required field left without a value.
     CONFIG_REQUIRED_FIELD = "COMMUNITY_PLUGIN_CONFIG_REQUIRED_FIELD"
-    #: A field the app writes back itself when it completes a vendor flow; the
+    #: A field the plug-in writes back itself when it completes a vendor flow; the
     #: settings form is not where it is set.
     CONFIG_MANAGED_FIELD = "COMMUNITY_PLUGIN_CONFIG_MANAGED_FIELD"
 
@@ -1205,27 +1205,29 @@ class GuildPluginMessages:
     CONNECTION_NOT_STATIC = "COMMUNITY_PLUGIN_CONNECTION_NOT_STATIC"
     #: A guild admin has stopped this member connecting this one.
     CONNECTION_BLOCKED = "COMMUNITY_PLUGIN_CONNECTION_BLOCKED"
-    #: The app is installed but turned off, so nothing flows through it.
+    #: The plug-in is installed but turned off, so nothing flows through it.
     DISABLED = "COMMUNITY_PLUGIN_DISABLED"
     #: The connection's flow needs values this deployment's operator has not
-    #: supplied for the app's vendor client, or a field it names is empty.
-    CONNECTION_VENDOR_NOT_CONFIGURED = "COMMUNITY_PLUGIN_CONNECTION_VENDOR_NOT_CONFIGURED"
+    #: supplied for the plug-in's vendor client, or a field it names is empty.
+    CONNECTION_VENDOR_NOT_CONFIGURED = (
+        "COMMUNITY_PLUGIN_CONNECTION_VENDOR_NOT_CONFIGURED"
+    )
 
     # --- acting as a member ---
-    #: No request from this app to act as the caller, by that id.
+    #: No request from this plug-in to act as the caller, by that id.
     CONSENT_NOT_FOUND = "COMMUNITY_PLUGIN_CONSENT_NOT_FOUND"
-    #: The answer allows more than the app asked for.
+    #: The answer allows more than the plug-in asked for.
     CONSENT_EXCEEDS_REQUEST = "COMMUNITY_PLUGIN_CONSENT_EXCEEDS_REQUEST"
 
-    # --- apps the deployment provides ---
-    #: The deployment installs this app in every guild and a guild admin does
+    # --- plug-ins the deployment provides ---
+    #: The deployment installs this plug-in in every guild and a guild admin does
     #: not remove or disable it. The affordances are absent rather than
     #: erroring; this answers a request that arrives anyway.
     MANDATORY = "COMMUNITY_PLUGIN_MANDATORY"
 
-    # --- service apps ---
-    #: This install's app service is not wired up here — never registered, or
-    #: the operator turned the registration off. Nothing this app offers can be
+    # --- service plug-ins ---
+    #: This install's plug-in service is not wired up here — never registered, or
+    #: the operator turned the registration off. Nothing this plug-in offers can be
     #: reached until that changes.
     SERVICE_NOT_REGISTERED = "COMMUNITY_PLUGIN_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
@@ -1233,7 +1235,7 @@ class GuildPluginMessages:
     #: The surface is opened at the community level, or is marked
     #: ``admin_only``, and the caller is not a guild admin.
     SURFACE_ADMIN_ONLY = "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY"
-    #: The surface was opened in an initiative the app is placed in, and the
+    #: The surface was opened in an initiative the plug-in is placed in, and the
     #: caller holds none of the roles that placement allows.
     SURFACE_ROLE_NOT_ALLOWED = "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED"
     #: The placement sent names an initiative that is not one of this guild's.
@@ -1242,7 +1244,7 @@ class GuildPluginMessages:
     PLACEMENT_ROLE_INVALID = "COMMUNITY_PLUGIN_PLACEMENT_ROLE_INVALID"
     #: A scope granted to an install that its manifest does not request.
     SCOPE_NOT_REQUESTED = "COMMUNITY_PLUGIN_SCOPE_NOT_REQUESTED"
-    #: A scope granted to an install beyond what this deployment allows the app.
+    #: A scope granted to an install beyond what this deployment allows the plug-in.
     SCOPE_ABOVE_CEILING = "COMMUNITY_PLUGIN_SCOPE_ABOVE_CEILING"
     #: The version an upgrade would apply asks for more than the install holds,
     #: and the request carried no consent to it. The response names what it
@@ -1283,9 +1285,9 @@ class BundledChannelMessages:
 
 
 class PluginServiceMessages:
-    """Codes for the deployment-level app service registry.
+    """Codes for the deployment-level plug-in service registry.
 
-    Read by an operator wiring an app up, so each code names the step that
+    Read by an operator wiring a plug-in up, so each code names the step that
     refused rather than a generic failure.
     """
 
@@ -1295,7 +1297,7 @@ class PluginServiceMessages:
     #: public_id, base_url, an origin, or a version string this build refuses.
     INVALID_PUBLIC_ID = "PLUGIN_SERVICE_INVALID_PUBLIC_ID"
     INVALID_BASE_URL = "PLUGIN_SERVICE_INVALID_BASE_URL"
-    #: The browser-facing base, when an app answers there rather than at the
+    #: The browser-facing base, when a plug-in answers there rather than at the
     #: address Initiative's own server calls.
     INVALID_EMBED_ORIGIN = "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "PLUGIN_SERVICE_INVALID_ORIGIN"
@@ -1306,16 +1308,16 @@ class PluginServiceMessages:
     #: has no fallback, so registration fails closed until an operator
     #: supplies one.
     SIGNING_NOT_CONFIGURED = "PLUGIN_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: A registration entry or request named something only the app's
+    #: A registration entry or request named something only the plug-in's
     #: listing states (its listing, scope ceiling, image or sectors).
     STATED_BY_LISTING = "PLUGIN_SERVICE_STATED_BY_LISTING"
     #: The key set address is not https on the base URL's own origin.
     INVALID_JWKS_URI = "PLUGIN_SERVICE_INVALID_JWKS_URI"
     #: Connect reads the key set from the base URL, and there is none yet.
     CONNECT_NEEDS_BASE_URL = "PLUGIN_SERVICE_CONNECT_NEEDS_BASE_URL"
-    #: The app's base URL did not answer with a key set document.
+    #: The plug-in's base URL did not answer with a key set document.
     KEYS_UNREADABLE = "PLUGIN_SERVICE_KEYS_UNREADABLE"
-    #: The key set the app serves is not the one the operator confirmed.
+    #: The key set the plug-in serves is not the one the operator confirmed.
     KEYS_CHANGED = "PLUGIN_SERVICE_KEYS_CHANGED"
     #: No publisher has that id.
     PUBLISHER_NOT_FOUND = "PLUGIN_PUBLISHER_NOT_FOUND"
@@ -1325,29 +1327,31 @@ class PluginServiceMessages:
     INVALID_PUBLISHER_PREFIX = "PLUGIN_PUBLISHER_INVALID_PREFIX"
     #: A publisher's name is empty or too long.
     INVALID_PUBLISHER_NAME = "PLUGIN_PUBLISHER_INVALID_NAME"
-    #: The registration's app facts come from the registry, whose next refresh
+    #: The registration's plug-in facts come from the registry, whose next refresh
     #: would bring it back, so it is switched off rather than removed.
     REGISTRY_MANAGED = "PLUGIN_SERVICE_REGISTRY_MANAGED"
-    #: An address, origin or key given for a declarative app, whose calls
+    #: An address, origin or key given for a declarative plug-in, whose calls
     #: Initiative makes itself.
     DECLARATIVE_NOT_PLACED = "PLUGIN_SERVICE_DECLARATIVE_NOT_PLACED"
-    #: A vendor value named a field the app's manifest does not declare.
+    #: A vendor value named a field the plug-in's manifest does not declare.
     UNKNOWN_VENDOR_FIELD = "PLUGIN_SERVICE_UNKNOWN_VENDOR_FIELD"
     #: A vendor value that is too long, or not the address its field asks for.
     INVALID_VENDOR_VALUE = "PLUGIN_SERVICE_INVALID_VENDOR_VALUE"
-    #: The app's listing declares no vendor setup flow this build runs.
+    #: The plug-in's listing declares no vendor setup flow this build runs.
     VENDOR_SETUP_UNAVAILABLE = "PLUGIN_SERVICE_VENDOR_SETUP_UNAVAILABLE"
     #: The organization named for the vendor's setup is not one it could have.
-    VENDOR_SETUP_INVALID_ORGANIZATION = "PLUGIN_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION"
+    VENDOR_SETUP_INVALID_ORGANIZATION = (
+        "PLUGIN_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION"
+    )
     #: The setup returning from the vendor is not one this person started for
-    #: this app in the last hour, or it was already finished.
+    #: this plug-in in the last hour, or it was already finished.
     VENDOR_SETUP_EXPIRED = "PLUGIN_SERVICE_VENDOR_SETUP_EXPIRED"
     #: The vendor did not answer the setup's code with the new client's values.
     VENDOR_SETUP_FAILED = "PLUGIN_SERVICE_VENDOR_SETUP_FAILED"
 
 
 class PluginMessages:
-    """Codes for an installed app calling a route with its access token."""
+    """Codes for an installed plug-in calling a route with its access token."""
 
     #: The route names a scope the token does not carry.
     SCOPE_REQUIRED = "PLUGIN_SCOPE_REQUIRED"
@@ -1362,30 +1366,30 @@ class PluginMessages:
     CONSENT_MEMBER_NOT_IN_INITIATIVE = "PLUGIN_CONSENT_MEMBER_NOT_IN_INITIATIVE"
     #: The install has asked for consent too often; it tries again later.
     CONSENT_RATE_LIMITED = "PLUGIN_CONSENT_RATE_LIMITED"
-    #: The request asks an installed app to change sharing without
+    #: The request asks an installed plug-in to change sharing without
     #: ``sharing:write``, or to name an owner for something it creates, which
     #: is its own.
     SHARING_NOT_AVAILABLE = "PLUGIN_SHARING_NOT_AVAILABLE"
 
 
 class PluginHubMessages:
-    """Codes for an installed app calling another app through Initiative.
+    """Codes for an installed plug-in calling another plug-in through Initiative.
 
     OAuth-style, so a caller reads them the way it reads the token endpoint's
     errors: each names the check that refused.
     """
 
     #: The caller's token, grant or pinned version does not hold
-    #: ``apps:<target>``, or a member's consent allows reading only and the
+    #: ``plugins:<target>``, or a member's consent allows reading only and the
     #: endpoint writes.
     INSUFFICIENT_SCOPE = "insufficient_scope"
-    #: The app called is not installed, switched on and live in this community.
+    #: The plug-in called is not installed, switched on and live in this community.
     TARGET_NOT_INSTALLED = "target_not_installed"
-    #: The endpoint is not part of the app's public surface.
+    #: The endpoint is not part of the plug-in's public surface.
     ENDPOINT_NOT_PUBLIC = "endpoint_not_public"
     #: The endpoint does not take calls for this actor.
     ACTOR_NOT_SUPPORTED = "actor_not_supported"
-    #: The caller is confined to an initiative the app called is not placed in.
+    #: The caller is confined to an initiative the plug-in called is not placed in.
     TARGET_NOT_PLACED = "target_not_placed"
 
 
@@ -1393,12 +1397,12 @@ class PluginDataMessages:
     """Codes for the widget data proxy.
 
     Read by a member looking at a dashboard, so each one distinguishes a state
-    they can act on (connect an account, ask an admin to configure the app) from
-    one they can only wait out (the app is unreachable).
+    they can act on (connect an account, ask an admin to configure the plug-in) from
+    one they can only wait out (the plug-in is unreachable).
     """
 
     #: The install names no such data source, or the pinned definition is not a
-    #: service app's at all.
+    #: service plug-in's at all.
     ENDPOINT_NOT_FOUND = "PLUGIN_DATA_ENDPOINT_NOT_FOUND"
     #: The endpoint is marked ``admin_only`` and the caller is not a guild admin.
     ADMIN_ONLY = "PLUGIN_DATA_ADMIN_ONLY"
@@ -1406,7 +1410,7 @@ class PluginDataMessages:
     PARAM_NOT_FOUND = "PLUGIN_DATA_PARAM_NOT_FOUND"
     #: The install is turned off in this guild.
     PLUGIN_DISABLED = "PLUGIN_DATA_PLUGIN_DISABLED"
-    #: No registration wires this app up on this deployment.
+    #: No registration wires this plug-in up on this deployment.
     SERVICE_NOT_REGISTERED = "PLUGIN_DATA_SERVICE_NOT_REGISTERED"
     #: The operator's kill switch is off, or the registration has not verified.
     SERVICE_DISABLED = "PLUGIN_DATA_SERVICE_DISABLED"
@@ -1418,26 +1422,26 @@ class PluginDataMessages:
     #: The source reads the member's own vendor account and they have not
     #: connected it yet.
     CONNECTION_REQUIRED = "PLUGIN_DATA_CONNECTION_REQUIRED"
-    #: The app could not be reached, timed out, or answered with something that
+    #: The plug-in could not be reached, timed out, or answered with something that
     #: is not a data response.
     SERVICE_UNAVAILABLE = "PLUGIN_SERVICE_UNAVAILABLE"
-    #: The app answered past the response ceiling.
+    #: The plug-in answered past the response ceiling.
     RESPONSE_TOO_LARGE = "PLUGIN_DATA_RESPONSE_TOO_LARGE"
-    #: This worker already has as many calls in flight to this app as it will
-    #: hold open, so one slow app cannot consume the pool.
+    #: This worker already has as many calls in flight to this plug-in as it will
+    #: hold open, so one slow plug-in cannot consume the pool.
     BUSY = "PLUGIN_DATA_BUSY"
 
 
 class PluginChannelMessages:
-    """Codes for an installed app's calls about its own installation.
+    """Codes for an installed plug-in's calls about its own installation.
 
-    Read by an app author rather than by a person in the UI, so each names the
+    Read by a plug-in author rather than by a person in the UI, so each names the
     step that refused: an install this caller does not own, or a payload
     outside what the pinned manifest declared.
     """
 
     # --- the install being addressed ---
-    #: No install of this app in that guild — never installed, uninstalled, or
+    #: No install of this plug-in in that guild — never installed, uninstalled, or
     #: the guild is not one this caller may see.
     INSTALL_NOT_FOUND = "PLUGIN_CHANNEL_INSTALL_NOT_FOUND"
     #: The install exists but the guild turned it off.
@@ -1446,7 +1450,7 @@ class PluginChannelMessages:
     GUILD_READ_ONLY = "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY"
     #: No connection on this install answers to that reference.
     CONNECTION_NOT_FOUND = "PLUGIN_CHANNEL_CONNECTION_NOT_FOUND"
-    #: A guild admin stopped this member's connection; the app may not revive it.
+    #: A guild admin stopped this member's connection; the plug-in may not revive it.
     CONNECTION_BLOCKED = "PLUGIN_CHANNEL_CONNECTION_BLOCKED"
     #: The member's connection could not be refreshed and has to be made again.
     CONNECTION_EXPIRED = "PLUGIN_CHANNEL_CONNECTION_EXPIRED"
@@ -1456,18 +1460,18 @@ class PluginChannelMessages:
     #: The vendor did not answer with a token.
     TOKEN_UNAVAILABLE = "PLUGIN_CHANNEL_TOKEN_UNAVAILABLE"
 
-    # --- what the app sent ---
+    # --- what the plug-in sent ---
     #: The body is not the JSON object this channel expects.
     INVALID_PAYLOAD = "PLUGIN_CHANNEL_INVALID_PAYLOAD"
     #: An event type the pinned definition does not declare, or one namespaced
-    #: under an app other than the caller.
+    #: under a plug-in other than the caller.
     UNKNOWN_EVENT_TYPE = "PLUGIN_CHANNEL_UNKNOWN_EVENT_TYPE"
     #: The event body is larger than this build will carry.
     EVENT_TOO_LARGE = "PLUGIN_CHANNEL_EVENT_TOO_LARGE"
     #: The event names an initiative the install is not placed in, or one
     #: other than the initiative its token is narrowed to.
     INITIATIVE_NOT_PLACED = "PLUGIN_CHANNEL_INITIATIVE_NOT_PLACED"
-    #: A config state outside what an app may report.
+    #: A config state outside what a plug-in may report.
     INVALID_CONFIG_STATE = "PLUGIN_CHANNEL_INVALID_CONFIG_STATE"
 
 
@@ -1498,8 +1502,8 @@ class AIMessages:
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
-    #: The app's sign-in is from before the code flow, and its grace has run out.
-    PLUGIN_UPDATE_REQUIRED = "NATIVE_APP_UPDATE_REQUIRED"
+    #: The native app's sign-in is from before the code flow, and its grace has run out.
+    APP_UPDATE_REQUIRED = "NATIVE_APP_UPDATE_REQUIRED"
 
 
 class LegalMessages:

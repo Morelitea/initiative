@@ -1,6 +1,6 @@
-"""What an app service sees of its own installs.
+"""What a plug-in service sees of its own installs.
 
-These payloads serialize one install's state for the calls an app makes about
+These payloads serialize one install's state for the calls a plug-in makes about
 its own installation (``/plugin-platform/installation/*``), so they are shaped by
 two rules the browser-facing schemas in :mod:`app.schemas.tenant.guild_plugin` do
 not share:
@@ -41,7 +41,7 @@ __all__ = [
 
 
 class PluginMemberConfigRead(SanitizedBaseModel):
-    """One member's stored values, addressed by the handle the app knows."""
+    """One member's stored values, addressed by the handle the plug-in knows."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -77,10 +77,10 @@ class PluginInstallConfigRead(SanitizedBaseModel):
 
 
 class PluginConnectionRead(SanitizedBaseModel):
-    """One member's connection, as the app reconciles it.
+    """One member's connection, as the plug-in reconciles it.
 
     Enough to know which handles are live and which an admin has stopped, and
-    no more: an app matching its stored credentials against this list never
+    no more: a plug-in matching its stored credentials against this list never
     needs a value to do it.
     """
 
@@ -90,7 +90,7 @@ class PluginConnectionRead(SanitizedBaseModel):
     connection_ref: str
     status: str
     blocked: bool = False
-    #: What the app itself reported the member connected as. Display only.
+    #: What the plug-in itself reported the member connected as. Display only.
     account_label: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -117,10 +117,10 @@ class PluginConnectionToken(SanitizedBaseModel):
 
 
 class PluginStatusReport(SanitizedBaseModel):
-    """The app's verdict on the configuration it was handed.
+    """The plug-in's verdict on the configuration it was handed.
 
     ``unverified`` is absent by design: it is this build's resting value for an
-    install nothing has reported on, not something an app asserts.
+    install nothing has reported on, not something a plug-in asserts.
     """
 
     state: Literal["ok", "invalid"]
@@ -138,7 +138,7 @@ class PluginStatusRead(SanitizedBaseModel):
 
 
 class PluginInstallationEvent(SanitizedBaseModel):
-    """An event an app emits in the community whose install its token names.
+    """An event a plug-in emits in the community whose install its token names.
 
     ``event_type`` is checked against the pinned definition and against the
     caller's own namespace. ``initiative_id`` names the initiative the event

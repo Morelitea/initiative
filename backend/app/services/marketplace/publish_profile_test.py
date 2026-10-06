@@ -67,7 +67,7 @@ def _project(**task_overrides) -> dict:
     return {
         "type": "initiative-project",
         "schema_version": 1,
-        "plugin_version": "0.70.0",
+        "app_version": "0.70.0",
         "exported_at": "2026-03-01T00:00:00+00:00",
         "exported_by_handle": "alice#1234",
         "project": {

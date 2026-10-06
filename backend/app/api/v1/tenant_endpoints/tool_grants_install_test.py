@@ -1,4 +1,4 @@
-"""Sharing, called by an installed app on the real-role client.
+"""Sharing, called by an installed plug-in on the real-role client.
 
 An install changes a resource's sharing through the same route a person
 does, under ``sharing:write``, with the tool's write scope and the roster
@@ -59,7 +59,7 @@ async def _own_project(client: Any, installed: Any, headers: dict, **extra) -> A
     return await client.post(
         guild_url(installed.guild.id, "/projects/"),
         headers=headers,
-        json={"name": "The app's", "initiative_id": installed.placed.id, **extra},
+        json={"name": "The plug-in's", "initiative_id": installed.placed.id, **extra},
     )
 
 
@@ -74,7 +74,8 @@ async def _grant_rows(session: Any, guild_id: int, project_id: int) -> set[tuple
         )
     ).all()
     return {
-        (g.level, g.user_id, g.plugin_install_id, g.all_initiative_members) for g in rows
+        (g.level, g.user_id, g.plugin_install_id, g.all_initiative_members)
+        for g in rows
     }
 
 
@@ -104,14 +105,14 @@ async def test_an_install_shares_what_it_owns(
         for g in shared.json()["grants"]
     }
     assert reported == {
-        ("owner", None, installed.app.id, False),
+        ("owner", None, installed.plugin.id, False),
         ("write", None, None, True),
         ("read", seat_ref, None, False),
     }
     assert_names_nobody(shared.text, [installed.seat.user.id, gid])
 
     assert await _grant_rows(session, gid, project_id) == {
-        (ResourceAccessLevel.owner, None, installed.app.id, False),
+        (ResourceAccessLevel.owner, None, installed.plugin.id, False),
         (ResourceAccessLevel.write, None, None, True),
         (ResourceAccessLevel.read, installed.seat.user.id, None, False),
     }
@@ -185,7 +186,7 @@ async def test_an_install_shares_what_it_creates_as_it_creates_it(
     )
     assert created.status_code == 201, created.text
     assert await _grant_rows(session, installed.guild.id, created.json()["id"]) == {
-        (ResourceAccessLevel.owner, None, installed.app.id, False),
+        (ResourceAccessLevel.owner, None, installed.plugin.id, False),
         (ResourceAccessLevel.read, None, None, True),
     }
 

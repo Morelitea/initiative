@@ -1,13 +1,13 @@
-"""An app's schedules: Initiative calls the app on the intervals it declares.
+"""A plug-in's schedules: Initiative calls the plug-in on the intervals it declares.
 
 A manifest's ``schedules`` name intervals (``{"id": "check-installation",
-"every": "15m"}``). For each community that installed the app, Initiative calls
+"every": "15m"}``). For each community that installed the plug-in, Initiative calls
 its ``schedule`` hook on that interval, with ``since``: when the call last
-succeeded there. The app keeps no timer and needs no address of its own.
+succeeded there. The plug-in keeps no timer and needs no address of its own.
 
 Each install's schedules are rows in its community's ``plugin_schedule_runs``.
 :func:`reconcile` keeps them in step with the pinned definition: it runs when
-an app is installed and when an install moves to a new version, and the rows
+a plug-in is installed and when an install moves to a new version, and the rows
 go with the install when it is removed.
 
 :func:`run_due` is the minute pass's visit to one active community. It claims
@@ -18,7 +18,7 @@ later, plus up to a tenth of it; a failure waits ``every × 2^failures``, at
 most ten intervals. An install that is switched off, or whose registration is
 not live, is not claimed, and runs when it is back.
 
-A declarative app has no schedules and no hook to call. Its rows are its
+A declarative plug-in has no schedules and no hook to call. Its rows are its
 community connections' ``health`` checks, by connection id, run the same way:
 Initiative makes the check's request with the connection's token, and the
 state it reads is reported where a container's verdict is shown, ``ok`` at
@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["reconcile", "run_due"]
 
-#: How long a claimed row is held while its app is called.
+#: How long a claimed row is held while its plug-in is called.
 LEASE = timedelta(minutes=5)
 #: The most a success's next call is pushed back, as a share of the interval.
 JITTER = 0.1
@@ -71,8 +71,8 @@ BACKOFF_CAP = 10
 
 def _declared(definition: Optional[Mapping[str, Any]]) -> dict[str, timedelta]:
     """Each schedule the definition declares, by id, with its interval: a
-    container's ``schedules``, or the health checks of a declarative app's
-    community connections, by connection id (a declarative app has no
+    container's ``schedules``, or the health checks of a declarative plug-in's
+    community connections, by connection id (a declarative plug-in has no
     schedules of its own)."""
     if is_declarative(definition):
         return {
@@ -237,23 +237,23 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
         if registration.live and registration.listing_uid
     }
     while (run := await _claim(session, sorted(live))) is not None:
-        app = await session.get(GuildPlugin, run.install_id)
-        registration = live.get(app.listing_uid or "") if app else None
-        every = _declared(app.definition).get(run.schedule_id) if app else None
+        plugin = await session.get(GuildPlugin, run.install_id)
+        registration = live.get(plugin.listing_uid or "") if plugin else None
+        every = _declared(plugin.definition).get(run.schedule_id) if plugin else None
         if (
-            app is None
+            plugin is None
             or registration is None
             or every is None
-            or not owns_install(app, registration)
+            or not owns_install(plugin, registration)
         ):
             # Left to its lease: the install changed since the row was written.
             continue
         started = datetime.now(timezone.utc)
         # A declarative registration has no hook to call, whatever version
         # an install is still pinned to.
-        if registration.declarative or is_declarative(app.definition):
+        if registration.declarative or is_declarative(plugin.definition):
             checked = await _check_health(
-                session, app, registration, run, guild_id=guild_id
+                session, plugin, registration, run, guild_id=guild_id
             )
             await _settle(
                 session,
@@ -281,7 +281,7 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
             succeeded = True
         except flows.HookError as exc:
             logger.warning(
-                "app schedules: %s did not run %s for guild %s (%s)",
+                "plug-in schedules: %s did not run %s for guild %s (%s)",
                 registration.public_id,
                 run.schedule_id,
                 guild_id,
@@ -293,7 +293,7 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
 
 async def _check_health(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     registration: RegistrationSnapshot,
     run: Row,
     *,
@@ -304,21 +304,21 @@ async def _check_health(
     something other than ``ok``. A connection not yet made is not checked,
     and answers ``None``."""
     connection_id = run.schedule_id
-    health = _health_checks(app.definition).get(connection_id)
-    stored = (app.config or {}).get(connection_id)
+    health = _health_checks(plugin.definition).get(connection_id)
+    stored = (plugin.config or {}).get(connection_id)
     if health is None or not stored:
         return None
     try:
         token = await flows.community_token(
             session,
-            app=app,
+            plugin=plugin,
             public_id=registration.public_id,
             connection_id=connection_id,
             guild_id=guild_id,
         )
     except flows.ConnectionFlowError as exc:
         logger.info(
-            "app health: %s has no token for %s in guild %s (%s)",
+            "plug-in health: %s has no token for %s in guild %s (%s)",
             registration.public_id,
             connection_id,
             guild_id,
@@ -327,13 +327,13 @@ async def _check_health(
         state = "unavailable"
     else:
         state = await declarative.health_state(
-            app.definition,
+            plugin.definition,
             health,
             fields=without_tokens(stored),
             access_token=token.access_token,
         )
     if state == "ok" or run.failures >= 1:
-        locked = await guild_plugins_service.lock_install(session, app.id)
+        locked = await guild_plugins_service.lock_install(session, plugin.id)
         if locked is not None and set_connection_state(locked, connection_id, state):
             session.add(locked)
         await session.commit()

@@ -42,8 +42,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_PLUGIN_DIR = Path(__file__).resolve().parents[1]
-_BACKEND_DIR = _PLUGIN_DIR.parent
+_APP_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_DIR = _APP_DIR.parent
 
 _SCANNED = ("api/v1/platform_endpoints", "services/platform")
 
@@ -91,7 +91,7 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "provisions and seeds a new community's schema"
     ),
     (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
-        "deletes one community whose hold ran out, letting go of its app "
+        "deletes one community whose hold ran out, letting go of its plug-in "
         "connections in its own schema"
     ),
     (f"{_SERVICES}/intake_setup.py", "_route"): (
@@ -212,7 +212,7 @@ def _scanned_files() -> list[Path]:
     return [
         path
         for root in _SCANNED
-        for path in sorted((_PLUGIN_DIR / root).rglob("*.py"))
+        for path in sorted((_APP_DIR / root).rglob("*.py"))
         if not path.name.endswith("_test.py")
     ]
 

@@ -2,7 +2,7 @@
 
 Reading the marketplace is guild-addressed and covered by
 ``tenant_endpoints/marketplace_test.py``: what a guild is offered depends on
-which apps it has installed.
+which plug-ins it has installed.
 
 What is left here is the operator's rescan of their own catalog directory —
 deployment configuration rather than content, so it sits at the top of the
@@ -249,8 +249,8 @@ class TestUploadingAListingFile:
     async def test_a_private_plugins_listing_brings_its_registration(
         self, client, acting_user
     ):
-        """Adding a private app is uploading its listing, then giving it
-        deployment facts under App services."""
+        """Adding a private plug-in is uploading its listing, then giving it
+        deployment facts under Plug-in services."""
         owner = await acting_user("owner")
         manifest = _plugin_manifest(
             registration={"kind": "container", "scope_ceiling": ["projects:read"]}

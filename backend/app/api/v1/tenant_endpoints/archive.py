@@ -48,9 +48,9 @@ from app.services.tenant import archive as archive_service
 router = APIRouter(route_class=ActorRoute)
 
 
-#: What an installed app needs to archive each kind: the write scope of the tool
+#: What an installed plug-in needs to archive each kind: the write scope of the tool
 #: whose sharing governs it. An initiative is the guild admins' to archive, so
-#: no app may ask for one.
+#: no plug-in may ask for one.
 _ARCHIVE_SCOPES: dict[str, str] = {
     **{
         tool.value: scope_name(tool_resource(tool), PluginScopeAccess.write)

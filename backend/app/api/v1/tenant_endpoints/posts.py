@@ -101,7 +101,7 @@ MAX_BOARD_PAGE_SIZE = 50
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the posts scopes. Pinning is an
+#: The routes an installed plug-in may call, under the posts scopes. Pinning is an
 #: edit of the board, so it asks the write scope.
 PostsRead = Annotated[ActorContext, Depends(plugin_scope("posts:read"))]
 PostsWrite = Annotated[ActorContext, Depends(plugin_scope("posts:write"))]
@@ -199,7 +199,7 @@ async def annotate_post_rows(
     ``own_read_state`` stamps whether this reader has read each one; a write's
     answer leaves it out.
 
-    An installed app (``user_id`` ``None``) keeps no read markers or ballots
+    An installed plug-in (``user_id`` ``None``) keeps no read markers or ballots
     and reacts to nothing, so a post it reads carries only the comment count;
     the rest stay at their empty defaults.
     """
@@ -252,7 +252,7 @@ def board_conditions(
     applies those itself (``properties_service.property_filter_clauses``), and
     the timeline applies the same.
 
-    An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
+    An installed plug-in (``user_id`` ``None``) keeps no read markers, so ``unread``
     narrows nothing for it.
     """
     conditions = tool_listing.base_conditions(
@@ -542,7 +542,7 @@ async def set_post_pin(
     the pin keeps its original time and author. A pin that has lapsed is a new
     pin, so that one re-stamps.
 
-    An installed app manages no initiative, so it pins the notices it may
+    An installed plug-in manages no initiative, so it pins the notices it may
     write: its own, and the ones shared with it at write.
     """
     post = await resource_access.load_authorized(

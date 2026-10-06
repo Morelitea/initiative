@@ -54,7 +54,9 @@ async def _add_assertion(session, jti: str, *, expired: bool) -> None:
     """A spent client assertion, under a registration it was presented for."""
     from sqlmodel import select
 
-    from app.models.platform.plugin_service_registration import PluginServiceRegistration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
     from app.testing import create_plugin_service_registration
 
     registration = (
@@ -102,7 +104,7 @@ async def test_worker_prunes_only_expired_across_all_blocklists(session, monkeyp
 
 
 async def test_worker_skips_unconfigured_blocklist(session, monkeypatch):
-    """Billing wired, the app platform not: only billing's table is swept. A
+    """Billing wired, the plug-in platform not: only billing's table is swept. A
     self-host of one integration must not touch the other's rows."""
     _configure(monkeypatch, billing=True, plugin_platform=False)
     await _add(session, BillingJti, "b-skip", expired=True)
@@ -111,7 +113,7 @@ async def test_worker_skips_unconfigured_blocklist(session, monkeypatch):
     await process_jti_blocklist_purges()
 
     assert not await _exists(session, BillingJti, "b-skip")
-    # The app platform unconfigured -> its blocklist is left entirely alone.
+    # The plug-in platform unconfigured -> its blocklist is left entirely alone.
     assert await _exists(session, PluginAssertionJti, "a-skip")
 
 

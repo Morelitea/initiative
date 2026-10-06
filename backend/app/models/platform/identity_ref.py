@@ -2,11 +2,11 @@
 
 An integer primary key is the right thing to join on and the right thing to
 show a person who has to tell two rows apart. It is the wrong thing to hand to
-a payment processor or an installed app: it is sequential, it is the same value
+a payment processor or an installed plug-in: it is sequential, it is the same value
 everywhere, and every party holding one holds the same one.
 
 So each entity gets a separate reference per *purpose* — billing, one installed
-app, the next — minted at random and stored here. Two references to the same
+plug-in, the next — minted at random and stored here. Two references to the same
 guild are unrelated values, and the party holding one learns nothing about the
 other from it.
 
@@ -16,7 +16,7 @@ key is, and this deployment rotates ``SECRET_KEY``
 
 This is the pairwise pseudonymous identifier of OpenID Connect Core §8.1,
 generalised: ``purpose`` is the sector. A sector that lives inside one guild —
-an installed app — also carries ``sector_guild_id`` + ``sector_id``; see
+an installed plug-in — also carries ``sector_guild_id`` + ``sector_id``; see
 ``services.marketplace.plugin_refs``.
 
 Minted on the system engine, and read there for every sector but one: the
@@ -63,14 +63,14 @@ class IdentityPurpose(str, Enum):
     per purpose, and the purposes are unrelated to each other.
 
     ``billing``'s sector is the deployment's billing service, one for the whole
-    platform. ``app``'s sector is a single **install**, so its rows carry one in
-    ``sector_guild_id`` + ``sector_id``: an app installed in two guilds sees an
-    unrelated reference for the same person in each.
+    platform. ``plugin``'s sector is a single **install**, so its rows carry one
+    in ``sector_guild_id`` + ``sector_id``: a plug-in installed in two guilds
+    sees an unrelated reference for the same person in each.
 
     ``webhook``'s sector is one subscription, for a target nothing else here
-    knows: a member's own URL rather than an installed app. A subscription an
-    app registered is named in that app's ``app`` sector instead, so the guild
-    and the member arrive under the names it already holds.
+    knows: a member's own URL rather than an installed plug-in. A subscription
+    a plug-in registered is named in that plug-in's ``plugin`` sector instead,
+    so the guild and the member arrive under the names it already holds.
 
     ``client``'s sector is the deployment's own front ends — the browser tab
     and the native app, one sector for the platform. It names the account in an
@@ -80,7 +80,7 @@ class IdentityPurpose(str, Enum):
     """
 
     billing = "billing"
-    app = "app"
+    plugin = "plugin"
     webhook = "webhook"
     client = "client"
 
@@ -169,7 +169,7 @@ class IdentityRef(SQLModel, table=True):
     sector_guild_id: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
     )
-    #: Which thing inside that guild is the sector — an install, for ``app``.
+    #: Which thing inside that guild is the sector — an install, for ``plugin``.
     #: Paired with ``sector_guild_id`` because these ids are per-guild-schema
     #: and so are not unique on their own.
     sector_id: Optional[int] = Field(

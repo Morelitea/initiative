@@ -211,7 +211,7 @@ class TestDefinitions:
         assert version.definition["definition"]["layout"] == {"columns": 12}
 
     async def test_a_plugin_listing_must_name_a_mountable_tool(self, session):
-        """An app definition is narrow on purpose: a kind, and which of this
+        """A plug-in definition is narrow on purpose: a kind, and which of this
         build's tools it mounts. It cannot name one we do not mount at guild
         scope."""
         with pytest.raises(CatalogError, match="cannot be mounted"):
@@ -283,7 +283,7 @@ class TestDefinitions:
         """The widest thing a publisher can send, through the ordinary path:
         what lands is the canonical document, with the keys this build has no
         use for gone — including anything that looks like an address, since
-        where an app lives is the deployment's statement, not the listing's."""
+        where a plug-in lives is the deployment's statement, not the listing's."""
         listing = await service.upsert_listing(
             session,
             _manifest(
@@ -394,12 +394,12 @@ class TestVersions:
             )
 
     async def test_a_published_version_cannot_move_its_plugin_floor(self, session):
-        # Changing min_plugin_version would change who can install that exact
+        # Changing min_app_version would change who can install that exact
         # version, after the fact.
         await service.upsert_listing(session, _manifest(), source="builtin")
         with pytest.raises(CatalogError, match="already published with different"):
             await service.upsert_listing(
-                session, _manifest(min_plugin_version="999.0.0"), source="builtin"
+                session, _manifest(min_app_version="999.0.0"), source="builtin"
             )
 
     async def test_a_version_saved_before_a_format_default_is_the_same_version(
@@ -446,7 +446,7 @@ class TestVersions:
             session,
             uid="FTRE0000000001",
             public_id="tests.future",
-            min_plugin_version="999.0.0",
+            min_app_version="999.0.0",
         )
         assert await service.resolve_installable_version(session, listing) is None
 
@@ -455,7 +455,7 @@ class TestVersions:
             session,
             uid="PRESENT0000001",
             public_id="tests.present",
-            min_plugin_version="0.1.0",
+            min_app_version="0.1.0",
         )
         version = await service.resolve_installable_version(session, listing)
         assert version is not None and version.version == "1.0.0"
@@ -580,7 +580,7 @@ def _body(manifest: dict) -> tuple:
         definition,
         example,
         manifest.get("release_notes"),
-        manifest.get("min_plugin_version"),
+        manifest.get("min_app_version"),
     )
 
 

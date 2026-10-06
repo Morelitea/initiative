@@ -1,4 +1,4 @@
-"""The custom property route an installed app calls.
+"""The custom property route an installed plug-in calls.
 
 ``PUT /properties/{target}/{id}`` answers to the write scope of the tool that
 governs the item, and a person-valued property names the person by the
@@ -35,7 +35,7 @@ async def _document(client: Any, session: Any, installed: Any, headers: dict) ->
     created = await client.post(
         guild_url(installed.guild.id, "/documents/"),
         headers=headers,
-        json={"name": "The app's", "initiative_id": installed.placed.id},
+        json={"name": "The plug-in's", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     return created.json()["id"]
@@ -45,13 +45,13 @@ async def _task(client: Any, session: Any, installed: Any, headers: dict) -> int
     project = await client.post(
         guild_url(installed.guild.id, "/projects/"),
         headers=headers,
-        json={"name": "The app's", "initiative_id": installed.placed.id},
+        json={"name": "The plug-in's", "initiative_id": installed.placed.id},
     )
     assert project.status_code == 201, project.text
     task = await client.post(
         guild_url(installed.guild.id, "/tasks/"),
         headers=headers,
-        json={"project_id": project.json()["id"], "title": "The app's"},
+        json={"project_id": project.json()["id"], "title": "The plug-in's"},
     )
     assert task.status_code == 201, task.text
     return task.json()["id"]
@@ -65,7 +65,7 @@ async def _event(client: Any, session: Any, installed: Any, headers: dict) -> in
     calendar = await client.post(
         guild_url(installed.guild.id, "/calendars/"),
         headers=headers,
-        json={"name": "The app's", "initiative_id": installed.placed.id},
+        json={"name": "The plug-in's", "initiative_id": installed.placed.id},
     )
     assert calendar.status_code == 201, calendar.text
     start = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
@@ -74,7 +74,7 @@ async def _event(client: Any, session: Any, installed: Any, headers: dict) -> in
         headers=headers,
         json={
             "calendar_id": calendar.json()["id"],
-            "title": "The app's",
+            "title": "The plug-in's",
             "start_at": start.isoformat(),
             "end_at": (start + timedelta(hours=1)).isoformat(),
         },
@@ -124,7 +124,7 @@ async def test_setting_values_needs_the_tools_write(
         session, installed.placed, name="Note", type=PropertyType.text
     )
     url = guild_url(guild_id, f"/properties/{kind}/{item_id}")
-    body = {"values": [{"property_id": note.id, "value": "Set by the app"}]}
+    body = {"values": [{"property_id": note.id, "value": "Set by the plug-in"}]}
 
     read_only = await client.put(
         url, headers=install_headers(installed, [f"{tool}:read"]), json=body
@@ -138,7 +138,7 @@ async def test_setting_values_needs_the_tools_write(
     assert written.status_code == 200, written.text
     [value] = written.json()
     assert value["property_id"] == note.id
-    assert value["value"] == "Set by the app"
+    assert value["value"] == "Set by the plug-in"
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ async def test_a_person_named_any_other_way_is_a_422(
         guild_id=guild_id, plugin_install_id=other.id, user_id=installed.seat.user.id
     )
 
-    for named in (foreign, installed.seat.user.id, "uapp_" + "x" * 32):
+    for named in (foreign, installed.seat.user.id, "uplu_" + "x" * 32):
         response = await client.put(
             guild_url(guild_id, f"/properties/document/{document_id}"),
             headers=headers,

@@ -1,6 +1,6 @@
-"""What an app service may read and write about its own installs.
+"""What a plug-in service may read and write about its own installs.
 
-An app knows its installs by pulling them: the configuration each guild
+A plug-in knows its installs by pulling them: the configuration each guild
 supplied, and which members connected their own accounts. This module is the
 guild-touching half of those calls — the caller has already been established
 from its installation token (``/plugin-platform/installation/*``), and everything
@@ -8,22 +8,22 @@ here answers in terms of *that* registration and install.
 
 Three rules run through all of it:
 
-* **An app only ever sees its own installs.** Every lookup is filtered by the
+* **A plug-in only ever sees its own installs.** Every lookup is filtered by the
   registration's catalog uid *and* by the pinned definition naming that same
-  app, so an install belonging to a different app is indistinguishable from one
+  plug-in, so an install belonging to a different plug-in is indistinguishable from one
   that does not exist.
 * **Plaintext leaves in two places.** :func:`config_payload` decrypts what the
   community typed and the managed values each connection's flow produced, and
   never a flow's tokens; :func:`connection_token` hands out one usable access
   token by reference, refreshing or minting it first. The connections view
-  carries status and nothing else, so an app reconciling who is connected
+  carries status and nothing else, so a plug-in reconciling who is connected
   never pulls credentials to do it.
 * **People are addressed by reference.** Per-member rows are keyed by their
   opaque ``connection_ref``; no user id, email, or name is ever in a payload
   here.
 
 Guild content lives in per-guild schemas, so every read routes the system-engine
-session into one guild at a time as a guild admin — the app is acting with the
+session into one guild at a time as a guild admin — the plug-in is acting with the
 install's authority, and ``SET ROLE`` drops the system engine's bypass, so the
 guild's own policies are what answer.
 """
@@ -74,16 +74,16 @@ __all__ = [
 ]
 
 #: What one event body may carry. An event is a notification that something
-#: happened, not a data transfer — an app with more to say serves it from a data
+#: happened, not a data transfer — a plug-in with more to say serves it from a data
 #: source the platform fetches on demand.
 MAX_EVENT_PAYLOAD_BYTES = 8 * 1024
 
-#: The states an app may report about the configuration it was handed.
-#: ``unverified`` is this build's resting value and is not something an app
+#: The states a plug-in may report about the configuration it was handed.
+#: ``unverified`` is this build's resting value and is not something a plug-in
 #: asserts — it says nothing, or it says whether the credentials work.
 REPORTABLE_CONFIG_STATES: frozenset[str] = frozenset({"ok", "invalid"})
 
-#: Bound on the short code an app attaches to an ``invalid`` verdict, matching
+#: Bound on the short code a plug-in attaches to an ``invalid`` verdict, matching
 #: the column it lands in.
 MAX_CONFIG_STATE_DETAIL = 120
 
@@ -97,7 +97,7 @@ class RegisteredPlugin(Protocol):
 
 
 class PluginChannelError(Exception):
-    """A refusal on the app channel, as a message code plus its HTTP answer."""
+    """A refusal on the plug-in channel, as a message code plus its HTTP answer."""
 
     def __init__(self, code: str, status_code: int = 400) -> None:
         super().__init__(code)
@@ -105,26 +105,26 @@ class PluginChannelError(Exception):
         self.status_code = status_code
 
 
-# --- which installs are this app's ------------------------------------------
+# --- which installs are this plug-in's ------------------------------------------
 
 
-def owns_install(app: GuildPlugin, registration: RegisteredPlugin) -> bool:
-    """Whether this install is the calling app's.
+def owns_install(plugin: GuildPlugin, registration: RegisteredPlugin) -> bool:
+    """Whether this install is the calling plug-in's.
 
     Two independent statements have to agree: the install was made from the
     listing this registration speaks for, and the definition the guild pinned
-    names this same app as its service. Either alone would be enough in the
+    names this same plug-in as its service. Either alone would be enough in the
     ordinary case; requiring both means a registration re-pointed at another
     listing still cannot reach installs it was not wired for. A declarative
-    app names no service: it is its listing's, so the listing is the one
+    plug-in names no service: it is its listing's, so the listing is the one
     statement there is.
     """
-    if app.plugin_kind != "service":
+    if plugin.plugin_kind != "service":
         return False
-    if not registration.listing_uid or app.listing_uid != registration.listing_uid:
+    if not registration.listing_uid or plugin.listing_uid != registration.listing_uid:
         return False
     return (
-        service_public_id(app.definition, listing_public_id=registration.public_id)
+        service_public_id(plugin.definition, listing_public_id=registration.public_id)
         == registration.public_id
     )
 
@@ -138,15 +138,15 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     await set_rls_context(session, SystemGuild(guild_id, read_only=read_only))
 
 
-async def _install_guild_ref(session: AsyncSession, app: GuildPlugin) -> str:
+async def _install_guild_ref(session: AsyncSession, plugin: GuildPlugin) -> str:
     """What this install calls the guild it is in.
 
     Every payload on this channel names the guild by it, because it is the only
-    name the app on the other end has for it. The community is the one the
+    name the plug-in on the other end has for it. The community is the one the
     session read the install from.
     """
     return await ensure_plugin_guild_ref(
-        guild_id=routed_guild_id(session), plugin_install_id=app.id
+        guild_id=routed_guild_id(session), plugin_install_id=plugin.id
     )
 
 
@@ -163,19 +163,19 @@ async def load_install(
     plugin_install_id: int,
     for_write: bool = False,
 ) -> GuildPlugin:
-    """The calling app's install in one guild, with the session routed to it.
+    """The calling plug-in's install in one guild, with the session routed to it.
     ``session`` is a system session from that guild's cohort, as
     ``get_system_session`` hands one to an installation token's request.
 
     ``plugin_install_id`` is the install the caller's reference named, and the one
-    found here has to be it. A guild that removed this app and added it again
+    found here has to be it. A guild that removed this plug-in and added it again
     holds a different install, and a reference minted against the first names
     only the first — so the check is what keeps the reference specific rather
-    than standing for whatever this app's install in that guild happens to be.
+    than standing for whatever this plug-in's install in that guild happens to be.
 
-    Everything that is not this app's install answers the same way — a guild
+    Everything that is not this plug-in's install answers the same way — a guild
     that does not exist, one that is suspended, one that never installed the
-    app, one that installed a different app, and one whose install has been
+    plug-in, one that installed a different plug-in, and one whose install has been
     replaced are one refusal, because the caller is entitled to distinguish
     none of them.
 
@@ -184,7 +184,9 @@ async def load_install(
     """
     guild = await _guild_row(session, guild_id)
     if guild is None or guild.status not in LIVE_STATUS_VALUES:
-        raise PluginChannelError(PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404)
+        raise PluginChannelError(
+            PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404
+        )
 
     frozen = guild.status == CommunityStatus.read_only.value
     if for_write and frozen:
@@ -192,41 +194,51 @@ async def load_install(
 
     await _route(session, guild_id, read_only=frozen or not for_write)
     if not registration.listing_uid:
-        raise PluginChannelError(PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404)
+        raise PluginChannelError(
+            PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404
+        )
 
-    app = (
+    plugin = (
         await session.exec(
-            select(GuildPlugin).where(GuildPlugin.listing_uid == registration.listing_uid)
+            select(GuildPlugin).where(
+                GuildPlugin.listing_uid == registration.listing_uid
+            )
         )
     ).first()
-    if app is None or not owns_install(app, registration):
-        raise PluginChannelError(PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404)
-    if app.id != plugin_install_id:
-        raise PluginChannelError(PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404)
-    if not app.enabled:
+    if plugin is None or not owns_install(plugin, registration):
+        raise PluginChannelError(
+            PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404
+        )
+    if plugin.id != plugin_install_id:
+        raise PluginChannelError(
+            PluginChannelMessages.INSTALL_NOT_FOUND, status_code=404
+        )
+    if not plugin.enabled:
         # The guild's own kill switch, beside the operator's: the install stays
         # exactly as it is, and nothing flows through it until it is switched
         # back on. Every channel stops here, the credential pull included.
-        raise PluginChannelError(PluginChannelMessages.INSTALL_DISABLED, status_code=409)
-    return app
+        raise PluginChannelError(
+            PluginChannelMessages.INSTALL_DISABLED, status_code=409
+        )
+    return plugin
 
 
 # --- the custody channel ----------------------------------------------------
 
 
-async def config_payload(session: AsyncSession, app: GuildPlugin) -> dict[str, Any]:
+async def config_payload(session: AsyncSession, plugin: GuildPlugin) -> dict[str, Any]:
     """The decrypted configuration for one install.
 
-    It carries both halves of what an app is configured with: the guild-wide
+    It carries both halves of what a plug-in is configured with: the guild-wide
     values (typed by an admin, or returned by a flow's ``after_connect``) and
-    each member's managed values, keyed by the opaque reference the app knows
-    that member by. A flow's tokens are never in it: the app asks for one with
+    each member's managed values, keyed by the opaque reference the plug-in knows
+    that member by. A flow's tokens are never in it: the plug-in asks for one with
     :func:`connection_token` when it needs it.
     """
     connections: dict[str, dict[str, Any]] = {}
     connection_refs: dict[str, str] = {}
-    secrets = await guild_plugins_service.load_secrets(session, app)
-    for connection in plugin_config_service.definition_connections(app.definition):
+    secrets = await guild_plugins_service.load_secrets(session, plugin)
+    for connection in plugin_config_service.definition_connections(plugin.definition):
         connection_id = connection.get("id")
         if not isinstance(connection_id, str):
             continue
@@ -236,7 +248,7 @@ async def config_payload(session: AsyncSession, app: GuildPlugin) -> dict[str, A
             # one person.
             continue
         values = plugin_config_service.without_tokens(
-            (app.config or {}).get(connection_id)
+            (plugin.config or {}).get(connection_id)
         )
         values.update(
             plugin_config_service.decrypt_connection_secrets(
@@ -245,7 +257,7 @@ async def config_payload(session: AsyncSession, app: GuildPlugin) -> dict[str, A
         )
         if values:
             connections[connection_id] = values
-        ref = (app.connection_refs or {}).get(connection_id)
+        ref = (plugin.connection_refs or {}).get(connection_id)
         if isinstance(ref, str) and ref:
             connection_refs[connection_id] = ref
 
@@ -261,17 +273,17 @@ async def config_payload(session: AsyncSession, app: GuildPlugin) -> dict[str, A
                 ),
             },
         }
-        for row in await _member_rows(session, app)
+        for row in await _member_rows(session, plugin)
         if row.blocked_at is None
     ]
 
-    state = plugin_config_service.config_state(app)
+    state = plugin_config_service.config_state(plugin)
     return {
-        "community_ref": await _install_guild_ref(session, app),
-        "install_id": app.id,
-        "listing_uid": app.listing_uid,
-        "listing_version": app.listing_version,
-        "enabled": app.enabled,
+        "community_ref": await _install_guild_ref(session, plugin),
+        "install_id": plugin.id,
+        "listing_uid": plugin.listing_uid,
+        "listing_version": plugin.listing_version,
+        "enabled": plugin.enabled,
         "config_state": state.state,
         "config_state_detail": state.detail,
         "needs_config": state.needs_config,
@@ -283,7 +295,7 @@ async def config_payload(session: AsyncSession, app: GuildPlugin) -> dict[str, A
 
 async def connection_token(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     registration: RegisteredPlugin,
     *,
     connection_ref: str,
@@ -296,11 +308,13 @@ async def connection_token(
     connection answers its ``jwt_bearer`` token, or its own stored token.
     """
     try:
-        guild_connection = plugin_config_service.connection_id_for_ref(app, connection_ref)
+        guild_connection = plugin_config_service.connection_id_for_ref(
+            plugin, connection_ref
+        )
         if guild_connection is not None:
             tokens = await flows.community_token(
                 session,
-                app=app,
+                plugin=plugin,
                 public_id=registration.public_id,
                 connection_id=guild_connection,
                 guild_id=routed_guild_id(session),
@@ -308,7 +322,7 @@ async def connection_token(
         else:
             member = await flows.member_token(
                 session,
-                app=app,
+                plugin=plugin,
                 public_id=registration.public_id,
                 connection_ref=connection_ref,
                 guild_id=routed_guild_id(session),
@@ -327,12 +341,12 @@ async def connection_token(
 
 
 async def _member_rows(
-    session: AsyncSession, app: GuildPlugin
+    session: AsyncSession, plugin: GuildPlugin
 ) -> Sequence[GuildPluginUserConnection]:
     return (
         await session.exec(
             select(GuildPluginUserConnection)
-            .where(GuildPluginUserConnection.plugin_id == app.id)
+            .where(GuildPluginUserConnection.plugin_id == plugin.id)
             .order_by(
                 GuildPluginUserConnection.connection_id,
                 GuildPluginUserConnection.id,
@@ -342,20 +356,20 @@ async def _member_rows(
 
 
 async def connection_payload(
-    session: AsyncSession, app: GuildPlugin
+    session: AsyncSession, plugin: GuildPlugin
 ) -> list[dict[str, Any]]:
-    """The app's per-member connections for one guild, by reference alone.
+    """The plug-in's per-member connections for one guild, by reference alone.
 
-    Status and nothing more: an app reconciling which of its handles are still
+    Status and nothing more: a plug-in reconciling which of its handles are still
     live does not need a credential to do it, and this view never carries one.
     Who the member is stays on this side — the reference is the whole of the
-    app's name for them.
+    plug-in's name for them.
     """
-    return [_connection_read(row) for row in await _member_rows(session, app)]
+    return [_connection_read(row) for row in await _member_rows(session, plugin)]
 
 
 def _connection_read(row: GuildPluginUserConnection) -> dict[str, Any]:
-    """One connection as the app is told about it: which of its own
+    """One connection as the plug-in is told about it: which of its own
     connections, the handle to address it by, and where it has got to."""
     return {
         "connection_id": row.connection_id,
@@ -368,22 +382,22 @@ def _connection_read(row: GuildPluginUserConnection) -> dict[str, Any]:
     }
 
 
-# --- what an app reports back -----------------------------------------------
+# --- what a plug-in reports back -----------------------------------------------
 
 
 async def report_config_state(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     *,
     state: str,
     detail: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Record the app's verdict on the configuration it was given.
+    """Record the plug-in's verdict on the configuration it was given.
 
     Presence of values is all this build can know by itself; whether a
     credential carries the permissions it needs is something only the vendor can
     confirm, and this is how that answer gets back to the admin who pasted it.
-    An app that never reports leaves the install ``unverified`` — nothing blocks
+    A plug-in that never reports leaves the install ``unverified`` — nothing blocks
     on the round trip.
     """
     if state not in REPORTABLE_CONFIG_STATES:
@@ -395,22 +409,22 @@ async def report_config_state(
         # A verdict of "working" carries no complaint to display beside it.
         cleaned = None
 
-    app.config_state = state
-    app.config_state_detail = cleaned
-    app.updated_at = datetime.now(timezone.utc)
-    session.add(app)
+    plugin.config_state = state
+    plugin.config_state_detail = cleaned
+    plugin.updated_at = datetime.now(timezone.utc)
+    session.add(plugin)
     await session.commit()
-    await session.refresh(app)
+    await session.refresh(plugin)
     return {
-        "community_ref": await _install_guild_ref(session, app),
-        "install_id": app.id,
-        "config_state": app.config_state,
-        "config_state_detail": app.config_state_detail,
+        "community_ref": await _install_guild_ref(session, plugin),
+        "install_id": plugin.id,
+        "config_state": plugin.config_state,
+        "config_state_detail": plugin.config_state_detail,
     }
 
 
-def set_connection_state(app: GuildPlugin, connection_id: str, state: str) -> bool:
-    """Record what a declarative app learned of one connection at the vendor
+def set_connection_state(plugin: GuildPlugin, connection_id: str, state: str) -> bool:
+    """Record what a declarative plug-in learned of one connection at the vendor
     (a delivery's ``status``, or its health check) as the install's
     configuration state, where a container's verdict is shown. Answers whether
     it moved; the caller writes it.
@@ -421,15 +435,15 @@ def set_connection_state(app: GuildPlugin, connection_id: str, state: str) -> bo
     """
     about = {f"{connection_id}_{other}" for other in CONNECTION_STATES if other != "ok"}
     if state == "ok":
-        if app.config_state == "invalid" and app.config_state_detail not in about:
+        if plugin.config_state == "invalid" and plugin.config_state_detail not in about:
             return False
         verdict: tuple[str, Optional[str]] = ("ok", None)
     else:
         verdict = ("invalid", f"{connection_id}_{state}")
-    if (app.config_state, app.config_state_detail) == verdict:
+    if (plugin.config_state, plugin.config_state_detail) == verdict:
         return False
-    app.config_state, app.config_state_detail = verdict
-    app.updated_at = datetime.now(timezone.utc)
+    plugin.config_state, plugin.config_state_detail = verdict
+    plugin.updated_at = datetime.now(timezone.utc)
     return True
 
 
@@ -446,7 +460,7 @@ def _payload_size(payload: dict[str, Any]) -> int:
 
 async def emit_event(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     registration: RegisteredPlugin,
     *,
     event_type: str,
@@ -454,10 +468,10 @@ async def emit_event(
     initiative_id: Optional[int],
     token_initiative_id: Optional[int],
 ) -> None:
-    """Keep one event the app emits (:func:`keep_event`), and commit it."""
+    """Keep one event the plug-in emits (:func:`keep_event`), and commit it."""
     await keep_event(
         session,
-        app,
+        plugin,
         registration,
         event_type=event_type,
         payload=payload,
@@ -469,7 +483,7 @@ async def emit_event(
 
 async def keep_event(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     registration: RegisteredPlugin,
     *,
     event_type: str,
@@ -477,12 +491,12 @@ async def keep_event(
     initiative_id: Optional[int],
     token_initiative_id: Optional[int] = None,
 ) -> None:
-    """Keep one event an app emits, for the outbox poller to deliver: a
-    container's, or one a declarative app's webhook mapping emits.
+    """Keep one event a plug-in emits, for the outbox poller to deliver: a
+    container's, or one a declarative plug-in's webhook mapping emits.
 
     The type is an ``emit`` endpoint the *pinned* definition declares,
-    namespaced under the emitting app. `emit` and not merely declared: reads
-    and writes share the id space, and an app that could announce under a
+    namespaced under the emitting plug-in. `emit` and not merely declared: reads
+    and writes share the id space, and a plug-in that could announce under a
     read's id would be emitting something a subscriber has no way to have
     asked for.
 
@@ -492,7 +506,7 @@ async def keep_event(
     does once it commits, and the poller delivers it to the community's
     subscriptions with the change log, retrying until each accepts it.
     """
-    definition = app.definition if isinstance(app.definition, dict) else {}
+    definition = plugin.definition if isinstance(plugin.definition, dict) else {}
     declared = definition.get("endpoints")
     prefix = f"{ENDPOINT_ID_PREFIX}{registration.public_id}."
     emitted = (
@@ -514,14 +528,16 @@ async def keep_event(
         initiative_id = token_initiative_id
     if initiative_id is not None and (
         token_initiative_id not in (None, initiative_id)
-        or not await guild_plugins_service.is_placed(session, app.id, initiative_id)
+        or not await guild_plugins_service.is_placed(session, plugin.id, initiative_id)
     ):
-        raise PluginChannelError(PluginChannelMessages.INITIATIVE_NOT_PLACED, status_code=403)
+        raise PluginChannelError(
+            PluginChannelMessages.INITIATIVE_NOT_PLACED, status_code=403
+        )
 
     session.add(
         PluginEventOutbox(
             txn_id=func.txid_current(),
-            install_id=app.id,
+            install_id=plugin.id,
             event_type=event_type,
             initiative_id=initiative_id,
             payload=payload,

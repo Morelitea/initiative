@@ -1,13 +1,13 @@
-"""What one installed app calls one member.
+"""What one installed plug-in calls one member.
 
-An app needs a stable name for a member: to store their preferences, to
+A plug-in needs a stable name for a member: to store their preferences, to
 recognise them across two visits, and to act as them.
 
 That name is a **pairwise pseudonymous identifier** (OpenID Connect Core §8.1):
 a value stable for one *sector*, and unrelated to the value any other sector
 holds for the same person. Here the sector is the **install**, matching
 ``connection_ref``'s precedent of being minted per (install, connection,
-member) and matching the fact that apps are guild-pinned everywhere else.
+member) and matching the fact that plug-ins are guild-pinned everywhere else.
 
 That is the same thing ``services.platform.identity_refs`` provides for every
 other sector, so this module is a thin scoping layer over it rather than a
@@ -24,7 +24,7 @@ Most of it is reachable only on the system engine, and every function here
 that writes on it opens a session of its own (the two ``ensure_`` ones only
 when this process has not seen the reference in the last minute);
 ``resolve_plugin_ref`` takes one, because its caller composes it with a
-guild-routed read in the same transaction. The exception is :func:`install_refs`, which an installed app's
+guild-routed read in the same transaction. The exception is :func:`install_refs`, which an installed plug-in's
 own request runs on its routed session: ``guild_<id>_plugin`` may read and mint
 references in its own install's sector and nowhere else (``app.db.public_rls``).
 """
@@ -266,7 +266,7 @@ async def ensure_plugin_ref(
 async def ensure_plugin_guild_ref(*, guild_id: int, plugin_install_id: int) -> str:
     """What this install calls the guild it is installed in.
 
-    The guild's own reference at the same sector the member's uses, so an app
+    The guild's own reference at the same sector the member's uses, so a plug-in
     installed in two guilds holds two unrelated values for them — the same
     property the member reference has, applied to the tenant.
     """
@@ -381,7 +381,7 @@ async def guild_for_plugin_ref(*, ref: str, public_id: str) -> int | None:
 
     :func:`resolve_plugin_guild_ref` answers which install a reference belongs to;
     this adds the question a caller naming one of its own references is really
-    asking — that it IS one of its own. A value minted at another app's install
+    asking — that it IS one of its own. A value minted at another plug-in's install
     resolves fine and is not an answer to this.
     """
     from sqlalchemy.exc import SQLAlchemyError
@@ -410,7 +410,9 @@ async def guild_for_plugin_ref(*, ref: str, public_id: str) -> int | None:
                 )
             ).first()
         except SQLAlchemyError:
-            logger.warning("app refs: install lookup could not read guild %s", guild_id)
+            logger.warning(
+                "plug-in refs: install lookup could not read guild %s", guild_id
+            )
             return None
     return None if found is None else guild_id
 
@@ -418,7 +420,7 @@ async def guild_for_plugin_ref(*, ref: str, public_id: str) -> int | None:
 async def drop_install_refs(*, guild_id: int, plugin_install_id: int) -> int:
     """Remove every reference minted for one install. Returns the count.
 
-    Called when the app is uninstalled, from a guild-routed request session —
+    Called when the plug-in is uninstalled, from a guild-routed request session —
     so this opens its own, like ``ensure_plugin_ref``. ``sector_id`` is not a
     foreign key (``guild_plugins`` lives in a guild schema and ``identity_refs``
     does not), so this stands in for the cascade the column cannot carry.
@@ -464,14 +466,14 @@ async def forget_guild(*, guild_id: int, keep_billing: bool = False) -> None:
     guild, and what it leaves behind is reclaimed by
     ``identity_refs.purge_orphaned_sector_refs``.
 
-    A soft delete passes ``keep_billing``: its apps let go now, and the
+    A soft delete passes ``keep_billing``: its plug-ins let go now, and the
     guild's billing reference stays until the purge.
     """
     try:
         await drop_guild_plugin_refs(guild_id=guild_id, keep_billing=keep_billing)
     except SQLAlchemyError:
         logger.warning(
-            "app refs: references for deleted guild %s were not removed; "
+            "plug-in refs: references for deleted guild %s were not removed; "
             "the orphan sweep will reclaim them",
             guild_id,
         )

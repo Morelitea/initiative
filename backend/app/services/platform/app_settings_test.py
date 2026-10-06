@@ -23,7 +23,7 @@ from app.models.platform.app_setting import AppSetting
 from app.services.marketplace import context_jwt
 from app.services.platform.app_settings import (
     GLOBAL_SETTINGS_ID,
-    _build_default_plugin_settings,
+    _build_default_app_settings,
     ensure_settings_row,
     get_app_setting_secrets,
     get_app_settings,
@@ -127,7 +127,7 @@ def _seed_env(monkeypatch, methods, *, mail: bool = True) -> None:
 def test_env_decides_the_ways_in_of_a_fresh_row(monkeypatch):
     """AUTH_LOGIN_METHODS is stored the way the settings page stores it."""
     _seed_env(monkeypatch, ["sso", "passkey", "totp", "email_otp"])
-    assert _build_default_plugin_settings().login_methods == [
+    assert _build_default_app_settings().login_methods == [
         "email_otp",
         "passkey",
         "sso",
@@ -137,13 +137,13 @@ def test_env_decides_the_ways_in_of_a_fresh_row(monkeypatch):
 
 def test_env_unset_keeps_the_default(monkeypatch):
     _seed_env(monkeypatch, None)
-    assert _build_default_plugin_settings().login_methods == DEFAULT_METHODS
+    assert _build_default_app_settings().login_methods == DEFAULT_METHODS
 
 
 def test_env_value_this_version_does_not_know_is_dropped_and_said(monkeypatch, caplog):
     _seed_env(monkeypatch, ["sso", "magic_link"])
     with caplog.at_level(logging.WARNING):
-        assert _build_default_plugin_settings().login_methods == ["sso"]
+        assert _build_default_app_settings().login_methods == ["sso"]
     assert "magic_link" in caplog.text
 
 
@@ -152,7 +152,7 @@ def test_env_with_no_way_to_begin_keeps_the_default(monkeypatch, caplog):
     deployment one somebody can still configure."""
     _seed_env(monkeypatch, ["totp"])
     with caplog.at_level(logging.WARNING):
-        assert _build_default_plugin_settings().login_methods == DEFAULT_METHODS
+        assert _build_default_app_settings().login_methods == DEFAULT_METHODS
     assert "begin a session" in caplog.text
 
 
@@ -160,7 +160,7 @@ def test_env_emailed_code_needs_a_mail_server(monkeypatch, caplog):
     """The rule the settings page enforces on the way up, applied to the seed."""
     _seed_env(monkeypatch, ["sso", "email_otp"], mail=False)
     with caplog.at_level(logging.WARNING):
-        assert _build_default_plugin_settings().login_methods == ["sso"]
+        assert _build_default_app_settings().login_methods == ["sso"]
     assert "mail server" in caplog.text
 
 
@@ -200,7 +200,7 @@ async def test_first_boot_stores_every_env_credential(
     )
 
 
-# --- The app platform's signing key ---------------------------------------
+# --- The plug-in platform's signing key ---------------------------------------
 
 
 def _without_a_platform_key(monkeypatch) -> None:
@@ -213,7 +213,9 @@ def _without_a_platform_key(monkeypatch) -> None:
 async def _stored_platform_key(session: AsyncSession) -> str | None:
     return (
         await session.exec(
-            text("SELECT plugin_platform_signing_key_encrypted FROM app_setting_secrets")
+            text(
+                "SELECT plugin_platform_signing_key_encrypted FROM app_setting_secrets"
+            )
         )
     ).one()[0]
 
@@ -250,7 +252,9 @@ async def test_a_deployment_with_no_platform_key_generates_one_and_keeps_it(
 async def test_the_env_platform_key_wins(session: AsyncSession, monkeypatch):
     """A key in env is used as given, and none is generated beside it."""
     _without_a_platform_key(monkeypatch)
-    monkeypatch.setattr(app_config, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "env-pem")
+    monkeypatch.setattr(
+        app_config, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "env-pem"
+    )
     monkeypatch.setattr(app_config, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "env-kid")
     await seed_app_settings(session)
 

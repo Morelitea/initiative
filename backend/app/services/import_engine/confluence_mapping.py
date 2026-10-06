@@ -214,7 +214,7 @@ def build_wiki_envelope(
     pages: list[SourcePage],
     users: dict[str, str],
     site_url: str,
-    plugin_version: str,
+    app_version: str,
     max_bytes: Optional[int] = None,
     media: Optional[dict[str, PageMedia]] = None,
     documents: bool = True,
@@ -390,7 +390,7 @@ def build_wiki_envelope(
     mapped.envelope = {
         "type": "initiative-wiki",
         "schema_version": 1,
-        "plugin_version": plugin_version,
+        "app_version": app_version,
         "name": str(space.get("name") or space_key or "Confluence").strip()[
             :MAX_TITLE_LENGTH
         ],

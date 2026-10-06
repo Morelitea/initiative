@@ -153,14 +153,14 @@ class TestInstall:
         assert response.status_code == 409
         assert response.json()["detail"] == MarketplaceMessages.LISTING_UNAVAILABLE
 
-    async def test_a_listing_needing_a_newer_plugin_is_refused(
+    async def test_a_listing_needing_a_newer_app_is_refused(
         self, client: AsyncClient, acting_user, session
     ):
         await create_marketplace_listing(
             session,
             uid=TOO_NEW_UID,
             public_id="tests.toonew2",
-            min_plugin_version="999.0.0",
+            min_app_version="999.0.0",
         )
         a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)

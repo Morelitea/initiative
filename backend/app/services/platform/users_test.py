@@ -390,7 +390,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     """The names outside parties know somebody by are part of the erasure.
 
     Billing holds one and keeps it — it is the key an account's history hangs
-    on — and each installed app holds its own. Once the person is gone, none of
+    on — and each installed plug-in holds its own. Once the person is gone, none of
     them has anyone left to resolve to, and the mapping is the only thing that
     could still join them back to a row.
 

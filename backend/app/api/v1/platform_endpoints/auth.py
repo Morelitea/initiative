@@ -1818,7 +1818,7 @@ async def _complete_provider_login(
     if is_mobile and not completion.app_challenge:
         # An app bundle from before the code flow began this sign-in. It can
         # only be handed a session through the code, so it is asked to update.
-        return _error_redirect(True, NativeMessages.PLUGIN_UPDATE_REQUIRED)
+        return _error_redirect(True, NativeMessages.APP_UPDATE_REQUIRED)
     # ``user`` is attached to ``system_session``, so a rollback expires its
     # attributes; the plain values are captured up front so the failure path
     # never touches the ORM object again.

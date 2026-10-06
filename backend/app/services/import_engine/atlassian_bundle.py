@@ -144,7 +144,7 @@ class BundleWriter:
         guild_id: int,
         guild_name: str,
         target_initiative_id: int,
-        plugin_version: str,
+        app_version: str,
         site_url: str,
     ) -> Path:
         """Write the envelopes and the manifest, close the zip, and return
@@ -286,7 +286,7 @@ class BundleWriter:
         manifest = {
             "type": "initiative-backup",
             "schema_version": 1,
-            "plugin_version": plugin_version,
+            "app_version": app_version,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "source_instance_url": site_url,
             "guild": {"id": guild_id, "name": guild_name},

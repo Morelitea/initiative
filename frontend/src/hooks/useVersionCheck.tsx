@@ -5,7 +5,7 @@ import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { getItem, setItem } from "@/lib/storage";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const CURRENT_VERSION = __PLUGIN_VERSION__;
+const CURRENT_VERSION = __APP_VERSION__;
 const DISMISSED_VERSION_KEY = "initiative-dismissed-version";
 
 export const useVersionCheck = () => {

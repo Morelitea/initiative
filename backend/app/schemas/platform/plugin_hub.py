@@ -1,4 +1,4 @@
-"""What an installed app sends to call another app through Initiative."""
+"""What an installed plug-in sends to call another plug-in through Initiative."""
 
 from typing import Any, Dict
 

@@ -12,7 +12,7 @@ import { toast } from "@/lib/mascotToast";
 import { type UpdateStatement, verifiedStatement } from "@/lib/otaTrust";
 import DesktopUpdater from "@/plugins/desktopUpdater";
 
-const CURRENT_VERSION = __PLUGIN_VERSION__;
+const CURRENT_VERSION = __APP_VERSION__;
 
 interface NativeBundleManifest {
   version: string;

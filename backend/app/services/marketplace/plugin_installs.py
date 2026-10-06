@@ -1,13 +1,13 @@
-"""The install index: which communities hold which app, without visiting them.
+"""The install index: which communities hold which plug-in, without visiting them.
 
 ``public.plugin_installs`` mirrors three facts of each community's ``guild_plugins``
 rows: the listing an install came from, whether it is switched on, and the
-value its app's vendor webhooks are routed to it by (``hook_route``). It is
-written wherever those facts change — at install and uninstall, when the app
+value its plug-in's vendor webhooks are routed to it by (``hook_route``). It is
+written wherever those facts change — at install and uninstall, when the plug-in
 is switched on or off, and when the routed static connection's value is stored
 or removed — and read by two things:
 
-* :func:`page`, the app's own listing of its installs, a keyset page at a
+* :func:`page`, the plug-in's own listing of its installs, a keyset page at a
   time;
 * :func:`routed`, the installs a vendor delivery belongs to.
 
@@ -24,7 +24,11 @@ from sqlalchemy import delete, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 
-from app.core.encryption import SALT_PLUGIN_INSTALLS_CURSOR, decrypt_field, encrypt_field
+from app.core.encryption import (
+    SALT_PLUGIN_INSTALLS_CURSOR,
+    decrypt_field,
+    encrypt_field,
+)
 from app.db import session as db_session
 from app.models.platform.plugin_install import HOOK_ROUTE_MAX_LENGTH, PluginInstall
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
@@ -53,17 +57,17 @@ class IndexedInstall:
     active: bool
 
 
-def hook_route(app: GuildPlugin) -> Optional[str]:
+def hook_route(plugin: GuildPlugin) -> Optional[str]:
     """The value this install's vendor webhooks are routed by: the stored
     field of the static connection its pinned ``webhooks.route`` names.
 
-    Only a managed field routes: its value comes from the app's
+    Only a managed field routes: its value comes from the plug-in's
     ``after_connect`` hook, which checked it at the vendor, and never from a
     form."""
-    route = ((app.definition or {}).get("webhooks") or {}).get("route")
+    route = ((plugin.definition or {}).get("webhooks") or {}).get("route")
     if not isinstance(route, dict):
         return None
-    connection = connection_by_id(app.definition, route.get("connection"))
+    connection = connection_by_id(plugin.definition, route.get("connection"))
     managed = {
         field.get("key")
         for field in (connection or {}).get("fields") or []
@@ -71,7 +75,7 @@ def hook_route(app: GuildPlugin) -> Optional[str]:
     }
     if route.get("field") not in managed:
         return None
-    stored = (app.config or {}).get(route.get("connection")) or {}
+    stored = (plugin.config or {}).get(route.get("connection")) or {}
     value = stored.get(route.get("field")) if isinstance(stored, dict) else None
     if isinstance(value, bool) or not isinstance(value, (str, int)):
         return None
@@ -79,20 +83,21 @@ def hook_route(app: GuildPlugin) -> Optional[str]:
     return text if text and len(text) <= HOOK_ROUTE_MAX_LENGTH else None
 
 
-async def record(guild_id: int, app: GuildPlugin) -> None:
-    """Write one install's row as ``app`` now stands."""
-    if not app.listing_uid or app.id is None:
+async def record(guild_id: int, plugin: GuildPlugin) -> None:
+    """Write one install's row as ``plugin`` now stands."""
+    if not plugin.listing_uid or plugin.id is None:
         return
     values = {
-        "listing_uid": app.listing_uid,
-        "enabled": bool(app.enabled),
-        "hook_route": hook_route(app),
+        "listing_uid": plugin.listing_uid,
+        "enabled": bool(plugin.enabled),
+        "hook_route": hook_route(plugin),
     }
     statement = (
         pg_insert(PluginInstall)
-        .values(guild_id=guild_id, install_id=app.id, **values)
+        .values(guild_id=guild_id, install_id=plugin.id, **values)
         .on_conflict_do_update(
-            index_elements=[PluginInstall.guild_id, PluginInstall.install_id], set_=values
+            index_elements=[PluginInstall.guild_id, PluginInstall.install_id],
+            set_=values,
         )
     )
     async with db_session.SystemSessionLocal() as session:
@@ -105,14 +110,15 @@ async def forget(guild_id: int, install_id: int) -> None:
     async with db_session.SystemSessionLocal() as session:
         await session.exec(
             delete(PluginInstall).where(
-                PluginInstall.guild_id == guild_id, PluginInstall.install_id == install_id
+                PluginInstall.guild_id == guild_id,
+                PluginInstall.install_id == install_id,
             )
         )
         await session.commit()
 
 
 def _encode_cursor(entry: IndexedInstall) -> str:
-    """Where a page ended, sealed: the app never sees our ids."""
+    """Where a page ended, sealed: the plug-in never sees our ids."""
     return encrypt_field(
         f"{entry.guild_id}:{entry.install_id}", SALT_PLUGIN_INSTALLS_CURSOR
     )
@@ -123,9 +129,9 @@ def _decode_cursor(cursor: Optional[str]) -> Optional[tuple[int, int]]:
     if not cursor:
         return None
     try:
-        guild, _, install = decrypt_field(cursor, SALT_PLUGIN_INSTALLS_CURSOR).partition(
-            ":"
-        )
+        guild, _, install = decrypt_field(
+            cursor, SALT_PLUGIN_INSTALLS_CURSOR
+        ).partition(":")
         return int(guild), int(install)
     except (InvalidToken, ValueError):
         return None

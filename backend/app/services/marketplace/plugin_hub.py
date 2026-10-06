@@ -1,17 +1,17 @@
-"""Apps calling apps: Initiative is the hub.
+"""Plug-ins calling plug-ins: Initiative is the hub.
 
-An installed app never addresses another app. It asks Initiative, on its own
-installation or member token, to call one of the other app's public endpoints
+An installed plug-in never addresses another plug-in. It asks Initiative, on its own
+installation or member token, to call one of the other plug-in's public endpoints
 in the same community, and Initiative makes the call the way it makes one for a
 widget (:func:`app.services.marketplace.plugin_data._call_plugin`), with a context
-token that names the calling app (``act``), whose behalf the call is on
-(``actor``), the member by the called app's own reference for them
+token that names the calling plug-in (``act``), whose behalf the call is on
+(``actor``), the member by the called plug-in's own reference for them
 (``member``), and the initiative the caller is confined to.
 
 The checks, in order, each with its own refusal:
 
 1. the caller's token is live (the install seam, before this module runs);
-2. ``apps:<target>`` is in the token's scopes, the seat's grant and what the
+2. ``plugins:<target>`` is in the token's scopes, the seat's grant and what the
    caller's pinned version requests (``insufficient_scope``);
 3. the target is installed, switched on and live in the same community
    (``target_not_installed``);
@@ -72,11 +72,11 @@ _CALLABLE_DIRECTIONS = frozenset({"read", "write"})
 
 @dataclass(frozen=True)
 class HubCaller:
-    """The app asking, as its admitted token names it."""
+    """The plug-in asking, as its admitted token names it."""
 
     guild_id: int
     install_id: int
-    #: The calling app's public id.
+    #: The calling plug-in's public id.
     client_id: str
     token_scopes: frozenset[str]
     #: The initiative the token is confined to, when it is.
@@ -92,7 +92,7 @@ class HubCaller:
 
 @dataclass(frozen=True)
 class HubAnswer:
-    """What the app called answered, as it answered it."""
+    """What the plug-in called answered, as it answered it."""
 
     body: dict[str, Any]
     #: ``read`` or ``write``.
@@ -228,7 +228,7 @@ async def call_plugin(
         endpoint = _callable_endpoint(target.definition, endpoint_id)
         if endpoint is None:
             raise _refuse(PluginDataMessages.ENDPOINT_NOT_FOUND, 404)
-        # An endpoint for the community's admins alone is not offered to apps.
+        # An endpoint for the community's admins alone is not offered to plug-ins.
         if endpoint.get("public") is not True or is_admin_only(endpoint):
             raise _refuse(PluginHubMessages.ENDPOINT_NOT_PUBLIC, 403)
 
@@ -253,7 +253,7 @@ async def call_plugin(
         )
         refs, fields = await plugin_data._resolve_connections(
             session,
-            app=target,
+            plugin=target,
             endpoint=endpoint,
             user_id=caller.member_user_id,
             actor=caller.actor,
@@ -268,7 +268,9 @@ async def call_plugin(
     member_user_id = caller.member_user_id
     member_ref = (
         await ensure_plugin_ref(
-            guild_id=caller.guild_id, plugin_install_id=target_id, user_id=member_user_id
+            guild_id=caller.guild_id,
+            plugin_install_id=target_id,
+            user_id=member_user_id,
         )
         if member_user_id is not None
         else None
@@ -286,7 +288,7 @@ async def call_plugin(
     async def call() -> dict[str, Any]:
         return await plugin_data._call_plugin(
             registration=registration,
-            app=target,
+            plugin=target,
             guild_id=caller.guild_id,
             endpoint_id=endpoint_id,
             params=values,
@@ -303,7 +305,7 @@ async def call_plugin(
     key = _hub_cache_key(
         plugin_data._cache_key(
             guild_id=caller.guild_id,
-            app=target,
+            plugin=target,
             endpoint_id=endpoint_id,
             canonical_params=canonical,
             refs=refs,

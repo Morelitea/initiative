@@ -20,7 +20,10 @@ from app.testing import (
     route_session_to_guild,
 )
 
-_SERVICE_DEFINITION = {"plugin_kind": "service", "service": {"public_id": "tests.app"}}
+_SERVICE_DEFINITION = {
+    "plugin_kind": "service",
+    "service": {"public_id": "tests.plugin"},
+}
 
 
 async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
@@ -77,7 +80,9 @@ async def _project_and_install(session: AsyncSession):
     return user, guild, initiative, project, install
 
 
-def _install_grant(project: Project, install: GuildPlugin, **overrides) -> ResourceGrant:
+def _install_grant(
+    project: Project, install: GuildPlugin, **overrides
+) -> ResourceGrant:
     return ResourceGrant(
         **{
             "initiative_id": project.initiative_id,
@@ -91,7 +96,7 @@ def _install_grant(project: Project, install: GuildPlugin, **overrides) -> Resou
 
 
 async def test_a_grant_may_name_a_plugin_install_alone(session: AsyncSession):
-    """An installed app is a grantee kind of its own: a row naming it and
+    """An installed plug-in is a grantee kind of its own: a row naming it and
     nothing else satisfies the one-grantee check."""
     _, _, _, project, install = await _project_and_install(session)
 
@@ -139,7 +144,9 @@ async def test_uninstalling_removes_the_installs_grants(session: AsyncSession):
     await session.commit()
 
     await route_session_to_guild(session, guild.id)
-    row = (await session.exec(select(GuildPlugin).where(GuildPlugin.id == install.id))).one()
+    row = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == install.id))
+    ).one()
     await session.delete(row)
     await session.commit()
 
@@ -190,7 +197,9 @@ async def test_saving_the_sharing_panel_keeps_an_installs_grant(
         )
     ).one()
     reported = permissions_service.serialize_grants(loaded, context=None)
-    assert any(g.plugin_install_id == install.id and g.level == "write" for g in reported)
+    assert any(
+        g.plugin_install_id == install.id and g.level == "write" for g in reported
+    )
     assert any(g.all_initiative_members for g in reported)
 
 

@@ -1,7 +1,7 @@
 """The install dialog is the seat's consent.
 
 ``POST /plugins`` carries what the seat answered: the scopes it grants, where the
-app appears, and which built-in roles open it there. All of it lands with the
+plug-in appears, and which built-in roles open it there. All of it lands with the
 install in one transaction, under the same checks the separate scope and
 placement routes apply, and anything refused leaves no install behind.
 """
@@ -29,7 +29,7 @@ CEILING = ["comments:read", "projects:read", "tags:read"]
 
 
 def _definition(*, inside: bool = True) -> dict:
-    """A service app asking for three scopes, one of them above the ceiling,
+    """A service plug-in asking for three scopes, one of them above the ceiling,
     with a surface inside initiatives when ``inside``."""
     embeds = [
         {
@@ -126,8 +126,8 @@ class TestConsentAtInstall:
 
         # "Every current initiative", as the placement panel means it: an
         # initiative created later is the seat's to place.
-        (app,) = await _installs(session, a.guild.id)
-        assert app.follows_new_initiatives is False
+        (plugin,) = await _installs(session, a.guild.id)
+        assert plugin.follows_new_initiatives is False
 
     async def test_picked_initiatives_start_with_their_moderators(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
@@ -223,7 +223,7 @@ class TestTheListingSaysWhatTheDialogAsks:
 
 
 class TestAPluginAskingToUseAnother:
-    """``apps:<public_id>`` is asked for, named and granted like any scope."""
+    """``plugins:<public_id>`` is asked for, named and granted like any scope."""
 
     async def test_the_dialog_names_the_plugin_and_the_seat_grants_it(
         self, client: AsyncClient, session: AsyncSession, acting_user
@@ -253,7 +253,7 @@ class TestAPluginAskingToUseAnother:
             public_id="tests.callerco",
             base_url="https://callerco.example.test",
             listing_uid=caller_uid,
-            scope_ceiling=["apps:tests.gitco"],
+            scope_ceiling=["plugins:tests.gitco"],
         )
         await create_marketplace_listing(
             session,
@@ -266,7 +266,7 @@ class TestAPluginAskingToUseAnother:
                 "service": {
                     "public_id": "tests.callerco",
                     "protocol": 1,
-                    "scopes": ["apps:tests.gitco", "apps:tests.nameless"],
+                    "scopes": ["plugins:tests.gitco", "plugins:tests.nameless"],
                 },
                 "features": [],
             },
@@ -278,8 +278,11 @@ class TestAPluginAskingToUseAnother:
         )
         assert detail.status_code == 200, detail.text
         body = detail.json()
-        assert body["requested_scopes"] == ["apps:tests.gitco", "apps:tests.nameless"]
-        assert body["grantable_scopes"] == ["apps:tests.gitco"]
+        assert body["requested_scopes"] == [
+            "plugins:tests.gitco",
+            "plugins:tests.nameless",
+        ]
+        assert body["grantable_scopes"] == ["plugins:tests.gitco"]
         assert body["plugin_names"] == {
             "tests.gitco": "GitCo",
             "tests.nameless": "tests.nameless",
@@ -288,13 +291,13 @@ class TestAPluginAskingToUseAnother:
         installed = await client.post(
             a.g("/plugins/"),
             headers=a.headers,
-            json={"listing_uid": caller_uid, "granted_scopes": ["apps:tests.gitco"]},
+            json={"listing_uid": caller_uid, "granted_scopes": ["plugins:tests.gitco"]},
         )
         assert installed.status_code in (200, 201), installed.text
         plugin_id = installed.json()["id"]
         read = await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)
         assert read.status_code == 200, read.text
-        assert read.json()["granted_scopes"] == ["apps:tests.gitco"]
+        assert read.json()["granted_scopes"] == ["plugins:tests.gitco"]
         assert read.json()["plugin_names"]["tests.gitco"] == "GitCo"
 
 
@@ -377,8 +380,8 @@ class TestUpgradeConsent:
             "added_surfaces": [],
             "declined": False,
         }
-        (app,) = await _installs(session, a.guild.id)
-        assert app.listing_version == "1.0.0"
+        (plugin,) = await _installs(session, a.guild.id)
+        assert plugin.listing_version == "1.0.0"
 
     async def test_consent_applies_the_version_and_grants(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
@@ -446,8 +449,8 @@ class TestUpgradeConsent:
         body = response.json()
         assert body["listing_version"] == "1.0.0"
         assert body["pending_update"]["declined"] is True
-        (app,) = await _installs(session, a.guild.id)
-        assert app.declined_version == "1.1.0"
+        (plugin,) = await _installs(session, a.guild.id)
+        assert plugin.declined_version == "1.1.0"
 
         moved = await client.post(
             a.g(f"/plugins/{plugin_id}/upgrade/decline"),

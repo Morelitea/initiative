@@ -1,12 +1,12 @@
-"""Operator CRUD for the app service registry (``plugin_service_registrations``)
+"""Operator CRUD for the plug-in service registry (``plugin_service_registrations``)
 and its publishers (``publishers``).
 
-A listing declares what an app is, and gives its registration the app facts:
+A listing declares what a plug-in is, and gives its registration the plug-in facts:
 which listing it is, its image, its scope ceiling and its Compose service. The
 operator gives the deployment facts here: its addresses, its public keys, its
 vendor values, the switch and the reach (``mandatory``) it confers. Vendor
 values may also come from the vendor's own setup flow, run from here. A publisher is the prefix of
-an app's ``public_id``, with a switch that stops every app under it. The whole
+a plug-in's ``public_id``, with a switch that stops every plug-in under it. The whole
 surface is gated on ``plugins.manage`` (owner tier).
 
 Every route runs on the system engine: neither table carries a request-path
@@ -48,7 +48,7 @@ from app.services.tenant import plugin_connection_flows as flows_service
 router = APIRouter()
 publishers_router = APIRouter()
 
-#: Wiring app services is deployment configuration — owner tier, like the rest
+#: Wiring plug-in services is deployment configuration — owner tier, like the rest
 #: of the platform settings wall.
 PluginsManageDep = Annotated[
     User, Depends(require_capability(Capability.PLUGINS_MANAGE))
@@ -124,7 +124,7 @@ async def list_plugin_services(
     session: SystemSessionDep,
     _owner: PluginsManageDep,
 ) -> List[PluginServiceRegistrationRead]:
-    """Every app service this deployment has wired up (``plugins.manage``)."""
+    """Every plug-in service this deployment has wired up (``plugins.manage``)."""
     views = await registrations_service.registration_views(session)
     definitions = await _definitions(session, views)
     return [_to_read(view, definitions) for view in views]
@@ -140,7 +140,7 @@ async def create_plugin_service(
     session: SystemSessionDep,
     owner: PluginsManageDep,
 ) -> PluginServiceRegistrationRead:
-    """Set up an app service's deployment facts before its listing arrives:
+    """Set up a plug-in service's deployment facts before its listing arrives:
     its id, its addresses and its keys. Its publisher is the one its id's
     prefix names, added unverified when there is none."""
     row = await registrations_service.create_registration(
@@ -192,7 +192,7 @@ async def read_plugin_service_keys(
     session: SystemSessionDep,
     _owner: PluginsManageDep,
 ) -> List[PluginServicePublishedKey]:
-    """The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
+    """The keys the plug-in serves at ``{base_url}/.well-known/jwks.json``, each
     with its fingerprint, for the operator to confirm. Stores nothing."""
     keys = await registrations_service.published_keys(session, registration_id)
     return [
@@ -208,7 +208,7 @@ async def connect_plugin_service(
     session: SystemSessionDep,
     owner: PluginsManageDep,
 ) -> PluginServiceRegistrationRead:
-    """Store the key set the app serves as the registration's pasted set, in
+    """Store the key set the plug-in serves as the registration's pasted set, in
     place of any key set address, when its keys are the ones confirmed and
     its base URL has not moved (409 otherwise)."""
     row = await registrations_service.connect_registration(
@@ -230,7 +230,7 @@ async def start_plugin_service_vendor_setup(
     session: SystemSessionDep,
     owner: PluginsManageDep,
 ) -> PluginServiceVendorSetup:
-    """Start the vendor's own setup of the app's client: the manifest the
+    """Start the vendor's own setup of the plug-in's client: the manifest the
     operator's browser posts to the vendor, where, and the state that brings
     them back (409 when the listing declares no such setup)."""
     started = await vendor_setup_service.start(
@@ -297,7 +297,7 @@ async def list_plugin_publishers(
     session: SystemSessionDep,
     _owner: PluginsManageDep,
 ) -> List[PluginPublisherRead]:
-    """Every publisher of app services on this deployment (``plugins.manage``)."""
+    """Every publisher of plug-in services on this deployment (``plugins.manage``)."""
     rows = await publishers_service.list_publishers(session)
     return [_publisher_read(row) for row in rows]
 
@@ -310,7 +310,7 @@ async def create_plugin_publisher(
     session: SystemSessionDep,
     owner: PluginsManageDep,
 ) -> PluginPublisherRead:
-    """Add a publisher for a prefix, such as a private app's. It starts
+    """Add a publisher for a prefix, such as a private plug-in's. It starts
     unverified."""
     row = await publishers_service.create_publisher(
         session,
@@ -329,7 +329,7 @@ async def update_plugin_publisher(
     session: SystemSessionDep,
     owner: PluginsManageDep,
 ) -> PluginPublisherRead:
-    """Rename a publisher, or switch it on or off. Off makes every app under
+    """Rename a publisher, or switch it on or off. Off makes every plug-in under
     its prefix not live."""
     row = await publishers_service.update_publisher(
         session,

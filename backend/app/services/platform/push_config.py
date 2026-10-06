@@ -43,10 +43,10 @@ class ResolvedPushConfig:
 async def resolve_saved_service_account() -> str | None:
     """Decrypt the stored service-account JSON, or None when unset."""
     from app.services.platform.app_settings import (  # noqa: PLC0415
-        load_plugin_setting_secrets,
+        load_app_setting_secrets,
     )
 
-    row = await load_plugin_setting_secrets()
+    row = await load_app_setting_secrets()
     if not row.fcm_service_account_json_encrypted:
         return None
     return decrypt_field(

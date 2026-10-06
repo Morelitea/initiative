@@ -91,7 +91,7 @@ async def test_the_stamp_is_the_servers(client, acting_user):
     assert second.json()["decided_at"] >= first.json()["decided_at"]
 
 
-async def test_a_category_the_plugin_has_no_name_for_is_refused(client, acting_user):
+async def test_a_category_the_app_has_no_name_for_is_refused(client, acting_user):
     actor = await acting_user()
 
     response = await client.put(

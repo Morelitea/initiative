@@ -1,8 +1,8 @@
-"""External data reaching a widget: the proxy behind the ``app`` binding.
+"""External data reaching a widget: the proxy behind the ``plugin`` binding.
 
 A widget never names an address. It names a *read endpoint* on an installed
-app, and this module turns that into one bounded call to the app's own service
-and hands back rows. Everything the call needs — where the app lives, which
+plug-in, and this module turns that into one bounded call to the plug-in's own service
+and hands back rows. Everything the call needs — where the plug-in lives, which
 credentials it may use, how long an answer is good for — comes from state the
 guild and the operator already own, never from the request.
 
@@ -26,9 +26,9 @@ the whole rule, and it is what makes a stored body safe to replay:
   members with different vendor accounts never share an entry while one
   member's repeated widgets and open tabs still collapse to a single fetch.
 
-**Two bounds keep one app from costing everyone else.** Calls for the same key
+**Two bounds keep one plug-in from costing everyone else.** Calls for the same key
 are coalesced, so twenty viewers of a dashboard are one upstream request; and a
-per-worker in-flight cap per app means a service that stops answering ties up a
+per-worker in-flight cap per plug-in means a service that stops answering ties up a
 fixed number of connections rather than the pool.
 
 **The answer is read through the endpoint's own declaration.** A manifest says
@@ -39,11 +39,11 @@ holding a single value stay whole beside them. Nothing interprets a value; the
 projection is by name alone, on its way to a sandboxed widget that is handed the
 result as data.
 
-**The same call serves one app calling another.** :mod:`plugin_hub` checks such a
+**The same call serves one plug-in calling another.** :mod:`plugin_hub` checks such a
 call and makes it through :func:`_call_plugin` and :func:`cached_call`, reading
 the answer whole rather than through the returns.
 
-**A declarative app is called the same way.** It has no container: Initiative
+**A declarative plug-in is called the same way.** It has no container: Initiative
 makes its calls itself (:mod:`app.services.marketplace.declarative`) behind
 :func:`_call_plugin`, and hands back the envelope a container answers with, so
 everything around the call is the same for both.
@@ -66,7 +66,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.core.messages import PluginDataMessages, PluginServiceMessages, GuildPluginMessages
+from app.core.messages import (
+    PluginDataMessages,
+    PluginServiceMessages,
+    GuildPluginMessages,
+)
 from app.core.security import (
     PluginPlatformSigningNotConfiguredError,
     plugin_platform_signing_enabled,
@@ -136,8 +140,8 @@ MAX_PARAMS_BYTES = 2048
 #: How many values one ``list`` parameter may carry. Bounded for the same
 #: reason the object is: a request is a request, not a bulk upload.
 MAX_PARAM_VALUES = 64
-#: How many calls to one app this worker will hold open at once. Refused rather
-#: than queued: waiting behind a stalled app is the same outage with a longer
+#: How many calls to one plug-in this worker will hold open at once. Refused rather
+#: than queued: waiting behind a stalled plug-in is the same outage with a longer
 #: fuse.
 MAX_INFLIGHT_PER_PLUGIN = 8
 #: The longest a response is reused, whatever the manifest asks for. The manifest
@@ -169,7 +173,7 @@ class PluginDataResult:
     #: itself rather than about any one item in it.
     values: dict[str, Any]
     fetched_at: datetime
-    #: True when this body came from the response cache rather than the app.
+    #: True when this body came from the response cache rather than the plug-in.
     cached: bool = False
 
 
@@ -194,7 +198,7 @@ def find_read_endpoint(
 
     Readable rather than declared, because this is the fetch path. A write and
     an emission are both real endpoints and neither is reachable from here — a
-    dashboard rendering a tile must not be a way to make an app act.
+    dashboard rendering a tile must not be a way to make a plug-in act.
     """
     for endpoint in _endpoints(definition):
         if endpoint.get("id") == endpoint_id and endpoint.get("direction") == "read":
@@ -207,7 +211,7 @@ def find_read_endpoint(
 
 #: What an endpoint's declared return types are, in the vocabulary the query
 #: surface already speaks. Two closed sets, mapped once: a URL is text to
-#: anybody reading it, and a moment is a moment however the app spells it.
+#: anybody reading it, and a moment is a moment however the plug-in spells it.
 _RETURN_FIELD_TYPES: dict[str, FieldType] = {
     "bool": FieldType.boolean,
     "datetime": FieldType.date,
@@ -251,7 +255,7 @@ def project_returns(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """An endpoint's answer, read through the returns it declares.
 
-    An app answers with the keys its manifest named, and this is where they
+    A plug-in answers with the keys its manifest named, and this is where they
     become the two things a widget is handed. It is the same declaration the
     binding was made against, so what a tile draws and what the publisher
     described cannot come apart.
@@ -264,7 +268,7 @@ def project_returns(
     ``values``, which is also where an answer with an empty set still has
     somewhere to put it.
 
-    A key the endpoint does not declare is left out, and a declared key the app
+    A key the endpoint does not declare is left out, and a declared key the plug-in
     did not send is simply absent: the manifest is the vocabulary, and a widget
     binds against it before the endpoint has ever run.
     """
@@ -301,7 +305,7 @@ def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str | list[str]:
     nothing else, and each entry is held to the same type rules a single value
     would be — so ``list`` is the whole of what says whether one value or
     several are expected, which is the point of declaring it. The alternative it
-    replaced is an app declaring a string and documenting a comma, which is a
+    replaced is a plug-in declaring a string and documenting a comma, which is a
     convention nothing on this side can validate.
 
     An empty array is refused rather than forwarded. "None of them" is a
@@ -369,7 +373,7 @@ def validate_params(
     Returns the values to send upstream and their canonical form for the cache
     key. A parameter the endpoint does not declare is refused rather than
     forwarded: the schema is the whole of what a widget may vary, and anything
-    else would be a caller shaping the app's request directly.
+    else would be a caller shaping the plug-in's request directly.
     """
     if raw is None or not raw.strip():
         supplied: dict[str, Any] = {}
@@ -427,7 +431,7 @@ def _required_connection_ids(endpoint: Mapping[str, Any]) -> tuple[list[str], bo
 async def _resolve_connections(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     endpoint: Mapping[str, Any],
     user_id: int | None,
     actor: str | None = None,
@@ -437,14 +441,14 @@ async def _resolve_connections(
 
     Satisfaction is presence alone — which fields hold a value. This build never
     inspects a credential, calls a vendor, or learns a scope; whether a stored
-    credential carries the permissions it needs is the app's to report.
+    credential carries the permissions it needs is the plug-in's to report.
 
     A guild-scoped connection is the same answer for everyone; a per-member one
     is answered for the caller, so a colleague who has connected sees data while
     someone who has not is told to connect rather than being served the other
     person's view.
 
-    ``actor`` is set on a call another app made: ``installation`` has no
+    ``actor`` is set on a call another plug-in made: ``installation`` has no
     member (``user_id`` is ``None``), so a per-member connection is never
     satisfied, and ``member`` hands on only the member's own handles, not the
     community's.
@@ -453,8 +457,8 @@ async def _resolve_connections(
     if not required:
         return {}, {}
 
-    config = app.config or {}
-    secret_fields = app.secret_fields or {}
+    config = plugin.config or {}
+    secret_fields = plugin.secret_fields or {}
     refs: dict[str, str] = {}
     #: The connections whose handle is a member's own.
     member_refs: set[str] = set()
@@ -464,11 +468,15 @@ async def _resolve_connections(
     refusal: PluginDataError | None = None
 
     for connection_id in required:
-        connection = plugin_config_service.connection_by_id(app.definition, connection_id)
+        connection = plugin_config_service.connection_by_id(
+            plugin.definition, connection_id
+        )
         if connection is None:
             # The pinned definition names a connection it does not declare —
             # nothing can satisfy it, so the endpoint cannot run.
-            refusal = refusal or PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
+            refusal = refusal or PluginDataError(
+                PluginDataMessages.NEEDS_CONFIGURATION, 409
+            )
             continue
 
         if connection.get("scope") == "interactive":
@@ -478,7 +486,10 @@ async def _resolve_connections(
                 )
                 continue
             row = await _member_connection(
-                session, plugin_id=app.id, connection_id=connection_id, user_id=user_id
+                session,
+                plugin_id=plugin.id,
+                connection_id=connection_id,
+                user_id=user_id,
             )
             if row is not None and row.blocked_at is not None:
                 refusal = refusal or PluginDataError(
@@ -509,11 +520,13 @@ async def _resolve_connections(
             config.get(connection_id) or {},
             secret_fields.get(connection_id) or {},
         ):
-            refusal = refusal or PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
+            refusal = refusal or PluginDataError(
+                PluginDataMessages.NEEDS_CONFIGURATION, 409
+            )
             continue
-        # A guild-wide connection the app can ask a token for travels by its
+        # A guild-wide connection the plug-in can ask a token for travels by its
         # handle too.
-        guild_ref = (app.connection_refs or {}).get(connection_id)
+        guild_ref = (plugin.connection_refs or {}).get(connection_id)
         if isinstance(guild_ref, str) and guild_ref:
             refs[connection_id] = guild_ref
         satisfied.append(connection_id)
@@ -525,7 +538,7 @@ async def _resolve_connections(
         raise refusal or PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
     if not needs_all and not satisfied:
         raise refusal or PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
-    # For ``any_of`` the handles of every satisfied candidate travel, and the app
+    # For ``any_of`` the handles of every satisfied candidate travel, and the plug-in
     # picks the least-privileged one it recognizes. They are part of the cache
     # key either way, so an answer is only ever replayed to a caller holding the
     # same set.
@@ -552,10 +565,10 @@ async def _member_connection(
 
 
 async def _load_registration(
-    public_id: Optional[str], *, app: Optional[GuildPlugin] = None
+    public_id: Optional[str], *, plugin: Optional[GuildPlugin] = None
 ) -> RegistrationSnapshot:
-    """Where this app lives and whether the operator still allows it: the
-    registration for ``public_id``, or the one behind ``app``.
+    """Where this plug-in lives and whether the operator still allows it: the
+    registration for ``public_id``, or the one behind ``plugin``.
 
     Read from the registration snapshot every request path shares
     (:mod:`app.services.marketplace.registration_lookup`), which an operator's
@@ -563,8 +576,10 @@ async def _load_registration(
     TTL.
     """
     row = (
-        await registration_for_definition(app.definition, listing_uid=app.listing_uid)
-        if app is not None
+        await registration_for_definition(
+            plugin.definition, listing_uid=plugin.listing_uid
+        )
+        if plugin is not None
         else (await load_registrations()).get(public_id or "")
     )
     if row is None:
@@ -590,7 +605,7 @@ _cache: dict[str, _CacheEntry] = {}
 #: One in-flight upstream call per key, so concurrent viewers of the same
 #: dashboard collapse into a single request instead of a thundering herd.
 _pending: dict[str, "asyncio.Future[Any]"] = {}
-#: Upstream calls currently open per app, for the per-worker cap.
+#: Upstream calls currently open per plug-in, for the per-worker cap.
 _inflight: dict[str, int] = {}
 
 
@@ -617,7 +632,7 @@ def clear_plugin_data_cache(
 def _cache_key(
     *,
     guild_id: int | None,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     endpoint_id: str,
     canonical_params: str,
     refs: Mapping[str, str],
@@ -633,12 +648,12 @@ def _cache_key(
     serving a body a withdrawn credential produced.
     """
     depends: dict[str, Any] = {
-        "version": app.listing_version,
-        "config": app.config or {},
-        "secret_fields": app.secret_fields or {},
+        "version": plugin.listing_version,
+        "config": plugin.config or {},
+        "secret_fields": plugin.secret_fields or {},
         "refs": dict(sorted(refs.items())),
     }
-    if is_declarative(app.definition):
+    if is_declarative(plugin.definition):
         # What a declarative endpoint's expressions read, a member's own
         # connection's fields among them.
         depends["fields"] = fields
@@ -650,7 +665,7 @@ def _cache_key(
             default=str,
         ).encode("utf-8")
     ).hexdigest()
-    return f"{guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
+    return f"{guild_id}:{plugin.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
 
 
 def _cache_get(key: str) -> Any:
@@ -686,15 +701,15 @@ def _effective_ttl(endpoint: Mapping[str, Any]) -> int:
 # --- the upstream call ------------------------------------------------------
 
 
-#: Every app answers every endpoint here. Fixed by the protocol rather than
-#: chosen per app, so a caller that knows an id needs nothing else.
+#: Every plug-in answers every endpoint here. Fixed by the protocol rather than
+#: chosen per plug-in, so a caller that knows an id needs nothing else.
 ENDPOINTS_PATH = "/v1/endpoints"
 
 
 def _endpoints_url(registration: RegistrationSnapshot) -> str:
-    """Where this app answers: the operator's base URL joined to the one path
-    every app serves. A manifest names an endpoint; only a registration says
-    where the app is."""
+    """Where this plug-in answers: the operator's base URL joined to the one path
+    every plug-in serves. A manifest names an endpoint; only a registration says
+    where the plug-in is."""
     return f"{registration.base_url.rstrip('/')}{ENDPOINTS_PATH}"
 
 
@@ -707,7 +722,7 @@ async def _read_body(
 
     Read as a stream against a byte ceiling, parsed as JSON only, and refused
     unless the body is an object carrying a ``result`` object. Everything else
-    is reported as the app being unavailable — a dashboard tile says "this app
+    is reported as the plug-in being unavailable — a dashboard tile says "this plug-in
     is not answering", which is true whether the service is down or talking a
     shape this build does not accept.
 
@@ -721,15 +736,17 @@ async def _read_body(
         else await _send(request, transport=transport)
     )
 
-    # The app answers with what it did — the endpoint it ran, whose credential
+    # The plug-in answers with what it did — the endpoint it ran, whose credential
     # ran it, and the result — so the returns are one level in. Reported as the
-    # app being unavailable rather than as a bad request: from a dashboard's
-    # side "this app is not answering" is true whether the service is down or
+    # plug-in being unavailable rather than as a bad request: from a dashboard's
+    # side "this plug-in is not answering" is true whether the service is down or
     # talking a shape this build does not accept.
     result = body.get("result") if isinstance(body, dict) else None
     if not isinstance(result, dict):
         raise PluginDataError(
-            PluginDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without a result"
+            PluginDataMessages.SERVICE_UNAVAILABLE,
+            502,
+            "plug-in answered without a result",
         )
     return body
 
@@ -749,7 +766,7 @@ async def _send(
                     raise PluginDataError(
                         PluginDataMessages.SERVICE_UNAVAILABLE,
                         502,
-                        f"app answered {response.status_code}",
+                        f"plug-in answered {response.status_code}",
                     )
                 chunks: list[bytes] = []
                 size = 0
@@ -766,14 +783,18 @@ async def _send(
                 await response.aclose()
     except httpx.HTTPError as exc:
         raise PluginDataError(
-            PluginDataMessages.SERVICE_UNAVAILABLE, 502, f"app could not be read: {exc}"
+            PluginDataMessages.SERVICE_UNAVAILABLE,
+            502,
+            f"plug-in could not be read: {exc}",
         ) from exc
 
     try:
         return json.loads(b"".join(chunks).decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PluginDataError(
-            PluginDataMessages.SERVICE_UNAVAILABLE, 502, "app did not answer with JSON"
+            PluginDataMessages.SERVICE_UNAVAILABLE,
+            502,
+            "plug-in did not answer with JSON",
         ) from exc
 
 
@@ -799,13 +820,13 @@ class Answered:
 
 @dataclass(frozen=True)
 class CallingPlugin:
-    """Another app on whose request Initiative calls this one, and for whom.
+    """Another plug-in on whose request Initiative calls this one, and for whom.
 
     Carried into the context token (``act``, ``actor``, ``member``,
-    ``initiative_id``) so the app called knows who asked and on whose behalf.
+    ``initiative_id``) so the plug-in called knows who asked and on whose behalf.
     """
 
-    #: The calling app's public id.
+    #: The calling plug-in's public id.
     public_id: str
     #: ``installation`` or ``member``.
     actor: str
@@ -818,7 +839,7 @@ class CallingPlugin:
 async def _call_plugin(
     *,
     registration: RegistrationSnapshot,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     guild_id: int | None,
     endpoint_id: str,
     params: Mapping[str, Any],
@@ -828,21 +849,21 @@ async def _call_plugin(
     read: Callable[[httpx.Request | Answered], Awaitable[T]],
     caller: Optional[CallingPlugin] = None,
 ) -> T:
-    """One upstream call, under this worker's in-flight cap for the app, and
+    """One upstream call, under this worker's in-flight cap for the plug-in, and
     what ``read`` made of its answer. Sent once: nothing here retries.
 
-    A declarative app is called by Initiative itself
+    A declarative plug-in is called by Initiative itself
     (:func:`~app.services.marketplace.declarative.call_endpoint`), with no
-    context token and no signature, since there is no app to receive either.
+    context token and no signature, since there is no plug-in to receive either.
     """
-    declarative = is_declarative(app.definition)
+    declarative = is_declarative(plugin.definition)
     if not declarative and not plugin_platform_signing_enabled():
         raise PluginDataError(PluginServiceMessages.SIGNING_NOT_CONFIGURED, 503)
 
     public_id = registration.public_id
     if _inflight.get(public_id, 0) >= MAX_INFLIGHT_PER_PLUGIN:
         logger.info(
-            "app data: %s is at this worker's in-flight ceiling (%s)",
+            "plug-in data: %s is at this worker's in-flight ceiling (%s)",
             public_id,
             MAX_INFLIGHT_PER_PLUGIN,
         )
@@ -858,7 +879,7 @@ async def _call_plugin(
                 Answered(
                     await call_endpoint(
                         registration=registration,
-                        app=app,
+                        plugin=plugin,
                         guild_id=int(guild_id or 0),
                         endpoint_id=endpoint_id,
                         params=params,
@@ -869,12 +890,14 @@ async def _call_plugin(
                 )
             )
         # What this install calls the guild, which the token carries.
-        guild_ref = await ensure_plugin_guild_ref(guild_id=guild_id, plugin_install_id=app.id)
+        guild_ref = await ensure_plugin_guild_ref(
+            guild_id=guild_id, plugin_install_id=plugin.id
+        )
         try:
             token, _ = mint_context_token(
                 public_id=public_id,
                 guild_ref=guild_ref,
-                plugin_install_id=app.id,
+                plugin_install_id=plugin.id,
                 scope="endpoint",
                 endpoint_id=endpoint_id,
                 connection_refs=refs,
@@ -884,7 +907,9 @@ async def _call_plugin(
                 initiative_id=caller.initiative_id if caller is not None else None,
             )
         except PluginPlatformSigningNotConfiguredError as exc:
-            raise PluginDataError(PluginServiceMessages.SIGNING_NOT_CONFIGURED, 503) from exc
+            raise PluginDataError(
+                PluginServiceMessages.SIGNING_NOT_CONFIGURED, 503
+            ) from exc
 
         # POST rather than GET, and a body rather than a query string: one
         # path serves every endpoint, so which one is being called is part of
@@ -904,7 +929,7 @@ async def _call_plugin(
                         "params": dict(params),
                     }
                 ).encode("utf-8"),
-                # An app service is an operator-configured destination and is
+                # A plug-in service is an operator-configured destination and is
                 # typically a container on the deployment's own network. Plain
                 # http stays confined to those addresses by the target policy.
                 allow_private=True,
@@ -929,7 +954,7 @@ async def _call_plugin(
 async def fetch_plugin_source(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     endpoint_id: str,
     raw_params: str | None,
     user_id: int,
@@ -940,30 +965,31 @@ async def fetch_plugin_source(
 
     The install has already been loaded under the caller's own guild session, so
     the guild boundary and a guild admin's wider reach are settled before this
-    runs. What is decided here is the app's own vocabulary: the endpoint exists,
+    runs. What is decided here is the plug-in's own vocabulary: the endpoint exists,
     the caller may read it, both kill switches are open, the parameters are ones
     the endpoint declared, and the credentials it named are present.
     """
-    endpoint = find_read_endpoint(app.definition, endpoint_id)
+    endpoint = find_read_endpoint(plugin.definition, endpoint_id)
     if endpoint is None or (
-        service_public_id(app.definition) is None and not is_declarative(app.definition)
+        service_public_id(plugin.definition) is None
+        and not is_declarative(plugin.definition)
     ):
         raise PluginDataError(PluginDataMessages.ENDPOINT_NOT_FOUND, 404)
 
     if is_admin_only(endpoint) and not is_guild_admin:
         raise PluginDataError(PluginDataMessages.ADMIN_ONLY, 403)
-    if not app.enabled:
+    if not plugin.enabled:
         raise PluginDataError(PluginDataMessages.PLUGIN_DISABLED, 409)
 
-    registration = await _load_registration(None, app=app)
+    registration = await _load_registration(None, plugin=plugin)
     params, canonical = validate_params(endpoint, raw_params)
     refs, fields = await _resolve_connections(
-        session, app=app, endpoint=endpoint, user_id=user_id
+        session, plugin=plugin, endpoint=endpoint, user_id=user_id
     )
 
     key = _cache_key(
         guild_id=routed_guild_id(session),
-        app=app,
+        plugin=plugin,
         endpoint_id=endpoint_id,
         canonical_params=canonical,
         refs=refs,
@@ -978,7 +1004,7 @@ async def fetch_plugin_source(
     async def call() -> PluginDataResult:
         rows, values = await _call_plugin(
             registration=registration,
-            app=app,
+            plugin=plugin,
             guild_id=routed_guild_id(session),
             endpoint_id=endpoint_id,
             params=params,
@@ -1040,8 +1066,8 @@ async def cached_call(
 
 # --- filling a menu ---------------------------------------------------------
 #
-# A parameter whose permitted values only the app can know — a repository, a
-# label, a board — declares ``options_from``: a read of the app's own that
+# A parameter whose permitted values only the plug-in can know — a repository, a
+# label, a board — declares ``options_from``: a read of the plug-in's own that
 # answers which values there are, and which of its returns holds them. Without
 # something resolving that, a consumer has the declaration and no way to act on
 # it, so every such parameter is a text box somebody fills in from memory.
@@ -1051,10 +1077,10 @@ async def cached_call(
 # placed yet, so there is no dashboard whose gates could decide it. What stands
 # in for that is structural rather than a second permission check:
 #
-# * the source is never named by the caller. It is read out of the app's own
+# * the source is never named by the caller. It is read out of the plug-in's own
 #   pinned declaration, from the ``options_from`` of the parameter being filled
 #   in, so the reachable set is exactly the reads a publisher marked as menu
-#   sources — not every read the app offers;
+#   sources — not every read the plug-in offers;
 # * the parameters that source is called with are the ones its ``needs`` names,
 #   mapped from answers the same form already holds, so a caller cannot shape
 #   the upstream request;
@@ -1063,7 +1089,7 @@ async def cached_call(
 #   enforced. What comes back is what this caller may see, or nothing.
 
 #: The most values one menu hands back. A picker is a control somebody reads,
-#: and an app answering with thousands is answering a different question.
+#: and a plug-in answering with thousands is answering a different question.
 MAX_PARAM_OPTIONS = 500
 
 #: Why there is no menu. **None of these are errors.** A parameter whose source
@@ -1076,7 +1102,7 @@ OPTIONS_NO_SOURCE = "no-source"
 #: The source needs a sibling this form has not answered yet — a repository's
 #: labels before a repository is chosen. Ask again once it has one.
 OPTIONS_NEEDS_SIBLING = "needs-sibling"
-#: The source was called and did not answer: the app is down, a credential is
+#: The source was called and did not answer: the plug-in is down, a credential is
 #: missing, or this caller may not read it.
 OPTIONS_UNRESOLVED = "unresolved"
 
@@ -1097,7 +1123,7 @@ def _option_values(
 
     Read by name and nothing else, the same way a widget reads an answer. A row
     missing the value contributes nothing; one whose value repeats is kept once,
-    in the order the app gave, because that order is the app's answer to "which
+    in the order the plug-in gave, because that order is the plug-in's answer to "which
     of these first".
     """
     options: list[dict[str, str]] = []
@@ -1153,7 +1179,7 @@ def _supplied_siblings(endpoint: Mapping[str, Any], raw: str | None) -> dict[str
 async def resolve_param_options(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     endpoint_id: str,
     param_key: str,
     raw_params: str | None,
@@ -1161,13 +1187,13 @@ async def resolve_param_options(
     is_guild_admin: bool,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> tuple[list[dict[str, str]], Optional[str]]:
-    """The values one parameter permits, from the read its app named.
+    """The values one parameter permits, from the read its plug-in named.
 
     Returns the options and, when there are none, why — never an exception for
     a source that simply would not resolve. The caller draws a menu when there
     is one and leaves the field typeable when there is not.
     """
-    endpoint = find_read_endpoint(app.definition, endpoint_id)
+    endpoint = find_read_endpoint(plugin.definition, endpoint_id)
     if endpoint is None:
         raise PluginDataError(PluginDataMessages.ENDPOINT_NOT_FOUND, 404)
     # A form for an endpoint the caller may not read is not theirs to fill in.
@@ -1206,7 +1232,7 @@ async def resolve_param_options(
     try:
         result = await fetch_plugin_source(
             session,
-            app=app,
+            plugin=plugin,
             endpoint_id=source_id,
             raw_params=json.dumps(asked) if asked else None,
             user_id=user_id,

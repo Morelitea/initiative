@@ -296,11 +296,15 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
                 )
 
 
-async def test_rotate_reencrypts_the_generated_plugin_platform_key(session, monkeypatch):
-    """The key a deployment generated for its apps moves to the new key with
+async def test_rotate_reencrypts_the_generated_plugin_platform_key(
+    session, monkeypatch
+):
+    """The key a deployment generated for its plug-ins moves to the new key with
     the other stored credentials, and still reads back as the same key."""
     monkeypatch.setattr(config.settings, "SECRET_KEY", OLD)
-    monkeypatch.setattr(config.settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
+    monkeypatch.setattr(
+        config.settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None
+    )
     monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
     await seed_app_settings(session)
     await load_plugin_platform_signing_key(session)
@@ -313,7 +317,9 @@ async def test_rotate_reencrypts_the_generated_plugin_platform_key(session, monk
     stored = await session.scalar(
         text("SELECT plugin_platform_signing_key_encrypted FROM app_setting_secrets")
     )
-    assert decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
+    assert (
+        decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
+    )
 
 
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):

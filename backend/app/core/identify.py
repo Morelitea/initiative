@@ -2,7 +2,7 @@
 
 The half of ``app.services.auth.credentials`` that needs no database: tells the
 kinds apart and checks what can be checked locally — a session or upload
-token's signature, audience and expiry, an installed app's seal. Personal API
+token's signature, audience and expiry, an installed plug-in's seal. Personal API
 keys are opaque here; only their lookup can say whom they name.
 
 Read before any dependency runs, by the rate limiter and by the choice of
@@ -78,7 +78,7 @@ class Identified:
     token: str
     allow: frozenset[CredentialKind]
     #: Whether it arrived in an ``Authorization: Bearer`` header, the only
-    #: place an installed app's token is read from.
+    #: place an installed plug-in's token is read from.
     bearer: bool = False
     session: TokenPayload | None = None
     upload: VerifiedUpload | None = None
@@ -88,7 +88,7 @@ class Identified:
 
     @property
     def plugin_token(self) -> InstallAccessToken | PluginAccessToken | None:
-        """The installed app's or app's token, when it came as a bearer."""
+        """The installed plug-in's or plug-in's token, when it came as a bearer."""
         return self.access if self.bearer else None
 
     @property
@@ -121,7 +121,7 @@ def identify_token(
 ) -> Identified:
     """Read ``token`` as one of the kinds in ``allow``, locally.
 
-    The kinds tell themselves apart without being told: an installed app's
+    The kinds tell themselves apart without being told: an installed plug-in's
     token by its prefix, the two token kinds by being JWTs with their own
     audiences, and an API key by being neither.
     """
@@ -185,7 +185,7 @@ def identify(connection: HTTPConnection) -> Identified | None:
 def bearer_plugin_token(
     connection: HTTPConnection,
 ) -> InstallAccessToken | PluginAccessToken | None:
-    """The installed app's or app's token in the request's bearer header,
+    """The installed plug-in's or plug-in's token in the request's bearer header,
     unsealed. ``None`` when there is none or it does not unseal."""
     identified = identify(connection)
     return identified.plugin_token if identified is not None else None

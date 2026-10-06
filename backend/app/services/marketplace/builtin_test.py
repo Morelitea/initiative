@@ -232,15 +232,15 @@ class TestWithdrawingWhatIsNoLongerShipped:
         assert listings["core.keep4"].available is True
 
     def _bundling_manifest(self, *, uid: str, public_id: str, dash_uid: str) -> dict:
-        """A service app that ships a dashboard arranged from its own widgets."""
-        endpoint = f"app.{public_id}.open-items"
+        """A service plug-in that ships a dashboard arranged from its own widgets."""
+        endpoint = f"plugin.{public_id}.open-items"
         return {
             "uid": uid,
             "public_id": public_id,
             "kind": "plugin",
             "name": public_id,
             "publisher": "Tests",
-            "description": "A shipped app with a dashboard.",
+            "description": "A shipped plug-in with a dashboard.",
             "version": "1.0.0",
             "definition": {
                 "plugin_kind": "service",
@@ -274,7 +274,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
     async def test_a_bundled_dashboard_is_claimed_by_the_pass_that_publishes_it(
         self, session, tmp_path
     ):
-        """Its uid lives inside its app's manifest, so the sweep has to read the
+        """Its uid lives inside its plug-in's manifest, so the sweep has to read the
         manifest to know the build still ships it."""
         await self._seed_dir(
             tmp_path,

@@ -1,42 +1,42 @@
-"""Minting an app's embed handoff.
+"""Minting a plug-in's embed handoff.
 
 An embed is a cross-origin iframe, so the token that bootstraps it crosses a
-trust boundary: the app verifies it against the published public half of the
-app platform's own keypair. That is why it is RS256 with a dedicated key, why
+trust boundary: the plug-in verifies it against the published public half of the
+plug-in platform's own keypair. That is why it is RS256 with a dedicated key, why
 the audience names one registration, and why the lifetime is a minute.
 
 **Authorization is settled here, before a token exists.** The member's real
 session decides whether the surface may be opened at all — the install must be
-enabled, its app service must be registered and live, the manifest must declare
+enabled, its plug-in service must be registered and live, the manifest must declare
 that surface, and the community's own choice must admit the caller: inside an
 initiative, the install is placed there and the caller holds one of the roles
 the placement allows; at the community level, and for a surface marked
 ``admin_only``, the caller is a guild admin. A guild admin opens any surface
-that is there. An app never has to make that decision, and never sees a request
+that is there. A plug-in never has to make that decision, and never sees a request
 from somebody who failed it.
 
 **The token carries the minimum.** Guild, install, surface, who is opening it,
 whether they administer the community, and — where the surface was opened
 inside an initiative — which one and whether they moderate it. Nothing about
-their name or their address, and no other role. What an app may do with a person is a function of what the
+their name or their address, and no other role. What a plug-in may do with a person is a function of what the
 manifest declared and the guild accepted, not of anything it can read out of a
 claim set.
 
-The claims an app receives:
+The claims a plug-in receives:
 
 * ``sub`` — the member, by the reference this install knows them by;
 * ``community_ref`` — the community, by the reference this install knows it by;
 * ``plugin_install_id`` and ``surface_id`` — which install and which surface;
 * ``community_admin`` — ``true`` when the viewer administers the community, read
-  from the same standing that decided whether they may open the surface. An
-  app uses it to shape its own screens, such as showing community-level
-  settings; it is not a grant, and every call the app makes to Initiative is
+  from the same standing that decided whether they may open the surface. A
+  plug-in uses it to shape its own screens, such as showing community-level
+  settings; it is not a grant, and every call the plug-in makes to Initiative is
   still decided by that call's own token;
 * ``initiative_id`` — present only when the surface was opened inside an
   initiative;
 * ``initiative_moderator`` — present with ``initiative_id``: ``true`` when the
-  viewer's role there manages it with "Full access", as a moderator's does. An
-  app uses it the way it uses ``community_admin``, such as to let only a
+  viewer's role there manages it with "Full access", as a moderator's does. A
+  plug-in uses it the way it uses ``community_admin``, such as to let only a
   moderator set something up that acts with a moderator's standing;
 * ``jti``, ``iat``, ``exp``, ``iss`` and ``aud`` — the envelope.
 
@@ -47,7 +47,7 @@ value they supplied.
 
 This generalizes the advanced tool's mint: same shape, but target, origins and
 audience come from the registration row rather than from deployment settings, so
-every registered app gets one without a settings block of its own.
+every registered plug-in gets one without a settings block of its own.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ __all__ = [
 
 #: Single source for the handoff's lifetime, so the response advertises exactly
 #: what the ``exp`` claim encodes. Short by design: the handoff is spent within a
-#: minute, and the long-lived session belongs to the app, not to this token.
+#: minute, and the long-lived session belongs to the plug-in, not to this token.
 PLUGIN_EMBED_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 
@@ -138,16 +138,16 @@ def _refusal(embed: dict[str, Any], *, initiative_id: int | None) -> str:
 
 
 async def require_live_registration(
-    app: GuildPlugin,
+    plugin: GuildPlugin,
 ) -> registration_lookup.RegistrationSnapshot:
     """The registration behind this install, or a refusal.
 
-    Both halves of "not available" answer the same way: an app service this
+    Both halves of "not available" answer the same way: a plug-in service this
     deployment never wired up, and one whose registration the operator turned
     off, are equally unreachable from here.
     """
     registration = await registration_lookup.registration_for_definition(
-        app.definition, listing_uid=app.listing_uid
+        plugin.definition, listing_uid=plugin.listing_uid
     )
     if registration is None or not registration.live:
         raise HTTPException(
@@ -159,7 +159,7 @@ async def require_live_registration(
 
 async def mint_embed_handoff(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     *,
     surface_id: str,
     context: GuildContext,
@@ -174,20 +174,20 @@ async def mint_embed_handoff(
     passed, so by the time it is a claim it is a fact.
 
     Who may open it is :func:`~app.services.tenant.guild_plugins.surface_access`,
-    the same decision the app read reports to the client, measured on the
+    the same decision the plug-in read reports to the client, measured on the
     viewer's standing (``context``). An initiative handoff reads the
     placement's roles in one query.
     """
-    if not app.enabled:
+    if not plugin.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildPluginMessages.DISABLED
         )
 
     scope = "community" if initiative_id is None else "initiative"
-    # Two ways there is no surface here: the app never declared one for this
+    # Two ways there is no surface here: the plug-in never declared one for this
     # scope, or the guild placed its initiative surfaces somewhere else. Same
     # answer, because from this route both mean the same thing.
-    embed = embed_by_id(app.definition, surface_id, scope=scope)
+    embed = embed_by_id(plugin.definition, surface_id, scope=scope)
     if embed is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -199,7 +199,7 @@ async def mint_embed_handoff(
         placement_role_ids=(
             None
             if initiative_id is None
-            else await placement_role_ids(session, app.id, initiative_id)
+            else await placement_role_ids(session, plugin.id, initiative_id)
         ),
         is_guild_admin=context.is_admin,
         member_role_ids=context.member_role_ids,
@@ -215,14 +215,14 @@ async def mint_embed_handoff(
             detail=_refusal(embed, initiative_id=initiative_id),
         )
 
-    registration = await require_live_registration(app)
+    registration = await require_live_registration(plugin)
 
     try:
         key, algorithm, kid = resolve_plugin_platform_signing_material()
     except PluginPlatformSigningNotConfiguredError as exc:
-        # The app platform's keypair is required and has no fallback, so an
+        # The plug-in platform's keypair is required and has no fallback, so an
         # unconfigured deployment fails closed and says which setting is
-        # missing rather than minting something no app can verify.
+        # missing rather than minting something no plug-in can verify.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=PluginServiceMessages.SIGNING_NOT_CONFIGURED,
@@ -230,17 +230,17 @@ async def mint_embed_handoff(
 
     subject = await plugin_refs.ensure_plugin_ref(
         guild_id=routed_guild_id(session),
-        plugin_install_id=app.id,
+        plugin_install_id=plugin.id,
         user_id=context.user_id,
     )
     guild_ref = await plugin_refs.ensure_plugin_guild_ref(
-        guild_id=routed_guild_id(session), plugin_install_id=app.id
+        guild_id=routed_guild_id(session), plugin_install_id=plugin.id
     )
 
     now = datetime.now(timezone.utc)
     audience = plugin_platform_audience(registration.public_id)
     payload: dict[str, Any] = {
-        # One-shot marker: the app blocklists a handoff once it has exchanged
+        # One-shot marker: the plug-in blocklists a handoff once it has exchanged
         # it, so a captured token is not replayable inside its short window.
         "jti": str(uuid.uuid4()),
         # The reference this install knows the member by (OIDC Core §8.1
@@ -254,10 +254,10 @@ async def mint_embed_handoff(
         # The guild by reference, for the same reason as the member above: an
         # index names a row to us, not an entity to somebody else.
         "community_ref": guild_ref,
-        "plugin_install_id": app.id,
+        "plugin_install_id": plugin.id,
         "surface_id": surface_id,
         # The viewer's community role, from the standing the access decision
-        # above was measured on, so an app need not ask for it separately.
+        # above was measured on, so a plug-in need not ask for it separately.
         "community_admin": bool(context.is_admin),
     }
     # Absent guild-wide rather than null, so "which initiative is this?" has one

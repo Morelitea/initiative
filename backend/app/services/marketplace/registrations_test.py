@@ -1,6 +1,6 @@
-"""Tests for the app service registration service.
+"""Tests for the plug-in service registration service.
 
-A registration is stated, not discovered: nothing here calls an app. Its app
+A registration is stated, not discovered: nothing here calls a plug-in. Its plug-in
 facts come from its listing, whatever the source; its deployment facts from
 the operator.
 """
@@ -33,20 +33,20 @@ from app.testing.fake_vendor import declarative_plugin
 from app.testing.tuf_repository import service_plugin_definition
 
 
-#: Where the deployment calls the app.
+#: Where the deployment calls the plug-in.
 BASE_URL = "http://127.0.0.1:9100"
-#: An app served over https, for the key set address.
+#: A plug-in served over https, for the key set address.
 HTTPS_BASE_URL = "https://widgets.example.com"
-#: A public address for the same app, standing in for what a reverse proxy
+#: A public address for the same plug-in, standing in for what a reverse proxy
 #: publishes while ``BASE_URL`` stays the address the deployment itself calls.
 EMBED_ORIGIN = "https://widgets.example.com"
-#: The catalog listing the app speaks for.
+#: The catalog listing the plug-in speaks for.
 LISTING_UID = "K7M2QX8N4TVB9C"
 
 
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
-    """The app platform requires its own keypair; these tests are about the
+    """The plug-in platform requires its own keypair; these tests are about the
     registry rather than the fail-closed path, so give it one."""
     monkeypatch.setattr(
         settings,
@@ -150,7 +150,7 @@ def test_base_url_and_origin_shapes_are_enforced():
 
 def test_origins_default_to_the_browser_base_origin():
     """The list holds browser origins, so it is derived from the address a
-    browser uses — the wire surface only when the app answers on one address."""
+    browser uses — the wire surface only when the plug-in answers on one address."""
     assert service.normalize_origins(None, browser_base=BASE_URL) == [BASE_URL]
     assert service.normalize_origins(
         None, browser_base=f"{EMBED_ORIGIN}/plugins/x"
@@ -159,7 +159,7 @@ def test_origins_default_to_the_browser_base_origin():
 
 def test_embed_origin_accepts_a_base_and_reports_its_own_code():
     """Held to the same shape as base_url, since it stands in for it — a
-    deployment publishing an app under a path prefix says so here too."""
+    deployment publishing a plug-in under a path prefix says so here too."""
     assert service.normalize_embed_origin(f"{EMBED_ORIGIN}/auto/") == (
         f"{EMBED_ORIGIN}/auto"
     )
@@ -193,7 +193,7 @@ async def test_registration_fails_closed_without_a_signing_key(session, monkeypa
 
 
 async def test_create_stores_what_it_is_told(session):
-    """Nothing is fetched: the id and the keys are the operator's, and the app
+    """Nothing is fetched: the id and the keys are the operator's, and the plug-in
     facts wait for its listing."""
     key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
     row = await _create(session, jwks=key_set)
@@ -481,7 +481,7 @@ async def test_moving_the_browser_address_moves_a_default_origin_list(session):
         session, row.id, embed_origin=EMBED_ORIGIN
     )
 
-    # The list was still the app's own origin, so it follows the app.
+    # The list was still the plug-in's own origin, so it follows the plug-in.
     assert updated.allowed_origins == [EMBED_ORIGIN]
 
 
@@ -504,7 +504,7 @@ async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
     assert updated.allowed_origins == [BASE_URL]
 
 
-# --- app facts, from a listing ------------------------------------------------
+# --- plug-in facts, from a listing ------------------------------------------------
 
 
 def _plugin_listing(registration, *, uid=LISTING_UID, public_id="acme.widgets") -> dict:
@@ -746,7 +746,7 @@ def _write_config(tmp_path, entries) -> str:
 
 
 async def _listed(session, public_id: str) -> PluginServiceRegistration:
-    """A registration as its listing leaves it: app facts, no placement."""
+    """A registration as its listing leaves it: plug-in facts, no placement."""
     return await create_plugin_service_registration(
         session,
         public_id=public_id,
@@ -788,7 +788,7 @@ async def test_reconcile_writes_the_deployment_facts_from_the_mounted_file(
 
 
 async def test_an_entry_waits_for_its_listing(session, tmp_path, monkeypatch):
-    """An entry whose app has no listing here yet is kept, and the listing
+    """An entry whose plug-in has no listing here yet is kept, and the listing
     apply that creates the registration applies it."""
     monkeypatch.setattr(
         settings,
@@ -914,7 +914,7 @@ async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):
 async def test_reconcile_never_re_enables_a_disabled_registration(
     session, tmp_path, monkeypatch
 ):
-    """Deactivating an app is the operator's kill switch, so a restart must not
+    """Deactivating a plug-in is the operator's kill switch, so a restart must not
     quietly reverse it — the file still governs everything else."""
     row = await _listed(session, "acme.killswitch")
     entry = {"public_id": "acme.killswitch", "base_url": BASE_URL, "mandatory": False}
@@ -1020,5 +1020,5 @@ async def test_a_repeated_public_id_costs_only_that_entry(
     result = await service.reconcile_from_config(session)
 
     assert (result.updated, result.skipped) == (2, 1)
-    # The first entry won, so the duplicate did not quietly retarget the app.
+    # The first entry won, so the duplicate did not quietly retarget the plug-in.
     assert (await _registration(session, "acme.twice")).base_url == BASE_URL

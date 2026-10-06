@@ -1,6 +1,6 @@
-"""Declarative apps: Initiative makes the app's calls itself.
+"""Declarative plug-ins: Initiative makes the plug-in's calls itself.
 
-A declarative app has no container. Each of its reads and writes is a request,
+A declarative plug-in has no container. Each of its reads and writes is a request,
 or up to three named steps, rendered from JSONata expressions, sent to the
 vendor with the credential its connection holds, and an expression that maps
 the answers. This module runs one, exactly as the SDK's ``runEndpoint``
@@ -8,7 +8,7 @@ the answers. This module runs one, exactly as the SDK's ``runEndpoint``
 the envelope a container answers with, ``{endpoint, actor, result}``, so
 everything around the call reads it the same way.
 
-It runs the rest of the app the same way, as the SDK's runners do: a
+It runs the rest of the plug-in the same way, as the SDK's runners do: a
 connection's ``after_connect`` (``runAfterConnect``) and ``health``
 (``runHealth``), and what a vendor's delivery emits and says about a
 connection (``runWebhook``).
@@ -18,12 +18,12 @@ connection (``runWebhook``).
   ``requires`` names that this call holds as ``connections.<id>``, ``now``,
   each earlier step's answer as ``steps.<name>`` and, once a call is answered,
   ``response``. A credential never enters one: it is added to the request as
-  the app's ``auth`` says.
-* **Where a request may go**: https, on one of the app's ``hosts``, to a public
+  the plug-in's ``auth`` says.
+* **Where a request may go**: https, on one of the plug-in's ``hosts``, to a public
   address, following no redirect.
 * **What an answer means**: the endpoint's ``errors`` rows first, then the
   defaults. A read answers ``{"unavailable": <code>}``; a write is refused
-  with the code. A passing failure is the app being unavailable.
+  with the code. A passing failure is the plug-in being unavailable.
 
 The whole call is held to the envelope's limits (its time and its size); each
 vendor answer to the connection egress limits.
@@ -172,7 +172,7 @@ def _remove_dot_segments(path: str) -> str:
 
 class _Url:
     """An absolute address, parsed and written back as ``new URL()`` does for
-    the https addresses a declarative app may call, with its query held as
+    the https addresses a declarative plug-in may call, with its query held as
     ``searchParams`` once anything is added to it."""
 
     def __init__(self, text: str) -> None:
@@ -229,7 +229,7 @@ class _Url:
 
 
 def _on_host(url: _Url, hosts: list[str]) -> bool:
-    """https on port 443, with no credentials, on one of the app's hosts: exact,
+    """https on port 443, with no credentials, on one of the plug-in's hosts: exact,
     or one label in place of a leading ``*``."""
     if url.scheme != "https" or url.port is not None or url.credentials:
         return False
@@ -334,7 +334,7 @@ class _Run:
             raise _Outcome(
                 MAPPING_FAILED,
                 detail=(
-                    f"{where}: {url} is not https on one of the app's hosts "
+                    f"{where}: {url} is not https on one of the plug-in's hosts "
                     f"({', '.join(self.hosts)})"
                 ),
             )
@@ -410,7 +410,9 @@ class _Run:
             )
         except ResponseTooLargeError as exc:
             raise PluginDataError(
-                PluginDataMessages.RESPONSE_TOO_LARGE, 502, "the vendor answered too much"
+                PluginDataMessages.RESPONSE_TOO_LARGE,
+                502,
+                "the vendor answered too much",
             ) from exc
         except (
             httpx.HTTPError,
@@ -550,7 +552,7 @@ async def run_endpoint(
     ``credentials`` its token, by connection id. Expressions read a request's
     own connection as ``connection`` and every connection the endpoint's
     ``requires`` names as ``connections.<id>``. A passing failure raises
-    :class:`PluginDataError` as the app being unavailable.
+    :class:`PluginDataError` as the plug-in being unavailable.
     """
     run = _Run(
         definition,
@@ -608,11 +610,13 @@ async def run_endpoint(
     except _Outcome as outcome:
         if outcome.code is None:
             raise PluginDataError(
-                PluginDataMessages.SERVICE_UNAVAILABLE, 502, outcome.detail or "transient"
+                PluginDataMessages.SERVICE_UNAVAILABLE,
+                502,
+                outcome.detail or "transient",
             ) from outcome
         if outcome.detail:
             logger.info(
-                "app data: %s answered %s (%s)",
+                "plug-in data: %s answered %s (%s)",
                 endpoint.get("id"),
                 outcome.code,
                 outcome.detail,
@@ -733,7 +737,7 @@ async def health_state(
             return row["state"]
         return "ok" if 200 <= answer.status <= 299 else "unavailable"
     except (_Outcome, PluginDataError) as exc:
-        logger.info("app health: the check answered no state (%s)", exc)
+        logger.info("plug-in health: the check answered no state (%s)", exc)
         return "unavailable"
 
 
@@ -762,7 +766,7 @@ async def map_delivery(
     connection: Mapping[str, Any],
     now: Optional[datetime] = None,
 ) -> Delivered:
-    """One webhook delivery, as a declarative app's ``webhooks`` map it: the
+    """One webhook delivery, as a declarative plug-in's ``webhooks`` map it: the
     event the first ``events`` row whose ``when`` holds emits, its payload held
     to the emit endpoint's returns, and the state the first matching
     ``status`` row sets. A delivery nothing matches answers neither.
@@ -861,7 +865,7 @@ def _connection_ids(endpoint: Mapping[str, Any]) -> list[str]:
 async def _credentials(
     *,
     registration: RegistrationSnapshot,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     guild_id: int,
     endpoint: Mapping[str, Any],
     refs: Mapping[str, str],
@@ -873,7 +877,7 @@ async def _credentials(
     A static connection's is the community's, which a call on a member's
     behalf carries only when the endpoint's ``requires`` names it; an
     interactive one's is the acting member's, by the handle the endpoint's
-    ``requires`` resolved for them. Tokens are refreshed or minted as the app
+    ``requires`` resolved for them. Tokens are refreshed or minted as the plug-in
     channel hands them out.
     """
     required, _ = _required_connection_ids(endpoint)
@@ -883,7 +887,11 @@ async def _credentials(
     async with cohorts.system_session(guild_id) as session:
         try:
             install = await load_install(
-                session, registration, guild_id, plugin_install_id=app.id, for_write=True
+                session,
+                registration,
+                guild_id,
+                plugin_install_id=plugin.id,
+                for_write=True,
             )
         except PluginChannelError as exc:
             raise PluginDataError(exc.code, exc.status_code) from exc
@@ -905,7 +913,7 @@ async def _credentials(
                 if interactive:
                     held = await flows.member_token(
                         session,
-                        app=install,
+                        plugin=install,
                         public_id=registration.public_id,
                         connection_ref=str(ref),
                         guild_id=guild_id,
@@ -923,7 +931,7 @@ async def _credentials(
                 else:
                     held = await flows.community_token(
                         session,
-                        app=install,
+                        plugin=install,
                         public_id=registration.public_id,
                         connection_id=connection_id,
                         guild_id=guild_id,
@@ -941,7 +949,7 @@ async def _credentials(
 async def call_endpoint(
     *,
     registration: RegistrationSnapshot,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     guild_id: int,
     endpoint_id: str,
     params: Mapping[str, Any],
@@ -962,7 +970,7 @@ async def call_endpoint(
     endpoint = next(
         (
             entry
-            for entry in (app.definition or {}).get("endpoints") or []
+            for entry in (plugin.definition or {}).get("endpoints") or []
             if isinstance(entry, dict)
             and entry.get("id") == endpoint_id
             and entry.get("direction") in ("read", "write")
@@ -975,14 +983,14 @@ async def call_endpoint(
         async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
             tokens, used, member = await _credentials(
                 registration=registration,
-                app=app,
+                plugin=plugin,
                 guild_id=guild_id,
                 endpoint=endpoint,
                 refs=refs,
                 actor=actor,
             )
             result = await run_endpoint(
-                app.definition,
+                plugin.definition,
                 endpoint,
                 params=_typed(endpoint, params),
                 connections={**used, **fields},
@@ -1003,6 +1011,8 @@ async def call_endpoint(
     }
     if len(json.dumps(body, ensure_ascii=False).encode("utf-8")) > MAX_RESPONSE_BYTES:
         raise PluginDataError(
-            PluginDataMessages.RESPONSE_TOO_LARGE, 502, "the answer exceeded the ceiling"
+            PluginDataMessages.RESPONSE_TOO_LARGE,
+            502,
+            "the answer exceeded the ceiling",
         )
     return body

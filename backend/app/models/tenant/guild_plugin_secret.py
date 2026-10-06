@@ -1,4 +1,4 @@
-"""The values a community's seat typed into an installed app's connections.
+"""The values a community's seat typed into an installed plug-in's connections.
 
 One row per install, beside the ``guild_plugins`` row it belongs to. It holds what
 ``guild_plugins`` reports only as present: one Fernet ciphertext per secret field,

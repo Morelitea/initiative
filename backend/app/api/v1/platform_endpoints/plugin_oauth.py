@@ -1,17 +1,17 @@
-"""Where an app service asks for an access token, and learns its installs.
+"""Where a plug-in service asks for an access token, and learns its installs.
 
 ``POST /plugin-platform/oauth/token`` is an OAuth 2.0 token endpoint (RFC 6749):
 form-encoded in, JSON out, and its errors are the protocol's own
 ``{"error", "error_description"}`` bodies rather than this API's ``detail``
-codes, because the reader is an OAuth client. The app authenticates with a JWT
+codes, because the reader is an OAuth client. The plug-in authenticates with a JWT
 it signs (RFC 7523 §2.2), or, for a member token, presents one as the grant
 itself (RFC 7523 §2.1); see :mod:`app.services.marketplace.plugin_oauth`.
 
-``GET /plugin-platform/installations`` takes an **app token** and lists the app's
-installs, a page at a time, each named by the reference the app asks for an
+``GET /plugin-platform/installations`` takes a **plug-in token** and lists the plug-in's
+installs, a page at a time, each named by the reference the plug-in asks for an
 installation token with.
 
-Both run on the system engine: the caller is an app rather than a person, and
+Both run on the system engine: the caller is a plug-in rather than a person, and
 what they read is registrations, spent assertions and, for the listing, the
 install index (``plugin_installs``).
 """
@@ -150,7 +150,7 @@ async def _read_form(request: Request) -> dict[str, str | None]:
 async def issue_plugin_access_token(
     request: Request, session: SystemSessionDep
 ) -> JSONResponse:
-    """Issue an app token, an installation token for one of the app's
+    """Issue a plug-in token, an installation token for one of the plug-in's
     installs, or a member token for a member who consented. See the module
     docstring for the parameters."""
     try:
@@ -187,7 +187,7 @@ def _refuse() -> HTTPException:
 
 
 def _plugin_token(request: Request) -> PluginAccessToken:
-    """The app token this request carries, or 401. Reads nothing from the
+    """The plug-in token this request carries, or 401. Reads nothing from the
     database."""
     unsealed = bearer_plugin_token(request)
     if not isinstance(unsealed, PluginAccessToken):
@@ -204,7 +204,7 @@ async def list_plugin_installations(
     ),
     cursor: Optional[str] = Query(default=None, max_length=512),
 ) -> List[PluginInstallationRead]:
-    """The calling app's installs, a page at a time. Takes an app token.
+    """The calling plug-in's installs, a page at a time. Takes a plug-in token.
 
     The next page, when there is one, is named in a ``Link`` header
     (RFC 8288, ``rel="next"``) carrying the ``cursor`` to ask with.

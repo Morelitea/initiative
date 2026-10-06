@@ -1,6 +1,6 @@
-"""Posts, galleries and wikis as an installed app calls them.
+"""Posts, galleries and wikis as an installed plug-in calls them.
 
-Each test installs an app the way a community does (``install_plugin``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the routes of these three tools that name a scope: the
 list, read, create and update, a post's pin, a wiki's pages and a gallery's
@@ -131,7 +131,7 @@ async def test_a_post_it_reads_carries_no_one_s_own_state(
     client, session, acting_user, role_session
 ):
     """Reactions, read markers and ballots are people's own rows, so a post an
-    installed app reads carries the empty form of each."""
+    installed plug-in reads carries the empty form of each."""
     await lift_person_and_guild_ids(session)
     installed = await install_plugin(
         session, acting_user, role_session, granted=["posts:read"]
@@ -346,7 +346,7 @@ async def test_what_it_creates_is_its_own(
     guild_id = installed.guild.id
     await _switch_on(session, tool, installed.placed)
     headers = install_headers(installed, [f"{tool.plural}:write"])
-    create = {"name": "Made by the app", "initiative_id": installed.placed.id}
+    create = {"name": "Made by the plug-in", "initiative_id": installed.placed.id}
 
     # It shares nothing: an explicit grant list is refused.
     shared = await client.post(
@@ -377,7 +377,7 @@ async def test_what_it_creates_is_its_own(
         )
     ).all()
     assert [(g.level, g.plugin_install_id, g.user_id) for g in grants] == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
 
     updated = await client.patch(
@@ -428,11 +428,11 @@ async def test_pins_the_posts_it_may_write(client, session, acting_user, role_se
     )
     assert refused.status_code == 403, refused.text
 
-    # Shared with the app at write, it does.
+    # Shared with the plug-in at write, it does.
     await create_resource_grant(
         session,
         theirs,
-        plugin_install_id=installed.app.id,
+        plugin_install_id=installed.plugin.id,
         level=ResourceAccessLevel.write,
     )
     allowed = await client.put(

@@ -742,7 +742,7 @@ async def export_to_fetched(
     archive: zipfile.ZipFile,
     *,
     guild_id: int,
-    plugin_version: str,
+    app_version: str,
     asset_budget: Optional[AssetBudget],
     documents: bool,
     store: Optional[AssetSink] = None,
@@ -815,7 +815,7 @@ async def export_to_fetched(
         pages=pages,
         users=space.users,
         site_url=space.site_url,
-        plugin_version=plugin_version,
+        app_version=app_version,
         max_bytes=max(
             0, import_limits.IMPORT_FETCH_MAX_SPACE_BYTES - _ENVELOPE_RESERVE_BYTES
         ),

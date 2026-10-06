@@ -1,4 +1,4 @@
-"""Payloads for the guild-admin content-ownership screens, and the owning app
+"""Payloads for the guild-admin content-ownership screens, and the owning plug-in
 a read model names."""
 
 from typing import List, Optional
@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class OwnerPluginSummary(SanitizedBaseModel):
-    """An installed app that owns a resource, or may be handed one: the
+    """An installed plug-in that owns a resource, or may be handed one: the
     install's id, its name in this community, and its listing's picture."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -35,7 +35,7 @@ class OwnedContentResponse(SanitizedBaseModel):
 
     ``counts`` is per tool, keyed by the ``Tool`` value, so the dialog can say
     "3 projects, 1 calendar" without walking the list. ``eligible_plugins`` are the
-    installed apps that may own every item listed, which the dialog offers
+    installed plug-ins that may own every item listed, which the dialog offers
     beside the community's admins.
     """
 
@@ -49,7 +49,7 @@ class OwnedContentResponse(SanitizedBaseModel):
 
 class OwnershipTransferRequest(SanitizedBaseModel):
     """Who should end up owning it: an active admin of this guild
-    (``new_owner_id``), or an installed app that may own all of it
+    (``new_owner_id``), or an installed plug-in that may own all of it
     (``new_owner_plugin_id``). Exactly one is set."""
 
     new_owner_id: Optional[int] = None

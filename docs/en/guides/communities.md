@@ -154,7 +154,7 @@ Open **Community settings** from the sidebar or the rail:
 | **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
 | **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
-| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](plugins-and-marketplace.md#adding-a-plugin). |
+| **Integrations** | AI settings and installed plug-ins — see [AI features](../account/ai-features.md) and [Plug-ins & the marketplace](plugins-and-marketplace.md#adding-a-plug-in). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |
@@ -216,7 +216,7 @@ Everything in it is then held for a window — ninety days, unless whoever runs 
 
 You get an email naming the date that window closes. Members get one less thing in their list, which is the part they can act on, so they get no mail.
 
-A restored community reconnects its installed apps itself. It gave those apps their access in the first place, so it gives it again.
+A restored community reconnects its installed plug-ins itself. It gave those plug-ins their access in the first place, so it gives it again.
 
 The friction is entirely deliberate and we're not sorry about it.
 

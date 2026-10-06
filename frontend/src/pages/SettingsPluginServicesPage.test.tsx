@@ -373,7 +373,7 @@ describe("SettingsPluginServicesPage", () => {
       ];
       startSetupMutate.mockImplementation((_vars, { onSuccess }) =>
         onSuccess({
-          action: "https://github.com/organizations/acme/settings/plugins/new",
+          action: "https://github.com/organizations/acme/settings/apps/new",
           manifest: '{"name":"GitHub"}',
           state: "st/ate",
         })
@@ -391,7 +391,7 @@ describe("SettingsPluginServicesPage", () => {
       const posted = submit.mock.contexts[0] as HTMLFormElement;
       expect(posted.method).toBe("post");
       expect(posted.action).toBe(
-        "https://github.com/organizations/acme/settings/plugins/new?state=st%2Fate"
+        "https://github.com/organizations/acme/settings/apps/new?state=st%2Fate"
       );
       expect(posted.elements.namedItem("manifest")).toHaveValue('{"name":"GitHub"}');
       submit.mockRestore();

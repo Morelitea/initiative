@@ -46,7 +46,7 @@ const MODULE = "export const render = () => ({ scene: { kind: 'empty' } });";
 const binding: WidgetBinding = {
   source: "app",
   plugin_uid: PLUGIN_UID,
-  endpoint_id: "app.acme.shop.orders-summary",
+  endpoint_id: "plugin.acme.shop.orders-summary",
 };
 const widget: DefinitionWidget = {
   id: "w1",
@@ -68,9 +68,9 @@ const CATALOG = {
           id: "summary",
           meta: { name: { en: "Summary" } },
           module_source: MODULE,
-          endpoints: ["app.acme.shop.orders-summary"],
+          endpoints: ["plugin.acme.shop.orders-summary"],
           sample_data: {
-            "app.acme.shop.orders-summary": {
+            "plugin.acme.shop.orders-summary": {
               rows: [{ days: "mon", totals: 4 }],
               values: { total: 4 },
             },
@@ -79,7 +79,7 @@ const CATALOG = {
       ],
       endpoints: [
         {
-          id: "app.acme.shop.orders-summary",
+          id: "plugin.acme.shop.orders-summary",
           cache_ttl_seconds: 60,
           params: [],
         },

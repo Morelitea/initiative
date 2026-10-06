@@ -295,7 +295,7 @@ def build_project_envelope(
     content: str,
     *,
     selection: str,
-    plugin_version: str,
+    app_version: str,
     now: datetime | None = None,
 ) -> MappedProject:
     """The whole export as the envelope an ordinary import applies.
@@ -419,7 +419,7 @@ def build_project_envelope(
             description=None,
             statuses=statuses,
             tasks=tasks,
-            plugin_version=plugin_version,
+            app_version=app_version,
             source_url="https://todoist.com",
         ),
         skipped_rows=skipped,

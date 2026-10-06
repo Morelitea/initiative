@@ -182,7 +182,7 @@ async def authenticate(session: AsyncSession, identified: Identified) -> Authent
 
     ``identified`` is what ``app.core.identify`` read locally; this is the
     half that asks the database. Raises :class:`CredentialRefused` for
-    anything else. An installed app's access token is never a person and is
+    anything else. An installed plug-in's access token is never a person and is
     refused whatever the caller allows; a route that admits one reads it from
     :attr:`Identified.plugin_token`.
     """

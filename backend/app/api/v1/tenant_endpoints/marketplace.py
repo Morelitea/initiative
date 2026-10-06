@@ -3,8 +3,8 @@
 The catalog itself is platform data — one shared set of listings with globally
 unique ids, and no guild column anywhere in it. Browsing it is nevertheless
 guild-addressed, because what is *offered* depends on the guild asking: a
-dashboard an app ships with draws that app's widgets, so it appears only where
-the app is installed.
+dashboard a plug-in ships with draws that plug-in's widgets, so it appears only where
+the plug-in is installed.
 
 That makes the guild a required part of the question rather than a filter the
 client applies afterwards, and it puts browse on the same footing as the
@@ -15,7 +15,7 @@ it always agree.
 Listings are written by the system engine (boot seeding, the operator's
 catalog directory, the registry refresh) through the platform routes. Installing
 writes the guild's own schema: a tool's listing through that tool's importer
-(below), an app through the guild's app routes.
+(below), a plug-in through the guild's plug-in routes.
 """
 
 from typing import Annotated, Optional
@@ -101,8 +101,8 @@ async def list_marketplace_listings(
     """A page of listings this guild can install, searchable by name,
     description, or publisher.
 
-    A guild with none of an app installed sees the same catalog as before —
-    the apps themselves, and the dashboards that stand alone.
+    A guild with none of a plug-in installed sees the same catalog as before —
+    the plug-ins themselves, and the dashboards that stand alone.
     """
     listings, total = await catalog_service.list_listings(
         session,
@@ -135,8 +135,8 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     """A listing's page, or the answer the shelf gives by leaving it out.
 
     Two things put a listing out of reach, and both read as *not found* here
-    because both are already true of the shelf: an app whose service this
-    deployment does not run, and a dashboard whose app this guild has not
+    because both are already true of the shelf: a plug-in whose service this
+    deployment does not run, and a dashboard whose plug-in this guild has not
     installed.
     """
     latest = await catalog_service.get_listing_version(
@@ -153,7 +153,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     summary = serialize_listing_summary(listing, latest)
     definition = dict(latest.definition) if latest else {}
     # What the install dialog asks the seat about, from the version it would
-    # install and the registration's ceiling. Empty for anything not an app.
+    # install and the registration's ceiling. Empty for anything not a plug-in.
     requested: list[str] = []
     grantable: list[str] = []
     if listing.kind == "plugin":
@@ -197,7 +197,7 @@ async def resolve_marketplace_listing(
     This is what an installed instance uses to find where it came from: the
     instance stores the uid, and the catalog answers with the listing and the
     version it currently publishes. A listing this guild can no longer take —
-    a bundled dashboard whose app it removed — answers 404, which is what
+    a bundled dashboard whose plug-in it removed — answers 404, which is what
     stops an update being offered that the install would refuse.
     """
     listing = await catalog_service.get_listing_by_uid(session, uid)
@@ -245,7 +245,7 @@ async def install_marketplace_listing(
     permission and nothing more. The copy is the member's: it records the
     listing and version it came from, and nothing links it back.
 
-    Apps and profile packs install elsewhere; a uid naming one reads as not
+    Plug-ins and profile packs install elsewhere; a uid naming one reads as not
     found here, as it would from any installer that cannot install it.
     """
     # Installing is authoring, like any import: a community whose content is

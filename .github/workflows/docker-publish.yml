@@ -487,9 +487,9 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' release_body.md
 
-      # What an installed app may call, exported from the image this release
+      # What an installed plug-in may call, exported from the image this release
       # published. The image carries no scripts/, so the checkout's are mounted.
-      - name: Export the app API spec
+      - name: Export the plug-in API spec
         if: startsWith(github.ref, 'refs/tags/')
         env:
           VERSION: ${{ needs.decide.outputs.version }}
@@ -497,7 +497,7 @@ jobs:
           mkdir -p artifacts
           docker run --rm --entrypoint python \
             -v "$PWD/backend/scripts:/app/scripts:ro" -v "$PWD/artifacts:/out" \
-            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --app /out/initiative-plugin-api.json
+            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --plugin /out/initiative-plugin-api.json
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')

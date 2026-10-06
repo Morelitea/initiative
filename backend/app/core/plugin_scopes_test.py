@@ -1,4 +1,4 @@
-"""The scope vocabulary: what parses, and what a scope set lets an app do."""
+"""The scope vocabulary: what parses, and what a scope set lets a plug-in do."""
 
 from __future__ import annotations
 
@@ -96,19 +96,19 @@ def test_read_only_resources_have_no_write_scope():
 def test_the_plugin_kit_contract_names_the_same_scopes():
     """Two sources in two repositories: the kit's contract, which an author
     requests scopes from, and this vocabulary, which grants and enforces them.
-    A scope in one and not the other is either one no app can ask for or one
-    an app can ask for and never be granted."""
+    A scope in one and not the other is either one no plug-in can ask for or one
+    a plug-in can ask for and never be granted."""
     from app.services.marketplace import contract
 
     assert contract.enum("scope") == frozenset(ALL_SCOPES)
 
 
 def test_a_plugin_scope_names_the_plugin_it_lets_one_call():
-    assert plugin_scope("acme.github") == "apps:acme.github"
-    assert plugin_scope_target("apps:acme.github") == "acme.github"
-    assert is_known_scope("apps:acme.github")
-    assert validate_scopes(["apps:acme.github", "documents:read"]) == {
-        "apps:acme.github",
+    assert plugin_scope("acme.github") == "plugins:acme.github"
+    assert plugin_scope_target("plugins:acme.github") == "acme.github"
+    assert is_known_scope("plugins:acme.github")
+    assert validate_scopes(["plugins:acme.github", "documents:read"]) == {
+        "plugins:acme.github",
         "documents:read",
     }
 
@@ -116,13 +116,13 @@ def test_a_plugin_scope_names_the_plugin_it_lets_one_call():
 @pytest.mark.parametrize(
     "scope",
     [
-        "apps:",
-        "apps:github",
-        "apps:Acme.github",
-        "apps:acme github",
+        "plugins:",
+        "plugins:github",
+        "plugins:Acme.github",
+        "plugins:acme github",
         "plugin:acme.github",
-        "xapps:acme.github",
-        "apps:" + "a." + "b" * MAX_PUBLIC_ID_LENGTH,
+        "xplugins:acme.github",
+        "plugins:" + "a." + "b" * MAX_PUBLIC_ID_LENGTH,
     ],
 )
 def test_what_is_not_a_plugin_scope_is_refused(scope):
@@ -132,15 +132,15 @@ def test_what_is_not_a_plugin_scope_is_refused(scope):
 
 
 def test_a_plugin_scope_reaches_no_resource():
-    read, write = expand(["apps:acme.github", "tags:read"])
+    read, write = expand(["plugins:acme.github", "tags:read"])
     assert read == {PluginScopeResource("tags")}
     assert write == set()
 
 
 def test_plugin_scopes_follow_the_vocabulary_in_order():
     assert ordered_scopes(
-        ["apps:b.one", "tags:read", "apps:a.two", "projects:read", "nope"]
-    ) == ["projects:read", "tags:read", "apps:a.two", "apps:b.one"]
+        ["plugins:b.one", "tags:read", "plugins:a.two", "projects:read", "nope"]
+    ) == ["projects:read", "tags:read", "plugins:a.two", "plugins:b.one"]
 
 
 def test_the_public_id_rule_is_the_contracts():

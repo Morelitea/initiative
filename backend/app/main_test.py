@@ -145,7 +145,7 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
     assert "script-src 'self'" in other_csp
 
 
-# --- The registered app frame origins (named on documents, and only there) ---
+# --- The registered plug-in frame origins (named on documents, and only there) ---
 
 
 @pytest.mark.parametrize(
@@ -155,7 +155,7 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
 async def test_every_document_frames_the_registered_plugins(
     client: AsyncClient, session: AsyncSession, route: str
 ) -> None:
-    """One header, whatever the route. An app opens the same way from a guild
+    """One header, whatever the route. A plug-in opens the same way from a guild
     page, from inside an initiative, and from a tab the SPA navigated to after
     loading somewhere else — so the permission cannot be a property of which
     document the browser happened to ask for."""

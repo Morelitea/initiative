@@ -60,7 +60,7 @@ from app.testing.oidc import (
     mint_id_token,
 )
 
-PLUGIN_ORIGIN = {"Origin": "https://studio.beyonders.initiative"}
+APP_ORIGIN = {"Origin": "https://studio.beyonders.initiative"}
 
 
 async def test_bootstrap_status_no_users(client: AsyncClient):
@@ -596,7 +596,7 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-@pytest.mark.parametrize("origin", [None, PLUGIN_ORIGIN])
+@pytest.mark.parametrize("origin", [None, APP_ORIGIN])
 async def test_password_token_refusal_does_not_reveal_account_resolution(
     client: AsyncClient, session: AsyncSession, origin: dict[str, str] | None
 ) -> None:
@@ -696,7 +696,7 @@ async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
     response = await client.post(
         "/api/v1/auth/token",
         data={"username": "nobody@example.com", "password": "wrong"},
-        headers=PLUGIN_ORIGIN,
+        headers=APP_ORIGIN,
     )
     assert response.status_code == 429
     assert response.json() == {"detail": "SIGN_IN_LOCKED"}
@@ -714,7 +714,7 @@ async def test_one_network_address_is_not_one_allowance(
         app_response = await client.post(
             "/api/v1/auth/token",
             data={"username": f"phone{n}@example.com", "password": "wrong"},
-            headers=PLUGIN_ORIGIN,
+            headers=APP_ORIGIN,
         )
         assert app_response.status_code == 400, app_response.text
 
@@ -841,12 +841,12 @@ async def test_five_wrong_passwords_lock_the_account(
     assert refused.status_code == 429
     assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
 
-    plugin_refused = await client.post(
+    app_refused = await client.post(
         "/api/v1/auth/token",
         data={"username": "five@example.com", "password": "right-password"},
-        headers=PLUGIN_ORIGIN,
+        headers=APP_ORIGIN,
     )
-    assert plugin_refused.status_code == 429
+    assert app_refused.status_code == 429
 
     reset_token = await user_tokens.create_token(
         session, user_id=user_id, purpose=UserTokenPurpose.password_reset

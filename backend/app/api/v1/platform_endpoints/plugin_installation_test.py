@@ -1,4 +1,4 @@
-"""What an installed app may read and report about its own installation.
+"""What an installed plug-in may read and report about its own installation.
 
 Every route here takes an installation token and reaches the install the token
 names; no route names a community or an install in its path. Four things carry
@@ -9,17 +9,17 @@ will not stand up — a member token, one whose registration or publisher is
 off, one naming an install the guild turned off or another listing's install —
 reaches nothing, and the answer is the same 401 however it failed.
 
-**An app sees its own install and nothing else.** An install carrying this
-registration's listing but pinning another app's definition is not this
-app's, and neither is a connection handle minted in another community.
+**A plug-in sees its own install and nothing else.** An install carrying this
+registration's listing but pinning another plug-in's definition is not this
+plug-in's, and neither is a connection handle minted in another community.
 
 **Plaintext leaves on two routes.** The config route returns decrypted
-values to the app that uses them, and never a flow's tokens; the token route
+values to the plug-in that uses them, and never a flow's tokens; the token route
 hands out one access token by reference (``plugin_connection_flows_test``). The
 connections route reports which handles are live and carries no value at all.
 Each is asserted against the whole response body.
 
-**The app is the only party that can say whether credentials work.** Nothing
+**The plug-in is the only party that can say whether credentials work.** Nothing
 else in this build moves ``config_state`` off ``unverified``.
 """
 
@@ -54,7 +54,7 @@ BASE = "/api/v1/plugin-platform/installation"
 SHOP = "tests.shop"
 SHOP_UID = "TESTAPP0000001"
 OTHER_UID = "TESTAPP0000002"
-ORDER_CREATED = "app.tests.shop.order_created"
+ORDER_CREATED = "plugin.tests.shop.order_created"
 
 GUILD_TOKEN = "shpat_the_guilds_own_token"
 MEMBER_TOKEN = "gho_one_members_own_token"
@@ -115,7 +115,7 @@ async def _install(
     with_values: bool = False,
     **overrides,
 ):
-    """A guild with a service app installed, optionally already configured."""
+    """A guild with a service plug-in installed, optionally already configured."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     if with_values:
@@ -124,7 +124,7 @@ async def _install(
             "secrets",
             {"admin": {"admin_token": encrypt_field(GUILD_TOKEN, SALT_PLUGIN_CONFIG)}},
         )
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         guild,
         user,
@@ -132,14 +132,14 @@ async def _install(
         listing_uid=listing_uid,
         **overrides,
     )
-    return guild, user, app
+    return guild, user, plugin
 
 
 async def _member_connection(
     session: AsyncSession,
     *,
     guild,
-    app,
+    plugin,
     user,
     connection_id: str = "github",
     connection_ref: str = "cr_member_one",
@@ -148,7 +148,7 @@ async def _member_connection(
 ) -> GuildPluginUserConnection:
     await route_session_to_guild(session, guild.id)
     row = GuildPluginUserConnection(
-        plugin_id=app.id,
+        plugin_id=plugin.id,
         connection_id=connection_id,
         user_id=user.id,
         connection_ref=connection_ref,
@@ -172,17 +172,17 @@ async def _member_connection(
 
 def _headers(
     guild,
-    app,
+    plugin,
     *,
     client_id: str = SHOP,
     initiative_id: int | None = None,
     user_id: int | None = None,
 ) -> dict[str, str]:
-    """An installation token for ``app`` in ``guild``, as the token endpoint
+    """An installation token for ``plug-in`` in ``guild``, as the token endpoint
     would issue one."""
     token, _exp = seal_install_token(
         guild_id=guild.id,
-        install_id=app.id,
+        install_id=plugin.id,
         client_id=client_id,
         scopes=frozenset(),
         initiative_id=initiative_id,
@@ -195,7 +195,9 @@ def _headers(
 async def _reload(session: AsyncSession, guild_id: int, plugin_id: int) -> GuildPlugin:
     await route_session_to_guild(session, guild_id)
     session.expunge_all()
-    return (await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))).one()
+    return (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).one()
 
 
 async def _switch_off(session: AsyncSession, row) -> None:
@@ -227,10 +229,10 @@ class TestTheToken:
         """These calls are about the install, not an initiative's content, so
         a token narrowed to one initiative reaches them too."""
         await _register(session)
-        guild, _, app = await _install(session, with_values=True)
+        guild, _, plugin = await _install(session, with_values=True)
 
         response = await client.get(
-            f"{BASE}/config", headers=_headers(guild, app, initiative_id=12345)
+            f"{BASE}/config", headers=_headers(guild, plugin, initiative_id=12345)
         )
 
         assert response.status_code == 200, response.text
@@ -241,10 +243,10 @@ class TestTheToken:
         """A member token acts for somebody; the install's own configuration is
         not something it reaches."""
         await _register(session)
-        guild, user, app = await _install(session, with_values=True)
+        guild, user, plugin = await _install(session, with_values=True)
 
         response = await client.get(
-            f"{BASE}/config", headers=_headers(guild, app, user_id=user.id)
+            f"{BASE}/config", headers=_headers(guild, plugin, user_id=user.id)
         )
 
         assert response.status_code == 401
@@ -257,7 +259,7 @@ class TestTheToken:
         """The operator's switch, the publisher's and the guild's all end the
         install's calls at the next request, with the same answer."""
         registration = await _register(session)
-        guild, _, app = await _install(session, with_values=True)
+        guild, _, plugin = await _install(session, with_values=True)
         if what == "registration":
             await _switch_off(session, registration)
         elif what == "publisher":
@@ -266,7 +268,7 @@ class TestTheToken:
             )
         else:
             await route_session_to_guild(session, guild.id)
-            await _switch_off(session, app)
+            await _switch_off(session, plugin)
 
         for method, path in (
             ("GET", "/config"),
@@ -276,7 +278,7 @@ class TestTheToken:
             response = await client.request(
                 method,
                 f"{BASE}{path}",
-                headers=_headers(guild, app),
+                headers=_headers(guild, plugin),
                 json={"state": "ok"} if method == "POST" else None,
             )
             assert response.status_code == 401, (path, response.text)
@@ -286,16 +288,16 @@ class TestTheToken:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session, jwks={})
-        guild, _, app = await _install(session, with_values=True)
+        guild, _, plugin = await _install(session, with_values=True)
 
-        response = await client.get(f"{BASE}/config", headers=_headers(guild, app))
+        response = await client.get(f"{BASE}/config", headers=_headers(guild, plugin))
 
         assert response.status_code == 401
 
     async def test_a_token_naming_another_listings_install_reaches_nothing(
         self, client: AsyncClient, session: AsyncSession
     ):
-        """One app's credentials are not reachable by another's token, and the
+        """One plug-in's credentials are not reachable by another's token, and the
         refusal says nothing about what is there."""
         await _register(session)
         theirs, _, theirs_plugin = await _install(
@@ -323,10 +325,10 @@ class TestConfig:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, user, app = await _install(session, with_values=True)
-        await _member_connection(session, guild=guild, app=app, user=user)
+        guild, user, plugin = await _install(session, with_values=True)
+        await _member_connection(session, guild=guild, plugin=plugin, user=user)
 
-        response = await client.get(f"{BASE}/config", headers=_headers(guild, app))
+        response = await client.get(f"{BASE}/config", headers=_headers(guild, plugin))
 
         assert response.status_code == 200, response.text
         body = response.json()
@@ -339,7 +341,7 @@ class TestConfig:
         # A flow's token is asked for by reference, never handed over here.
         assert member["values"] == {"login": "alice"}
         assert MEMBER_TOKEN not in response.text
-        # The app is told which member by handle, and by nothing else.
+        # The plug-in is told which member by handle, and by nothing else.
         assert "user_id" not in member
         assert user.seeded_address not in response.text
 
@@ -347,12 +349,14 @@ class TestConfig:
         self, client: AsyncClient, session: AsyncSession
     ):
         """A block ends that member's access; the tombstone it leaves must not
-        keep handing the app a credential to act with."""
+        keep handing the plug-in a credential to act with."""
         await _register(session)
-        guild, user, app = await _install(session, with_values=True)
-        await _member_connection(session, guild=guild, app=app, user=user, blocked=True)
+        guild, user, plugin = await _install(session, with_values=True)
+        await _member_connection(
+            session, guild=guild, plugin=plugin, user=user, blocked=True
+        )
 
-        response = await client.get(f"{BASE}/config", headers=_headers(guild, app))
+        response = await client.get(f"{BASE}/config", headers=_headers(guild, plugin))
 
         assert response.status_code == 200, response.text
         assert response.json()["member_connections"] == []
@@ -364,11 +368,11 @@ class TestConfig:
         catalog uid but pinning a definition that names a different service is
         not an install this caller may reach."""
         await _register(session)
-        guild, _, app = await _install(
+        guild, _, plugin = await _install(
             session, definition=_definition("tests.someone-else"), with_values=True
         )
 
-        response = await client.get(f"{BASE}/config", headers=_headers(guild, app))
+        response = await client.get(f"{BASE}/config", headers=_headers(guild, plugin))
 
         assert response.status_code == 404
         assert response.json()["detail"] == PluginChannelMessages.INSTALL_NOT_FOUND
@@ -378,9 +382,9 @@ class TestConfig:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, _, app = await _install(session)
+        guild, _, plugin = await _install(session)
 
-        response = await client.get(f"{BASE}/config", headers=_headers(guild, app))
+        response = await client.get(f"{BASE}/config", headers=_headers(guild, plugin))
 
         assert response.status_code == 200, response.text
         assert response.json()["needs_config"] is True
@@ -396,10 +400,12 @@ class TestConnections:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, user, app = await _install(session, with_values=True)
-        await _member_connection(session, guild=guild, app=app, user=user)
+        guild, user, plugin = await _install(session, with_values=True)
+        await _member_connection(session, guild=guild, plugin=plugin, user=user)
 
-        response = await client.get(f"{BASE}/connections", headers=_headers(guild, app))
+        response = await client.get(
+            f"{BASE}/connections", headers=_headers(guild, plugin)
+        )
 
         assert response.status_code == 200, response.text
         items = response.json()["items"]
@@ -416,10 +422,12 @@ class TestConnections:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, user, app = await _install(session)
-        await _member_connection(session, guild=guild, app=app, user=user)
+        guild, user, plugin = await _install(session)
+        await _member_connection(session, guild=guild, plugin=plugin, user=user)
 
-        response = await client.get(f"{BASE}/connections", headers=_headers(guild, app))
+        response = await client.get(
+            f"{BASE}/connections", headers=_headers(guild, plugin)
+        )
 
         assert response.status_code == 200, response.text
         assert "user_id" not in response.text
@@ -429,17 +437,21 @@ class TestConnections:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, user, app = await _install(session)
-        await _member_connection(session, guild=guild, app=app, user=user, blocked=True)
+        guild, user, plugin = await _install(session)
+        await _member_connection(
+            session, guild=guild, plugin=plugin, user=user, blocked=True
+        )
 
-        response = await client.get(f"{BASE}/connections", headers=_headers(guild, app))
+        response = await client.get(
+            f"{BASE}/connections", headers=_headers(guild, plugin)
+        )
 
         assert response.status_code == 200, response.text
         assert response.json()["items"][0]["blocked"] is True
 
 
 # ---------------------------------------------------------------------------
-# The app's own verdict
+# The plug-in's own verdict
 # ---------------------------------------------------------------------------
 
 
@@ -448,18 +460,18 @@ class TestConfigStatus:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, _, app = await _install(session, with_values=True)
-        assert app.config_state == "unverified"
+        guild, _, plugin = await _install(session, with_values=True)
+        assert plugin.config_state == "unverified"
 
         response = await client.post(
             f"{BASE}/config-status",
-            headers=_headers(guild, app),
+            headers=_headers(guild, plugin),
             json={"state": "invalid", "detail": "missing_read_orders"},
         )
 
         assert response.status_code == 200, response.text
         assert response.json()["config_state"] == "invalid"
-        stored = await _reload(session, guild.id, app.id)
+        stored = await _reload(session, guild.id, plugin.id)
         assert stored.config_state == "invalid"
         assert stored.config_state_detail == "missing_read_orders"
 
@@ -467,21 +479,21 @@ class TestConfigStatus:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, _, app = await _install(session)
+        guild, _, plugin = await _install(session)
 
         response = await client.post(
             f"{BASE}/config-status",
-            headers=_headers(guild, app),
+            headers=_headers(guild, plugin),
             json={"state": "wonderful"},
         )
 
         assert response.status_code == 422
-        stored = await _reload(session, guild.id, app.id)
+        stored = await _reload(session, guild.id, plugin.id)
         assert stored.config_state == "unverified"
 
 
 # ---------------------------------------------------------------------------
-# Events an app emits
+# Events a plug-in emits
 # ---------------------------------------------------------------------------
 
 
@@ -506,18 +518,18 @@ class TestEvents:
         self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
-        guild, _, app = await _install(session)
+        guild, _, plugin = await _install(session)
 
         response = await client.post(
             f"{BASE}/events",
-            headers=_headers(guild, app),
+            headers=_headers(guild, plugin),
             json={"event_type": ORDER_CREATED, "payload": {"order_id": "1001"}},
         )
 
         assert response.status_code == 202, response.text
         assert await _kept(session, guild.id) == [
             {
-                "install_id": app.id,
+                "install_id": plugin.id,
                 "event_type": ORDER_CREATED,
                 "initiative_id": None,
                 "payload": {"order_id": "1001"},
@@ -528,8 +540,8 @@ class TestEvents:
         ("case", "event", "status", "detail"),
         [
             (
-                "an event type the app never declared",
-                {"event_type": "app.tests.shop.never_declared", "payload": {}},
+                "an event type the plug-in never declared",
+                {"event_type": "plugin.tests.shop.never_declared", "payload": {}},
                 400,
                 PluginChannelMessages.UNKNOWN_EVENT_TYPE,
             ),
@@ -551,7 +563,7 @@ class TestEvents:
                 PluginChannelMessages.EVENT_TOO_LARGE,
             ),
             (
-                "an initiative the app is not placed in",
+                "an initiative the plug-in is not placed in",
                 {"event_type": ORDER_CREATED, "payload": {}, "initiative_id": 999},
                 403,
                 PluginChannelMessages.INITIATIVE_NOT_PLACED,
@@ -569,10 +581,10 @@ class TestEvents:
         detail: str,
     ):
         await _register(session)
-        guild, _, app = await _install(session)
+        guild, _, plugin = await _install(session)
 
         response = await client.post(
-            f"{BASE}/events", headers=_headers(guild, app), json=event
+            f"{BASE}/events", headers=_headers(guild, plugin), json=event
         )
 
         assert response.status_code == status, response.text
@@ -585,14 +597,14 @@ class TestEvents:
         await _register(session)
         definition = _definition()
         definition["endpoints"] = [
-            {"id": "app.tests.other.order_created", "direction": "emit"}
+            {"id": "plugin.tests.other.order_created", "direction": "emit"}
         ]
-        guild, _, app = await _install(session, definition=definition)
+        guild, _, plugin = await _install(session, definition=definition)
 
         response = await client.post(
             f"{BASE}/events",
-            headers=_headers(guild, app),
-            json={"event_type": "app.tests.other.order_created", "payload": {}},
+            headers=_headers(guild, plugin),
+            json={"event_type": "plugin.tests.other.order_created", "payload": {}},
         )
 
         assert response.status_code == 400

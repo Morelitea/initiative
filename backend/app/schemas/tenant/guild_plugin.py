@@ -1,4 +1,4 @@
-"""What an installed app looks like over the wire.
+"""What an installed plug-in looks like over the wire.
 
 One rule shapes every payload here: **a stored secret never appears in a
 response.** A connection reports which of its fields hold a value and nothing
@@ -45,7 +45,7 @@ class CommunityPluginInstall(SanitizedBaseModel):
 
     The definition comes from the catalog, and the content the install creates
     is made server-side. What the request adds is the seat's answer to the
-    install dialog: what the app may reach, where it appears, and who opens it
+    install dialog: what the plug-in may reach, where it appears, and who opens it
     there. The install, its grant and its placements are one transaction.
     """
 
@@ -56,13 +56,13 @@ class CommunityPluginInstall(SanitizedBaseModel):
     #: one the registration's ceiling allows, as for ``PUT …/scopes``. Left
     #: out, nothing is granted.
     granted_scopes: List[str] = Field(default_factory=list, max_length=64)
-    #: Where the app's initiative surfaces appear: ``"all"`` for every
+    #: Where the plug-in's initiative surfaces appear: ``"all"`` for every
     #: initiative that exists now, or a list of this guild's initiative ids.
-    #: Left out, the app is placed nowhere.
+    #: Left out, the plug-in is placed nowhere.
     placements: Union[Literal["all"], Annotated[List[int], Field(max_length=1000)]] = (
         Field(default_factory=list)
     )
-    #: The built-in initiative roles that may open the app in each placement,
+    #: The built-in initiative roles that may open the plug-in in each placement,
     #: by name (``moderator``, ``project_manager``, ``member``), resolved to
     #: each initiative's own role of that name.
     role_kinds: List[str] = Field(default_factory=lambda: ["moderator"], max_length=10)
@@ -70,14 +70,14 @@ class CommunityPluginInstall(SanitizedBaseModel):
 
 class CommunityPluginUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    #: Turning an app off hides it without touching what it created.
+    #: Turning a plug-in off hides it without touching what it created.
     enabled: Optional[bool] = None
     #: Whether published versions are applied on their own. On until a guild
     #: admin turns it off, after which the Update button is how they land.
     auto_update: Optional[bool] = None
-    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: The initiatives this plug-in's initiative-scoped surfaces appear in, as the
     #: whole set: an initiative left out is no longer placed. An empty list
-    #: places the app in none. Left out entirely, placement is untouched.
+    #: places the plug-in in none. Left out entirely, placement is untouched.
     placed_initiative_ids: Optional[List[int]] = None
 
 
@@ -123,7 +123,7 @@ class CommunityPluginConnectionRead(SanitizedBaseModel):
     scope: str
     label: Dict[str, str] = {}
     #: The declared fields, verbatim from the pinned definition, so one generic
-    #: form renderer can draw any app's settings page.
+    #: form renderer can draw any plug-in's settings page.
     fields: List[Dict[str, Any]] = []
     #: What the connection says it will use the credential for. Display-only.
     access_hint: Optional[Dict[str, Any]] = None
@@ -148,20 +148,20 @@ class CommunityPluginConnectionRead(SanitizedBaseModel):
 
 
 class PluginPlacementRead(SanitizedBaseModel):
-    """One initiative an app is placed in, and who may open it there."""
+    """One initiative a plug-in is placed in, and who may open it there."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     initiative_id: int
-    #: The initiative roles allowed to open the app's surfaces here.
+    #: The initiative roles allowed to open the plug-in's surfaces here.
     role_ids: List[int] = []
 
 
 class PluginPlacementUpdate(SanitizedBaseModel):
-    """Who may open an app's surfaces in one initiative.
+    """Who may open a plug-in's surfaces in one initiative.
 
     The whole set: a role left out is no longer allowed. Every id must be a
-    role of that initiative. An empty list places the app with no role, so
+    role of that initiative. An empty list places the plug-in with no role, so
     only guild admins open it there.
     """
 
@@ -171,15 +171,15 @@ class PluginPlacementUpdate(SanitizedBaseModel):
 class CommunityPluginScopesUpdate(SanitizedBaseModel):
     """The scopes the seat grants an install, as the whole set.
 
-    Each must be one the app's manifest requests and one this deployment
-    allows the app. An empty list withdraws every grant.
+    Each must be one the plug-in's manifest requests and one this deployment
+    allows the plug-in. An empty list withdraws every grant.
     """
 
     granted: List[str] = Field(default_factory=list, max_length=64)
 
 
 class PluginSurfaceAccessRead(SanitizedBaseModel):
-    """Where the viewer may open one of an app's surfaces.
+    """Where the viewer may open one of a plug-in's surfaces.
 
     Computed on the server by the same decision the handoff makes, so the
     client offers exactly the doors that open.
@@ -217,17 +217,17 @@ class CommunityPluginRead(SanitizedBaseModel):
     artifacts: List[CommunityPluginArtifact] = []
     #: Whether a guild admin still has a guild-scoped connection to fill in.
     needs_config: bool = False
-    #: What the app reported about the configuration it was given.
+    #: What the plug-in reported about the configuration it was given.
     config_state: str = "unverified"
     config_state_detail: Optional[str] = None
-    #: Which tool this app mounts, when it mounts one. Read off the pinned
+    #: Which tool this plug-in mounts, when it mounts one. Read off the pinned
     #: definition so the client need not fetch the catalog to render an entry.
     tool: Optional[str] = None
     #: The listing's artwork, so the sidebar can draw this install. Looked up
     #: from the catalog rather than pinned: a publisher who changes their
-    #: picture changes it everywhere the app is shown.
+    #: picture changes it everywhere the plug-in is shown.
     avatar_url: Optional[str] = None
-    #: What a service app contributes, from its pinned definition.
+    #: What a service plug-in contributes, from its pinned definition.
     features: List[str] = []
     #: The pinned definition itself, verbatim.
     #:
@@ -241,11 +241,11 @@ class CommunityPluginRead(SanitizedBaseModel):
     #: definition describes the form, and what was typed into it lives in
     #: columns nothing here reads.
     definition: Dict[str, Any] = {}
-    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: The initiatives this plug-in's initiative-scoped surfaces appear in, as the
     #: seat set them, each with the roles allowed to open it there. An
-    #: initiative not listed is one the app does not appear in. Placement
+    #: initiative not listed is one the plug-in does not appear in. Placement
     #: rather than permission: it is the community's own answer to where an
-    #: app belongs, so it reads the same for everyone.
+    #: plug-in belongs, so it reads the same for everyone.
     placements: List[PluginPlacementRead] = []
     #: Each embedded surface the pinned definition declares, with where the
     #: viewer may open it.
@@ -254,12 +254,12 @@ class CommunityPluginRead(SanitizedBaseModel):
     #: seat grants some, and never wider than what the manifest requests or
     #: the registration allows.
     granted_scopes: List[str] = []
-    #: The deployment provides this app to every guild, and a guild admin
+    #: The deployment provides this plug-in to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
     mandatory: bool = False
-    #: Whether what this app offers can be reached right now. False for a
-    #: service app whose registration is missing or switched off — the install
+    #: Whether what this plug-in offers can be reached right now. False for a
+    #: service plug-in whose registration is missing or switched off — the install
     #: stays where it is and says why it is doing nothing.
     available: bool = True
     created_by: int
@@ -268,10 +268,10 @@ class CommunityPluginRead(SanitizedBaseModel):
 
 
 class CommunityPluginConsentRead(SanitizedBaseModel):
-    """One request from this app to act as the viewer, and their answer.
+    """One request from this plug-in to act as the viewer, and their answer.
 
-    ``label`` is the app's own description of what it wants to do, shown as
-    the app's words. ``purpose`` is the app's id for it; absent for app-wide
+    ``label`` is the plug-in's own description of what it wants to do, shown as
+    the plug-in's words. ``purpose`` is the plug-in's id for it; absent for plug-in-wide
     consent.
     """
 
@@ -291,21 +291,21 @@ class CommunityPluginConsentRead(SanitizedBaseModel):
 
 
 class CommunityPluginConsentAnswer(SanitizedBaseModel):
-    """Allow a request, at ``access``: never more than the app asked for.
+    """Allow a request, at ``access``: never more than the plug-in asked for.
     Declining is withdrawing a request that was never granted."""
 
     access: ConsentAccess
 
 
 class CommunityPluginMemberConsent(CommunityPluginConsentRead):
-    """One member's answer to one of the app's requests, in the seat's Members
+    """One member's answer to one of the plug-in's requests, in the seat's Members
     view."""
 
     user_id: int
 
 
 class PluginSurfaceSummary(SanitizedBaseModel):
-    """One of an app's embedded surfaces, by id and by its localized name."""
+    """One of a plug-in's embedded surfaces, by id and by its localized name."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -357,8 +357,8 @@ class CommunityPluginDetail(CommunityPluginRead):
     """
 
     connections: List[CommunityPluginConnectionRead] = []
-    #: The viewer's own answers to this app's requests to act as them, one per
-    #: purpose, the app-wide one first. Nobody else's.
+    #: The viewer's own answers to this plug-in's requests to act as them, one per
+    #: purpose, the plug-in-wide one first. Nobody else's.
     consents: List[CommunityPluginConsentRead] = []
     #: The version this install would move to if it updated now, and absent
     #: when there is none — an install already on the newest, and one whose
@@ -376,9 +376,9 @@ class CommunityPluginDetail(CommunityPluginRead):
     #: asks for anything. Absent for a version that asks nothing new, which
     #: applies without consent.
     pending_update: Optional[CommunityPluginUpgradeAsks] = None
-    #: For each ``apps:`` scope above, the requested ones and those the pending
-    #: version adds: the name the app it lets this one use goes by, keyed by
-    #: that app's public id. Its public id when the catalog has no name for it.
+    #: For each ``plugins:`` scope above, the requested ones and those the pending
+    #: version adds: the name the plug-in it lets this one use goes by, keyed by
+    #: that plug-in's public id. Its public id when the catalog has no name for it.
     plugin_names: Dict[str, str] = {}
 
 
@@ -405,7 +405,7 @@ class CommunityPluginConnectStart(SanitizedBaseModel):
 
 
 class CommunityPluginHandoff(SanitizedBaseModel):
-    """A short-lived credential for one of an app's embedded surfaces.
+    """A short-lived credential for one of a plug-in's embedded surfaces.
 
     The token reaches the iframe by ``postMessage`` and never a query string,
     and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
@@ -427,7 +427,7 @@ class CommunityPluginMemberConnection(SanitizedBaseModel):
 
     Who connected, as which vendor account, when, and whether they are blocked.
     No values, and no ``connection_ref`` — the handle is between the platform
-    and the app, and putting it in an admin screen would make it something
+    and the plug-in, and putting it in an admin screen would make it something
     people copy around.
     """
 
@@ -456,7 +456,7 @@ class CommunityPluginConnectionSummary(SanitizedBaseModel):
 
 
 class CommunityPluginConsentSummary(SanitizedBaseModel):
-    """Every member's answers to this app's requests, counted."""
+    """Every member's answers to this plug-in's requests, counted."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -469,7 +469,7 @@ class CommunityPluginConsentSummary(SanitizedBaseModel):
 
 
 class CommunityPluginMembersResponse(PageMeta):
-    """One page of the members who connected to this app or answered it.
+    """One page of the members who connected to this plug-in or answered it.
 
     ``summary`` and ``consent_summary`` count across every member; ``items``
     and ``consents`` are the rows of the members on this page.
@@ -477,9 +477,9 @@ class CommunityPluginMembersResponse(PageMeta):
 
     summary: List[CommunityPluginConnectionSummary] = []
     items: List[CommunityPluginMemberConnection] = []
-    #: The page's members' answers to this app's requests to act as them.
+    #: The page's members' answers to this plug-in's requests to act as them.
     #: Beside the connections rather than in a view of its own: both answer
-    #: "what does this app have of this member's", and an admin governing one
+    #: "what does this plug-in have of this member's", and an admin governing one
     #: wants the other in the same place.
     consents: List[CommunityPluginMemberConsent] = []
     consent_summary: CommunityPluginConsentSummary = CommunityPluginConsentSummary()
@@ -489,7 +489,7 @@ class CommunityPluginMembersResponse(PageMeta):
 
 
 def serialize_guild_plugin(
-    app: Any,
+    plugin: Any,
     *,
     context: "GuildContext",
     install_state: Optional[InstallState] = None,
@@ -499,15 +499,15 @@ def serialize_guild_plugin(
 ) -> CommunityPluginRead:
     """One install as the client sees it.
 
-    ``install_state`` is what this deployment's registration says about the app
+    ``install_state`` is what this deployment's registration says about the plug-in
     (§7.7): whether the platform provides it, and whether it can be reached at
     all. It is passed in rather than looked up here so a list of installs
     resolves it once. ``placements`` are the install's ``plugin_placements`` rows,
     and ``artifacts`` what it owns at guild scope, loaded by the caller for the
     same reason.
     """
-    definition = app.definition or {}
-    state = plugin_config_service.config_state(app)
+    definition = plugin.definition or {}
+    state = plugin_config_service.config_state(plugin)
     openability = surface_openability(
         definition,
         placements=placements,
@@ -517,14 +517,14 @@ def serialize_guild_plugin(
     features = definition.get("features")
     service_state = install_state or InstallState()
     return CommunityPluginRead(
-        id=app.id,
+        id=plugin.id,
         community_id=context.guild_id,
-        listing_uid=app.listing_uid,
-        listing_version=app.listing_version,
-        plugin_kind=app.plugin_kind,
-        name=app.name,
-        enabled=app.enabled,
-        auto_update=app.auto_update,
+        listing_uid=plugin.listing_uid,
+        listing_version=plugin.listing_version,
+        plugin_kind=plugin.plugin_kind,
+        name=plugin.name,
+        enabled=plugin.enabled,
+        auto_update=plugin.auto_update,
         artifacts=[CommunityPluginArtifact(**artifact) for artifact in artifacts],
         needs_config=state.needs_config,
         config_state=state.state,
@@ -547,17 +547,17 @@ def serialize_guild_plugin(
             )
             for one in openability
         ],
-        granted_scopes=sorted(app.granted_scopes or []),
+        granted_scopes=sorted(plugin.granted_scopes or []),
         mandatory=service_state.mandatory,
         available=service_state.available,
-        created_by=app.created_by,
-        created_at=app.created_at,
-        updated_at=app.updated_at,
+        created_by=plugin.created_by,
+        created_at=plugin.created_at,
+        updated_at=plugin.updated_at,
     )
 
 
 def serialize_connection(
-    app: Any,
+    plugin: Any,
     connection: Dict[str, Any],
     *,
     member_row: Any = None,
@@ -577,8 +577,8 @@ def serialize_connection(
     scope = connection.get("scope") or "static"
 
     if scope == "static":
-        stored_config = (app.config or {}).get(connection_id) or {}
-        stored_secrets = (app.secret_fields or {}).get(connection_id) or {}
+        stored_config = (plugin.config or {}).get(connection_id) or {}
+        stored_secrets = (plugin.secret_fields or {}).get(connection_id) or {}
     else:
         stored_config = (member_row.config or {}) if member_row is not None else {}
         stored_secrets = (
@@ -618,7 +618,7 @@ def serialize_connection(
 
 
 def serialize_guild_plugin_detail(
-    app: Any,
+    plugin: Any,
     *,
     context: "GuildContext",
     member_rows: Dict[str, Any],
@@ -636,7 +636,7 @@ def serialize_guild_plugin_detail(
     caller, which is the layer holding a session that can read the catalog.
     """
     base = serialize_guild_plugin(
-        app,
+        plugin,
         context=context,
         install_state=install_state,
         avatar_url=avatar_url,
@@ -645,22 +645,24 @@ def serialize_guild_plugin_detail(
     )
     connections = [
         serialize_connection(
-            app,
+            plugin,
             connection,
             member_row=member_rows.get(connection.get("id") or ""),
             holds_seat=context.guild_seat,
         )
-        for connection in plugin_config_service.definition_connections(app.definition)
+        for connection in plugin_config_service.definition_connections(
+            plugin.definition
+        )
     ]
     return CommunityPluginDetail(
         **base.model_dump(),
         connections=connections,
         consents=[serialize_consent(row) for row in consent_rows],
         update_version=update_offer.version if update_offer is not None else None,
-        pending_update=serialize_upgrade_asks(app, update_offer),
-        requested_scopes=requested_scopes(app.definition),
+        pending_update=serialize_upgrade_asks(plugin, update_offer),
+        requested_scopes=requested_scopes(plugin.definition),
         grantable_scopes=grantable_scopes(
-            app.definition, (install_state or InstallState()).scope_ceiling
+            plugin.definition, (install_state or InstallState()).scope_ceiling
         ),
         plugin_names=dict(plugin_names or {}),
     )
@@ -685,12 +687,14 @@ def upgrade_asks_read(version: str, asks: Any, *, declined: bool = False):
     )
 
 
-def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[CommunityPluginUpgradeAsks]:
+def serialize_upgrade_asks(
+    plugin: Any, offer: Any
+) -> Optional[CommunityPluginUpgradeAsks]:
     """The offered version's asks, or ``None`` when it asks nothing new."""
     if offer is None or not offer.asks.asks_more:
         return None
     return upgrade_asks_read(
-        offer.version, offer.asks, declined=app.declined_version == offer.version
+        offer.version, offer.asks, declined=plugin.declined_version == offer.version
     )
 
 

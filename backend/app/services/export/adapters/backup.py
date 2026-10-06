@@ -434,7 +434,7 @@ async def _build_scope(
         manifest = BackupManifest(
             type=f"{scope_kind}-backup",
             schema_version=BACKUP_SCHEMA_VERSION,
-            plugin_version=get_version(),
+            app_version=get_version(),
             exported_at=datetime.now(timezone.utc),
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
@@ -833,7 +833,7 @@ class _ScopeBuilder:
     # -- section hooks: dashboards ---------------------------------------------
 
     async def _record_foreign_dashboards(self, initiative, exported: list[int]) -> None:
-        """Dashboards built on an app this build does not ship.
+        """Dashboards built on a plug-in this build does not ship.
 
         The dashboard listing applies the provenance filter, so the ones it
         left out are recovered here separately in order to record them: an

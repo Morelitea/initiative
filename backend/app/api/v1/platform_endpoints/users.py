@@ -201,10 +201,10 @@ router = APIRouter()
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
 # members of one guild). Mounted under /c/{community_id}/users. The member
-# search is also what an installed app reads people through, under
+# search is also what an installed plug-in reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
-# A member's picture, by the reference an installed app knows them by. Mounted
+# A member's picture, by the reference an installed plug-in knows them by. Mounted
 # under /c/{community_id}/members.
 members_router = APIRouter(route_class=ActorRoute)
 
@@ -382,12 +382,12 @@ async def _search_members_for_plugin(
     page: int,
     page_size: int,
 ) -> UserSummaryListResponse:
-    """The member search, for an installed app.
+    """The member search, for an installed plug-in.
 
     Read through ``current_guild_members``, the projection of the routed
     community's own members, so it needs nothing of the membership table. The
     handle is what it matches and orders by: whether the guild shows real
-    names is the guild row's to say, which an app does not read; a name the
+    names is the guild row's to say, which a plug-in does not read; a name the
     guild shows still comes back on each row.
     """
     base = select(MemberProfile).where(
@@ -445,7 +445,7 @@ async def search_users(
         default=None,
         description=(
             "Only members of this initiative. The caller must reach it: be in "
-            "it, administer the community, or (an app) be placed there."
+            "it, administer the community, or (a plug-in) be placed there."
         ),
     ),
     tool: Optional[Tool] = Query(
@@ -454,7 +454,7 @@ async def search_users(
             "With ``resource_id``: only the people who can open that row, which "
             "is who may be named on content inside it (assignees, attendees, "
             "person properties). The caller must be able to open it too. For a "
-            "person's picker; an installed app's search does not take it."
+            "person's picker; an installed plug-in's search does not take it."
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
@@ -480,7 +480,7 @@ async def search_users(
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
 
-    An installed app (``members:read``) names members by its own references
+    An installed plug-in (``members:read``) names members by its own references
     and reads each as an :class:`PluginPerson`: the reference, the handle and the
     display name set in the community.
     """
@@ -1845,7 +1845,7 @@ async def _recipient(
     session: AsyncSession, *, guild_id: int, payload: OwnershipTransferRequest
 ) -> ownership_service.Owner:
     """Who the request names to receive the content. A person must be an
-    active admin of this guild; an app's eligibility is asked of the content
+    active admin of this guild; a plug-in's eligibility is asked of the content
     it would receive, by the move itself."""
     if payload.new_owner_plugin_id is not None:
         return ownership_service.Owner(plugin_install_id=payload.new_owner_plugin_id)
@@ -1871,8 +1871,8 @@ async def list_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
-    """Everything in this guild that no current member or live app owns, and
-    the apps that may own all of it.
+    """Everything in this guild that no current member or live plug-in owns, and
+    the plug-ins that may own all of it.
 
     Both the content released when someone left and anything orphaned before
     that — either way nobody who can act on it owns it.
@@ -1892,7 +1892,7 @@ async def claim_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
-    """Give everything nobody owns to one guild admin, or to an app that may
+    """Give everything nobody owns to one guild admin, or to a plug-in that may
     own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise)."""
     recipient = await _recipient(
         session, guild_id=guild_context.guild_id, payload=payload
@@ -1915,7 +1915,7 @@ async def list_owned_content(
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
     """What this user owns in this guild, for the transfer dialog to list,
-    and the apps that may own all of it.
+    and the plug-ins that may own all of it.
 
     Works for anyone the grants still name, member or not — accounts get
     abandoned as often as they get closed.
@@ -1937,7 +1937,7 @@ async def transfer_ownership(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Move everything ``user_id`` owns in this guild to a guild admin, or to
-    an app that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
+    a plug-in that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
 
     The only place ownership is moved by hand, and guild-admin only.
     """
@@ -2031,12 +2031,12 @@ async def remove_member(
         guild_id=guild_context.guild_id,
         user_id=user_id,
     )
-    # Being removed ends what this guild's apps let this person reach at an
+    # Being removed ends what this guild's plug-ins let this person reach at an
     # outside vendor, exactly as leaving voluntarily does.
     await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="removed_from_guild"
     )
-    # And what they let this guild's apps do as them, for the same reason.
+    # And what they let this guild's plug-ins do as them, for the same reason.
     await consents_service.delete_member_consents(session, user_id=user_id)
 
     removed_role = membership.role
@@ -2123,8 +2123,8 @@ async def read_member_avatar(
 ) -> Response:
     """Serve the picture a member of this community uploaded.
 
-    Where an installed app's ``avatar_url`` for a person points: the person is
-    named by the app's reference for them. The same bytes and caching as the
+    Where an installed plug-in's ``avatar_url`` for a person points: the person is
+    named by the plug-in's reference for them. The same bytes and caching as the
     profile picture route, and a 404 for a digest that is not the member's
     current picture, or for somebody who is not a member here.
     """

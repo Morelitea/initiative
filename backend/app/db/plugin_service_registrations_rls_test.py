@@ -1,6 +1,6 @@
-"""Role-security test for the app service registry.
+"""Role-security test for the plug-in service registry.
 
-The table holds each app's shared-secret ciphertext and is written on the
+The table holds each plug-in's shared-secret ciphertext and is written on the
 system engine alone: the schema's default privileges are wound back,
 ``app_admin`` carries every verb, and no person's request-path role holds a
 grant or a policy on it. The one other reader is the install floor, whose

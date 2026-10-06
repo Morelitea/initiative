@@ -1,22 +1,22 @@
-"""Per-member connections to an installed app's vendor, and how they end.
+"""Per-member connections to an installed plug-in's vendor, and how they end.
 
 A member connects their own account, an admin governs who may, and every way
 the relationship can end deletes the stored values and records a revocation.
 That last part is the reason this module is one place rather than a helper
 beside each caller: leaving a guild, being removed from it, being revoked or
-blocked, deleting an account, uninstalling the app and deleting the guild are
+blocked, deleting an account, uninstalling the plug-in and deleting the guild are
 six different stories with one requirement in common, and the way that
 requirement gets missed is each story implementing it separately.
 
 Every deletion path here goes through :func:`_delete_rows`, which is what makes
-"the values are gone and the app has been told" a property of the module rather
+"the values are gone and the plug-in has been told" a property of the module rather
 than of each caller remembering.
 
-The ``connection_ref`` an app addresses a credential by is minted once per
+The ``connection_ref`` a plug-in addresses a credential by is minted once per
 (install, connection, member), when the member's first flow completes, and
 reused across reconnects, so a member's history stays one row. It is random
 rather than derived from anything about the person, which is what keeps the
-same member uncorrelated across apps and guilds.
+same member uncorrelated across plug-ins and guilds.
 """
 
 from __future__ import annotations
@@ -103,7 +103,9 @@ async def list_plugin_connections(
     Returns only the caller's own rows unless the session is routed as a guild
     admin; the endpoint that offers this requires one.
     """
-    stmt = select(GuildPluginUserConnection).where(GuildPluginUserConnection.plugin_id == plugin_id)
+    stmt = select(GuildPluginUserConnection).where(
+        GuildPluginUserConnection.plugin_id == plugin_id
+    )
     if user_ids is not None:
         stmt = stmt.where(GuildPluginUserConnection.user_id.in_(user_ids))
     return list(
@@ -168,7 +170,7 @@ async def _delete_rows(
 async def disconnect(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     connection_id: str,
     user_id: int,
     reason: str = "disconnected",
@@ -180,7 +182,7 @@ async def disconnect(
     has just moved off it.
     """
     row = await get_connection(
-        session, plugin_id=app.id, connection_id=connection_id, user_id=user_id
+        session, plugin_id=plugin.id, connection_id=connection_id, user_id=user_id
     )
     if row is None:
         return 0
@@ -189,9 +191,9 @@ async def disconnect(
         [row],
         reason=reason,
         installs={
-            app.id: (
-                app.listing_uid,
-                definition if definition is not None else app.definition,
+            plugin.id: (
+                plugin.listing_uid,
+                definition if definition is not None else plugin.definition,
             )
         },
     )
@@ -200,7 +202,7 @@ async def disconnect(
 async def block_member_connection(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     connection_id: str,
     user_id: int,
     blocked_by_id: int,
@@ -215,11 +217,11 @@ async def block_member_connection(
     revoke, not a stronger one.
     """
     row = await get_connection(
-        session, plugin_id=app.id, connection_id=connection_id, user_id=user_id
+        session, plugin_id=plugin.id, connection_id=connection_id, user_id=user_id
     )
     if row is None:
         row = GuildPluginUserConnection(
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id=connection_id,
             user_id=user_id,
             connection_ref=mint_connection_ref(),
@@ -230,7 +232,7 @@ async def block_member_connection(
             session,
             [row],
             reason="blocked",
-            installs={app.id: (app.listing_uid, app.definition)},
+            installs={plugin.id: (plugin.listing_uid, plugin.definition)},
         )
         row.status = "blocked"
 
@@ -246,11 +248,11 @@ async def block_member_connection(
 
 
 async def unblock_member_connection(
-    session: AsyncSession, *, app: GuildPlugin, connection_id: str, user_id: int
+    session: AsyncSession, *, plugin: GuildPlugin, connection_id: str, user_id: int
 ) -> bool:
     """Lift a block. The tombstone goes; the member may connect again."""
     row = await get_connection(
-        session, plugin_id=app.id, connection_id=connection_id, user_id=user_id
+        session, plugin_id=plugin.id, connection_id=connection_id, user_id=user_id
     )
     if row is None or row.blocked_at is None:
         return False
@@ -261,42 +263,42 @@ async def unblock_member_connection(
 
 
 async def revoke_all(
-    session: AsyncSession, *, app: GuildPlugin, reason: str = "revoke_all"
+    session: AsyncSession, *, plugin: GuildPlugin, reason: str = "revoke_all"
 ) -> int:
     """Every member's connection for one install, at once.
 
-    For a suspected app or vendor compromise: it ends access without tearing
+    For a suspected plug-in or vendor compromise: it ends access without tearing
     down the install, so an admin does not have to choose between reacting fast
-    and keeping the app's configuration.
+    and keeping the plug-in's configuration.
     """
     rows = [
         row
-        for row in await list_plugin_connections(session, plugin_id=app.id)
+        for row in await list_plugin_connections(session, plugin_id=plugin.id)
         if row.blocked_at is None
     ]
     return await _delete_rows(
         session,
         rows,
         reason=reason,
-        installs={app.id: (app.listing_uid, app.definition)},
+        installs={plugin.id: (plugin.listing_uid, plugin.definition)},
     )
 
 
 async def delete_plugin_connections(
-    session: AsyncSession, *, app: GuildPlugin, reason: str = "uninstalled"
+    session: AsyncSession, *, plugin: GuildPlugin, reason: str = "uninstalled"
 ) -> int:
     """Everything for one install, blocked tombstones included.
 
-    Uninstalling ends the app's access completely, so a tombstone recording that
-    somebody was blocked from an app that is no longer installed has nothing
+    Uninstalling ends the plug-in's access completely, so a tombstone recording that
+    somebody was blocked from a plug-in that is no longer installed has nothing
     left to constrain.
     """
-    rows = await list_plugin_connections(session, plugin_id=app.id)
+    rows = await list_plugin_connections(session, plugin_id=plugin.id)
     return await _delete_rows(
         session,
         rows,
         reason=reason,
-        installs={app.id: (app.listing_uid, app.definition)},
+        installs={plugin.id: (plugin.listing_uid, plugin.definition)},
     )
 
 
@@ -327,7 +329,9 @@ async def delete_member_connections(
         session,
         rows,
         reason=reason,
-        installs=await _installs_by_plugin_id(session, plugin_ids={r.plugin_id for r in rows}),
+        installs=await _installs_by_plugin_id(
+            session, plugin_ids={r.plugin_id for r in rows}
+        ),
     )
 
 
@@ -338,14 +342,16 @@ async def delete_guild_connections(
 
     Dropping the schema would remove the rows without anyone being told, which
     would leave vendor grants outliving the guild that authorized them. This
-    runs first so each app is asked to let go.
+    runs first so each plug-in is asked to let go.
     """
     rows = list((await session.exec(select(GuildPluginUserConnection))).all())
     return await _delete_rows(
         session,
         rows,
         reason=reason,
-        installs=await _installs_by_plugin_id(session, plugin_ids={r.plugin_id for r in rows}),
+        installs=await _installs_by_plugin_id(
+            session, plugin_ids={r.plugin_id for r in rows}
+        ),
     )
 
 
@@ -358,9 +364,9 @@ async def _installs_by_plugin_id(
         return {}
     rows = (
         await session.exec(
-            select(GuildPlugin.id, GuildPlugin.listing_uid, GuildPlugin.definition).where(
-                GuildPlugin.id.in_(plugin_ids)
-            )
+            select(
+                GuildPlugin.id, GuildPlugin.listing_uid, GuildPlugin.definition
+            ).where(GuildPlugin.id.in_(plugin_ids))
         )
     ).all()
     return {

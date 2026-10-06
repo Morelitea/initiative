@@ -1,7 +1,7 @@
 """Maintaining the catalog, and serving the artwork it is drawn with.
 
 Reading the marketplace is not here: what a guild is offered depends on which
-apps it has installed, so the shelf and a listing's page are guild-addressed
+plug-ins it has installed, so the shelf and a listing's page are guild-addressed
 and live in ``tenant_endpoints/marketplace.py``.
 
 What is here is everything that decides *what this deployment carries*, which

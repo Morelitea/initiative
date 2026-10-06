@@ -1,4 +1,4 @@
-"""The scopes an app can be granted in a community — the one vocabulary.
+"""The scopes a plug-in can be granted in a community — the one vocabulary.
 
 A scope is ``<resource>:<access>``: ``projects:write``, ``comments:read``. The
 resources are derived from the registries that already define the things they
@@ -7,21 +7,21 @@ name, so a new tool is a new scope the moment it joins ``Tool``:
 - one resource per tool, spelled as the tool's plural;
 - ``comments``, ``relationships`` and ``tags``, the surfaces that span tools;
 - ``sharing``, a resource's grants: reading who has access, and changing it
-  where the app's own rung on the resource would let a person;
+  where the plug-in's own rung on the resource would let a person;
 - ``members`` and ``initiatives``, which are read-only.
 
 Writing implies reading. :func:`expand` applies that once, so no later check
 has to ask twice.
 
 Two more name a **standing** rather than a resource: ``initiatives:moderate``
-(acting as a moderator in an initiative the app is placed in) and
+(acting as a moderator in an initiative the plug-in is placed in) and
 ``community:admin`` (acting with a community admin's standing). A grant holds them by
 exact name, :func:`expand` gives them nothing, and no token carries one unless
 it asks for it by its level (:class:`InstallLevel`); see
 ``app.services.marketplace.plugin_oauth``.
 
-Beside that fixed vocabulary sits one open family: ``apps:<public_id>``, which
-lets an app call another app's public endpoints through Initiative. It names
+Beside that fixed vocabulary sits one open family: ``plugins:<public_id>``, which
+lets a plug-in call another plug-in's public endpoints through Initiative. It names
 no resource of the community's, so :func:`expand` gives it nothing; it is
 parsed by its prefix and the public-id characters (:func:`plugin_scope_target`)
 rather than listed, and a grant holds it by exact name.
@@ -101,7 +101,7 @@ _RESOURCE_SCOPES: tuple[str, ...] = tuple(
     if not (access is PluginScopeAccess.write and resource in READ_ONLY_RESOURCES)
 )
 
-#: Every scope an app can be granted, in a stable order: the resource scopes,
+#: Every scope a plug-in can be granted, in a stable order: the resource scopes,
 #: then the standings.
 ALL_SCOPES: tuple[str, ...] = _RESOURCE_SCOPES + tuple(LEVEL_SCOPES.values())
 _ALL_SCOPES = frozenset(ALL_SCOPES)
@@ -113,8 +113,8 @@ def is_standing_scope(scope: str) -> bool:
     return scope in STANDING_SCOPES
 
 
-#: The prefix of the scope family that lets an app call another app.
-PLUGIN_SCOPE_PREFIX = "apps:"
+#: The prefix of the scope family that lets a plug-in call another plug-in.
+PLUGIN_SCOPE_PREFIX = "plugins:"
 
 #: What a public id is drawn from, and how long one may be: the contract's
 #: ``publicId`` character set and ``publicIdLength`` cap, restated here so this
@@ -125,12 +125,12 @@ MAX_PUBLIC_ID_LENGTH = 120
 
 
 def plugin_scope(public_id: str) -> str:
-    """The scope that lets an app call the app ``public_id``."""
+    """The scope that lets a plug-in call the plug-in ``public_id``."""
     return f"{PLUGIN_SCOPE_PREFIX}{public_id}"
 
 
 def plugin_scope_target(scope: str) -> str | None:
-    """The public id an ``apps:`` scope names, or ``None`` when ``scope`` is
+    """The public id a ``plugins:`` scope names, or ``None`` when ``scope`` is
     not one: the prefix, then a ``<publisher>.<slug>`` id of the public-id
     characters."""
     if not isinstance(scope, str) or not scope.startswith(PLUGIN_SCOPE_PREFIX):
@@ -145,13 +145,13 @@ def plugin_scope_target(scope: str) -> str | None:
 
 
 def is_known_scope(scope: str) -> bool:
-    """Whether ``scope`` is in the vocabulary or the ``apps:`` family."""
+    """Whether ``scope`` is in the vocabulary or the ``plugins:`` family."""
     return scope in _ALL_SCOPES or plugin_scope_target(scope) is not None
 
 
 def ordered_scopes(scopes: Iterable[str]) -> list[str]:
     """The known scopes among ``scopes``, each once: the vocabulary's in its
-    order, then the ``apps:`` family sorted."""
+    order, then the ``plugins:`` family sorted."""
     asked = {scope for scope in scopes if isinstance(scope, str)}
     return [scope for scope in ALL_SCOPES if scope in asked] + sorted(
         scope for scope in asked if plugin_scope_target(scope) is not None
@@ -178,7 +178,7 @@ def parse_scope(scope: str) -> tuple[PluginScopeResource, PluginScopeAccess]:
 
 def validate_scopes(scopes: Iterable[str]) -> frozenset[str]:
     """``scopes`` as a set, raising :class:`UnknownPluginScope` on the first one
-    that is neither in the vocabulary nor in the ``apps:`` family."""
+    that is neither in the vocabulary nor in the ``plugins:`` family."""
     checked = frozenset(scopes)
     for scope in sorted(checked):
         if not is_known_scope(scope):
@@ -189,10 +189,10 @@ def validate_scopes(scopes: Iterable[str]) -> frozenset[str]:
 def expand(
     scopes: Iterable[str],
 ) -> tuple[frozenset[PluginScopeResource], frozenset[PluginScopeResource]]:
-    """The resources ``scopes`` let an app read and write.
+    """The resources ``scopes`` let a plug-in read and write.
 
     Writing implies reading, so every written resource is in the read set too.
-    An ``apps:`` scope or a standing names no resource and adds nothing.
+    A ``plugins:`` scope or a standing names no resource and adds nothing.
     """
     read: set[PluginScopeResource] = set()
     write: set[PluginScopeResource] = set()

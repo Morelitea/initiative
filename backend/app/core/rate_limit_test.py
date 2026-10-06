@@ -411,7 +411,7 @@ class TestDefaultLimitOnTheRealApp:
         assert (await client.get("/api/v1/healthz")).status_code == 200
         assert (await client.get("/api/v1/healthz")).status_code == 200
 
-    async def test_the_plugins_own_files_take_no_limit(
+    async def test_the_apps_own_files_take_no_limit(
         self, client, tmp_path, monkeypatch
     ):
         """A built file is served without counting; a path that falls back to

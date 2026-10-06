@@ -111,8 +111,8 @@ settings.WEBHOOK_ALLOW_PRIVATE_TARGETS = False
 # bootstrap superuser, overridable via the standard postgres-image variables.
 _su_user = os.environ.get("POSTGRES_USER", "initiative")
 _su_password = os.environ.get("POSTGRES_PASSWORD", "initiative")
-_plugin_db = make_url(settings.DATABASE_URL)
-_su_netloc = f"{_plugin_db.host}:{_plugin_db.port or 5432}"
+_app_db = make_url(settings.DATABASE_URL)
+_su_netloc = f"{_app_db.host}:{_app_db.port or 5432}"
 _base_url = (
     f"postgresql+asyncpg://{quote(_su_user, safe='')}:"
     f"{quote(_su_password, safe='')}@{_su_netloc}"
@@ -186,8 +186,8 @@ async def connect_su_postgres() -> asyncpg.Connection:
     return await asyncpg.connect(
         user=_su_user,
         password=_su_password,
-        host=_plugin_db.host,
-        port=_plugin_db.port or 5432,
+        host=_app_db.host,
+        port=_app_db.port or 5432,
         database="postgres",
     )
 
@@ -436,8 +436,8 @@ async def _test_db_is_at_head() -> bool:
         conn = await asyncpg.connect(
             user=_su_user,
             password=_su_password,
-            host=_plugin_db.host,
-            port=_plugin_db.port or 5432,
+            host=_app_db.host,
+            port=_app_db.port or 5432,
             database=TEST_DB_NAME,
         )
     except (asyncpg.InvalidCatalogNameError, OSError):
@@ -516,7 +516,7 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_app_caches():
-    """Start and end every test with no cached app service registrations and
+    """Start and end every test with no cached plug-in service registrations and
     no cached install references.
 
     The request path reads both through in-process caches (see

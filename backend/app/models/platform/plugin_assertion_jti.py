@@ -1,11 +1,11 @@
-"""The ``jti`` of every client assertion an app has presented.
+"""The ``jti`` of every client assertion a plug-in has presented.
 
-An app authenticates at the token endpoint with a short-lived JWT it signs
+A plug-in authenticates at the token endpoint with a short-lived JWT it signs
 (RFC 7523 §2.2). Each assertion is usable once: its ``jti`` is recorded here
 until the assertion's own ``exp``, and a second presentation of the same one
 meets the primary key.
 
-Keyed by (registration, jti), so each app has its own namespace, and the row
+Keyed by (registration, jti), so each plug-in has its own namespace, and the row
 goes with its registration (``ON DELETE CASCADE``). ``expires_at`` mirrors the
 assertion's ``exp``: an assertion past it is refused before this table is
 consulted, so the shared jti janitor (:mod:`app.services.platform.jti_purge`)

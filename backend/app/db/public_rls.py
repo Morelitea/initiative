@@ -235,10 +235,10 @@ LIVE_WINDOW = (
     " AND ((expires_at IS NULL) OR (expires_at > now()))"
 )
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
-#: A reference in the routed install's own sector: what an installed app's
+#: A reference in the routed install's own sector: what an installed plug-in's
 #: request calls somebody, and nothing any other install or purpose holds.
 INSTALL_SECTOR = f"purpose = 'plugin' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
-#: A reference an installed app's request mints: in its own sector, live, and
+#: A reference an installed plug-in's request mints: in its own sector, live, and
 #: naming a person or its own community.
 INSTALL_SECTOR_MINT = (
     f"{INSTALL_SECTOR} AND retired_at IS NULL"
@@ -364,7 +364,7 @@ class Grants:
     * ``app_superadmin`` — the seat floor, which only ``guild_<id>_superadmin``
       inherits.
     * ``plugin_install_base`` — the install floor, which only ``guild_<id>_plugin``
-      inherits: an installed app's reach into ``public``.
+      inherits: an installed plug-in's reach into ``public``.
 
     The two floors are granted the other way round from the rest: the schema
     default gives each full DML on a new table, and the migration that adds
@@ -1246,7 +1246,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_guild_base_ro",),
                     using=routed_admin("id"),
                 ),
-                # An installed app's standing reads the status of the community it
+                # An installed plug-in's standing reads the status of the community it
                 # is routed into (its column grant is id and status alone).
                 Policy(
                     "install_reads_its_guild",
@@ -1293,7 +1293,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_user",),
                     using=CLIENT_SECTOR,
                 ),
-                # An installed app's request reads what its install calls people and
+                # An installed plug-in's request reads what its install calls people and
                 # its community, and mints what it has not been told yet — in its
                 # own sector only (plugin_refs.install_refs; migration 20260924_0383).
                 Policy(
@@ -1874,7 +1874,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
         rls=FORCED_NO_POLICY,
         grants=Grants(
             # The install index: kept in step with each community's installs, read to
-            # list an app's installs and to route its vendor webhooks.
+            # list a plug-in's installs and to route its vendor webhooks.
             app_admin=DML,
         ),
     ),
@@ -1892,7 +1892,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
-    # Everything else is the system engine's. An installed app's standing reads
+    # Everything else is the system engine's. An installed plug-in's standing reads
     # the registration its token was issued to (its column grant is public_id,
     # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url and
     # vendor_ready alone).
@@ -1908,7 +1908,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             ),
         ),
         grants=Grants(
-            # App service registrations: full DML on the system engine, which is the
+            # Plug-in service registrations: full DML on the system engine, which is the
             # only reader and writer — the owner-gated CRUD endpoints run on
             # SystemSessionDep (as access_grants and auth_providers do), boot
             # reconciliation upserts from PLUGIN_SERVICES_CONFIG, and the registration
@@ -1925,7 +1925,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
-    # Everything else is the system engine's. An installed app's standing reads
+    # Everything else is the system engine's. An installed plug-in's standing reads
     # whether the publisher of its token's registration is on (its column grant
     # is id and enabled alone).
     "publishers": SharedTable(
@@ -1944,7 +1944,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             ),
         ),
         grants=Grants(
-            # Publishers: written by the apps.manage routes, seeded at boot, added when
+            # Publishers: written by the plugins.manage routes, seeded at boot, added when
             # a registration names a new prefix, and read with every registration.
             # Nothing deletes one (a registration references it).
             app_admin=frozenset({SELECT, INSERT, UPDATE}),

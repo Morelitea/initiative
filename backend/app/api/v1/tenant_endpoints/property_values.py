@@ -30,7 +30,7 @@ from app.services.tenant import properties as properties_service
 
 router = APIRouter(route_class=ActorRoute)
 
-#: An installed app writes a target's values with the write scope of the tool
+#: An installed plug-in writes a target's values with the write scope of the tool
 #: that governs it — a task's with ``projects:write``.
 PropertiesWrite = Annotated[
     ActorContext,
@@ -61,7 +61,7 @@ async def set_properties(
     sub-tool sits in (a task's project, an event's calendar). Each value's
     definition must belong to the same initiative, so a row that belongs to no
     initiative carries none. Values are validated against each definition's
-    type and options. An installed app names the person a person-valued
+    type and options. An installed plug-in names the person a person-valued
     property holds by its reference for them. An empty list clears them all.
     """
     spec = properties_service.PROPERTY_LINKS[target.value]

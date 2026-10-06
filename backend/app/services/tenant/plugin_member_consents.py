@@ -1,15 +1,15 @@
-"""An installed app asking a member to act as them, and the member's answer.
+"""An installed plug-in asking a member to act as them, and the member's answer.
 
-An app asks for one **purpose** at a time (``purpose`` absent is app-wide). The
-member answers on their own consent screen: grant ``read``, grant
-``read_write`` (never more than the app asked for), decline, or later revoke.
+A plug-in asks for one **purpose** at a time (``purpose`` absent covers the
+whole plug-in). The member answers on their own consent screen: grant ``read``, grant
+``read_write`` (never more than the plug-in asked for), decline, or later revoke.
 The community's administration can revoke every answer for one install at once
 without uninstalling it.
 
 The rows live in the community's schema. The functions here run on whatever
 session their caller routed: the member's own request (own-row policies admit
 their rows), the seat's (the admin leg admits every row), or the system engine
-routed into the community (the request an app makes, which names no person).
+routed into the community (the request a plug-in makes, which names no person).
 
 The install standing reads the row on every member-token request, so an answer
 changes the next request without anything else being told.
@@ -61,12 +61,12 @@ def _purpose_is(purpose: Optional[str]):
     return PluginMemberConsent.purpose.is_not_distinct_from(purpose)  # type: ignore[union-attr]
 
 
-# --- an app asking ------------------------------------------------------------
+# --- a plug-in asking ------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class ConsentRequest:
-    """What an app asked for."""
+    """What a plug-in asked for."""
 
     install_id: int
     user_id: int
@@ -94,12 +94,12 @@ async def find_consent(
 async def request_consent(
     session: AsyncSession, request: ConsentRequest
 ) -> tuple[PluginMemberConsent, bool]:
-    """Record an app's request, or find the one it already made.
+    """Record a plug-in's request, or find the one it already made.
 
     Returns the row and whether this call created it. A repeated request for
     the same member and purpose returns the row as it stands, whatever the
     member answered: the member changes their answer on their own screen, and
-    the app asking again changes nothing and tells nobody.
+    the plug-in asking again changes nothing and tells nobody.
     """
     inserted = (
         await session.exec(
@@ -135,7 +135,7 @@ async def request_consent(
 async def list_member_consents(
     session: AsyncSession, *, install_id: int, user_id: int
 ) -> list[PluginMemberConsent]:
-    """One member's rows for one install, app-wide first, then by purpose.
+    """One member's rows for one install, whole-plug-in first, then by purpose.
 
     Filtered on the member explicitly: an administrator's session is admitted
     to every member's rows, and this is the member's own list.
@@ -161,7 +161,7 @@ async def list_install_consents(
     user_ids: Optional[Sequence[int]] = None,
 ) -> list[PluginMemberConsent]:
     """Every member's rows for one install, for the seat's members view:
-    grouped by member, app-wide first within each, then by purpose.
+    grouped by member, whole-plug-in first within each, then by purpose.
     ``user_ids`` narrows it to those members, one page of that view."""
     stmt = select(PluginMemberConsent).where(
         PluginMemberConsent.install_id == install_id
@@ -232,13 +232,13 @@ async def grant(
 ) -> PluginMemberConsent:
     """The member allows the request at ``access``.
 
-    Raises ``ValueError`` when ``access`` is more than the app asked for. An
+    Raises ``ValueError`` when ``access`` is more than the plug-in asked for. An
     answer given before (a grant at another level, a decline, a revocation) is
     replaced, and ``granted_at`` restarts, so it reads as the age of what is in
     force now.
     """
     if not ConsentAccess(row.requested_access).covers(access):
-        raise ValueError("more than the app asked for")
+        raise ValueError("more than the plug-in asked for")
     now = utcnow()
     row.granted_access = access.value
     row.granted_at = now
@@ -346,7 +346,7 @@ async def revoke_all(
 ) -> int:
     """End every member's answer for one install, pending requests included.
 
-    The seat's switch for stopping an app acting as anybody without
+    The seat's switch for stopping a plug-in acting as anybody without
     uninstalling it. Members may grant again afterwards.
     """
     rows = (

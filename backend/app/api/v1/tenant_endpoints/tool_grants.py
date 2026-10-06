@@ -22,7 +22,7 @@ Each route keeps the path, method, tag, name, summary, description and
 parameters its tool already had, so the published surface and the generated
 client are unchanged.
 
-An installed app reaches the route for each tool that serves apps, under
+An installed plug-in reaches the route for each tool that serves plug-ins, under
 ``sharing:write``. What it may change is decided as for a person, by its rung
 on the resource, with the tool's write scope beside the sharing scope
 (``resource_access.require_install_may_share``).

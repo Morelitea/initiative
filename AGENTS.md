@@ -85,7 +85,7 @@ This project uses **semantic versioning** (semver) with a single source of truth
 
 - **Single source**: The `VERSION` file contains the current version (e.g., `0.1.0`)
 - **Backend**: Reads VERSION file and exposes via `/api/v1/version` endpoint and OpenAPI schema
-- **Frontend**: Vite injects VERSION as `__PLUGIN_VERSION__` constant, displayed in the sidebar footer
+- **Frontend**: Vite injects VERSION as `__APP_VERSION__` constant, displayed in the sidebar footer
 - **Docker**: VERSION is copied into the image and set as OCI labels
 
 ### Releasing a Version
@@ -376,7 +376,7 @@ The path depends on where the table lives:
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project config, and can delete their guild. A guild admin sees the whole guild via the `current_guild_role='admin'` RLS leg, not a bypass.
 - **Platform roles are a 5-rung ladder** (`member → support → moderator → operator → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
 - `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/communities/` returns 403 and the SPA hides “Create guild” affordances.
-- Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds its settings row + mandatory apps, and makes the creator a guild admin. It gets **no initiative** — the owner names the first one from the guild home's empty state. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
+- Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds its settings row + mandatory plug-ins, and makes the creator a guild admin. It gets **no initiative** — the owner names the first one from the guild home's empty state. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
 
 ## Docker Deployment
 

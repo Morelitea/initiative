@@ -1,7 +1,7 @@
 """A declarative endpoint, run as the SDK's ``runEndpoint`` runs it, and an
 ``after_connect`` as its ``runAfterConnect`` does.
 
-The app is the SDK's own test app (``test/support/app.ts``, 1.4.0), and each
+The plug-in is the SDK's own test plug-in (``test/support/app.ts``, 1.4.0), and each
 case asserts what its ``test/testing.test.ts`` asserts: the requests rendered,
 in order, and what the run answered. The vendor is ``FakeVendor``'s API,
 answering from recorded answers; the one difference from the SDK's rendered
@@ -100,7 +100,7 @@ def issues_plugin(**changes) -> dict:
         },
         "search": {
             "direction": "read",
-            # The SDK's test app leaves this out; Initiative requires a member
+            # The SDK's test plug-in leaves this out; Initiative requires a member
             # connection a request uses to be named in requires.
             "requires": {"all_of": ["account"]},
             "returns": [{"key": "ids", "type": "string", "list": True}],
@@ -128,7 +128,7 @@ def issues_plugin(**changes) -> dict:
     for name, change in changes.items():
         endpoints[name] = {**endpoints.get(name, {}), **change}
     return normalize_listing_definition(
-        "app",
+        "plugin",
         {
             "plugin_kind": "service",
             "features": ["endpoints"],
@@ -156,7 +156,7 @@ def issues_plugin(**changes) -> dict:
                 },
             ],
             "endpoints": [
-                {"id": f"app.acme.issues.{name}", **endpoint}
+                {"id": f"plugin.acme.issues.{name}", **endpoint}
                 for name, endpoint in endpoints.items()
             ],
         },

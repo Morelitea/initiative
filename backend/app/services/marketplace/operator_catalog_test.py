@@ -61,12 +61,12 @@ def _manifest(**overrides) -> dict:
     return manifest
 
 
-#: The read the bundled tile draws, namespaced under the app's own service id.
-OPEN_ITEMS = "app.acme.tracker.open-items"
+#: The read the bundled tile draws, namespaced under the plug-in's own service id.
+OPEN_ITEMS = "plugin.acme.tracker.open-items"
 
 
 def _plugin_manifest(dashboards=None, **overrides) -> dict:
-    """An app manifest, optionally carrying the dashboards it bundles."""
+    """A plug-in manifest, optionally carrying the dashboards it bundles."""
     definition: dict = {
         "plugin_kind": "service",
         "service": {"public_id": "acme.tracker", "protocol": 1},
@@ -445,7 +445,7 @@ class TestBundledDashboards:
     async def test_a_bundled_dashboard_survives_the_scan_that_publishes_it(
         self, session, catalog_dir
     ):
-        """Its uid is only ever written inside its app's file, so the scan has
+        """Its uid is only ever written inside its plug-in's file, so the scan has
         to read the file to know the directory claims it."""
         _write(catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()]))
 
@@ -475,8 +475,8 @@ class TestBundledDashboards:
     async def test_dropping_the_entry_still_withdraws_the_dashboard(
         self, session, catalog_dir
     ):
-        """The app no longer ships that arrangement, so it stops being offered
-        — while the app itself carries on."""
+        """The plug-in no longer ships that arrangement, so it stops being offered
+        — while the plug-in itself carries on."""
         _write(catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()]))
         await service.scan_operator_catalog(session)
         await session.commit()

@@ -1,6 +1,6 @@
 """Resolving the catalog rows behind an install, for every kind of install.
 
-Installing a dashboard and installing an app ask the catalog the same three
+Installing a dashboard and installing a plug-in ask the catalog the same three
 questions — does this listing exist, may it still be installed, and which
 version does this build pin — and a second copy of that reasoning is how the two
 drift into answering them differently. So there is one resolver, and the caller
@@ -65,20 +65,20 @@ async def resolve_listing_install(
     """The listing and the version to pin, or a reason it cannot be installed.
 
     A listing of the wrong kind reads as *not found* rather than as a type
-    error: a dashboard uid handed to the app installer names nothing that
+    error: a dashboard uid handed to the plug-in installer names nothing that
     installer can install, and saying so any more precisely only describes the
     catalog to someone guessing at it.
 
     ``already_installed`` is set by the two paths that re-pin something a guild
     already has — the update sweep and the upgrade button. Whether this
-    deployment runs an app's service decides whether a guild may *acquire* it;
+    deployment runs a plug-in's service decides whether a guild may *acquire* it;
     an install that exists is the guild's either way, and keeping it on the
     version its publisher currently ships is not a second acquisition.
 
     The lookup runs on the session the request already has, which holds read
-    access to the catalog. For a dashboard an app ships with itself, that
+    access to the catalog. For a dashboard a plug-in ships with itself, that
     session is also routed into the guild, which is what lets the check below
-    ask whether the guild has the app.
+    ask whether the guild has the plug-in.
     """
     listing = await catalog_service.get_listing_by_uid(session, listing_uid)
     if listing is None or listing.kind != kind:
@@ -90,13 +90,13 @@ async def resolve_listing_install(
     version = await catalog_service.resolve_installable_version(session, listing)
     if version is None:
         # Either it has published nothing, or its current version needs a newer
-        # app. Silently installing an older one would be worse: the guild would
+        # plug-in. Silently installing an older one would be worse: the guild would
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
     if not already_installed and not await registration_lookup.plugin_is_offered(
         version.definition, listing_uid=listing.uid
     ):
-        # An app whose service this deployment does not run is not in this
+        # A plug-in whose service this deployment does not run is not in this
         # marketplace at all — browse leaves it out and its page answers 404 —
         # so a uid naming one names nothing to acquire here, and says so with
         # the same answer rather than a second one reachable only by asking
@@ -106,7 +106,7 @@ async def resolve_listing_install(
 
 
 async def installed_plugin_uids(session: AsyncSession) -> set[str]:
-    """The listing uids of the apps the guild this session is routed to has,
+    """The listing uids of the plug-ins the guild this session is routed to has,
     switched on.
 
     Reads the guild's own install rows, so the schema boundary is what answers —
@@ -114,7 +114,7 @@ async def installed_plugin_uids(session: AsyncSession) -> set[str]:
 
     One helper for both readers of this: browse asks which bundled dashboards
     to offer, and the install asks whether this particular one may be taken. A
-    guild holds a handful of apps, so the set is small enough that answering
+    guild holds a handful of plug-ins, so the set is small enough that answering
     both from one query is cheaper than keeping two ways to ask.
     """
     rows = await session.exec(
@@ -128,8 +128,8 @@ async def listing_is_offered(
 ) -> bool:
     """Whether the guild this session is routed to may take this listing.
 
-    One rule today: a dashboard an app ships with itself draws that app's
-    widgets, so it is offered where the app is and nowhere else.
+    One rule today: a dashboard a plug-in ships with itself draws that plug-in's
+    widgets, so it is offered where the plug-in is and nowhere else.
 
     A listing's page asks this and answers 404 for it; the install asks it and
     refuses. The shelf reaches the same answer a page at a time, by filtering on

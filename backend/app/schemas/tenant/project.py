@@ -92,7 +92,7 @@ class ProjectRead(ProjectBase, ToolState):
 
     id: int
     # Who owns the project: the person holding its owner-level grant, or None
-    # when nobody does or an app does (``owner_plugin``). ``owner`` carries the
+    # when nobody does or a plug-in does (``owner_plugin``). ``owner`` carries the
     # same fact with the user attached;
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not
@@ -111,7 +111,7 @@ class ProjectRead(ProjectBase, ToolState):
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the project or nobody does. At most one of ``owner_id`` and this is set.
     owner_plugin: Optional[OwnerPluginSummary] = Field(
         default=None, validation_alias="owner_plugin_source"

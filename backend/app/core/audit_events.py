@@ -145,13 +145,13 @@ class AuditEventType(str, Enum):
     #: Everything one account owned in a community now belongs to another,
     #: or to nobody. One record per transfer, with counts by tool.
     CONTENT_OWNERSHIP_TRANSFERRED = "content.ownership_transferred"
-    #: A member allowed an installed app's request to act as them, or took
+    #: A member allowed an installed plug-in's request to act as them, or took
     #: that back (or the community's seat ended it for them).
     PLUGIN_CONSENT_GRANTED = "plugin_consent.granted"
     PLUGIN_CONSENT_REVOKED = "plugin_consent.revoked"
-    #: One installed app called another through Initiative: which app called,
+    #: One installed plug-in called another through Initiative: which plug-in called,
     #: which it called, the endpoint, whose behalf it was on, and how it ended.
-    #: It records the reach, as ``pam.request`` does; what the app called then
+    #: It records the reach, as ``pam.request`` does; what the plug-in called then
     #: changed is its own.
     PLUGIN_HUB_CALL = "plugin_hub.call"
 
@@ -204,7 +204,7 @@ class AuditEventType(str, Enum):
     MARKETPLACE_LISTING_UPLOADED = "marketplace.listing_uploaded"
     #: A member took down a listing they shared.
     MARKETPLACE_LISTING_WITHDRAWN = "marketplace.listing_withdrawn"
-    #: An installed app's own settings or configuration.
+    #: An installed plug-in's own settings or configuration.
     PLUGIN_UPDATED = "plugin.updated"
 
     # Lifecycle: accounts and communities coming and going, and the bulk
@@ -263,13 +263,13 @@ class AuditCategory(str, Enum):
 
     MODERATION = "moderation"
     AUTHENTICATION = "authentication"
-    #: Who may reach what: memberships, roles, shares, app consents, and
+    #: Who may reach what: memberships, roles, shares, plug-in consents, and
     #: privileged access into a community from outside it.
     AUTHORIZATION = "authorization"
     #: The platform itself: who holds which rung of its ladder. Operator
     #: work, which is a different job from moderating an account.
     PLATFORM = "platform"
-    #: Settings, at either level: how sign-in, email, storage, AI and apps
+    #: Settings, at either level: how sign-in, email, storage, AI and plug-ins
     #: are wired.
     CONFIGURATION = "configuration"
     #: Accounts and communities arriving and leaving, and data moved in

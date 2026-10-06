@@ -703,7 +703,7 @@ async def claim_uploads(
     if not wanted or (person is None and uploaded_by is not None):
         return
     if install_context(session) is not None:
-        # An installed app reaches a file through the content showing it, so
+        # An installed plug-in reaches a file through the content showing it, so
         # it copies one only when content it reads shows it: other content,
         # or rows it carried here.
         saving: Dict[type, list[int]] = {}

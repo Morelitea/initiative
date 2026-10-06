@@ -1,8 +1,8 @@
-"""Installing an app, and what that gives the guild.
+"""Installing a plug-in, and what that gives the guild.
 
 Two things carry the weight.
 
-An app mounts an *existing* tool at guild scope — installing the guild calendar
+A plug-in mounts an *existing* tool at guild scope — installing the guild calendar
 creates an ordinary `calendars` row with no initiative, not a parallel thing. So
 the tests assert on the calendar: that it exists, that it belongs to no
 initiative, and that a plain member of the guild — who is in no initiative at
@@ -14,9 +14,9 @@ The other is who may do this. Installing mounts a guild-wide surface, so it is a
 guild-admin action; reading the list is not, because the sidebar has to know
 what is there.
 
-An embed app is the other shape: it brings no content, so there is nothing to
+An embed plug-in is the other shape: it brings no content, so there is nothing to
 create, share or trash, and the answer to "who may open this" comes back on the
-app itself rather than from grants that do not exist.
+plug-in itself rather than from grants that do not exist.
 """
 
 import pytest
@@ -89,14 +89,14 @@ async def _install(client: AsyncClient, actor, **body) -> dict:
     return response.json()
 
 
-def _artifact_id(app: dict, artifact_type: str = "calendar") -> int:
+def _artifact_id(plugin: dict, artifact_type: str = "calendar") -> int:
     """The id of what the install produced.
 
     An install may produce several things, so what it produced is a list rather
     than a well-known key on ``config``; a caller says which type it wants.
     """
-    matching = [a["id"] for a in app["artifacts"] if a["type"] == artifact_type]
-    assert matching, f"no {artifact_type} artifact on {app['artifacts']}"
+    matching = [a["id"] for a in plugin["artifacts"] if a["type"] == artifact_type]
+    assert matching, f"no {artifact_type} artifact on {plugin['artifacts']}"
     return matching[0]
 
 
@@ -105,16 +105,16 @@ class TestInstall:
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
 
-        assert app["plugin_kind"] == "tool_instance"
-        assert app["tool"] == "calendar"
-        assert app["listing_version"] == "1.0.0"
-        assert app["enabled"] is True
+        assert plugin["plugin_kind"] == "tool_instance"
+        assert plugin["tool"] == "calendar"
+        assert plugin["listing_version"] == "1.0.0"
+        assert plugin["enabled"] is True
 
-        calendar = await _read_calendar(session, a.guild.id, _artifact_id(app))
+        calendar = await _read_calendar(session, a.guild.id, _artifact_id(plugin))
         assert calendar is not None
-        # Belongs to the guild, not to any initiative — which is what an app is.
+        # Belongs to the guild, not to any initiative — which is what a plug-in is.
         assert calendar.initiative_id is None
 
     async def test_the_list_carries_the_listing_artwork(
@@ -135,9 +135,9 @@ class TestInstall:
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a, name="Club nights")
-        assert app["name"] == "Club nights"
-        calendar = await _read_calendar(session, a.guild.id, _artifact_id(app))
+        plugin = await _install(client, a, name="Club nights")
+        assert plugin["name"] == "Club nights"
+        calendar = await _read_calendar(session, a.guild.id, _artifact_id(plugin))
         assert calendar.name == "Club nights"
 
     async def test_only_a_guild_admin_may_install(
@@ -157,7 +157,7 @@ class TestInstall:
         self, client: AsyncClient, acting_user, session
     ):
         # A dashboard listing installs through the dashboards endpoint; asking
-        # the apps endpoint for one is asking for something that isn't there.
+        # the plug-ins endpoint for one is asking for something that isn't there.
         await create_marketplace_listing(
             session, uid=marketplace_uid("dashnotapp"), public_id="tests.dash"
         )
@@ -198,8 +198,10 @@ class TestInstall:
         first = await _install(client, a)
         second = await _install(client, b)
 
-        for actor, app in ((a, first), (b, second)):
-            calendar = await _read_calendar(session, actor.guild.id, _artifact_id(app))
+        for actor, plugin in ((a, first), (b, second)):
+            calendar = await _read_calendar(
+                session, actor.guild.id, _artifact_id(plugin)
+            )
             assert calendar is not None
 
 
@@ -211,11 +213,11 @@ class TestVisibility:
         reaches the guild's own calendar, because it belongs to no initiative
         either."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
-            member.g(f"/calendars/{_artifact_id(app)}"),
+            member.g(f"/calendars/{_artifact_id(plugin)}"),
             headers=member.headers,
         )
         assert response.status_code == 200, response.text
@@ -249,10 +251,10 @@ class TestManage:
         self, client: AsyncClient, acting_user, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
 
         response = await client.patch(
-            a.g(f"/plugins/{app['id']}"),
+            a.g(f"/plugins/{plugin['id']}"),
             headers=a.headers,
             json={"name": "Renamed", "enabled": False},
         )
@@ -266,17 +268,19 @@ class TestManage:
         """Nobody opts in. An install takes what its publisher ships until a
         guild admin says it should not."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
-        assert app["auto_update"] is True
+        plugin = await _install(client, a)
+        assert plugin["auto_update"] is True
 
     async def test_an_admin_can_switch_to_manual_updates(
         self, client: AsyncClient, acting_user, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
 
         response = await client.patch(
-            a.g(f"/plugins/{app['id']}"), headers=a.headers, json={"auto_update": False}
+            a.g(f"/plugins/{plugin['id']}"),
+            headers=a.headers,
+            json={"auto_update": False},
         )
         assert response.status_code == 200, response.text
         assert response.json()["auto_update"] is False
@@ -291,11 +295,11 @@ class TestManage:
         self, client: AsyncClient, acting_user, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.patch(
-            member.g(f"/plugins/{app['id']}"),
+            member.g(f"/plugins/{plugin['id']}"),
             headers=member.headers,
             json={"auto_update": False},
         )
@@ -307,9 +311,9 @@ class TestManage:
         """``update_version`` is what draws the Update button, so an install on
         the newest version has to come back without one."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
 
-        response = await client.get(a.g(f"/plugins/{app['id']}"), headers=a.headers)
+        response = await client.get(a.g(f"/plugins/{plugin['id']}"), headers=a.headers)
         assert response.status_code == 200, response.text
         assert response.json()["update_version"] is None
 
@@ -317,13 +321,13 @@ class TestManage:
         self, client: AsyncClient, acting_user, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         await client.patch(
-            a.g(f"/plugins/{app['id']}"), headers=a.headers, json={"enabled": False}
+            a.g(f"/plugins/{plugin['id']}"), headers=a.headers, json={"enabled": False}
         )
-        # Turning an app off hides it; it does not throw anything away.
+        # Turning a plug-in off hides it; it does not throw anything away.
         response = await client.get(
-            a.g(f"/calendars/{_artifact_id(app)}"), headers=a.headers
+            a.g(f"/calendars/{_artifact_id(plugin)}"), headers=a.headers
         )
         assert response.status_code == 200
 
@@ -331,18 +335,20 @@ class TestManage:
     async def test_only_the_seat_may_manage(
         self, client: AsyncClient, acting_user, calendar_plugin, role: CommunityRole
     ):
-        """What the community hands an app is the seat's, so running the
+        """What the community hands a plug-in is the seat's, so running the
         community is not enough on its own."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
+        plugin = await _install(client, a)
         other = await acting_user(guild_role=role, guild=a.guild)
 
         patched = await client.patch(
-            other.g(f"/plugins/{app['id']}"), headers=other.headers, json={"name": "no"}
+            other.g(f"/plugins/{plugin['id']}"),
+            headers=other.headers,
+            json={"name": "no"},
         )
         assert patched.status_code == 403
         removed = await client.delete(
-            other.g(f"/plugins/{app['id']}"), headers=other.headers
+            other.g(f"/plugins/{plugin['id']}"), headers=other.headers
         )
         assert removed.status_code == 403
 
@@ -352,12 +358,14 @@ class TestUninstall:
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_plugin
     ):
         """Trashed, not deleted: whatever the guild put in that calendar should
-        survive an admin removing the app."""
+        survive an admin removing the plug-in."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
-        calendar_id = _artifact_id(app)
+        plugin = await _install(client, a)
+        calendar_id = _artifact_id(plugin)
 
-        response = await client.delete(a.g(f"/plugins/{app['id']}"), headers=a.headers)
+        response = await client.delete(
+            a.g(f"/plugins/{plugin['id']}"), headers=a.headers
+        )
         assert response.status_code == 204
 
         assert (await client.get(a.g("/plugins/"), headers=a.headers)).json()[
@@ -374,13 +382,13 @@ class TestUninstall:
     async def test_removal_trashes_a_calendar_added_after_the_install(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_plugin
     ):
-        """An app is answerable for everything made inside it, not only for what
+        """A plug-in is answerable for everything made inside it, not only for what
         it created on the way in. Removal reads that list under the same lock a
         create takes, so a calendar added later goes to the trash with the rest
         rather than staying live with nothing that reaches it."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
-        mounted_id = _artifact_id(app)
+        plugin = await _install(client, a)
+        mounted_id = _artifact_id(plugin)
 
         added = await client.post(
             a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
@@ -388,7 +396,9 @@ class TestUninstall:
         assert added.status_code == 201, added.text
         added_id = added.json()["id"]
 
-        response = await client.delete(a.g(f"/plugins/{app['id']}"), headers=a.headers)
+        response = await client.delete(
+            a.g(f"/plugins/{plugin['id']}"), headers=a.headers
+        )
         assert response.status_code == 204
 
         for calendar_id in (mounted_id, added_id):
@@ -402,18 +412,18 @@ class TestUninstall:
         self, client: AsyncClient, acting_user, calendar_plugin
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(client, a)
-        await client.delete(a.g(f"/plugins/{app['id']}"), headers=a.headers)
+        plugin = await _install(client, a)
+        await client.delete(a.g(f"/plugins/{plugin['id']}"), headers=a.headers)
         # The one-install rule is about what is currently mounted, not a
         # permanent claim on the listing.
         again = await _install(client, a)
-        assert _artifact_id(again) != _artifact_id(app)
+        assert _artifact_id(again) != _artifact_id(plugin)
 
 
 class TestKindsThisBuildCanMount:
     """Every kind the catalog may hold is one a guild can install.
 
-    A ``service`` app is the one whose install produces nothing locally: it
+    A ``service`` plug-in is the one whose install produces nothing locally: it
     brings connections rather than content, and what it offers is served by the
     container the operator registered. So the assertion that matters is that
     installing one records the row and creates no artifact — quietly mounting
@@ -433,7 +443,7 @@ class TestKindsThisBuildCanMount:
             uid=self.SERVICE_UID,
             public_id="tests.service-kind",
             kind="plugin",
-            name="A service app",
+            name="A service plug-in",
             definition={
                 "plugin_kind": "service",
                 "service": {"public_id": "tests.service-kind"},
@@ -444,7 +454,7 @@ class TestKindsThisBuildCanMount:
     async def test_a_service_plugin_installs_and_creates_no_artifact(
         self, client: AsyncClient, acting_user, session: AsyncSession, service_listing
     ):
-        # Wired up: the operator has said this deployment runs the app. Whether
+        # Wired up: the operator has said this deployment runs the plug-in. Whether
         # its container is up yet is not asked.
         await create_plugin_service_registration(
             session, public_id="tests.service-kind"
@@ -470,7 +480,7 @@ class TestKindsThisBuildCanMount:
         """The same answer the marketplace gives by leaving it out.
 
         The catalog is published to every deployment; running the service is
-        what makes one carry the app. Until an operator has wired it up, the
+        what makes one carry the plug-in. Until an operator has wired it up, the
         uid names nothing this deployment installs.
         """
         a = await acting_user(guild_role=CommunityRole.superadmin)

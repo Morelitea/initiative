@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Takes part in what they're added to.",
       "admin": "Runs the community — members, invites, initiatives, settings.",
-      "superadmin": "All that, plus how people get in: sign-in, AI and apps. Only a superadmin can appoint another."
+      "superadmin": "All that, plus how people get in: sign-in, AI and plug-ins. Only a superadmin can appoint another."
     },
     "loadingSettings": "Loading settings…",
     "unableToLoadSettings": "Unable to load settings.",
@@ -466,8 +466,8 @@
     "recipientLabel": "New owner",
     "recipientPlaceholder": "Choose an admin",
     "adminsOnly": "Only community admins can be given ownership.",
-    "pluginHint": "App",
-    "adminsOrPlugins": "Community admins can be given ownership, and so can an app that is switched on, placed wherever this content lives, and allowed to change it.",
+    "pluginHint": "Plug-in",
+    "adminsOrPlugins": "Community admins can be given ownership, and so can a plug-in that is switched on, placed wherever this content lives, and allowed to change it.",
     "confirm": "Transfer",
     "transferring": "Transferring…",
     "nothingOwned": "They own nothing in this community.",

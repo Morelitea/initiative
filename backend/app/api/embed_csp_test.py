@@ -1,7 +1,7 @@
 """Which origins a served document may frame.
 
 The property under test is that the answer is a property of the **deployment**:
-the origins of the live app services an operator has wired up. So the same
+the origins of the live plug-in services an operator has wired up. So the same
 header goes to every document, it names no guild, install or reader, and an
 operator's kill switch — on the registration or on its publisher — is the thing
 that takes an origin back out of it.
@@ -38,7 +38,7 @@ class TestTheRegisteredOrigins:
     async def test_every_live_registration_is_named_once_and_in_order(
         self, session: AsyncSession
     ):
-        """Two apps served from one origin put it on the list once. The order
+        """Two plug-ins served from one origin put it on the list once. The order
         is the sorted one, so the header is the same string until a
         registration changes rather than varying with row order."""
         await create_plugin_service_registration(
@@ -60,7 +60,7 @@ class TestTheRegisteredOrigins:
         assert list(origins) == sorted(origins)
 
     async def test_a_stopped_registration_is_not_named(self, session: AsyncSession):
-        """The kill switch reaches the header: a stopped app is not framed
+        """The kill switch reaches the header: a stopped plug-in is not framed
         while it is stopped."""
         registration = await create_plugin_service_registration(
             session,
@@ -79,7 +79,7 @@ class TestTheRegisteredOrigins:
     async def test_a_registration_whose_publisher_is_off_is_not_named(
         self, session: AsyncSession
     ):
-        """A publisher's switch reaches the header for every app under it."""
+        """A publisher's switch reaches the header for every plug-in under it."""
         await create_plugin_service_registration(
             session,
             public_id="offpub.framed",
@@ -110,7 +110,9 @@ class TestTheRegisteredOrigins:
 
 
 class TestThePolicy:
-    async def test_a_document_may_frame_a_registered_plugin(self, session: AsyncSession):
+    async def test_a_document_may_frame_a_registered_plugin(
+        self, session: AsyncSession
+    ):
         await create_plugin_service_registration(
             session,
             public_id="tests.framed",
@@ -157,7 +159,7 @@ def test_the_ordinary_policy_frames_no_plugin():
 
 
 def _ordinary_policy() -> str:
-    """The app-wide policy, framing no app."""
+    """The app-wide policy, framing no plug-in."""
     return settings.content_security_policy_with_frames(
         (), captcha_provider=settings.CAPTCHA_PROVIDER
     )

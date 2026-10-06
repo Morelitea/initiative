@@ -1,16 +1,16 @@
-"""Which guild tables an app can reach, and under which scope.
+"""Which guild tables a plug-in can reach, and under which scope.
 
 One registry, ``PLUGIN_TABLE_ACCESS``, table -> :class:`PluginTableAccess`. What an
-app's routed role is granted on a table, and the scope that table's policies
-ask of an app, are both read from it. A guild table with no entry is out of
-every app's reach.
+plug-in's routed role is granted on a table, and the scope that table's policies
+ask of a plug-in, are both read from it. A guild table with no entry is out of
+every plug-in's reach.
 
 Most of it is derived:
 
 - a table a tool governs (``initiative_rls.governing_path``) takes that tool's
   scope, so ``tasks`` answers to ``projects`` and ``calendar_events`` to
   ``calendars``;
-- the surfaces that span tools, and the read-only structure an app needs to
+- the surfaces that span tools, and the read-only structure a plug-in needs to
   address an initiative, are named here.
 
 What is left out on purpose is listed in :data:`_NOT_PLUGIN_SURFACE`: rows that
@@ -22,7 +22,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from app.core.plugin_scopes import PluginScopeResource, READ_ONLY_RESOURCES, tool_resource
+from app.core.plugin_scopes import (
+    PluginScopeResource,
+    READ_ONLY_RESOURCES,
+    tool_resource,
+)
 from app.core.search import SearchEntityType
 from app.db import gucs
 from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
@@ -30,10 +34,10 @@ from app.db.search_index import SEARCH_SOURCES
 
 
 class PluginTableKind(str, Enum):
-    #: Content an app reads, and writes when its scope allows.
+    #: Content a plug-in reads, and writes when its scope allows.
     scoped = "scoped"
     #: Written as a consequence of a scoped write (a trigger, or a service
-    #: step), never addressed by an app.
+    #: step), never addressed by a plug-in.
     side_effect = "side_effect"
     #: Event subscriptions: reachable with the read scope of each event's tool,
     #: which is a property of the row rather than of the table.
@@ -47,7 +51,7 @@ class PluginTableAccess:
 
     @property
     def writable(self) -> bool:
-        """Whether an app may ever write this table directly."""
+        """Whether a plug-in may ever write this table directly."""
         if self.kind is PluginTableKind.scoped:
             return self.resource not in READ_ONLY_RESOURCES
         return self.kind is PluginTableKind.subscriptions
@@ -57,7 +61,7 @@ def _scoped(resource: str) -> PluginTableAccess:
     return PluginTableAccess(PluginTableKind.scoped, PluginScopeResource(resource))
 
 
-#: Tables a tool governs that are not an app's to touch.
+#: Tables a tool governs that are not a plug-in's to touch.
 _NOT_PLUGIN_SURFACE: frozenset[str] = frozenset(
     {
         # One person's own state: their ordering, favourites, read markers and
@@ -90,7 +94,7 @@ _SIDE_EFFECTS: frozenset[str] = frozenset(
     }
 )
 
-#: The tables no tool governs that an app reaches, by name.
+#: The tables no tool governs that a plug-in reaches, by name.
 _NAMED: dict[str, PluginTableAccess] = {
     "comments": _scoped("comments"),
     "relationships": _scoped("relationships"),
@@ -103,7 +107,9 @@ _NAMED: dict[str, PluginTableAccess] = {
     "property_values": PluginTableAccess(PluginTableKind.scoped),
     "initiative_members": _scoped("members"),
     "webhook_subscriptions": PluginTableAccess(PluginTableKind.subscriptions),
-    **{table: PluginTableAccess(PluginTableKind.side_effect) for table in _SIDE_EFFECTS},
+    **{
+        table: PluginTableAccess(PluginTableKind.side_effect) for table in _SIDE_EFFECTS
+    },
 }
 
 
@@ -126,8 +132,8 @@ PLUGIN_TABLE_ACCESS: dict[str, PluginTableAccess] = _derive()
 
 def _search_entry_read_scopes() -> dict[SearchEntityType, PluginScopeResource]:
     """Each kind the search index holds, and the read scope of the table it is
-    indexed from. A kind whose table no app reaches has no entry, and its
-    entries are out of every app's reach."""
+    indexed from. A kind whose table no plug-in reaches has no entry, and its
+    entries are out of every plug-in's reach."""
     scopes: dict[SearchEntityType, PluginScopeResource] = {}
     for table, source in SEARCH_SOURCES.items():
         access = PLUGIN_TABLE_ACCESS.get(table)
@@ -140,7 +146,7 @@ def _search_entry_read_scopes() -> dict[SearchEntityType, PluginScopeResource]:
     return scopes
 
 
-#: The read scope an installed app holds to find a search entry of each kind:
+#: The read scope an installed plug-in holds to find a search entry of each kind:
 #: the scope of the table the kind is indexed from, so ``task`` answers to
 #: ``projects`` and ``tag`` to ``tags``. An entry that names a governing tool
 #: also needs that tool's read scope (a comment on a task needs ``projects``
@@ -149,7 +155,7 @@ SEARCH_ENTRY_READ_SCOPE: dict[SearchEntityType, PluginScopeResource] = (
     _search_entry_read_scopes()
 )
 
-#: Tables no app reaches, whose policies refuse an installed app outright
+#: Tables no plug-in reaches, whose policies refuse an installed plug-in outright
 #: beside the grant it does not hold: a reaction and the line queued about it
 #: are one person's gesture, and a recent view one person's history.
 PLUGIN_REFUSED_TABLES: frozenset[str] = frozenset(
@@ -162,7 +168,7 @@ PLUGIN_REFUSED_TABLES: frozenset[str] = frozenset(
 #: tool's resource, it writes the one owner row. That row names the person who
 #: made it, the install, or, for a member token, the member it acts for. A
 #: system job names nobody, and the function writes nothing. Nor does it for a
-#: row outside any initiative: that is community level, and the calendar app
+#: row outside any initiative: that is community level, and the calendar plug-in
 #: whose install mounts it is named as its owner by the code that makes it.
 #: Shared, in ``public``; the row lands in the schema the trigger fired in.
 #: Restated in full by the migration that sets it (20260927_0407).

@@ -1,9 +1,9 @@
 """Comments, tags, initiatives and property definitions, called by an
-installed app on the real-role client.
+installed plug-in on the real-role client.
 
-Each test installs an app the way a community does (``install_plugin``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
-token for it, and calls the routes these four routers let an app reach.
+token for it, and calls the routes these four routers let a plug-in reach.
 """
 
 from __future__ import annotations
@@ -173,7 +173,7 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
     assert stored is not None and stored.created_by is None
 
     # The member it answered hears of the reply, and the document's owner of
-    # the comment: both from the app, by its name.
+    # the comment: both from the plug-in, by its name.
     await drain_notices()
     notices = (
         await session.exec(
@@ -183,10 +183,10 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
         )
     ).all()
     by_person = {n.user_id: n for n in notices}
-    assert by_person[member.user.id].data["replier_name"] == installed.app.name
+    assert by_person[member.user.id].data["replier_name"] == installed.plugin.name
     assert by_person[member.user.id].data["replier_id"] is None
     owner_notice = by_person[installed.seat.user.id]
-    assert owner_notice.data["commenter_name"] == installed.app.name
+    assert owner_notice.data["commenter_name"] == installed.plugin.name
     assert owner_notice.data["commenter_id"] is None
 
     elsewhere = await client.post(

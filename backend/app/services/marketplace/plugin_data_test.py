@@ -2,14 +2,14 @@
 
 Everything here is driven by an injected `httpx.MockTransport`, so nothing
 touches the network. What it pins is the part of the proxy that has to hold when
-an app misbehaves rather than merely being absent: a response that never ends, a
+a plug-in misbehaves rather than merely being absent: a response that never ends, a
 response far too large, a response that is not JSON, and a response that is JSON
-but not data. All four are the *app* failing, and all four have to come back as
+but not data. All four are the *plug-in* failing, and all four have to come back as
 one named code — a dashboard tile, not a server fault.
 
 The parameter tests are the other half of the same idea. A source's
 ``params_schema`` is the whole of what a widget may vary, so anything outside it
-is refused here rather than forwarded for the app to puzzle over.
+is refused here rather than forwarded for the plug-in to puzzle over.
 """
 
 import json
@@ -25,7 +25,7 @@ from app.services.marketplace.registration_lookup import service_public_id
 
 URL = "http://127.0.0.1:9100/v1/endpoints"
 
-ORDERS = "app.acme.shop.orders"
+ORDERS = "plugin.acme.shop.orders"
 
 SOURCE = {
     "id": ORDERS,
@@ -55,11 +55,11 @@ async def _read(handler, endpoint=SOURCE) -> tuple[list, dict]:
     )
 
 
-# --- what an app may answer with --------------------------------------------
+# --- what a plug-in may answer with --------------------------------------------
 
 
 def _answer(result) -> dict:
-    """What an app answers a call with: what it ran, whose credential ran it,
+    """What a plug-in answers a call with: what it ran, whose credential ran it,
     and the result. The declared returns are one level in."""
     return {"endpoint": ORDERS, "actor": "member", "result": result}
 
@@ -76,7 +76,7 @@ class TestUpstreamBounds:
         assert values == {"count": 2}
 
     async def test_an_answer_without_a_result_is_the_plugin_being_unavailable(self):
-        # From a dashboard's side "this app is not answering" is true whether
+        # From a dashboard's side "this plug-in is not answering" is true whether
         # the service is down or talking a shape this build does not accept.
         with pytest.raises(service.PluginDataError) as excinfo:
             await _read(lambda request: httpx.Response(200, json={"rows": [{"id": 1}]}))
@@ -153,7 +153,7 @@ class TestReadingAnAnswerThroughItsReturns:
     """The manifest says what an endpoint hands back; that is how it is read.
 
     A widget binds a return before the endpoint has ever run, so the declaration
-    and the projection are the same document — an app sends the keys it named,
+    and the projection are the same document — a plug-in sends the keys it named,
     and these pin what each kind of return becomes.
     """
 
@@ -351,12 +351,12 @@ class TestDefinitionReading:
     def test_a_read_is_found_on_the_pinned_definition(self):
         definition = {"plugin_kind": "service", "endpoints": [SOURCE]}
         assert service.find_read_endpoint(definition, ORDERS) == SOURCE
-        assert service.find_read_endpoint(definition, "app.acme.shop.other") is None
+        assert service.find_read_endpoint(definition, "plugin.acme.shop.other") is None
 
     def test_only_a_read_is_reachable_from_here(self):
         """A write and an emission are both real endpoints and neither belongs
-        on the fetch path: rendering a dashboard must not be a way to make an
-        app act."""
+        on the fetch path: rendering a dashboard must not be a way to make a
+        plug-in act."""
         for direction in ("write", "emit"):
             definition = {
                 "plugin_kind": "service",
@@ -366,7 +366,7 @@ class TestDefinitionReading:
 
     def test_a_plugin_is_called_over_the_wire_surface(self):
         """A registration may carry two addresses. This one is Initiative's own
-        server calling the app, so it uses the address meant for that — the
+        server calling the plug-in, so it uses the address meant for that — the
         browser address is for what a browser opens."""
         registration = RegistrationSnapshot(
             public_id="acme.shop",

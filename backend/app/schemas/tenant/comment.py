@@ -161,8 +161,8 @@ class CommentRead(CommentBase):
     # said to the person who filed it; ``members`` on everything else.
     audience: CommentAudience = CommentAudience.members
     # What the platform posted it as, on a note the platform wrote on an
-    # operations case. Null on everything a person or an app wrote — which
-    # is how a client tells the platform's notes from an app's.
+    # operations case. Null on everything a person or a plug-in wrote — which
+    # is how a client tells the platform's notes from a plug-in's.
     system_kind: Optional[str] = None
 
 

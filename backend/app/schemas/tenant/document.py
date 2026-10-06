@@ -92,9 +92,9 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
 
     initiative: Optional[InitiativeSummary] = None
     #: The person holding the document's owner grant, or None when it is
-    #: unowned or an app owns it.
+    #: unowned or a plug-in owns it.
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the document or nobody does. At most one of ``owner`` and this is set.
     owner_plugin: Optional[OwnerPluginSummary] = Field(
         default=None, validation_alias="owner_plugin_source"

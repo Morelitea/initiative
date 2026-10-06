@@ -12,9 +12,9 @@ import { TOOLS, toolCamelPlural, toolPlural } from "@/lib/tools";
 export type ScopeAccess = "read" | "write";
 
 /** The prefix of the scope that lets an app use another app. */
-export const PLUGIN_SCOPE_PREFIX = "apps:";
+export const PLUGIN_SCOPE_PREFIX = "plugins:";
 
-/** The public id an `apps:` scope names, or null for any other scope. */
+/** The public id a `plugins:` scope names, or null for any other scope. */
 export const pluginScopeTarget = (scope: string): string | null =>
   scope.startsWith(PLUGIN_SCOPE_PREFIX) ? scope.slice(PLUGIN_SCOPE_PREFIX.length) : null;
 

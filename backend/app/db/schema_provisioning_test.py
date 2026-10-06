@@ -282,14 +282,14 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
 
 async def test_the_plugin_role_holds_only_what_a_plugin_reaches(engine):
     """``guild_<id>_plugin`` writes content, reads the initiative structure, and
-    holds nothing on the community's configuration or its app setup beyond
+    holds nothing on the community's configuration or its plug-in setup beyond
     the columns its own standing reads."""
     gid = _GID_PLUGIN
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        plugin_role = guild_role_name(gid, GuildRoleKind.app)
+        plugin_role = guild_role_name(gid, GuildRoleKind.plugin)
 
         async def held(conn, table: str, verb: str) -> bool:
             return await conn.scalar(
@@ -361,7 +361,7 @@ async def test_the_plugin_role_is_refused_the_communitys_settings(engine):
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
             await conn.exec_driver_sql(
-                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.app)}"'
+                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.plugin)}"'
             )
             with pytest.raises(ProgrammingError) as exc:
                 await conn.scalar(
@@ -1394,8 +1394,8 @@ async def test_engine_identities_warn_on_privileged_app_login(
     # App engine as app_admin (BYPASSRLS) — a swapped-URLs deployment. A
     # DISTINCT engine from a distinct login must be the admin side so the
     # same-login warning doesn't fire instead.
-    swapped_plugin = create_async_engine(db_session.system_engine.url, echo=False)
-    monkeypatch.setattr(db_session, "engine", swapped_plugin)
+    swapped_app = create_async_engine(db_session.system_engine.url, echo=False)
+    monkeypatch.setattr(db_session, "engine", swapped_app)
     monkeypatch.setattr(db_session, "system_engine", engine)
     try:
         with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
@@ -1405,7 +1405,7 @@ async def test_engine_identities_warn_on_privileged_app_login(
         assert "BYPASSRLS" in joined
         assert "DATABASE_URL_APP" in joined
     finally:
-        await swapped_plugin.dispose()
+        await swapped_app.dispose()
 
 
 async def test_engine_identities_flag_an_unused_temporary_grant(caplog):

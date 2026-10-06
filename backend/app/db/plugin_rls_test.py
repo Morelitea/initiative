@@ -1,4 +1,4 @@
-"""Which guild tables an app reaches, checked against the models."""
+"""Which guild tables a plug-in reaches, checked against the models."""
 
 from __future__ import annotations
 

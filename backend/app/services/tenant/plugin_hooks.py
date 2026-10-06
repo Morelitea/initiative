@@ -1,6 +1,6 @@
-"""A vendor's webhooks, received for the app that declares them.
+"""A vendor's webhooks, received for the plug-in that declares them.
 
-An app whose manifest declares ``webhooks`` has one address on this
+A plug-in whose manifest declares ``webhooks`` has one address on this
 deployment, ``POST /api/v1/plugin-hooks/{public_id}``, which the operator gives
 the vendor. :func:`receive` takes each delivery through four steps:
 
@@ -17,7 +17,7 @@ the vendor. :func:`receive` takes each delivery through four steps:
    install has already accepted (``plugin_hook_deliveries``) is skipped.
    Otherwise a container's install has the raw body and the vendor's ``x-``
    headers sent to its ``webhook`` hook with a ``lifecycle`` token naming that
-   install, and a 2xx records the id for 24 hours. A declarative app's install
+   install, and a 2xx records the id for 24 hours. A declarative plug-in's install
    maps it with its ``events`` and ``status``: the event goes to the outbox as
    a container's emission does, the state to the install's configuration
    state, and the id is recorded with them. A mapping that cannot succeed is
@@ -27,7 +27,7 @@ the vendor. :func:`receive` takes each delivery through four steps:
    reaches only the ones that did not.
 
 The index row that routes a delivery is written only when a community's
-connect stored the routed value, which the app's ``after_connect`` hook
+connect stored the routed value, which the plug-in's ``after_connect`` hook
 checked at the vendor.
 """
 
@@ -53,7 +53,10 @@ from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
 )
-from app.models.tenant.plugin_hook_delivery import DELIVERY_ID_MAX_LENGTH, PluginHookDelivery
+from app.models.tenant.plugin_hook_delivery import (
+    DELIVERY_ID_MAX_LENGTH,
+    PluginHookDelivery,
+)
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace import plugin_installs, declarative, registration_lookup
 from app.services.marketplace.expressions import ExpressionError
@@ -209,19 +212,23 @@ async def _pending(
     body: bytes,
 ) -> Optional[GuildPlugin]:
     """The install a delivery is still owed to, as it is pinned, or ``None``
-    when there is no install of this app to take it, its pinned route does not
+    when there is no install of this plug-in to take it, its pinned route does not
     read the value it is indexed by from this delivery, or it already has it."""
     async with cohorts.system_session(install.guild_id) as session:
         await set_rls_context(session, SystemGuild(install.guild_id, read_only=True))
-        app = (
+        plugin = (
             await session.exec(
                 select(GuildPlugin).where(GuildPlugin.id == install.install_id)
             )
         ).first()
-        if app is None or not app.enabled or not owns_install(app, registration):
+        if (
+            plugin is None
+            or not plugin.enabled
+            or not owns_install(plugin, registration)
+        ):
             return None
-        route = ((app.definition or {}).get("webhooks") or {}).get("route")
-        indexed = plugin_installs.hook_route(app)
+        route = ((plugin.definition or {}).get("webhooks") or {}).get("route")
+        indexed = plugin_installs.hook_route(plugin)
         if indexed is None or _route_value(route, headers, body) != indexed:
             return None
         seen = (
@@ -233,7 +240,7 @@ async def _pending(
                 )
             )
         ).first()
-    return None if seen is not None else app
+    return None if seen is not None else plugin
 
 
 def _remember(install_id: int, delivery_id: str) -> Any:
@@ -260,7 +267,7 @@ async def _record(install: plugin_installs.IndexedInstall, delivery_id: str) -> 
 async def _forward(
     install: plugin_installs.IndexedInstall,
     registration: RegistrationSnapshot,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     webhooks: Mapping[str, Any],
     *,
     delivery_id: str,
@@ -284,7 +291,7 @@ async def _forward(
         )
     except flows.HookError as exc:
         logger.warning(
-            "app hooks: %s did not accept a delivery for guild %s (%s)",
+            "plug-in hooks: %s did not accept a delivery for guild %s (%s)",
             registration.public_id,
             install.guild_id,
             exc,
@@ -297,14 +304,14 @@ async def _forward(
 async def _map(
     install: plugin_installs.IndexedInstall,
     registration: RegistrationSnapshot,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     webhooks: Mapping[str, Any],
     *,
     delivery_id: str,
     headers: Mapping[str, str],
     body: bytes,
 ) -> int:
-    """A declarative app's install: its pinned ``webhooks`` map the delivery
+    """A declarative plug-in's install: its pinned ``webhooks`` map the delivery
     to an event, emitted as a container's is, and to a connection's state.
     The delivery is recorded with them, so a redelivery emits nothing.
 
@@ -318,14 +325,14 @@ async def _map(
     route = webhooks["route"]
     try:
         delivered = await declarative.map_delivery(
-            app.definition,
+            plugin.definition,
             headers=_vendor_headers(headers, str(webhooks["verify"]["header"])),
             payload=payload,
-            connection=without_tokens((app.config or {}).get(route["connection"])),
+            connection=without_tokens((plugin.config or {}).get(route["connection"])),
         )
     except ExpressionError as exc:
         logger.warning(
-            "app hooks: %s will map delivery %s for guild %s when it comes again (%s)",
+            "plug-in hooks: %s will map delivery %s for guild %s when it comes again (%s)",
             registration.public_id,
             delivery_id,
             install.guild_id,
@@ -334,7 +341,7 @@ async def _map(
         return 503
     for failure in delivered.failures:
         logger.warning(
-            "app hooks: %s could not map delivery %s for guild %s (%s)",
+            "plug-in hooks: %s could not map delivery %s for guild %s (%s)",
             registration.public_id,
             delivery_id,
             install.guild_id,
@@ -352,7 +359,7 @@ async def _map(
             try:
                 await keep_event(
                     session,
-                    app,
+                    plugin,
                     registration,
                     event_type=event_type,
                     payload=event,
@@ -360,7 +367,7 @@ async def _map(
                 )
             except PluginChannelError as exc:
                 logger.warning(
-                    "app hooks: %s emitted %s from delivery %s for guild %s, "
+                    "plug-in hooks: %s emitted %s from delivery %s for guild %s, "
                     "which was refused (%s)",
                     registration.public_id,
                     event_type,
@@ -369,7 +376,7 @@ async def _map(
                     exc.code,
                 )
         if delivered.status is not None:
-            locked = await guild_plugins_service.lock_install(session, app.id)
+            locked = await guild_plugins_service.lock_install(session, plugin.id)
             if locked is not None and set_connection_state(locked, *delivered.status):
                 session.add(locked)
         await session.commit()
@@ -410,22 +417,22 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
 
     async def bounded(install: plugin_installs.IndexedInstall) -> int:
         async with limit:
-            app = await _pending(
+            plugin = await _pending(
                 install, registration, delivery_id, headers=headers, body=body
             )
-            if app is None:
+            if plugin is None:
                 return 202
-            pinned = (app.definition or {}).get("webhooks")
+            pinned = (plugin.definition or {}).get("webhooks")
             if not isinstance(pinned, dict):
                 return 202
             # A declarative registration has no hook to forward to, whatever
             # version an install is still pinned to.
-            declared = registration.declarative or is_declarative(app.definition)
+            declared = registration.declarative or is_declarative(plugin.definition)
             hand = _map if declared else _forward
             return await hand(
                 install,
                 registration,
-                app,
+                plugin,
                 pinned,
                 delivery_id=delivery_id,
                 headers=headers,

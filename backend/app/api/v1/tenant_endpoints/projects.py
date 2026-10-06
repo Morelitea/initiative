@@ -90,7 +90,7 @@ from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the projects scopes.
+#: The routes an installed plug-in may call, under the projects scopes.
 ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
 ProjectsWrite = Annotated[ActorContext, Depends(plugin_scope("projects:write"))]
 
@@ -269,7 +269,7 @@ async def _project_reads_with_order(
     preserve_order: bool = False,
 ) -> List[ProjectRead]:
     """``ProjectRead`` for each project, with the reader's own order,
-    favourites and last visits. An installed app (``user_id`` ``None``) keeps
+    favourites and last visits. An installed plug-in (``user_id`` ``None``) keeps
     none of those."""
     if not projects:
         return []

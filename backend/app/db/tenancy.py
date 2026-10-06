@@ -115,7 +115,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
-        # What outside parties — a payment processor, an installed app —
+        # What outside parties — a payment processor, an installed plug-in —
         # call a user or a guild. One per purpose, so no two parties hold
         # the same value for the same entity. Cross-guild and pre-routing,
         # like the accounts and guilds it names.
@@ -176,14 +176,14 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # guild_id by design — the catalog never records who installed what.
         "marketplace_listings",
         "marketplace_listing_versions",
-        # Deployment-level wiring for external app services (listing, URL,
+        # Deployment-level wiring for external plug-in services (listing, URL,
         # public keys, operator-conferred grants). Platform-wide by definition —
-        # one row per app, never per guild — and owner-managed.
+        # one row per plug-in, never per guild — and owner-managed.
         "plugin_service_registrations",
-        # Who publishes those apps: one row per public_id prefix, with the
-        # switch that stops every app under it. Deployment configuration.
+        # Who publishes those plug-ins: one row per public_id prefix, with the
+        # switch that stops every plug-in under it. Deployment configuration.
         "publishers",
-        # Spent client-assertion jtis from the app token endpoint. Hangs off a
+        # Spent client-assertion jtis from the plug-in token endpoint. Hangs off a
         # registration, which is platform-wide.
         "plugin_assertion_jtis",
         # Which community holds which install, and the value a vendor webhook
@@ -217,10 +217,10 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
-        # Installed apps: guild-wide by definition, and readable by any member —
-        # the sidebar has to know an app is there. Installing, configuring and
+        # Installed plug-ins: guild-wide by definition, and readable by any member —
+        # the sidebar has to know a plug-in is there. Installing, configuring and
         # removing are the seat's (SEAT_TABLES below); what a member may do
-        # *inside* an app is decided by that instance's own grants, not by this
+        # *inside* a plug-in is decided by that instance's own grants, not by this
         # row.
         "guild_plugins",
         # The secret values of each install's connections, one row per
@@ -275,15 +275,15 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # or pref, so these carry own_row_* policies (owner OR guild admin).
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
-        # A member's own connection to an installed app's vendor. No FK to any
-        # initiative — an app is guild-wide — so it can't use initiative_access.
+        # A member's own connection to an installed plug-in's vendor. No FK to any
+        # initiative — a plug-in is guild-wide — so it can't use initiative_access.
         # Rows belong to ONE member and hold that member's credential, so it
         # carries own_row_* policies: the owner manages their own, and a guild
         # admin manages every one in their guild (a personal connection is
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
         "guild_plugin_user_connections",
-        # A member's answer to an installed app asking to act as them, one per
+        # A member's answer to an installed plug-in asking to act as them, one per
         # purpose. The same shape as the connections beside it: no FK to any
         # initiative is required (a purpose may be app-wide), one owner per
         # row, and the community's administration reads and revokes, so
@@ -329,7 +329,7 @@ OWN_ROW_TABLES: dict[str, str] = {
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:
-# a member's AI request reads the connection it runs on, and opening an app
+# a member's AI request reads the connection it runs on, and opening a plug-in
 # reads where it is placed. Written by the seat — the membership row's
 # superadmin, or a superadmin settings grant beside a read_write content grant
 # — or the system engine; the same answer the routes in front of it ask for.

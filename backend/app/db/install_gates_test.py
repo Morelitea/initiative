@@ -1,4 +1,4 @@
-"""An installed app answers to its scopes at every gate.
+"""An installed plug-in answers to its scopes at every gate.
 
 ``install_standing_test`` shows the standing is what the rows say. These show
 the gates read it: an install routed through the seam on the real request
@@ -51,7 +51,7 @@ _INSTALL_LEG = IN_POLICY.install_id
 
 
 # ---------------------------------------------------------------------------
-# The render: every table an app reaches asks its scope
+# The render: every table a plug-in reaches asks its scope
 # ---------------------------------------------------------------------------
 
 _POLICY = re.compile(
@@ -95,7 +95,7 @@ def _read_asks_the_install(policies, table: str, seen: frozenset[str] = frozense
 
 @pytest.mark.parametrize("command", ["SELECT", "INSERT", "UPDATE", "DELETE"])
 def test_every_table_a_plugin_reaches_asks_the_install(command):
-    """Each command on each table the app role is granted carries the leg in
+    """Each command on each table the plug-in role is granted carries the leg in
     its own policies. A child's read is the one exception: it is an EXISTS
     into its parent, and that parent's own read asks."""
     policies = _policies()
@@ -178,7 +178,7 @@ async def test_a_document_is_read_with_read_and_changed_with_write(
     await create_resource_grant(
         session,
         document,
-        plugin_install_id=install.app.id,
+        plugin_install_id=install.plugin.id,
         level=ResourceAccessLevel.write,
     )
 
@@ -217,7 +217,10 @@ async def test_a_private_document_is_the_installs_once_a_grant_names_it(
     await s.rollback()
 
     await create_resource_grant(
-        session, private, plugin_install_id=install.app.id, level=ResourceAccessLevel.read
+        session,
+        private,
+        plugin_install_id=install.plugin.id,
+        level=ResourceAccessLevel.read,
     )
     s, _ = await _route(role_session, install, ["documents:read"])
     assert (await s.exec(select(Document.name))).all() == ["Private"]
@@ -232,7 +235,7 @@ async def test_creating_asks_the_scope_of_what_is_created(
     )
 
     s, _ = await _route(role_session, install, ["documents:write"])
-    s.add(Project(initiative_id=install.a.id, name="Not the app's to make"))
+    s.add(Project(initiative_id=install.a.id, name="Not the plug-in's to make"))
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.flush()
     await s.rollback()
@@ -240,7 +243,7 @@ async def test_creating_asks_the_scope_of_what_is_created(
     s, _ = await _route(role_session, install, ["documents:write"])
     made = Document(
         initiative_id=install.a.id,
-        name="Made by the app",
+        name="Made by the plug-in",
         document_type=DocumentType.native,
     )
     s.add(made)
@@ -256,10 +259,10 @@ async def test_creating_asks_the_scope_of_what_is_created(
     ).all()
     assert [
         (g.level, g.plugin_install_id, g.user_id, g.initiative_id) for g in grants
-    ] == [(ResourceAccessLevel.owner, install.app.id, None, install.a.id)]
+    ] == [(ResourceAccessLevel.owner, install.plugin.id, None, install.a.id)]
     assert (
         await s.exec(select(Document.name).where(Document.id == made.id))
-    ).all() == ["Made by the app"]
+    ).all() == ["Made by the plug-in"]
     await s.rollback()
 
 
@@ -320,14 +323,14 @@ async def test_an_install_writes_no_grant_itself(
         row = ResourceGrant(
             resource_type=Tool.document.value,
             resource_id=resource_id,
-            plugin_install_id=install.app.id,
+            plugin_install_id=install.plugin.id,
             level=ResourceAccessLevel.owner,
             initiative_id=install.a.id,
         )
     else:
         made = Document(
             initiative_id=install.a.id,
-            name="Made by the app",
+            name="Made by the plug-in",
             document_type=DocumentType.native,
         )
         s.add(made)
@@ -404,11 +407,11 @@ async def test_comments_ask_the_comments_scope(session, acting_user, role_sessio
     await s.rollback()
 
     s, _ = await _route(role_session, install, ["documents:read", "comments:write"])
-    s.add(Comment(content="From the app", document_id=document.id))
+    s.add(Comment(content="From the plug-in", document_id=document.id))
     await s.flush()
     assert set((await s.exec(select(Comment.content))).all()) == {
         "First",
-        "From the app",
+        "From the plug-in",
     }
     await s.rollback()
 
@@ -441,7 +444,7 @@ async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
     await s.rollback()
 
     s, _ = await _route(role_session, install, ["tags:write"])
-    s.add(Tag(name="from-the-app"))
+    s.add(Tag(name="from-the-plug-in"))
     await s.flush()
     await s.rollback()
 
@@ -503,7 +506,10 @@ async def test_an_install_sees_only_its_own_subscriptions(
         session, acting_user, role_session, granted=["documents:read"]
     )
     await _subscription(
-        session, install, plugin_install_id=install.app.id, url="https://app.test/own"
+        session,
+        install,
+        plugin_install_id=install.plugin.id,
+        url="https://app.test/own",
     )
     await _subscription(
         session, install, plugin_install_id=None, url="https://member.test/theirs"

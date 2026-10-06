@@ -8,7 +8,7 @@ original did.
 
 Dashboards were excluded from export while the marketplace's definition format
 was the only one in play. The rule that replaced the exclusion is narrower and
-lives in ``export.provenance``: a dashboard built on an app this build does
+lives in ``export.provenance``: a dashboard built on a plug-in this build does
 not ship is not ours to put in a file, while a hand-built one — the common
 case — is ordinary content.
 
@@ -16,9 +16,9 @@ Access rule: READ on the dashboard (exporting is a formatted read), enforced
 by the ``ToolExportAdapter.fetch`` seam at both count and build time, under
 the caller's RLS session.
 
-A dashboard built on an app this build does not ship is refused: its
+A dashboard built on a plug-in this build does not ship is refused: its
 definition belongs to its publisher, and the way to have it somewhere else is
-to install the app there. ``adapters/backup`` leaves those out before they are
+to install the plug-in there. ``adapters/backup`` leaves those out before they are
 fetched, so a community's backup is not failed by one of them.
 """
 
@@ -75,7 +75,7 @@ class DashboardAdapter(ToolExportAdapter):
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
     ) -> list[int]:
-        """Only the dashboards built on this build's own apps — the rest are
+        """Only the dashboards built on this build's own plug-ins — the rest are
         left out by provenance."""
         from app.services.tenant.dashboards import list_dashboard_ids_for_export
 
@@ -106,7 +106,7 @@ def _envelope(dashboard: Dashboard) -> dict[str, Any]:
         "schema_version": 1,
         "name": dashboard.name,
         "description": dashboard.description,
-        # Present only for a dashboard installed from a built-in app — the
+        # Present only for a dashboard installed from a built-in plug-in — the
         # provenance filter has already refused anything else. Carried so a
         # restore can re-resolve the definition from the catalog instead of
         # pinning the copy in this file.

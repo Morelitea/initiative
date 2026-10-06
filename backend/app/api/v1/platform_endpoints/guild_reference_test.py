@@ -6,8 +6,8 @@ of them asks here, presenting one of its own.
 
 Most of what is asserted is what it refuses. The answer is another sector's
 name, so the reaches that must not work are the subject: a caller with no
-secret, a reference that is not the caller's own, and an app sector — which
-belongs to one install and is the one translation that would let an app learn
+secret, a reference that is not the caller's own, and a plug-in sector — which
+belongs to one install and is the one translation that would let a plug-in learn
 another's names.
 """
 
@@ -65,15 +65,18 @@ async def _callers_own_ref(session: AsyncSession, guild) -> str:
     # A user is a public row, so it is made before the session is routed into
     # the guild to write the install.
     installer = await create_user(session)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         guild,
         installer,
-        definition={"plugin_kind": "service", "service": {"public_id": BUNDLED_PUBLIC_ID}},
+        definition={
+            "plugin_kind": "service",
+            "service": {"public_id": BUNDLED_PUBLIC_ID},
+        },
         name="Bundled",
     )
     await session.commit()
-    return await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=app.id)
+    return await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=plugin.id)
 
 
 async def test_it_names_the_same_guild_in_the_sector_asked_for(
@@ -116,7 +119,9 @@ async def test_a_reference_that_is_not_the_callers_own_is_refused(
     )
     await session.commit()
     # A reference for an install that is not the bundled service's.
-    someone_elses = await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=98765)
+    someone_elses = await ensure_plugin_guild_ref(
+        guild_id=guild.id, plugin_install_id=98765
+    )
 
     response = await _ask(
         client, {"community_ref": someone_elses, "purpose": "billing"}
@@ -126,7 +131,7 @@ async def test_a_reference_that_is_not_the_callers_own_is_refused(
     assert response.json()["detail"] == BundledChannelMessages.UNKNOWN_GUILD
 
 
-@pytest.mark.parametrize("purpose", ["app", "webhook"])
+@pytest.mark.parametrize("purpose", ["plugin", "webhook"])
 async def test_a_sector_inside_a_guild_is_not_answerable(
     client: AsyncClient, session: AsyncSession, purpose: str
 ):
@@ -215,7 +220,7 @@ async def test_a_deployment_that_ships_no_bundled_service_is_inert(
     monkeypatch.setattr(config_module.settings, "BUNDLED_SERVICE_SHARED_SECRET", None)
 
     response = await _ask(
-        client, {"community_ref": "gapp_whatever", "purpose": "billing"}
+        client, {"community_ref": "gplu_whatever", "purpose": "billing"}
     )
 
     assert response.status_code == 503
@@ -228,7 +233,7 @@ async def test_a_deployment_that_ships_no_bundled_service_is_inert(
         pytest.param(b"not json at all", id="not-json"),
         pytest.param(b'{"purpose": "billing"}', id="no-reference"),
         pytest.param(
-            b'{"community_ref": "gapp_x", "purpose": "sideways"}', id="no-such-sector"
+            b'{"community_ref": "gplu_x", "purpose": "sideways"}', id="no-such-sector"
         ),
     ],
 )
@@ -244,7 +249,7 @@ async def test_a_signed_body_of_the_wrong_shape_is_answered(
 
 
 # ---------------------------------------------------------------------------
-# An installation token, for an app the registry gave a sector
+# An installation token, for a plug-in the registry gave a sector
 # ---------------------------------------------------------------------------
 
 SECTORED_ID = "morelitea.auto"
@@ -265,7 +270,7 @@ def shipped_root(monkeypatch, tmp_path):
 
 
 async def _sectored_install(session: AsyncSession, **registration):
-    """A guild with the sectored app installed, a billing name for the guild,
+    """A guild with the sectored plug-in installed, a billing name for the guild,
     and an installation token for the install."""
     from app.core.plugin_access_token import seal_install_token
     from app.testing import create_plugin_service_registration, create_guild_plugin
@@ -281,7 +286,7 @@ async def _sectored_install(session: AsyncSession, **registration):
     )
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         guild,
         user,
@@ -301,14 +306,14 @@ async def _sectored_install(session: AsyncSession, **registration):
     await session.commit()
     token, _exp = seal_install_token(
         guild_id=guild.id,
-        install_id=app.id,
+        install_id=plugin.id,
         client_id=SECTORED_ID,
         scopes=frozenset(),
         initiative_id=None,
         user_id=None,
         purpose=None,
     )
-    return guild, app, billing, {"Authorization": f"Bearer {token}"}
+    return guild, plugin, billing, {"Authorization": f"Bearer {token}"}
 
 
 async def test_a_token_whose_registration_carries_the_sector_is_answered(
@@ -325,8 +330,8 @@ async def test_a_token_whose_registration_carries_the_sector_is_answered(
 async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    guild, app, billing, headers = await _sectored_install(session)
-    own = await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=app.id)
+    guild, plugin, billing, headers = await _sectored_install(session)
+    own = await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=plugin.id)
 
     response = await client.post(
         ROUTE, json={"purpose": "billing", "community_ref": own}, headers=headers
@@ -342,7 +347,9 @@ async def test_a_token_naming_another_guild_is_refused(
     _guild, _plugin, _billing, headers = await _sectored_install(session)
     other = await create_guild(session, creator=await create_user(session))
     await session.commit()
-    elsewhere = await ensure_plugin_guild_ref(guild_id=other.id, plugin_install_id=98765)
+    elsewhere = await ensure_plugin_guild_ref(
+        guild_id=other.id, plugin_install_id=98765
+    )
 
     response = await client.post(
         ROUTE, json={"purpose": "billing", "community_ref": elsewhere}, headers=headers

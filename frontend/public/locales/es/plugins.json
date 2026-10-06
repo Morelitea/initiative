@@ -1,13 +1,13 @@
 {
-  "title": "Aplicaciones",
-  "add": "Añadir una aplicación",
-  "none": "Aún no hay aplicaciones.",
-  "error": "Algo ha fallado con esa aplicación.",
+  "title": "Complementos",
+  "add": "Añadir un complemento",
+  "none": "Aún no hay complementos.",
+  "error": "Algo ha fallado con ese complemento.",
   "manage": {
-    "title": "Aplicaciones",
-    "description": "Las aplicaciones añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlas o quitarlas.",
-    "empty": "Todavía no hay aplicaciones instaladas.",
-    "browse": "Explorar aplicaciones",
+    "title": "Complementos",
+    "description": "Los complementos añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlos o quitarlos.",
+    "empty": "Todavía no hay complementos instalados.",
+    "browse": "Explorar complementos",
     "installed": "Añadida el {{date}}",
     "disabled": "Desactivada",
     "enable": "Activar",
@@ -15,7 +15,7 @@
     "rename": "Cambiar el nombre",
     "remove": "Quitar",
     "removeTitle": "¿Quitar {{name}}?",
-    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Se borran todas las credenciales que tenía —las de la comunidad y las de cada miembro— y se le pide a la aplicación que deje de usarlas.",
+    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Se borran todas las credenciales que tenía —las de la comunidad y las de cada miembro— y se le pide al complemento que deje de usarlas.",
     "removed": "{{name}} quitada.",
     "saved": "Guardado.",
     "needsConfig": "Falta configurarla",
@@ -37,7 +37,7 @@
     "newSurface": "Mostrar «{{name}}» dentro de las iniciativas",
     "accept": "Aceptar y actualizar",
     "decline": "Rechazar",
-    "declined": "Rechazaste la versión {{version}}. La aplicación se queda en su versión actual.",
+    "declined": "Rechazaste la versión {{version}}. El complemento se queda en su versión actual.",
     "declinedDone": "Versión {{version}} rechazada.",
     "moved": "Ahora hay otra versión disponible. Revisa lo que pide."
   },
@@ -47,8 +47,8 @@
     "name": "Nombre",
     "action": "Añadir a la comunidad",
     "done": "{{name}} añadida.",
-    "adminOnly": "Pide al superadministrador de tu comunidad que añada esta aplicación.",
-    "unknownState": "No se pudo comprobar si esta aplicación ya está añadida.",
+    "adminOnly": "Pide al superadministrador de tu comunidad que añada este complemento.",
+    "unknownState": "No se pudo comprobar si este complemento ya está añadido.",
     "reachTitle": "A qué puede acceder",
     "whereTitle": "Dónde trabaja",
     "whereDescription": "Muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
@@ -61,7 +61,7 @@
     }
   },
   "connections": {
-    "none": "Esta aplicación no pide nada que configurar.",
+    "none": "Este complemento no pide nada que configurar.",
     "communityScope": "Credencial de la comunidad",
     "personalScope": "Tu cuenta",
     "set": "Configurada",
@@ -76,14 +76,14 @@
     "cleared": "Credencial borrada.",
     "memberSet": "Un administrador de la comunidad ya la ha configurado.",
     "memberNotSet": "Un administrador de la comunidad todavía tiene que configurarla.",
-    "communityFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver esta app.",
+    "communityFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver este complemento.",
     "personalExplainer": "Esta te identifica a ti, así que cada miembro conecta su propia cuenta. Nadie más ve la tuya.",
     "connect": "Conectar",
     "reconnect": "Volver a conectar",
     "disconnect": "Desconectar",
     "disconnected": "Desconectada.",
     "connectOpened": "Termina de conectar en la pestaña que se acaba de abrir.",
-    "connectUnavailable": "Esta aplicación aún no está configurada en este servidor, así que no hay dónde iniciar sesión.",
+    "connectUnavailable": "Este complemento aún no está configurado en este servidor, así que no hay dónde iniciar sesión.",
     "connectedAs": "Conectada como {{account}}",
     "blocked": "Un administrador de la comunidad te ha impedido conectar esto.",
     "status": {
@@ -96,7 +96,7 @@
   },
   "members": {
     "title": "Miembros",
-    "noPersonal": "Esta aplicación no tiene nada a lo que los miembros se conecten por separado.",
+    "noPersonal": "Este complemento no tiene nada a lo que los miembros se conecten por separado.",
     "nobodyYet": "Todavía no se ha conectado nadie.",
     "connectedCount": "{{connected}} de {{total}} miembros conectados",
     "blockedCount_one": "{{count}} bloqueado",
@@ -114,7 +114,7 @@
     "unblocked": "Bloqueo levantado.",
     "revokeAll": "Revocar a todo el mundo",
     "revokeAllTitle": "¿Revocar la conexión de todos los miembros?",
-    "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide a la aplicación que deje de usarla. La aplicación sigue instalada y conserva los ajustes de la comunidad. Después los miembros pueden volver a conectarse.",
+    "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide al complemento que deje de usarla. El complemento sigue instalado y conserva los ajustes de la comunidad. Después los miembros pueden volver a conectarse.",
     "revokedAll": "Todas las conexiones revocadas."
   },
   "showMore": "{{count}} más",
@@ -147,36 +147,36 @@
     "allowedCount_one": "{{count}} miembro lo permite",
     "allowedCount_other": "{{count}} miembros lo permiten",
     "requestsColumn": "Solicitudes",
-    "memberRevoked": "La aplicación ha dejado de actuar en nombre de ese miembro.",
+    "memberRevoked": "El complemento ha dejado de actuar en nombre de ese miembro.",
     "revokeAll": "Que deje de actuar por todos",
-    "revokeAllTitle": "¿Que esta aplicación deje de actuar por todos?",
-    "revokeAllBody": "La aplicación deja de hacer peticiones en nombre de cualquier miembro de inmediato. Sigue instalada y conserva sus ajustes, y los miembros pueden volver a permitirlo ellos mismos.",
-    "revokedAll": "La aplicación ha dejado de actuar por todos."
+    "revokeAllTitle": "¿Que este complemento deje de actuar por todos?",
+    "revokeAllBody": "El complemento deja de hacer peticiones en nombre de cualquier miembro de inmediato. Sigue instalado y conserva sus ajustes, y los miembros pueden volver a permitirlo ellos mismos.",
+    "revokedAll": "El complemento ha dejado de actuar por todos."
   },
   "settings": {
-    "description": "Configura cómo se conecta esta aplicación.",
+    "description": "Configura cómo se conecta este complemento.",
     "open": "Ajustes de {{name}}",
     "adminTitle": "Ajustes de la comunidad",
-    "adminDescription": "Lo que la comunidad controla en esta aplicación. Solo lo ve el superadministrador."
+    "adminDescription": "Lo que la comunidad controla en este complemento. Solo lo ve el superadministrador."
   },
   "embed": {
     "connecting": "Conectando…",
-    "handoffFailed": "No se pudo abrir esta aplicación. Inténtalo de nuevo en un momento.",
-    "failed": "No se pudo abrir esta aplicación",
-    "notFound": "Aplicación no encontrada",
+    "handoffFailed": "No se pudo abrir este complemento. Inténtalo de nuevo en un momento.",
+    "failed": "No se pudo abrir este complemento",
+    "notFound": "Complemento no encontrado",
     "disabled": "{{name}} está desactivada",
     "unavailable": "{{name}} no está configurada en este servidor",
-    "unavailableDescription": "Quien gestiona este servidor debe conectar el servicio de esta aplicación antes de poder abrirla.",
+    "unavailableDescription": "Quien gestiona este servidor debe conectar el servicio de este complemento antes de poder abrirlo.",
     "noSurface": "{{name}} no tiene una página propia"
   },
-  "browse": "Explorar la tienda de aplicaciones",
+  "browse": "Explorar el mercado",
   "placement": {
-    "title": "Dónde trabaja esta aplicación",
-    "description": "Esta aplicación muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
-    "descriptionNoPage": "Esta aplicación lee y cambia contenido solo en las iniciativas que elijas.",
+    "title": "Dónde trabaja este complemento",
+    "description": "Este complemento muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
+    "descriptionNoPage": "Este complemento lee y cambia contenido solo en las iniciativas que elijas.",
     "all": "Todas las iniciativas actuales",
     "some": "Solo las iniciativas que yo elija",
-    "none": "No se eligió ninguna iniciativa, así que esta aplicación no alcanza nada dentro de las iniciativas.",
+    "none": "No se eligió ninguna iniciativa, así que este complemento no alcanza nada dentro de las iniciativas.",
     "roles": {
       "open": "Quién puede abrirla en {{name}}",
       "title": "Quién puede abrirla aquí",
@@ -189,23 +189,23 @@
   "connected": {
     "connected": {
       "title": "Conectado",
-      "body": "Tu cuenta está vinculada. Initiative lo ha registrado, así que las tarjetas de la aplicación empezarán a mostrarte datos."
+      "body": "Tu cuenta está vinculada. Initiative lo ha registrado, así que las tarjetas del complemento empezarán a mostrarte datos."
     },
     "refused": {
       "title": "Sin conectar",
-      "body": "El otro servicio no completó el inicio de sesión. Aquí no ha cambiado nada: inténtalo de nuevo desde los ajustes de la aplicación."
+      "body": "El otro servicio no completó el inicio de sesión. Aquí no ha cambiado nada: inténtalo de nuevo desde los ajustes del complemento."
     },
     "expired": {
       "title": "Ese enlace ha caducado",
-      "body": "Los enlaces de conexión duran poco. Vuelve a empezar desde los ajustes de la aplicación."
+      "body": "Los enlaces de conexión duran poco. Vuelve a empezar desde los ajustes del complemento."
     },
     "not_recorded": {
       "title": "Casi",
-      "body": "El otro servicio te ha identificado, pero Initiative no lo ha registrado. Conéctate de nuevo desde los ajustes de la aplicación: no se ha perdido nada."
+      "body": "El otro servicio te ha identificado, pero Initiative no lo ha registrado. Conéctate de nuevo desde los ajustes del complemento: no se ha perdido nada."
     },
     "awaiting_approval": {
       "title": "Esperando una aprobación",
-      "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe esta app. No ha fallado nada y aún no hay nada configurado: cuando la aprueben, vuelve a conectar desde los ajustes de la app."
+      "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe este complemento. No ha fallado nada y aún no hay nada configurado: cuando lo aprueben, vuelve a conectar desde los ajustes del complemento."
     },
     "sign_in_required": {
       "title": "Inicia sesión para terminar",
@@ -214,14 +214,14 @@
     "closeTab": "Puedes cerrar esta pestaña."
   },
   "scopes": {
-    "title": "A qué puede acceder esta aplicación",
-    "description": "Elige qué puede leer y cambiar esta aplicación en esta comunidad.",
+    "title": "A qué puede acceder este complemento",
+    "description": "Elige qué puede leer y cambiar este complemento en esta comunidad.",
     "read": "Leer",
     "write": "Leer y cambiar",
     "notAllowed": "Este servidor no lo permite",
     "usePlugin": "Usar {{name}} en esta comunidad",
     "saved": "Acceso guardado",
-    "error": "No se pudo guardar a qué puede acceder esta aplicación.",
+    "error": "No se pudo guardar a qué puede acceder este complemento.",
     "resources": {
       "comments": "Comentarios",
       "relationships": "Vínculos",

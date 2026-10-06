@@ -1,9 +1,9 @@
-"""Publishing the key an app verifies calls with.
+"""Publishing the key a plug-in verifies calls with.
 
-The platform's own signing key, as a JWKS document. It is **public** — an app
+The platform's own signing key, as a JWKS document. It is **public** — a plug-in
 fetching the key it will check a credential with cannot be asked for a
 credential first. An unconfigured platform key answers **503 rather than an
-empty key set**: the two look similar and mean opposite things, and an app that
+empty key set**: the two look similar and mean opposite things, and a plug-in that
 cached `{"keys": []}` would refuse every later token from a platform that had
 simply not been wired up yet.
 """
@@ -30,7 +30,9 @@ _PRIVATE_PEM = _keypair.private_bytes(
 
 @pytest.fixture
 def configured(monkeypatch):
-    monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM)
+    monkeypatch.setattr(
+        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _PRIVATE_PEM
+    )
     monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "plugin-platform-1")
     monkeypatch.setattr(context_jwt, "_jwks_cache", None, raising=False)
 

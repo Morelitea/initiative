@@ -52,6 +52,6 @@
     "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
   },
   "installedUnknown": "No se pudo comprobar cuáles de estos ya tienes, así que nada de lo siguiente aparece como instalado.",
-  "subtitlePlugins": "Las aplicaciones añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlas.",
+  "subtitlePlugins": "Los complementos añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlos.",
   "subtitleAuto": "Las automatizaciones se ejecutan en segundo plano para todo la comunidad."
 }

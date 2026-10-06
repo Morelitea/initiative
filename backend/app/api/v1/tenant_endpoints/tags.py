@@ -48,7 +48,7 @@ from app.schemas.tenant.tag import (
 # ``test_any_guild_member_can_manage_the_tag_dictionary``.
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the tags scopes.
+#: The routes an installed plug-in may call, under the tags scopes.
 TagsRead = Annotated[ActorContext, Depends(plugin_scope("tags:read"))]
 TagsWrite = Annotated[ActorContext, Depends(plugin_scope("tags:write"))]
 
@@ -66,7 +66,7 @@ def _governing(
 
 
 def _require_install_tagging_scopes(actor: ActorContext, target: str) -> None:
-    """Raise 403 unless an installed app's standing also holds what tagging
+    """Raise 403 unless an installed plug-in's standing also holds what tagging
     ``target`` writes beside the tag: the write scope of the tool that governs
     the tagged thing, and ``relationships:write`` for the assignment itself,
     which is stored as a relationship. A person passes."""

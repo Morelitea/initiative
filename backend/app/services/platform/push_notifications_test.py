@@ -62,10 +62,10 @@ _IN_APP_ONLY = {
     NotificationType.community_trial_ending,
     NotificationType.community_trial_ended,
     NotificationType.community_welcome,
-    # An app asking a member to consent: answered on the app's settings, where
+    # A plug-in asking a member to consent: answered on the plug-in's settings, where
     # it waits until they get to it.
     NotificationType.plugin_consent_requested,
-    # A version of an installed app waiting for the seat: it waits on the
+    # A version of an installed plug-in waiting for the seat: it waits on the
     # settings page until they get to it, so nothing is gained by interrupting
     # them on a device.
     NotificationType.plugin_update_pending,

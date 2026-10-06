@@ -160,9 +160,9 @@ async def check_deletion_eligibility(
 async def _end_plugin_access(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
-    """End everything this account let an app do, in one guild.
+    """End everything this account let a plug-in do, in one guild.
 
-    Every app credential they connected, and every answer they gave an app
+    Every plug-in credential they connected, and every answer they gave a plug-in
     asking to act as them. Losing the account has to end the vendor access it
     opened, and consent to carry somebody's name has nothing left to mean once
     the account it named is gone.
@@ -183,7 +183,7 @@ async def _in_each_guild(
     work: Callable[[AsyncSession, int], Awaitable[None]],
 ) -> None:
     """Run ``work`` in each guild in turn, on a system session from the guild's
-    cohort routed into it, committing each and telling apps of the credentials
+    cohort routed into it, committing each and telling plug-ins of the credentials
     it ended. Stops at the first failure, so the caller's shared half never
     runs ahead of a guild's."""
     for guild_id in guild_ids:
@@ -232,7 +232,7 @@ async def _drop_user_memberships(
     ``actor_user_id`` is who closed the account — the person themselves, or an
     operator doing it for them — and is what each departure record names.
 
-    Each guild's half — initiative memberships, owned content, app access —
+    Each guild's half — initiative memberships, owned content, plug-in access —
     is done and committed first, guild by guild, and the shared membership
     rows are deleted in the caller's transaction after. A guild that fails
     stops the closure before any membership goes, and running it again
@@ -335,9 +335,9 @@ async def request_account_deletion(
     user = await session.get(User, user_id)
     if user is None:
         raise ValueError(AuthMessages.USER_NOT_FOUND)
-    # The account has withdrawn what it let apps do, so they are told now
+    # The account has withdrawn what it let plug-ins do, so they are told now
     # rather than in a month's time — the same call the community deletion
-    # makes, for the same reason. A restored account comes back with its app
+    # makes, for the same reason. A restored account comes back with its plug-in
     # connections gone, and reconnects them.
     await _end_plugin_access_everywhere(session, user_id=user_id)
     user.status = UserStatus.deleted
@@ -673,14 +673,14 @@ async def soft_delete_user(
         session, recipients=receipt_recipients, locale=receipt_locale
     )
     # Last, because the revocations sent from each guild above name this
-    # person to each app by the very references this removes.
+    # person to each plug-in by the very references this removes.
     await identity_refs.forget_user(user_id=user_id)
 
 
 async def _dispatch_queued_revocations(session: AsyncSession) -> None:
-    """Tell each app that this person's credentials are finished.
+    """Tell each plug-in that this person's credentials are finished.
 
-    After the commit, always: an app told to let go of a credential the database
+    After the commit, always: a plug-in told to let go of a credential the database
     then kept would be the one disagreement worth avoiding. Delivery is
     best-effort — the account is closed either way, and our own delete is the
     authoritative half.

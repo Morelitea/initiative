@@ -158,7 +158,7 @@ class CalendarEventAttendeePreview(PersonShape):
     user_id: PersonId
     name: str
     avatar_url: Optional[str] = None
-    #: The person ``name`` was drawn from, for an installed app's response.
+    #: The person ``name`` was drawn from, for an installed plug-in's response.
     _person: Optional[PluginPerson] = PrivateAttr(default=None)
 
     @classmethod
@@ -211,7 +211,7 @@ class CalendarEventSummary(CalendarEventBase):
 
     @field_serializer("attendee_names")
     def _attendee_names_out(self, names: List[str]) -> List[str]:
-        """An installed app reads people's names under ``members:read`` only."""
+        """An installed plug-in reads people's names under ``members:read`` only."""
         return [] if names_withheld() else names
 
 
@@ -279,7 +279,7 @@ def serialize_calendar_event_summary(
     from app.services.permissions import Action, allows
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
-    # eager-loaded with its level. An installed app has no user id and is
+    # eager-loaded with its level. An installed plug-in has no user id and is
     # answered its own level, as ``client_access`` answers it on a calendar.
     calendar = event.calendar
     reader = user_id is not None or isinstance(context, InstallContext)

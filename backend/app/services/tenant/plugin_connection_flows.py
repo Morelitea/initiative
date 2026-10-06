@@ -1,13 +1,13 @@
-"""The vendor flows Initiative runs for an app's connections.
+"""The vendor flows Initiative runs for a plug-in's connections.
 
 A connection whose manifest declares a ``flow`` is established by Initiative,
-not by the app. Initiative is the OAuth client: it sends the person to the
+not by the plug-in. Initiative is the OAuth client: it sends the person to the
 vendor, takes the code back at its own callback, exchanges it, keeps the
 tokens in its custody, refreshes them, and ends the grant when the connection
-ends. The app never holds the vendor client's secret or a refresh token; it
+ends. The plug-in never holds the vendor client's secret or a refresh token; it
 asks for a usable access token by ``connection_ref`` when it needs one.
 
-The vendor client itself is the deployment's: its values come from the app's
+The vendor client itself is the deployment's: its values come from the plug-in's
 registration (:mod:`app.services.marketplace.vendor_values`) and are named in
 the manifest as ``{vendor.<key>}``. A URL may also name one of the
 connection's own stored values as ``{<key>}``.
@@ -20,17 +20,17 @@ Three things happen here and nowhere else:
   the two returns. An installation-style flow (``install_url``) sends the
   person to the vendor's install page first; the vendor returns to the setup
   address with the installation's id, and one authorization trip follows so
-  ``after_connect`` (the app's hook, or a declarative app's request) can check
+  ``after_connect`` (the plug-in's hook, or a declarative plug-in's request) can check
   who installed it.
 * **Tokens.** :func:`seal_tokens` and :func:`unseal_tokens` hold a token set
   in a connection's stored values under reserved keys; :func:`refresh_tokens`
   renews one; :func:`mint_jwt_bearer` mints a token for a connection that
   declares a ``jwt_bearer`` token, and caches it.
-* **Hooks.** :func:`call_hook` calls the app at ``POST {base}/v1/hooks/{name}``
+* **Hooks.** :func:`call_hook` calls the plug-in at ``POST {base}/v1/hooks/{name}``
   with a ``lifecycle`` context token naming the install and the hook.
 
 Every call to a vendor goes through the pinned egress helper, https only, with
-a timeout and a size cap. A call to the app goes to its registration's
+a timeout and a size cap. A call to the plug-in goes to its registration's
 address, as an endpoint call does.
 """
 
@@ -133,7 +133,7 @@ __all__ = [
 CALLBACK_PATH = "/api/v1/plugin-connections/callback"
 #: Where an installation-style vendor returns a person from its install page.
 SETUP_PATH = "/api/v1/plugin-connections/setup"
-#: Where a vendor sends an app's webhooks, followed by the app's public_id.
+#: Where a vendor sends a plug-in's webhooks, followed by the plug-in's public_id.
 WEBHOOK_PATH = "/api/v1/plugin-hooks"
 
 #: How a flow ended, as the landing page reads it.
@@ -163,7 +163,7 @@ HOOK_NAMES: frozenset[str] = frozenset(
 #: The widest account label kept, matching what the members view shows.
 MAX_ACCOUNT_LABEL_LENGTH = 200
 
-#: Injectable for tests: the transport every vendor and app call uses.
+#: Injectable for tests: the transport every vendor and plug-in call uses.
 http_transport: httpx.AsyncBaseTransport | None = None
 
 
@@ -181,7 +181,7 @@ class VendorRefusedError(Exception):
 
 
 class HookError(Exception):
-    """The app's hook could not be reached, or answered with something else."""
+    """The plug-in's hook could not be reached, or answered with something else."""
 
 
 class RevocationAnsweredError(HookError):
@@ -229,13 +229,13 @@ def setup_url() -> str:
 
 
 def webhook_url(public_id: str) -> str:
-    """The address a vendor sends this app's webhooks to."""
+    """The address a vendor sends this plug-in's webhooks to."""
     return f"{_app_url()}{WEBHOOK_PATH}/{public_id}"
 
 
 def return_path(public_id: str, connection_id: str) -> str:
-    """The landing page's path, naming the app and the connection."""
-    return f"/plugins/connected?{urlencode([('app', public_id), ('connection', connection_id)])}"
+    """The landing page's path, naming the plug-in and the connection."""
+    return f"/plugins/connected?{urlencode([('plugin', public_id), ('connection', connection_id)])}"
 
 
 def landing_url(path: Optional[str], outcome: str) -> str:
@@ -367,7 +367,7 @@ def authorize_url(
 
 async def start_url(
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     connection: Mapping[str, Any],
     guild_id: int,
     user_id: Optional[int],
@@ -387,7 +387,7 @@ async def start_url(
     install = flow.get("install_url")
     state = new_state(
         guild_id=guild_id,
-        install_id=app.id,
+        install_id=plugin.id,
         connection_id=str(connection.get("id")),
         user_id=user_id,
         started_by=started_by,
@@ -511,7 +511,9 @@ def seal_tokens(
     sealed = without_tokens(secrets)
     sealed["access_token"] = encrypt_field(tokens.access_token, SALT_PLUGIN_CONFIG)
     if tokens.refresh_token:
-        sealed["refresh_token"] = encrypt_field(tokens.refresh_token, SALT_PLUGIN_CONFIG)
+        sealed["refresh_token"] = encrypt_field(
+            tokens.refresh_token, SALT_PLUGIN_CONFIG
+        )
     if tokens.expires_at is not None:
         plain["expires_at"] = tokens.expires_at
     if tokens.refresh_expires_at is not None:
@@ -622,7 +624,7 @@ async def mint_jwt_bearer(
             algorithm=str(spec.get("alg") or "RS256"),
         )
     except (ValueError, TypeError, jwt.PyJWTError) as exc:
-        logger.warning("app connection: the vendor key does not sign (%s)", exc)
+        logger.warning("plug-in connection: the vendor key does not sign (%s)", exc)
         raise ConnectionFlowError(
             GuildPluginMessages.CONNECTION_VENDOR_NOT_CONFIGURED
         ) from exc
@@ -647,7 +649,7 @@ async def mint_jwt_bearer(
         WebhookTargetUrlPrivateError,
         ValueError,
     ) as exc:
-        logger.warning("app connection: token exchange failed (%s)", exc)
+        logger.warning("plug-in connection: token exchange failed (%s)", exc)
         raise ConnectionFlowError(PluginChannelMessages.TOKEN_UNAVAILABLE, 502) from exc
     if not isinstance(body, dict):
         raise ConnectionFlowError(PluginChannelMessages.TOKEN_UNAVAILABLE, 502)
@@ -677,11 +679,13 @@ async def call_hook(
     install_id: int,
     body: Mapping[str, Any],
 ) -> Optional[Any]:
-    """Call one of the app's hooks and return its JSON answer (``None`` for an
+    """Call one of the plug-in's hooks and return its JSON answer (``None`` for an
     empty one). Raises :class:`HookError` for anything but a 2xx answer."""
     if name not in HOOK_NAMES:
         raise HookError(f"unknown hook {name!r}")
-    guild_ref = await ensure_plugin_guild_ref(guild_id=guild_id, plugin_install_id=install_id)
+    guild_ref = await ensure_plugin_guild_ref(
+        guild_id=guild_id, plugin_install_id=install_id
+    )
     try:
         token, _ = mint_context_token(
             public_id=public_id,
@@ -706,7 +710,7 @@ async def call_hook(
                 REQUEST_TIMEOUT_SECONDS, connect=REQUEST_TIMEOUT_SECONDS
             ),
             transport=http_transport,
-            # An app service is an operator-configured destination, often on
+            # A plug-in service is an operator-configured destination, often on
             # the deployment's own network.
             allow_private=True,
             max_bytes=MAX_RESPONSE_BYTES,
@@ -783,7 +787,7 @@ async def after_connect(
 
 @dataclass(frozen=True)
 class _Loaded:
-    app: GuildPlugin
+    plugin: GuildPlugin
     connection: dict[str, Any]
     flow: dict[str, Any]
     public_id: str
@@ -819,13 +823,15 @@ async def _load_for_flow(
             return None
     session.expunge_all()
     await set_rls_context(session, SystemGuild(state.guild_id))
-    app = (
-        await session.exec(select(GuildPlugin).where(GuildPlugin.id == state.install_id))
+    plugin = (
+        await session.exec(
+            select(GuildPlugin).where(GuildPlugin.id == state.install_id)
+        )
     ).first()
-    if app is None or not app.enabled:
+    if plugin is None or not plugin.enabled:
         return None
     connection = plugin_config_service.connection_by_id(
-        app.definition, state.connection_id
+        plugin.definition, state.connection_id
     )
     flow = flow_of(connection)
     if connection is None or flow is None:
@@ -834,12 +840,12 @@ async def _load_for_flow(
     if connection.get("scope") != expected:
         return None
     registration = await registration_lookup.registration_for_definition(
-        app.definition, listing_uid=app.listing_uid
+        plugin.definition, listing_uid=plugin.listing_uid
     )
     if registration is None or not registration.live:
         return None
     return _Loaded(
-        app=app,
+        plugin=plugin,
         connection=connection,
         flow=flow,
         public_id=registration.public_id,
@@ -938,7 +944,7 @@ async def complete_setup(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
+        fields = without_tokens((loaded.plugin.config or {}).get(state.connection_id))
     try:
         vendor = await load_vendor_values(loaded.public_id)
         return authorize_url(
@@ -959,7 +965,7 @@ async def complete_callback(
     signed_in: Optional[int],
 ) -> str:
     """The vendor's return with an authorization code. Exchanges it, asks the
-    app's ``after_connect`` hook when the flow says so, stores the result, and
+    plug-in's ``after_connect`` hook when the flow says so, stores the result, and
     answers the landing page's address with how it ended."""
     try:
         state = decode_state(state_token)
@@ -977,11 +983,11 @@ async def complete_callback(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
-        install_id = loaded.app.id
-        definition = loaded.app.definition
+        fields = without_tokens((loaded.plugin.config or {}).get(state.connection_id))
+        install_id = loaded.plugin.id
+        definition = loaded.plugin.definition
 
-    # The vendor and the app are asked with no transaction open. What they
+    # The vendor and the plug-in are asked with no transaction open. What they
     # answer is stored against the install as it stands once they have.
     try:
         vendor = await load_vendor_values(loaded.public_id)
@@ -993,10 +999,10 @@ async def complete_callback(
             verifier=state.verifier,
         )
     except VendorRefusedError as exc:
-        logger.info("app connection: the vendor refused the code (%s)", exc)
+        logger.info("plug-in connection: the vendor refused the code (%s)", exc)
         return landing_url(state.return_path, "refused")
     except (ConnectionFlowError, OidcHttpError) as exc:
-        logger.warning("app connection: the code exchange failed (%s)", exc)
+        logger.warning("plug-in connection: the code exchange failed (%s)", exc)
         return landing_url(state.return_path, "not_recorded")
 
     values: dict[str, Any] = {}
@@ -1008,7 +1014,7 @@ async def complete_callback(
             params["installation_id"] = state.installation_id
         try:
             if isinstance(declared, dict):
-                # Initiative makes a declarative app's request itself.
+                # Initiative makes a declarative plug-in's request itself.
                 from app.services.marketplace import declarative
 
                 answer = await declarative.after_connect(
@@ -1029,11 +1035,13 @@ async def complete_callback(
                     params=params,
                 )
         except HookError as exc:
-            logger.warning("app connection: after_connect failed (%s)", exc)
+            logger.warning("plug-in connection: after_connect failed (%s)", exc)
             return landing_url(state.return_path, "not_recorded")
         if answer.refused:
             if answer.code is not None:
-                logger.info("app connection: after_connect refused (%s)", answer.code)
+                logger.info(
+                    "plug-in connection: after_connect refused (%s)", answer.code
+                )
             return landing_url(state.return_path, "refused")
         values = answer.values
         label = answer.account_label
@@ -1042,12 +1050,12 @@ async def complete_callback(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        app = loaded.app
+        plugin = loaded.plugin
         try:
             if state.user_id is not None:
                 stored = await _store_member(
                     session,
-                    app=app,
+                    plugin=plugin,
                     connection=loaded.connection,
                     user_id=state.user_id,
                     tokens=tokens,
@@ -1057,22 +1065,22 @@ async def complete_callback(
             else:
                 stored = await _store_community(
                     session,
-                    plugin_id=app.id,
+                    plugin_id=plugin.id,
                     connection=loaded.connection,
                     tokens=None if loaded.flow.get("install_url") else tokens,
                     values=values,
                 )
         except plugin_config_service.PluginConfigError as exc:
             logger.warning(
-                "app connection: after_connect values refused (%s)", exc.code
+                "plug-in connection: after_connect values refused (%s)", exc.code
             )
             return landing_url(state.return_path, "not_recorded")
         if not stored:
             return landing_url(state.return_path, "not_recorded")
         await session.commit()
         if state.user_id is None:
-            await session.refresh(app)
-            await plugin_installs.record(state.guild_id, app)
+            await session.refresh(plugin)
+            await plugin_installs.record(state.guild_id, plugin)
     return landing_url(state.return_path, "connected")
 
 
@@ -1090,7 +1098,7 @@ def _managed_only(connection: Mapping[str, Any], values: Mapping[str, Any]) -> d
 async def _store_member(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     connection: Mapping[str, Any],
     user_id: int,
     tokens: TokenSet,
@@ -1104,7 +1112,7 @@ async def _store_member(
         await session.exec(
             select(GuildPluginUserConnection)
             .where(
-                GuildPluginUserConnection.plugin_id == app.id,
+                GuildPluginUserConnection.plugin_id == plugin.id,
                 GuildPluginUserConnection.connection_id == connection_id,
                 GuildPluginUserConnection.user_id == user_id,
             )
@@ -1115,7 +1123,7 @@ async def _store_member(
         return False
     if row is None:
         row = GuildPluginUserConnection(
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id=connection_id,
             user_id=user_id,
             connection_ref=mint_connection_ref(),
@@ -1147,12 +1155,12 @@ async def _store_community(
 ) -> bool:
     """The community's own connection: the managed values, and the token set
     unless the flow is installation-style, whose person's token is not kept."""
-    app = await guild_plugins_service.lock_install(session, plugin_id)
-    if app is None:
+    plugin = await guild_plugins_service.lock_install(session, plugin_id)
+    if plugin is None:
         return False
     connection_id = str(connection.get("id"))
-    all_secrets = await guild_plugins_service.load_secrets(session, app)
-    stored_config = (app.config or {}).get(connection_id) or {}
+    all_secrets = await guild_plugins_service.load_secrets(session, plugin)
+    stored_config = (plugin.config or {}).get(connection_id) or {}
     stored_secrets = all_secrets.get(connection_id) or {}
     config, secrets = plugin_config_service.apply_connection_values(
         connection,
@@ -1163,14 +1171,14 @@ async def _store_community(
     )
     if tokens is not None:
         config, secrets = seal_tokens(tokens, config=config, secrets=secrets)
-    app.config = _replace_entry(app.config, connection_id, config)
-    plugin_config_service.guild_connection_ref(app, connection_id)
-    app.config_state = "unverified"
-    app.config_state_detail = None
-    app.updated_at = datetime.now(timezone.utc)
-    session.add(app)
+    plugin.config = _replace_entry(plugin.config, connection_id, config)
+    plugin_config_service.guild_connection_ref(plugin, connection_id)
+    plugin.config_state = "unverified"
+    plugin.config_state_detail = None
+    plugin.updated_at = datetime.now(timezone.utc)
+    session.add(plugin)
     await guild_plugins_service.store_secrets(
-        session, app, _replace_entry(all_secrets, connection_id, secrets)
+        session, plugin, _replace_entry(all_secrets, connection_id, secrets)
     )
     return True
 
@@ -1184,7 +1192,7 @@ def _replace_entry(
     return kept
 
 
-# --- a token for an app ------------------------------------------------------
+# --- a token for a plug-in ------------------------------------------------------
 
 
 def _expired_before(tokens: TokenSet, *, now: int) -> bool:
@@ -1211,10 +1219,12 @@ async def _renewed(
             flow, vendor=vendor, fields=fields, refresh_token=tokens.refresh_token
         )
     except VendorRefusedError as exc:
-        logger.info("app connection: the vendor refused a refresh (%s)", exc)
+        logger.info("plug-in connection: the vendor refused a refresh (%s)", exc)
         return None
     except OidcHttpError as exc:
-        logger.warning("app connection: a refresh could not reach the vendor (%s)", exc)
+        logger.warning(
+            "plug-in connection: a refresh could not reach the vendor (%s)", exc
+        )
         raise ConnectionFlowError(PluginChannelMessages.TOKEN_UNAVAILABLE, 502) from exc
 
 
@@ -1253,14 +1263,16 @@ async def _member_row(
 
 
 def _member_tokens(
-    app: GuildPlugin, row: GuildPluginUserConnection
+    plugin: GuildPlugin, row: GuildPluginUserConnection
 ) -> tuple[dict[str, Any], TokenSet]:
     """The flow and token set of a member connection that may be handed out."""
     if row.blocked_at is not None:
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_BLOCKED, 403)
     if row.status == "expired":
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_EXPIRED)
-    connection = plugin_config_service.connection_by_id(app.definition, row.connection_id)
+    connection = plugin_config_service.connection_by_id(
+        plugin.definition, row.connection_id
+    )
     flow = flow_of(connection)
     tokens = unseal_tokens(row.config, row.config_secrets)
     if flow is None or tokens is None or row.status != "connected":
@@ -1271,7 +1283,7 @@ def _member_tokens(
 async def member_token(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     public_id: str,
     connection_ref: str,
     guild_id: int,
@@ -1284,14 +1296,14 @@ async def member_token(
     and what the vendor said is dropped.
     """
     await _hold_renewal(
-        session, guild_id=guild_id, install_id=app.id, connection=connection_ref
+        session, guild_id=guild_id, install_id=plugin.id, connection=connection_ref
     )
     row = await _member_row(
-        session, plugin_id=app.id, connection_ref=connection_ref, lock=False
+        session, plugin_id=plugin.id, connection_ref=connection_ref, lock=False
     )
     if row is None:
         return None
-    flow, tokens = _member_tokens(app, row)
+    flow, tokens = _member_tokens(plugin, row)
     renewed = await _renewed(
         flow, public_id=public_id, fields=without_tokens(row.config), tokens=tokens
     )
@@ -1300,11 +1312,11 @@ async def member_token(
         return tokens
 
     row = await _member_row(
-        session, plugin_id=app.id, connection_ref=connection_ref, lock=True
+        session, plugin_id=plugin.id, connection_ref=connection_ref, lock=True
     )
     if row is None:
         return None
-    _, current = _member_tokens(app, row)
+    _, current = _member_tokens(plugin, row)
     if current != tokens:
         await session.commit()
         return current
@@ -1326,7 +1338,7 @@ async def member_token(
 async def community_token(
     session: AsyncSession,
     *,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     public_id: str,
     connection_id: str,
     guild_id: int,
@@ -1337,7 +1349,9 @@ async def community_token(
     A connection changed while the vendor was asked answers as it stands now,
     and what the vendor said is dropped.
     """
-    connection = plugin_config_service.connection_by_id(app.definition, connection_id)
+    connection = plugin_config_service.connection_by_id(
+        plugin.definition, connection_id
+    )
     if connection is None:
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_NOT_FOUND, 404)
     spec = token_of(connection)
@@ -1346,21 +1360,21 @@ async def community_token(
         return await mint_jwt_bearer(
             spec,
             vendor=vendor,
-            fields=without_tokens((app.config or {}).get(connection_id)),
-            cache_key=(guild_id, app.id, connection_id),
+            fields=without_tokens((plugin.config or {}).get(connection_id)),
+            cache_key=(guild_id, plugin.id, connection_id),
         )
 
     flow = flow_of(connection)
     if flow is None:
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_NO_TOKEN)
     await _hold_renewal(
-        session, guild_id=guild_id, install_id=app.id, connection=connection_id
+        session, guild_id=guild_id, install_id=plugin.id, connection=connection_id
     )
-    await session.refresh(app)
-    stored_config = (app.config or {}).get(connection_id) or {}
+    await session.refresh(plugin)
+    stored_config = (plugin.config or {}).get(connection_id) or {}
     tokens = unseal_tokens(
         stored_config,
-        (await guild_plugins_service.load_secrets(session, app)).get(connection_id),
+        (await guild_plugins_service.load_secrets(session, plugin)).get(connection_id),
     )
     if tokens is None:
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_NO_TOKEN)
@@ -1371,12 +1385,12 @@ async def community_token(
         await session.commit()
         return tokens
 
-    locked = await guild_plugins_service.lock_install(session, app.id)
+    locked = await guild_plugins_service.lock_install(session, plugin.id)
     if locked is None:
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_NO_TOKEN)
-    app = locked
-    all_secrets = await guild_plugins_service.load_secrets(session, app)
-    stored_config = (app.config or {}).get(connection_id) or {}
+    plugin = locked
+    all_secrets = await guild_plugins_service.load_secrets(session, plugin)
+    stored_config = (plugin.config or {}).get(connection_id) or {}
     stored_secrets = all_secrets.get(connection_id) or {}
     current = unseal_tokens(stored_config, stored_secrets)
     if current != tokens:
@@ -1387,24 +1401,24 @@ async def community_token(
     if renewed is None:
         # The grant is over: the tokens go, and the connection reads as not
         # set until the community connects it again.
-        app.config = _replace_entry(
-            app.config, connection_id, without_tokens(stored_config)
+        plugin.config = _replace_entry(
+            plugin.config, connection_id, without_tokens(stored_config)
         )
-        guild_plugins_service.touch(app)
-        session.add(app)
+        guild_plugins_service.touch(plugin)
+        session.add(plugin)
         await guild_plugins_service.store_secrets(
             session,
-            app,
+            plugin,
             _replace_entry(all_secrets, connection_id, without_tokens(stored_secrets)),
         )
         await session.commit()
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_EXPIRED)
     config, secrets = seal_tokens(renewed, config=stored_config, secrets=stored_secrets)
-    app.config = _replace_entry(app.config, connection_id, config)
-    guild_plugins_service.touch(app)
-    session.add(app)
+    plugin.config = _replace_entry(plugin.config, connection_id, config)
+    guild_plugins_service.touch(plugin)
+    session.add(plugin)
     await guild_plugins_service.store_secrets(
-        session, app, _replace_entry(all_secrets, connection_id, secrets)
+        session, plugin, _replace_entry(all_secrets, connection_id, secrets)
     )
     await session.commit()
     return renewed
@@ -1513,7 +1527,7 @@ async def revocation_sender(
         lapsed = expires_at is not None and expires_at <= int(time.time())
         if lapsed and not refresh_token:
             logger.info(
-                "app credential revocation: app %s connection %s holds a lapsed "
+                "plug-in credential revocation: plug-in %s connection %s holds a lapsed "
                 "access token and no refresh token; dropped",
                 public_id,
                 connection_id,
@@ -1523,8 +1537,10 @@ async def revocation_sender(
         url = _render_url(flow.get("revoke_url"), vendor=vendor, fields=fields)
         client_id, secret = _client(flow, vendor=vendor, fields=fields)
         if not secret:
-            raise ConnectionFlowError(GuildPluginMessages.CONNECTION_VENDOR_NOT_CONFIGURED)
-        # GitHub's "Delete an app authorization": the client's credentials as
+            raise ConnectionFlowError(
+                GuildPluginMessages.CONNECTION_VENDOR_NOT_CONFIGURED
+            )
+        # GitHub's "Delete a plug-in authorization": the client's credentials as
         # HTTP Basic auth, and the grant's access token in a JSON body.
         basic = base64.b64encode(f"{client_id}:{secret}".encode()).decode("ascii")
 
@@ -1570,7 +1586,8 @@ async def revocation_sender(
     registration = (await registration_lookup.load_registrations()).get(public_id)
     if registration is None or not registration.base_url:
         logger.info(
-            "app credential revocation: %s is not registered here; dropped", public_id
+            "plug-in credential revocation: %s is not registered here; dropped",
+            public_id,
         )
         return None
     base_url = registration.base_url

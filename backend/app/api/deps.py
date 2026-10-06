@@ -125,7 +125,7 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: credential is a party to the decision rather than a way of transporting it.
 CREDENTIAL_SESSION = CredentialKind.session.value
 CREDENTIAL_API_KEY = CredentialKind.api_key.value
-#: An installed app's access token. Only a route that names an app scope
+#: An installed plug-in's access token. Only a route that names a plug-in scope
 #: admits one (:func:`plugin_scope`).
 CREDENTIAL_INSTALL = "install"
 
@@ -1353,7 +1353,7 @@ async def establish_install_access(
     install: VerifiedInstall,
     named_refs: Sequence[str] = (),
 ) -> InstallContext:
-    """Route ``session`` as an installed app and compute its standing — the
+    """Route ``session`` as an installed plug-in and compute its standing — the
     establishment seam for an install, beside :func:`establish_guild_access`.
     On a request, ``session`` is the one :func:`get_session` hands out, which
     is from the cohort of the community the install's token names.
@@ -1460,7 +1460,7 @@ def _strings_in(value: Any) -> list[str]:
 
 
 async def _named_refs(request: Request) -> list[str]:
-    """The references an installed app's request names: in its path, its query
+    """The references an installed plug-in's request names: in its path, its query
     string and its JSON body, a mention in its text included.
 
     Read before FastAPI validates any of them, so the standing statement can
@@ -1484,7 +1484,7 @@ async def _named_refs(request: Request) -> list[str]:
 async def _establish_install_request(
     request: Request, session: AsyncSession, scope: str | None
 ) -> InstallContext:
-    """Admit an installed app's request to a route that names ``scope``, or
+    """Admit an installed plug-in's request to a route that names ``scope``, or
     to an :func:`plugin_scope_checked` route, which names none here (``None``)
     and checks what the request asks for itself.
 
@@ -1516,7 +1516,7 @@ async def _establish_install_request(
 
     request.state.credential = CREDENTIAL_INSTALL
     audit_context.note_install(
-        app=context.client_id,
+        plugin=context.client_id,
         guild_id=context.guild_id,
         install_id=context.install_id,
     )
@@ -1553,12 +1553,12 @@ async def _establish_install_request(
 
 
 def plugin_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
-    """The dependency a route names to admit an installed app, at ``scope``.
+    """The dependency a route names to admit an installed plug-in, at ``scope``.
 
     A person passes through to the ordinary seam, exactly as
     :data:`GuildContextDep` would take them, so one route serves both. An
     installation token is admitted only here: :func:`get_current_user` refuses
-    one, so a route that names no scope cannot be reached by an app. For an
+    one, so a route that names no scope cannot be reached by a plug-in. For an
     install, the guild comes from the token and the path's ``{community_id}`` is
     not read; a token whose scopes
     do not cover ``scope`` gets 403 (``PLUGIN_SCOPE_REQUIRED``).
@@ -1606,8 +1606,8 @@ def plugin_scope_by(
     param: str, scopes: Mapping[str, str]
 ) -> Callable[..., Awaitable[ActorContext]]:
     """:func:`plugin_scope` for a route that serves several kinds of thing, named
-    by the path parameter ``param``: an installed app's request needs
-    ``scopes[<the parameter's value>]``. A value with no entry is one no app
+    by the path parameter ``param``: an installed plug-in's request needs
+    ``scopes[<the parameter's value>]``. A value with no entry is one no plug-in
     may ask about, and an installation token gets 403 (``PLUGIN_SCOPE_REQUIRED``)
     for it. A person passes through to the ordinary seam, as with
     :func:`plugin_scope`.
@@ -1670,7 +1670,7 @@ def plugin_scope_checked(
     """
     asked = frozenset(scopes)
     if not asked:
-        raise ValueError("a checked app scope names the scopes it may ask")
+        raise ValueError("a checked plug-in scope names the scopes it may ask")
     for scope in asked:
         parse_scope(scope)
 
@@ -1704,7 +1704,7 @@ async def get_actor_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> Optional[User]:
-    """The person a scoped route serves, or ``None`` for an installed app.
+    """The person a scoped route serves, or ``None`` for an installed plug-in.
 
     For a person, the same two dependencies a content route composes, in the
     same order. An installation token is not read here and costs nothing: the
@@ -1718,7 +1718,7 @@ async def get_actor_user(
     return await get_current_active_user(request, session, user)
 
 
-#: The account a scoped route serves; ``None`` when an installed app calls it.
+#: The account a scoped route serves; ``None`` when an installed plug-in calls it.
 ActorUserDep = Annotated[Optional[User], Depends(get_actor_user)]
 
 
@@ -1737,20 +1737,20 @@ def _route_dependency_value(route: Any, attribute: str) -> Any:
 
 
 def route_plugin_scope(route: Any) -> str | None:
-    """The app scope a route names, or ``None``: read from its dependencies."""
+    """The plug-in scope a route names, or ``None``: read from its dependencies."""
     return _route_dependency_value(route, PLUGIN_SCOPE_ATTRIBUTE)
 
 
 def route_plugin_scopes(route: Any) -> frozenset[str]:
-    """Every app scope a route may ask of a request: read from its
+    """Every plug-in scope a route may ask of a request: read from its
     dependencies. Empty for a route that names none."""
     return _route_dependency_value(route, PLUGIN_SCOPES_ATTRIBUTE) or frozenset()
 
 
 def route_plugin_scope_declaration(route: Any) -> str | dict[str, Any] | None:
-    """What a route's app scope dependency declares
+    """What a route's plug-in scope dependency declares
     (:data:`PLUGIN_SCOPE_DECLARATION_ATTRIBUTE`), or ``None`` for a route that
-    names no app scope."""
+    names no plug-in scope."""
     return _route_dependency_value(route, PLUGIN_SCOPE_DECLARATION_ATTRIBUTE)
 
 
@@ -1763,11 +1763,11 @@ async def get_actor_session(request: Request, session: SessionDep) -> AsyncSessi
     naming a scope is a wiring mistake, and is refused as one.
     """
     if route_plugin_scope(request.scope.get("route")) is None:
-        raise RuntimeError("ActorSessionDep is for a route that names an app scope")
+        raise RuntimeError("ActorSessionDep is for a route that names a plug-in scope")
     return session
 
 
-#: The routed session of a route that names an app scope.
+#: The routed session of a route that names a plug-in scope.
 ActorSessionDep = Annotated[AsyncSession, Depends(get_actor_session)]
 
 
@@ -1931,7 +1931,7 @@ async def _include_deleted_flag(
     the DAC loaders, can resolve a trashed row. Discloses nothing new: RLS and
     the per-resource access checks run unchanged, and the trash surface already
     shows these rows to the same audience. The route's own seam routes the
-    session — a person's or an installed app's — so this only sets the flag.
+    session — a person's or an installed plug-in's — so this only sets the flag.
     """
     if include_deleted:
         session.info["include_deleted"] = True

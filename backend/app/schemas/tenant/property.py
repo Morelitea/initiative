@@ -193,14 +193,14 @@ class PropertySummary(SanitizedBaseModel):
         description=(
             "Shaped by the property's type. For user_reference, a person: id, "
             "username, discriminator, display_name and avatar_url, or an "
-            "PluginPerson when the reader is an installed app."
+            "PluginPerson when the reader is an installed plug-in."
         ),
     )
 
     @field_serializer("value")
     def _value_out(self, value: Any) -> Any:
         """A person a ``user_reference`` value names, as the response's reader
-        knows them: an installed app gets an :class:`PluginPerson`."""
+        knows them: an installed plug-in gets an :class:`PluginPerson`."""
         if (
             self.type is not PropertyType.user_reference
             or not isinstance(value, dict)

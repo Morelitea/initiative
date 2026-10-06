@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Nimmt an dem teil, wozu die Person hinzugefügt wurde.",
       "admin": "Führt die Community — Mitglieder, Einladungen, Initiativen, Einstellungen.",
-      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Apps. Nur ein Superadmin kann einen weiteren ernennen."
+      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Plug-ins. Nur ein Superadmin kann einen weiteren ernennen."
     },
     "loadingSettings": "Einstellungen werden geladen…",
     "unableToLoadSettings": "Einstellungen konnten nicht geladen werden.",
@@ -466,8 +466,8 @@
     "recipientLabel": "Neuer Besitzer",
     "recipientPlaceholder": "Admin auswählen",
     "adminsOnly": "Nur Community-Admins können Besitz erhalten.",
-    "pluginHint": "App",
-    "adminsOrPlugins": "Eigentümer können Community-Administratoren werden, und auch eine App, die eingeschaltet ist, überall dort platziert ist, wo dieser Inhalt liegt, und ihn ändern darf.",
+    "pluginHint": "Plug-in",
+    "adminsOrPlugins": "Eigentümer können Community-Administratoren werden, und auch ein Plug-in, das eingeschaltet ist, überall dort platziert ist, wo dieser Inhalt liegt, und ihn ändern darf.",
     "confirm": "Übertragen",
     "transferring": "Wird übertragen…",
     "nothingOwned": "Diese Person besitzt nichts in dieser Community.",

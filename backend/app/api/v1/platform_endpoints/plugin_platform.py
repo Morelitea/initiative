@@ -1,8 +1,8 @@
-"""What an app service needs from us in order to trust a call.
+"""What a plug-in service needs from us in order to trust a call.
 
 One public route, because there is one issuer. Initiative signs every token an
-app receives — the context JWT it sends with a platform call — with its own
-dedicated keypair. An app fetches the public half here, and picks the right key out of
+plug-in receives — the context JWT it sends with a platform call — with its own
+dedicated keypair. A plug-in fetches the public half here, and picks the right key out of
 the set while a rotation is in flight.
 
 Unauthenticated by design — a public key is public, and requiring a credential
@@ -31,10 +31,10 @@ async def read_plugin_platform_jwks() -> dict[str, Any]:
 
     A deployment with no keypair configured answers **503** rather than an empty
     key set. The two are very different statements: an empty ``keys`` array says
-    "this platform has published no keys", which an app would reasonably cache
+    "this platform has published no keys", which a plug-in would reasonably cache
     and then refuse every later token against. A 503 says the platform is not
-    configured for app traffic yet, which is what is actually true, and it is
-    the same answer registering and verifying an app service already give.
+    configured for plug-in traffic yet, which is what is actually true, and it is
+    the same answer registering and verifying a plug-in service already give.
     """
     if not plugin_platform_signing_enabled():
         raise HTTPException(
@@ -43,9 +43,12 @@ async def read_plugin_platform_jwks() -> dict[str, Any]:
         )
     try:
         return context_jwt.context_jwks()
-    except (PluginPlatformSigningNotConfiguredError, context_jwt.ContextTokenError) as exc:
+    except (
+        PluginPlatformSigningNotConfiguredError,
+        context_jwt.ContextTokenError,
+    ) as exc:
         # Configured but unusable — an unreadable or non-RSA key. Reported the
-        # same way as absent, because from an app's side it is the same state.
+        # same way as absent, because from a plug-in's side it is the same state.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=PluginServiceMessages.SIGNING_NOT_CONFIGURED,

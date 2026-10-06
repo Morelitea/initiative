@@ -405,7 +405,7 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
 
     envelope = ProjectExportEnvelope(
         schema_version=999,
-        plugin_version="0.0.0",
+        app_version="0.0.0",
         exported_at=datetime.now(timezone.utc),
         project=ProjectExportProject(name="X"),
         tags=[],
@@ -483,7 +483,7 @@ async def test_a_status_with_no_look_gets_its_categorys(session: AsyncSession):
     )
     envelope = ProjectExportEnvelope.model_validate(
         {
-            "plugin_version": "0.0.0-test",
+            "app_version": "0.0.0-test",
             "exported_at": "2026-07-15T00:00:00+00:00",
             "project": {"name": "From elsewhere"},
             "tags": [],

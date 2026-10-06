@@ -3,7 +3,7 @@
 A probe router is mounted for these tests on ``ActorRoute``, with routes that
 name ``documents:read`` and ``documents:write`` and whose schemas type their
 person and community fields :data:`PersonId` and :data:`GuildId`. No real route
-opts in yet, so the probe is what exercises the translation: an installed app
+opts in yet, so the probe is what exercises the translation: an installed plug-in
 names people by its own references and reads them back the same way; a person
 sends and receives row ids, unchanged; and the round trips stay where the
 design puts them.
@@ -177,7 +177,7 @@ async def _setup(session, acting_user, role_session, scopes=("documents:write",)
 
 
 async def _second_install(session, role_session, installed, scopes):
-    """Another app installed in the same community and placed beside the
+    """Another plug-in installed in the same community and placed beside the
     first."""
     client_id, listing = "tests.token-client-two", "TOKENCLIENT002"
     second = await create_guild_plugin(
@@ -217,7 +217,7 @@ async def _ref_row(session, ref: str) -> IdentityRef:
 
 
 def test_every_route_that_names_a_scope_is_an_actor_route():
-    """An installed app's request is translated by the route class, so a route
+    """An installed plug-in's request is translated by the route class, so a route
     that admits one is served by it."""
     offenders = [
         f"{sorted(getattr(route, 'methods', ()))} {getattr(route, 'path', route)}"
@@ -239,14 +239,14 @@ async def test_an_install_reads_people_and_its_community_by_reference(
 
     response = await client.get(
         _url(installed.guild.id, "/people"),
-        headers=_bearer(installed.guild.id, installed.app.id, ["documents:read"]),
+        headers=_bearer(installed.guild.id, installed.plugin.id, ["documents:read"]),
     )
 
     assert response.status_code == 200, response.text
     body = response.json()
     named = [body["creator"], *(p["id"] for p in body["people"])]
-    assert all(isinstance(ref, str) and ref.startswith("uapp_") for ref in named)
-    assert isinstance(body["guild_id"], str) and body["guild_id"].startswith("gapp_")
+    assert all(isinstance(ref, str) and ref.startswith("uplu_") for ref in named)
+    assert isinstance(body["guild_id"], str) and body["guild_id"].startswith("gplu_")
     assert int(response.headers["content-length"]) == len(response.content)
 
     for ref, user_id in zip(named, people):
@@ -255,11 +255,11 @@ async def test_an_install_reads_people_and_its_community_by_reference(
         assert (row.purpose, row.sector_guild_id, row.sector_id) == (
             IdentityPurpose.plugin,
             installed.guild.id,
-            installed.app.id,
+            installed.plugin.id,
         )
     # The community's reference is the one the install is known to hold.
     assert body["guild_id"] == await plugin_refs.ensure_plugin_guild_ref(
-        guild_id=installed.guild.id, plugin_install_id=installed.app.id
+        guild_id=installed.guild.id, plugin_install_id=installed.plugin.id
     )
 
 
@@ -267,7 +267,7 @@ async def test_the_same_person_is_called_the_same_thing_every_time(
     client, session, acting_user, role_session
 ):
     installed, _people = await _setup(session, acting_user, role_session)
-    headers = _bearer(installed.guild.id, installed.app.id, ["documents:read"])
+    headers = _bearer(installed.guild.id, installed.plugin.id, ["documents:read"])
 
     first = await client.get(_url(installed.guild.id, "/people"), headers=headers)
     plugin_refs.forget_cached_install_refs()
@@ -286,7 +286,7 @@ async def test_a_second_install_sees_different_references(
 
     mine = await client.get(
         _url(installed.guild.id, "/people"),
-        headers=_bearer(installed.guild.id, installed.app.id, ["documents:read"]),
+        headers=_bearer(installed.guild.id, installed.plugin.id, ["documents:read"]),
     )
     theirs = await client.get(
         _url(installed.guild.id, "/people"),
@@ -325,7 +325,9 @@ async def test_an_install_is_refused_a_json_response_the_route_built(
     with pytest.raises(RuntimeError):
         await client.get(
             _url(installed.guild.id, "/raw"),
-            headers=_bearer(installed.guild.id, installed.app.id, ["documents:read"]),
+            headers=_bearer(
+                installed.guild.id, installed.plugin.id, ["documents:read"]
+            ),
         )
 
 
@@ -337,7 +339,7 @@ async def test_an_install_is_refused_a_json_response_the_route_built(
 async def _refs_for(client, installed) -> dict[str, Any]:
     response = await client.get(
         _url(installed.guild.id, "/people"),
-        headers=_bearer(installed.guild.id, installed.app.id, ["documents:read"]),
+        headers=_bearer(installed.guild.id, installed.plugin.id, ["documents:read"]),
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -354,7 +356,7 @@ async def test_an_install_names_people_by_reference(
         _url(installed.guild.id, "/assign"),
         params={"reviewer": known["creator"]},
         json={"guild_id": known["guild_id"], "assignees": refs},
-        headers=_bearer(installed.guild.id, installed.app.id, ["documents:write"]),
+        headers=_bearer(installed.guild.id, installed.plugin.id, ["documents:write"]),
     )
 
     assert response.status_code == 200, response.text
@@ -394,12 +396,12 @@ async def test_what_the_install_does_not_hold_is_unprocessable(
     foreign = await plugin_refs.ensure_plugin_ref(
         guild_id=installed.guild.id, plugin_install_id=other.id, user_id=people[1]
     )
-    headers = _bearer(installed.guild.id, installed.app.id, ["documents:write"])
+    headers = _bearer(installed.guild.id, installed.plugin.id, ["documents:write"])
 
     for assignees, guild in (
         ([foreign], known["guild_id"]),
         ([people[1]], known["guild_id"]),
-        (["uapp_" + "x" * 32], known["guild_id"]),
+        (["uplu_" + "x" * 32], known["guild_id"]),
         ([known["creator"]], known["creator"]),
         ([known["guild_id"]], known["guild_id"]),
     ):
@@ -421,7 +423,7 @@ async def test_a_replaced_reference_resolves_for_its_grace_window(
     installed, people = await _setup(session, acting_user, role_session)
     known = await _refs_for(client, installed)
     replaced = known["people"][0]["id"]
-    headers = _bearer(installed.guild.id, installed.app.id, ["documents:write"])
+    headers = _bearer(installed.guild.id, installed.plugin.id, ["documents:write"])
 
     async def retire(ago: timedelta) -> int:
         await session.exec(
@@ -452,7 +454,7 @@ async def test_naming_three_people_costs_no_statement_of_its_own(
 ):
     installed, _people = await _setup(session, acting_user, role_session)
     known = await _refs_for(client, installed)
-    headers = _bearer(installed.guild.id, installed.app.id, ["documents:write"])
+    headers = _bearer(installed.guild.id, installed.plugin.id, ["documents:write"])
 
     with _counting() as statements:
         response = await client.post(
@@ -474,7 +476,7 @@ async def test_a_response_mints_once_on_a_cold_cache_and_not_on_a_warm_one(
     client, session, acting_user, role_session
 ):
     installed, _people = await _setup(session, acting_user, role_session)
-    headers = _bearer(installed.guild.id, installed.app.id, ["documents:read"])
+    headers = _bearer(installed.guild.id, installed.plugin.id, ["documents:read"])
 
     with _counting() as cold:
         first = await client.get(_url(installed.guild.id, "/people"), headers=headers)

@@ -1,6 +1,6 @@
-"""Queues and counters as an installed app calls them.
+"""Queues and counters as an installed plug-in calls them.
 
-Each test installs an app the way a community does (``install_plugin``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the queue and counter routes that name a scope: the
 reads, create and update, the item edit, and the queue's and counters' own
@@ -177,7 +177,7 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     created = await client.post(
         guild_url(guild_id, "/queues/"),
         headers=headers,
-        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -185,7 +185,7 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.queue, body["id"], guild_id) == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
     queue = await session.get(Queue, body["id"])
     assert queue is not None and queue.created_by is None
@@ -193,10 +193,10 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     renamed = await client.patch(
         guild_url(guild_id, f"/queues/{body['id']}"),
         headers=headers,
-        json={"name": "Renamed by the app"},
+        json={"name": "Renamed by the plug-in"},
     )
     assert renamed.status_code == 200, renamed.text
-    assert renamed.json()["name"] == "Renamed by the app"
+    assert renamed.json()["name"] == "Renamed by the plug-in"
 
     first = await create_queue_item(session, queue, label="First", position=20)
     second = await create_queue_item(session, queue, label="Second", position=10)
@@ -414,7 +414,7 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     created = await client.post(
         guild_url(guild_id, "/counter-groups/"),
         headers=headers,
-        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -422,7 +422,7 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.counter_group, body["id"], guild_id) == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
     group = await session.get(CounterGroup, body["id"])
     assert group is not None and group.created_by is None
@@ -430,10 +430,10 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     renamed = await client.patch(
         guild_url(guild_id, f"/counter-groups/{group.id}"),
         headers=headers,
-        json={"description": "Kept by the app"},
+        json={"description": "Kept by the plug-in"},
     )
     assert renamed.status_code == 200, renamed.text
-    assert renamed.json()["description"] == "Kept by the app"
+    assert renamed.json()["description"] == "Kept by the plug-in"
 
     counter = await create_counter(session, group, name="Round", initial_count=1)
     base = guild_url(guild_id, f"/counters/{counter.id}")
@@ -508,7 +508,10 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
 
     from app.core.plugin_access_token import seal_install_token
     from app.models.platform.guild import CommunityRole
-    from app.models.tenant.plugin_member_consent import PluginMemberConsent, ConsentAccess
+    from app.models.tenant.plugin_member_consent import (
+        PluginMemberConsent,
+        ConsentAccess,
+    )
     from app.testing import grant_role_permission
     from app.testing.plugin_clients import CLIENT
 
@@ -530,7 +533,7 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     now = datetime.now(timezone.utc)
     session.add(
         PluginMemberConsent(
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             user_id=member.user.id,
             purpose="node-1",
             label="Act as you",
@@ -542,7 +545,7 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     await session.commit()
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(scopes),
         initiative_id=None,

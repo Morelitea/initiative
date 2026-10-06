@@ -15,7 +15,7 @@ that the files are the ones the entry names, and turns the entry into rows:
   ``upsert_listing`` and validator every other source uses. A uid or name
   another source already published is refused, never taken over. Pictures are
   kept in ``marketplace_media`` by digest.
-* **for an app, its registration's app facts** (``plugin_service_registrations``,
+* **for a plug-in, its registration's plug-in facts** (``plugin_service_registrations``,
   ``source='registry'``), from the entry's ``registration`` block, through the
   same ``upsert_listing`` as every other source's listing. The block is the
   container image, the scope ceiling and the reference sectors; where the
@@ -237,7 +237,7 @@ class _Version:
     version: str
     manifest: str
     sha256: str
-    min_plugin_version: Optional[str]
+    min_app_version: Optional[str]
     release_notes: Optional[str]
 
 
@@ -264,7 +264,7 @@ def _versions(entry: Mapping[str, Any], directory: str) -> list[_Version]:
                     directory, item.get("manifest"), what=f"version {version}"
                 ),
                 sha256=_digest(item.get("sha256"), what=f"version {version}"),
-                min_plugin_version=_optional_text(item, "min_plugin_version"),
+                min_app_version=_optional_text(item, "min_app_version"),
                 release_notes=_optional_text(item, "release_notes"),
             )
         )
@@ -464,7 +464,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
         raise UnsupportedEntry(f"{path} is a {kind!r} listing")
     registration = entry.get("registration")
     if (registration is not None) != (kind == "plugin"):
-        raise _invalid("an app carries a registration, and nothing else does")
+        raise _invalid("a plug-in carries a registration, and nothing else does")
 
     versions = _versions(entry, directory)
     publisher = await _apply_publisher(session, context, prefix)
@@ -528,7 +528,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
             "avatar_url": avatar_url,
             "images": images,
             "version": version.version,
-            "min_plugin_version": version.min_plugin_version,
+            "min_app_version": version.min_app_version,
             "release_notes": version.release_notes,
             "registration": registration if latest else None,
         }
@@ -548,7 +548,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
     listing.publisher_id = publisher.id
     listing.publisher_verified = publisher.verified
     session.add(listing)
-    # The dashboards an app bundles are its publish, and share its provenance.
+    # The dashboards a plug-in bundles are its publish, and share its provenance.
     await session.exec(
         sa_update(MarketplaceListing)
         .where(MarketplaceListing.bundled_with_uid == uid)
@@ -572,7 +572,7 @@ async def withdraw_missing(
 
     ``present`` is every uid the repository lists; ``uncertain`` says whether a
     listing path falls under a publisher whose role did not load this time, and
-    so is unknown rather than gone. Bundled dashboards go with their app.
+    so is unknown rather than gone. Bundled dashboards go with their plug-in.
     """
     withdrawn = 0
     listings = (

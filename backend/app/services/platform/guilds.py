@@ -896,7 +896,7 @@ async def seed_guild_content(
     owner: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
-    (settings + the apps this deployment provides) *inside* it.
+    (settings + the plug-ins this deployment provides) *inside* it.
 
     ``owner`` is the user the guild is **for** — its admin. When someone creates
     a guild for another account, that account is the owner and the creator is
@@ -916,9 +916,9 @@ async def seed_guild_content(
     Called from :func:`provision_new_guild`, which undoes the guild if this
     fails.
 
-    Mandatory apps (§7.7) land here because that is what "every guild has it"
+    Mandatory plug-ins (§7.7) land here because that is what "every guild has it"
     means. They are also the one part allowed to fail quietly: the install is a
-    local row, and an app service whose listing has not arrived yet is no reason
+    local row, and a plug-in service whose listing has not arrived yet is no reason
     a guild cannot be created — the boot sweep installs what is missing.
     """
     from app.db.schema_provisioning import provision_guild
@@ -932,16 +932,16 @@ async def seed_guild_content(
         await set_rls_context(guild_session, SystemGuild(guild_id))
         await create_guild_settings(guild_session, guild_id)
         try:
-            # Inside a savepoint, so a failure here rolls back the app install
+            # Inside a savepoint, so a failure here rolls back the plug-in install
             # and nothing else: the guild being created must survive whatever
-            # an app's listing or registration is doing.
+            # a plug-in's listing or registration is doing.
             async with guild_session.begin_nested():
                 await mandatory_plugins_service.install_mandatory_plugins(
                     guild_session, guild_id=guild_id, created_by=owner.id
                 )
         except Exception:
             logger.exception(
-                "mandatory apps: guild %s was created without them; the boot "
+                "mandatory plug-ins: guild %s was created without them; the boot "
                 "sweep installs what is missing",
                 guild_id,
             )
@@ -968,7 +968,7 @@ async def provision_new_guild(
     The shared rows are committed first so the seed runs as a separate step
     that can be undone. If it fails, the schema is dropped, the guild row is
     deleted through :func:`delete_guild` (recorded as ``provision_failed``),
-    its app references are forgotten, and :class:`GuildProvisionError` is
+    its plug-in references are forgotten, and :class:`GuildProvisionError` is
     raised. Anything else the caller committed alongside it (a registering
     account) is the caller's to remove.
     """
@@ -1427,11 +1427,11 @@ async def delete_guild(
 
     **Callers must follow a successful commit with**
     ``plugin_refs.forget_guild(guild_id=...)`` — what this guild's installed
-    apps called its members lives in a platform-wide table that neither the
+    plug-ins called its members lives in a platform-wide table that neither the
     guild row's cascade nor the schema drop reaches. After the commit rather
     than here: those references are on a different connection and cannot join
     this transaction, so removing them first would leave a guild whose deletion
-    then failed holding none of the identities its apps know its members by.
+    then failed holding none of the identities its plug-ins know its members by.
 
     Everyone in the guild is poked first, because the cascade that clears the
     roster runs in the database: by the time this returns there is no membership
@@ -2584,11 +2584,11 @@ async def remove_user_from_guild(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from a guild, its initiatives, and its apps.
+    """Remove a user from a guild, its initiatives, and its plug-ins.
 
-    Leaving a guild ends what that guild's apps let this person reach at an
+    Leaving a guild ends what that guild's plug-ins let this person reach at an
     outside vendor: the credentials they connected under this guild's authority
-    are deleted and the apps holding them are told to let go. Their connections
+    are deleted and the plug-ins holding them are told to let go. Their connections
     in other guilds are untouched — those relationships have not ended.
 
     The session must already be routed into the guild. Revocations are queued on
@@ -2619,7 +2619,7 @@ async def remove_user_from_guild(
     await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="left_guild"
     )
-    # Leaving ends what this guild's apps may do as this person, the same way it
+    # Leaving ends what this guild's plug-ins may do as this person, the same way it
     # ends what they reach at a vendor.
     await consents_service.delete_member_consents(session, user_id=user_id)
 

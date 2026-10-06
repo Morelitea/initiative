@@ -31,18 +31,18 @@ open_url() {
 
 # Printed before the first poll: the VSCode task watches for this line to know
 # it can move on and start the API, which is the thing being waited for here.
-echo "Waiting for the app at $PLUGIN_URL (API: $API_URL)..."
+echo "Waiting for the app at $APP_URL (API: $API_URL)..."
 
 deadline=$((SECONDS + TIMEOUT))
 while [ "$SECONDS" -lt "$deadline" ]; do
     if curl -sf -o /dev/null --max-time 2 "$API_URL" \
-        && curl -sf -o /dev/null --max-time 2 "$PLUGIN_URL"; then
-        echo "Opening $PLUGIN_URL"
-        open_url "$PLUGIN_URL" || true
+        && curl -sf -o /dev/null --max-time 2 "$APP_URL"; then
+        echo "Opening $APP_URL"
+        open_url "$APP_URL" || true
         exit 0
     fi
     sleep 1
 done
 
-echo "Gave up after ${TIMEOUT}s — open $PLUGIN_URL once the servers are up." >&2
+echo "Gave up after ${TIMEOUT}s — open $APP_URL once the servers are up." >&2
 exit 1

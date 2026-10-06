@@ -1,4 +1,4 @@
-"""Wire shapes of the app platform's token endpoint, install listing and
+"""Wire shapes of the plug-in platform's token endpoint, install listing and
 consent requests.
 
 The token endpoint speaks OAuth 2.0 (RFC 6749): its success and error bodies
@@ -29,7 +29,7 @@ class PluginAccessTokenResponse(BaseModel):
     token_type: str = "Bearer"
     #: Seconds until the token stops being accepted.
     expires_in: int
-    #: The scopes the token carries, space-separated. Empty for an app token.
+    #: The scopes the token carries, space-separated. Empty for a plug-in token.
     scope: str
 
 
@@ -41,9 +41,9 @@ class PluginOAuthErrorResponse(BaseModel):
 
 
 class PluginInstallationRead(BaseModel):
-    """One install of the calling app."""
+    """One install of the calling plug-in."""
 
-    #: What the app calls the community it is installed in. Passed back as
+    #: What the plug-in calls the community it is installed in. Passed back as
     #: ``installation`` to ask for a token there.
     installation: str
     #: Switched on, in a community in use: a token can be issued for it. An
@@ -53,17 +53,17 @@ class PluginInstallationRead(BaseModel):
 
 
 class PluginConsentRequestCreate(BaseModel):
-    """An app asking one member to let it act as them, for one purpose."""
+    """A plug-in asking one member to let it act as them, for one purpose."""
 
     model_config = ConfigDict(extra="forbid")
 
     #: The member, by the reference this install holds for them.
     member: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
-    #: The app's own id for what it wants to do as the member; absent for
-    #: app-wide consent.
+    #: The plug-in's own id for what it wants to do as the member; absent for
+    #: plug-in-wide consent.
     purpose: Optional[str] = None
-    #: What the purpose is, in the app's own words. The member reads it as the
-    #: app's.
+    #: What the purpose is, in the plug-in's own words. The member reads it as the
+    #: plug-in's.
     label: TitleStr = Field(min_length=1, max_length=LABEL_MAX_LENGTH)
     #: The one initiative the purpose is bound to, when it is.
     initiative_id: Optional[int] = Field(default=None, gt=0, le=2**31 - 1)

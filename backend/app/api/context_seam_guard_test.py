@@ -4,7 +4,7 @@ What is forbidden here is forbidden rather than reviewed, so there is no
 allow-list to add a site to.
 
 * **What the seam builds is built only in ``app/api/deps.py``**, in anything
-  that runs: a person's standing (``GuildContext``) or an installed app's
+  that runs: a person's standing (``GuildContext``) or an installed plug-in's
   (``InstallContext``), the routing shapes that carry one (``Member``,
   ``ContentGrantee``, ``SettingsGrantee``, ``Install``, ``Filer``), and the credential
   those record (``SignIn``), which is where work on somebody's behalf is
@@ -33,8 +33,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_PLUGIN_DIR = Path(__file__).resolve().parents[1]
-_BACKEND_DIR = _PLUGIN_DIR.parent
+_APP_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_DIR = _APP_DIR.parent
 
 #: Where the seam lives.
 _SEAM = "app/api/deps.py"
@@ -55,7 +55,7 @@ _ESTABLISHED = frozenset(
 
 
 def _python_files() -> list[Path]:
-    return sorted(p for p in _PLUGIN_DIR.rglob("*.py"))
+    return sorted(p for p in _APP_DIR.rglob("*.py"))
 
 
 def _runtime_files() -> list[Path]:

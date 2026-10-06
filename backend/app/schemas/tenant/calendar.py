@@ -25,7 +25,7 @@ class CalendarCreate(CalendarBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     #: Which initiative the calendar belongs to, or ``None`` for a guild
     #: calendar — one that belongs to the guild itself, the way the calendar
-    #: app's own does. Guild scope answers to no initiative's roles or feature
+    #: plug-in's own does. Guild scope answers to no initiative's roles or feature
     #: switch; its grants decide who reads and writes it.
     initiative_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
@@ -43,7 +43,7 @@ class CalendarUpdate(SanitizedBaseModel):
 
 
 class CalendarSummary(CalendarBase, ToolSummaryBase):
-    #: NULL on a guild-level calendar — one an app mounted, belonging to the
+    #: NULL on a guild-level calendar — one a plug-in mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
 

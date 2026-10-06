@@ -1,9 +1,9 @@
-"""Where an installed app asks a member to let it act as them.
+"""Where an installed plug-in asks a member to let it act as them.
 
 ``POST /plugin-platform/consent-requests`` takes an **installation token** and
 names the member by the reference this install holds for them, a ``purpose``
-(the app's own id for what it wants to do; absent for app-wide consent), a
-``label`` in the app's own words, optionally the initiative the purpose is
+(the plug-in's own id for what it wants to do; absent for app-wide consent), a
+``label`` in the plug-in's own words, optionally the initiative the purpose is
 bound to, and ``access`` (``read`` or ``read_write``).
 
 The request is routed and stood up by the install seam
@@ -11,7 +11,7 @@ The request is routed and stood up by the install seam
 member's reference in the install's own sector, and admits the install only
 while it may act. Asking again for the same member and purpose returns the
 request as it stands (``200``); a new one is ``201`` and the member is
-notified. The member answers on their own consent screen; the app learns the
+notified. The member answers on their own consent screen; the plug-in learns the
 answer here, or from the token endpoint (``consent_required``).
 """
 
@@ -88,7 +88,7 @@ async def request_member_consent(
     # Declares the scheme for the API description; read by ``bearer_plugin_token``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> PluginConsentRequestRead:
-    """Ask a member to let this app act as them, for one purpose.
+    """Ask a member to let this plug-in act as them, for one purpose.
 
     Takes an installation token. ``200`` returns a request already made for
     that member and purpose, as it stands; ``201`` a new one, and the member is

@@ -1,27 +1,27 @@
-"""Managing the deployment's app service registrations.
+"""Managing the deployment's plug-in service registrations.
 
-Every app splits the same way, whatever published its listing
+Every plug-in splits the same way, whatever published its listing
 (:mod:`app.models.platform.plugin_service_registration`):
 
-* **Its listing gives the app facts.** A listing from any source (the
+* **Its listing gives the plug-in facts.** A listing from any source (the
   registry, a local upload, the operator's catalog directory, the build) may
   carry a ``registration`` block, and ``upsert_listing`` hands it to
   :func:`read_listing_registration` and :func:`apply_listing_registration`,
   which write the listing, scope ceiling, image, reference sectors and
   Compose service onto the registration for the service it names, creating the row when there is
   none. Reference sectors are honoured only from the registry.
-* **The operator gives the deployment facts**: where the app runs, the keys
+* **The operator gives the deployment facts**: where the plug-in runs, the keys
   its container signs with, its vendor values, the switch, the mandatory flag
   and the origins. Through the ``plugins.manage`` endpoints, or in
   ``PLUGIN_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
   entry's ``vendor_env`` names the environment variables holding its vendor
-  values, which are sealed into the registration on each boot. An entry for an
-  app whose listing has not arrived waits for it: the listing apply that
+  values, which are sealed into the registration on each boot. An entry for a
+  plug-in whose listing has not arrived waits for it: the listing apply that
   creates the row applies the entry.
 
-Nothing is fetched from the app to fill any of it in, except its key set when
+Nothing is fetched from the plug-in to fill any of it in, except its key set when
 the operator asks: **Connect** (:func:`published_keys`, then
-:func:`connect_registration`) reads the set the app serves under its base URL,
+:func:`connect_registration`) reads the set the plug-in serves under its base URL,
 shows each key's fingerprint, and pins the set the operator confirms in place
 of any ``jwks_uri``. A changed set is picked up only by connecting again. Its publisher is the row
 for its ``public_id`` prefix (:mod:`app.services.marketplace.publishers`). The
@@ -29,7 +29,7 @@ one secret it may hold is its vendor values
 (:mod:`app.services.marketplace.vendor_values`).
 
 One rule the reconciler keeps, about not undoing a person: it never re-enables
-a registration an operator disabled — deactivating an app is the
+a registration an operator disabled — deactivating a plug-in is the
 incident-response lever, so a restart must not quietly reverse it.
 
 Everything here runs on the system engine: ``plugin_service_registrations`` has no
@@ -158,12 +158,12 @@ _MAX_ORIGINS = 20
 
 
 def _bad_request(code: str, detail: str) -> HTTPException:
-    logger.debug("app service registration refused (%s): %s", code, detail)
+    logger.debug("plug-in service registration refused (%s): %s", code, detail)
     return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
 
 
 def row_browser_base(row: PluginServiceRegistration) -> Optional[str]:
-    """Where a browser loads the app's surfaces, or ``None`` for an app that
+    """Where a browser loads the plug-in's surfaces, or ``None`` for a plug-in that
     has no location yet."""
     return row.embed_origin or row.base_url
 
@@ -179,7 +179,7 @@ def _registry_managed() -> HTTPException:
 
 
 def check_signing_configured() -> None:
-    """Refuse to run the app platform without its own signing key.
+    """Refuse to run the plug-in platform without its own signing key.
 
     The keypair is required and has no fallback to any other configured key, so
     an unset one is reported as configuration rather than silently substituted.
@@ -231,18 +231,18 @@ def _normalize_url_base(value: str, *, code: str, field: str) -> str:
 
 
 def normalize_base_url(value: str) -> str:
-    """Where Initiative's own server calls this app."""
+    """Where Initiative's own server calls this plug-in."""
     return _normalize_url_base(
         value, code=PluginServiceMessages.INVALID_BASE_URL, field="base_url"
     )
 
 
 def normalize_embed_origin(value: str) -> str:
-    """Where a person's browser loads this app's surfaces.
+    """Where a person's browser loads this plug-in's surfaces.
 
     Held to the same shape as ``base_url`` because it stands in for it: the
     manifest declares one path per surface, and it is joined to whichever of the
-    two addresses the reader is on. A deployment that publishes its apps under a
+    two addresses the reader is on. A deployment that publishes its plug-ins under a
     path prefix can therefore say so here as well.
     """
     return _normalize_url_base(
@@ -308,10 +308,10 @@ def normalize_origins(
 
 
 def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
-    """Check an app's key set holds public verification keys, each carrying
+    """Check a plug-in's key set holds public verification keys, each carrying
     the ``kid`` a JWT names.
 
-    The set is the app's client credential: the token endpoint verifies the
+    The set is the plug-in's client credential: the token endpoint verifies the
     assertions it signs against it. A registration with neither this set nor
     a ``jwks_uri`` is not live.
 
@@ -386,7 +386,7 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
 
 
 def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
-    """Where the app publishes its key set: https, on ``base_url``'s own
+    """Where the plug-in publishes its key set: https, on ``base_url``'s own
     origin, with no query, fragment or credentials. Empty clears it."""
     cleaned = (value or "").strip()
     if not cleaned:
@@ -491,10 +491,10 @@ async def create_registration(
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
 ) -> PluginServiceRegistration:
-    """Set up an app service's deployment facts before its listing arrives.
+    """Set up a plug-in service's deployment facts before its listing arrives.
 
-    Nothing is fetched from the app: the operator names it, its addresses and
-    its keys. Its app facts wait for the listing that names it. Its publisher
+    Nothing is fetched from the plug-in: the operator names it, its addresses and
+    its keys. Its plug-in facts wait for the listing that names it. Its publisher
     is the row for its prefix, added unverified when there is none.
     """
     check_signing_configured()
@@ -591,7 +591,7 @@ async def update_registration(
     ):
         raise _bad_request(
             PluginServiceMessages.DECLARATIVE_NOT_PLACED,
-            "a declarative app has no address, origins or keys",
+            "a declarative plug-in has no address, origins or keys",
         )
     _write_placement(
         row,
@@ -644,12 +644,12 @@ def _write_placement(
     jwks: Optional[dict],
     jwks_uri: Optional[str],
 ) -> None:
-    """Write where an app runs, the origins that may frame it, and its keys.
+    """Write where a plug-in runs, the origins that may frame it, and its keys.
 
     ``None`` leaves a field as it is; an empty ``embed_origin``, ``jwks`` or
     ``jwks_uri`` clears it.
     """
-    # Whether the origin list is still just the app's own origin. An untouched
+    # Whether the origin list is still just the plug-in's own origin. An untouched
     # list follows the address it was derived from; one an operator typed is
     # theirs and is left exactly as typed. A container with no location yet
     # has no origin of its own, so its empty list counts as untouched.
@@ -690,7 +690,7 @@ def _write_placement(
 async def delete_registration(
     session: AsyncSession, registration_id: int, *, actor_user_id: int | None = None
 ) -> None:
-    """Remove a registration. One whose app facts come from the registry is
+    """Remove a registration. One whose plug-in facts come from the registry is
     switched off instead (409): the next refresh would bring it back."""
     row = await get_registration(session, registration_id)
     if row.source == RegistrationSource.REGISTRY:
@@ -708,12 +708,12 @@ async def delete_registration(
     invalidate_registrations()
 
 
-# --- connect: the key set the app serves --------------------------------------
+# --- connect: the key set the plug-in serves --------------------------------------
 
 
 @dataclass(frozen=True, order=True)
 class PublishedKey:
-    """One key the app serves: its ``kid`` and RFC 7638 thumbprint."""
+    """One key the plug-in serves: its ``kid`` and RFC 7638 thumbprint."""
 
     kid: str
     fingerprint: str
@@ -722,7 +722,7 @@ class PublishedKey:
 async def _served_key_set(
     base_url: Optional[str], transport: Optional[httpx.AsyncBaseTransport]
 ) -> tuple[dict, list[PublishedKey]]:
-    """The key set the app serves under ``base_url``, held to what a pasted
+    """The key set the plug-in serves under ``base_url``, held to what a pasted
     set must be, with each key's fingerprint."""
     if not base_url:
         raise HTTPException(
@@ -733,14 +733,16 @@ async def _served_key_set(
     try:
         document = await read_key_set(url, transport=transport)
     except KeySetUnreadableError as exc:
-        logger.info("app services: %s could not be read (%s)", url, exc)
+        logger.info("plug-in services: %s could not be read (%s)", url, exc)
         raise HTTPException(
             status_code=http_status.HTTP_502_BAD_GATEWAY,
             detail=PluginServiceMessages.KEYS_UNREADABLE,
         ) from exc
     key_set = normalize_jwks(document)
     if key_set is None:
-        raise _bad_request(PluginServiceMessages.INVALID_JWKS, "the app serves no keys")
+        raise _bad_request(
+            PluginServiceMessages.INVALID_JWKS, "the plug-in serves no keys"
+        )
     keys = [
         PublishedKey(kid=entry["kid"], fingerprint=jwk_thumbprint(entry))
         for entry in key_set["keys"]
@@ -761,7 +763,7 @@ async def published_keys(
     *,
     transport: Optional[httpx.AsyncBaseTransport] = None,
 ) -> list[PublishedKey]:
-    """The keys the app serves, for the operator to compare with the
+    """The keys the plug-in serves, for the operator to compare with the
     fingerprints its container logged. Writes nothing."""
     row = await get_registration(session, registration_id)
     _, keys = await _served_key_set(row.base_url, transport)
@@ -776,7 +778,7 @@ async def connect_registration(
     actor_user_id: int | None = None,
     transport: Optional[httpx.AsyncBaseTransport] = None,
 ) -> PluginServiceRegistration:
-    """Pin the key set the app serves as the registration's ``jwks``, and
+    """Pin the key set the plug-in serves as the registration's ``jwks``, and
     clear its ``jwks_uri`` so the pinned set is the only one it is verified
     against.
 
@@ -784,7 +786,7 @@ async def connect_registration(
     when its keys, ``kid`` and fingerprint together, are the ones the operator
     confirmed, and the base URL it was read from is still the registration's
     (409 otherwise). The row is locked for that check and the write, after the
-    read, so no lock is held while the app is asked.
+    read, so no lock is held while the plug-in is asked.
     """
     base_url = (await get_registration(session, registration_id)).base_url
     key_set, served = await _served_key_set(base_url, transport)
@@ -810,7 +812,7 @@ async def connect_registration(
     )
 
 
-# --- app facts, from a listing ------------------------------------------------
+# --- plug-in facts, from a listing ------------------------------------------------
 
 #: What a listing's ``registration`` block may not name: where a container runs
 #: and the keys it signs with are the deployment's.
@@ -835,7 +837,7 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 
 class ListingRegistrationError(ValueError):
     """A listing's ``registration`` block that is not applied. ``conflict``
-    says another listing holds the registration for the app it names."""
+    says another listing holds the registration for the plug-in it names."""
 
     def __init__(self, detail: str, *, conflict: bool = False) -> None:
         super().__init__(detail)
@@ -844,7 +846,7 @@ class ListingRegistrationError(ValueError):
 
 @dataclass(frozen=True)
 class ListingRegistration:
-    """The app facts one listing gives the registration for its service."""
+    """The plug-in facts one listing gives the registration for its service."""
 
     public_id: str
     listing_uid: str
@@ -953,7 +955,7 @@ def _vocabulary(values: Any, allowed: frozenset[str], *, what: str) -> list[str]
     dropped = sorted({value for value in values if value not in allowed})
     if dropped:
         logger.warning(
-            "app services: %s drops what this build does not define: %s",
+            "plug-in services: %s drops what this build does not define: %s",
             what,
             ", ".join(dropped),
         )
@@ -973,11 +975,11 @@ async def read_listing_registration(
     """Read a listing's ``registration`` block, before the listing is written.
 
     The block is the same from every source: ``kind`` — ``container``, or
-    ``declarative`` for an app with no service block — an optional ``image``
+    ``declarative`` for a plug-in with no service block — an optional ``image``
     pinned by digest and its Compose service (a container's only), the
     ``scope_ceiling``, and ``reference_sectors``, which only a registry listing
     may name. It names no location and no keys. The registration it writes is
-    the one for the app the listing's definition names, under the listing's own
+    the one for the plug-in the listing's definition names, under the listing's own
     prefix; one another listing already holds is refused.
     """
     if not isinstance(spec, Mapping):
@@ -986,7 +988,7 @@ async def read_listing_registration(
     kind = RegistrationKind.DECLARATIVE if declarative else RegistrationKind.CONTAINER
     service_id = service_public_id(definition, listing_public_id=listing_public_id)
     if service_id is None:
-        raise ListingRegistrationError("only a service app carries a registration")
+        raise ListingRegistrationError("only a service plug-in carries a registration")
     try:
         public_id = normalize_public_id(service_id)
     except HTTPException as exc:
@@ -997,7 +999,7 @@ async def read_listing_registration(
     if spec.get("kind") != kind:
         raise ListingRegistrationError(f'registration.kind must be "{kind}"')
     if declarative and any(key in spec for key in ("image", "compose")):
-        raise ListingRegistrationError("a declarative app runs no container")
+        raise ListingRegistrationError("a declarative plug-in runs no container")
     stated = [key for key in _DEPLOYMENT_KEYS if key in spec]
     if stated:
         raise ListingRegistrationError(
@@ -1036,9 +1038,9 @@ async def read_listing_registration(
     )
     if sectors and prefix != FIRST_PARTY_PUBLISHER_PREFIX:
         # A sector names one of this deployment's own services, so only this
-        # project's own apps are given one.
+        # project's own plug-ins are given one.
         logger.warning(
-            "app services: %s is not this project's app; reference sectors dropped",
+            "plug-in services: %s is not this project's plug-in; reference sectors dropped",
             public_id,
         )
         sectors = []
@@ -1065,9 +1067,9 @@ async def read_listing_registration(
 async def apply_listing_registration(
     session: AsyncSession, registration: ListingRegistration
 ) -> PluginServiceRegistration:
-    """Write a listing's app facts onto the registration for its service.
+    """Write a listing's plug-in facts onto the registration for its service.
 
-    The one writer of app facts, for every source. A registration that is not
+    The one writer of plug-in facts, for every source. A registration that is not
     there yet is created, with the deployment facts ``PLUGIN_SERVICES_CONFIG``
     gives it, and is not live until it has a location and keys. The caller
     commits.
@@ -1137,7 +1139,7 @@ class ReconcileResult:
 
     updated: int = 0
     unchanged: int = 0
-    #: Entries for apps whose listing has not arrived yet.
+    #: Entries for plug-ins whose listing has not arrived yet.
     waiting: int = 0
     skipped: int = 0
 
@@ -1151,13 +1153,13 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
     if isinstance(document, dict):
         document = document.get("plugin_services", [])
     if not isinstance(document, list):
-        raise ValueError("expected a JSON array of app service entries")
+        raise ValueError("expected a JSON array of plug-in service entries")
     return [entry for entry in document if isinstance(entry, dict)]
 
 
 @dataclass(frozen=True)
 class DeploymentFacts:
-    """How this deployment runs an app, from an ``PLUGIN_SERVICES_CONFIG`` entry.
+    """How this deployment runs a plug-in, from an ``PLUGIN_SERVICES_CONFIG`` entry.
 
     ``None`` is a fact the entry leaves out, which leaves the row's value as
     it is. A container's placement is one statement: an entry that gives its
@@ -1180,13 +1182,13 @@ class DeploymentFacts:
 
 
 def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
-    """Read an entry, refusing one that names what only the app's listing
+    """Read an entry, refusing one that names what only the plug-in's listing
     states, or a location and keys that do not fit together."""
     stated = [key for key in LISTING_STATED_FIELDS if key in entry]
     if stated:
         raise _bad_request(
             PluginServiceMessages.STATED_BY_LISTING,
-            f"the app's listing states {', '.join(stated)}",
+            f"the plug-in's listing states {', '.join(stated)}",
         )
     declared_base = entry.get("base_url")
     base_url = normalize_base_url(str(declared_base)) if declared_base else None
@@ -1292,9 +1294,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     Each entry is ``{public_id}`` with any of ``base_url``, ``embed_origin``,
     ``allowed_origins``, ``jwks``, ``jwks_uri``, ``mandatory`` and
     ``vendor_env`` (vendor key → environment variable name, read and sealed on
-    every pass). An entry naming what only the app's listing states is
+    every pass). An entry naming what only the plug-in's listing states is
     refused. Database-only: this updates rows and stops. It creates none: an
-    entry for an app whose listing has not arrived waits, and the listing
+    entry for a plug-in whose listing has not arrived waits, and the listing
     apply that creates its registration applies it.
 
     ``enabled`` is not reconciled: turning a registration off is an operator
@@ -1315,7 +1317,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     try:
         entries = _load_entries(path)
     except (OSError, ValueError) as exc:
-        logger.warning("app services: %s could not be read (%s)", path, exc)
+        logger.warning("plug-in services: %s could not be read (%s)", path, exc)
         return ReconcileResult()
 
     updated = unchanged = waiting = skipped = 0
@@ -1329,7 +1331,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             facts = _deployment_facts(entry)
         except HTTPException as exc:
             logger.warning(
-                "app services: entry %r refused (%s)",
+                "plug-in services: entry %r refused (%s)",
                 entry.get("public_id"),
                 exc.detail,
             )
@@ -1337,13 +1339,13 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             continue
         if "grants" in entry:
             logger.warning(
-                "app services: entry %r names grants, which a registration no "
+                "plug-in services: entry %r names grants, which a registration no "
                 "longer has; the field is ignored",
                 public_id,
             )
         if public_id in seen:
             logger.warning(
-                "app services: %r appears more than once in %s — later entry skipped",
+                "plug-in services: %r appears more than once in %s — later entry skipped",
                 public_id,
                 path,
             )
@@ -1354,7 +1356,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row = await _by_public_id(session, public_id)
         if row is None:
             logger.info(
-                "app services: %r has no listing here yet; the listing that "
+                "plug-in services: %r has no listing here yet; the listing that "
                 "brings it applies its entry",
                 public_id,
             )

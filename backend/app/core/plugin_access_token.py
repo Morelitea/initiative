@@ -1,14 +1,14 @@
-"""The access tokens the app platform's token endpoint issues.
+"""The access tokens the plug-in platform's token endpoint issues.
 
 An access token is ``iat_`` followed by a Fernet token (``app.core.encryption``,
 under :data:`~app.core.encryption.SALT_PLUGIN_ACCESS_TOKEN`) sealing a compact JSON
-payload. The app treats it as opaque, as OAuth expects of a client: what it
+payload. The plug-in treats it as opaque, as OAuth expects of a client: what it
 needs to know comes back beside the token (``expires_in``, ``scope``).
 
 Two kinds:
 
-* an **app token** names only the client, and reaches the listing of that
-  app's installs;
+* a **plug-in token** names only the client, and reaches the listing of that
+  plug-in's installs;
 * an **installation token** names the community, the install, the client, the
   scopes it carries and, when narrowed, one initiative. It is what a scoped
   route admits. A **member token** is an installation token that also names
@@ -66,7 +66,7 @@ class AccessTokenError(Exception):
 
 @dataclass(frozen=True)
 class PluginAccessToken:
-    """An app token: the client, and nothing in any community."""
+    """A plug-in token: the client, and nothing in any community."""
 
     client_id: str
     exp: int
@@ -84,7 +84,7 @@ class InstallAccessToken:
     exp: int
     #: The member a member token acts for; ``None`` for the install itself.
     user_id: int | None = None
-    #: The purpose the member consented to; ``None`` for app-wide consent, and
+    #: The purpose the member consented to; ``None`` for plug-in-wide consent, and
     #: always ``None`` without a member.
     purpose: str | None = None
 
@@ -105,7 +105,7 @@ def _expiry(now: float | None) -> int:
 
 
 def seal_plugin_token(*, client_id: str, now: float | None = None) -> tuple[str, int]:
-    """An app token for ``client_id``, and the ``exp`` it carries."""
+    """A plug-in token for ``client_id``, and the ``exp`` it carries."""
     exp = _expiry(now)
     return _seal({"kind": _KIND_PLUGIN, "client": client_id, "exp": exp}), exp
 

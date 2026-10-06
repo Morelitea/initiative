@@ -147,7 +147,7 @@ class TufRepository:
         uid: str,
         *,
         slug: str = "thing",
-        kind: str = "app",
+        kind: str = "plugin",
         name: str = "A thing",
         versions: tuple[str, ...] = ("1.0.0",),
         definition: Optional[dict[str, Any]] = None,

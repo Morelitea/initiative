@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
 - **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it: install the new one, sign in, then uninstall the old one. The old app keeps working with upgraded servers in the meantime. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.

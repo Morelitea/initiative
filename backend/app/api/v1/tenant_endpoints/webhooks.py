@@ -9,7 +9,7 @@ initiative's changes; omitting it means the whole community's, which is why
 registering one of those is a guild admin's to do. Nobody's standing is read at
 delivery: an envelope is identifiers and changed column names, and a consumer
 reads current state back through the REST path, where every gate applies to the
-read. An installed app calling back does so on its own token, whose standing is
+read. An installed plug-in calling back does so on its own token, whose standing is
 read on every call.
 
 So a subscription is the community's integration configuration rather than the
@@ -34,7 +34,7 @@ the content it watches: initiative write access for an initiative-scoped
 subscription, guild admin for a community-wide one. Authorship is not a gate in
 this app.
 
-An installed app registers and removes subscriptions on its installation token.
+An installed plug-in registers and removes subscriptions on its installation token.
 What it may register depends on the
 event types it names — each needs the read scope of its tool — so the two
 routes take :func:`app.api.deps.plugin_scope_checked` and the service asks those
@@ -87,7 +87,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. Registering asks the read scope of
+#: The routes an installed plug-in may call. Registering asks the read scope of
 #: each event type's tool, which the service checks once it has the body;
 #: removing reaches only the install's own subscriptions.
 SubscriptionsByEventType = Annotated[
@@ -128,7 +128,7 @@ async def _named(
 
     Minted rather than stored, and in the same sector its deliveries use, so
     what a receiver reads here is what it will be sent — all of them in one
-    session. An installed app that registered one names no person on it, and
+    session. An installed plug-in that registered one names no person on it, and
     its standing already carries what the install calls the guild, so nothing
     is minted for it here.
     """
@@ -201,7 +201,7 @@ async def create_subscription(
     log of the scope it names, the initiative it was registered against or, for
     one a guild admin registers, the whole community.
 
-    An installed app registers one as its community, naming no person: each
+    An installed plug-in registers one as its community, naming no person: each
     event type needs the read scope of its tool, a token narrowed to one
     initiative registers for that initiative only, and a community-wide one
     needs a token that is not narrowed. Otherwise 403 (``PLUGIN_SCOPE_REQUIRED``).
@@ -326,7 +326,7 @@ async def delete_subscription(
 ) -> None:
     """Hard-delete a subscription. Who may is the DELETE policy, the same gates
     that govern the content it watches; a cross-guild lookup is a 404. An
-    installed app reaches only the subscriptions it registered, and any other
+    installed plug-in reaches only the subscriptions it registered, and any other
     is a 404."""
     by_install = isinstance(guild_context, InstallContext)
     try:
@@ -349,10 +349,10 @@ async def delete_subscription(
         return
 
     # The names this subscription minted for itself. Only its own sector: one an
-    # app registered is named in that app's, which belongs to the install and
+    # plug-in registered is named in that plug-in's, which belongs to the install and
     # outlives any single subscription.
     #
-    # Reported rather than raised, like the same step on app uninstall: the row
+    # Reported rather than raised, like the same step on plug-in uninstall: the row
     # is already gone and committed, so failing the request here would answer
     # "no" to something that happened, and the retry it invites answers 404.
     try:

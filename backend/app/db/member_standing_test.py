@@ -61,7 +61,7 @@ async def _consent(
 ) -> PluginMemberConsent:
     await route_session_to_guild(session, installed.guild.id)
     row = PluginMemberConsent(
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         user_id=user_id,
         purpose=purpose,
         label="Comment as you",
@@ -90,7 +90,7 @@ async def _route(
     context = await route_as_install(
         s,
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=scopes,
         initiative_id=initiative_id,
@@ -106,7 +106,7 @@ async def _refused(role_session, installed, user_id, scopes, **kwargs) -> None:
         await route_as_install(
             s,
             guild_id=installed.guild.id,
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             client_id=CLIENT,
             scopes=scopes,
             user_id=user_id,
@@ -161,7 +161,7 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
         )
     ).one()
     assert tuple(values) == (
-        guild_role_name(installed.guild.id, GuildRoleKind.app),
+        guild_role_name(installed.guild.id, GuildRoleKind.plugin),
         str(member.user.id),
         "false",
         "",
@@ -397,7 +397,7 @@ async def test_an_installation_token_stands_as_it_did(
     context = await route_as_install(
         s,
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=["documents:write"],
     )
@@ -429,7 +429,7 @@ async def test_a_member_token_is_two_statements(session, acting_user, role_sessi
         context = await route_as_install(
             s,
             guild_id=installed.guild.id,
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             client_id=CLIENT,
             scopes=["documents:read"],
             user_id=member.user.id,

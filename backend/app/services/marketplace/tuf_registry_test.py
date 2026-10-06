@@ -157,15 +157,15 @@ class TestApplying:
         assert publisher.verified is True
         publisher_id = publisher.id
 
-        app = await _listing(session, PLUGIN_UID)
-        assert app is not None
-        assert app.source == "registry"
-        assert app.public_id == "acme.tracker"
-        assert app.publisher == "Acme Corp"
-        assert app.publisher_id == publisher_id
-        assert app.publisher_verified is True
-        assert app.avatar_url.startswith("/api/v1/marketplace/media/")
-        assert len(app.images) == 1
+        plugin = await _listing(session, PLUGIN_UID)
+        assert plugin is not None
+        assert plugin.source == "registry"
+        assert plugin.public_id == "acme.tracker"
+        assert plugin.publisher == "Acme Corp"
+        assert plugin.publisher_id == publisher_id
+        assert plugin.publisher_verified is True
+        assert plugin.avatar_url.startswith("/api/v1/marketplace/media/")
+        assert len(plugin.images) == 1
         board = await _listing(session, BOARD_UID)
         assert board is not None and board.kind == "dashboard"
 
@@ -428,7 +428,10 @@ class TestOtherSources:
         assert result.skipped == []
         registration = await _registration(session, "acme.tracker")
         assert registration is not None and registration.id == set_up.id
-        assert (registration.source, registration.listing_uid) == ("registry", PLUGIN_UID)
+        assert (registration.source, registration.listing_uid) == (
+            "registry",
+            PLUGIN_UID,
+        )
         assert registration.scope_ceiling == ["projects:read", "projects:write"]
         assert (registration.base_url, registration.mandatory) == (
             set_up.base_url,
@@ -475,7 +478,7 @@ class TestOtherSources:
         repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
-        config = tmp_path / "apps.json"
+        config = tmp_path / "plugins.json"
         config.write_text(
             json.dumps(
                 [
@@ -513,7 +516,7 @@ class TestOtherSources:
     async def test_an_entry_waits_for_the_registry_to_bring_its_plugin(
         self, session, repo, trusted, monkeypatch, tmp_path
     ):
-        config = tmp_path / "apps.json"
+        config = tmp_path / "plugins.json"
         config.write_text(
             json.dumps(
                 [

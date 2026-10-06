@@ -1,13 +1,13 @@
-"""Dashboards an app ships with itself.
+"""Dashboards a plug-in ships with itself.
 
 A publisher who declares widgets otherwise leaves every guild to arrange them.
 The point of bundling is that the operator adds one file and the arrangements
 come with it — so what these check is mostly about *identity and lifecycle*: the
 derived listing is an ordinary one, it is the publisher's own uid rather than
-anything invented here, and it lives and dies with the app that supplied it.
+anything invented here, and it lives and dies with the plug-in that supplied it.
 
 The one case worth reading first is the last: a bundled dashboard is offered
-only where its app is installed, and that has to be decided at install and not
+only where its plug-in is installed, and that has to be decided at install and not
 only in the browse response, because a uid seen in one guild is otherwise just
 as installable in the next.
 """
@@ -31,9 +31,9 @@ DASH_UID = "J9H7S9T7GP7FAG"
 OTHER_DASH_UID = "P3R9WT5HZ2NM6D"
 
 
-#: The read a tile draws, spelled once. Namespaced under the app's own service
+#: The read a tile draws, spelled once. Namespaced under the plug-in's own service
 #: id, which is what every endpoint id has to be.
-OPEN_ITEMS = "app.tests.tracker.open-items"
+OPEN_ITEMS = "plugin.tests.tracker.open-items"
 
 
 def _dashboard(uid=DASH_UID, public_id="tests.tracker-overview", **overrides):
@@ -107,7 +107,7 @@ class TestPublishing:
         assert dashboard is not None
         assert dashboard.kind == "dashboard"
         assert dashboard.bundled_with_uid == PLUGIN_UID
-        # Inherited, because it *is* the app's publish.
+        # Inherited, because it *is* the plug-in's publish.
         assert dashboard.publisher == "Tests"
         assert dashboard.source == "operator"
 
@@ -131,7 +131,7 @@ class TestPublishing:
         assert definition["schema_version"] == 1
         assert definition["layout"] == {"columns": 12}
         widget = definition["widgets"][0]
-        # Resolved to the namespaced form here, from the app's own uid — a
+        # Resolved to the namespaced form here, from the plug-in's own uid — a
         # publisher writes a bare widget id and never a uid, so the two cannot
         # disagree.
         assert widget["type"] == f"plugin:{PLUGIN_UID}:open-items"
@@ -147,7 +147,7 @@ class TestPublishing:
         """The same shape a guild's own binding may hold.
 
         An endpoint declaring a parameter takes several is entitled to have
-        several fixed by the dashboard its app ships, or the arrangement a
+        several fixed by the dashboard its plug-in ships, or the arrangement a
         publisher bundles could express less than one somebody assembles by
         hand — for no reason a reader of either could see.
         """
@@ -185,7 +185,7 @@ class TestPublishing:
 
     async def test_it_carries_no_artwork_of_its_own(self, session):
         """A dashboard previews by rendering its widgets against their sample
-        data, which cannot go stale against the app the way a picture would."""
+        data, which cannot go stale against the plug-in the way a picture would."""
         await service.upsert_listing(
             session, _plugin_manifest([_dashboard()]), source="operator"
         )
@@ -242,7 +242,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
     async def _standalone(
         self, session, uid=DASH_UID, public_id="tests.tracker-overview"
     ):
-        # Deliberately a *different* version from the app's. Publishing at the
+        # Deliberately a *different* version from the plug-in's. Publishing at the
         # same one would collide on version immutability and refuse for a reason
         # that has nothing to do with ownership — which is how this case hid.
         await service.upsert_listing(
@@ -297,8 +297,8 @@ class TestItCannotTakeOverSomebodyElsesListing:
             await service.upsert_listing(session, other, source="operator")
 
     async def test_a_standalone_publish_cannot_adopt_a_bundled_one(self, session):
-        """The mirror. An operator dropping a file with a uid an app already
-        bundles must not edit that row, or take it out of the app's lifecycle."""
+        """The mirror. An operator dropping a file with a uid a plug-in already
+        bundles must not edit that row, or take it out of the plug-in's lifecycle."""
         await service.upsert_listing(
             session, _plugin_manifest([_dashboard()]), source="operator"
         )
@@ -477,7 +477,7 @@ class TestWhoMayInstallOne:
 
     async def test_a_guild_without_the_plugin_may_not(self, session):
         """The case the browse filter cannot cover on its own. A uid read in a
-        guild that has the app is otherwise just as installable here."""
+        guild that has the plug-in is otherwise just as installable here."""
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
         await service.upsert_listing(
@@ -494,7 +494,7 @@ class TestWhoMayInstallOne:
     async def test_a_guild_that_switched_the_plugin_off_may_not(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             guild,
             user,
@@ -504,8 +504,8 @@ class TestWhoMayInstallOne:
             },
             listing_uid=PLUGIN_UID,
         )
-        app.enabled = False
-        session.add(app)
+        plugin.enabled = False
+        session.add(plugin)
         await service.upsert_listing(
             session, _plugin_manifest([_dashboard()]), source="operator"
         )

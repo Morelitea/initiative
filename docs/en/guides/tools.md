@@ -154,5 +154,5 @@ The things inside a tool copy on their own, too: a task, a counter, a queue item
 ## Related
 
 - [Initiatives](initiatives.md) — tools live inside an initiative.
-- [Apps & the marketplace](plugins-and-marketplace.md) — ready-made dashboards and apps.
+- [Plug-ins & the marketplace](plugins-and-marketplace.md) — ready-made dashboards and plug-ins.
 - [Your space](your-space.md#my-tools) — every tool of every kind that's reached you, across every community.

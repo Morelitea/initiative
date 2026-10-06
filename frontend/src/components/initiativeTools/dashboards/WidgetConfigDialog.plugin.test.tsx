@@ -39,8 +39,8 @@ import { WidgetConfigDialog } from "./WidgetConfigDialog";
 
 const PLUGIN_UID = "SHOPAPP0000001";
 const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
-const ORDERS = "app.acme.shop.orders-summary";
-const REVENUE = "app.acme.shop.revenue";
+const ORDERS = "plugin.acme.shop.orders-summary";
+const REVENUE = "plugin.acme.shop.revenue";
 
 const CATALOG = {
   items: [
@@ -69,7 +69,7 @@ const CATALOG = {
               type: "string",
               label: { en: "Shop" },
               required: true,
-              options_from: { endpoint: "app.acme.shop.list-shops", key: "names" },
+              options_from: { endpoint: "plugin.acme.shop.list-shops", key: "names" },
             },
             { key: "limit", type: "int", label: { en: "Limit" } },
             {
@@ -77,7 +77,7 @@ const CATALOG = {
               type: "string",
               label: { en: "Aisle" },
               options_from: {
-                endpoint: "app.acme.shop.list-aisles",
+                endpoint: "plugin.acme.shop.list-aisles",
                 key: "codes",
                 needs: { shop: "shop" },
               },
@@ -87,14 +87,14 @@ const CATALOG = {
               type: "string",
               label: { en: "Tags" },
               list: true,
-              options_from: { endpoint: "app.acme.shop.list-tags", key: "names" },
+              options_from: { endpoint: "plugin.acme.shop.list-tags", key: "names" },
             },
             {
               key: "floors",
               type: "int",
               label: { en: "Floors" },
               list: true,
-              options_from: { endpoint: "app.acme.shop.list-floors", key: "numbers" },
+              options_from: { endpoint: "plugin.acme.shop.list-floors", key: "numbers" },
             },
           ],
         },

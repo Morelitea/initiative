@@ -1,8 +1,8 @@
-"""Where an installed app appears, and who may open it there.
+"""Where an installed plug-in appears, and who may open it there.
 
-One row per (install, initiative): the app's initiative-scoped surfaces appear
+One row per (install, initiative): the plug-in's initiative-scoped surfaces appear
 in that initiative, and the initiative roles in ``role_ids`` may open them. An
-initiative with no row is one the app is not placed in. The guild-wide surfaces
+initiative with no row is one the plug-in is not placed in. The guild-wide surfaces
 are not placed; they belong to the community as a whole.
 
 ``role_ids`` is an array rather than a join table. A deleted role's id is never
@@ -46,7 +46,7 @@ class PluginPlacement(SQLModel, table=True):
             index=True,
         )
     )
-    #: The initiative roles allowed to open the app's surfaces here.
+    #: The initiative roles allowed to open the plug-in's surfaces here.
     role_ids: list[int] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Integer), nullable=False, server_default=text("'{}'")),

@@ -229,7 +229,7 @@ async def create_guild(
 
     The guild and its administration row, a named ``creator`` seated as its
     superadmin, its schema provisioned and its settings row seeded — what the
-    community-create endpoint does, less the mandatory apps, which tests reach
+    community-create endpoint does, less the mandatory plug-ins, which tests reach
     through the backfill. Without a ``creator`` the guild is recorded as made by
     a filler account and has no members.
 
@@ -692,7 +692,7 @@ async def create_resource_grant(
     commit: bool = True,
 ) -> ResourceGrant:
     """Share a tool's row: ``level`` for ``user``, for an initiative role, for
-    every member of its initiative, or for an installed app — exactly one."""
+    every member of its initiative, or for an installed plug-in — exactly one."""
     await route_session_to_guild(session, guild_of(resource))
     grant = ResourceGrant(
         resource_type=tool_for_row(resource),
@@ -1131,13 +1131,13 @@ async def create_guild_calendar(
     *,
     name: str | None = None,
     shared_with_everyone: bool = True,
-    app: GuildPlugin | None = None,
+    plugin: GuildPlugin | None = None,
     **overrides: Any,
 ) -> Calendar:
-    """A guild calendar — the one the calendar app installs.
+    """A guild calendar — the one the calendar plug-in installs.
 
     Belongs to no initiative, which is the whole of what makes it different: it
-    holds its own events and reaches into nothing. Given ``app``, it is what
+    holds its own events and reaches into nothing. Given ``plugin``, it is what
     ``guild_plugins.create_plugin_artifacts`` builds: owned by that install. Without
     one, ``creator`` owns it.
     """
@@ -1159,8 +1159,8 @@ async def create_guild_calendar(
         session,
         calendar,
         level=ResourceAccessLevel.owner,
-        user=creator if app is None else None,
-        plugin_install_id=app.id if app is not None else None,
+        user=creator if plugin is None else None,
+        plugin_install_id=plugin.id if plugin is not None else None,
         commit=False,
     )
     if shared_with_everyone:
@@ -1180,16 +1180,16 @@ async def create_guild_plugin(
     definition: dict[str, Any],
     listing_uid: str = "TESTAPP0000001",
     listing_version: str = "1.0.0",
-    name: str = "Test app",
+    name: str = "Test plug-in",
     secrets: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> GuildPlugin:
-    """An installed app, written straight into the guild's schema.
+    """An installed plug-in, written straight into the guild's schema.
 
     ``secrets`` is its secret values, ``{connection_id: {key: ciphertext}}``,
     stored in ``guild_plugin_secrets``.
 
-    Deliberately not routed through the install endpoint. A ``service`` app's
+    Deliberately not routed through the install endpoint. A ``service`` plug-in's
     definition is publishable and storable today but the install path does not
     mount one yet (``GUILD_INSTALLABLE_PLUGIN_KINDS``), and the configuration and
     connection machinery it carries needs an install to exist to be exercised
@@ -1198,7 +1198,7 @@ async def create_guild_plugin(
     """
     await route_session_to_guild(session, guild.id)
 
-    app = GuildPlugin(
+    plugin = GuildPlugin(
         **{
             "listing_uid": listing_uid,
             "listing_version": listing_version,
@@ -1209,15 +1209,15 @@ async def create_guild_plugin(
             **overrides,
         }
     )
-    session.add(app)
+    session.add(plugin)
     await session.commit()
     if secrets:
-        session.add(GuildPluginSecret(install_id=app.id, secrets=secrets))
+        session.add(GuildPluginSecret(install_id=plugin.id, secrets=secrets))
         await session.commit()
-    await session.refresh(app)
-    await plugin_installs.record(guild.id, app)
-    await plugin_schedules.reconcile(guild.id, app.id, app.definition)
-    return app
+    await session.refresh(plugin)
+    await plugin_installs.record(guild.id, plugin)
+    await plugin_schedules.reconcile(guild.id, plugin.id, plugin.definition)
+    return plugin
 
 
 _TEST_PLUGIN_KEY = ec.generate_private_key(ec.SECP256R1())
@@ -1266,7 +1266,9 @@ def sealed_vendor_values(values: dict[str, str]) -> dict[str, str]:
     """Vendor values as a registration stores them: one ciphertext per key."""
     from app.core.encryption import SALT_PLUGIN_VENDOR, encrypt_field
 
-    return {key: encrypt_field(value, SALT_PLUGIN_VENDOR) for key, value in values.items()}
+    return {
+        key: encrypt_field(value, SALT_PLUGIN_VENDOR) for key, value in values.items()
+    }
 
 
 async def create_plugin_service_registration(
@@ -1334,7 +1336,7 @@ async def create_marketplace_listing(
     kind: str = "dashboard",
     version: str = "1.0.0",
     definition: dict[str, Any] | None = None,
-    min_plugin_version: str | None = None,
+    min_app_version: str | None = None,
     available: bool = True,
     commit: bool = True,
     **overrides: Any,
@@ -1355,7 +1357,7 @@ async def create_marketplace_listing(
         "description": overrides.pop("description", "A listing for tests."),
         "avatar_url": overrides.pop("avatar_url", "/marketplace/test.svg"),
         "version": version,
-        "min_plugin_version": min_plugin_version,
+        "min_app_version": min_app_version,
         "definition": definition
         if definition is not None
         else {

@@ -3,7 +3,7 @@
 Two properties, pulling in opposite directions, and both are load-bearing.
 
 **The pinned definition travels.** A reader — the settings page, and an
-installed app reading its own install — has to be able to say what *this*
+installed plug-in reading its own install — has to be able to say what *this*
 install is, including the blocks this build assigns no meaning to. Serving the
 snapshot the guild pinned rather than whatever the catalog holds today is what
 makes that answer true of the install rather than of the listing.
@@ -36,14 +36,14 @@ DEFINITION = {
             "fields": [{"key": "admin_token", "type": "secret", "required": True}],
         }
     ],
-    "events": ["app.tests.shop.order_created"],
+    "events": ["plugin.tests.shop.order_created"],
     # Opaque to this build by design: it belongs to the automation service,
     # which parses it off this same payload.
     "automation": {"nodes": [{"id": "low_stock"}]},
 }
 
 
-#: The standing a request in this app's community carries, which is what the
+#: The standing a request in this plug-in's community carries, which is what the
 #: serializer names the community from. Built here because these payloads are
 #: built without a request.
 CONTEXT = GuildContext(
@@ -86,14 +86,14 @@ def test_the_pinned_definition_is_passed_through_verbatim():
     payload = serialize_guild_plugin(_plugin(), context=CONTEXT)
 
     assert payload.definition == DEFINITION
-    # Including the block this build never interprets — an app reads it here
+    # Including the block this build never interprets — a plug-in reads it here
     # rather than through an endpoint that would have to understand it.
     assert payload.definition["automation"] == {"nodes": [{"id": "low_stock"}]}
 
 
 def test_the_config_state_the_plugin_reported_is_carried():
-    """Until an app reports, an install has no verdict; once it does, the
-    settings page can say whether the app is happy without leaving the app."""
+    """Until a plug-in reports, an install has no verdict; once it does, the
+    settings page can say whether the plug-in is happy without leaving the app."""
     assert serialize_guild_plugin(_plugin(), context=CONTEXT).config_state == "ok"
     assert (
         serialize_guild_plugin(

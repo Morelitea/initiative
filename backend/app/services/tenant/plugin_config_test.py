@@ -1,4 +1,4 @@
-"""Holding what a guild typed into an app's connection form.
+"""Holding what a guild typed into a plug-in's connection form.
 
 The load-bearing property is custody: a secret goes in, is stored encrypted, and
 the only thing that ever comes back out through a read is *whether* it is there.
@@ -7,7 +7,7 @@ caller entitled to it, and that the presence map carries no trace of it.
 
 The rest is validation against the *pinned* definition. Types are checked
 exactly rather than coerced, because a form that turns ``true`` into ``1`` for
-an int field has silently accepted something the app never declared it would
+an int field has silently accepted something the plug-in never declared it would
 receive.
 """
 
@@ -67,7 +67,7 @@ MEMBER_CONNECTION = {
 #: A guild-wide credential obtained rather than typed.
 #:
 #: The vendor authorizes an organization through a page of its own, so an admin
-#: is sent there and the app writes down what came back. Same scope as
+#: is sent there and the plug-in writes down what came back. Same scope as
 #: ``ADMIN_CONNECTION`` — one credential for everybody — and a different way of
 #: arriving at one.
 WORKSPACE_CONNECTION = {
@@ -79,7 +79,7 @@ WORKSPACE_CONNECTION = {
         "authorize_url": "https://github.test/login/oauth/authorize",
         "token_url": "https://github.test/login/oauth/access_token",
         "client_id": "{vendor.client_id}",
-        "install_url": "https://github.test/plugins/x/installations/new",
+        "install_url": "https://github.test/apps/x/installations/new",
         "after_connect": True,
     },
     "fields": [_field("owner", "string", required=True, managed=True)],
@@ -280,7 +280,7 @@ class TestSatisfaction:
         assert needs_configuration(DEFINITION, {}, {}) is True
 
     def test_a_per_member_connection_is_not_an_unfinished_install(self):
-        """Installation is never gated on one: an app whose only connections are
+        """Installation is never gated on one: a plug-in whose only connections are
         per-member is fully installed with nothing present."""
         definition = {"plugin_kind": "service", "connections": [MEMBER_CONNECTION]}
         assert needs_configuration(definition, {}, {}) is False
@@ -385,7 +385,7 @@ class TestTheHandleAGuildFlowIsJoinedBy:
     def test_a_handle_is_minted_onto_the_install_and_kept(self):
         """Reconnecting writes over one connection rather than making a second.
 
-        A fresh handle each time would leave the app holding one this side no
+        A fresh handle each time would leave the plug-in holding one this side no
         longer recognizes, so the token it asks for with it would be refused.
         """
         install = _Install()
@@ -407,7 +407,7 @@ class TestTheHandleAGuildFlowIsJoinedBy:
         """SQLAlchemy tracks a JSONB column by identity.
 
         A dict changed in place under it is a change that never lands, and the
-        symptom is a handle handed to an app that this side then refuses.
+        symptom is a handle handed to a plug-in that this side then refuses.
         """
         held = {}
         install = _Install(held)

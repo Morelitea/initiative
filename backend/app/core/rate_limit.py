@@ -109,7 +109,7 @@ def get_user_or_ip_key(request: Request) -> str:
     have run — which a route's own limit is checked after. Before then, for
     the server-wide default, whoever its credential names as far as can be
     told without the database (``app.core.identify``): a session, an upload
-    token, an installed app. Everybody behind a shared address gets their own
+    token, an installed plug-in. Everybody behind a shared address gets their own
     allowance that way. The client address for the rest: no credential, one
     only the database can name (an API key), or one that failed its check.
     """
@@ -220,10 +220,10 @@ CONSENT_REQUESTS_PER_INSTALL = parse("30/minute")
 NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
 
 
-#: Calls one install may make to other apps through Initiative in one window,
-#: to every app together.
+#: Calls one install may make to other plug-ins through Initiative in one window,
+#: to every plug-in together.
 PLUGIN_HUB_CALLS_PER_INSTALL = parse("120/minute")
-#: Calls one install may make to one other app in one window.
+#: Calls one install may make to one other plug-in in one window.
 PLUGIN_HUB_CALLS_PER_TARGET = parse("60/minute")
 
 

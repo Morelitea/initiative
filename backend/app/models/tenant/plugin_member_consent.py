@@ -1,13 +1,13 @@
-"""One member's answer to an installed app asking to act as them.
+"""One member's answer to an installed plug-in asking to act as them.
 
-An app asks to act as a member for one **purpose**: an opaque id of its own
+A plug-in asks to act as a member for one **purpose**: an opaque id of its own
 choosing, such as the automation step that needs a person's name, described by
-a ``label`` in the app's own words. A purpose may be bound to one initiative.
-With no purpose the request is app-wide: the app acts as the member for
+a ``label`` in the plug-in's own words. A purpose may be bound to one initiative.
+With no purpose the request is plug-in-wide: the plug-in acts as the member for
 whatever it does.
 
 The row is the request and the member's answer together. It is written when the
-app asks (``requested_*``) and answered by the member alone, from a first-party
+plug-in asks (``requested_*``) and answered by the member alone, from a first-party
 session (``granted_*``, ``confirmed_factor``):
 
 * **pending**: ``granted_access`` and ``revoked_at`` are both empty;
@@ -20,7 +20,7 @@ A member token is issued only while the row is granted and not revoked, and
 the install standing reads the row again on every request, so an answer
 changes the next request.
 
-The row hangs off ``guild_plugins``, so removing the app removes every answer
+The row hangs off ``guild_plugins``, so removing the plug-in removes every answer
 with it. It is an own-row table: the member reads and answers their own, and
 the community's administration reads them and revokes (the ``own_row_*``
 policies in ``app.db.tenancy.OWN_ROW_TABLES``).
@@ -41,12 +41,12 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, SQLModel
 
-#: The longest ``purpose`` an app may name.
+#: The longest ``purpose`` a plug-in may name.
 PURPOSE_MAX_LENGTH = 128
-#: The longest ``label`` an app may write.
+#: The longest ``label`` a plug-in may write.
 LABEL_MAX_LENGTH = 200
 
-#: The characters a ``purpose`` is written in: an opaque id of the app's own,
+#: The characters a ``purpose`` is written in: an opaque id of the plug-in's own,
 #: such as an automation step's key or a UUID.
 PURPOSE_CHARACTERS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:/@"
@@ -54,7 +54,7 @@ PURPOSE_CHARACTERS = frozenset(
 
 
 def is_valid_purpose(value: object) -> bool:
-    """Whether ``value`` is a purpose an app may name."""
+    """Whether ``value`` is a purpose a plug-in may name."""
     return (
         isinstance(value, str)
         and 0 < len(value) <= PURPOSE_MAX_LENGTH
@@ -63,7 +63,7 @@ def is_valid_purpose(value: object) -> bool:
 
 
 class ConsentAccess(str, Enum):
-    """How deeply an app may act as the member."""
+    """How deeply a plug-in may act as the member."""
 
     read = "read"
     read_write = "read_write"
@@ -122,13 +122,13 @@ class PluginMemberConsent(SQLModel, table=True):
         sa_column=Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     )
 
-    #: The app's own id for what it wants to do as the member. ``None`` asks
+    #: The plug-in's own id for what it wants to do as the member. ``None`` asks
     #: for app-wide consent.
     purpose: Optional[str] = Field(
         default=None,
         sa_column=Column(String(PURPOSE_MAX_LENGTH), nullable=True),
     )
-    #: What the app says the purpose is, in its own words.
+    #: What the plug-in says the purpose is, in its own words.
     label: str = Field(sa_column=Column(String(LABEL_MAX_LENGTH), nullable=False))
     #: The one initiative the purpose is bound to, when it is.
     initiative_id: Optional[int] = Field(

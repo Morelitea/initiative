@@ -1,17 +1,17 @@
-"""The keys an app signs with, from its registration.
+"""The keys a plug-in signs with, from its registration.
 
 A registration carries its key set in one of two ways, or both: pasted into the
-registration (``jwks``), or published by the app at ``jwks_uri``. The pasted
+registration (``jwks``), or published by the plug-in at ``jwks_uri``. The pasted
 set is parsed with the registration snapshot. A published set is fetched here,
-from the app's own origin over https, and reused for :data:`CACHE_TTL_SECONDS`,
-the same bound the snapshot keeps. A rotation is the app publishing its new key
+from the plug-in's own origin over https, and reused for :data:`CACHE_TTL_SECONDS`,
+the same bound the snapshot keeps. A rotation is the plug-in publishing its new key
 beside the old one; the next fetch picks it up.
 
 A key named in both sets is the pasted one.
 
-An operator's **Connect** reads the set the app serves at :data:`KEY_SET_PATH`
+An operator's **Connect** reads the set the plug-in serves at :data:`KEY_SET_PATH`
 under its base URL with :func:`read_key_set`, shows each key's
-:func:`jwk_thumbprint`, and pastes the set it confirms. That is how an app on
+:func:`jwk_thumbprint`, and pastes the set it confirms. That is how a plug-in on
 a plain-http address inside the deployment's network gets its keys pinned.
 """
 
@@ -79,7 +79,7 @@ _THUMBPRINT_MEMBERS: Mapping[str, tuple[str, ...]] = MappingProxyType(
     }
 )
 
-#: Where an app serves its key set, under its base URL.
+#: Where a plug-in serves its key set, under its base URL.
 KEY_SET_PATH = "/.well-known/jwks.json"
 
 #: Per-fetch budget, connect and read capped separately.
@@ -110,14 +110,14 @@ def jwks_uri_allowed(jwks_uri: str, base_url: str) -> bool:
 
 
 def key_set_url(base_url: str) -> str:
-    """Where the app at ``base_url`` serves its key set."""
+    """Where the plug-in at ``base_url`` serves its key set."""
     return f"{base_url.rstrip('/')}{KEY_SET_PATH}"
 
 
 def jwk_thumbprint(entry: Mapping[str, Any]) -> str:
     """A public key's RFC 7638 SHA-256 thumbprint, base64url without padding.
 
-    The fingerprint an app logs for its key, so an operator can match the two.
+    The fingerprint a plug-in logs for its key, so an operator can match the two.
     ``entry`` is a public key of a type in :data:`PUBLIC_JWK_TYPES`.
     """
     members = _THUMBPRINT_MEMBERS[entry["kty"]]
@@ -163,16 +163,16 @@ def _parse(document: Any, source: str) -> Mapping[str, Any]:
         try:
             parsed[kid] = PyJWK.from_dict(entry).key
         except Exception:
-            logger.warning("app keys: %s has an unusable key %r", source, kid)
+            logger.warning("plug-in keys: %s has an unusable key %r", source, kid)
     return MappingProxyType(parsed)
 
 
 async def read_key_set(
     url: str, *, transport: httpx.AsyncBaseTransport | None = None
 ) -> Any:
-    """The JSON document an app serves at ``url``.
+    """The JSON document a plug-in serves at ``url``.
 
-    Fetched the way Initiative calls the app: a private address is allowed,
+    Fetched the way Initiative calls the plug-in: a private address is allowed,
     and plain http only to one. Raises :class:`KeySetUnreadableError`.
     """
     try:
@@ -207,7 +207,7 @@ async def _fetch(
     try:
         document = await read_key_set(jwks_uri, transport=transport)
     except KeySetUnreadableError as exc:
-        logger.warning("app keys: %s could not be read (%s)", jwks_uri, exc)
+        logger.warning("plug-in keys: %s could not be read (%s)", jwks_uri, exc)
         return MappingProxyType({})
     return _parse(document, jwks_uri)
 
@@ -223,7 +223,7 @@ async def _published_keys(
         return MappingProxyType({})
     if not jwks_uri_allowed(jwks_uri, registration.base_url):
         logger.warning(
-            "app keys: %s key set address is not on its base URL's origin",
+            "plug-in keys: %s key set address is not on its base URL's origin",
             registration.public_id,
         )
         return MappingProxyType({})

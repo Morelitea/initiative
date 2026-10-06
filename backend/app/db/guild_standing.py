@@ -248,8 +248,8 @@ SELECT
 """
 
 
-# --- An installed app's standing ---------------------------------------------
-#: The ``apps:`` scope family names another app rather than a resource of the
+# --- An installed plug-in's standing -----------------------------------------
+#: The ``plugins:`` scope family names another plug-in rather than a resource of the
 #: community's, so it adds nothing to what the install reads or writes.
 _PLUGIN_SCOPE_FAMILY = PLUGIN_SCOPE_PREFIX.rstrip(":")
 #: The standings, as a SQL list: they name no resource.
@@ -260,10 +260,10 @@ _GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.community_admin]
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
 
-#: A reference row in this install's own sector: the app purpose, the routed
-#: community and the routed install. The same predicate the ``identity_refs``
-#: policies for the install floor hold every read and insert to
-#: (``app.db.public_rls``).
+#: A reference row in this install's own sector: the ``plugin`` purpose, the
+#: routed community and the routed install. The same predicate the
+#: ``identity_refs`` policies for the install floor hold every read and insert
+#: to (``app.db.public_rls``).
 _IN_INSTALL_SECTOR = (
     f"r.purpose = '{IdentityPurpose.plugin.value}'"
     f" AND r.sector_guild_id = {gucs.GUILD_ID}"
@@ -306,7 +306,7 @@ def _permission_default_values() -> str:
 #: a``: those the seat granted that the pinned version still requests. The
 #: grant itself is left as the seat set it, so a scope a later version stops
 #: requesting stops being carried by every token at once. Read by token
-#: issuance, the install standing and the app hub alike.
+#: issuance, the install standing and the plug-in hub alike.
 ISSUABLE_SCOPES_SQL = (
     "ARRAY(SELECT s FROM unnest(a.granted_scopes) AS s "
     "WHERE a.definition -> 'service' -> 'scopes' @> jsonb_build_array(s))"
@@ -379,8 +379,8 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
     ), 'false')""",
 }
 
-#: An installed app's standing, in one statement. Runs as ``guild_<id>_plugin``
-#: after the install routing. The community, the install, the client the token
+#: An installed plug-in's standing, in one statement. Runs as
+#: ``guild_<id>_plugin`` after the install routing. The community, the install, the client the token
 #: was issued to, the token's scopes, the narrowed initiative and, for a member
 #: token, the member and the purpose are read back from that routing; the one
 #: bind, ``:named_refs``, is the references the request names (below).
@@ -841,7 +841,7 @@ class GuildContext:
 
 @dataclass(frozen=True)
 class InstallContext:
-    """An installed app's standing in its community, for one request.
+    """An installed plug-in's standing in its community, for one request.
 
     Built only by the establishment seam (``app.api.deps``) from a verified
     install: the routing names the community, the install, the client and the
@@ -983,8 +983,8 @@ class InstallContext:
         )
 
 
-#: Who a request that names an app scope is serving: a person's standing in the
-#: community, or an installed app's.
+#: Who a request that names a plug-in scope is serving: a person's standing in
+#: the community, or an installed plug-in's.
 ActorContext = GuildContext | InstallContext
 
 
@@ -1043,9 +1043,9 @@ async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
 
 def named_ref_candidates(values: Sequence[str]) -> list[str]:
     """The strings among ``values`` shaped like a reference an install holds,
-    once each: its ``app`` prefix for a person or a community, and no longer
-    than a reference can be. What the install standing statement is asked to
-    look up."""
+    once each: the ``plugin`` purpose's prefix for a person or a community,
+    and no longer than a reference can be. What the install standing statement
+    is asked to look up."""
     prefixes = tuple(
         f"{ref_prefix(entity, IdentityPurpose.plugin)}_" for entity in IdentityEntity
     )

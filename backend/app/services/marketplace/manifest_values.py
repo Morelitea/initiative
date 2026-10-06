@@ -210,7 +210,7 @@ def check_uid(value: Any, *, what: str) -> str:
 
 
 def check_path(value: Any, *, what: str) -> str:
-    """A path on the app's own service, never an address.
+    """A path on the plug-in's own service, never an address.
 
     The deployment joins this to the base URL its registration supplies, so a
     manifest states *which route*, and the operator states *where*. A value that

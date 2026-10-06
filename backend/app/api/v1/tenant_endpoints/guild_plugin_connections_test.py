@@ -1,4 +1,4 @@
-"""Configuring an app, connecting to it, and every way that access ends.
+"""Configuring a plug-in, connecting to it, and every way that access ends.
 
 Four things carry the weight here.
 
@@ -14,14 +14,14 @@ outward sees every one. That is a database policy rather than an endpoint
 branch, so the tests exercise it through real roles: the ``client`` fixture
 executes as ``app_user`` under the guild role it routes into.
 
-**Installation never waits on a person.** An app whose credentials are supplied
+**Installation never waits on a person.** A plug-in whose credentials are supplied
 per member installs with none present and reports itself as needing no
 configuration — connecting is something members do afterwards, if they want
 what it unlocks.
 
 **Access ends when the relationship does.** Leaving, being removed, being
 revoked or blocked, closing an account, uninstalling and deleting the guild each
-delete the stored values, and each queues the revocation that tells the app to
+delete the stored values, and each queues the revocation that tells the plug-in to
 let go at the vendor. The teardown tests assert on the rows *and* on the
 recorded revocations, because deleting our copy is only half of it.
 """
@@ -92,8 +92,8 @@ GITHUB_CONNECTION = {
 #:
 #: The case this exists for is the one no text box can express: a vendor whose
 #: organization-wide install is a page of its own, where somebody who owns the
-#: account chooses what the app may see. What comes back is an installation, and
-#: the app's after_connect hook says what it is — so every field is ``managed``.
+#: account chooses what the plug-in may see. What comes back is an installation, and
+#: the plug-in's after_connect hook says what it is — so every field is ``managed``.
 WORKSPACE_CONNECTION = {
     "id": "workspace",
     "scope": "static",
@@ -101,7 +101,7 @@ WORKSPACE_CONNECTION = {
     "fields": [_field("owner", "string", managed=True)],
     "flow": {
         **VENDOR_FLOW,
-        "install_url": "https://github.test/plugins/{vendor.app_slug}/installations/new",
+        "install_url": "https://github.test/apps/{vendor.app_slug}/installations/new",
     },
 }
 
@@ -128,7 +128,7 @@ SERVICE_DEFINITION = {
     "connections": [ADMIN_CONNECTION, GITHUB_CONNECTION],
 }
 
-#: The same app, where the guild-wide half is obtained rather than typed.
+#: The same plug-in, where the guild-wide half is obtained rather than typed.
 #:
 #: Kept apart from ``SERVICE_DEFINITION`` on purpose: an unsatisfied static
 #: connection is an install that needs configuring, and every test about
@@ -167,12 +167,12 @@ async def _rows(session: AsyncSession, guild_id: int) -> list:
 
 @pytest.fixture(autouse=True)
 async def wired_plugin_services(session: AsyncSession):
-    """The deployment has both test apps wired up.
+    """The deployment has both test plug-ins wired up.
 
-    Starting a member's vendor flow sends them to the app's own URL, which
-    comes from a registration — so a guild whose app service is not registered
+    Starting a member's vendor flow sends them to the plug-in's own URL, which
+    comes from a registration — so a guild whose plug-in service is not registered
     here has nowhere to send anyone. Every test in this file assumes the
-    ordinary case: the operator wired the app up, and it is switched on.
+    ordinary case: the operator wired the plug-in up, and it is switched on.
     """
     return [
         await create_plugin_service_registration(
@@ -186,12 +186,12 @@ async def wired_plugin_services(session: AsyncSession):
 
 
 async def _connected(
-    session: AsyncSession, actor, app, connection_id: str = "github"
+    session: AsyncSession, actor, plugin, connection_id: str = "github"
 ) -> GuildPluginUserConnection:
     """A member connection as a completed flow leaves it."""
     await route_session_to_guild(session, actor.guild.id)
     row = GuildPluginUserConnection(
-        plugin_id=app.id,
+        plugin_id=plugin.id,
         connection_id=connection_id,
         user_id=actor.user.id,
         connection_ref=mint_connection_ref(),
@@ -209,11 +209,11 @@ async def _connected(
 
 @pytest.fixture
 def recorded_revocations(monkeypatch):
-    """Capture what each teardown asked the apps to revoke.
+    """Capture what each teardown asked the plug-ins to revoke.
 
-    The transport itself belongs to the app protocol; what this phase owes is
+    The transport itself belongs to the plug-in protocol; what this phase owes is
     that an intent is raised for every credential it deletes, addressed by the
-    handle the app knows it by.
+    handle the plug-in knows it by.
     """
     captured: list = []
 
@@ -225,7 +225,7 @@ def recorded_revocations(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Installing a service app
+# Installing a service plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -263,9 +263,9 @@ class TestInstallIsNotGatedOnAConnection:
     ):
         """Nobody has to connect for the install to be valid."""
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a, MEMBER_ONLY_DEFINITION)
+        plugin = await _install(session, a, MEMBER_ONLY_DEFINITION)
 
-        response = await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        response = await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["needs_config"] is False
@@ -277,8 +277,10 @@ class TestInstallIsNotGatedOnAConnection:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
-        body = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        plugin = await _install(session, a)
+        body = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert body["needs_config"] is True
 
 
@@ -292,10 +294,10 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
 
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
@@ -315,9 +317,9 @@ class TestConfig:
         """The seat reads back what it set, to edit it; an administrator below
         the seat and a member are told only that it is there."""
         seat = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, seat)
+        plugin = await _install(session, seat)
         response = await client.put(
-            seat.g(f"/plugins/{app.id}/config"),
+            seat.g(f"/plugins/{plugin.id}/config"),
             headers=seat.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
@@ -331,7 +333,9 @@ class TestConfig:
             (member, {}),
         ):
             body = (
-                await client.get(viewer.g(f"/plugins/{app.id}"), headers=viewer.headers)
+                await client.get(
+                    viewer.g(f"/plugins/{plugin.id}"), headers=viewer.headers
+                )
             ).json()
             block = next(c for c in body["connections"] if c["id"] == "admin")
             assert block["values"] == values
@@ -341,9 +345,9 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
@@ -354,11 +358,11 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.put(
-            member.g(f"/plugins/{app.id}/config"),
+            member.g(f"/plugins/{plugin.id}/config"),
             headers=member.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
@@ -369,10 +373,10 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
 
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": {**VALID_ADMIN_VALUES, "nope": "x"}}},
         )
@@ -383,9 +387,9 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"stripe": {"key": "x"}}},
         )
@@ -397,11 +401,11 @@ class TestConfig:
     async def test_a_per_member_connection_is_not_set_through_the_form(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """It is that member's to make, and the app writes the result."""
+        """It is that member's to make, and the plug-in writes the result."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"github": {"access_token": "gho_x"}}},
         )
@@ -412,9 +416,9 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         response = await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": {"shop_domain": "example.test"}}},
         )
@@ -424,10 +428,10 @@ class TestConfig:
     async def test_writing_configuration_resets_the_plugins_verdict(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """Whatever the app said about the old values is not an answer about
+        """Whatever the plug-in said about the old values is not an answer about
         the new ones."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             a.guild,
             a.user,
@@ -437,7 +441,7 @@ class TestConfig:
 
         body = (
             await client.put(
-                a.g(f"/plugins/{app.id}/config"),
+                a.g(f"/plugins/{plugin.id}/config"),
                 headers=a.headers,
                 json={"values": {"admin": VALID_ADMIN_VALUES}},
             )
@@ -452,20 +456,22 @@ class TestConfig:
         recorded_revocations,
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
 
         response = await client.delete(
-            a.g(f"/plugins/{app.id}/connections/admin"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/admin"), headers=a.headers
         )
         assert response.status_code == 204
         assert [i.connection_id for i in recorded_revocations] == ["admin"]
 
-        body = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        body = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert body["needs_config"] is True
 
 
@@ -485,11 +491,11 @@ class TestConnect:
         endpoint with this deployment's client and callback, and nothing is
         stored until the vendor sends the member back."""
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            member.g(f"/plugins/{app.id}/connections/github/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=member.headers,
         )
         assert response.status_code == 200, response.text
@@ -520,9 +526,9 @@ class TestConnect:
         flow of its own. Declaring one is.
         """
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/admin/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/admin/connect"), headers=a.headers
         )
         assert response.status_code == 409
         assert (
@@ -535,10 +541,11 @@ class TestConnect:
         """One credential for everybody, obtained rather than typed: the seat is
         sent to the vendor's install page first."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
+        plugin = await _install(session, a, definition=WORKSPACE_DEFINITION)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/workspace/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/workspace/connect"),
+            headers=a.headers,
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -546,14 +553,14 @@ class TestConnect:
 
         connect = urlparse(body["connect_url"])
         assert f"{connect.scheme}://{connect.netloc}{connect.path}" == (
-            "https://github.test/plugins/initiative-test/installations/new"
+            "https://github.test/apps/initiative-test/installations/new"
         )
         assert parse_qs(connect.query)["state"][0]
 
         # Nothing is stored while the flow is in progress.
         await route_session_to_guild(session, a.guild.id)
-        await session.refresh(app)
-        assert app.connection_refs == {}
+        await session.refresh(plugin)
+        assert plugin.connection_refs == {}
         assert await _rows(session, a.guild.id) == []
 
     async def test_a_member_may_not_start_the_guild_s_flow(
@@ -562,11 +569,11 @@ class TestConnect:
         """The install it produces is the guild's boundary, which is the seat's
         to decide, exactly as typing the same connection would be."""
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
+        plugin = await _install(session, a, definition=WORKSPACE_DEFINITION)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            member.g(f"/plugins/{app.id}/connections/workspace/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/workspace/connect"),
             headers=member.headers,
         )
         assert response.status_code == 403
@@ -583,14 +590,14 @@ class TestConnect:
             base_url="https://bare.example.test",
         )
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(
+        plugin = await _install(
             session,
             a,
             {**MEMBER_ONLY_DEFINITION, "service": {"public_id": "tests.bare"}},
         )
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/github/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/github/connect"), headers=a.headers
         )
         assert response.status_code == 409
         assert (
@@ -602,9 +609,9 @@ class TestConnect:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/nope/connect"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/connections/nope/connect"), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == GuildPluginMessages.CONNECTION_NOT_FOUND
@@ -613,12 +620,12 @@ class TestConnect:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         await client.patch(
-            a.g(f"/plugins/{app.id}"), headers=a.headers, json={"enabled": False}
+            a.g(f"/plugins/{plugin.id}"), headers=a.headers, json={"enabled": False}
         )
         response = await client.post(
-            a.g(f"/plugins/{app.id}/connections/github/connect"),
+            a.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=a.headers,
         )
         assert response.status_code == 409
@@ -632,12 +639,12 @@ class TestConnect:
         recorded_revocations,
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
 
         response = await client.delete(
-            member.g(f"/plugins/{app.id}/connections/github"), headers=member.headers
+            member.g(f"/plugins/{plugin.id}/connections/github"), headers=member.headers
         )
         assert response.status_code == 204
         assert await _rows(session, a.guild.id) == []
@@ -657,14 +664,14 @@ class TestConnectionVisibility:
         gate is the table's own-row policy, so there is no endpoint branch that
         could be forgotten."""
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         first = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         second = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
-        await _connected(session, first, app)
+        await _connected(session, first, plugin)
 
         body = (
-            await client.get(second.g(f"/plugins/{app.id}"), headers=second.headers)
+            await client.get(second.g(f"/plugins/{plugin.id}"), headers=second.headers)
         ).json()
         github = next(c for c in body["connections"] if c["id"] == "github")
         assert github["status"] is None
@@ -675,12 +682,12 @@ class TestConnectionVisibility:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
 
         body = (
-            await client.get(member.g(f"/plugins/{app.id}"), headers=member.headers)
+            await client.get(member.g(f"/plugins/{plugin.id}"), headers=member.headers)
         ).json()
         github = next(c for c in body["connections"] if c["id"] == "github")
         assert github["status"] == "connected"
@@ -691,11 +698,11 @@ class TestConnectionVisibility:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
-            member.g(f"/plugins/{app.id}/members"), headers=member.headers
+            member.g(f"/plugins/{plugin.id}/members"), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
@@ -706,14 +713,14 @@ class TestConnectionVisibility:
         """Admins have full authority over their guild, and knowing who reaches
         an outside system through it is part of that."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         first = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         second = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         for actor in (first, second):
-            await _connected(session, actor, app)
+            await _connected(session, actor, plugin)
 
         body = (
-            await client.get(a.g(f"/plugins/{app.id}/members"), headers=a.headers)
+            await client.get(a.g(f"/plugins/{plugin.id}/members"), headers=a.headers)
         ).json()
         assert sorted(item["user_id"] for item in body["items"]) == sorted(
             [first.user.id, second.user.id]
@@ -727,7 +734,7 @@ class TestConnectionVisibility:
         # A page holds some of the members; the counts still cover everyone.
         paged = (
             await client.get(
-                a.g(f"/plugins/{app.id}/members"),
+                a.g(f"/plugins/{plugin.id}/members"),
                 params={"page_size": 1, "page": 2},
                 headers=a.headers,
             )
@@ -743,15 +750,15 @@ class TestConnectionVisibility:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """Revoking beats reading: no admin workflow needs the bytes, and the
-        handle is between the platform and the app."""
+        handle is between the platform and the plug-in."""
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        started = await _connected(session, member, app)
+        started = await _connected(session, member, plugin)
         ref = started.connection_ref
 
         response = await client.get(
-            a.g(f"/plugins/{app.id}/members"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/members"), headers=a.headers
         )
         assert ref not in response.text
         assert "config_secrets" not in response.text
@@ -760,12 +767,12 @@ class TestConnectionVisibility:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
-        await _connected(session, a, app)
+        plugin = await _install(session, a)
+        await _connected(session, a, plugin)
         stranger = await acting_user(guild_role=CommunityRole.admin)
 
         response = await client.get(
-            stranger.g(f"/plugins/{app.id}"), headers=stranger.headers
+            stranger.g(f"/plugins/{plugin.id}"), headers=stranger.headers
         )
         assert response.status_code == 404
 
@@ -784,12 +791,12 @@ class TestGovernance:
         recorded_revocations,
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
 
         response = await client.delete(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github"),
+            a.g(f"/plugins/{plugin.id}/members/{member.user.id}/connections/github"),
             headers=a.headers,
         )
         assert response.status_code == 204
@@ -800,16 +807,16 @@ class TestGovernance:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
         await client.delete(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github"),
+            a.g(f"/plugins/{plugin.id}/members/{member.user.id}/connections/github"),
             headers=a.headers,
         )
 
         again = await client.post(
-            member.g(f"/plugins/{app.id}/connections/github/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=member.headers,
         )
         assert again.status_code == 200
@@ -822,19 +829,21 @@ class TestGovernance:
         recorded_revocations,
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
 
         blocked = await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
         assert blocked.status_code == 204
         assert [i.reason for i in recorded_revocations] == ["blocked"]
 
         retry = await client.post(
-            member.g(f"/plugins/{app.id}/connections/github/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=member.headers,
         )
         assert retry.status_code == 403
@@ -844,11 +853,13 @@ class TestGovernance:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
-        await _connected(session, member, app)
+        await _connected(session, member, plugin)
         await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
 
@@ -863,16 +874,18 @@ class TestGovernance:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
         assert response.status_code == 204
         retry = await client.post(
-            member.g(f"/plugins/{app.id}/connections/github/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=member.headers,
         )
         assert retry.status_code == 403
@@ -881,20 +894,24 @@ class TestGovernance:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
 
         lifted = await client.delete(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
         assert lifted.status_code == 204
         retry = await client.post(
-            member.g(f"/plugins/{app.id}/connections/github/connect"),
+            member.g(f"/plugins/{plugin.id}/connections/github/connect"),
             headers=member.headers,
         )
         assert retry.status_code == 200
@@ -909,9 +926,9 @@ class TestGovernance:
         """For a suspected compromise: reacting fast should not cost the guild
         its configuration."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
@@ -920,28 +937,30 @@ class TestGovernance:
             for _ in range(2)
         ]
         for member in members:
-            await _connected(session, member, app)
+            await _connected(session, member, plugin)
 
         response = await client.post(
-            a.g(f"/plugins/{app.id}/revoke-all"), headers=a.headers
+            a.g(f"/plugins/{plugin.id}/revoke-all"), headers=a.headers
         )
         assert response.status_code == 204
         assert await _rows(session, a.guild.id) == []
         assert len(recorded_revocations) == 2
 
         # The install and its guild credential are still standing.
-        body = (await client.get(a.g(f"/plugins/{app.id}"), headers=a.headers)).json()
+        body = (
+            await client.get(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
+        ).json()
         assert body["needs_config"] is False
 
     async def test_governance_is_admin_only(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
-        base = f"/plugins/{app.id}/members/{other.user.id}/connections/github"
+        base = f"/plugins/{plugin.id}/members/{other.user.id}/connections/github"
         assert (
             await client.delete(member.g(base), headers=member.headers)
         ).status_code == 403
@@ -950,7 +969,7 @@ class TestGovernance:
         ).status_code == 403
         assert (
             await client.post(
-                member.g(f"/plugins/{app.id}/revoke-all"), headers=member.headers
+                member.g(f"/plugins/{plugin.id}/revoke-all"), headers=member.headers
             )
         ).status_code == 403
 
@@ -1015,7 +1034,7 @@ class TestUpgrade:
         wired_plugin_services,
     ):
         """Whether this deployment runs the service decides whether a guild may
-        *take* the app. The install this guild already has stays theirs, and
+        *take* the plug-in. The install this guild already has stays theirs, and
         keeps following the versions its publisher ships, so switching the
         service back on finds it current rather than a version behind."""
         uid = marketplace_uid("offbutinstalled")
@@ -1084,10 +1103,10 @@ class TestUpgrade:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=CommunityRole.admin)
-        app = await _install(session, a)
+        plugin = await _install(session, a)
         member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         response = await client.post(
-            member.g(f"/plugins/{app.id}/upgrade"), headers=member.headers
+            member.g(f"/plugins/{plugin.id}/upgrade"), headers=member.headers
         )
         assert response.status_code == 403
 
@@ -1098,10 +1117,10 @@ class TestUpgrade:
 
 
 async def _connected_member(client, acting_user, session, admin):
-    app = await _install(session, admin)
+    plugin = await _install(session, admin)
     member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
-    await _connected(session, member, app)
-    return app, member
+    await _connected(session, member, plugin)
+    return plugin, member
 
 
 class TestUninstallKillsAccess:
@@ -1112,17 +1131,17 @@ class TestUninstallKillsAccess:
         session: AsyncSession,
         recorded_revocations,
     ):
-        """An uninstalled app still receiving a guild's data is the thing this
-        prevents — so the values go, and the app is told."""
+        """An uninstalled plug-in still receiving a guild's data is the thing this
+        prevents — so the values go, and the plug-in is told."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app, member = await _connected_member(client, acting_user, session, a)
+        plugin, member = await _connected_member(client, acting_user, session, a)
         await client.put(
-            a.g(f"/plugins/{app.id}/config"),
+            a.g(f"/plugins/{plugin.id}/config"),
             headers=a.headers,
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
 
-        response = await client.delete(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        response = await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert response.status_code == 204
         assert await _rows(session, a.guild.id) == []
         reasons = {i.reason for i in recorded_revocations}
@@ -1134,15 +1153,17 @@ class TestUninstallKillsAccess:
     async def test_uninstalling_takes_blocked_tombstones_too(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """A block on an app that is no longer installed constrains nothing."""
+        """A block on a plug-in that is no longer installed constrains nothing."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app, member = await _connected_member(client, acting_user, session, a)
+        plugin, member = await _connected_member(client, acting_user, session, a)
         await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
 
-        await client.delete(a.g(f"/plugins/{app.id}"), headers=a.headers)
+        await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
         assert await _rows(session, a.guild.id) == []
 
 
@@ -1203,9 +1224,11 @@ class TestRelationshipCascades:
         """Somebody removed and later re-invited must not come back with the
         block quietly lifted."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
-        app, member = await _connected_member(client, acting_user, session, a)
+        plugin, member = await _connected_member(client, acting_user, session, a)
         await client.post(
-            a.g(f"/plugins/{app.id}/members/{member.user.id}/connections/github/block"),
+            a.g(
+                f"/plugins/{plugin.id}/members/{member.user.id}/connections/github/block"
+            ),
             headers=a.headers,
         )
 

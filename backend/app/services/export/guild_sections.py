@@ -2,7 +2,7 @@
 
 The per-tool envelopes in ``adapters/`` cover the work done *inside* an
 initiative. They do not cover the community itself: its configuration, its tag
-vocabulary, its roster, or the apps it installed. Those live in guild-level
+vocabulary, its roster, or the plug-ins it installed. Those live in guild-level
 tables (``db.tenancy.GUILD_LEVEL_TABLES``) and had no representation in a
 backup at all, so a guild that exported and re-imported got its content back
 and lost everything that made it that community.
@@ -176,9 +176,9 @@ async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
 
 
 async def _build_plugins(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
-    """Apps the community installed — built-in ones only.
+    """Plug-ins the community installed — built-in ones only.
 
-    An app published by anybody but this build is not ours to put in a file:
+    A plug-in published by anybody but this build is not ours to put in a file:
     its definition belongs to its publisher, and restoring it elsewhere means
     installing it there from the catalog, not unpacking a copy. Third-party
     installs are recorded in the manifest's ``skipped`` list instead, so the
@@ -196,7 +196,9 @@ async def _build_plugins(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
     from app.schemas.tenant.backup_export import ManifestSkipped
     from app.services.export.provenance import THIRD_PARTY_REASON
 
-    rows = list(await ctx.session.exec(select(GuildPlugin).order_by(GuildPlugin.id.asc())))
+    rows = list(
+        await ctx.session.exec(select(GuildPlugin).order_by(GuildPlugin.id.asc()))
+    )
     if not rows:
         return None
     builtin = await builtin_listing_uids(
@@ -209,7 +211,7 @@ async def _build_plugins(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
         else:
             ctx.skipped.append(
                 ManifestSkipped(
-                    tool="app",
+                    tool="plugin",
                     entity_id=row.id,
                     title=row.name,
                     reason=THIRD_PARTY_REASON,
@@ -223,7 +225,7 @@ async def _build_plugins(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
     payload = {
         "type": "guild-plugins",
         "schema_version": 2,
-        "apps": [
+        "plugins": [
             {
                 "listing_uid": row.listing_uid,
                 "listing_version": row.listing_version,
@@ -267,7 +269,7 @@ GUILD_SECTIONS: tuple[GuildSection, ...] = (
         scopes=frozenset({"guild", "initiative"}),
     ),
     GuildSection("members", "guild/members.json", _build_members),
-    GuildSection("apps", "guild/apps.json", _build_plugins),
+    GuildSection("plugins", "guild/plugins.json", _build_plugins),
 )
 
 
@@ -282,9 +284,9 @@ def sections_for(scope_kind: str) -> tuple[GuildSection, ...]:
 SECTION_TABLES: dict[str, str] = {
     "guild_settings": "settings",
     "tags": "tags",
-    "guild_plugins": "apps",
-    # Each install's placements ride inside its entry in the apps section.
-    "plugin_placements": "apps",
+    "guild_plugins": "plugins",
+    # Each install's placements ride inside its entry in the plugins section.
+    "plugin_placements": "plugins",
     # Carried per-initiative rather than at the guild root: an initiative's
     # roster and role set belong beside its content, not in one flat file.
     "initiatives": "initiatives",

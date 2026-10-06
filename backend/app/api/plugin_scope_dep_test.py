@@ -1,4 +1,4 @@
-"""The dependency a route names to admit an installed app.
+"""The dependency a route names to admit an installed plug-in.
 
 A probe route is mounted for these tests that names ``documents:read`` with
 :func:`plugin_scope` and reads documents through :data:`ActorSessionDep`. No real
@@ -78,7 +78,7 @@ def _bearer(token: str) -> dict[str, str]:
 def _install_token(installed, scopes, **overrides) -> str:
     token, _exp = seal_install_token(
         guild_id=overrides.pop("guild_id", installed.guild.id),
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(scopes),
         initiative_id=None,
@@ -114,7 +114,7 @@ def test_an_unknown_scope_fails_where_the_route_is_written():
 
 
 # ---------------------------------------------------------------------------
-# An installed app
+# An installed plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -286,5 +286,9 @@ async def test_an_install_request_spends_two_statements_before_its_handler(
     assert isinstance(context, InstallContext)
     assert not isinstance(context, GuildContext)
     assert len(statements) == 2, statements
-    assert request.state.plugin_install == (CLIENT, installed.guild.id, installed.app.id)
+    assert request.state.plugin_install == (
+        CLIENT,
+        installed.guild.id,
+        installed.plugin.id,
+    )
     await s.rollback()

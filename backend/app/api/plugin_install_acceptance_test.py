@@ -1,6 +1,6 @@
-"""The routes an installed app calls, end to end on the real-role client.
+"""The routes an installed plug-in calls, end to end on the real-role client.
 
-Each test installs an app the way a community does (``install_plugin``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat, registered by the
 operator), seals an installation token for it, and calls ordinary
 ``/c/{community_id}/…`` routes with that token. Postgres decides what the install
@@ -122,7 +122,7 @@ async def test_reads_the_documents_open_to_its_initiative(
     assert listed.status_code == 200, listed.text
     assert [d["name"] for d in listed.json()["items"]] == ["Open in A"]
 
-    # The app API's document serves from /c/0: the token names the community.
+    # The plug-in API's document serves from /c/0: the token names the community.
     advertised = await client.get(guild_url(0, "/documents/"), headers=headers)
     assert advertised.status_code == 200, advertised.text
     assert advertised.json() == listed.json()
@@ -157,7 +157,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     created = await client.post(
         guild_url(installed.guild.id, "/documents/"),
         headers=headers,
-        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -176,7 +176,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
         )
     ).all()
     assert [(g.level, g.plugin_install_id, g.user_id) for g in grants] == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
     document = await session.get(Document, body["id"])
     assert document is not None and document.created_by is None
@@ -245,7 +245,7 @@ async def test_a_private_document_is_read_only_once_shared_with_the_plugin(
     await create_resource_grant(
         session,
         private,
-        plugin_install_id=installed.app.id,
+        plugin_install_id=installed.plugin.id,
         level=ResourceAccessLevel.read,
     )
     read = await client.get(url, headers=headers)
@@ -265,7 +265,7 @@ async def test_it_cannot_write_even_what_is_shared_with_it_at_write(
     await create_resource_grant(
         session,
         document,
-        plugin_install_id=installed.app.id,
+        plugin_install_id=installed.plugin.id,
         level=ResourceAccessLevel.write,
     )
     url = guild_url(installed.guild.id, f"/documents/{document.id}")
@@ -316,7 +316,7 @@ async def test_the_role_refuses_guild_settings_outright(
     await route_as_install(
         s,
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=["documents:read"],
     )
@@ -341,7 +341,9 @@ async def test_a_narrowed_token_reads_only_its_initiative(
     # Placed in B too, so only the narrowing keeps B out.
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(
+            install_id=installed.plugin.id, initiative_id=installed.unplaced.id
+        )
     )
     await session.commit()
     in_a = await create_document(
@@ -408,7 +410,9 @@ async def test_removing_the_placement_takes_effect_on_the_next_request(
     assert await _names(client, installed, headers) == ["Open in A"]
 
     await route_session_to_guild(session, installed.guild.id)
-    placement = await session.get(PluginPlacement, (installed.app.id, installed.placed.id))
+    placement = await session.get(
+        PluginPlacement, (installed.plugin.id, installed.placed.id)
+    )
     await session.delete(placement)
     await session.commit()
 
@@ -426,7 +430,9 @@ async def test_removing_the_scope_takes_effect_on_the_next_request(
     assert await _names(client, installed, headers) == ["Open in A"]
 
     s = await _seat_session(installed, role_session)
-    row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == installed.app.id))).one()
+    row = (
+        await s.exec(select(GuildPlugin).where(GuildPlugin.id == installed.plugin.id))
+    ).one()
     row.granted_scopes = []
     s.add(row)
     await s.commit()
@@ -457,7 +463,7 @@ async def test_switching_off_takes_effect_on_the_next_request(
         await route_session_to_guild(session, installed.guild.id)
         await session.exec(
             text("UPDATE guild_plugins SET enabled = false WHERE id = :i"),
-            params={"i": installed.app.id},
+            params={"i": installed.plugin.id},
         )
     else:
         guild = await session.get(Guild, installed.guild.id)
@@ -489,7 +495,7 @@ async def test_an_unmarked_route_refuses_an_installation_token(
 
 def test_every_marked_route_names_scopes_in_the_vocabulary():
     marked = [route for route in app.routes if route_plugin_scopes(route)]
-    assert marked, "no route names an app scope"
+    assert marked, "no route names a plug-in scope"
     unknown = {
         (getattr(route, "path", "?"), scope)
         for route in marked
@@ -751,7 +757,9 @@ async def test_an_uploaded_picture_reaches_a_plugin_by_reference_under_members_r
 
     # Somebody the install has a reference for who is not a member here.
     outsider = await plugin_refs.ensure_plugin_ref(
-        guild_id=guild_id, plugin_install_id=installed.app.id, user_id=elsewhere.user.id
+        guild_id=guild_id,
+        plugin_install_id=installed.plugin.id,
+        user_id=elsewhere.user.id,
     )
     away = await client.get(
         f"/api/v1/c/0/members/{outsider}/avatar/{digest}", headers=headers
@@ -833,7 +841,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     reads_names, client, session, acting_user, role_session
 ):
     """Content written before names were left out still carries one, and it
-    reaches no app, nor does anything derived from the text."""
+    reaches no plug-in, nor does anything derived from the text."""
     await lift_person_and_guild_ids(session)
     reads = ["projects:read", "comments:read", "documents:read", "posts:read"]
     installed = await install_plugin(
@@ -897,7 +905,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     assert posted["body"]["root"]["children"][1]["src"] == ""
     assert posted["excerpt"] == f"Over to @[]({ref})"
     assert listed["items"][0]["description_excerpt"] == f"Over to @[]({ref})"
-    # The person's handle finds what mentions them only for an app that may
+    # The person's handle finds what mentions them only for a plug-in that may
     # read names.
     found = await client.get(
         guild_url(guild_id, "/documents/"),
@@ -1006,7 +1014,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
     ).all()
     assert [n.data["comment_id"] for n in notices] == [comment.id]
 
-    for content in (f"@[Sam]({member.user.id})", "@[Sam](uapp_nobody-at-all)"):
+    for content in (f"@[Sam]({member.user.id})", "@[Sam](uplu_nobody-at-all)"):
         refused = await client.post(
             guild_url(guild_id, "/comments/"),
             headers=headers,
@@ -1183,7 +1191,9 @@ async def test_a_narrowed_token_suggests_only_its_initiative(
     # Placed in B too, so only the narrowing keeps B out.
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(
+            install_id=installed.plugin.id, initiative_id=installed.unplaced.id
+        )
     )
     await session.commit()
     in_a = await create_task(

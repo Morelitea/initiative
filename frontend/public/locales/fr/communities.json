@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Participe à ce à quoi on l'ajoute.",
       "admin": "Gère la communauté : membres, invitations, initiatives, paramètres.",
-      "superadmin": "Tout cela, plus la façon dont les gens entrent : connexion, IA et applications. Seul un superadmin peut en nommer un autre."
+      "superadmin": "Tout cela, plus la façon dont les gens entrent : connexion, IA et plug-ins. Seul un superadmin peut en nommer un autre."
     },
     "loadingSettings": "Chargement des paramètres…",
     "unableToLoadSettings": "Impossible de charger les paramètres.",
@@ -466,8 +466,8 @@
     "recipientLabel": "Nouveau propriétaire",
     "recipientPlaceholder": "Choisir un administrateur",
     "adminsOnly": "Seuls les administrateurs de la communauté peuvent recevoir la propriété.",
-    "pluginHint": "Application",
-    "adminsOrPlugins": "La propriété peut être confiée aux administrateurs de la communauté, ainsi qu'à une application activée, placée partout où se trouve ce contenu et autorisée à le modifier.",
+    "pluginHint": "Plug-in",
+    "adminsOrPlugins": "La propriété peut être confiée aux administrateurs de la communauté, ainsi qu'à un plug-in activé, placé partout où se trouve ce contenu et autorisé à le modifier.",
     "confirm": "Transférer",
     "transferring": "Transfert…",
     "nothingOwned": "Cette personne ne possède rien dans cette communauté.",

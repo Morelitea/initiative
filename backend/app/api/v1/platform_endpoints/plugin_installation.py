@@ -1,4 +1,4 @@
-"""An installed app's calls about its own installation.
+"""An installed plug-in's calls about its own installation.
 
 Every route here takes an **installation token** and reaches the install the
 token names — no ``community_ref`` in the path, and no scope, because these are
@@ -8,13 +8,13 @@ and is refused.
 
 * ``GET /installation/config`` — the decrypted configuration: the guild-wide
   values, and each member's managed values. Never a flow's tokens.
-* ``GET /installation/connections`` — the app's per-member connections, by
+* ``GET /installation/connections`` — the plug-in's per-member connections, by
   opaque reference, with status only.
 * ``POST /installation/connections/{connection_ref}/token`` — a usable access
   token for one connection, refreshed or minted first.
-* ``POST /installation/config-status`` — the app's verdict on the
+* ``POST /installation/config-status`` — the plug-in's verdict on the
   configuration it was handed.
-* ``POST /installation/events`` — an event the app emits, kept for the outbox
+* ``POST /installation/events`` — an event the plug-in emits, kept for the outbox
   poller to deliver to the community's subscriptions.
 
 The token is checked by the install seam (``establish_install_access``),
@@ -61,7 +61,7 @@ from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.tenant import plugin_channels as channels_service
 from app.services.tenant.plugin_channels import PluginChannelError
 
-# Not part of the OpenAPI document: only app containers call these, never the
+# Not part of the OpenAPI document: only plug-in containers call these, never the
 # SPA, so the generated frontend client carries none of them.
 router = APIRouter(prefix="/installation", include_in_schema=False)
 
@@ -128,7 +128,7 @@ async def installation_caller(
 
     request.state.credential = CREDENTIAL_INSTALL
     audit_context.note_install(
-        app=context.client_id,
+        plugin=context.client_id,
         guild_id=context.guild_id,
         install_id=context.install_id,
     )
@@ -167,13 +167,13 @@ async def read_installation_config(
 ) -> PluginInstallConfigRead:
     """The decrypted configuration for this install.
 
-    The guild-wide values an admin supplied, plus the per-member ones the app
+    The guild-wide values an admin supplied, plus the per-member ones the plug-in
     wrote back itself, each keyed by the opaque reference it knows that member
-    by. Refused when the community has turned the app off.
+    by. Refused when the community has turned the plug-in off.
     """
     try:
-        app = await _load(session, installation)
-        payload = await channels_service.config_payload(session, app)
+        plugin = await _load(session, installation)
+        payload = await channels_service.config_payload(session, plugin)
     except PluginChannelError as exc:
         raise _to_http(exc) from exc
     return PluginInstallConfigRead(**payload)
@@ -183,17 +183,21 @@ async def read_installation_config(
 async def list_installation_connections(
     installation: InstallationDep, session: SystemSessionDep
 ) -> PluginConnectionsResponse:
-    """The app's per-member connections for this install, by opaque reference
+    """The plug-in's per-member connections for this install, by opaque reference
     and with status only."""
     try:
-        app = await _load(session, installation)
-        rows = await channels_service.connection_payload(session, app)
+        plugin = await _load(session, installation)
+        rows = await channels_service.connection_payload(session, plugin)
     except PluginChannelError as exc:
         raise _to_http(exc) from exc
-    return PluginConnectionsResponse(items=[PluginConnectionRead(**row) for row in rows])
+    return PluginConnectionsResponse(
+        items=[PluginConnectionRead(**row) for row in rows]
+    )
 
 
-@router.post("/connections/{connection_ref}/token", response_model=PluginConnectionToken)
+@router.post(
+    "/connections/{connection_ref}/token", response_model=PluginConnectionToken
+)
 async def read_installation_connection_token(
     connection_ref: str,
     installation: InstallationDep,
@@ -208,10 +212,10 @@ async def read_installation_connection_token(
     until shortly before it expires, or its own stored token.
     """
     try:
-        app = await _load(session, installation, for_write=True)
+        plugin = await _load(session, installation, for_write=True)
         token = await channels_service.connection_token(
             session,
-            app,
+            plugin,
             installation.registration,
             connection_ref=connection_ref,
         )
@@ -233,9 +237,9 @@ async def report_installation_config_status(
     nothing reports on stays ``unverified``.
     """
     try:
-        app = await _load(session, installation, for_write=True)
+        plugin = await _load(session, installation, for_write=True)
         result = await channels_service.report_config_state(
-            session, app, state=payload.state, detail=payload.detail
+            session, plugin, state=payload.state, detail=payload.detail
         )
     except PluginChannelError as exc:
         raise _to_http(exc) from exc
@@ -251,16 +255,16 @@ async def ingest_installation_event(
     """Emit one event in the community this install is in.
 
     The event type must be one the pinned definition declares, namespaced
-    under the calling app, and the payload at most 8 KiB. An event about an
+    under the calling plug-in, and the payload at most 8 KiB. An event about an
     initiative names one the install is placed in (403 otherwise). Answers
     ``202``: the event is kept and delivered to the community's subscriptions,
-    and what subscribers do with it is not the emitting app's to know.
+    and what subscribers do with it is not the emitting plug-in's to know.
     """
     try:
-        app = await _load(session, installation, for_write=True)
+        plugin = await _load(session, installation, for_write=True)
         await channels_service.emit_event(
             session,
-            app,
+            plugin,
             installation.registration,
             event_type=payload.event_type,
             payload=payload.payload,

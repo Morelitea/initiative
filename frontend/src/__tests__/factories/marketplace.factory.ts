@@ -16,7 +16,7 @@ export function buildMarketplaceVersion(
   return {
     version: "1.0.0",
     release_notes: null,
-    min_plugin_version: null,
+    min_app_version: null,
     published_at: "2026-01-15T00:00:00.000Z",
     compatible: true,
     ...overrides,

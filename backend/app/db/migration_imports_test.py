@@ -53,7 +53,7 @@ _ALLOWED = frozenset(
 )
 
 
-def _plugin_imports(tree: ast.AST) -> set[str]:
+def _app_imports(tree: ast.AST) -> set[str]:
     """Every ``app.*`` module a migration pulls from, however it is written."""
     modules: set[str] = set()
     for node in ast.walk(tree):
@@ -75,7 +75,7 @@ def test_migrations_import_no_app_registries():
     offenders: list[str] = []
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for module in sorted(_plugin_imports(tree) - _ALLOWED):
+        for module in sorted(_app_imports(tree) - _ALLOWED):
             offenders.append(f"{path.name}: {module}")
 
     assert not offenders, (

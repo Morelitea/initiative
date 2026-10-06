@@ -48,8 +48,8 @@
     "SCENE_TOO_LARGE": "This widget returned more data than a tile can show.",
     "SCENE_TOO_MANY_NODES": "This widget tried to draw too many elements.",
     "SCENE_VALUE_NOT_FINITE": "This widget returned a number that is not valid.",
-    "WIDGET_PLUGIN_NOT_INSTALLED": "The app this widget was connected to is no longer installed. Reconnect the app to bring this widget back.",
-    "WIDGET_PLUGIN_UNAVAILABLE": "The app behind this widget is not responding.",
+    "WIDGET_PLUGIN_NOT_INSTALLED": "The plug-in this widget was connected to is no longer installed. Reconnect the plug-in to bring this widget back.",
+    "WIDGET_PLUGIN_UNAVAILABLE": "The plug-in behind this widget is not responding.",
     "WIDGET_BAD_OUTPUT": "This widget returned something that cannot be drawn.",
     "WIDGET_NO_RENDER_EXPORT": "This widget has no render function.",
     "WIDGET_OUT_OF_MEMORY": "This widget used too much memory and was stopped.",
@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "SQL query",
     "sheet_range": "Sheet range",
-    "app": "App data"
+    "app": "Plug-in data"
   },
   "gallery": {
     "title": "Widget gallery",
@@ -116,10 +116,10 @@
     "all_counter": "All counters",
     "all_document": "All spreadsheets",
     "pluginEndpoint": "What it reads",
-    "app": "App",
-    "pluginPlaceholder": "Choose an app",
+    "app": "Plug-in",
+    "pluginPlaceholder": "Choose a plug-in",
     "pluginEndpointPlaceholder": "Choose a read…",
-    "pluginNotInstalled": "This app is not installed in this community.",
+    "pluginNotInstalled": "This plug-in is not installed in this community.",
     "pluginParamPlaceholder": "Choose…",
     "pluginParamNeedsSibling": "Choose the value above first.",
     "pluginParamListHint": "Separate values with commas.",
@@ -245,8 +245,8 @@
     "document": "Spreadsheet",
     "sheet": "Sheet",
     "range": "Range",
-    "plugin_uid": "App",
-    "source_id": "App data source",
+    "plugin_uid": "Plug-in",
+    "source_id": "Plug-in data source",
     "sql": "Statement"
   },
   "slot": {

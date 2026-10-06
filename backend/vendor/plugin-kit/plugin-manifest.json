@@ -739,7 +739,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "The JWT's issuer, normally '{vendor.plugin_id}'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+          "description": "The JWT's issuer, normally '{vendor.app_id}'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
         },
         "key": {
           "type": "string",

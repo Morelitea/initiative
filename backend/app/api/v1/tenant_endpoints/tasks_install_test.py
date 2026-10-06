@@ -1,6 +1,6 @@
-"""The task and task-status routes an installed app calls.
+"""The task and task-status routes an installed plug-in calls.
 
-Each test installs an app (placed in initiative A, not in B) and calls the
+Each test installs a plug-in (placed in initiative A, not in B) and calls the
 routes with its installation token on the real-role client. A task answers to
 the projects scopes; people in requests and responses are named by the
 install's own references.
@@ -247,14 +247,14 @@ async def test_creates_a_task_assigned_by_reference_and_names_nobody(
     headers = install_headers(installed, WRITE)
     gid = installed.guild.id
     seat_ref = await _reference_for_seat(client, session, installed, headers)
-    project_id = await _own_project(client, installed, headers, "The app's")
+    project_id = await _own_project(client, installed, headers, "The plug-in's")
 
     created = await client.post(
         guild_url(gid, "/tasks/"),
         headers=headers,
         json={
             "project_id": project_id,
-            "title": "Made by the app",
+            "title": "Made by the plug-in",
             "description": "Follow up",
             "priority": "high",
             "due_date": "2026-10-01T09:00:00+00:00",
@@ -280,7 +280,7 @@ async def test_creates_a_task_assigned_by_reference_and_names_nobody(
     assert stored is not None and stored.created_by is None
 
     lines = await _assignment_lines(session, installed.seat.user.id)
-    assert [line.data["assigned_by_name"] for line in lines] == [installed.app.name]
+    assert [line.data["assigned_by_name"] for line in lines] == [installed.plugin.name]
 
     # A person reading the same task is served row ids, as always.
     person = await client.get(
@@ -297,7 +297,7 @@ async def test_an_assignee_named_by_row_id_or_foreign_reference_is_refused(
     headers = install_headers(installed, WRITE)
     gid = installed.guild.id
     seat_ref = await _reference_for_seat(client, session, installed, headers)
-    project_id = await _own_project(client, installed, headers, "The app's")
+    project_id = await _own_project(client, installed, headers, "The plug-in's")
 
     for named in (installed.seat.user.id, seat_ref[:-2] + "zz"):
         response = await client.post(
@@ -340,7 +340,7 @@ async def test_updates_moves_ticks_and_duplicates_what_it_may_write(
 
     await route_session_to_guild(session, gid)
     lines = await _assignment_lines(session, installed.seat.user.id)
-    assert [line.data["assigned_by_name"] for line in lines] == [installed.app.name]
+    assert [line.data["assigned_by_name"] for line in lines] == [installed.plugin.name]
 
     ticked = await client.patch(
         guild_url(gid, f"/tasks/{task_id}/checklist/{item_id}"),
@@ -375,7 +375,7 @@ async def test_updates_moves_ticks_and_duplicates_what_it_may_write(
 async def test_makes_a_project_from_a_template_with_its_task_links(
     client, session, acting_user, role_session
 ):
-    """A template's dependency lands between the copies an app makes, with
+    """A template's dependency lands between the copies a plug-in makes, with
     the install as the one making the links."""
     scopes = [*WRITE, "relationships:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)

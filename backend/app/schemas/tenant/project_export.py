@@ -187,7 +187,7 @@ class ProjectExportEnvelope(SanitizedBaseModel):
     # existed still validate.
     type: str = "initiative-project"
     schema_version: int = SCHEMA_VERSION
-    plugin_version: str
+    app_version: str
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None

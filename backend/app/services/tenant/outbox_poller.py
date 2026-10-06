@@ -1,8 +1,8 @@
 """Drain ``event_outbox`` and ``plugin_event_outbox`` to each subscription's target.
 
-The change log and the events installed apps emit share one delivery: the same
+The change log and the events installed plug-ins emit share one delivery: the same
 ledger, backoff, dead-letter and retention, and one envelope per transaction,
-where an app event is one entry in ``changes`` carrying its payload. An app
+where a plug-in event is one entry in ``changes`` carrying its payload. A plug-in
 event reaches a subscription by the rules in :func:`_matches_plugin_event`.
 
 **A subscription's reach is the scope it names.** ``initiative_id`` set means
@@ -10,7 +10,7 @@ that initiative's changes; naming none means the community's. ``_matches``
 applies it per change item, before a batch is assembled, and that is the whole
 of the decision — no account's standing is consulted anywhere in a pass.
 
-A subscription an installed app registered is also capped by the app's reach
+A subscription an installed plug-in registered is also capped by the plug-in's reach
 as it is now: the install is live, it is placed in the change's initiative, and
 its grant holds the read scope of what changed. That is read with the roster,
 one statement per guild per pass (:class:`InstallReach`), so removing a
@@ -18,9 +18,9 @@ placement or a scope stops delivery from the next pass on.
 
 That is the right granularity because of what a delivery is. An envelope is
 identifiers and changed column **names**; a consumer reads current state back
-through the REST path, where every gate applies to the read. An installed app
+through the REST path, where every gate applies to the read. An installed plug-in
 calling back presents its own token, whose standing is read on every call — so
-what an app may *do*, and the instant at which it stops being able to, is
+what a plug-in may *do*, and the instant at which it stops being able to, is
 decided there rather than here.
 
 A subscription is therefore the community's integration configuration, not the
@@ -139,18 +139,18 @@ def _event_type(row: EventOutbox) -> str:
 
 @dataclass(frozen=True)
 class InstallReach:
-    """What an installed app may hear right now, for a subscription it holds.
+    """What an installed plug-in may hear right now, for a subscription it holds.
 
     Read with the subscription roster, in the same statement, once per pass:
     whether the install is live, the initiatives it is placed in, the
     resources the seat's grant lets it read (writing implies reading), and the
-    apps it may hear from (``apps:<public_id>``).
+    plug-ins it may hear from (``plugins:<public_id>``).
     """
 
     live: bool
     placed: frozenset[int]
     readable: frozenset[str]
-    apps: frozenset[str] = frozenset()
+    plugins: frozenset[str] = frozenset()
 
     @classmethod
     def from_row(
@@ -161,11 +161,11 @@ class InstallReach:
         granted_scopes: Iterable[str] | None,
     ) -> "InstallReach":
         readable: set[str] = set()
-        apps: set[str] = set()
+        plugins: set[str] = set()
         for scope in granted_scopes or ():
             target = plugin_scope_target(scope)
             if target is not None:
-                apps.add(target)
+                plugins.add(target)
                 continue
             # A scope the vocabulary no longer has grants nothing.
             try:
@@ -177,22 +177,22 @@ class InstallReach:
             live=bool(live),
             placed=frozenset(placed or ()),
             readable=frozenset(readable),
-            apps=frozenset(apps),
+            plugins=frozenset(plugins),
         )
 
     def hears_plugin(self, emitter: str, initiative_id: int | None) -> bool:
         """Whether it may hear an event ``emitter`` emitted about
         ``initiative_id`` (``None`` for the community): it is live, holds
-        ``apps:<emitter>``, and is placed in that initiative."""
+        ``plugins:<emitter>``, and is placed in that initiative."""
         return (
             self.live
-            and emitter in self.apps
+            and emitter in self.plugins
             and (initiative_id is None or initiative_id in self.placed)
         )
 
 
 def _within_reach(row: EventOutbox, reach: InstallReach) -> bool:
-    """Whether an installed app may hear about this change now: it is live,
+    """Whether an installed plug-in may hear about this change now: it is live,
     placed in the change's initiative (or the change belongs to none), and
     holds the read scope of what changed."""
     if not reach.live:
@@ -214,10 +214,10 @@ def _matches(
     set intersection and no request, and grouping by transaction never widens
     what a subscription receives.
 
-    A subscription an installed app registered also answers to the app's
-    reach (:class:`InstallReach`): its declared scope, capped by where the app
+    A subscription an installed plug-in registered also answers to the plug-in's
+    reach (:class:`InstallReach`): its declared scope, capped by where the plug-in
     is placed and what it is granted now. ``reach`` is ``None`` only for a
-    subscription no app registered.
+    subscription no plug-in registered.
     """
     if _event_type(row) not in subscription.event_types:
         return False
@@ -245,12 +245,12 @@ def _matches_plugin_event(
     subscription: WebhookSubscription,
     reach: InstallReach | None = None,
 ) -> bool:
-    """Whether one app event belongs in this subscription's batch.
+    """Whether one plug-in event belongs in this subscription's batch.
 
     An event about an initiative reaches a subscription in that initiative, or
     the community's. One about no initiative — a vendor organization is not an
     initiative — reaches the community's, and one narrowed to an initiative
-    the emitting app is placed in too. A subscription an installed app
+    the emitting plug-in is placed in too. A subscription an installed plug-in
     registered also answers to its reach (:meth:`InstallReach.hears_plugin`),
     in the initiative the event lands in.
     """
@@ -290,11 +290,11 @@ def _envelope(
     ``subscription_id`` included, and that one is what a receiver matches a
     delivery to its own record by.
 
-    ``actor_plugin`` is the ``public_id`` of the app whose request wrote the
-    change, so an app can recognise its own writes. It is set independently of
-    ``actor_ref``: an app acting as its community names no person.
+    ``actor_plugin`` is the ``public_id`` of the plug-in whose request wrote the
+    change, so a plug-in can recognise its own writes. It is set independently of
+    ``actor_ref``: a plug-in acting as its community names no person.
 
-    ``plugin_events`` are the events apps emitted in the transaction, each with
+    ``plugin_events`` are the events plug-ins emitted in the transaction, each with
     its emitter's ``public_id``. Each is one entry in ``changes`` carrying its
     payload, and the initiative it landed in for this subscription: its own,
     or for one about no initiative, the initiative the subscription is
@@ -330,7 +330,7 @@ def _envelope(
                     if event.initiative_id is not None
                     else subscription.initiative_id
                 ),
-                "app": emitter,
+                "plugin": emitter,
                 "payload": event.payload,
             }
             for event, emitter in plugin_events
@@ -464,7 +464,7 @@ async def _settle(
 
 
 def _emitter_placed() -> Any:
-    """The initiatives an app event's emitting install is placed in."""
+    """The initiatives a plug-in event's emitting install is placed in."""
     return (
         select(func.array_agg(PluginPlacement.initiative_id))
         .where(PluginPlacement.install_id == PluginEventOutbox.install_id)
@@ -501,9 +501,9 @@ async def _drain_subscription(
     Routed with ``guild_id`` alone: a poller is not anybody, so it carries no
     user and no role, and the policies admit it by the connection's own login.
 
-    ``reach`` is what the app that registered this subscription may hear, read
+    ``reach`` is what the plug-in that registered this subscription may hear, read
     with the roster; ``plugin_ids`` maps an install's ``listing_uid`` to its
-    registration's ``public_id``, for naming the app that wrote a change.
+    registration's ``public_id``, for naming the plug-in that wrote a change.
     Transactions outside the reach are settled like any other non-match, so
     they are not delivered later either.
     """
@@ -516,7 +516,7 @@ async def _drain_subscription(
         if not await _claim(session, subscription, txn_id, now=now):
             continue
 
-        # The writing app's listing rides along with each row, so naming it
+        # The writing plug-in's listing rides along with each row, so naming it
         # costs no statement of its own.
         rows = list(
             await session.exec(
@@ -554,7 +554,7 @@ async def _drain_subscription(
 
         # One transaction, one actor — the batch is what a single request
         # touched. Named for this subscriber, in the sector its install or its
-        # own registration gives it. An app's events name the app that emitted
+        # own registration gives it. A plug-in's events name the plug-in that emitted
         # them and no person.
         if batch:
             actor_id = batch[0].actor_user_id
@@ -611,13 +611,13 @@ async def _drain_subscription(
 
 
 def _roster(live_listings: Iterable[str]):
-    """The active subscriptions, each with what its app may hear right now.
+    """The active subscriptions, each with what its plug-in may hear right now.
 
-    One statement for the whole guild. A subscription an app registered is
+    One statement for the whole guild. A subscription a plug-in registered is
     joined to its install: live when the install is enabled and its
     registration is (``live_listings``, the listings of the live registrations,
     by the rule the install standing reads), the initiatives it is
-    placed in, and the scopes its seat granted. A subscription no app
+    placed in, and the scopes its seat granted. A subscription no plug-in
     registered carries NULLs there and is not asked about any of it.
     """
     placed = (
@@ -686,7 +686,7 @@ async def drain_guild(
     # Read the subscription roster with full guild authority: which targets are
     # registered is guild configuration, not initiative content. What each of
     # them may then SEE is decided per subscription in _drain_subscription:
-    # the scope it names and, for one an app registered, the app's reach.
+    # the scope it names and, for one a plug-in registered, the plug-in's reach.
     registrations = (await load_registrations()).values()
     plugin_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
     live_listings = [r.listing_uid for r in registrations if r.listing_uid and r.live]
@@ -735,7 +735,7 @@ async def drain_guild(
 
 async def expire_history(session: AsyncSession, guild_id: int) -> None:
     """Drop the community's outbox history past the window: change events and
-    app events, the ledger rows naming their transactions, and the vendor
+    plug-in events, the ledger rows naming their transactions, and the vendor
     webhook delivery ids past their expiry.
 
     Age-based on purpose: a subscription weeks behind is broken, and holding
@@ -760,4 +760,6 @@ async def expire_history(session: AsyncSession, guild_id: int) -> None:
         logger.info(
             "outbox retention: guild=%s transactions=%s", guild_id, len(txn_ids)
         )
-    await session.exec(delete(PluginHookDelivery).where(PluginHookDelivery.expires_at < now))
+    await session.exec(
+        delete(PluginHookDelivery).where(PluginHookDelivery.expires_at < now)
+    )

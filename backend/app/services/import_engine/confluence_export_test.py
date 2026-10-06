@@ -206,7 +206,7 @@ async def test_the_export_maps_to_a_wiki_with_its_files():
     fetched, site = await ce.export_to_fetched(
         export_zip(),
         guild_id=1,
-        plugin_version="0.0.0-test",
+        app_version="0.0.0-test",
         asset_budget=AssetBudget(bytes_left=10_000_000, files_left=100),
         store=_discard,
         documents=True,
@@ -228,7 +228,7 @@ async def test_without_a_budget_no_file_is_read():
     fetched, _site = await ce.export_to_fetched(
         export_zip(),
         guild_id=1,
-        plugin_version="0.0.0-test",
+        app_version="0.0.0-test",
         asset_budget=None,
         documents=True,
     )
@@ -268,7 +268,7 @@ def _real_fetched():
     return ce.export_to_fetched(
         open_zip(real_export_bytes()),
         guild_id=1,
-        plugin_version="0.0.0-test",
+        app_version="0.0.0-test",
         asset_budget=bundle_budget(),
         store=_discard,
         documents=True,

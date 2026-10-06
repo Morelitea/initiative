@@ -1,19 +1,19 @@
-"""Installing and removing guild apps.
+"""Installing and removing guild plug-ins.
 
-Three shapes, and the difference is what the app brings with it.
+Three shapes, and the difference is what the plug-in brings with it.
 
 A **tool instance** mounts one of this build's own tools at guild scope.
 Installing creates an ordinary row in that tool's ordinary table with no
 initiative — a guild-level calendar is a `calendars` row with `initiative_id`
 NULL — owned by the install, so the sidebar can link straight to it. Nothing
 about the tool changes: same table, same UI, same sharing, same trash. The
-content is seeded shared with everyone in the guild, which is what makes an app
+content is seeded shared with everyone in the guild, which is what makes a plug-in
 useful the moment it lands. From there the guild admin decides its sharing:
 remove the everyone grant to make it private, add write grants to let
 particular members or roles post in it. Writing the row itself is the admin's.
 
 An install is not limited to what it created on the way in. A guild admin
-adding another guild calendar gives it to the install too, because the app is
+adding another guild calendar gives it to the install too, because the plug-in is
 the container: it is the entry that reaches the content, so removing it takes
 the content with it rather than stranding rows nothing links to.
 
@@ -21,16 +21,16 @@ An **embed** brings none. It opens a surface the operator configured, so there
 is no row to create, nothing to share, and nothing to trash on the way out —
 installing it adds an entry, and removing it takes the entry away. Who may open
 it is settled by the endpoint that mints its handoff rather than by grants,
-which is why such an app reports itself as admin-only.
+which is why such a plug-in reports itself as admin-only.
 
-A **service** app brings connections rather than content: what it needs is
+A **service** plug-in brings connections rather than content: what it needs is
 configuration, which lives on the install row, in its secret values
 (:func:`store_secrets`) and in each member's own connection. It creates no artifacts here.
 
 **Artifacts are what the install owns.** An install may produce more than
 one thing; what it produced is every guild-level row whose owner grant names
 it, read as `[{"type": …, "id": …}]`, and removal walks that through
-:data:`ARTIFACT_HANDLERS`. Every tool an app may mount has a handler — asserted
+:data:`ARTIFACT_HANDLERS`. Every tool a plug-in may mount has a handler — asserted
 by a test rather than left to be noticed the day an uninstall quietly leaves a
 row behind.
 """
@@ -118,9 +118,9 @@ class ArtifactHandler:
     """How one kind of artifact is made and unmade.
 
     ``create`` makes the row, owned by the install; ``remove`` disposes of it.
-    Removal is soft wherever the tool has a trash, because what an app created
+    Removal is soft wherever the tool has a trash, because what a plug-in created
     is guild content — the events someone put in a guild calendar should survive
-    an admin removing the app.
+    an admin removing the plug-in.
     """
 
     create: Callable[..., Awaitable[None]]
@@ -128,13 +128,13 @@ class ArtifactHandler:
 
 
 async def _create_calendar(
-    session: AsyncSession, *, app: GuildPlugin, name: str
+    session: AsyncSession, *, plugin: GuildPlugin, name: str
 ) -> None:
     calendar = Calendar(
         # No initiative: this belongs to the guild. Its grants decide who reads
         # and writes what it holds, exactly as for an initiative calendar.
         initiative_id=None,
-        created_by=app.created_by,
+        created_by=plugin.created_by,
         name=name,
     )
     session.add(calendar)
@@ -153,12 +153,12 @@ async def _create_calendar(
         ResourceGrant(
             resource_type="calendar",
             resource_id=calendar.id,
-            plugin_install_id=app.id,
+            plugin_install_id=plugin.id,
             level=ResourceAccessLevel.owner,
             initiative_id=None,
         )
     )
-    # Shared with the guild from the start — an app nobody can see is not
+    # Shared with the guild from the start — a plug-in nobody can see is not
     # useful, and narrowing it afterwards is one edit to its sharing. At guild
     # scope the everyone grant reads as every member of the guild.
     session.add(
@@ -193,7 +193,7 @@ async def _remove_calendar(
     )
 
 
-#: One entry per tool an app may mount at guild scope, keyed by the artifact
+#: One entry per tool a plug-in may mount at guild scope, keyed by the artifact
 #: type (which is the tool's own name). ``guild_plugins_test`` asserts this covers
 #: every entry in ``MOUNTABLE_TOOLS``, so a tool added to the manifest
 #: vocabulary cannot ship without a way to unmake what it created.
@@ -235,10 +235,10 @@ async def artifacts_by_install(
 
 
 async def plugin_artifacts(
-    session: AsyncSession, app: GuildPlugin
+    session: AsyncSession, plugin: GuildPlugin
 ) -> list[dict[str, Any]]:
     """What one install produced; see :func:`artifacts_by_install`."""
-    return (await artifacts_by_install(session, [app.id]))[app.id]
+    return (await artifacts_by_install(session, [plugin.id]))[plugin.id]
 
 
 async def lock_install(session: AsyncSession, plugin_id: int) -> Optional[GuildPlugin]:
@@ -269,7 +269,7 @@ async def lock_install(session: AsyncSession, plugin_id: int) -> Optional[GuildP
     ).first()
 
 
-async def load_secrets(session: AsyncSession, app: GuildPlugin) -> dict[str, Any]:
+async def load_secrets(session: AsyncSession, plugin: GuildPlugin) -> dict[str, Any]:
     """An install's secret values, ``{connection_id: {key: ciphertext}}``.
 
     Read from ``guild_plugin_secrets``, which the seat and the system engine read.
@@ -278,7 +278,7 @@ async def load_secrets(session: AsyncSession, app: GuildPlugin) -> dict[str, Any
     stored = (
         await session.exec(
             select(GuildPluginSecret.secrets).where(
-                GuildPluginSecret.install_id == app.id
+                GuildPluginSecret.install_id == plugin.id
             )
         )
     ).first()
@@ -286,18 +286,18 @@ async def load_secrets(session: AsyncSession, app: GuildPlugin) -> dict[str, Any
 
 
 async def store_secrets(
-    session: AsyncSession, app: GuildPlugin, secrets: Mapping[str, Any]
+    session: AsyncSession, plugin: GuildPlugin, secrets: Mapping[str, Any]
 ) -> None:
     """Replace an install's secret values; an empty map removes its row.
 
     The trigger on ``guild_plugin_secrets`` rewrites ``guild_plugins.secret_fields``
-    in the same statement, and ``app`` is refreshed with it. Pending changes to
-    ``app`` are flushed first, so the refresh replaces ``secret_fields`` alone.
+    in the same statement, and ``plugin`` is refreshed with it. Pending changes to
+    ``plugin`` are flushed first, so the refresh replaces ``secret_fields`` alone.
     """
     await session.flush()
     if secrets:
         insert = pg_insert(GuildPluginSecret).values(
-            install_id=app.id, secrets=dict(secrets)
+            install_id=plugin.id, secrets=dict(secrets)
         )
         await session.exec(
             insert.on_conflict_do_update(
@@ -307,9 +307,11 @@ async def store_secrets(
         )
     else:
         await session.exec(
-            delete(GuildPluginSecret).where(col(GuildPluginSecret.install_id) == app.id)
+            delete(GuildPluginSecret).where(
+                col(GuildPluginSecret.install_id) == plugin.id
+            )
         )
-    await session.refresh(app, ["secret_fields"])
+    await session.refresh(plugin, ["secret_fields"])
 
 
 async def find_mounting_plugin(
@@ -323,26 +325,26 @@ async def find_mounting_plugin(
     from the content, since an install with everything trashed is still the
     container.
     """
-    apps = (await session.exec(select(GuildPlugin))).all()
-    for app in apps:
-        definition = app.definition or {}
+    plugins = (await session.exec(select(GuildPlugin))).all()
+    for plugin in plugins:
+        definition = plugin.definition or {}
         if (
             definition.get("plugin_kind") == "tool_instance"
             and definition.get("tool") == tool
         ):
-            return app
+            return plugin
     return None
 
 
-async def create_plugin_artifacts(session: AsyncSession, app: GuildPlugin) -> None:
-    """Create what the app mounts, owned by its install.
+async def create_plugin_artifacts(session: AsyncSession, plugin: GuildPlugin) -> None:
+    """Create what the plug-in mounts, owned by its install.
 
     Only a tool instance produces anything. An embed opens a surface that
-    already exists, and a **service** app brings connections rather than
+    already exists, and a **service** plug-in brings connections rather than
     content — its install is the row plus the definition it pinned, and what it
     offers is served from the container the operator registered.
     """
-    definition = app.definition or {}
+    definition = plugin.definition or {}
     if definition.get("plugin_kind") != "tool_instance":
         return
 
@@ -354,7 +356,7 @@ async def create_plugin_artifacts(session: AsyncSession, app: GuildPlugin) -> No
         # teaching about a new one.
         raise ValueError(f"cannot mount {tool!r} at guild scope")
 
-    await handler.create(session, app=app, name=app.name)
+    await handler.create(session, plugin=plugin, name=plugin.name)
 
 
 async def install_plugin(
@@ -370,23 +372,23 @@ async def install_plugin(
     via: str = "install",
     granted_scopes: Sequence[str] = (),
 ) -> GuildPlugin:
-    """Create the install row, and whatever the app mounts alongside it.
+    """Create the install row, and whatever the plug-in mounts alongside it.
 
     One place knows what an install *is*, because there are two callers now: a
-    guild admin choosing an app, and the deployment placing a mandatory one into
+    guild admin choosing a plug-in, and the deployment placing a mandatory one into
     every guild (§7.7). The row is flushed rather than committed — the caller
     owns the transaction, since a guild creation commits the install together
     with the rest of the guild's seed.
 
     ``actor_user_id`` is the account the caller's session runs as — an admin
-    choosing the app, or ``None`` for a sweep running as nobody. ``via`` says
+    choosing the plug-in, or ``None`` for a sweep running as nobody. ``via`` says
     which of the two routes this install came down, and rides the record.
 
     ``granted_scopes`` is what the seat consented to in the install dialog,
     already checked against the manifest and the ceiling by the caller. It is
     written with the row, so the install never exists without its consent.
     """
-    app = GuildPlugin(
+    plugin = GuildPlugin(
         listing_uid=listing_uid,
         listing_version=listing_version,
         plugin_kind=definition["plugin_kind"],
@@ -396,9 +398,9 @@ async def install_plugin(
         granted_scopes=sorted(set(granted_scopes)),
         created_by=created_by,
     )
-    session.add(app)
+    session.add(plugin)
     await session.flush()
-    await create_plugin_artifacts(session, app)
+    await create_plugin_artifacts(session, plugin)
     # Staged in the caller's transaction, after the flush that gives the install
     # its id, so the record and the install land together or not at all.
     await audit_service.record(
@@ -407,7 +409,7 @@ async def install_plugin(
         actor_user_id=actor_user_id,
         guild_id=guild_id,
         target_type="plugin",
-        target_id=app.id,
+        target_id=plugin.id,
         detail={
             "listing_uid": listing_uid,
             "version": listing_version,
@@ -415,20 +417,20 @@ async def install_plugin(
             "granted_scopes": sorted(set(granted_scopes)),
         },
     )
-    return app
+    return plugin
 
 
 async def uninstall_plugin(
-    session: AsyncSession, app: GuildPlugin, *, actor_user_id: int
+    session: AsyncSession, plugin: GuildPlugin, *, actor_user_id: int
 ) -> None:
     """Remove an install, ending its access and trashing what it created.
 
     The two halves are deliberately different. **Credentials are deleted**, both
-    the guild's and every member's, and each app is told to let go at the vendor
-    — an uninstalled app still receiving a guild's data is the thing this
+    the guild's and every member's, and each plug-in is told to let go at the vendor
+    — an uninstalled plug-in still receiving a guild's data is the thing this
     prevents. **Content is trashed** through the ordinary soft-delete path,
     because the events someone put in a guild calendar are the guild's, and
-    should survive an admin removing the app for as long as the retention
+    should survive an admin removing the plug-in for as long as the retention
     window allows.
 
     The caller holds the install row (:func:`lock_install`), commits, and then
@@ -436,35 +438,37 @@ async def uninstall_plugin(
     """
     guild_id = routed_guild_id(session)
     retention_days = await guilds_service.get_guild_retention_days(session)
-    connections = await connections_service.delete_plugin_connections(session, app=app)
+    connections = await connections_service.delete_plugin_connections(
+        session, plugin=plugin
+    )
     # Every member's answers to its requests go with it. The foreign key would
     # take them with the install row; removed here so the record counts them.
     consents = await consents_service.delete_install_consents(
-        session, install_id=app.id
+        session, install_id=plugin.id
     )
-    # An install is what makes an app present in a guild, so removing it ends
-    # what that app is sent. Switched off rather than deleted: the row records
+    # An install is what makes a plug-in present in a guild, so removing it ends
+    # what that plug-in is sent. Switched off rather than deleted: the row records
     # what was going where, and a reinstall registers afresh.
     await webhook_subscriptions_service.deactivate_for_install(
-        session, guild_id=guild_id, plugin_install_id=app.id
+        session, guild_id=guild_id, plugin_install_id=plugin.id
     )
-    secrets = await load_secrets(session, app)
+    secrets = await load_secrets(session, plugin)
     queue_install_revocations(
         session,
-        app,
-        {*(app.config or {}), *secrets},
+        plugin,
+        {*(plugin.config or {}), *secrets},
         secrets=secrets,
         reason="uninstalled",
     )
-    for artifact in await plugin_artifacts(session, app):
+    for artifact in await plugin_artifacts(session, plugin):
         await ARTIFACT_HANDLERS[artifact["type"]].remove(
             session,
             artifact["id"],
             deleted_by_user_id=actor_user_id,
             retention_days=retention_days,
         )
-    install_id, listing_uid = app.id, app.listing_uid
-    await session.delete(app)
+    install_id, listing_uid = plugin.id, plugin.listing_uid
+    await session.delete(plugin)
     # Staged before the commit that removes the row, and reading the counts the
     # steps above returned rather than asking again.
     await audit_service.record(
@@ -483,7 +487,7 @@ async def uninstall_plugin(
 
 
 async def clear_static_connection(
-    session: AsyncSession, app: GuildPlugin, connection_id: str
+    session: AsyncSession, plugin: GuildPlugin, connection_id: str
 ) -> None:
     """Clear a guild-wide connection's stored values and its handle.
 
@@ -491,25 +495,27 @@ async def clear_static_connection(
     with the values, so a token asked for by the old one is refused;
     connecting again mints a fresh one. The caller holds the install row.
     """
-    secrets = await load_secrets(session, app)
-    if (app.config or {}).get(connection_id) or secrets.get(connection_id):
+    secrets = await load_secrets(session, plugin)
+    if (plugin.config or {}).get(connection_id) or secrets.get(connection_id):
         queue_install_revocations(
-            session, app, [connection_id], secrets=secrets, reason="disconnected"
+            session, plugin, [connection_id], secrets=secrets, reason="disconnected"
         )
-    app.config = {
-        key: value for key, value in (app.config or {}).items() if key != connection_id
+    plugin.config = {
+        key: value
+        for key, value in (plugin.config or {}).items()
+        if key != connection_id
     }
     await store_secrets(
         session,
-        app,
+        plugin,
         {key: value for key, value in secrets.items() if key != connection_id},
     )
-    app.connection_refs = {
+    plugin.connection_refs = {
         key: value
-        for key, value in (app.connection_refs or {}).items()
+        for key, value in (plugin.connection_refs or {}).items()
         if key != connection_id
     }
-    _unverified(app)
+    _unverified(plugin)
 
 
 def _config_fields(config: dict, secrets: dict) -> dict[str, Any]:
@@ -528,7 +534,7 @@ def _config_fields(config: dict, secrets: dict) -> dict[str, Any]:
 
 async def apply_static_config(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     values: Mapping[str, Mapping[str, Any]],
     *,
     actor_user_id: int,
@@ -540,13 +546,13 @@ async def apply_static_config(
     settable here. Raises :class:`~app.services.tenant.plugin_config.PluginConfigError`
     for anything refused. The caller holds the install row and commits.
     """
-    config = dict(app.config or {})
-    secrets = await load_secrets(session, app)
+    config = dict(plugin.config or {})
+    secrets = await load_secrets(session, plugin)
     before = _config_fields(config, secrets)
 
     for connection_id, submitted in values.items():
         connection = plugin_config_service.connection_by_id(
-            app.definition, connection_id
+            plugin.definition, connection_id
         )
         if connection is None:
             raise plugin_config_service.PluginConfigError(
@@ -571,14 +577,14 @@ async def apply_static_config(
         else:
             secrets.pop(connection_id, None)
         if plugin_config_service.token_of(connection) is not None:
-            # A connection the app asks a token for is addressed by a handle.
-            plugin_config_service.guild_connection_ref(app, connection_id)
+            # A connection the plug-in asks a token for is addressed by a handle.
+            plugin_config_service.guild_connection_ref(plugin, connection_id)
 
-    app.config = config
-    await store_secrets(session, app, secrets)
-    _unverified(app)
+    plugin.config = config
+    await store_secrets(session, plugin, secrets)
+    _unverified(plugin)
     # Which fields hold something different now, by name. A configuration value
-    # is the app's credential to the vendor, so none of it reaches the record.
+    # is the plug-in's credential to the vendor, so none of it reaches the record.
     moved = audit_service.changed_fields(before, _config_fields(config, secrets))[
         "changed"
     ]
@@ -589,7 +595,7 @@ async def apply_static_config(
             actor_user_id=actor_user_id,
             guild_id=routed_guild_id(session),
             target_type="plugin",
-            target_id=app.id,
+            target_id=plugin.id,
             detail={
                 "area": "config",
                 "changed": moved,
@@ -598,31 +604,31 @@ async def apply_static_config(
         )
 
 
-def _unverified(app: GuildPlugin) -> None:
-    """The app has not seen the install's values as they now stand, so its
+def _unverified(plugin: GuildPlugin) -> None:
+    """The plug-in has not seen the install's values as they now stand, so its
     previous verdict no longer describes them. It reports again once it has
     pulled and checked."""
-    app.config_state = "unverified"
-    app.config_state_detail = None
-    touch(app)
+    plugin.config_state = "unverified"
+    plugin.config_state_detail = None
+    touch(plugin)
 
 
-def touch(app: GuildPlugin) -> None:
-    app.updated_at = datetime.now(timezone.utc)
+def touch(plugin: GuildPlugin) -> None:
+    plugin.updated_at = datetime.now(timezone.utc)
 
 
 # --- placement --------------------------------------------------------------
 #
-# Where an app's initiative-scoped surfaces appear: one ``plugin_placements`` row
-# per initiative, carrying the initiative roles allowed to open the app there.
-# An initiative with no row is one the app is not placed in. Placement is the
+# Where a plug-in's initiative-scoped surfaces appear: one ``plugin_placements`` row
+# per initiative, carrying the initiative roles allowed to open the plug-in there.
+# An initiative with no row is one the plug-in is not placed in. Placement is the
 # seat's answer to "where does this belong", so it applies to everyone
 # including guild admins — unlike the roles on a row, which an admin always
 # clears.
 
 
 class PlacementError(ValueError):
-    """A placement that names something this guild cannot place an app in."""
+    """A placement that names something this guild cannot place a plug-in in."""
 
 
 class PlacementRoleError(PlacementError):
@@ -742,7 +748,10 @@ async def placement_role_ids(
 
 
 async def set_placement_roles(
-    session: AsyncSession, app: GuildPlugin, initiative_id: int, role_ids: Iterable[int]
+    session: AsyncSession,
+    plugin: GuildPlugin,
+    initiative_id: int,
+    role_ids: Iterable[int],
 ) -> PluginPlacement:
     """Place the install in one initiative with exactly these roles.
 
@@ -780,14 +789,14 @@ async def set_placement_roles(
     placement = (
         await session.exec(
             select(PluginPlacement).where(
-                PluginPlacement.install_id == app.id,
+                PluginPlacement.install_id == plugin.id,
                 PluginPlacement.initiative_id == initiative_id,
             )
         )
     ).first()
     if placement is None:
         placement = PluginPlacement(
-            install_id=app.id, initiative_id=initiative_id, role_ids=sorted(wanted)
+            install_id=plugin.id, initiative_id=initiative_id, role_ids=sorted(wanted)
         )
     else:
         placement.role_ids = sorted(wanted)
@@ -798,7 +807,7 @@ async def set_placement_roles(
 
 
 async def set_placed_initiatives(
-    session: AsyncSession, app: GuildPlugin, initiative_ids: set[int]
+    session: AsyncSession, plugin: GuildPlugin, initiative_ids: set[int]
 ) -> None:
     """Place the install in exactly these initiatives.
 
@@ -815,12 +824,12 @@ async def set_placed_initiatives(
     if unknown:
         raise PlacementError(f"initiative {unknown[0]} is not one of this guild's")
 
-    current = await placed_initiative_ids(session, app.id)
+    current = await placed_initiative_ids(session, plugin.id)
     removed = current - initiative_ids
     if removed:
         await session.exec(
             delete(PluginPlacement).where(
-                PluginPlacement.install_id == app.id,
+                PluginPlacement.install_id == plugin.id,
                 PluginPlacement.initiative_id.in_(sorted(removed)),
             )
         )
@@ -829,7 +838,7 @@ async def set_placed_initiatives(
     for initiative_id in added:
         session.add(
             PluginPlacement(
-                install_id=app.id,
+                install_id=plugin.id,
                 initiative_id=initiative_id,
                 role_ids=_default_role_ids(roles, initiative_id),
             )
@@ -837,21 +846,21 @@ async def set_placed_initiatives(
     await session.flush()
 
 
-async def place_in_every_initiative(session: AsyncSession, app: GuildPlugin) -> None:
+async def place_in_every_initiative(session: AsyncSession, plugin: GuildPlugin) -> None:
     """Place the install in every initiative that exists now.
 
-    What installing a mandatory app does. Initiatives created afterwards are
+    What installing a mandatory plug-in does. Initiatives created afterwards are
     placed by the ``initiative_roles`` trigger, which reads
     ``follows_new_initiatives``.
     """
     every = set((await session.exec(select(Initiative.id))).all())
-    current = await placed_initiative_ids(session, app.id)
+    current = await placed_initiative_ids(session, plugin.id)
     added = sorted(every - current)
     roles = await _moderator_role_ids(session, added)
     for initiative_id in added:
         session.add(
             PluginPlacement(
-                install_id=app.id,
+                install_id=plugin.id,
                 initiative_id=initiative_id,
                 role_ids=_default_role_ids(roles, initiative_id),
             )
@@ -861,7 +870,7 @@ async def place_in_every_initiative(session: AsyncSession, app: GuildPlugin) -> 
 
 async def place_with_roles(
     session: AsyncSession,
-    app: GuildPlugin,
+    plugin: GuildPlugin,
     initiative_ids: Optional[Iterable[int]],
     role_names: Iterable[str],
 ) -> list[int]:
@@ -896,7 +905,7 @@ async def place_with_roles(
     for initiative_id in placed:
         session.add(
             PluginPlacement(
-                install_id=app.id,
+                install_id=plugin.id,
                 initiative_id=initiative_id,
                 role_ids=sorted(roles.get(initiative_id, [])),
             )
@@ -907,7 +916,7 @@ async def place_with_roles(
 
 # --- opening a surface ------------------------------------------------------
 #
-# One decision, read by both the handoff mint and the app read that tells the
+# One decision, read by both the handoff mint and the plug-in read that tells the
 # client where each surface may be opened, so the two cannot disagree.
 
 
@@ -925,7 +934,7 @@ class SurfaceAccess(str, Enum):
 
 def requested_scopes(definition: Any) -> list[str]:
     """The scopes a pinned definition's service asks for, in vocabulary order,
-    then the ``apps:`` scopes sorted.
+    then the ``plugins:`` scopes sorted.
 
     Only known scopes are returned, each once.
     """
@@ -946,7 +955,7 @@ def grantable_scopes(definition: Any, ceiling: Iterable[str]) -> list[str]:
 async def plugin_scope_names(
     session: AsyncSession, scopes: Iterable[str]
 ) -> dict[str, str]:
-    """For each ``apps:`` scope among ``scopes``, the name the app it names
+    """For each ``plugins:`` scope among ``scopes``, the name the plug-in it names
     goes by in the catalog, keyed by its public id: its registration's
     listing's name, or the public id itself when there is none to read."""
     targets = sorted(
@@ -997,7 +1006,7 @@ def initiative_surface_ids(definition: Any) -> set[str]:
 
 
 def has_initiative_surfaces(definition: Any) -> bool:
-    """Whether the app has anything to place in an initiative."""
+    """Whether the plug-in has anything to place in an initiative."""
     return bool(initiative_surface_ids(definition))
 
 

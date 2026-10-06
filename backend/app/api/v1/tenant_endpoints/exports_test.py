@@ -3245,7 +3245,7 @@ async def test_initiative_backup_omits_community_wide_sections(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """An initiative export carries the initiative. The community's roster,
-    configuration and installed apps belong to the community-scoped export.
+    configuration and installed plug-ins belong to the community-scoped export.
     The tag vocabulary does ride along, because it is part of the content the
     archive carries."""
     a = await acting_user(
@@ -3259,7 +3259,7 @@ async def test_initiative_backup_omits_community_wide_sections(
     assert "guild/tags.json" in names
     assert "guild/members.json" not in names
     assert "guild/settings.json" not in names
-    assert "guild/apps.json" not in names
+    assert "guild/plugins.json" not in names
 
 
 async def test_backup_carries_initiative_roles_and_members(
@@ -3318,7 +3318,7 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
 
 
 # ---------------------------------------------------------------------------
-# Dashboards: exportable, minus what belongs to somebody else's app
+# Dashboards: exportable, minus what belongs to somebody else's plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -3344,7 +3344,7 @@ async def test_dashboard_from_a_third_party_plugin_is_refused(
     client: AsyncClient, acting_user, session
 ):
     """Its definition belongs to its publisher; the way to have it elsewhere
-    is to install that app there."""
+    is to install that plug-in there."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     dashboard = await create_dashboard(
         session, a.initiative, a.user, name="GitHub Overview"
@@ -3393,13 +3393,13 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
 async def test_guild_backup_records_plugins_it_does_not_carry(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """An app published by somebody else is restored by installing it in the
+    """A plug-in published by somebody else is restored by installing it in the
     destination, not by unpacking a copy — so the archive names it in
     ``skipped`` rather than passing over it in silence."""
     a = await acting_user(
         guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session,
         a.guild,
         a.user,
@@ -3412,11 +3412,13 @@ async def test_guild_backup_records_plugins_it_does_not_carry(
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
-    assert "guild/apps.json" not in archive.namelist()
+    assert "guild/plugins.json" not in archive.namelist()
     skipped = {
-        s["entity_id"]: s["reason"] for s in manifest["skipped"] if s["tool"] == "app"
+        s["entity_id"]: s["reason"]
+        for s in manifest["skipped"]
+        if s["tool"] == "plugin"
     }
-    assert skipped.get(app.id) == "third_party_plugin"
+    assert skipped.get(plugin.id) == "third_party_plugin"
 
 
 async def test_backup_carries_property_definitions(

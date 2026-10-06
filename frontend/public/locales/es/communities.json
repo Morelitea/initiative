@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Participa en aquello a lo que se le añade.",
       "admin": "Dirige la comunidad: miembros, invitaciones, iniciativas, ajustes.",
-      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y aplicaciones. Solo un superadministrador puede nombrar a otro."
+      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y complementos. Solo un superadministrador puede nombrar a otro."
     },
     "loadingSettings": "Cargando configuración…",
     "unableToLoadSettings": "No se pudo cargar la configuración.",
@@ -466,8 +466,8 @@
     "recipientLabel": "Nuevo propietario",
     "recipientPlaceholder": "Elige un administrador",
     "adminsOnly": "Solo los administradores de la comunidad pueden recibir la propiedad.",
-    "pluginHint": "Aplicación",
-    "adminsOrPlugins": "La propiedad puede darse a quienes administran la comunidad, y también a una aplicación activada, ubicada allí donde está este contenido y autorizada para modificarlo.",
+    "pluginHint": "Complemento",
+    "adminsOrPlugins": "La propiedad puede darse a quienes administran la comunidad, y también a un complemento activado, ubicado allí donde está este contenido y autorizado para modificarlo.",
     "confirm": "Transferir",
     "transferring": "Transfiriendo…",
     "nothingOwned": "No posee nada en esta comunidad.",

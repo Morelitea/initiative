@@ -1,6 +1,6 @@
 """Reading an install's connection schema, and holding what was typed into it.
 
-An app declares *connections* — named groups of typed fields — and the pinned
+A plug-in declares *connections* — named groups of typed fields — and the pinned
 definition is the only description of them this build trusts. A guild's answers
 are validated against that pinned copy rather than against whatever the catalog
 says today, so upgrading a listing can never retroactively change what an
@@ -12,25 +12,25 @@ Two custody rules run through everything here:
   field are encrypted per key and stored; a read reports only whether a value is
   present. Nothing in the API returns one, to anybody.
 * **Managed keys are not typed at all.** A field the manifest marks ``managed``
-  is written by the app itself when it completes a vendor flow, so this path
+  is written by the plug-in itself when it completes a vendor flow, so this path
   refuses one rather than letting a form overwrite it.
 
 A guild-wide connection is not always typed. One that declares a ``flow`` is
 established by Initiative instead
 (:mod:`app.services.tenant.plugin_connection_flows`): a guild admin runs the
 vendor's own flow once — an organization-wide install, on the vendor's page,
-where somebody who owns the account grants what it may see — and the app's
+where somebody who owns the account grants what it may see — and the plug-in's
 ``after_connect`` hook says what goes into that connection's managed fields.
 The scope is unchanged, since the credential is still the guild's; what
 changes is who fills it and how, and :func:`guild_connection_ref` is the
-handle the app asks for its token by.
+handle the plug-in asks for its token by.
 
 A flow's tokens are held beside the declared fields under reserved keys
 (:data:`RESERVED_TOKEN_KEYS`), which no manifest declares and no form writes.
 
 Satisfaction is computed from presence alone — which fields have values. This
 build never inspects a credential, calls a vendor, or learns a scope; whether a
-credential carries the permissions it needs is the app's to report, and arrives
+credential carries the permissions it needs is the plug-in's to report, and arrives
 separately as ``config_state``.
 """
 
@@ -75,7 +75,7 @@ MAX_CONFIG_VALUE_LENGTH = 2_000
 #: legitimate credential for several vendors.
 MAX_SECRET_VALUE_LENGTH = 16_000
 
-#: What an app may report back about the configuration it was handed.
+#: What a plug-in may report back about the configuration it was handed.
 CONFIG_STATES: frozenset[str] = frozenset({"unverified", "ok", "invalid"})
 
 #: Where a connection's flow keeps its tokens, beside its declared fields: the
@@ -86,7 +86,7 @@ RESERVED_TOKEN_KEYS: frozenset[str] = frozenset(
 )
 
 #: Long enough that a handle is never guessed, short enough to sit in a URL the
-#: app builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
+#: plug-in builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
 #: column width.
 _REF_ENTROPY_BYTES = 24
 
@@ -113,8 +113,8 @@ class ConfigState:
     """What the UI needs to say whether an install still needs attention.
 
     ``needs_config`` is presence-derived and always knowable here.
-    ``state`` / ``detail`` are the app's own verdict, which stays ``unverified``
-    for an app that never reports — nothing blocks on the round trip.
+    ``state`` / ``detail`` are the plug-in's own verdict, which stays ``unverified``
+    for a plug-in that never reports — nothing blocks on the round trip.
     """
 
     needs_config: bool
@@ -163,8 +163,8 @@ def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:
 # --- the handle a guild-wide flow is joined by -------------------------------
 
 
-def guild_connection_ref(app: Any, connection_id: str) -> str:
-    """The opaque handle the app writes this guild connection's result against.
+def guild_connection_ref(plugin: Any, connection_id: str) -> str:
+    """The opaque handle the plug-in writes this guild connection's result against.
 
     Minted on the admin's first connect and kept, so reconnecting keeps one
     identity rather than minting a new one each time — the rule a member's ref
@@ -179,7 +179,7 @@ def guild_connection_ref(app: Any, connection_id: str) -> str:
     The ref is the authorization: a write-back is accepted for the connection
     its handle names, and only for one this install actually minted.
     """
-    refs = dict(app.connection_refs or {})
+    refs = dict(plugin.connection_refs or {})
     existing = refs.get(connection_id)
     if isinstance(existing, str) and existing:
         return existing
@@ -187,11 +187,11 @@ def guild_connection_ref(app: Any, connection_id: str) -> str:
     refs[connection_id] = mint_connection_ref()
     # Reassigned rather than mutated in place: SQLAlchemy tracks a JSONB column
     # by identity, and a dict changed under it is a change that never lands.
-    app.connection_refs = refs
+    plugin.connection_refs = refs
     return refs[connection_id]
 
 
-def connection_id_for_ref(app: Any, connection_ref: str) -> Optional[str]:
+def connection_id_for_ref(plugin: Any, connection_ref: str) -> Optional[str]:
     """Which guild connection a handle names, or ``None`` for none of them.
 
     ``None`` is the ordinary answer for a member's ref, which this install keeps
@@ -199,7 +199,7 @@ def connection_id_for_ref(app: Any, connection_ref: str) -> Optional[str]:
     """
     if not connection_ref:
         return None
-    for connection_id, ref in (app.connection_refs or {}).items():
+    for connection_id, ref in (plugin.connection_refs or {}).items():
         if ref == connection_ref:
             return connection_id
     return None
@@ -278,7 +278,7 @@ def apply_connection_values(
     the way in and only ever leave again through
     :func:`decrypt_connection_secrets`.
 
-    ``allow_managed`` is for the app's own write-back path, which is the only
+    ``allow_managed`` is for the plug-in's own write-back path, which is the only
     caller entitled to set a field the manifest marked ``managed``.
     """
     fields = {field["key"]: field for field in _fields(connection) if "key" in field}
@@ -327,7 +327,7 @@ def apply_connection_values(
 
 
 def decrypt_connection_secrets(secrets: dict[str, Any] | None) -> dict[str, str]:
-    """The plaintext values, for the one caller that hands them to the app.
+    """The plaintext values, for the one caller that hands them to the plug-in.
 
     Never reached from a response path: the API's own reads report presence.
     """
@@ -355,7 +355,7 @@ def prune_to_definition(
     would keep appearing in the install's own detail payload.
 
     Returns the pruned maps and the ids of connections the definition dropped
-    entirely, which the caller revokes — the app is still holding whatever
+    entirely, which the caller revokes — the plug-in is still holding whatever
     those values bought it.
     """
     # A connection with a flow keeps its tokens too, under the reserved keys.
@@ -466,10 +466,14 @@ def needs_configuration(
     return False
 
 
-def config_state(app: Any) -> ConfigState:
+def config_state(plugin: Any) -> ConfigState:
     """The combined answer the settings page shows for an install."""
     return ConfigState(
-        needs_config=needs_configuration(app.definition, app.config, app.secret_fields),
-        state=app.config_state if app.config_state in CONFIG_STATES else "unverified",
-        detail=app.config_state_detail,
+        needs_config=needs_configuration(
+            plugin.definition, plugin.config, plugin.secret_fields
+        ),
+        state=plugin.config_state
+        if plugin.config_state in CONFIG_STATES
+        else "unverified",
+        detail=plugin.config_state_detail,
     )

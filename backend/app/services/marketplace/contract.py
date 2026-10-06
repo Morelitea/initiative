@@ -1,11 +1,11 @@
-"""The app contract, as this build reads it.
+"""The plug-in contract, as this build reads it.
 
-The vocabulary an app manifest draws on — every enum, cap and character set —
+The vocabulary a plug-in manifest draws on — every enum, cap and character set —
 and the shape it takes are declared once, in the ``initiative-plugin-sdk``
 repository, in ``manifest.contract.json``. That file is vendored here under
 ``backend/vendor/plugin-kit`` at a pinned kit version and read at import.
 
-**Why the kit owns it.** An app author writes against the kit: its types, its
+**Why the kit owns it.** A plug-in author writes against the kit: its types, its
 offline validator, its published JSON Schema. When the vocabulary lived here and
 the kit's types were written by hand beside a schema fetched from this
 repository, the two drifted — the kit could not declare a block this build
@@ -16,7 +16,7 @@ that.
 admission control: it decides what a publisher may install. A deployment
 therefore reads a copy it shipped with, never one fetched at run time, and a new
 contract reaches it when it next releases. So the direction is asymmetric on
-purpose — a kit release reaches app authors immediately and this build at its
+purpose — a kit release reaches plug-in authors immediately and this build at its
 next release — and a term the vendored contract declares that this build does
 not act on is a failing test (:mod:`contract_coverage_test`), not a value
 quietly dropped.
@@ -195,9 +195,9 @@ def _undeclared(value: Any, node: Any) -> list[str]:
 def discarded_terms(definition: Any) -> list[str]:
     """Every key in a served definition that this build's contract does not name.
 
-    A deployment reads the contract it shipped with, so an app written against a
+    A deployment reads the contract it shipped with, so a plug-in written against a
     newer one can send terms this build has no meaning for. They are dropped
-    rather than refused — that is what lets an app target a newer platform and
+    rather than refused — that is what lets a plug-in target a newer platform and
     still install on an older one — which leaves the author with nothing to see.
     This is what the registrar reports back so the skew is visible at
     verification instead of never.

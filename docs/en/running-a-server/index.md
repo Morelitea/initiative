@@ -57,7 +57,7 @@ Not sure you want to run a server at all? A paid hosted service is on the way â€
 
 -   :material-package-variant-plus: __Publishing your own listings__
 
-    Add your own dashboards and apps to the marketplace.
+    Add your own dashboards and plug-ins to the marketplace.
 
     [:octicons-arrow-right-24: Publishing listings](publishing-listings.md)
 

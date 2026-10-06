@@ -114,7 +114,7 @@ def build_project_envelope(
     content: str,
     *,
     selection: str,
-    plugin_version: str,
+    app_version: str,
 ) -> MappedProject:
     """One TickTick list as the envelope an ordinary import applies."""
     rows = [row for row in _rows(content) if _list_name(row) == selection]
@@ -210,7 +210,7 @@ def build_project_envelope(
             description=None,
             statuses=statuses,
             tasks=tasks,
-            plugin_version=plugin_version,
+            app_version=app_version,
             source_url="https://ticktick.com",
         ),
         skipped_rows=skipped,

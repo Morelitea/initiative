@@ -43,7 +43,7 @@ const DESKTOP_INSTALLER = {
  *  the APK and named the same way (see `desktop-app.yml`). */
 /** The app's Google Play listing. */
 export const PLAY_STORE_URL =
-  "https://play.google.com/store/plugins/details?id=studio.beyonders.initiative";
+  "https://play.google.com/store/apps/details?id=studio.beyonders.initiative";
 
 export const desktopInstallerUrl = (version: string, os: DesktopOs): string =>
   `${RELEASES_URL}/download/v${version}/initiative-${version}${DESKTOP_INSTALLER[os]}`;

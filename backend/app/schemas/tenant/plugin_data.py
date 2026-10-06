@@ -2,14 +2,14 @@
 
 Two payloads, and the difference between them is the point.
 
-:class:`PluginDataResponse` is the app's own answer, read through the returns its
+:class:`PluginDataResponse` is the plug-in's own answer, read through the returns its
 endpoint declares: the ones holding several become rows, the ones holding a
 single value stay whole beside them. The projection is by name alone — nothing
 here interprets a value, and the manifest is the only thing that says what the
 names are.
 
 :class:`PluginWidgetCatalogResponse` is what a dashboard needs before it can bind
-anything: which installed apps offer widgets, which sources each widget draws,
+anything: which installed plug-ins offer widgets, which sources each widget draws,
 and the module the browser will run in its sandbox. It is read off each
 install's **pinned** definition, so a canvas is authored against the version the
 guild chose rather than whatever the catalog says today.
@@ -41,14 +41,14 @@ class PluginDataResponse(SanitizedBaseModel):
     """One data source's answer, in the two shapes its endpoint declared."""
 
     #: One entry per index across the endpoint's ``list`` returns, read side by
-    #: side. Values are carried as the app sent them — the widget sandbox
+    #: side. Values are carried as the plug-in sent them — the widget sandbox
     #: receives them as data, never as markup.
     rows: List[Dict[str, Any]] = []
     #: The endpoint's single-valued returns: what the answer says about itself
     #: rather than about any one item in it, and still there when there are no
     #: items at all.
     #: What a statement made of those rows, where the binding carried one.
-    #: Absent otherwise: an app's own rows are read by the names its manifest
+    #: Absent otherwise: a plug-in's own rows are read by the names its manifest
     #: declared, and its widget module already knows them.
     table: Optional["PluginDataTable"] = None
     values: Dict[str, Any] = {}
@@ -61,17 +61,17 @@ class PluginDataResponse(SanitizedBaseModel):
 
 
 class PluginParamOptionSource(SanitizedBaseModel):
-    """Where a parameter's permitted values come from, when only the app knows.
+    """Where a parameter's permitted values come from, when only the plug-in knows.
 
     A repository, a label, a board: every one of them differs per install,
-    changes after it, and can be enumerated only by the app holding that
+    changes after it, and can be enumerated only by the plug-in holding that
     install's credential — so none can be written into a manifest, which is
     published once and identical on every deployment. The manifest names a read
-    of the app's own instead, and this is that naming, carried through to
+    of the plug-in's own instead, and this is that naming, carried through to
     whoever draws the control.
     """
 
-    #: A ``read`` endpoint the same app declares.
+    #: A ``read`` endpoint the same plug-in declares.
     endpoint: str
     #: Which of its returns holds the values. Always one of its ``list``
     #: returns — a menu comes from a column, not from a single value.
@@ -92,13 +92,13 @@ class PluginDataParam(SanitizedBaseModel):
     label: Dict[str, str] = {}
     required: bool = False
     options: Optional[List[str]] = None
-    #: Where to fill a menu from, for the values only the app can enumerate.
+    #: Where to fill a menu from, for the values only the plug-in can enumerate.
     #: A control is still the consumer's to draw — this says what the values
     #: are, not what to draw for them.
     options_from: Optional[PluginParamOptionSource] = None
     #: Whether the parameter takes several values. A fact about the value
     #: rather than about a control, and not inferable: whether to send one
-    #: value or an array is the app's to state.
+    #: value or an array is the plug-in's to state.
     list: bool = False
 
 
@@ -142,9 +142,9 @@ class PluginEndpointRead(SanitizedBaseModel):
 
 
 class PluginWidgetRead(SanitizedBaseModel):
-    """One widget an installed app contributes."""
+    """One widget an installed plug-in contributes."""
 
-    #: Namespaced ``plugin:<listing_uid>:<widget_id>``, so an app's widget can
+    #: Namespaced ``plugin:<listing_uid>:<widget_id>``, so a plug-in's widget can
     #: never resolve to a built-in renderer or the other way round.
     type: str
     id: str
@@ -156,7 +156,7 @@ class PluginWidgetRead(SanitizedBaseModel):
     #: something that no longer parses. Nothing on this side reads, compiles, or
     #: evaluates it — the browser's sandbox is the only thing that runs it.
     module_source: RawTextStr
-    #: Which of the app's read endpoints this widget draws.
+    #: Which of the plug-in's read endpoints this widget draws.
     endpoints: List[str] = []
     #: What a preview draws instead of calling anything, keyed by endpoint id
     #: and projected through that endpoint's returns exactly as a live answer
@@ -165,7 +165,7 @@ class PluginWidgetRead(SanitizedBaseModel):
 
 
 class PluginWidgetCatalogEntry(SanitizedBaseModel):
-    """One installed app's contribution to the widget palette."""
+    """One installed plug-in's contribution to the widget palette."""
 
     plugin_id: int
     plugin_uid: str = Field(max_length=14)
@@ -191,7 +191,7 @@ class PluginParamOption(SanitizedBaseModel):
 class PluginParamOptionsResponse(SanitizedBaseModel):
     """The menu for one parameter, or why there is not one.
 
-    ``unavailable`` is never an error. A source that will not resolve — the app
+    ``unavailable`` is never an error. A source that will not resolve — the plug-in
     is down, a credential nobody has connected, a sibling not yet chosen — must
     leave the parameter **enterable**, because a control disabled on those
     grounds has made a valid configuration unreachable. A consumer draws a menu

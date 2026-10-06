@@ -1,9 +1,9 @@
-"""Payloads for the app service registry and its publishers.
+"""Payloads for the plug-in service registry and its publishers.
 
 A registration's listing, addresses and the public half of its keys are shown
 as they are. Its vendor values are the one thing it holds that is secret: a
 secret one is written and never read back, and the screen is told only that it
-is set. A request writes deployment facts only; what the app is and may do
+is set. A request writes deployment facts only; what the plug-in is and may do
 comes from its listing.
 """
 
@@ -33,7 +33,7 @@ __all__ = [
 
 
 class PluginVendorFieldRead(SanitizedBaseModel):
-    """One value an operator supplies for the app's vendor client, as the
+    """One value an operator supplies for the plug-in's vendor client, as the
     listing's manifest declares it."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -52,9 +52,9 @@ class PluginServiceRegistrationRead(SanitizedBaseModel):
 
     id: int
     public_id: str
-    #: The catalog listing its app facts come from. Null until it arrives.
+    #: The catalog listing its plug-in facts come from. Null until it arrives.
     listing_uid: Optional[str] = None
-    #: ``container``, or ``declarative`` for an app whose calls Initiative
+    #: ``container``, or ``declarative`` for a plug-in whose calls Initiative
     #: makes itself: it has no address, origins or keys.
     kind: str = "container"
     #: The publisher the public_id's prefix names.
@@ -62,25 +62,25 @@ class PluginServiceRegistrationRead(SanitizedBaseModel):
     publisher_prefix: str
     publisher_name: str
     publisher_enabled: bool
-    #: Where this deployment's server calls the app. Null until the operator
+    #: Where this deployment's server calls the plug-in. Null until the operator
     #: gives its address.
     base_url: Optional[str] = None
     #: Where a browser loads its surfaces. Null when that is ``base_url`` too.
     embed_origin: Optional[str] = None
     allowed_origins: List[str] = []
-    #: Public keys this app signs with. Shown in full — the
+    #: Public keys this plug-in signs with. Shown in full — the
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
     jwks: Optional[Dict[str, Any]] = None
-    #: Where the app publishes its key set, on its own origin.
+    #: Where the plug-in publishes its key set, on its own origin.
     jwks_uri: Optional[str] = None
-    #: The most an install of this app may be granted, from its listing.
+    #: The most an install of this plug-in may be granted, from its listing.
     #: Empty means no scope may be granted.
     scope_ceiling: List[str] = []
     #: Installed into every guild and not removable by guild admins.
     mandatory: bool = False
     enabled: bool = True
-    #: ``registry`` when its app facts come from a listing the registry signed,
+    #: ``registry`` when its plug-in facts come from a listing the registry signed,
     #: ``operator`` otherwise.
     source: str = "operator"
     #: The container image its listing names, pinned by digest.
@@ -107,7 +107,7 @@ class PluginServiceRegistrationRead(SanitizedBaseModel):
     #: returns a person with a code, and where its install page returns them.
     connection_callback_url: str
     connection_setup_url: str
-    #: The address to give the vendor for this app's webhooks.
+    #: The address to give the vendor for this plug-in's webhooks.
     webhook_url: str
     #: Enabled, its publisher enabled, every required vendor value set and,
     #: for a container, an address and a key set to verify against.
@@ -117,7 +117,7 @@ class PluginServiceRegistrationRead(SanitizedBaseModel):
 
 
 class _DeploymentFacts(SanitizedBaseModel):
-    """A request naming what only the app's listing states is refused."""
+    """A request naming what only the plug-in's listing states is refused."""
 
     @model_validator(mode="before")
     @classmethod
@@ -128,10 +128,10 @@ class _DeploymentFacts(SanitizedBaseModel):
 
 
 class PluginServiceRegistrationCreate(_DeploymentFacts):
-    """Set up an app service's deployment facts before its listing arrives.
+    """Set up a plug-in service's deployment facts before its listing arrives.
 
-    ``public_id`` names the app. ``embed_origin`` is optional, and unset is the
-    ordinary case: an app reachable at one address needs only ``base_url``.
+    ``public_id`` names the plug-in. ``embed_origin`` is optional, and unset is the
+    ordinary case: a plug-in reachable at one address needs only ``base_url``.
     Give one when the address a browser must use is not the address this
     deployment calls.
 
@@ -143,7 +143,7 @@ class PluginServiceRegistrationCreate(_DeploymentFacts):
     base_url: str = Field(max_length=1000)
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
-    #: JWKS holding the public half of the app's signing keys.
+    #: JWKS holding the public half of the plug-in's signing keys.
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
     mandatory: bool = False
@@ -175,26 +175,26 @@ class PluginServiceRegistrationUpdate(_DeploymentFacts):
 
 
 class PluginServicePublishedKey(SanitizedBaseModel):
-    """One key the app serves under its base URL: what Connect shows, and what
+    """One key the plug-in serves under its base URL: what Connect shows, and what
     the operator confirms."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     kid: str
     #: The key's RFC 7638 SHA-256 thumbprint, base64url without padding: the
-    #: fingerprint the app logs at start.
+    #: fingerprint the plug-in logs at start.
     fingerprint: str = Field(max_length=64)
 
 
 class PluginServiceConnect(SanitizedBaseModel):
-    """Pin the key set the app serves, as the operator confirmed it."""
+    """Pin the key set the plug-in serves, as the operator confirmed it."""
 
     #: The keys the operator was shown and confirmed.
     keys: List[PluginServicePublishedKey] = Field(min_length=1, max_length=20)
 
 
 class PluginServiceVendorSetupStart(SanitizedBaseModel):
-    """Start the vendor's own setup for the app's client."""
+    """Start the vendor's own setup for the plug-in's client."""
 
     #: The GitHub organization to own the new app. Empty: the operator's own
     #: account.
@@ -226,7 +226,7 @@ class PluginPublisherRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: int
-    #: The ``public_id`` prefix its apps carry.
+    #: The ``public_id`` prefix its plug-ins carry.
     prefix: str
     display_name: str
     #: Whether the deployment has confirmed who this publisher is.

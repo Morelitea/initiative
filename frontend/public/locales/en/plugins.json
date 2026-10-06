@@ -1,13 +1,13 @@
 {
-  "title": "Apps",
-  "add": "Add an app",
-  "none": "No apps yet.",
-  "error": "Something went wrong with that app.",
+  "title": "Plug-ins",
+  "add": "Add a plug-in",
+  "none": "No plug-ins yet.",
+  "error": "Something went wrong with that plug-in.",
   "manage": {
-    "title": "Apps",
-    "description": "Apps add something the whole community shares. Only the community's superadmin can add or remove them.",
-    "empty": "No apps installed yet.",
-    "browse": "Browse apps",
+    "title": "Plug-ins",
+    "description": "Plug-ins add something the whole community shares. Only the community's superadmin can add or remove them.",
+    "empty": "No plug-ins installed yet.",
+    "browse": "Browse plug-ins",
     "installed": "Added {{date}}",
     "disabled": "Turned off",
     "enable": "Turn on",
@@ -15,7 +15,7 @@
     "rename": "Rename",
     "remove": "Remove",
     "removeTitle": "Remove {{name}}?",
-    "removeBody": "What it created moves to the trash, where it can still be restored. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.",
+    "removeBody": "What it created moves to the trash, where it can still be restored. Every credential it held — the community's and each member's — is deleted, and the plug-in is told to stop using them.",
     "removed": "{{name}} removed.",
     "saved": "Saved.",
     "needsConfig": "Needs setup",
@@ -37,7 +37,7 @@
     "newSurface": "Show “{{name}}” inside initiatives",
     "accept": "Accept and update",
     "decline": "Decline",
-    "declined": "You declined version {{version}}. The app stays on its current version.",
+    "declined": "You declined version {{version}}. The plug-in stays on its current version.",
     "declinedDone": "Version {{version}} declined.",
     "moved": "A different version is now available. Review what it asks for."
   },
@@ -47,8 +47,8 @@
     "name": "Name",
     "action": "Add to community",
     "done": "{{name}} added.",
-    "adminOnly": "Ask your community's superadmin to add this app.",
-    "unknownState": "Could not check whether this app is already added.",
+    "adminOnly": "Ask your community's superadmin to add this plug-in.",
+    "unknownState": "Could not check whether this plug-in is already added.",
     "reachTitle": "What it can reach",
     "whereTitle": "Where it works",
     "whereDescription": "It shows its page, and reads and changes things, only in the initiatives you choose.",
@@ -61,7 +61,7 @@
     }
   },
   "connections": {
-    "none": "This app asks for nothing to be set up.",
+    "none": "This plug-in asks for nothing to be set up.",
     "communityScope": "Community credential",
     "personalScope": "Your account",
     "set": "Set",
@@ -76,14 +76,14 @@
     "cleared": "Credential cleared.",
     "memberSet": "A community admin has set this up.",
     "memberNotSet": "A community admin still has to set this up.",
-    "communityFlowExplainer": "This one is granted at the vendor rather than typed. Connecting opens their install page, where you choose the account and what this app may see.",
+    "communityFlowExplainer": "This one is granted at the vendor rather than typed. Connecting opens their install page, where you choose the account and what this plug-in may see.",
     "personalExplainer": "This one signs you in as yourself, so each member connects their own account. Nobody else sees yours.",
     "connect": "Connect",
     "reconnect": "Reconnect",
     "disconnect": "Disconnect",
     "disconnected": "Disconnected.",
     "connectOpened": "Finish connecting in the tab that just opened.",
-    "connectUnavailable": "This app isn't set up on this server yet, so there's nowhere to sign in.",
+    "connectUnavailable": "This plug-in isn't set up on this server yet, so there's nowhere to sign in.",
     "connectedAs": "Connected as {{account}}",
     "blocked": "A community admin has stopped you connecting this.",
     "status": {
@@ -96,7 +96,7 @@
   },
   "members": {
     "title": "Members",
-    "noPersonal": "This app has nothing members connect to individually.",
+    "noPersonal": "This plug-in has nothing members connect to individually.",
     "nobodyYet": "Nobody has connected yet.",
     "connectedCount": "{{connected}} of {{total}} members connected",
     "blockedCount_one": "{{count}} blocked",
@@ -114,7 +114,7 @@
     "unblocked": "Block lifted.",
     "revokeAll": "Revoke everyone",
     "revokeAllTitle": "Revoke every member's connection?",
-    "revokeAllBody": "Every member's stored credential is deleted and the app is told to stop using it. The app stays installed and keeps its community settings. Members can connect again afterwards.",
+    "revokeAllBody": "Every member's stored credential is deleted and the plug-in is told to stop using it. The plug-in stays installed and keeps its community settings. Members can connect again afterwards.",
     "revokedAll": "Every connection revoked."
   },
   "showMore": "{{count}} more",
@@ -147,36 +147,36 @@
     "allowedCount_one": "{{count}} member allows this",
     "allowedCount_other": "{{count}} members allow this",
     "requestsColumn": "Requests",
-    "memberRevoked": "The app has stopped acting as that member.",
+    "memberRevoked": "The plug-in has stopped acting as that member.",
     "revokeAll": "Stop it acting as anyone",
-    "revokeAllTitle": "Stop this app acting as everyone?",
-    "revokeAllBody": "The app stops making requests in any member's name at once. It stays installed and keeps its settings, and members can allow it again themselves.",
-    "revokedAll": "The app has stopped acting as everyone."
+    "revokeAllTitle": "Stop this plug-in acting as everyone?",
+    "revokeAllBody": "The plug-in stops making requests in any member's name at once. It stays installed and keeps its settings, and members can allow it again themselves.",
+    "revokedAll": "The plug-in has stopped acting as everyone."
   },
   "settings": {
-    "description": "Set up how this app connects.",
+    "description": "Set up how this plug-in connects.",
     "open": "{{name}} settings",
     "adminTitle": "Community settings",
-    "adminDescription": "What the community owns for this app. Only the superadmin sees this."
+    "adminDescription": "What the community owns for this plug-in. Only the superadmin sees this."
   },
   "embed": {
     "connecting": "Connecting…",
-    "handoffFailed": "Could not open this app. Try again in a moment.",
-    "failed": "This app could not be opened",
-    "notFound": "App not found",
+    "handoffFailed": "Could not open this plug-in. Try again in a moment.",
+    "failed": "This plug-in could not be opened",
+    "notFound": "Plug-in not found",
     "disabled": "{{name}} is turned off",
     "unavailable": "{{name}} is not set up on this server",
-    "unavailableDescription": "Whoever runs this server needs to connect this app's service before it can be opened.",
+    "unavailableDescription": "Whoever runs this server needs to connect this plug-in's service before it can be opened.",
     "noSurface": "{{name}} has no page of its own"
   },
-  "browse": "Browse the app store",
+  "browse": "Browse the marketplace",
   "placement": {
-    "title": "Where this app works",
-    "description": "This app shows its page, and reads and changes things, only in the initiatives you choose.",
-    "descriptionNoPage": "This app reads and changes things only in the initiatives you choose.",
+    "title": "Where this plug-in works",
+    "description": "This plug-in shows its page, and reads and changes things, only in the initiatives you choose.",
+    "descriptionNoPage": "This plug-in reads and changes things only in the initiatives you choose.",
     "all": "Every current initiative",
     "some": "Only the initiatives I choose",
-    "none": "No initiatives chosen, so this app reaches nothing inside initiatives.",
+    "none": "No initiatives chosen, so this plug-in reaches nothing inside initiatives.",
     "roles": {
       "open": "Who can open it in {{name}}",
       "title": "Who can open it here",
@@ -189,23 +189,23 @@
   "connected": {
     "connected": {
       "title": "Connected",
-      "body": "Your account is linked. Initiative recorded it, so the app's tiles will start answering for you."
+      "body": "Your account is linked. Initiative recorded it, so the plug-in's tiles will start answering for you."
     },
     "refused": {
       "title": "Not connected",
-      "body": "The other service did not complete the sign-in. Nothing changed here — try again from the app's settings."
+      "body": "The other service did not complete the sign-in. Nothing changed here — try again from the plug-in's settings."
     },
     "expired": {
       "title": "That link has expired",
-      "body": "Connect links are short-lived. Start again from the app's settings."
+      "body": "Connect links are short-lived. Start again from the plug-in's settings."
     },
     "not_recorded": {
       "title": "Nearly there",
-      "body": "The other service signed you in, but Initiative did not record it. Connect again from the app's settings — nothing was lost."
+      "body": "The other service signed you in, but Initiative did not record it. Connect again from the plug-in's settings — nothing was lost."
     },
     "awaiting_approval": {
       "title": "Waiting on an owner",
-      "body": "The other service asked somebody who owns that organization to approve this app. Nothing went wrong and nothing is set up yet — once they approve it, connect again from the app's settings."
+      "body": "The other service asked somebody who owns that organization to approve this plug-in. Nothing went wrong and nothing is set up yet — once they approve it, connect again from the plug-in's settings."
     },
     "sign_in_required": {
       "title": "Sign in to finish",
@@ -214,14 +214,14 @@
     "closeTab": "You can close this tab."
   },
   "scopes": {
-    "title": "What this app can reach",
-    "description": "Choose what this app may read and change in this community.",
+    "title": "What this plug-in can reach",
+    "description": "Choose what this plug-in may read and change in this community.",
     "read": "Read",
     "write": "Read and change",
     "notAllowed": "This server doesn't allow it",
     "usePlugin": "Use {{name}} in this community",
     "saved": "Access saved",
-    "error": "Couldn't save what this app can reach.",
+    "error": "Couldn't save what this plug-in can reach.",
     "resources": {
       "comments": "Comments",
       "relationships": "Links",

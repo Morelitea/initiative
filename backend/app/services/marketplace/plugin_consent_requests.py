@@ -1,10 +1,10 @@
-"""Recording an installed app's request to act as a member, and telling them.
+"""Recording an installed plug-in's request to act as a member, and telling them.
 
-The app's own request is routed and stood up by the install seam, which also
+The plug-in's own request is routed and stood up by the install seam, which also
 resolves the member it names in the install's own sector. What it then writes —
 the request row in the community's schema, and the member's notification in
 ``public`` — is written here on a system session from the community's
-cohort: the app's role holds nothing
+cohort: the plug-in's role holds nothing
 on either table, and neither write decides what anybody may reach. The row is a
 question for the member, and only the member's answer makes it count.
 """
@@ -63,8 +63,8 @@ class RecordedRequest:
 
 def consent_target_path(install_id: int) -> str:
     """Where the member answers, inside the community: its front page with the
-    app's settings open."""
-    return f"/?app={int(install_id)}"
+    plug-in's settings open."""
+    return f"/?plugin={int(install_id)}"
 
 
 async def record_request(
@@ -137,7 +137,9 @@ async def record_request(
                 raise ConsentRequestLimited()
             row, created = existing, False
         plugin_name = (
-            await session.exec(select(GuildPlugin.name).where(GuildPlugin.id == install_id))
+            await session.exec(
+                select(GuildPlugin.name).where(GuildPlugin.id == install_id)
+            )
         ).first()
         recorded = RecordedRequest(
             purpose=row.purpose,

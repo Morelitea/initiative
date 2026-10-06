@@ -1,6 +1,6 @@
 """Listing content is data here, and this is the test that keeps it that way.
 
-A service app ships ``module_source``: the JavaScript its widget renders with.
+A service plug-in ships ``module_source``: the JavaScript its widget renders with.
 This build's only jobs are to measure it, store it, and hand it to the browser,
 where it runs inside the zero-capability sandbox every widget uses. Nothing on
 the server parses, compiles, imports, or evaluates it — and "nothing does" is
@@ -159,7 +159,7 @@ class TestNothingExecutesListingContent:
         byte, because storing is all that happens to it."""
         source = "__import__('os').system('echo nope')\n"
         definition = normalize_listing_definition(
-            "app",
+            "plugin",
             {
                 "plugin_kind": "service",
                 "service": {"public_id": "tests.widget-co"},

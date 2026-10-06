@@ -1,6 +1,6 @@
 """Export the OpenAPI spec to a JSON file without starting the server.
 
-``--app`` exports the app API's spec instead: what an installed app may call.
+``--plugin`` exports the plug-in API's spec instead: what an installed plug-in may call.
 """
 
 import json
@@ -23,8 +23,8 @@ from app.main import app, plugin_openapi  # noqa: E402
 
 def main():
     args = sys.argv[1:]
-    spec = plugin_openapi() if "--app" in args else app.openapi()
-    paths = [arg for arg in args if arg != "--app"]
+    spec = plugin_openapi() if "--plugin" in args else app.openapi()
+    paths = [arg for arg in args if arg != "--plugin"]
     output = paths[0] if paths else "-"
     content = json.dumps(spec, indent=2)
     if output == "-":

@@ -71,7 +71,7 @@ from app.services.tenant.task_completion import sync_completed_at
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. A task is the project's, so it
+#: The routes an installed plug-in may call. A task is the project's, so it
 #: answers to the projects scopes.
 ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
 ProjectsWrite = Annotated[ActorContext, Depends(plugin_scope("projects:write"))]
@@ -593,7 +593,7 @@ async def update_task(
         task,
         previous_status_category=previous_status_category,
         now=now,
-        # An installed app has no zone of its own; a rolling recurrence it
+        # An installed plug-in has no zone of its own; a rolling recurrence it
         # completes counts days in UTC.
         user_timezone=current_user.timezone if current_user is not None else None,
     )
@@ -606,7 +606,7 @@ async def update_task(
             previous=previous_description,
             author=current_user,
         )
-        # An installed app does not manage the community's uploads; a picture
+        # An installed plug-in does not manage the community's uploads; a picture
         # its edit took out of the description stays for a person to clear.
         if current_user is not None:
             let_go = attachments_service.upload_urls_in_markdown(
@@ -778,7 +778,7 @@ async def skip_task(
         session,
         task,
         now=now,
-        # An installed app has no zone of its own; a rolling repeat it skips
+        # An installed plug-in has no zone of its own; a rolling repeat it skips
         # counts days in UTC.
         user_timezone=current_user.timezone if current_user is not None else None,
     ):

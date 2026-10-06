@@ -119,7 +119,7 @@ class UserCreate(SanitizedBaseModel):
 
 
 class PluginPerson(SanitizedBaseModel):
-    """A person, as an installed app receives them wherever one appears.
+    """A person, as an installed plug-in receives them wherever one appears.
 
     ``id`` is the install's own reference for them. Their handle (``username``
     and ``discriminator``), the name they set in the community
@@ -135,14 +135,14 @@ class PluginPerson(SanitizedBaseModel):
     avatar_url: Optional[str] = Field(
         default=None,
         description=(
-            "Where the app reads the picture this member uploaded: "
+            "Where the plug-in reads the picture this member uploaded: "
             "`/api/v1/c/0/members/{id}/avatar/{sha256}`, a path on Initiative "
             "served under `members:read`. Absent when they have not uploaded one."
         ),
     )
 
     def for_install(self) -> dict[str, Any]:
-        """This person, as the installed app being answered may know them."""
+        """This person, as the installed plug-in being answered may know them."""
         if names_withheld():
             return self.model_dump(mode="json", include={"id"})
         person = self.model_dump(mode="json", exclude={"avatar_url"}, exclude_none=True)
@@ -157,8 +157,8 @@ class PluginPerson(SanitizedBaseModel):
 class PersonShape(SanitizedBaseModel):
     """A shape that draws a person.
 
-    Served as itself to a person. To an installed app it is the
-    :class:`PluginPerson` it names, which is how the app API's document types it
+    Served as itself to a person. To an installed plug-in it is the
+    :class:`PluginPerson` it names, which is how the plug-in API's document types it
     (``x-person``, read by ``app.api.plugin_openapi``).
     """
 

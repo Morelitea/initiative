@@ -21,14 +21,14 @@ from app.testing import create_user
 
 
 PASSWORD = "testpassword123"
-PLUGIN_ORIGIN = {"Origin": "https://studio.beyonders.initiative"}
+APP_ORIGIN = {"Origin": "https://studio.beyonders.initiative"}
 
 
 async def _sign_in_native(client: AsyncClient, email: str) -> dict:
     response = await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": PASSWORD, "device_name": "test-phone"},
-        headers=PLUGIN_ORIGIN,
+        headers=APP_ORIGIN,
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -117,7 +117,7 @@ async def test_the_session_renews_without_a_cookie(
     assert absurd.status_code == 422
 
 
-async def test_a_narrowed_session_narrows_the_token_the_plugin_is_handed(
+async def test_a_narrowed_session_narrows_the_token_the_app_is_handed(
     client: AsyncClient, session: AsyncSession
 ):
     """A session that ends sooner than the deployment's access-token lifetime

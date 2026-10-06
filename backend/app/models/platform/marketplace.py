@@ -121,15 +121,15 @@ class MarketplaceListing(SQLModel, table=True):
     installs_count: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )
-    # Set on a dashboard listing an app ships with itself; NULL on anything
+    # Set on a dashboard listing a plug-in ships with itself; NULL on anything
     # published on its own.
     #
     # A bundled dashboard is an ordinary listing in every other respect — same
     # kind, same uid rules, installed by the same call — because a dashboard
-    # somebody publishes to share and a dashboard that arrives with an app are
+    # somebody publishes to share and a dashboard that arrives with a plug-in are
     # the same thing to the guild installing it. This column carries the two
-    # ways they differ: it is offered only to guilds that have that app, and it
-    # is published and withdrawn with the app rather than on its own.
+    # ways they differ: it is offered only to guilds that have that plug-in, and it
+    # is published and withdrawn with the plug-in rather than on its own.
     #
     # The uid rather than a foreign key. Both rows come from one manifest, and a
     # referential cascade here would be a second mechanism for a lifecycle the
@@ -220,7 +220,7 @@ class MarketplaceListingVersion(SQLModel, table=True):
     # Compared against this deployment's VERSION. A version that needs a newer
     # app is hidden from browse and refused on upgrade, rather than installing
     # something that cannot render.
-    min_plugin_version: Optional[str] = Field(
+    min_app_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
     published_at: datetime = Field(

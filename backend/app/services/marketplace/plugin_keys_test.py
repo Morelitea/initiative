@@ -1,5 +1,5 @@
-"""The keys an app signs with: pasted into its registration, or published by
-the app at its key set address and fetched from there.
+"""The keys a plug-in signs with: pasted into its registration, or published by
+the plug-in at its key set address and fetched from there.
 
 The fetch runs through an injected ``httpx.MockTransport`` against a loopback
 literal, so nothing here touches the network.
@@ -160,4 +160,6 @@ def test_a_thumbprint_is_rfc_7638():
         "kid": "2011-04-29",
     }
 
-    assert plugin_keys.jwk_thumbprint(key) == "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
+    assert (
+        plugin_keys.jwk_thumbprint(key) == "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
+    )

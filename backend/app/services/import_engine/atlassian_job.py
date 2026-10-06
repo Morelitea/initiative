@@ -396,7 +396,7 @@ async def _convert_export(
         fetched, site_url = await confluence_export.export_to_fetched(
             archive,
             guild_id=guild_id,
-            plugin_version=get_version(),
+            app_version=get_version(),
             asset_budget=jira_attachments.bundle_budget(storage_left)
             if include_attachments
             else None,
@@ -416,7 +416,7 @@ async def _convert_export(
             guild_id=guild_id,
             guild_name="Confluence export",
             target_initiative_id=initiative.id,
-            plugin_version=get_version(),
+            app_version=get_version(),
             site_url=site_url,
         )
         return await _stage(path, guild_id=guild_id, roster=roster, summary=summary)
@@ -690,7 +690,7 @@ async def _read(
                     credential,
                     project_keys=projects,
                     guild_id=guild_id,
-                    plugin_version=get_version(),
+                    app_version=get_version(),
                     progress=report_issues,
                     sprints_blocked_by=sprints_blocked_by,
                     # A job started before the option existed brought
@@ -719,7 +719,7 @@ async def _read(
                 pages = await confluence_fetch.fetch_spaces(
                     credential,
                     space_keys=spaces,
-                    plugin_version=get_version(),
+                    app_version=get_version(),
                     progress=report_spaces,
                     # What the issues left of the import's row budget.
                     max_rows=import_limits.IMPORT_FETCH_MAX_ROWS
@@ -760,7 +760,7 @@ async def _read(
             guild_id=guild_id,
             guild_name=source_name,
             target_initiative_id=target_initiative_id,
-            plugin_version=get_version(),
+            app_version=get_version(),
             site_url=site_url,
         )
         cross_links = await asyncio.to_thread(

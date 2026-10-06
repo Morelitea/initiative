@@ -93,9 +93,9 @@ db_cross_cohort_routes = Counter(
 )
 plugin_hook_deliveries = Counter(
     "initiative_plugin_hook_deliveries",
-    "Vendor webhook deliveries received for apps, by outcome: refused (the "
+    "Vendor webhook deliveries received for plug-ins, by outcome: refused (the "
     "signature did not verify), unroutable (no community connected it), "
-    "delivered, or failed (a community's app did not accept it).",
+    "delivered, or failed (a community's plug-in did not accept it).",
     ("outcome",),
 )
 db_connection_communities = Histogram(

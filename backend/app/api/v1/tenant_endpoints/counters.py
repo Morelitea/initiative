@@ -66,10 +66,14 @@ router = APIRouter(route_class=ActorRoute)
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
-#: The routes an installed app may call, under the counter groups scopes. A
+#: The routes an installed plug-in may call, under the counter groups scopes. A
 #: group's counters and their commands answer to the group's own scopes.
-CounterGroupsRead = Annotated[ActorContext, Depends(plugin_scope("counter_groups:read"))]
-CounterGroupsWrite = Annotated[ActorContext, Depends(plugin_scope("counter_groups:write"))]
+CounterGroupsRead = Annotated[
+    ActorContext, Depends(plugin_scope("counter_groups:read"))
+]
+CounterGroupsWrite = Annotated[
+    ActorContext, Depends(plugin_scope("counter_groups:write"))
+]
 
 
 # ---------------------------------------------------------------------------

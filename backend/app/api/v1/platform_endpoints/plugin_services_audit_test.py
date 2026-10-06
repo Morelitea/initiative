@@ -1,8 +1,8 @@
-"""What wiring an app service up writes down.
+"""What wiring a plug-in service up writes down.
 
 A registration confers powers on somebody else's code, so every change to one
 is a record of which powers and which address moved. So is every change to a
-publisher, whose switch reaches every app under it.
+publisher, whose switch reaches every plug-in under it.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from app.testing.factories import (
 
 BASE = "/api/v1/plugin-services/"
 PUBLISHERS = "/api/v1/plugin-publishers/"
-APP_URL = "http://127.0.0.1:9100"
+PLUGIN_URL = "http://127.0.0.1:9100"
 PUBLIC_ID = "acme.widgets"
 LISTING_UID = "K7M2QX8N4TVB9C"
 
@@ -33,7 +33,9 @@ LISTING_UID = "K7M2QX8N4TVB9C"
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
     monkeypatch.setattr(
-        settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"
+        settings,
+        "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+        "-----BEGIN PRIVATE KEY-----",
     )
 
 
@@ -46,8 +48,8 @@ async def _seed(session: AsyncSession, **overrides) -> PluginServiceRegistration
     return await create_plugin_service_registration(
         session,
         public_id=overrides.pop("public_id", PUBLIC_ID),
-        base_url=overrides.pop("base_url", APP_URL),
-        allowed_origins=overrides.pop("allowed_origins", [APP_URL]),
+        base_url=overrides.pop("base_url", PLUGIN_URL),
+        allowed_origins=overrides.pop("allowed_origins", [PLUGIN_URL]),
         listing_uid=overrides.pop("listing_uid", LISTING_UID),
         **overrides,
     )
@@ -64,7 +66,7 @@ async def test_registering_a_plugin_service_names_what_it_confers(
         headers=headers,
         json={
             "public_id": PUBLIC_ID,
-            "base_url": APP_URL,
+            "base_url": PLUGIN_URL,
             "mandatory": True,
         },
     )
@@ -91,7 +93,9 @@ async def test_registering_a_plugin_service_names_what_it_confers(
     assert "base_url" not in detail["values"]
     # The acme prefix was new here, so its publisher was added with it.
     publishers = [
-        e for e in envelopes if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_CREATED
+        e
+        for e in envelopes
+        if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_CREATED
     ]
     assert [r["detail"]["via"] for r in publishers] == ["registration"]
 
@@ -185,13 +189,17 @@ async def test_a_publisher_is_recorded_when_added_and_switched(
 
     envelopes = emitted(capfd)
     added = [
-        e for e in envelopes if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_CREATED
+        e
+        for e in envelopes
+        if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_CREATED
     ]
     assert [(r["actor_user_id"], r["target"]) for r in added] == [
         (owner_id, {"type": "plugin_publisher", "id": publisher_id})
     ]
     updated = [
-        e for e in envelopes if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_UPDATED
+        e
+        for e in envelopes
+        if e["event_type"] == AuditEventType.PLUGIN_PUBLISHER_UPDATED
     ]
     assert [r["detail"]["values"]["enabled"] for r in updated] == [
         {"from": True, "to": False}

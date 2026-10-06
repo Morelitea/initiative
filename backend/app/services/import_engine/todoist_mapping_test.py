@@ -27,7 +27,7 @@ def _csv(*rows: str) -> str:
 
 
 def _build(content: str, name: str = "My project"):
-    return tm.build_project_envelope(content, selection=name, plugin_version="1.2.3")
+    return tm.build_project_envelope(content, selection=name, app_version="1.2.3")
 
 
 def _titles(envelope):
@@ -188,7 +188,7 @@ def test_a_repeating_date_is_due_on_its_next_date_and_repeats(
     mapped = tm.build_project_envelope(
         _csv(f"task,T,,4,1,,,{phrase},en,{zone},,,,,"),
         selection="P",
-        plugin_version="1.2.3",
+        app_version="1.2.3",
         now=datetime(2026, 9, 30, 15, tzinfo=timezone.utc),
     )
     task = mapped.envelope["tasks"][0]
@@ -230,7 +230,7 @@ def test_a_deadline_beside_a_repeat_is_when_it_stops(phrase, zone, deadline, due
     mapped = tm.build_project_envelope(
         _csv(f"task,T,,4,1,,,{phrase},en,{zone},,,,{deadline},"),
         selection="P",
-        plugin_version="1.2.3",
+        app_version="1.2.3",
         now=datetime(2026, 9, 30, 15, tzinfo=timezone.utc),
     )
     task = mapped.envelope["tasks"][0]

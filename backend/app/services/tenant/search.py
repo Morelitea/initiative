@@ -44,7 +44,7 @@ def writable_column(user_id: int | None, *, install: InstallContext | None = Non
     the source's to assert, so offering "this blocks that" for a thing somebody
     can only read is offering something the server must refuse.
 
-    An installed app also needs the write scope of the row's kind and of the
+    An installed plug-in also needs the write scope of the row's kind and of the
     tool governing it, as the tool's own routes ask.
 
     One more call per row, on rows the gate has already narrowed to a page.
@@ -86,7 +86,7 @@ def writable_column(user_id: int | None, *, install: InstallContext | None = Non
 
 
 class SearchScopeError(Exception):
-    """An installed app asked for kinds its scopes do not let it read.
+    """An installed plug-in asked for kinds its scopes do not let it read.
 
     Carries the message code the endpoint answers with.
     """
@@ -99,11 +99,11 @@ class SearchScopeError(Exception):
 def install_entity_types(
     install: InstallContext, types: Optional[Sequence[SearchEntityType]]
 ) -> tuple[SearchEntityType, ...]:
-    """The kinds an installed app's search reaches: those asked for (the
+    """The kinds an installed plug-in's search reaches: those asked for (the
     default scope when none are) whose read scope it holds, per
     ``SEARCH_ENTRY_READ_SCOPE``. Writing implies reading.
 
-    Raises :class:`SearchScopeError` when that leaves none, so an app asking
+    Raises :class:`SearchScopeError` when that leaves none, so a plug-in asking
     only for kinds it cannot read is told so rather than answered with nothing.
     """
     asked = tuple(types) if types else entity_types(default_scope_only=True)
@@ -590,9 +590,9 @@ async def suggest(
     """Titles to jump to. No snippets and no body ranking — this answers "take
     me to the thing I am naming", which is a different question from search.
 
-    An installed app (``install``, with ``user_id`` None) is answered only the
+    An installed plug-in (``install``, with ``user_id`` None) is answered only the
     kinds its scopes let it read (:func:`install_entity_types`), and the
-    index's policies hold each entry to what the app could read through the
+    index's policies hold each entry to what the plug-in could read through the
     tool the entry describes. A member token's sharing is asked for the member
     it acts for, as its policies ask it.
     """
@@ -723,7 +723,7 @@ def tool_search_clause(
 
     The same index the search page reads, so a tool's filter box and the search
     page agree about what matches — and it reaches a description, not just a
-    name, and what mentions a member the words name. An installed app finds a
+    name, and what mentions a member the words name. An installed plug-in finds a
     mention by a name only when it may read names (``members:read``). ``None``
     when there is nothing to search for, so a caller appends it conditionally.
 

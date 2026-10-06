@@ -163,7 +163,7 @@ items_router = APIRouter(route_class=ActorRoute)
 
 logger = logging.getLogger(__name__)
 
-#: The routes an installed app may call, under the queues scopes. A queue's
+#: The routes an installed plug-in may call, under the queues scopes. A queue's
 #: items and its turn commands answer to the queue's own scopes.
 QueuesRead = Annotated[ActorContext, Depends(plugin_scope("queues:read"))]
 QueuesWrite = Annotated[ActorContext, Depends(plugin_scope("queues:write"))]

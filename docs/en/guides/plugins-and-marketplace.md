@@ -2,11 +2,11 @@
 icon: lucide/store
 ---
 
-# Apps & the marketplace
+# Plug-ins & the marketplace
 
 Whatever your group needs, some other group has needed exactly the same thing, built it, got fed up rebuilding it every year, and shared it.
 
-The **marketplace** is where those live: ready-made dashboards and apps you add in a couple of clicks. No developer. No custom build. No waiting for us to get round to shipping it.
+The **marketplace** is where those live: ready-made dashboards and plug-ins you add in a couple of clicks. No developer. No custom build. No waiting for us to get round to shipping it.
 
 Your marketplace holds the listings that ship with Initiative plus whatever the person running your server has added and approved. Nothing turns up on it by accident — everything there is there because a human put it there.
 
@@ -16,15 +16,15 @@ There are two, and the difference is who gets what you take.
 
 | | **Your community's** | **Yours** |
 |---|---|---|
-| What's on it | Dashboards and apps | Decoration packs |
+| What's on it | Dashboards and plug-ins | Decoration packs |
 | Who it's for | Everyone in that community | You, in every community you're in |
-| Where to open it | **Browse the marketplace** in your dashboards list's **More actions** menu (beside the create button, while the list is empty), or at the foot of the **Apps** section of the sidebar | **Browse the marketplace** on **My Settings → Profile** |
+| Where to open it | **Browse the marketplace** in your dashboards list's **More actions** menu (beside the create button, while the list is empty), or at the foot of the **Plug-ins** section of the sidebar | **Browse the marketplace** on **My Settings → Profile** |
 
 ![Browsing the marketplace](../images/marketplace/browse.png)
 
 ## Your community's marketplace
 
-| | **Dashboards** | **Apps** |
+| | **Dashboards** | **Plug-ins** |
 |---|---|---|
 | What it adds | A screen of charts, numbers and timelines | Something the whole community shares |
 | Where it goes | Into one initiative | Into the community |
@@ -47,76 +47,76 @@ A listing's page can show a **preview** drawn with sample data, so you can see t
 
 When the publisher ships a newer version, the dashboard shows **Version X available**. Updating is your choice; nothing changes underneath you. If a listing needs a newer Initiative than your server runs, it says so rather than half-working.
 
-### Adding an app
+### Adding a plug-in
 
-An **app** adds something to the community as a whole rather than one effort: a page of its own, extra dashboard widgets, or a link to a service your group already uses. Because it affects everyone, **only your community's [superadmin](communities.md#why-superadmin-is-separate) can add or remove one**. Everybody else can browse, read the listing, and go and ask them nicely.
+A **plug-in** adds something to the community as a whole rather than one effort: a page of its own, extra dashboard widgets, or a link to a service your group already uses. Because it affects everyone, **only your community's [superadmin](communities.md#why-superadmin-is-separate) can add or remove one**. Everybody else can browse, read the listing, and go and ask them nicely.
 
-1. Switch the marketplace to the **Apps** shelf and open a listing.
+1. Switch the marketplace to the **Plug-ins** shelf and open a listing.
 2. **Add to community**, and name it.
 3. Answer the questions it asks (below), and add it.
 4. If it needs setting up, it's marked **Needs setup**. Open its settings to finish.
 
-The Apps shelf lists the apps your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up, or has switched off, isn't offered here. Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#plugins-that-need-something-running-behind-them).
+The Plug-ins shelf lists the plug-ins your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up, or has switched off, isn't offered here. Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#plug-ins-that-need-something-running-behind-them).
 
-Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Integrations**.
+Installed plug-ins appear in the **Plug-ins** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Integrations**.
 
 ### What you're agreeing to
 
-Adding an app asks up to three things, and every answer can be changed later from the app's settings. So none of this is a trap, and you can't get it wrong in a way that sticks.
+Adding a plug-in asks up to three things, and every answer can be changed later from the plug-in's settings. So none of this is a trap, and you can't get it wrong in a way that sticks.
 
 | | What it means |
 |---|---|
 | **What it can reach** | The kinds of thing it may read, or read and change: projects, documents, comments, tags, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. Two lines start unticked: acting as a moderator, and acting as an admin (see below). |
-| **Where it works** | Every current initiative, or only the ones you pick. An app reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
-| **Who can open it there** | Only for an app with a page inside initiatives: which roles see that page. Community admins always can. |
+| **Where it works** | Every current initiative, or only the ones you pick. A plug-in reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
+| **Who can open it there** | Only for a plug-in with a page inside initiatives: which roles see that page. Community admins always can. |
 
-An app asking for nothing gets asked nothing. It just gets a name.
+A plug-in asking for nothing gets asked nothing. It just gets a name.
 
-However you answer, **it never reaches past what you allowed.** An app that may read projects in the Garden initiative reads projects in the Garden initiative. Not documents, not the Kitchen.
+However you answer, **it never reaches past what you allowed.** A plug-in that may read projects in the Garden initiative reads projects in the Garden initiative. Not documents, not the Kitchen.
 
 ### Acting as a moderator or an admin
 
-On its own, an app sees what any member of an initiative would without being given anything more: what's shared with everyone there, and what it made itself. Something shared with three people stays with those three.
+On its own, a plug-in sees what any member of an initiative would without being given anything more: what's shared with everyone there, and what it made itself. Something shared with three people stays with those three.
 
-Some apps can do more if you let them, and ask for it in two lines that start unticked:
+Some plug-ins can do more if you let them, and ask for it in two lines that start unticked:
 
 - **Act as a moderator in the initiatives it's placed in.** Inside an initiative it works in, it reaches everything a moderator would, whoever it's shared with.
 - **Act as an admin across your whole community.** Everything a community admin reaches, including initiatives it isn't placed in.
 
-Ticking either lets the app ask for that standing; it doesn't use it everywhere at once. An automations app, for example, uses it only for an automation somebody holding that role set up to run that way. Either way, it still reaches only the kinds of thing ticked above. An admin-standing app that may read projects reads every project, and still no documents.
+Ticking either lets the plug-in ask for that standing; it doesn't use it everywhere at once. An automations plug-in, for example, uses it only for an automation somebody holding that role set up to run that way. Either way, it still reaches only the kinds of thing ticked above. An admin-standing plug-in that may read projects reads every project, and still no documents.
 
 ### Updates
 
-Apps update themselves. Most new versions arrive quietly and nobody notices, which is the idea.
+Plug-ins update themselves. Most new versions arrive quietly and nobody notices, which is the idea.
 
-The exception is a version that wants **more** than you agreed to: something new to reach, or a new page. That one waits. The superadmin gets a notification, and the app's settings show what the new version wants, with **Accept and update** and **Decline** beside it. Declining keeps the app exactly as it is, on the version it's already running.
+The exception is a version that wants **more** than you agreed to: something new to reach, or a new page. That one waits. The superadmin gets a notification, and the plug-in's settings show what the new version wants, with **Accept and update** and **Decline** beside it. Declining keeps the plug-in exactly as it is, on the version it's already running.
 
-Prefer to read every update first? Turn off **Update automatically** in the app's settings, and each new version waits for you to click **Update to** it.
+Prefer to read every update first? Turn off **Update automatically** in the plug-in's settings, and each new version waits for you to click **Update to** it.
 
-Some apps come with your server and are added to every community for you. Those can't be removed or turned off from here, and they update without asking. Whoever runs the server decides whether they exist at all.
+Some plug-ins come with your server and are added to every community for you. Those can't be removed or turned off from here, and they update without asking. Whoever runs the server decides whether they exist at all.
 
-### An app can own things
+### A plug-in can own things
 
-Content usually belongs to a person. It can also belong to an **app**, so a project an app looks after doesn't end up orphaned when the person who set it up moves on.
+Content usually belongs to a person. It can also belong to a **plug-in**, so a project a plug-in looks after doesn't end up orphaned when the person who set it up moves on.
 
-In **Settings → Users**, **Transfer ownership** offers apps beside admins. An app can be given something only while it's switched on, works in that initiative, and is allowed to change that kind of thing. An app that owns something may decide who else gets access to it, if you allowed it to change sharing.
+In **Settings → Users**, **Transfer ownership** offers plug-ins beside admins. A plug-in can be given something only while it's switched on, works in that initiative, and is allowed to change that kind of thing. A plug-in that owns something may decide who else gets access to it, if you allowed it to change sharing.
 
-### Setting an app up
+### Setting a plug-in up
 
-Some apps need a credential — an API key, or a sign-in to another service. Two kinds, and the difference matters:
+Some plug-ins need a credential — an API key, or a sign-in to another service. Two kinds, and the difference matters:
 
 - **Community credential** — set once by the superadmin, used for everyone. Good for a shared account the whole group works through.
 - **Your account** — each member supplies their own, used only for them. Yours is yours; other members can't see or use it.
 
 Each connection shows which service it uses and what it's allowed to do there, so you can decide before you hand anything over.
 
-### Turning an app off, and removing it
+### Turning a plug-in off, and removing it
 
-- **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay listed in **Community settings → Integrations**.
+- **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled plug-ins stay listed in **Community settings → Integrations**.
 - **Remove** takes it out entirely:
     - Anything it set up when it was added moves to the **Trash**, restorable during the retention window.
     - Anything it owned stays where it is, with no owner. An admin picks it up with **Claim unowned content** in **Settings → Users**.
-    - Every credential it held, the community's and each member's, is deleted, and the app is told to stop using them.
+    - Every credential it held, the community's and each member's, is deleted, and the plug-in is told to stop using them.
 
 ## Your own marketplace
 

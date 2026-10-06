@@ -79,7 +79,7 @@ router = APIRouter(route_class=ActorRoute)
 pages_router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
-#: The routes an installed app may call, under the wikis scopes.
+#: The routes an installed plug-in may call, under the wikis scopes.
 WikisRead = Annotated[ActorContext, Depends(plugin_scope("wikis:read"))]
 WikisWrite = Annotated[ActorContext, Depends(plugin_scope("wikis:write"))]
 

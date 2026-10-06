@@ -572,29 +572,29 @@ async def _prepare_database() -> None:
             )
         except Exception:
             logger.exception("marketplace: operator catalog scan failed")
-    # This project's own app publisher. Added once; a row that exists is left
+    # This project's own plug-in publisher. Added once; a row that exists is left
     # exactly as it is, so an operator's switch survives a restart.
     try:
         from app.services.marketplace import publishers as plugin_publishers
 
         async with SystemSessionLocal() as publisher_session:
             if await plugin_publishers.seed_publishers(publisher_session):
-                logger.info("app publishers: seeded this project's publisher")
+                logger.info("plug-in publishers: seeded this project's publisher")
     except Exception:
-        logger.exception("app publishers: seeding failed")
-    # App services the deployment declares in a mounted file (PLUGIN_SERVICES_CONFIG).
-    # Database-only: an app's container may boot after this one, and nothing is
+        logger.exception("plug-in publishers: seeding failed")
+    # Plug-in services the deployment declares in a mounted file (PLUGIN_SERVICES_CONFIG).
+    # Database-only: a plug-in's container may boot after this one, and nothing is
     # fetched from it. No-op when the setting is unset.
     if settings.PLUGIN_SERVICES_CONFIG:
         try:
             from app.services.marketplace import registrations as plugin_registrations
 
-            async with SystemSessionLocal() as app_service_session:
+            async with SystemSessionLocal() as plugin_service_session:
                 reconciled = await plugin_registrations.reconcile_from_config(
-                    app_service_session
+                    plugin_service_session
                 )
             logger.info(
-                "app services: %d updated, %d unchanged, %d waiting for their "
+                "plug-in services: %d updated, %d unchanged, %d waiting for their "
                 "listing, %d skipped",
                 reconciled.updated,
                 reconciled.unchanged,
@@ -602,11 +602,11 @@ async def _prepare_database() -> None:
                 reconciled.skipped,
             )
         except Exception:
-            # A registration that failed to reconcile costs that app, not the
+            # A registration that failed to reconcile costs that plug-in, not the
             # boot; already-stored registrations keep working unchanged.
-            logger.exception("app services: reconciliation from config failed")
+            logger.exception("plug-in services: reconciliation from config failed")
 
-    # Apps the deployment provides to every guild (§7.7). New guilds get theirs
+    # Plug-ins the deployment provides to every guild (§7.7). New guilds get theirs
     # at creation; this is how the flag reaches guilds that predate it, on the
     # same sweep pattern that reprovisions stale schemas. Returns immediately
     # when nothing is marked mandatory, which is every install that has not
@@ -617,15 +617,15 @@ async def _prepare_database() -> None:
         backfilled = await mandatory_plugins_service.backfill_mandatory_plugins()
         if backfilled.installed or backfilled.failed:
             logger.info(
-                "mandatory apps: %d installed across %d guild(s), %d failed",
+                "mandatory plug-ins: %d installed across %d guild(s), %d failed",
                 backfilled.installed,
                 backfilled.guilds,
                 backfilled.failed,
             )
     except Exception:
-        # A guild missing a mandatory app is a gap the next boot closes; it is
+        # A guild missing a mandatory plug-in is a gap the next boot closes; it is
         # not a reason to refuse to start.
-        logger.exception("mandatory apps: backfill failed")
+        logger.exception("mandatory plug-ins: backfill failed")
 
 
 if __name__ == "__main__":  # pragma: no cover

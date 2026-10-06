@@ -463,7 +463,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
     "uploads": "stored files, found through the content that shows them",
     "event_outbox": "change log, not content",
-    "plugin_event_outbox": "app events awaiting delivery, not content",
+    "plugin_event_outbox": "plug-in events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",
     "property_definitions": "field config, reached from the tool it configures",
     "webhook_subscriptions": "integration config",

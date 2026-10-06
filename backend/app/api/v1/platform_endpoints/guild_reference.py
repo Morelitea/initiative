@@ -12,7 +12,7 @@ Reached two ways, and no member is involved in either — this is a fact about
 a guild, asked for by a service, and a member's credential is never a way to
 learn it:
 
-* **An installation token** of an app whose registration came from the
+* **An installation token** of a plug-in whose registration came from the
   registry verified under the root shipped in the image, and names the sector
   in its ``reference_sectors``. The guild is the token's install's; a
   ``community_ref`` is optional and, when given, has to be the caller's own name

@@ -1,8 +1,8 @@
-"""Where an installed app appears: ``plugin_placements`` rows.
+"""Where an installed plug-in appears: ``plugin_placements`` rows.
 
 Placement is one row per (install, initiative), carrying the initiative roles
-allowed to open the app there. These tests hold the service helpers that read
-and write those rows, the trigger that places an app following new
+allowed to open the plug-in there. These tests hold the service helpers that read
+and write those rows, the trigger that places a plug-in following new
 initiatives, and the export that carries them.
 """
 
@@ -44,7 +44,7 @@ DEFINITION = {
     "plugin_kind": "service",
     "service": {"public_id": PLACED_ID, "protocol": 1},
     "features": [],
-    "default_name": "Placed app",
+    "default_name": "Placed plug-in",
 }
 
 
@@ -75,13 +75,13 @@ class TestSetPlacedInitiatives:
         self, session: AsyncSession
     ):
         user, guild, first, _ = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, {first.id})
+        await set_placed_initiatives(session, plugin, {first.id})
         await session.commit()
 
-        assert await _rows(session, guild.id, app.id) == {
+        assert await _rows(session, guild.id, plugin.id) == {
             first.id: [await _moderator_id(session, first.id)]
         }
 
@@ -89,13 +89,13 @@ class TestSetPlacedInitiatives:
         self, session: AsyncSession
     ):
         user, guild, first, second = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, {first.id})
+        await set_placed_initiatives(session, plugin, {first.id})
         row = (
             await session.exec(
-                select(PluginPlacement).where(PluginPlacement.install_id == app.id)
+                select(PluginPlacement).where(PluginPlacement.install_id == plugin.id)
             )
         ).one()
         row.role_ids = [123_456]
@@ -103,56 +103,56 @@ class TestSetPlacedInitiatives:
         await session.commit()
 
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, {first.id, second.id})
+        await set_placed_initiatives(session, plugin, {first.id, second.id})
         await session.commit()
-        assert await _rows(session, guild.id, app.id) == {
+        assert await _rows(session, guild.id, plugin.id) == {
             first.id: [123_456],
             second.id: [await _moderator_id(session, second.id)],
         }
 
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, {second.id})
+        await set_placed_initiatives(session, plugin, {second.id})
         await session.commit()
-        assert set(await _rows(session, guild.id, app.id)) == {second.id}
+        assert set(await _rows(session, guild.id, plugin.id)) == {second.id}
 
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, set())
+        await set_placed_initiatives(session, plugin, set())
         await session.commit()
-        assert await _rows(session, guild.id, app.id) == {}
+        assert await _rows(session, guild.id, plugin.id) == {}
 
     async def test_it_may_only_name_this_guild_s_initiatives(
         self, session: AsyncSession
     ):
         user, guild, first, _ = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
         with pytest.raises(PlacementError, match="not one of this guild"):
-            await set_placed_initiatives(session, app, {first.id + 10_000})
+            await set_placed_initiatives(session, plugin, {first.id + 10_000})
 
 
 class TestIsPlaced:
     async def test_it_reads_the_rows(self, session: AsyncSession):
         user, guild, first, second = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
-        assert await is_placed(session, app.id, first.id) is False
-        await set_placed_initiatives(session, app, {first.id})
+        assert await is_placed(session, plugin.id, first.id) is False
+        await set_placed_initiatives(session, plugin, {first.id})
         await session.commit()
 
         await route_session_to_guild(session, guild.id)
-        assert await is_placed(session, app.id, first.id) is True
-        assert await is_placed(session, app.id, second.id) is False
-        assert await placed_initiative_ids(session, app.id) == {first.id}
+        assert await is_placed(session, plugin.id, first.id) is True
+        assert await is_placed(session, plugin.id, second.id) is False
+        assert await placed_initiative_ids(session, plugin.id) == {first.id}
 
     async def test_the_guild_wide_reading_is_always_placed(self, session: AsyncSession):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
-        assert await is_placed(session, app.id, None) is True
+        assert await is_placed(session, plugin.id, None) is True
 
 
 class TestFollowingNewInitiatives:
@@ -160,13 +160,13 @@ class TestFollowingNewInitiatives:
         self, session: AsyncSession
     ):
         user, guild, first, second = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(session, guild, user, definition=DEFINITION)
+        plugin = await create_guild_plugin(session, guild, user, definition=DEFINITION)
 
         await route_session_to_guild(session, guild.id)
-        await place_in_every_initiative(session, app)
+        await place_in_every_initiative(session, plugin)
         await session.commit()
 
-        assert await _rows(session, guild.id, app.id) == {
+        assert await _rows(session, guild.id, plugin.id) == {
             first.id: [await _moderator_id(session, first.id)],
             second.id: [await _moderator_id(session, second.id)],
         }
@@ -205,7 +205,7 @@ class TestFollowingNewInitiatives:
         the trigger, under the request's own role."""
         seat = await acting_user(guild_role=CommunityRole.superadmin)
         admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session,
             seat.guild,
             seat.user,
@@ -220,7 +220,7 @@ class TestFollowingNewInitiatives:
         initiative_id = response.json()["id"]
 
         await route_session_to_guild(session, seat.guild.id)
-        assert await _rows(session, seat.guild.id, app.id) == {
+        assert await _rows(session, seat.guild.id, plugin.id) == {
             initiative_id: [await _moderator_id(session, initiative_id)]
         }
 
@@ -234,15 +234,15 @@ class TestExport:
             uid=PLACED_UID,
             public_id=PLACED_ID,
             kind="plugin",
-            name="Placed app",
+            name="Placed plug-in",
             definition=DEFINITION,
         )
         user, guild, first, _ = await _guild_with_two_initiatives(session)
-        app = await create_guild_plugin(
+        plugin = await create_guild_plugin(
             session, guild, user, definition=DEFINITION, listing_uid=PLACED_UID
         )
         await route_session_to_guild(session, guild.id)
-        await set_placed_initiatives(session, app, {first.id})
+        await set_placed_initiatives(session, plugin, {first.id})
         await session.commit()
 
         await route_session_to_guild(session, guild.id)
@@ -253,7 +253,7 @@ class TestExport:
         payload, count = built
         assert count == 1
         assert payload["schema_version"] == 2
-        [entry] = payload["apps"]
+        [entry] = payload["plugins"]
         assert "placement" not in entry
         assert entry["placements"] == [
             {

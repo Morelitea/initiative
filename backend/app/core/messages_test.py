@@ -9,7 +9,7 @@ rather than noticed in review.
 
 Two kinds of code are deliberately out of scope. The **machine surfaces**
 below are service-to-service channels — billing, the bundled-reference
-channel, an installed app's installation calls — where no person is on the
+channel, an installed plug-in's installation calls — where no person is on the
 other end and the code IS the answer. And the per-tool codes are *derived* from
 ``Tool``, so the set grows on its own; what cannot be derived is the wording,
 which is what this asks a locale for.

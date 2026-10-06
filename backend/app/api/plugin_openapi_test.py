@@ -1,4 +1,4 @@
-"""The app API's document, held to the routes it is cut from."""
+"""The plug-in API's document, held to the routes it is cut from."""
 
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ from app.api.deps import ActorContext, plugin_scope, route_plugin_scope_declarat
 from app.main import app, plugin_openapi
 from app.services.tenant.attachments import _upload_columns
 
-_PLUGIN_DIR = Path(__file__).resolve().parent.parent
+_APP_DIR = Path(__file__).resolve().parent.parent
 _SCHEMA_REF = "#/components/schemas/"
 
-#: Where a person is written for an installed app.
+#: Where a person is written for an installed plug-in.
 _PLUGIN_PERSON_WRITES = {
-    # Every shape the app API's document types as ``PluginPerson``.
+    # Every shape the plug-in API's document types as ``PluginPerson``.
     "schemas/platform/user.py:PersonShape._as_plugin_person",
     # ``value`` holds whatever the property's type stores; a person for a
     # ``user_reference`` property, which the field's description states.
@@ -188,7 +188,7 @@ def _mention_forms(field: Any, schemas: dict[str, Any]) -> set[str]:
 def test_every_field_holding_written_text_carries_its_mentions():
     """A column somebody writes in may mention a person, and is where the
     erasure scrubs mentions (``mention_parser.anonymize_user_mentions``). Each
-    field of the app's document named for one says how it mentions people:
+    field of the plug-in's document named for one says how it mentions people:
     an editor state as Lexical, text as markdown. Its schema describes it."""
     columns = {
         column for written in written_columns().values() for column in written
@@ -231,8 +231,8 @@ def _received(document: dict[str, Any]) -> set[str]:
 @pytest.mark.always
 def test_every_field_in_the_plugin_document_holding_a_stored_file_s_path_says_so():
     """A column that holds a stored file's path, beside the ones people write
-    in (``attachments._upload_columns``), comes to an app as an empty string
-    in place of the path. Each field of a shape an app receives named for one
+    in (``attachments._upload_columns``), comes to a plug-in as an empty string
+    in place of the path. Each field of a shape a plug-in receives named for one
     carries ``x-upload``, which is where the path is emptied, and says so; every
     ``x-upload`` mark sits on a field of its own. A column people write in
     carries its ``Mentions`` mark instead (the test above), which leaves the
@@ -282,8 +282,8 @@ def _plugin_person_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterato
 @pytest.mark.always
 def test_every_plugin_person_write_is_listed():
     found = {
-        f"{path.relative_to(_PLUGIN_DIR).as_posix()}:{where}"
-        for path in _PLUGIN_DIR.rglob("*.py")
+        f"{path.relative_to(_APP_DIR).as_posix()}:{where}"
+        for path in _APP_DIR.rglob("*.py")
         if not path.name.endswith("_test.py")
         for where in _plugin_person_writes(ast.parse(path.read_text()))
     }

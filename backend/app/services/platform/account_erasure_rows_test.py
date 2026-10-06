@@ -74,7 +74,7 @@ from app.testing.schema_harness import route_session_to_guild
 
 
 def _service_definition() -> dict:
-    """A service app declaring one connection, so a credential row has a home."""
+    """A service plug-in declaring one connection, so a credential row has a home."""
     return {
         "plugin_kind": "service",
         "service": {"public_id": "tests.erasure", "protocol": 1},
@@ -106,7 +106,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     document = await create_document(session, initiative, keeper)
     calendar = await create_calendar(session, initiative, keeper)
     event = await create_calendar_event(session, calendar, keeper)
-    app = await create_guild_plugin(
+    plugin = await create_guild_plugin(
         session, guild, keeper, definition=_service_definition()
     )
 
@@ -139,23 +139,23 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
         ),
         # A vendor credential they connected, and one they blocked for somebody.
         "connection": GuildPluginUserConnection(
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id="admin",
             user_id=victim.id,
             connection_ref=secrets.token_hex(8),
         ),
         "blocked_connection": GuildPluginUserConnection(
-            plugin_id=app.id,
+            plugin_id=plugin.id,
             connection_id="admin",
             user_id=keeper.id,
             connection_ref=secrets.token_hex(8),
             blocked_at=now,
             blocked_by_id=victim.id,
         ),
-        # Consent for an app to act as them, and one they withdrew for
+        # Consent for a plug-in to act as them, and one they withdrew for
         # somebody else.
         "consent": PluginMemberConsent(
-            install_id=app.id,
+            install_id=plugin.id,
             user_id=victim.id,
             label="Act as me",
             requested_access="read",
@@ -163,7 +163,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             granted_at=now,
         ),
         "revoked_consent": PluginMemberConsent(
-            install_id=app.id,
+            install_id=plugin.id,
             user_id=keeper.id,
             label="Act as me",
             requested_access="read",
@@ -342,7 +342,8 @@ async def test_erasure_ends_the_credentials_they_connected(
     s = await _seed(session)
     await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
     assert (
-        await _reread(session, s.guild_id, GuildPluginUserConnection, s.connection) is None
+        await _reread(session, s.guild_id, GuildPluginUserConnection, s.connection)
+        is None
     )
 
 

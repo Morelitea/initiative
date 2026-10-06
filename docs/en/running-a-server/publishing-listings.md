@@ -4,7 +4,7 @@ icon: lucide/package-plus
 
 # Publishing your own listings
 
-Initiative's marketplace ships with a set of ready-made dashboards and apps. It's also **yours to add to**: point Initiative at a directory, drop a listing file in it, and that listing appears in your marketplace beside the built-in ones — ready for anyone in your communities to install.
+Initiative's marketplace ships with a set of ready-made dashboards and plug-ins. It's also **yours to add to**: point Initiative at a directory, drop a listing file in it, and that listing appears in your marketplace beside the built-in ones — ready for anyone in your communities to install.
 
 Nothing about this needs a fork, a code change, or a new build of Initiative. If you've designed a dashboard your group keeps rebuilding by hand, or someone has published a listing file you'd like to run, this is how it gets in.
 
@@ -77,7 +77,7 @@ One file per listing. Here's a complete dashboard listing:
 |---|---|---|
 | `uid` | ✅ | The listing's product code — see [Choosing a uid](#choosing-a-uid). |
 | `public_id` | ✅ | A readable id, `<publisher>.<slug>`. Lowercase letters, digits, `.`, `-` and `_`. |
-| `kind` | ✅ | `dashboard` or `app`. |
+| `kind` | ✅ | `dashboard` or `plugin`. |
 | `name` | ✅ | What the card is called. |
 | `author` | ✅ | Who wrote it: `name` is required, `url` and `contact` are optional. |
 | `description` | ✅ | The one-line blurb on the browse card. |
@@ -86,7 +86,7 @@ One file per listing. Here's a complete dashboard listing:
 | `images` | | Screenshots for the detail page, same rules as `avatar_url`. |
 | `version` | ✅ | The version this file publishes, e.g. `1.2.0`. |
 | `release_notes` | | What changed, shown beside the version. |
-| `min_plugin_version` | | The oldest Initiative this version runs on. Newer-than-you versions are shown as needing an update rather than hidden. |
+| `min_app_version` | | The oldest Initiative this version runs on. Newer-than-you versions are shown as needing an update rather than hidden. |
 | `definition` | ✅ | The body — what installing actually produces. |
 
 Everything is checked before it's published, by the same validation the built-in listings go through. A file that doesn't pass is skipped with the reason recorded, and the listings around it publish normally.
@@ -173,13 +173,13 @@ Work down this list — the scan result above answers most of it directly.
 | One file missing, the rest fine | That file was skipped. Its name and the reason are in the scan result and the server log. |
 | "reserved" in the reason | The `public_id` starts with `core.` — publish under your own prefix. |
 | "already published by the builtin catalog" | The `uid` or `public_id` belongs to another listing. Pick a new uid. |
-| A listing appears but can't be installed | Its `min_plugin_version` is newer than this Initiative, or a community already has it. |
-| An app listing never appears on the Apps shelf | An app is served by a program you run, and this server offers one only where that app service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
+| A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a community already has it. |
+| A plug-in listing never appears on the Plug-ins shelf | A plug-in is served by a program you run, and this server offers one only where that plug-in service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
 | Artwork is a broken image | The file isn't under the static `marketplace/` directory, or the path in the manifest doesn't match its name. |
 
 ## Related
 
 - [Configuration](configuration.md) — every setting, including `MARKETPLACE_EXTRA_CATALOG_DIR`.
 - [Platform roles](platform-roles.md) — who may trigger a rescan.
-- [Apps & the marketplace](../guides/plugins-and-marketplace.md) — how your listings look to the people installing them.
+- [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md) — how your listings look to the people installing them.
 - [Tools](../guides/tools.md) — what a dashboard is, from a member's side.

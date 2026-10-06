@@ -149,7 +149,7 @@ async def get_document_hydrated(
 ) -> Document | None:
     """Load a document with everything a serialized ``DocumentRead`` or an
     export reads: the list loader's eager loads and the body, plus the tags,
-    comment count and owning app a response carries.
+    comment count and owning plug-in a response carries.
     :func:`get_document_for_grants` carries only what the access decision
     needs. Uniform ``(session, id)`` shape, the one ``resource_access``
     registers a loader by.
@@ -241,7 +241,7 @@ async def copy_contents(
     copy.featured_image_url = copied(copy.featured_image_url)
     copy.file_url = copied(copy.file_url)
     if copy.file_url is not None:
-        # An app is never an author: its copy names the file's uploader.
+        # A plug-in is never an author: its copy names the file's uploader.
         author = actor.user_id or await session.scalar(
             select(DocumentFileVersion.created_by)
             .where(DocumentFileVersion.document_id == source.id)

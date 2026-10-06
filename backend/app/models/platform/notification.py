@@ -57,10 +57,10 @@ class NotificationType(str, Enum):
     #: One rolled-up line per conversation with unread activity. It names the
     #: sender and counts the messages; it never carries one.
     direct_message = "direct_message"
-    #: An installed app asks to act as the recipient, for one purpose. Written
+    #: An installed plug-in asks to act as the recipient, for one purpose. Written
     #: once per request; it links to where the recipient answers.
     plugin_consent_requested = "plugin_consent_requested"
-    #: A newer version of an installed app asks for more than the install
+    #: A newer version of an installed plug-in asks for more than the install
     #: holds, and waits for the community's seat. Written once per version to
     #: each seat holder; it links to where they accept or decline it.
     plugin_update_pending = "plugin_update_pending"

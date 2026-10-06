@@ -1,9 +1,9 @@
-"""What the request path knows about the app services this deployment wired up.
+"""What the request path knows about the plug-in services this deployment wired up.
 
 ``plugin_service_registrations`` is deployment configuration: no guild role and no
-bare login role holds a grant on it, and an installed app's standing reads only
+bare login role holds a grant on it, and an installed plug-in's standing reads only
 the few columns of its own row. Everything else a request needs from a
-registration — is this app wired up, is it live, where does it live, which
+registration — is this plug-in wired up, is it live, where does it live, which
 origins may frame it, and which keys it signs with — is loaded once on the
 system engine and kept as an immutable snapshot the request path reads.
 
@@ -60,7 +60,7 @@ __all__ = [
 
 #: How long a loaded snapshot is reused. Short enough that deactivating a
 #: registration takes effect promptly on every replica, long enough that a busy
-#: guild's app reads do not each open a system-engine connection.
+#: guild's plug-in reads do not each open a system-engine connection.
 CACHE_TTL_SECONDS = 60.0
 
 
@@ -70,35 +70,35 @@ class RegistrationSnapshot:
 
     public_id: str
     listing_uid: Optional[str]
-    #: Where Initiative's own server calls this app. Empty for a registry
+    #: Where Initiative's own server calls this plug-in. Empty for a registry
     #: container the operator has not placed yet, which is never live.
     base_url: str
-    #: Where a person's browser loads its surfaces, when the app answers there
+    #: Where a person's browser loads its surfaces, when the plug-in answers there
     #: rather than at ``base_url``. Read through :attr:`browser_base`.
     embed_origin: Optional[str]
-    #: Origins this app's surfaces may be framed from and postMessage'd to.
+    #: Origins this plug-in's surfaces may be framed from and postMessage'd to.
     allowed_origins: tuple[str, ...]
-    #: Public verification keys this app signs with — its client assertions at
+    #: Public verification keys this plug-in signs with — its client assertions at
     #: the token endpoint — by the ``kid`` a JWT names. Parsed once when the
     #: snapshot is built rather than per token.
-    #: Empty on an app that has not been provisioned with a pasted set.
+    #: Empty on a plug-in that has not been provisioned with a pasted set.
     keys: Mapping[str, Any]
-    #: The deployment installs this app in every guild (§7.7).
+    #: The deployment installs this plug-in in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch on the registration itself.
     enabled: bool
-    #: Whether anything may flow through this app right now: enabled, its
+    #: Whether anything may flow through this plug-in right now: enabled, its
     #: publisher enabled, a location, and a key set to verify against.
     #: Computed by the database from ``registration_live_sql`` when the
     #: snapshot is loaded.
     live: bool
-    #: The most any install of this app may be granted, as the operator set it.
+    #: The most any install of this plug-in may be granted, as the operator set it.
     #: Not secret: it bounds what a community's seat may grant.
     scope_ceiling: tuple[str, ...] = ()
-    #: Where the app publishes its key set, when it does
+    #: Where the plug-in publishes its key set, when it does
     #: (:mod:`app.services.marketplace.plugin_keys`).
     jwks_uri: Optional[str] = None
-    #: Initiative makes this app's calls itself, from its manifest; it has no
+    #: Initiative makes this plug-in's calls itself, from its manifest; it has no
     #: location and no keys.
     declarative: bool = False
 
@@ -125,7 +125,7 @@ def _parse_keys(row: PluginServiceRegistration) -> Mapping[str, Any]:
             parsed[kid] = PyJWK.from_dict(entry).key
         except Exception:
             logger.warning(
-                "app services: %s has an unusable key %r", row.public_id, kid
+                "plug-in services: %s has an unusable key %r", row.public_id, kid
             )
     return MappingProxyType(parsed)
 
@@ -198,15 +198,15 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
 
 
 async def frame_origins() -> tuple[str, ...]:
-    """Every origin an app surface may be framed from, deduped and ordered.
+    """Every origin a plug-in surface may be framed from, deduped and ordered.
 
     This deployment's registrations are its trusted-site list. An origin gets
-    on it by an operator wiring up an app service — so what comes back
+    on it by an operator wiring up a plug-in service — so what comes back
     describes the services this deployment runs, and says nothing about any
     guild or reader.
 
     Only live registrations count, which is how the operator's kill switch and
-    a publisher's reach the frame policy: within the cache TTL, a stopped app's
+    a publisher's reach the frame policy: within the cache TTL, a stopped plug-in's
     origins are gone from it.
     """
     snapshots = await load_registrations()
@@ -223,7 +223,7 @@ async def frame_origins() -> tuple[str, ...]:
 
 
 def is_declarative(definition: Mapping[str, Any] | None) -> bool:
-    """Whether a definition is a declarative app's: a service app with no
+    """Whether a definition is a declarative plug-in's: a service plug-in with no
     ``service`` block, whose calls Initiative makes itself."""
     return (
         isinstance(definition, Mapping)
@@ -235,16 +235,19 @@ def is_declarative(definition: Mapping[str, Any] | None) -> bool:
 def service_public_id(
     definition: Mapping[str, Any] | None, *, listing_public_id: Optional[str] = None
 ) -> Optional[str]:
-    """The app a pinned definition names, if it names one.
+    """The plug-in a pinned definition names, if it names one.
 
-    Only a ``service`` app has one — a tool instance mounts one of this build's
+    Only a ``service`` plug-in has one — a tool instance mounts one of this build's
     own tools and an embed opens a configured surface, and neither has a
     container behind it. A container names itself in its ``service`` block; a
-    declarative app has none, and is its listing's ``listing_public_id``.
+    declarative plug-in has none, and is its listing's ``listing_public_id``.
     """
     if is_declarative(definition):
         return listing_public_id
-    if not isinstance(definition, Mapping) or definition.get("plugin_kind") != "service":
+    if (
+        not isinstance(definition, Mapping)
+        or definition.get("plugin_kind") != "service"
+    ):
         return None
     service = definition.get("service")
     if not isinstance(service, dict):
@@ -256,10 +259,10 @@ def service_public_id(
 async def registration_for_definition(
     definition: Mapping[str, Any] | None, *, listing_uid: Optional[str] = None
 ) -> Optional[RegistrationSnapshot]:
-    """The registration behind an installed app, or ``None``.
+    """The registration behind an installed plug-in, or ``None``.
 
-    ``None`` covers both "this app has no service" and "this deployment has not
-    wired that service up". A declarative app's is the one its listing,
+    ``None`` covers both "this plug-in has no service" and "this deployment has not
+    wired that service up". A declarative plug-in's is the one its listing,
     ``listing_uid``, applied.
     """
     if is_declarative(definition):
@@ -273,7 +276,7 @@ async def registration_for_definition(
 async def declarative_registration(
     listing_uid: Optional[str],
 ) -> Optional[RegistrationSnapshot]:
-    """The registration a declarative app's listing, ``listing_uid``, applied."""
+    """The registration a declarative plug-in's listing, ``listing_uid``, applied."""
     return next(
         (
             snapshot
@@ -286,18 +289,18 @@ async def declarative_registration(
 
 @dataclass(frozen=True)
 class InstallState:
-    """What an installed app's registration says about it, for a client.
+    """What an installed plug-in's registration says about it, for a client.
 
     Both halves are derived rather than stored, which is what makes an
     operator's edits take effect without touching a single install: clearing
-    ``mandatory`` turns every copy into an ordinary app, and the kill switch
+    ``mandatory`` turns every copy into an ordinary plug-in, and the kill switch
     makes every copy unavailable, in the time it takes a cached snapshot to
     expire.
     """
 
     mandatory: bool = False
     available: bool = True
-    #: The most the operator allows any install of this app to be granted.
+    #: The most the operator allows any install of this plug-in to be granted.
     scope_ceiling: tuple[str, ...] = ()
 
 
@@ -310,7 +313,7 @@ async def install_state(
 ) -> InstallState:
     """The registration-derived state of one install.
 
-    An app with no service behind it — a tool instance, an embed — is always
+    A plug-in with no service behind it — a tool instance, an embed — is always
     available and never mandatory: there is no registration for it to depend on.
     """
     if not _has_registration(definition):
@@ -328,14 +331,14 @@ async def install_state(
 
 
 async def enabled_service_ids() -> frozenset[str]:
-    """Every app service this deployment has wired up and switched on.
+    """Every plug-in service this deployment has wired up and switched on.
 
-    What the catalog reads to decide which app listings it offers: an app is
+    What the catalog reads to decide which plug-in listings it offers: a plug-in is
     published to everyone, and registering it is how a deployment says it runs
     that one. A listing naming a service that is not in here is not offered,
-    because installing it would produce an app with nothing behind it.
+    because installing it would produce a plug-in with nothing behind it.
 
-    Only live registrations: an app switched off, or whose publisher is, or
+    Only live registrations: a plug-in switched off, or whose publisher is, or
     that has no key set, is not offered.
     """
     return frozenset(
@@ -348,12 +351,12 @@ async def enabled_service_ids() -> frozenset[str]:
 async def plugin_is_offered(
     definition: dict[str, Any] | None, *, listing_uid: Optional[str] = None
 ) -> bool:
-    """Whether this deployment offers the app a listing describes.
+    """Whether this deployment offers the plug-in a listing describes.
 
     The per-listing spelling of :func:`enabled_service_ids`, for the paths that
     hold one definition rather than a query: the listing page and the install.
 
-    An app with no service behind it — one that mounts one of this build's own
+    A plug-in with no service behind it — one that mounts one of this build's own
     tools — is always offered, because there is no registration for it to
     depend on.
     """
@@ -364,12 +367,12 @@ async def plugin_is_offered(
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:
-    """The apps this deployment installs into every guild.
+    """The plug-ins this deployment installs into every guild.
 
     Only the live ones: a registration the operator switched off, or whose
     publisher is off, installs nowhere new, because the kill switch outranks
-    the flag (§7.7). Whether the app's container is up is not asked: an
-    install is a local row, and the app finds the guild on its next
+    the flag (§7.7). Whether the plug-in's container is up is not asked: an
+    install is a local row, and the plug-in finds the guild on its next
     installations pull.
     """
     return [

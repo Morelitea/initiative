@@ -1,6 +1,6 @@
-"""An installed app shares what it may share, at the database.
+"""An installed plug-in shares what it may share, at the database.
 
-The app role's policies on ``resource_grants`` admit a share row only with
+The plug-in role's policies on ``resource_grants`` admit a share row only with
 ``sharing:write`` and the tool's write scope in the standing, on a resource
 where the install holds write, and only as a read or write share with a
 person, a role or all initiative members. Each case is run on the real
@@ -32,7 +32,7 @@ _SHARES = ["documents:write", "sharing:write"]
 async def _made_by_the_install(s, install) -> Document:
     made = Document(
         initiative_id=install.a.id,
-        name="Made by the app",
+        name="Made by the plug-in",
         document_type=DocumentType.native,
     )
     s.add(made)
@@ -94,7 +94,7 @@ async def test_an_install_shares_what_it_owns(session, acting_user, role_session
             )
         )
     ).all()
-    assert left == [(ResourceAccessLevel.owner, install.app.id)]
+    assert left == [(ResourceAccessLevel.owner, install.plugin.id)]
     await s.rollback()
 
 
@@ -127,7 +127,7 @@ async def test_without_both_write_scopes_an_install_shares_nothing(
         await create_resource_grant(
             session,
             document,
-            plugin_install_id=install.app.id,
+            plugin_install_id=install.plugin.id,
             level=ResourceAccessLevel.owner,
         )
         target = document.id
@@ -180,7 +180,7 @@ async def test_a_share_is_never_ownership_or_a_plugin_grant(
     session, acting_user, role_session, row
 ):
     """On a document open to its initiative for writing and owned by nobody,
-    the install holds write, and writes no owner row, no grant naming an app,
+    the install holds write, and writes no owner row, no grant naming a plug-in,
     and, since sharing is the owner's, no share either."""
     install = await _install(session, acting_user, role_session, granted=_SHARES)
     document = await create_document(session, install.a, install.seat.user)
@@ -205,7 +205,7 @@ async def test_a_share_is_never_ownership_or_a_plugin_grant(
     grantee = (
         {"user_id": install.seat.user.id}
         if row == "owner_for_a_person"
-        else {"plugin_install_id": install.app.id}
+        else {"plugin_install_id": install.plugin.id}
     )
     level = (
         ResourceAccessLevel.write if row == "to_itself" else ResourceAccessLevel.owner

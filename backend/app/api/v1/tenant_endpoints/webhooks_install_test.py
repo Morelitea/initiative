@@ -1,4 +1,4 @@
-"""The webhook subscription routes an installed app calls.
+"""The webhook subscription routes an installed plug-in calls.
 
 An install registers subscriptions as its community, naming no person. Each
 event type it names needs the read scope of its tool, a token narrowed to one
@@ -111,19 +111,19 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
     assert_names_nobody(response.text, [installed.seat.user.id, installed.guild.id])
     # The same name every other response to this install gives its community.
     assert body["community_ref"] == await plugin_refs.ensure_plugin_guild_ref(
-        guild_id=installed.guild.id, plugin_install_id=installed.app.id
+        guild_id=installed.guild.id, plugin_install_id=installed.plugin.id
     )
 
     row = await _row(session, installed.guild.id, body["id"])
-    assert row.plugin_install_id == installed.app.id
+    assert row.plugin_install_id == installed.plugin.id
     assert row.created_by is None
     assert row.initiative_id == installed.placed.id
 
     (line,) = emitted(capfd, AuditEventType.WEBHOOK_CREATED)
     assert line["actor_user_id"] is None
-    assert line["detail"]["plugin_install_id"] == installed.app.id
-    assert line["context"]["app"] == CLIENT
-    assert line["context"]["install_id"] == installed.app.id
+    assert line["detail"]["plugin_install_id"] == installed.plugin.id
+    assert line["context"]["plugin"] == CLIENT
+    assert line["context"]["install_id"] == installed.plugin.id
 
 
 async def test_an_install_is_refused_events_its_scopes_do_not_read(
@@ -288,9 +288,9 @@ async def test_an_install_removes_its_own_subscription(
     assert await _row(session, installed.guild.id, subscription_id) is None
     (line,) = emitted(capfd, AuditEventType.WEBHOOK_DELETED)
     assert line["actor_user_id"] is None
-    assert line["detail"]["plugin_install_id"] == installed.app.id
-    assert line["context"]["app"] == CLIENT
-    assert line["context"]["install_id"] == installed.app.id
+    assert line["detail"]["plugin_install_id"] == installed.plugin.id
+    assert line["context"]["plugin"] == CLIENT
+    assert line["context"]["install_id"] == installed.plugin.id
 
 
 async def test_an_install_cannot_remove_what_it_did_not_register(

@@ -72,8 +72,8 @@ async def announce_post(
     Delivered through ``notifications.notify``, which is where somebody who
     ignores the author drops out.
 
-    ``author`` is the person who posted it, or the installed app that did,
-    named by the app's name and by no account.
+    ``author`` is the person who posted it, or the installed plug-in that did,
+    named by the plug-in's name and by no account.
     """
     recipient_ids = sorted(
         await posts_service.audience_user_ids(session, post, exclude=author.id)
@@ -93,7 +93,7 @@ async def announce_post(
 
 async def _author_of(session: AsyncSession, post: Post) -> User | PluginAuthor | None:
     """Who posted a notice, for its announcement: the person, or the installed
-    app whose install owns it. ``None`` when that account or install is gone."""
+    plug-in whose install owns it. ``None`` when that account or install is gone."""
     if post.created_by is not None:
         return await accounts_service.load_one(post.created_by)
     install_id = next(

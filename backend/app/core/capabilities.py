@@ -79,10 +79,10 @@ class Capability(str, Enum):
     # App-wide configuration (OIDC, SMTP, branding, role labels). owner only.
     CONFIG_MANAGE = "config.manage"
 
-    # Wiring external app services into this deployment: their URL, the shared
+    # Wiring external plug-in services into this deployment: their URL, the shared
     # secret, and the powers the operator confers on them. owner only — this is
     # deployment configuration, the same class ``config.manage`` occupies, kept
-    # as its own capability so the app catalog can be delegated separately later.
+    # as its own capability so the plug-in catalog can be delegated separately later.
     PLUGINS_MANAGE = "plugins.manage"
 
 

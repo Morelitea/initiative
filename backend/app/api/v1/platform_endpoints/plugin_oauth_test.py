@@ -1,7 +1,7 @@
-"""The app platform's token endpoint and the listing an app token reaches.
+"""The plug-in platform's token endpoint and the listing a plug-in token reaches.
 
-An app authenticates with a JWT it signs (RFC 7523 §2.2) against the key set
-its registration publishes, and is issued an app token or an installation
+A plug-in authenticates with a JWT it signs (RFC 7523 §2.2) against the key set
+its registration publishes, and is issued a plug-in token or an installation
 token. Every refusal is the OAuth error body RFC 6749 §5.2 defines.
 """
 
@@ -65,12 +65,12 @@ def _error(response) -> str:
 
 async def _installation(installed: InstalledPlugin) -> str:
     return await ensure_plugin_guild_ref(
-        guild_id=installed.guild.id, plugin_install_id=installed.app.id
+        guild_id=installed.guild.id, plugin_install_id=installed.plugin.id
     )
 
 
 # ---------------------------------------------------------------------------
-# App tokens
+# Plug-in tokens
 # ---------------------------------------------------------------------------
 
 
@@ -124,7 +124,7 @@ async def test_an_installation_token_carries_every_granted_scope(
     token = unseal_access_token(response.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
     assert token.guild_id == installed.guild.id
-    assert token.install_id == installed.app.id
+    assert token.install_id == installed.plugin.id
     assert token.client_id == CLIENT
     assert token.scopes == frozenset({"documents:write", "comments:read"})
     assert token.initiative_id is None
@@ -173,22 +173,24 @@ async def test_a_scope_to_use_another_plugin_is_issued_and_asked_for_by_name(
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "apps:tests.github"],
-        requested=["documents:read", "apps:tests.github"],
+        granted=["documents:read", "plugins:tests.github"],
+        requested=["documents:read", "plugins:tests.github"],
     )
     installation = await _installation(installed)
 
     everything = await _ask(client, installation=installation)
     assert everything.status_code == 200, everything.text
-    assert everything.json()["scope"] == "apps:tests.github documents:read"
+    assert everything.json()["scope"] == "documents:read plugins:tests.github"
 
-    narrowed = await _ask(client, installation=installation, scope="apps:tests.github")
+    narrowed = await _ask(
+        client, installation=installation, scope="plugins:tests.github"
+    )
     assert narrowed.status_code == 200, narrowed.text
     token = unseal_access_token(narrowed.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
-    assert token.scopes == frozenset({"apps:tests.github"})
+    assert token.scopes == frozenset({"plugins:tests.github"})
 
-    other = await _ask(client, installation=installation, scope="apps:tests.other")
+    other = await _ask(client, installation=installation, scope="plugins:tests.other")
     assert other.status_code == 400
     assert _error(other) == "invalid_scope"
 
@@ -214,7 +216,9 @@ async def _upgrade_dropping(session: AsyncSession, installed: InstalledPlugin, k
     through the same re-pin the Update button and the sweep use."""
     await route_session_to_guild(session, installed.guild.id)
     row = (
-        await session.exec(select(GuildPlugin).where(GuildPlugin.id == installed.app.id))
+        await session.exec(
+            select(GuildPlugin).where(GuildPlugin.id == installed.plugin.id)
+        )
     ).one()
     definition = {
         **row.definition,
@@ -263,7 +267,9 @@ async def test_a_scope_the_ceiling_no_longer_allows_is_not_issued(
 ):
     """Narrowing the registration's ceiling narrows the next token, whatever
     the seat granted before."""
-    from app.models.platform.plugin_service_registration import PluginServiceRegistration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
     from app.services.marketplace import registration_lookup
 
     installed = await install_plugin(
@@ -418,7 +424,9 @@ async def test_a_level_the_community_did_not_grant_is_refused(
 async def test_a_level_the_ceiling_does_not_allow_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    from app.models.platform.plugin_service_registration import PluginServiceRegistration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
     from app.services.marketplace import registration_lookup
 
     installed = await install_plugin(
@@ -669,7 +677,7 @@ async def test_a_disabled_registration_is_an_invalid_client(
 async def test_a_declarative_registration_is_never_a_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    """A declarative app runs no code, so keys left on its registration
+    """A declarative plug-in runs no code, so keys left on its registration
     authenticate nothing."""
     await install_plugin(session, acting_user, role_session, granted=["documents:read"])
     registration = (
@@ -710,7 +718,7 @@ async def test_a_json_body_is_an_invalid_request(client: AsyncClient):
 
 
 # ---------------------------------------------------------------------------
-# The app's installs
+# The plug-in's installs
 # ---------------------------------------------------------------------------
 
 
@@ -756,7 +764,7 @@ async def test_a_paused_install_is_listed_as_inactive(
     installation = await _installation(installed)
     if paused_by == "install_off":
         switched = await client.patch(
-            installed.seat.g(f"/plugins/{installed.app.id}"),
+            installed.seat.g(f"/plugins/{installed.plugin.id}"),
             json={"enabled": False},
             headers=installed.seat.headers,
         )

@@ -342,7 +342,7 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
     "search_entries": f"pg_trigger_depth() > 0 OR {IN_POLICY.system} OR {IN_POLICY.admin}",
-    # An app's events are written by the system engine, on the app's behalf.
+    # A plug-in's events are written by the system engine, on the plug-in's behalf.
     "plugin_event_outbox": IN_POLICY.system,
 }
 
@@ -439,7 +439,7 @@ _SEAT_SECTION = """\
 -- ===========================================================================
 -- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
 -- community's seat holds. Read within the schema — a member's AI request reads
--- the connection it runs on, and opening an app reads where it is placed —
+-- the connection it runs on, and opening a plug-in reads where it is placed —
 -- except a table in SEAT_READ_TABLES, which the seat or the system engine
 -- reads. Written by the seat (app.guild_seat, from the standing), which a lent
 -- seat holds beside a read_write content grant, or by the system engine. A
@@ -605,7 +605,7 @@ def _ledger_block(table: str, parent: str, fk: str) -> str:
 
 _PLUGIN_SECTION = """\
 -- ===========================================================================
--- An installed app's scopes, on the tables no tool's gate answers for
+-- An installed plug-in's scopes, on the tables no tool's gate answers for
 -- (app.db.plugin_rls.PLUGIN_TABLE_ACCESS). RESTRICTIVE, so each AND-combines with
 -- the table's own policies, and each opens with the install id: a request a
 -- person makes carries none and passes in one comparison, once per statement.
@@ -649,7 +649,7 @@ def _plugin_placed_initiatives() -> str:
 #: an installation token, which then matches no row.
 _PLUGIN_MEMBER = gucs.USER_ID.once
 
-#: The owner row on a tool's resource an installed app creates, written by
+#: The owner row on a tool's resource an installed plug-in creates, written by
 #: ``public.fn_install_owns_what_it_creates`` and never by the request itself.
 #: It names the install, or, for a member token, the member it acts for.
 _PLUGIN_CREATED_OWNER_ROW = (
@@ -674,11 +674,11 @@ _GRANT_TOOL_SCOPE = (
 #: The rungs a share gives; owner is held, never shared.
 _SHARED_LEVELS = (ResourceAccessLevel.read, ResourceAccessLevel.write)
 
-#: A sharing row an installed app with ``sharing:write`` changes, as a person
+#: A sharing row an installed plug-in with ``sharing:write`` changes, as a person
 #: with its rung changes one: it holds the scope and the tool's write scope,
 #: and the rung that lets a person share (``resource_shares``). The row
 #: shares with a person, a role or all initiative members at read or write;
-#: owner rows and app grants are not a share.
+#: owner rows and plug-in grants are not a share.
 _PLUGIN_SHARE_ROW = (
     f"('{PluginScopeResource.sharing.value}' = ANY ({IN_POLICY.field('install_write')})"
     f" AND COALESCE({_GRANT_TOOL_SCOPE}"
@@ -689,11 +689,13 @@ _PLUGIN_SHARE_ROW = (
     f" {_PLUGIN_MEMBER}, resource_grants.initiative_id, {STANDING}))"
 )
 
-#: What an installed app's request writes on ``resource_grants``: the owner
+#: What an installed plug-in's request writes on ``resource_grants``: the owner
 #: row on what it creates, and, with ``sharing:write``, the sharing rows of a
 #: resource it may share. A share is rewritten by deleting and inserting rows,
 #: so an install updates none.
-_PLUGIN_GRANT_INSERT = f"({_IID} IS NULL OR {_PLUGIN_CREATED_OWNER_ROW} OR {_PLUGIN_SHARE_ROW})"
+_PLUGIN_GRANT_INSERT = (
+    f"({_IID} IS NULL OR {_PLUGIN_CREATED_OWNER_ROW} OR {_PLUGIN_SHARE_ROW})"
+)
 _PLUGIN_GRANT_DELETE = f"({_IID} IS NULL OR {_PLUGIN_SHARE_ROW})"
 
 #: What a member token's standing reads of the member's own place in their
@@ -708,14 +710,14 @@ _PLUGIN_MEMBER_OWN_READ: dict[str, str] = {
     ),
 }
 
-#: A member's answers to the apps asking to act as them. A member token's
-#: standing reads the one for its own install and purpose; nothing an app
+#: A member's answers to the plug-ins asking to act as them. A member token's
+#: standing reads the one for its own install and purpose; nothing a plug-in
 #: sends reads or writes the table otherwise.
 _PLUGIN_CONSENT_READ = f"({_IID} IS NULL OR plugin_member_consents.install_id = {_IID})"
 
 
 def _plugin_search_read() -> str:
-    """What an installed app asks to read one search entry.
+    """What an installed plug-in asks to read one search entry.
 
     The read scope of the entry's kind (``SEARCH_ENTRY_READ_SCOPE``), and of
     the tool governing it where it names one, which is what the table the
@@ -744,7 +746,7 @@ def _plugin_search_read() -> str:
 
 
 def _property_values_scope(write: bool) -> str:
-    """An installed app reaches a property value with the scope of the tool
+    """An installed plug-in reaches a property value with the scope of the tool
     that governs the row it is on — a task's with ``projects``."""
     tables = entity_tables()
     arms = " ".join(
@@ -760,7 +762,7 @@ def _property_values_scope(write: bool) -> str:
 
 
 def _plugin_predicates(table: str) -> dict[str, str]:
-    """What each command asks of an installed app on ``table``, beside what
+    """What each command asks of an installed plug-in on ``table``, beside what
     the table's own policies ask. Empty where a tool's gate already asks it."""
     refused = plugin_refused(IN_POLICY)
     if table == "resource_grants":
@@ -815,7 +817,9 @@ def _plugin_predicates(table: str) -> dict[str, str]:
         read = f"({read} OR initiatives.id IN {_plugin_placed_initiatives()})"
     elif table in _PLUGIN_MEMBER_OWN_READ:
         read = f"({read} OR {_PLUGIN_MEMBER_OWN_READ[table]})"
-    write = plugin_scope(access.resource, True, IN_POLICY) if access.writable else refused
+    write = (
+        plugin_scope(access.resource, True, IN_POLICY) if access.writable else refused
+    )
     return {"SELECT": read, "INSERT": write, "UPDATE": write, "DELETE": write}
 
 
@@ -1144,10 +1148,10 @@ def render_guild_rls_ddl() -> str:
     out += "\n" + AI_KEY_PRESENT_FN + "\n" + AI_KEY_PRESENT_TRIGGER
     ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
     out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
-    # After every block above, so each table's RLS is on before its app
+    # After every block above, so each table's RLS is on before its plug-in
     # policies join the ones already there.
-    apps = [_plugin_block(t) for t in sorted(PLUGIN_POLICY_TABLES)]
-    out += "\n\n" + _PLUGIN_SECTION + "\n\n" + "\n\n".join(apps)
+    plugin_blocks = [_plugin_block(t) for t in sorted(PLUGIN_POLICY_TABLES)]
+    out += "\n\n" + _PLUGIN_SECTION + "\n\n" + "\n\n".join(plugin_blocks)
     out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
     out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
     out += (

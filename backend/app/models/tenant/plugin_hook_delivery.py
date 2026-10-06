@@ -1,7 +1,7 @@
 """Vendor webhook deliveries an install has accepted.
 
-Initiative receives a vendor's webhooks for an app and forwards each one to the
-app's ``webhook`` hook, once for every community it belongs to. A delivery the
+Initiative receives a vendor's webhooks for a plug-in and forwards each one to the
+plug-in's ``webhook`` hook, once for every community it belongs to. A delivery the
 install accepted is recorded here by the vendor's delivery id, so a
 redelivery is not forwarded to it again. A row lives 24 hours; the outbox
 retention pass removes it after that.

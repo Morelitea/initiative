@@ -138,7 +138,7 @@ async def _world(session, acting_user, role_session) -> World:
         people[name] = person.id
     return World(
         guild_id=guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         owner_id=owner.id,
         member_id=member.user.id,
         reader_id=people["reader"],
@@ -217,7 +217,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         _NONE,
     ),
     Scenario(
-        "installed app",
+        "installed plug-in",
         Install,
         "app_user",
         lambda w, s: route_as_install(

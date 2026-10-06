@@ -1,7 +1,7 @@
-"""Apps the deployment places itself, in the audit log.
+"""Plug-ins the deployment places itself, in the audit log.
 
 These arrive without anybody choosing them, and the record has to say so —
-``via`` is what separates one of these from a guild admin picking an app out of
+``via`` is what separates one of these from a guild admin picking a plug-in out of
 the catalog.
 
 The actor is the other half. A guild creation runs as its new owner and the
@@ -34,7 +34,7 @@ PROVIDED_DEFINITION = {
     "plugin_kind": "service",
     "service": {"public_id": PROVIDED_ID, "protocol": 1},
     "features": [],
-    "default_name": "Provided app",
+    "default_name": "Provided plug-in",
 }
 
 
@@ -45,7 +45,7 @@ async def mandatory_registration(session: AsyncSession):
         uid=PROVIDED_UID,
         public_id=PROVIDED_ID,
         kind="plugin",
-        name="Provided app",
+        name="Provided plug-in",
         definition=PROVIDED_DEFINITION,
     )
     return await create_plugin_service_registration(
@@ -75,7 +75,7 @@ async def test_a_new_guild_records_its_provided_plugin_against_the_owner(
     (row,) = emitted(capfd, AuditEventType.PLUGIN_INSTALLED)
     assert row["actor_user_id"] == user_id
     assert row["guild_id"] == guild_id
-    assert row["target"]["type"] == "app"
+    assert row["target"]["type"] == "plugin"
     assert row["target"]["id"] is not None
     assert row["detail"] == {
         "listing_uid": PROVIDED_UID,

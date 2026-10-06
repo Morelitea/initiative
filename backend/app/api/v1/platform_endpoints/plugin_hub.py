@@ -1,12 +1,12 @@
-"""An installed app calling another app through Initiative.
+"""An installed plug-in calling another plug-in through Initiative.
 
 ``POST /plugin-platform/plugins/{public_id}/endpoints/{endpoint_id}`` takes the
 caller's installation token, or a member token to call on a member's behalf.
 The install seam admits the token (``establish_install_access``); the rest of
 the checks, and the call itself, are :mod:`app.services.marketplace.plugin_hub`'s.
-The answer is the app's own, passed back as it sent it.
+The answer is the plug-in's own, passed back as it sent it.
 
-Limited per calling install, and per calling install and app called. Every
+Limited per calling install, and per calling install and plug-in called. Every
 call the seam admits is written to the audit stream as ``plugin_hub.call``, with
 how it ended and none of its parameters.
 """
@@ -43,7 +43,7 @@ from app.services import audit as audit_service
 from app.services.marketplace import plugin_hub as hub_service
 from app.services.marketplace.plugin_data import PluginDataError
 
-# Not part of the OpenAPI document: only app services call it, never the SPA.
+# Not part of the OpenAPI document: only plug-in services call it, never the SPA.
 router = APIRouter(include_in_schema=False)
 
 
@@ -68,7 +68,7 @@ async def hub_caller(
     # Declares the scheme for the API description; read by ``bearer_plugin_token``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> hub_service.HubCaller:
-    """The app the request's installation or member token names, or 401.
+    """The plug-in the request's installation or member token names, or 401.
 
     The seam computes the install's standing: the community is in use, the
     install and its registration are live, and for a member token the member
@@ -98,7 +98,7 @@ async def hub_caller(
 
     request.state.credential = CREDENTIAL_INSTALL
     audit_context.note_install(
-        app=context.client_id,
+        plugin=context.client_id,
         guild_id=context.guild_id,
         install_id=context.install_id,
     )
@@ -157,13 +157,13 @@ async def call_plugin_endpoint(
     caller: HubCallerDep,
     session: SystemSessionDep,
 ) -> JSONResponse:
-    """Call one of another app's public endpoints, as the community or as the
+    """Call one of another plug-in's public endpoints, as the community or as the
     member the token acts for.
 
     Refusals answer with an OAuth-style ``detail``: ``insufficient_scope``,
     ``target_not_installed``, ``endpoint_not_public``,
     ``actor_not_supported`` or ``target_not_placed``, or the data proxy's code
-    for a missing endpoint, bad parameters, a missing connection or an app
+    for a missing endpoint, bad parameters, a missing connection or a plug-in
     that did not answer. Past either allowance the answer is 429.
     """
     install_key = f"{caller.client_id}:{caller.guild_id}:{caller.install_id}"

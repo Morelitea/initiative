@@ -128,7 +128,7 @@ class ManifestCommunitySection(SanitizedBaseModel):
     reporting in a plan ("42 members, 17 tags").
     """
 
-    key: str  # "settings" | "tags" | "members" | "apps"
+    key: str  # "settings" | "tags" | "members" | "plugins"
     path: str
     count: int = 0
 
@@ -150,7 +150,7 @@ class ManifestCommunity(SanitizedBaseModel):
 class BackupManifest(SanitizedBaseModel):
     type: str  # "initiative-backup" | "guild-backup"
     schema_version: int = BACKUP_SCHEMA_VERSION
-    plugin_version: str
+    app_version: str
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
