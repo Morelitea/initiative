@@ -1,9 +1,9 @@
 """Counter-group source adapter: importable backup envelope (json) and a
 counter table (pdf/csv/xlsx/md).
 
-The json envelope round-trips the group's full configuration — every counter
-with its current value, bounds, step, initial value, view mode, color, and
-position — so an import can rebuild the group exactly.
+The json envelope round-trips the group's full configuration — its tags by
+name and every counter with its current value, bounds, step, initial value,
+view mode, color, and position — so an import can rebuild the group exactly.
 
 The report formats project the counters into the shared columns/rows payload:
 name and the numeric fields, in the group's display order. Numeric cells stay
@@ -31,6 +31,7 @@ from app.services.export.adapters._common import (
     envelope_key,
     export_stem,
 )
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
@@ -86,6 +87,7 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
         "schema_version": 1,
         "name": group.name,
         "description": group.description,
+        "tags": sorted(tag.name for tag in annotated_tags(group)),
         "properties": exported_properties(group),
         "counters": [
             {

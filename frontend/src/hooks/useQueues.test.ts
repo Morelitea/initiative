@@ -31,20 +31,20 @@ describe("queue turn transitions", () => {
     is_active: true,
     current_round: 1,
     items: [a, b, c],
-    current_item: c,
+    current_item_id: c.id,
   });
 
   describe("advanceQueueState", () => {
     it("moves to the next-lower position", () => {
       const next = advanceQueueState(activeQueue);
-      expect(next.current_item?.id).toBe(a.id);
+      expect(next.current_item_id).toBe(a.id);
       expect(next.current_round).toBe(1);
     });
 
     it("wraps from the last item to the first and bumps the round", () => {
-      const atLast = { ...activeQueue, current_item: b };
+      const atLast = { ...activeQueue, current_item_id: b.id };
       const next = advanceQueueState(atLast);
-      expect(next.current_item?.id).toBe(c.id);
+      expect(next.current_item_id).toBe(c.id);
       expect(next.current_round).toBe(2);
     });
 
@@ -55,13 +55,13 @@ describe("queue turn transitions", () => {
       const queue = buildQueue({
         is_active: true,
         items: [lo, hi, mid],
-        current_item: hi,
+        current_item_id: hi.id,
       });
       // hi (11) → mid (10.5) → lo (10)
       const second = advanceQueueState(queue);
-      expect(second.current_item?.id).toBe(mid.id);
+      expect(second.current_item_id).toBe(mid.id);
       const third = advanceQueueState(second);
-      expect(third.current_item?.id).toBe(lo.id);
+      expect(third.current_item_id).toBe(lo.id);
     });
 
     it("skips hidden items", () => {
@@ -69,30 +69,30 @@ describe("queue turn transitions", () => {
       const queue = buildQueue({
         is_active: true,
         items: [hidden, b, c],
-        current_item: c,
+        current_item_id: c.id,
       });
       // c (30) → b (10), skipping hidden a (20)
       const next = advanceQueueState(queue);
-      expect(next.current_item?.id).toBe(b.id);
+      expect(next.current_item_id).toBe(b.id);
     });
   });
 
   describe("previousQueueState", () => {
     it("moves to the next-higher position", () => {
-      const atA = { ...activeQueue, current_item: a };
+      const atA = { ...activeQueue, current_item_id: a.id };
       const prev = previousQueueState(atA);
-      expect(prev.current_item?.id).toBe(c.id);
+      expect(prev.current_item_id).toBe(c.id);
     });
 
     it("wraps from the first item to the last and decrements the round (min 1)", () => {
-      const atFirstRound2 = { ...activeQueue, current_item: c, current_round: 2 };
+      const atFirstRound2 = { ...activeQueue, current_item_id: c.id, current_round: 2 };
       const prev = previousQueueState(atFirstRound2);
-      expect(prev.current_item?.id).toBe(b.id);
+      expect(prev.current_item_id).toBe(b.id);
       expect(prev.current_round).toBe(1);
     });
 
     it("never drops the round below 1", () => {
-      const prev = previousQueueState({ ...activeQueue, current_item: c, current_round: 1 });
+      const prev = previousQueueState({ ...activeQueue, current_item_id: c.id, current_round: 1 });
       expect(prev.current_round).toBe(1);
     });
   });
@@ -102,20 +102,20 @@ describe("queue turn transitions", () => {
       const idle = buildQueue({ is_active: false, current_round: 5, items: [a, b, c] });
       const started = startQueueState(idle);
       expect(started.is_active).toBe(true);
-      expect(started.current_item?.id).toBe(c.id);
+      expect(started.current_item_id).toBe(c.id);
       expect(started.current_round).toBe(1);
     });
 
     it("stop deactivates but keeps the current item", () => {
       const stopped = stopQueueState(activeQueue);
       expect(stopped.is_active).toBe(false);
-      expect(stopped.current_item?.id).toBe(c.id);
+      expect(stopped.current_item_id).toBe(c.id);
     });
 
     it("reset returns to the highest position and round 1", () => {
-      const mid = { ...activeQueue, current_item: b, current_round: 4 };
+      const mid = { ...activeQueue, current_item_id: b.id, current_round: 4 };
       const reset = resetQueueState(mid);
-      expect(reset.current_item?.id).toBe(c.id);
+      expect(reset.current_item_id).toBe(c.id);
       expect(reset.current_round).toBe(1);
     });
   });
@@ -123,7 +123,7 @@ describe("queue turn transitions", () => {
   describe("setActiveItemState", () => {
     it("selects the requested item", () => {
       const result = setActiveItemState(activeQueue, a.id);
-      expect(result.current_item?.id).toBe(a.id);
+      expect(result.current_item_id).toBe(a.id);
     });
 
     it("leaves the queue unchanged for an unknown item", () => {
@@ -133,7 +133,7 @@ describe("queue turn transitions", () => {
   });
 
   it("leaves an empty queue untouched", () => {
-    const empty = buildQueue({ is_active: true, items: [], current_item: null });
+    const empty = buildQueue({ is_active: true, items: [], current_item_id: null });
     expect(advanceQueueState(empty)).toBe(empty);
     expect(previousQueueState(empty)).toBe(empty);
     expect(startQueueState(empty)).toBe(empty);
@@ -152,13 +152,13 @@ describe("hold / release", () => {
     is_active: true,
     current_round: 1,
     items: [a, b, c],
-    current_item: a,
+    current_item_id: a.id,
   });
 
   describe("holdCurrentState", () => {
     it("stamps the current item with the current round and advances", () => {
       const held = holdCurrentState(running);
-      expect(held.current_item?.id).toBe(b.id);
+      expect(held.current_item_id).toBe(b.id);
       expect(held.current_round).toBe(1);
       const heldA = held.items.find((i) => i.id === a.id);
       expect(heldA?.held_at_round).toBe(1);
@@ -169,15 +169,15 @@ describe("hold / release", () => {
         is_active: true,
         current_round: 1,
         items: [a],
-        current_item: a,
+        current_item_id: a.id,
       });
       const held = holdCurrentState(solo);
-      expect(held.current_item).toBeNull();
+      expect(held.current_item_id).toBeNull();
       expect(held.items[0]?.held_at_round).toBe(1);
     });
 
     it("is a no-op when no current item is set", () => {
-      const idle = { ...running, current_item: null };
+      const idle = { ...running, current_item_id: null };
       expect(holdCurrentState(idle)).toBe(idle);
     });
   });
@@ -188,7 +188,7 @@ describe("hold / release", () => {
       const afterHold = holdCurrentState(running); // current = B, A held@1
       const afterB = advanceQueueState(afterHold); // current = C
       const afterC = advanceQueueState(afterB); // wraps → A auto-released
-      expect(afterC.current_item?.id).toBe(a.id);
+      expect(afterC.current_item_id).toBe(a.id);
       expect(afterC.current_round).toBe(2);
       const releasedA = afterC.items.find((i) => i.id === a.id);
       expect(releasedA?.held_at_round).toBeNull();
@@ -200,10 +200,10 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [a, { ...b, held_at_round: 1 }, c],
-        current_item: a,
+        current_item_id: a.id,
       };
       const next = advanceQueueState(queue);
-      expect(next.current_item?.id).toBe(c.id);
+      expect(next.current_item_id).toBe(c.id);
       expect(next.current_round).toBe(1);
       const stillHeldB = next.items.find((i) => i.id === b.id);
       expect(stillHeldB?.held_at_round).toBe(1);
@@ -215,11 +215,11 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [a, { ...b, held_at_round: 1 }, c],
-        current_item: c,
+        current_item_id: c.id,
       };
       const prev = previousQueueState(queue);
       // C → A (skipping held B); B remains held.
-      expect(prev.current_item?.id).toBe(a.id);
+      expect(prev.current_item_id).toBe(a.id);
       const stillHeldB = prev.items.find((i) => i.id === b.id);
       expect(stillHeldB?.held_at_round).toBe(1);
     });
@@ -230,11 +230,10 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
-        current_item: b,
+        current_item_id: b.id,
       };
       const next = setActiveItemState(queue, a.id);
-      expect(next.current_item?.id).toBe(a.id);
-      expect(next.current_item?.held_at_round).toBeNull();
+      expect(next.current_item_id).toBe(a.id);
       const updatedA = next.items.find((i) => i.id === a.id);
       expect(updatedA?.held_at_round).toBeNull();
     });
@@ -247,10 +246,10 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
-        current_item: b,
+        current_item_id: b.id,
       };
       const released = releaseHeldState(queue, a.id);
-      expect(released.current_item?.id).toBe(b.id); // unchanged
+      expect(released.current_item_id).toBe(b.id); // unchanged
       expect(released.current_round).toBe(1);
       const updatedA = released.items.find((i) => i.id === a.id);
       expect(updatedA?.held_at_round).toBeNull();
@@ -265,12 +264,12 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
-        current_item: b,
+        current_item_id: b.id,
       };
       const released = releaseHeldState(queue, a.id, { reposition: true });
       const updatedA = released.items.find((i) => i.id === a.id);
       expect(updatedA?.position).toBe(21);
-      expect(released.current_item?.id).toBe(a.id);
+      expect(released.current_item_id).toBe(a.id);
     });
 
     it("lands between current and next-higher when one exists", () => {
@@ -280,12 +279,12 @@ describe("hold / release", () => {
       const queue = {
         ...running,
         items: [a, { ...b, held_at_round: 1 }, c],
-        current_item: c,
+        current_item_id: c.id,
       };
       const released = releaseHeldState(queue, b.id, { reposition: true });
       const updatedB = released.items.find((i) => i.id === b.id);
       expect(updatedB?.position).toBe(20);
-      expect(released.current_item?.id).toBe(b.id);
+      expect(released.current_item_id).toBe(b.id);
     });
 
     it("is a no-op if the target isn't held", () => {
@@ -299,21 +298,21 @@ describe("hold / release", () => {
       const queue = buildQueue({
         is_active: false,
         items: [{ ...a, held_at_round: 1 }, b, c],
-        current_item: null,
+        current_item_id: null,
       });
       const started = startQueueState(queue);
-      expect(started.current_item?.id).toBe(b.id);
+      expect(started.current_item_id).toBe(b.id);
     });
 
     it("reset jumps to the highest un-held item and preserves held state", () => {
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
-        current_item: c,
+        current_item_id: c.id,
         current_round: 4,
       };
       const reset = resetQueueState(queue);
-      expect(reset.current_item?.id).toBe(b.id);
+      expect(reset.current_item_id).toBe(b.id);
       expect(reset.current_round).toBe(1);
       const stillHeldA = reset.items.find((i) => i.id === a.id);
       expect(stillHeldA?.held_at_round).toBe(1);

@@ -1,5 +1,5 @@
 """``initiative-queue`` importer: the queue row, its items in rotation
-order, item tags, and the current-item pointer. Member/file/task
+order, the tags on both, and the current-item pointer. Member/file/task
 references in the envelope are display text (guild-local ids can't rebind)
 and are dropped with a warning count."""
 
@@ -81,13 +81,34 @@ class QueueImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags_created = 0
+        tags_matched = 0
+
+        async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
+            nonlocal tags_created, tags_matched
+            # A name listed twice (or in another case) is one tag, attached once.
+            attached: set[int] = set()
+            for tag_name in names:
+                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
+                if resolved.id in attached:
+                    continue
+                attached.add(resolved.id)
+                if resolved.created:
+                    tags_created += 1
+                else:
+                    tags_matched += 1
+                session.add(
+                    tags_service.tag_edge(
+                        tags_service.TAG_LINKS[surface], entity_id, resolved.id
+                    )
+                )
+
+        await attach_tags("queue", queue.id, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
         await props.attach(queue, env.properties)
 
-        tags_created = 0
-        tags_matched = 0
         dropped_members = 0
         current_item_id: int | None = None
         for item in env.items:
@@ -110,17 +131,7 @@ class QueueImporter(NamesPeopleInPassing):
                 current_item_id = row.id
             if item.member:
                 dropped_members += 1
-            for tag_name in item.tags:
-                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-                if resolved.created:
-                    tags_created += 1
-                else:
-                    tags_matched += 1
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TAG_LINKS["queue_item"], row.id, resolved.id
-                    )
-                )
+            await attach_tags("queue_item", row.id, item.tags)
             await props.attach(row, item.properties)
 
         if current_item_id is not None:

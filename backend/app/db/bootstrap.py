@@ -926,6 +926,7 @@ async def ensure_database_bootstrap(
                     f"{exc}"
                 ) from exc
             search_ready = await _apply_search_operator(conn)
+            await _revoke_former_set_config_holders(conn)
     finally:
         await engine.dispose()
 
@@ -981,6 +982,35 @@ def set_config_sql() -> tuple[str, str]:
 async def set_config_narrowed(conn) -> bool:
     """Whether ``PUBLIC`` no longer holds ``set_config`` on this database."""
     return not await conn.scalar(_SET_CONFIG_OPEN)
+
+
+_FORMER_SET_CONFIG_HOLDERS = text(
+    "SELECT r.rolname FROM pg_proc p "
+    "CROSS JOIN LATERAL aclexplode(p.proacl) a "
+    "JOIN pg_roles r ON r.oid = a.grantee "
+    "WHERE p.oid = CAST(:function AS regprocedure) "
+    "AND a.grantee <> p.proowner AND r.rolname <> ALL(:holders)"
+).bindparams(function=SET_CONFIG_FUNCTION)
+
+
+async def _revoke_former_set_config_holders(conn) -> None:
+    """Take ``set_config`` from a role that is no longer one of its holders.
+
+    A floor a migration retires still holds it, and only the function's owner
+    can take it back, so the migration that drops the floor cannot. This runs
+    from a superuser owner connection before the migrations, so the drop finds
+    nothing holding the floor.
+    """
+    if not await conn.scalar(_IS_SUPERUSER):
+        return
+    former = await conn.scalars(
+        _FORMER_SET_CONFIG_HOLDERS, {"holders": list(set_config_holders())}
+    )
+    for name in former.all():
+        quoted = '"' + name.replace('"', '""') + '"'
+        await conn.execute(
+            text(f"REVOKE EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} FROM {quoted}")
+        )
 
 
 async def ensure_set_config_narrowed(bootstrap_url: str | None = None) -> bool:

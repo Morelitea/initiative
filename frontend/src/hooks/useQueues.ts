@@ -8,13 +8,10 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  deleteQueueItem,
-  duplicateQueueItem,
-  updateQueueItem,
-} from "@/api/generated/queue-items/queue-items";
-import {
   addQueueItem,
   advanceTurn,
+  deleteQueueItem,
+  duplicateQueueItem,
   getReadQueueQueryKey,
   holdCurrentTurn,
   previousTurn,
@@ -23,6 +20,7 @@ import {
   setActiveItem,
   startQueue,
   stopQueue,
+  updateQueueItem,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
 import { setRelated } from "@/api/relationships";
@@ -143,7 +141,7 @@ export const advanceQueueState = (queue: QueueRead): QueueRead => {
   const visible = visibleItemsDesc(queue);
   if (visible.length === 0) return queue;
 
-  const currentId = queue.current_item?.id ?? null;
+  const currentId = queue.current_item_id;
   const startIdx = currentId == null ? -1 : visible.findIndex((item) => item.id === currentId);
 
   let idx = startIdx;
@@ -154,14 +152,14 @@ export const advanceQueueState = (queue: QueueRead): QueueRead => {
     if (nextIdx === 0 && hadStart) round += 1;
     const candidate = visible[nextIdx];
     if (candidate.held_at_round === null) {
-      return { ...queue, current_item: candidate, current_round: round };
+      return { ...queue, current_item_id: candidate.id, current_round: round };
     }
     if (candidate.held_at_round < round) {
       const released: QueueItemRead = { ...candidate, held_at_round: null };
       return {
         ...queue,
         items: replaceItem(queue, candidate.id, () => released),
-        current_item: released,
+        current_item_id: released.id,
         current_round: round,
       };
     }
@@ -170,7 +168,7 @@ export const advanceQueueState = (queue: QueueRead): QueueRead => {
     hadStart = true;
   }
   // Every rotation item is held and not yet due — clear current.
-  return { ...queue, current_item: null, current_round: round };
+  return { ...queue, current_item_id: null, current_round: round };
 };
 
 /**
@@ -180,22 +178,22 @@ export const advanceQueueState = (queue: QueueRead): QueueRead => {
 export const previousQueueState = (queue: QueueRead): QueueRead => {
   const rotation = activeRotationDesc(queue);
   if (rotation.length === 0) return queue;
-  const currentId = queue.current_item?.id ?? null;
+  const currentId = queue.current_item_id;
   const idx = currentId == null ? -1 : rotation.findIndex((item) => item.id === currentId);
   if (idx <= 0) {
     return {
       ...queue,
-      current_item: rotation[rotation.length - 1],
+      current_item_id: rotation[rotation.length - 1].id,
       current_round: Math.max(1, queue.current_round - 1),
     };
   }
-  return { ...queue, current_item: rotation[idx - 1] };
+  return { ...queue, current_item_id: rotation[idx - 1].id };
 };
 
 export const startQueueState = (queue: QueueRead): QueueRead => {
   const rotation = activeRotationDesc(queue);
   if (rotation.length === 0) return queue;
-  return { ...queue, is_active: true, current_item: rotation[0], current_round: 1 };
+  return { ...queue, is_active: true, current_item_id: rotation[0].id, current_round: 1 };
 };
 
 export const stopQueueState = (queue: QueueRead): QueueRead => ({ ...queue, is_active: false });
@@ -203,7 +201,7 @@ export const stopQueueState = (queue: QueueRead): QueueRead => ({ ...queue, is_a
 export const resetQueueState = (queue: QueueRead): QueueRead => {
   const rotation = activeRotationDesc(queue);
   if (rotation.length === 0) return queue;
-  return { ...queue, current_round: 1, current_item: rotation[0] };
+  return { ...queue, current_round: 1, current_item_id: rotation[0].id };
 };
 
 /**
@@ -219,19 +217,19 @@ export const setActiveItemState = (queue: QueueRead, itemId: number): QueueRead 
     return {
       ...queue,
       items: replaceItem(queue, itemId, () => cleared),
-      current_item: cleared,
+      current_item_id: cleared.id,
     };
   }
-  return { ...queue, current_item: target };
+  return { ...queue, current_item_id: target.id };
 };
 
 /**
  * Hold the current turn: stamp it with `held_at_round = current_round` and
  * advance to the next rotation slot. If holding empties the rotation,
- * `current_item` becomes `null` and `current_round` is unchanged.
+ * `current_item_id` becomes `null` and `current_round` is unchanged.
  */
 export const holdCurrentState = (queue: QueueRead): QueueRead => {
-  const currentId = queue.current_item?.id ?? null;
+  const currentId = queue.current_item_id;
   if (currentId == null) return queue;
   const heldRound = queue.current_round;
   const heldItems = replaceItem(queue, currentId, (item) => ({
@@ -253,13 +251,13 @@ export const holdCurrentState = (queue: QueueRead): QueueRead => {
       return {
         ...queue,
         items: heldItems,
-        current_item: candidate,
+        current_item_id: candidate.id,
         current_round: round,
       };
     }
   }
   // No rotation-eligible item left.
-  return { ...queue, items: heldItems, current_item: null };
+  return { ...queue, items: heldItems, current_item_id: null };
 };
 
 export interface ReleaseHeldOptions {
@@ -277,7 +275,7 @@ export interface ReleaseHeldOptions {
  * Manually release a held item back into the active rotation.
  *
  * Clears `held_at_round` on the target. With `reposition: false` (default),
- * `current_item` is intentionally untouched so releasing doesn't rewind the
+ * `current_item_id` is intentionally untouched so releasing doesn't rewind the
  * rotation pointer onto items that already took their turn. With
  * `reposition: true`, the target's `position` is rewritten just above the
  * previous current and the target becomes the new current — mirrors backend
@@ -293,7 +291,7 @@ export const releaseHeldState = (
 
   let nextPosition = target.position;
   let promoteToCurrent = false;
-  const currentId = queue.current_item?.id ?? null;
+  const currentId = queue.current_item_id;
   if (options.reposition && currentId !== null && currentId !== itemId) {
     const current = queue.items.find((i) => i.id === currentId);
     if (current) {
@@ -321,7 +319,7 @@ export const releaseHeldState = (
   return {
     ...queue,
     items: replaceItem(queue, itemId, () => released),
-    current_item: promoteToCurrent ? released : queue.current_item,
+    current_item_id: promoteToCurrent ? released.id : queue.current_item_id,
   };
 };
 

@@ -1,8 +1,9 @@
 """Queue source adapter: importable backup envelope (json) and turn-order
 reports (pdf/csv/xlsx/md).
 
-The json envelope round-trips the queue's own state — items with rotation
-order, colors, notes, visibility, and held/current markers, tags by name.
+The json envelope round-trips the queue's own state — its tags by name, and
+items with rotation order, colors, notes, visibility, held/current markers and
+tags by name.
 Member assignments and linked files/tasks ship as display text only
 (names and titles): they reference guild-local rows that won't exist wherever
 the envelope is imported, so an import can't rebind them.
@@ -40,6 +41,7 @@ from app.services.export.adapters._common import (
     export_stem,
     related_reach,
 )
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
@@ -168,6 +170,7 @@ def _envelope(
         "description": queue.description,
         "is_active": queue.is_active,
         "current_round": queue.current_round,
+        "tags": _tags(queue),
         "properties": exported_properties(queue),
         "items": [
             {
@@ -249,5 +252,5 @@ def _member(item: QueueItem) -> str | None:
     return display_name(item.user) or None
 
 
-def _tags(item: QueueItem) -> list[str]:
-    return sorted(tag.name for tag in item.tags or [])
+def _tags(row: Queue | QueueItem) -> list[str]:
+    return sorted(tag.name for tag in annotated_tags(row))

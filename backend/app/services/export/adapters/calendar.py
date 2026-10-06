@@ -41,6 +41,7 @@ from app.services.export.adapters._common import (
     related_reach,
 )
 from app.core.user_input_validators import resolve_zone
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.contract import RenderItem
 from app.services.export.filters import narrow, parse_filters
 from app.services.export.property_values import exported_properties
@@ -257,6 +258,7 @@ def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
         "name": calendar.name,
         "description": calendar.description,
         "color": calendar.color,
+        "tags": sorted(tag.name for tag in annotated_tags(calendar)),
         "properties": exported_properties(calendar),
         "events": event_dicts,
     }

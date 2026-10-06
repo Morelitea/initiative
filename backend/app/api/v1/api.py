@@ -304,7 +304,7 @@ guild_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 guild_router.include_router(queues.router, **_tool_mount(Tool.queue))
 # Flat read-back routes, at the guild root: an event envelope names a
 # resource by its own id, so every evented resource must resolve from one.
-guild_router.include_router(queues.items_router, tags=["queue-items"])
+guild_router.include_router(queues.items_router, tags=_tool_mount(Tool.queue)["tags"])
 
 guild_router.include_router(counters.router, **_tool_mount(Tool.counter_group))
 guild_router.include_router(counters.counters_router, tags=["counters"])

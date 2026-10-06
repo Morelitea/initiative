@@ -32,7 +32,7 @@ export const QueueControls = ({
   // Previous / Next / Hold need a current turn to operate on; without one
   // (e.g. when every visible item has been held) clicking would either no-op
   // on the server or surprise the user.
-  const noTurn = !queue.is_active || !queue.current_item || isLoading;
+  const noTurn = !queue.is_active || queue.current_item_id == null || isLoading;
 
   return (
     <>
