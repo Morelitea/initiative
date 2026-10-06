@@ -21,8 +21,10 @@ from app.db.system_grants import (
     VALID_GRANT_VERBS,
     grant_sql,
     grant_statements,
+    revoke_statements,
     tier_table_grants,
 )
+from app.services.storage_backfill import _table_ddl
 
 pytestmark = pytest.mark.always
 
@@ -51,8 +53,8 @@ def test_grant_sql_renders_canonical_order():
 
 
 def test_grant_statements_name_the_role_as_the_catalog_holds_it(monkeypatch):
-    """A login is named as its connection URL names it, quoted; a floor carries
-    the configured prefix. ``revoke`` takes each table's grants back first."""
+    """A login is named as its connection URL names it, a floor carries the
+    configured prefix, and both it and the table are quoted."""
     monkeypatch.setattr(
         settings, "DATABASE_URL_APP", "postgresql+asyncpg://req%22x:pw@h:5432/d"
     )
@@ -62,12 +64,35 @@ def test_grant_statements_name_the_role_as_the_catalog_holds_it(monkeypatch):
     monkeypatch.setitem(system_grants.ROLE_GRANTS, "platform_base", {"t": None})
 
     assert grant_statements("app_user", ["t"], sequences=["public.t_id_seq"]) == [
-        'GRANT SELECT, INSERT ON TABLE public.t TO "req""x"',
+        'GRANT SELECT, INSERT ON TABLE public."t" TO "req""x"',
         'GRANT SELECT, USAGE ON SEQUENCE public.t_id_seq TO "req""x"',
     ]
-    assert grant_statements("platform_base", ["t"], revoke=True) == [
-        f'REVOKE ALL ON TABLE public.t FROM "{role_name("platform_base")}"'
+    assert grant_statements("platform_base", ["t"]) == []
+    assert revoke_statements("platform_base", ["t"]) == [
+        f'REVOKE ALL ON TABLE public."t" FROM "{role_name("platform_base")}"'
     ]
+
+
+def test_a_login_both_fields_name_keeps_the_verbs_of_each(monkeypatch):
+    """The storage backfill table's grants revoke every role first, so a
+    deployment whose app and admin URLs share one login keeps the system
+    engine's verbs on it."""
+    url = "postgresql+asyncpg://shared:pw@h:5432/d"
+    monkeypatch.setattr(settings, "DATABASE_URL_APP", url)
+    monkeypatch.setattr(settings, "DATABASE_URL_ADMIN", url)
+
+    statements = _table_ddl().splitlines()
+    to_login = [s for s in statements if s.endswith('"shared";')]
+    assert to_login == [
+        'REVOKE ALL ON TABLE public."storage_backfill_state" FROM "shared";',
+        'REVOKE ALL ON TABLE public."storage_backfill_state" FROM "shared";',
+        'GRANT SELECT, INSERT, UPDATE ON TABLE public."storage_backfill_state" '
+        'TO "shared";',
+    ]
+    last_revoke = max(i for i, s in enumerate(statements) if s.startswith("REVOKE"))
+    assert last_revoke < min(
+        i for i, s in enumerate(statements) if s.startswith("GRANT")
+    )
 
 
 def test_tier_grants_render_to_every_tier():

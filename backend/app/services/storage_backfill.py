@@ -39,7 +39,7 @@ from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
 from app.db.public_rls import PUBLIC_RLS, render_table_rls
-from app.db.system_grants import ROLE_GRANTS, grant_statements
+from app.db.system_grants import ROLE_GRANTS, grant_statements, revoke_statements
 from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
@@ -74,19 +74,21 @@ _table_ready = False
 
 def _table_ddl() -> str:
     """The table, then its row security and grants as the shared-table
-    registry declares them. Each grant is revoked first, so a table created by
-    an earlier build converges on the registry, and the schema's default grants
-    to the two request-path floors are taken back where it gives them none."""
-    grants = [
-        statement
-        for role in ROLE_GRANTS
-        for statement in grant_statements(role, [_TABLE], revoke=True)
-    ]
+    registry declares them. Every role's grants are revoked before any are
+    granted, so a table created by an earlier build converges on the registry,
+    the schema's default grants to the two request-path floors are taken back
+    where it gives them none, and a login named by both login fields keeps the
+    verbs of each."""
     return "\n".join(
         [
             f"{_CREATE_TABLE.strip()};",
             render_table_rls(_TABLE, PUBLIC_RLS[_TABLE]),
-            *(f"{statement};" for statement in grants),
+            *(
+                f"{statement};"
+                for render in (revoke_statements, grant_statements)
+                for role in ROLE_GRANTS
+                for statement in render(role, [_TABLE])
+            ),
         ]
     )
 

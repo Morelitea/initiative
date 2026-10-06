@@ -5,9 +5,9 @@ Each shared table is declared once there, row security and grants together
 (``SharedTable``). This module reads it per role: ``ROLE_GRANTS`` is one
 table -> verbs matrix per role in ``Grants``, and ``tier_table_grants`` spells
 the capability-keyed tier grants as the ``platform_<tier>`` roles holding each
-capability. ``grant_statements`` renders a role's grants as SQL to its catalog
-name (``grantee``: a login as its URL names it), and ``missing_grants`` probes
-what that name does not hold. Those views are what the catalog is held to:
+capability. ``grant_statements`` and ``revoke_statements`` render a role's
+grants as SQL to its catalog name (``grantee``: a login as its URL names it),
+and ``missing_grants`` probes what that name does not hold. Those views are what the catalog is held to:
 
 * ``security_invariants_test`` fails on any drift in either direction (a
   hotfix ``GRANT`` the registry doesn't know about, or a registry verb the
@@ -47,6 +47,7 @@ __all__ = [
     "grant_statements",
     "grantee",
     "missing_grants",
+    "revoke_statements",
     "tier_table_grants",
 ]
 
@@ -130,29 +131,29 @@ def _quoted(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def revoke_statements(role: str, tables: Iterable[str]) -> list[str]:
+    """``REVOKE ALL`` on each of ``tables`` from ``role``'s catalog name
+    (:func:`grantee`). Run every role's revokes before any role's grants and
+    the tables converge on the registry, a login two fields name included."""
+    to = _quoted(grantee(role))
+    return [
+        f"REVOKE ALL ON TABLE public.{_quoted(table)} FROM {to}" for table in tables
+    ]
+
+
 def grant_statements(
-    role: str,
-    tables: Iterable[str],
-    *,
-    revoke: bool = False,
-    sequences: Iterable[str] = (),
+    role: str, tables: Iterable[str], *, sequences: Iterable[str] = ()
 ) -> list[str]:
     """The registry's verbs for ``role`` on each of ``tables``, as ``GRANT``
-    statements to its catalog name (:func:`grantee`).
-
-    With ``revoke`` each table's grants to the role are revoked first, so the
-    table converges on the registry. ``sequences`` are the qualified row-id
-    sequences of tables the role inserts into, granted what a login needs to
-    insert.
-    """
+    statements to its catalog name (:func:`grantee`). ``sequences`` are the
+    qualified row-id sequences of tables the role inserts into, granted what a
+    login needs to insert."""
     to = _quoted(grantee(role))
-    statements: list[str] = []
-    for table in tables:
-        if revoke:
-            statements.append(f"REVOKE ALL ON TABLE public.{table} FROM {to}")
-        verbs = grant_sql(ROLE_GRANTS[role][table])
-        if verbs:
-            statements.append(f"GRANT {verbs} ON TABLE public.{table} TO {to}")
+    statements = [
+        f"GRANT {verbs} ON TABLE public.{_quoted(table)} TO {to}"
+        for table in tables
+        if (verbs := grant_sql(ROLE_GRANTS[role][table]))
+    ]
     statements += [
         f"GRANT {_LOGIN_SEQUENCE_VERBS[role]} ON SEQUENCE {sequence} TO {to}"
         for sequence in sequences
