@@ -38,7 +38,11 @@ describe("DeleteAccountDialog", () => {
         "You are the only superadmin of Lone Community. Make another member superadmin, or delete the community, first."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("Cannot delete the last platform owner account")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This is the platform's last owner, and the platform keeps one. Make someone else an owner first."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
   });
 
