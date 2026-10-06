@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
  * has — a rail of circles standing out of it, and everything the page has to
  * show sitting in the surface beneath them. What a community's admin sets
  * there, a decoration sets here; where a community's rail switches its tray
- * between tables of projects and documents, a profile's rail is the trophies
+ * between tables of projects and files, a profile's rail is the trophies
  * and the tray holds the communities the person is in.
  *
  * Public, and the same page whoever opens it: the handle is the name in this

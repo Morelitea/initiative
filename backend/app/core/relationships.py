@@ -41,7 +41,7 @@ class RelationshipType(str, Enum):
     recorded, while merging two is one UPDATE.
     """
 
-    #: A project and a document placed together. Symmetric: it describes the
+    #: A project and a file placed together. Symmetric: it describes the
     #: pair, not either end.
     attached = "attached"
     #: X cannot proceed until Y. Precedence.

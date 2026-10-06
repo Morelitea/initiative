@@ -188,8 +188,8 @@
     "presetMoveUp": "Subir el preajuste",
     "presetMoveDown": "Bajar el preajuste"
   },
-  "documents": {
-    "newDocument": "Nuevo documento"
+  "files": {
+    "newFile": "Nuevo archivo"
   },
   "tasks": {
     "projectTasks": "Tareas del proyecto",

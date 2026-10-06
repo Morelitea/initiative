@@ -11,7 +11,7 @@
  */
 
 import {
-  type SearchEntityType,
+  SearchEntityType,
   SmartChipKind,
   type SmartChipState,
   SmartChipTone,
@@ -51,6 +51,20 @@ export const chipRef = (kind: SmartChipKind, entityId: number): string =>
 /** What a link stores: `task:12`, which resolves to what it is called now. */
 export const referenceRef = (entityType: SearchEntityType, entityId: number): string =>
   `${entityType}${SEPARATOR}${entityId}`;
+
+/**
+ * Kinds that stored content still names by an earlier spelling: a body saved
+ * before files were called files says `document`. Read, never written — new
+ * content carries today's kind. The server reads the same spellings.
+ */
+export const EARLIER_KINDS: Readonly<Record<string, SearchEntityType>> = {
+  document: SearchEntityType.file,
+};
+
+/** The kind a stored reference names, or `null` if it names none. */
+export const storedEntityType = (value: string): SearchEntityType | null =>
+  EARLIER_KINDS[value] ??
+  (Object.hasOwn(SearchEntityType, value) ? (value as SearchEntityType) : null);
 
 /**
  * The classes a tone renders in.

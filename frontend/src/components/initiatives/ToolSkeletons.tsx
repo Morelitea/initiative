@@ -134,7 +134,7 @@ const ProjectSketch = ({ active }: SketchProps) => (
 
 /** The editor: a toolbar in button groups, a heading, paragraph lines and a
  *  bulleted list. */
-const DocumentSketch = ({ active }: SketchProps) => (
+const FileSketch = ({ active }: SketchProps) => (
   <Frame>
     <div className="flex h-full flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
@@ -414,7 +414,7 @@ const WikiSketch = ({ active }: SketchProps) => (
 
 export const TOOL_SKETCHES: Record<Tool, (props: SketchProps) => ReactNode> = {
   [Tool.project]: ProjectSketch,
-  [Tool.document]: DocumentSketch,
+  [Tool.file]: FileSketch,
   [Tool.calendar]: CalendarSketch,
   [Tool.queue]: QueueSketch,
   [Tool.counter_group]: CounterGroupSketch,

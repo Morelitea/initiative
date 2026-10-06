@@ -28,7 +28,7 @@ from app.core.plugin_scopes import ALL_SCOPES
 from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.plugin_placement import PluginPlacement
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.factories import (
@@ -191,14 +191,14 @@ async def install_plugin(
 
 
 async def share_with_members(
-    session: AsyncSession, document: Document, initiative_id: int
+    session: AsyncSession, file: File, initiative_id: int
 ) -> None:
-    """Share ``document`` with every member of its initiative, which an
+    """Share ``file`` with every member of its initiative, which an
     install placed there counts as."""
     session.add(
         ResourceGrant(
-            resource_type=Tool.document.value,
-            resource_id=document.id,
+            resource_type=Tool.file.value,
+            resource_id=file.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
             initiative_id=initiative_id,

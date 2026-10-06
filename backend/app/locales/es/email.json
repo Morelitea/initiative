@@ -54,10 +54,10 @@
     "redactedItem": "Se te asignó una tarea"
   },
   "mention": {
-    "document": {
-      "subject": "Te mencionaron en {{document}}",
+    "file": {
+      "subject": "Te mencionaron en {{file}}",
       "title": "Te mencionaron",
-      "body": "<strong>{{actor}}</strong> te mencionó en <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> te mencionó en <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Te mencionaron en un comentario",

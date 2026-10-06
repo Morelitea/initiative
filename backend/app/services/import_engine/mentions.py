@@ -2,7 +2,7 @@
 
 Inside the app a mention names an account by id: ``@[Sam Bee](42)`` in
 markdown (a task's description, a comment) and a Lexical ``mention`` node with
-``mentionUserId`` in an editor state (a document, a post, a wiki page). An id
+``mentionUserId`` in an editor state (a file, a post, a wiki page). An id
 means nothing where an export is restored — on another instance, or in a
 community where 42 is somebody else — so the export writes each mention as the
 person's **handle** and lists it beside the text, and the restore links the
@@ -200,7 +200,7 @@ def place_mentions(
 def mention_handles_in(payload: Any) -> list[str]:
     """Every handle an envelope, as plain data, lists under
     ``mention_handles`` at any depth — a task's, a comment's, a page's, a
-    document's. First-seen order, one entry per spelling."""
+    file's. First-seen order, one entry per spelling."""
     found: list[str] = []
 
     def walk(node: Any) -> None:
@@ -226,17 +226,14 @@ async def detach_envelope_mentions(session: AsyncSession, data: Any) -> None:
     ``data`` (a freshly built envelope dict — the content inside it is never
     edited, only replaced).
 
-    Documents, posts and wiki pages carry their bodies as editor states. A
+    Files, posts and wiki pages carry their bodies as editor states. A
     project envelope's mentions are markdown and are written by
     ``build_project_export`` itself, which is where the text is read.
     """
     if not isinstance(data, dict):
         return
     kind = data.get("type")
-    if (
-        kind == tool_envelope_type(Tool.document)
-        and data.get("document_type") == "native"
-    ):
+    if kind == tool_envelope_type(Tool.file) and data.get("file_type") == "native":
         holders = [(data, "content")]
     elif kind == tool_envelope_type(Tool.post):
         holders = [(data, "body")]
@@ -248,10 +245,10 @@ async def detach_envelope_mentions(session: AsyncSession, data: Any) -> None:
         ] + [
             # A text document filed in it, carried whole inside it.
             (filed["envelope"], "content")
-            for filed in data.get("documents") or []
+            for filed in data.get("files") or []
             if isinstance(filed, dict)
             and isinstance(filed.get("envelope"), dict)
-            and filed["envelope"].get("document_type") == "native"
+            and filed["envelope"].get("file_type") == "native"
         ]
     else:
         return

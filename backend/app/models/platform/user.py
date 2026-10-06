@@ -58,7 +58,7 @@ class UserStatus(str, Enum):
     #: which is somebody taking a break and must never be erased by a timer:
     #: this one has a date on it.
     #:
-    #: Memberships, initiative roles and owned documents are all kept, so
+    #: Memberships, initiative roles and owned files are all kept, so
     #: coming back restores the account whole rather than to an empty one —
     #: which is what ``deactivated`` gives, its memberships having been
     #: dropped. What the account loses meanwhile is everybody else: it is

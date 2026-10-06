@@ -36,9 +36,9 @@
     }
   },
   "mention": {
-    "document": {
+    "file": {
       "title": "Vous avez été mentionné(e)",
-      "body": "{{actor}} vous a mentionné(e) dans {{document}}"
+      "body": "{{actor}} vous a mentionné(e) dans {{file}}"
     },
     "comment": {
       "title": "Vous avez été mentionné(e)",

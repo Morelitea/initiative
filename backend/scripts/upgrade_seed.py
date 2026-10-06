@@ -37,7 +37,6 @@ from app.testing import (  # noqa: E402
     create_calendar_event,
     create_comment,
     create_counter,
-    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -97,9 +96,12 @@ async def seed(session: AsyncSession) -> None:
     )
     await set_value(session, task, definition, value_text="seeded")
 
-    document = await create_document(session, initiative, member)
+    # The files tool was the documents tool before 0.75, its factory and the
+    # comment's parent argument named for it.
+    file_kind = "file" if hasattr(testing, "create_file") else "document"
+    file = await getattr(testing, f"create_{file_kind}")(session, initiative, member)
     comment = await create_comment(session, member, task=task)
-    await create_comment(session, owner, document=document)
+    await create_comment(session, owner, **{file_kind: file})
     await create_reaction(session, owner, comment=comment)
 
     await create_tag(session, guild)

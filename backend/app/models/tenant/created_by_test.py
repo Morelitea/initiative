@@ -96,7 +96,7 @@ def test_nothing_carries_a_last_editor_column():
     Who changed a row is captured per transaction into ``event_outbox`` by
     ``public.capture_change``, with the transaction id and the columns that
     changed. A mutable column holds strictly less than that and is overwritten
-    by the next save. ``documents`` carried one until it was checked and found
+    by the next save. ``files`` carried one until it was checked and found
     to be written on six paths and read on none.
     """
     carriers = {

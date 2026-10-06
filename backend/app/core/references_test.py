@@ -7,7 +7,13 @@ and a smart chip agreeing about what a string names.
 
 from __future__ import annotations
 
-from app.core.references import MAX_ENTITY_ID, format_ref, parse_ref
+from app.core.references import (
+    MAX_ENTITY_ID,
+    format_ref,
+    parse_ref,
+    references_in_body,
+    references_in_text,
+)
 from app.core.search import SearchEntityType
 
 
@@ -53,3 +59,24 @@ def test_an_aspect_is_not_part_of_the_bare_form():
     """``task:12:status`` names a fact about a thing. That is the smart-chip
     shape, read by the parser that knows which facts exist."""
     assert parse_ref("task:12:status") is None
+
+
+def test_content_written_while_files_were_documents_names_files():
+    """Stored bodies and comments keep the kind they were written with, so a
+    ``document`` there is read as the file it names."""
+    file = SearchEntityType.file
+    assert parse_ref("document:7") == (file, 7)
+    assert references_in_text("See #document[Plan](7) and #doc[Old](8)") == {
+        (file, 7),
+        (file, 8),
+    }
+    body = {
+        "root": {
+            "children": [
+                {"type": "entity-mention", "entityType": "document", "entityId": 7},
+                {"type": "smart-chip", "chipKind": "document:status", "entityId": 8},
+                {"type": "wikilink", "documentId": 9},
+            ]
+        }
+    }
+    assert references_in_body(body) == {(file, 7), (file, 8), (file, 9)}

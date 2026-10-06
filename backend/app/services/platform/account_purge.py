@@ -2,7 +2,7 @@
 
 Asking for an account to go no longer erases it: it moves to
 ``UserStatus.deleted`` and keeps everything — the row, its personal data, its
-memberships, its initiative roles, the documents it owns — so the person can
+memberships, its initiative roles, the files it owns — so the person can
 come back. Signing in is what brings them back; this worker is what happens if
 they do not.
 

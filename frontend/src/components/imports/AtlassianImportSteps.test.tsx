@@ -341,9 +341,7 @@ describe("JiraReviewSummary", () => {
     expect(screen.getByText(/40 tasks from 2 project/i)).toBeInTheDocument();
     expect(screen.getByText(/7 links between tasks/i)).toBeInTheDocument();
     expect(screen.getByText(/3 images \(2\.4 MB\)/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/2 attached files, each as a document on its task/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/2 attached files, each as a file on its task/i)).toBeInTheDocument();
     expect(
       screen.getByText(/1 attached file that isn't an image stays behind/i)
     ).toBeInTheDocument();
@@ -443,7 +441,7 @@ describe("AtlassianReviewSummary", () => {
     expect(screen.getByText(/2 resolved inline comments/i)).toBeInTheDocument();
     expect(screen.getByText(/3 attachments \(2(\.0)? KB\)/i)).toBeInTheDocument();
     expect(screen.getByText(/1 attachment that's too large/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 files, because this initiative has documents/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 files, because this initiative has files/i)).toBeInTheDocument();
   });
 
   it("leaves out a product nothing was asked of", () => {

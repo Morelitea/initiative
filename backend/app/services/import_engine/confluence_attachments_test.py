@@ -68,7 +68,7 @@ async def _download(attachments, *, bytes_left=10_000, files_left=100, **kw):
     return media, report, budget
 
 
-async def test_pictures_render_from_their_upload_and_other_files_wait_to_be_documents():
+async def test_pictures_render_from_their_upload_and_other_files_wait_to_be_files():
     media, report, budget = await _download(
         [
             attachment("1", "chart.png", "image/png"),
@@ -77,7 +77,7 @@ async def test_pictures_render_from_their_upload_and_other_files_wait_to_be_docu
             attachment("4", "build.zip", "application/zip"),
         ]
     )
-    # A table of text comes over to become a spreadsheet; a type no document
+    # A table of text comes over to become a spreadsheet; a type no file
     # holds does not come at all.
     assert set(media.files) == {"spec.pdf", "counts.csv"}
     assert report.refused == 1
@@ -140,20 +140,20 @@ async def test_a_file_that_will_not_come_is_counted_and_throttling_stops_the_fet
         )
 
 
-async def test_without_documents_only_the_pictures_come():
+async def test_without_files_only_the_pictures_come():
     media, report, _budget = await _download(
         [
             attachment("1", "chart.png", "image/png"),
             attachment("2", "spec.pdf", "application/pdf"),
         ],
-        documents=False,
+        files_allowed=False,
     )
     assert list(media.stored_images) == ["chart.png"]
     assert media.files == {}
     assert report.blocked == 1
 
 
-async def test_a_picture_the_page_never_shows_becomes_a_document():
+async def test_a_picture_the_page_never_shows_becomes_a_file():
     media, _report, _budget = await _download(
         [
             attachment("1", "shown.png", "image/png"),
@@ -162,7 +162,7 @@ async def test_a_picture_the_page_never_shows_becomes_a_document():
         ]
     )
     assert [s.filename for s in media.uploads(["shown.png"])] == ["shown.png"]
-    assert [s.filename for s in media.documents(["shown.png"])] == [
+    assert [s.filename for s in media.as_files(["shown.png"])] == [
         "spec.pdf",
         "hidden.png",
     ]

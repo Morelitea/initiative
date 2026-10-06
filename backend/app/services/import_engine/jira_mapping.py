@@ -620,7 +620,7 @@ class ProjectMapper:
         """Map the next issues in Rank order.
 
         ``files_by_issue`` are the attached files that are not pictures, each
-        coming over as a document the task is attached to.
+        coming over as a file the task is attached to.
         """
         issues = list(issues)
         self._fields.add(issues)
@@ -642,7 +642,7 @@ class ProjectMapper:
                 continue
             task, lost = mapped
             key = task["external_ref"].removeprefix("jira:")
-            # Each file the issue had attached is a document of its own, and
+            # Each file the issue had attached is a file of its own, and
             # the task is attached to it once both exist. Named by its
             # manifest entry, which is its asset's path.
             task["links"].extend(
@@ -716,7 +716,7 @@ def build_project_envelope(
     nothing outside Jira.
 
     ``files_by_issue`` are the attached files that are not pictures, each
-    coming over as a document the task is attached to.
+    coming over as a file the task is attached to.
     """
     mapper = ProjectMapper(
         project=project,

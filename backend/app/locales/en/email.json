@@ -54,10 +54,10 @@
     "redactedItem": "A task was assigned to you"
   },
   "mention": {
-    "document": {
-      "subject": "You were mentioned in {{document}}",
+    "file": {
+      "subject": "You were mentioned in {{file}}",
       "title": "You were mentioned",
-      "body": "<strong>{{actor}}</strong> mentioned you in <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> mentioned you in <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "You were mentioned in a comment",

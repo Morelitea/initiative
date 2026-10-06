@@ -208,7 +208,7 @@ export const useUpdateTask = (
 };
 
 /**
- * Tick or untick a task from somewhere that is not its project — a document's
+ * Tick or untick a task from somewhere that is not its project — a file's
  * checkbox. Done is the project's done column; unticked is in progress, the
  * same move the My Tasks box makes. Which column that is belongs to the
  * project, so its columns are read at the moment of ticking.

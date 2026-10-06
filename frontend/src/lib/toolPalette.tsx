@@ -24,7 +24,7 @@ import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import type { ToolPaletteListOptions } from "@/hooks/useToolPaletteList";
 import { useToolPaletteList } from "@/hooks/useToolPaletteList";
 import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
-import { documentIcon } from "@/lib/documentIcon";
+import { fileIcon } from "@/lib/fileIcon";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
 
 export interface PaletteItem {
@@ -76,15 +76,15 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       }));
     },
   },
-  [Tool.document]: {
-    useHeading: () => useGroupHeading(Tool.document),
+  [Tool.file]: {
+    useHeading: () => useGroupHeading(Tool.file),
     useItems: (ctx) => {
       // The 25 most recently updated. Narrowing by what was typed is the
       // index's job now, and it answers for every tool at once.
-      const query = useToolPaletteList(TOOL_HOOKS[Tool.document].listQuery, BROWSE_PAGE_HEAVY, ctx);
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.file].listQuery, BROWSE_PAGE_HEAVY, ctx);
       return (query.data?.items ?? []).map((doc) => {
-        const { Icon: DocIcon, colorClass } = documentIcon({
-          document_type: doc.document_type,
+        const { Icon: DocIcon, colorClass } = fileIcon({
+          file_type: doc.file_type,
           mime_type: doc.file_content_type,
           original_filename: doc.original_filename,
           smart_link_url: doc.smart_link_url,
@@ -94,7 +94,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
           label: doc.name,
           keywords: [doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])],
           icon: <DocIcon className={colorClass} />,
-          path: toolDetailRoute(Tool.document, doc.initiative_id, doc.id),
+          path: toolDetailRoute(Tool.file, doc.initiative_id, doc.id),
         };
       });
     },

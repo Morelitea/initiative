@@ -602,7 +602,7 @@ export type ArchivableType = (typeof ArchivableType)[keyof typeof ArchivableType
 
 export const ArchivableType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -958,7 +958,7 @@ export const ListingKind = {
   calendar: "calendar",
   counter_group: "counter_group",
   dashboard: "dashboard",
-  document: "document",
+  file: "file",
   gallery: "gallery",
   plugin: "plugin",
   post: "post",
@@ -998,13 +998,13 @@ export interface BodyUploadBackup {
   file: Blob;
 }
 
-export interface BodyUploadDocumentFile {
+export interface BodyUploadFile {
   name: string;
   initiative_id: number;
   file: Blob;
 }
 
-export interface BodyUploadDocumentVersion {
+export interface BodyUploadFileVersion {
   file: Blob;
 }
 
@@ -1822,7 +1822,7 @@ export interface CommentCreate {
   task_id?: number | null;
   wiki_page_id?: number | null;
   project_id?: number | null;
-  document_id?: number | null;
+  file_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -1864,7 +1864,7 @@ export interface CommentRead {
   task_id: number | null;
   wiki_page_id: number | null;
   project_id: number | null;
-  document_id: number | null;
+  file_id: number | null;
   queue_id: number | null;
   counter_group_id: number | null;
   calendar_id: number | null;
@@ -2204,7 +2204,7 @@ export interface CommunityCreate {
  * Body for ``DELETE /communities/{id}``.
  *
  * Deleting a guild cascades through every initiative, project, task,
- * document, membership, invite, and settings row it owns, so the
+ * file, membership, invite, and settings row it owns, so the
  * endpoint gates on two confirmations:
  *
  * - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
@@ -3648,8 +3648,8 @@ export const DatasetName = {
   task_statuses: "task_statuses",
   task_assignees: "task_assignees",
   members: "members",
-  documents: "documents",
-  document_versions: "document_versions",
+  files: "files",
+  file_versions: "file_versions",
   queues: "queues",
   queue_items: "queue_items",
   calendars: "calendars",
@@ -4085,159 +4085,6 @@ export interface DmVerificationSend {
   body: string;
 }
 
-export type DocumentCreateContent = { [key: string]: unknown } | null;
-
-export type DocumentCreateDocumentType =
-  (typeof DocumentCreateDocumentType)[keyof typeof DocumentCreateDocumentType];
-
-export const DocumentCreateDocumentType = {
-  native: "native",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
-
-export interface DocumentCreate {
-  properties?: PropertyValueInput[];
-  name: string;
-  initiative_id: number;
-  featured_image_url?: string | null;
-  is_template?: boolean;
-  content?: DocumentCreateContent;
-  document_type?: DocumentCreateDocumentType;
-  grants?: ResourceGrantSchema[];
-}
-
-/**
- * A single stored version of a file-type document. The binary is fetched
- * via the version download endpoint by id — ``file_url`` is intentionally
- * not exposed.
- */
-export interface DocumentFileVersionRead {
-  id: number;
-  version_number: number;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  created_by: number;
-  created_at: string;
-  is_current: boolean;
-}
-
-/**
- * An initiative as something else names it: enough to label and link it.
- *
- * What a project, a document or a task carries about the initiative it is in.
- * The initiative's own read is :class:`InitiativeRead`.
- */
-export interface InitiativeSummary {
-  id: number;
-  name: string;
-  color: string | null;
-}
-
-/**
- * An installed plug-in that owns a resource, or may be handed one: the
- * install's id, its name in this community, and its listing's picture.
- */
-export interface OwnerPluginSummary {
-  id: number;
-  name: string;
-  avatar_url: string | null;
-}
-
-/**
- * Discriminator for document type.
- */
-export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
-
-export const DocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
-
-export interface DocumentSummary {
-  archived_at: string | null;
-  can: ToolCan;
-  id: number;
-  initiative_id: number;
-  community_id: number;
-  created_by: number | null;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
-  name: string;
-  featured_image_url: string | null;
-  is_template: boolean;
-  initiative: InitiativeSummary | null;
-  owner: UserPublic | null;
-  owner_plugin: OwnerPluginSummary | null;
-  comment_count: number;
-  document_type: DocumentType;
-  file_url: string | null;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  smart_link_url: string | null;
-}
-
-export interface DocumentListResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  items: DocumentSummary[];
-}
-
-export type DocumentReadContent = { [key: string]: unknown };
-
-export interface DocumentRead {
-  archived_at: string | null;
-  can: ToolCan;
-  id: number;
-  initiative_id: number;
-  community_id: number;
-  created_by: number | null;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
-  name: string;
-  featured_image_url: string | null;
-  is_template: boolean;
-  initiative: InitiativeSummary | null;
-  owner: UserPublic | null;
-  owner_plugin: OwnerPluginSummary | null;
-  comment_count: number;
-  document_type: DocumentType;
-  file_url: string | null;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  smart_link_url: string | null;
-  content: DocumentReadContent;
-  content_version: string | null;
-}
-
-export type DocumentUpdateContent = { [key: string]: unknown } | null;
-
-export interface DocumentUpdate {
-  name?: string | null;
-  content?: DocumentUpdateContent;
-  content_version?: string | null;
-  featured_image_url?: string | null;
-  is_template?: boolean | null;
-}
-
 /**
  * How often email is allowed to arrive.
  *
@@ -4396,7 +4243,7 @@ export const SearchEntityType = {
   counter: "counter",
   counter_group: "counter_group",
   dashboard: "dashboard",
-  document: "document",
+  file: "file",
   gallery: "gallery",
   gallery_image: "gallery_image",
   post: "post",
@@ -4424,7 +4271,7 @@ export type EntityType = (typeof EntityType)[keyof typeof EntityType];
 
 export const EntityType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -4538,6 +4385,158 @@ export interface FieldCatalogResponse {
   fields: FieldDescription[];
   relations?: RelationDescription[];
   default_filters?: DefaultFilter[];
+}
+
+export type FileCreateContent = { [key: string]: unknown } | null;
+
+export type FileCreateFileType = (typeof FileCreateFileType)[keyof typeof FileCreateFileType];
+
+export const FileCreateFileType = {
+  native: "native",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
+
+export interface FileCreate {
+  properties?: PropertyValueInput[];
+  name: string;
+  initiative_id: number;
+  featured_image_url?: string | null;
+  is_template?: boolean;
+  content?: FileCreateContent;
+  file_type?: FileCreateFileType;
+  grants?: ResourceGrantSchema[];
+}
+
+/**
+ * An initiative as something else names it: enough to label and link it.
+ *
+ * What a project, a file or a task carries about the initiative it is in.
+ * The initiative's own read is :class:`InitiativeRead`.
+ */
+export interface InitiativeSummary {
+  id: number;
+  name: string;
+  color: string | null;
+}
+
+/**
+ * An installed plug-in that owns a resource, or may be handed one: the
+ * install's id, its name in this community, and its listing's picture.
+ */
+export interface OwnerPluginSummary {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+}
+
+/**
+ * Discriminator for file type.
+ */
+export type FileType = (typeof FileType)[keyof typeof FileType];
+
+export const FileType = {
+  native: "native",
+  file: "file",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
+
+export interface FileSummary {
+  archived_at: string | null;
+  can: ToolCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
+  owner_plugin: OwnerPluginSummary | null;
+  comment_count: number;
+  file_type: FileType;
+  file_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
+}
+
+export interface FileListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: FileSummary[];
+}
+
+export type FileReadContent = { [key: string]: unknown };
+
+export interface FileRead {
+  archived_at: string | null;
+  can: ToolCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
+  owner_plugin: OwnerPluginSummary | null;
+  comment_count: number;
+  file_type: FileType;
+  file_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
+  content: FileReadContent;
+  content_version: string | null;
+}
+
+export type FileUpdateContent = { [key: string]: unknown } | null;
+
+export interface FileUpdate {
+  name?: string | null;
+  content?: FileUpdateContent;
+  content_version?: string | null;
+  featured_image_url?: string | null;
+  is_template?: boolean | null;
+}
+
+/**
+ * A single stored version of an uploaded file. The binary is fetched
+ * via the version download endpoint by id — ``file_url`` is intentionally
+ * not exposed.
+ */
+export interface FileVersionRead {
+  id: number;
+  version_number: number;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  created_by: number;
+  created_at: string;
+  is_current: boolean;
 }
 
 /**
@@ -4907,9 +4906,9 @@ export interface GenerateDescriptionResponse {
 }
 
 /**
- * Response schema for document summarization.
+ * Response schema for file summarization.
  */
-export interface GenerateDocumentSummaryResponse {
+export interface GenerateFileSummaryResponse {
   summary: string;
 }
 
@@ -5084,7 +5083,7 @@ export type Tool = (typeof Tool)[keyof typeof Tool];
 
 export const Tool = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -5131,7 +5130,7 @@ export const InitiativeJoinPolicy = {
 
 export interface InitiativeCreate {
   projects_enabled?: boolean;
-  documents_enabled?: boolean;
+  files_enabled?: boolean;
   queues_enabled?: boolean;
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
@@ -5299,7 +5298,7 @@ export interface InitiativeMemberUpdate {
  */
 export interface InitiativeRead {
   projects_enabled: boolean;
-  documents_enabled: boolean;
+  files_enabled: boolean;
   queues_enabled: boolean;
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
@@ -5328,8 +5327,8 @@ export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 export const PermissionKey = {
   projects_enabled: "projects_enabled",
   create_projects: "create_projects",
-  documents_enabled: "documents_enabled",
-  create_documents: "create_documents",
+  files_enabled: "files_enabled",
+  create_files: "create_files",
   queues_enabled: "queues_enabled",
   create_queues: "create_queues",
   counter_groups_enabled: "counter_groups_enabled",
@@ -5432,7 +5431,7 @@ export interface InitiativeTaskStatusRead {
 
 export interface InitiativeUpdate {
   projects_enabled?: boolean | null;
-  documents_enabled?: boolean | null;
+  files_enabled?: boolean | null;
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
@@ -7764,7 +7763,7 @@ export type PropertyTarget = (typeof PropertyTarget)[keyof typeof PropertyTarget
 
 export const PropertyTarget = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -8194,7 +8193,7 @@ export type RecentEntityType = (typeof RecentEntityType)[keyof typeof RecentEnti
 
 export const RecentEntityType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -8218,7 +8217,7 @@ export interface RecentItemRead {
   name: string;
   last_viewed_at: string;
   icon: string | null;
-  document_type: string | null;
+  file_type: string | null;
   mime_type: string | null;
   original_filename: string | null;
 }
@@ -8369,7 +8368,7 @@ export interface RelatedEnd {
   image_urls: string[];
   icon: string | null;
   color: string | null;
-  document_type: string | null;
+  file_type: string | null;
   mime_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
@@ -8727,7 +8726,7 @@ export interface SmartChipState {
  *
  * A ref that names nothing, or something this caller cannot see, is simply
  * absent: the two are the same answer, and the chip falls back to the label
- * the document already stored.
+ * the file already stored.
  */
 export interface SmartChipStateList {
   items: SmartChipState[];
@@ -8867,7 +8866,7 @@ export type TagTarget = (typeof TagTarget)[keyof typeof TagTarget];
 
 export const TagTarget = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -9266,7 +9265,7 @@ export interface UnreadPlacesResponse {
  *
  * Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
  * or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
- * param. This token is accepted only by the /uploads + document-download
+ * param. This token is accepted only by the /uploads + file-download
  * routes and expires quickly; the 7-day session JWT never goes in a URL.
  * ``expires_in`` is the lifetime in seconds so the SPA can refresh before it
  * lapses.
@@ -9807,8 +9806,8 @@ export interface WikiPageHeading {
 /**
  * What a row in a wiki's navigation actually is.
  *
- * A wiki holds pages of its own and documents somebody put in it. The second
- * kind is a document still — it is not copied in, it keeps its own address,
+ * A wiki holds pages of its own and files somebody put in it. The second
+ * kind is a file still — it is not copied in, it keeps its own address,
  * its own sharing and its own history — so the navigation has to say which it
  * is looking at rather than pretend they are the same row.
  */
@@ -9816,7 +9815,7 @@ export type WikiPageKind = (typeof WikiPageKind)[keyof typeof WikiPageKind];
 
 export const WikiPageKind = {
   page: "page",
-  document: "document",
+  file: "file",
 } as const;
 
 /**
@@ -9853,7 +9852,7 @@ export interface WikiPageRead {
   headings: WikiPageHeading[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: string | null;
+  file_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
@@ -9884,7 +9883,7 @@ export interface WikiPageSummary {
   headings: WikiPageHeading[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: string | null;
+  file_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
@@ -10322,7 +10321,7 @@ export type GetToolCountsParams = {
    */
   view?: string;
   /**
-   * JSON object of the tool's own list filters, as its list route takes them (``{"search": "notes", "document_type": "native"}``), that the tag counts are for
+   * JSON object of the tool's own list filters, as its list route takes them (``{"search": "notes", "file_type": "native"}``), that the tag counts are for
    */
   filters?: string | null;
   /**
@@ -10349,7 +10348,7 @@ export type ListProjectsParams = {
    */
   initiative_id?: number | null;
   /**
-   * Return a lightweight projection (id, name, icon, initiative_id, can) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
+   * Return a lightweight projection (id, name, icon, initiative_id, can) without files, grants, tags, or the nested initiative. For project pickers and other list-only callers.
    */
   slim?: boolean;
   /**
@@ -10383,7 +10382,7 @@ export type ListProjectsParams = {
   page_size?: number;
 };
 
-export type ListDocumentsParams = {
+export type ListFilesParams = {
   initiative_id?: number | null;
   search?: string | null;
   /**
@@ -10395,17 +10394,17 @@ export type ListDocumentsParams = {
    */
   property_filters?: string | null;
   /**
-   * Filter to documents with no tags
+   * Filter to files with no tags
    */
   untagged?: boolean | null;
   /**
-   * Only templates (true) or only documents that are not templates (false). Omit for both.
+   * Only templates (true) or only files that are not templates (false). Omit for both.
    */
   is_template?: boolean | null;
   /**
-   * Filter by document type
+   * Filter by file type
    */
-  document_type?: DocumentType | null;
+  file_type?: FileType | null;
   /**
    * @minimum 1
    */
@@ -10818,7 +10817,7 @@ export type ListCommentsParams = {
   task_id?: number | null;
   wiki_page_id?: number | null;
   project_id?: number | null;
-  document_id?: number | null;
+  file_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -10902,9 +10901,9 @@ export type SearchInitiativeMembersParams = {
   page_size?: number;
 };
 
-export type ReadDocumentParams = {
+export type ReadFileParams = {
   /**
-   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
+   * Include the file body. Pass false for the metadata alone — a file's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
    */
   include_content?: boolean;
   /**
@@ -11004,7 +11003,7 @@ export type ExportInitiativeParams = {
    */
   include?: string | null;
   /**
-   * Report mode: JSON object of tool→format; the document entry is a nested map, e.g. {"project": "pdf", "document": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
+   * Report mode: JSON object of tool→format; the file entry is a nested map, e.g. {"project": "pdf", "file": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
    */
   formats?: string | null;
   /**
@@ -11065,7 +11064,7 @@ export type ExportToolParams = {
    */
   ids?: number[] | null;
   /**
-   * One of the tool's export formats (project: json, pdf, csv, xlsx; document: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
+   * One of the tool's export formats (project: json, pdf, csv, xlsx; file: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A file's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
    */
   format?: ExportToolFormat;
   /**
@@ -11365,7 +11364,7 @@ export type SearchCommunityParams = {
    */
   search: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11393,7 +11392,7 @@ export type SearchCommunityParams = {
 
 export type RecentCommunityParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11405,7 +11404,7 @@ export type RecentCommunityParams = {
    */
   is_template?: boolean | null;
   /**
-   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   * The thing being written in, as a reference (``file:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
   subject?: string | null;
   /**
@@ -11421,7 +11420,7 @@ export type SuggestCommunityParams = {
    */
   search: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11433,7 +11432,7 @@ export type SuggestCommunityParams = {
    */
   is_template?: boolean | null;
   /**
-   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   * The thing being written in, as a reference (``file:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
   subject?: string | null;
   /**
@@ -11600,11 +11599,11 @@ export type ListMyProjectsParams = {
   page_size?: number;
 };
 
-export type ListMyDocumentsParams = {
+export type ListMyFilesParams = {
   community_ids?: number[] | null;
   search?: string | null;
   /**
-   * Narrow to documents the caller created.
+   * Narrow to files the caller created.
    */
   created_by_me?: boolean;
   /**

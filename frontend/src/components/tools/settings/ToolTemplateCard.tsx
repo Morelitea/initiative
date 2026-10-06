@@ -2,7 +2,7 @@
  * Whether this is a template: one meant to be copied rather than worked in,
  * listed with its initiative's templates.
  *
- * One card for every tool that has templates (projects and documents). A tool
+ * One card for every tool that has templates (projects and files). A tool
  * opts in by handing its settings the `template` mutation; without one there
  * is no card.
  */

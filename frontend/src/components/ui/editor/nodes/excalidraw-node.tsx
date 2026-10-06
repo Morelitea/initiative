@@ -19,7 +19,7 @@ export const EMPTY_DRAWING = JSON.stringify({ elements: [], appState: {}, files:
 export type SerializedExcalidrawNode = Spread<
   {
     /** The Excalidraw scene, as a JSON string: `{elements, appState, files}`
-     * — the same shape a whiteboard document keeps. */
+     * — the same shape a whiteboard file keeps. */
     data: string;
     /** The preview's width in CSS pixels, 0 for as drawn. */
     width: number;
@@ -30,7 +30,7 @@ export type SerializedExcalidrawNode = Spread<
 /**
  * A drawing inside a document. The page shows it as a picture; opening it
  * brings up the whiteboard editor on just this drawing, and saving writes the
- * scene back onto the node. It is the whiteboard document's canvas in a
+ * scene back onto the node. It is the whiteboard file's canvas in a
  * block's clothing, so a drawing moves between the two unchanged.
  */
 export class ExcalidrawNode extends DecoratorNode<JSX.Element> {

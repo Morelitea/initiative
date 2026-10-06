@@ -6,7 +6,7 @@ the enum — plus the content-level extras in ``EXTRA_COMMENT_TARGETS``, which
 are not tools and anchor to the tool that owns them for access (a task to its
 project, a wiki page to its wiki). Reading a thread takes read access on that
 anchor, posting takes write access, exactly as it always has for tasks and
-documents.
+files.
 
 Every tool entity also carries its own switch, ``comments_enabled``: while it
 is off, that entity's thread is neither readable nor postable and the UI shows
@@ -48,7 +48,7 @@ from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -111,7 +111,7 @@ _REGISTERED = (
     Calendar,
     CounterGroup,
     Dashboard,
-    Document,
+    File,
     Gallery,
     Post,
     Project,

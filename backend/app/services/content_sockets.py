@@ -2,7 +2,7 @@
 
 A guild page opens up to three kinds of socket: the events bus
 (``/c/{guild}/events/updates``), a change signal for one queue or counter group
-(``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one document body.
+(``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one file body.
 Every page also holds the account's own socket (``/notifications/stream``),
 which belongs to no guild: it is registered with ``guild_id=None`` in its
 account's room, and ``app.services.platform.user_stream`` sends to that room.
@@ -35,7 +35,7 @@ What they share is everything else, and that lives here once:
 
 A re-check groups sockets by the account, guild and sign-in that opened them,
 and runs one guild entry per group on one session — a person with a board, a
-queue and a document open costs one entry, not three — with at most
+queue and a file open costs one entry, not three — with at most
 ``RECHECK_CONCURRENCY`` groups in flight.
 
 What this holds is one process's own sockets. Where the API runs as several
@@ -196,7 +196,7 @@ class Subscriber:
     credential: Credential
     rooms: frozenset[RoomKey] = frozenset()
     #: Whether this socket counts its user as online, and as present in its
-    #: guild. The events bus and the account socket do; a tool or document
+    #: guild. The events bus and the account socket do; a tool or file
     #: socket is a page inside a guild already counted.
     presence: bool = False
     #: Whatever the channel attached at join: collaboration keeps the display

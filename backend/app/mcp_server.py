@@ -7,14 +7,14 @@ authentication and the six RLS gates apply by reuse — never re-implemented.
 The surface is curated and default-deny, so a newly added route can't silently
 become a tool:
   * **Reads** — every ``GET`` route for initiatives and for the tools they hold
-    (projects and tasks, documents, queues, counters, calendars and their
+    (projects and tasks, files, queues, counters, calendars and their
     events, wikis and their pages, notices, dashboards), plus the two comment
     reads that pair with the comment write (a parent's thread and a single
     comment by id), plus the one relationships read, which answers what a thing
     is linked to, plus the guild's general search, which finds a thing by name. A handful are carved back out: file downloads, who voted and
     who has read, and the dashboard editor's own palette.
   * **Writes** — an explicit allow-list, matched by path shape: create and edit
-    every tool (projects, documents, queues, counters, calendars, wikis,
+    every tool (projects, files, queues, counters, calendars, wikis,
     notices, dashboards) and the things they hold (tasks, queue items, counters,
     calendar events, wiki pages, comments), plus the two writes that shape alone
     doesn't reach — moving a task, and moving a counter's count — plus drawing
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
 # Every tool an initiative holds is readable, not only the two it starts with.
 # An agent asked "how is this going" was previously answering from tasks alone,
 # which is the shape of the question rather than the shape of the work: the
-# rota is a queue, the write-up is a document, the numbers are counters, and
+# rota is a queue, the write-up is a file, the numbers are counters, and
 # what somebody would actually look at first is a dashboard. The write surface
 # in ``_WRITE_ROUTE_MAPS`` covers the same set, so what an agent can read it can
 # also author and edit.
@@ -175,7 +175,7 @@ _WRITE_ROUTE_MAPS = [
 # The other two stay behind the default-deny catch-all. ``GET /comments/recent``
 # is a guild-wide activity feed rather than a working surface — the same reason
 # ``join-requests`` is carved out of the ``initiatives`` tag — and it reaches
-# comments on parents (documents, queues, counters, calendars, dashboards) that
+# comments on parents (files, queues, counters, calendars, dashboards) that
 # the tool surface otherwise doesn't cover, undirected by any task at hand.
 # ``GET /comments/mentions/search`` backs the editor's @-mention picker; the
 # member and task lookups an agent needs are already tools of their own.
@@ -206,14 +206,14 @@ _SEARCH_READ_ROUTE_MAPS = [
 #
 # ``GET /relationships/`` answers what no tool read can: a task's payload
 # carries its status, its people and its tags, but nothing about the task it
-# blocks, the document it was written from, or the queue item it came out of —
+# blocks, the file it was written from, or the queue item it came out of —
 # and that wiring is most of what "what is the state of this" means once a piece
 # of work touches more than one tool. It answers for one thing at a time
 # (``entity=task:12``), from that thing's side.
 #
 # ``POST /relationships/`` is the same create-and-edit reasoning the tool writes
 # follow: what an agent can read it can also author, and an agent that files a
-# task and writes the document behind it should be able to say so. There is no
+# task and writes the file behind it should be able to say so. There is no
 # PATCH to pair with it — an edge has no fields to edit, only ends and a type,
 # which are what it *is* — so the create stands alone. The endpoint refuses the
 # links that aren't anybody's to assert by hand (a ``references`` edge is read
@@ -233,7 +233,7 @@ _RELATIONSHIP_ROUTE_MAPS = [
 # Carved out of the tag rules below, each for a reason the tag itself cannot
 # express. Ordered ahead of them so the exclusion wins.
 _TOOL_READ_EXCLUSIONS = [
-    # Bytes rather than an answer. A download hands back a file — a document's
+    # Bytes rather than an answer. A download hands back a file — an uploaded file's
     # contents, or one of its versions — and an export hands back a calendar
     # file. Neither is something a tool result can carry usefully, and a large
     # one would fill a caller's context with an attachment it cannot open.

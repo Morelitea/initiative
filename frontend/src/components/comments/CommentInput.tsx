@@ -13,7 +13,7 @@ interface CommentInputProps {
   submitLabel?: string;
   isSubmitting?: boolean;
   initiativeId: number;
-  /** The thing being commented on, as a reference (`document:12`). A comment
+  /** The thing being commented on, as a reference (`file:12`). A comment
    *  does not point at what it is a remark about — that is the page it is
    *  already on — so it is never offered. */
   subject?: string | null;

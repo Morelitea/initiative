@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool, WikiPageKind, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
-import { AddWikiDocumentDialog } from "@/components/initiativeTools/wikis/AddWikiDocumentDialog";
+import { AddWikiFileDialog } from "@/components/initiativeTools/wikis/AddWikiFileDialog";
 import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
 import {
   useWikiTreeExpansion,
@@ -31,19 +31,19 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCreateWikiPage,
-  useMoveWikiDocument,
+  useMoveWikiFile,
   useMoveWikiPage,
-  useRemoveWikiDocument,
+  useRemoveWikiFile,
   useWiki,
   useWikiPages,
 } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
-import { TOOL_ICONS, toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
+import { TOOL_ICONS, toolSettingsRoute, wikiFileRoute, wikiPageRoute } from "@/lib/tools";
 
-// Adding a document to a wiki is named by the documents tool itself, so the row
+// Adding a file to a wiki is named by the files tool itself, so the row
 // says which tool it reaches into rather than inventing a second mark for it.
-const DocumentIcon = TOOL_ICONS[Tool.document];
+const FileIcon = TOOL_ICONS[Tool.file];
 
 interface WikiSidebarContentProps {
   wikiId: number;
@@ -63,7 +63,7 @@ interface WikiSidebarContentProps {
  * climbs back out.
  *
  * The tree is the navigation here — not a panel beside the text — because that
- * is what separates a wiki from a folder of documents: you read it by moving
+ * is what separates a wiki from a folder of files: you read it by moving
  * around it, and the shape has to be in front of you the whole time.
  */
 export const WikiSidebarContent = ({
@@ -79,11 +79,11 @@ export const WikiSidebarContent = ({
   const wikiQuery = useWiki(wikiId);
   const pagesQuery = useWikiPages(wikiId);
   const createPage = useCreateWikiPage(wikiId);
-  // Putting a document in the wiki, and taking one back out.
-  const [addingDocument, setAddingDocument] = useState(false);
-  const removeDocument = useRemoveWikiDocument(wikiId);
+  // Putting a file in the wiki, and taking one back out.
+  const [addingFile, setAddingFile] = useState(false);
+  const removeFile = useRemoveWikiFile(wikiId);
   const movePage = useMoveWikiPage(wikiId);
-  const moveDocument = useMoveWikiDocument(wikiId);
+  const moveFile = useMoveWikiFile(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
 
@@ -117,10 +117,10 @@ export const WikiSidebarContent = ({
   // from what comes back rather than from what the drag guessed.
   const movePageTo = (page: WikiPageSummary, parentPageId: number | null, position: number) => {
     // Both kinds of row sit in one tree; which endpoint keeps their place is
-    // the only thing that differs, because a document's place belongs to the
-    // wiki rather than to the document.
-    if (page.kind === WikiPageKind.document) {
-      moveDocument.mutate({ documentId: page.id, parent_page_id: parentPageId, position });
+    // the only thing that differs, because a file's place belongs to the
+    // wiki rather than to the file.
+    if (page.kind === WikiPageKind.file) {
+      moveFile.mutate({ fileId: page.id, parent_page_id: parentPageId, position });
     } else {
       movePage.mutate({ pageId: page.id, parent_page_id: parentPageId, position });
     }
@@ -181,8 +181,8 @@ export const WikiSidebarContent = ({
                     <SidebarMenuButton asChild size="sm" isActive={page.id === activePageId}>
                       <Link
                         to={gp(
-                          page.kind === WikiPageKind.document
-                            ? wikiDocumentRoute(initiativeId, wikiId, page.id)
+                          page.kind === WikiPageKind.file
+                            ? wikiFileRoute(initiativeId, wikiId, page.id)
                             : wikiPageRoute(initiativeId, wikiId, page.id)
                         )}
                       >
@@ -233,8 +233,8 @@ export const WikiSidebarContent = ({
                 homePageId={wikiQuery.data?.home_page_id}
                 hrefOf={(page) =>
                   gp(
-                    page.kind === WikiPageKind.document
-                      ? wikiDocumentRoute(initiativeId, wikiId, page.id)
+                    page.kind === WikiPageKind.file
+                      ? wikiFileRoute(initiativeId, wikiId, page.id)
                       : wikiPageRoute(initiativeId, wikiId, page.id)
                   )
                 }
@@ -248,9 +248,9 @@ export const WikiSidebarContent = ({
                           page={page}
                           canWrite={canWrite}
                           initiativeId={initiativeId}
-                          onRemoveDocument={() =>
-                            removeDocument.mutate(page.id, {
-                              onSuccess: () => toast.success(t("documents.removed")),
+                          onRemoveFile={() =>
+                            removeFile.mutate(page.id, {
+                              onSuccess: () => toast.success(t("files.removed")),
                             })
                           }
                         />
@@ -272,9 +272,9 @@ export const WikiSidebarContent = ({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton size="sm" onClick={() => setAddingDocument(true)}>
-                      <DocumentIcon className="h-4 w-4" />
-                      <span>{t("documents.addDocument")}</span>
+                    <SidebarMenuButton size="sm" onClick={() => setAddingFile(true)}>
+                      <FileIcon className="h-4 w-4" />
+                      <span>{t("files.addFile")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -284,12 +284,12 @@ export const WikiSidebarContent = ({
         </SidebarGroup>
       </SidebarContent>
 
-      <AddWikiDocumentDialog
+      <AddWikiFileDialog
         wikiId={wikiId}
         initiativeId={initiativeId}
         pages={pages}
-        open={addingDocument}
-        onOpenChange={setAddingDocument}
+        open={addingFile}
+        onOpenChange={setAddingFile}
       />
     </>
   );

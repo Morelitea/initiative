@@ -1,5 +1,5 @@
 /**
- * Structural row / column insert & delete for spreadsheet documents.
+ * Structural row / column insert & delete for spreadsheet files.
  *
  * Like ``sort.ts``, the logic is pure (no Yjs / React) so it can be
  * unit-tested and then applied by the editor inside a single
@@ -71,7 +71,7 @@ export interface LineOp {
   /** The name of the sheet being transformed. When given, a formula on it
    *  shifts both its unqualified references *and* the ones that name this
    *  sheet explicitly (``=Sheet1!A5`` written on Sheet1 itself). Omit for a
-   *  single-sheet document, where every reference is local by definition. */
+   *  single-sheet file, where every reference is local by definition. */
   sheetName?: string;
 }
 

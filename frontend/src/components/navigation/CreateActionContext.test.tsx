@@ -56,11 +56,11 @@ describe("CreateActionContext", () => {
 
     // A re-render with a fresh handler should run the new one, not the stale one.
     const nextRun = vi.fn();
-    rerender(<Tree mounted={true} action={{ run: nextRun, label: "Add Document" }} />);
+    rerender(<Tree mounted={true} action={{ run: nextRun, label: "Add File" }} />);
     fireEvent.click(screen.getByTestId("run"));
     expect(nextRun).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("label").textContent).toBe("Add Document");
+    expect(screen.getByTestId("label").textContent).toBe("Add File");
   });
 
   it("marks a create context but exposes a null action when unpermitted (button hidden)", () => {

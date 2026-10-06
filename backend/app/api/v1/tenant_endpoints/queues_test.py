@@ -14,7 +14,7 @@ from app.core.messages import RelationshipMessages, SharingMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_queue,
@@ -1049,12 +1049,12 @@ async def test_an_items_attachment_count_covers_every_kind(
     queue_data = await _create_queue_via_api(client, a)
     item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
 
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     task = await create_task(session, a.project)
     other_project = await create_project(session, a.initiative, a.user)
 
     for kind, entity_id in (
-        ("document", doc.id),
+        ("file", doc.id),
         ("task", task.id),
         ("project", other_project.id),
     ):
@@ -1112,12 +1112,12 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         session, queue, label="Theirs", position=1, user_id=outsider.user.id
     )
     await assign_tag(session, mine, await create_tag(session, a.guild), commit=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.queue_item, mine.id),
-        target=(SearchEntityType.document, document.id),
+        target=(SearchEntityType.file, file.id),
         relationship_type=RelationshipType.attached,
     )
 

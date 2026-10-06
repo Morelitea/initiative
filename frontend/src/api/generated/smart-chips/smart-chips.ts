@@ -50,7 +50,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  *
  * A reference that names something gone, or something this caller may not
  * see, is absent from the answer — the two are the same reply, and the chip
- * falls back to the words the document stored beside it.
+ * falls back to the words the file stored beside it.
  * @summary Read Smart Chips
  */
 export const readSmartChips = (

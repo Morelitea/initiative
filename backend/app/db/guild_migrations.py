@@ -1,6 +1,6 @@
 """Apply a guild-scoped schema change to every guild schema, from a migration.
 
-Under schema-per-guild a guild-scoped table (tasks, projects, documents, …)
+Under schema-per-guild a guild-scoped table (tasks, projects, files, …)
 exists once per guild schema — ``guild_template``, ``guild_1.tasks``,
 ``guild_2.tasks``, … A normal Alembic migration runs once against ``public``, so
 it would change none of them.
