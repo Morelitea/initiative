@@ -42,6 +42,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.api.deps import (
+    AgeViewerDep,
     RLSSessionDep,
     SeatContextDep,
     SeatSessionDep,
@@ -60,6 +61,8 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.db.guild_standing import GuildContext
+from app.services.tenant import plugin_age
+from app.services.tenant.plugin_age import AgeViewer
 from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.plugin_member_consent import PluginMemberConsent
@@ -321,11 +324,12 @@ def _connection_or_404(plugin: GuildPlugin, connection_id: str) -> dict:
 
 
 async def _read(
-    session: AsyncSession, plugin: GuildPlugin, context: GuildContext
+    session: AsyncSession, plugin: GuildPlugin, context: GuildContext, viewer: AgeViewer
 ) -> CommunityPluginRead:
     """One install as the list reads it."""
     return serialize_guild_plugin(
         plugin,
+        viewer=viewer,
         install_state=await registration_lookup.install_state(
             plugin.definition, listing_uid=plugin.listing_uid
         ),
@@ -341,6 +345,7 @@ async def _detail(
     plugin: GuildPlugin,
     context: GuildContext,
     user_id: int,
+    viewer: AgeViewer,
     *,
     offer: Optional[plugin_updates_service.UpdateOffer] = None,
 ) -> CommunityPluginDetail:
@@ -352,6 +357,7 @@ async def _detail(
         offer = await plugin_updates_service.update_offer(session, plugin)
     return serialize_guild_plugin_detail(
         plugin,
+        viewer=viewer,
         avatar_url=await _plugin_avatar(session, plugin),
         member_rows=await _member_rows(session, plugin_id=plugin.id, user_id=user_id),
         install_state=await registration_lookup.install_state(
@@ -366,6 +372,19 @@ async def _detail(
             session, install_id=plugin.id, user_id=user_id
         ),
     )
+
+
+def _require_old_enough(plugin: GuildPlugin, viewer: AgeViewer) -> None:
+    """Refuse somebody younger than the plug-in's minimum age where they are.
+
+    Per person, on every path a person uses a plug-in through; the install
+    itself is never refused for it.
+    """
+    if not plugin_age.age_allows(plugin.definition, viewer):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildPluginMessages.AGE_RESTRICTED,
+        )
 
 
 async def _member_rows(session, *, plugin_id: int, user_id: int) -> dict:
@@ -385,6 +404,7 @@ async def list_community_plugins(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginListResponse:
     """Every plug-in installed in this guild, enabled or not.
 
@@ -412,6 +432,7 @@ async def list_community_plugins(
         items=[
             serialize_guild_plugin(
                 plugin,
+                viewer=viewer,
                 install_state=await registration_lookup.install_state(
                     plugin.definition, listing_uid=plugin.listing_uid
                 ),
@@ -431,6 +452,7 @@ async def get_community_plugin(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginDetail:
     """One install with its connections, from the caller's own perspective.
 
@@ -440,7 +462,7 @@ async def get_community_plugin(
     that belongs to somebody else.
     """
     plugin = await _load(session, plugin_id)
-    return await _detail(session, plugin, guild_context, current_user.id)
+    return await _detail(session, plugin, guild_context, current_user.id, viewer)
 
 
 @router.post(
@@ -451,6 +473,7 @@ async def install_community_plugin(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginRead:
     """Install a listing as a guild plug-in.
 
@@ -546,7 +569,7 @@ async def install_community_plugin(
         guild_context.guild_id, plugin.id, plugin.definition
     )
 
-    installed = await _read(session, plugin, guild_context)
+    installed = await _read(session, plugin, guild_context, viewer)
     await count_install(guild_context.guild_id, listing.id)
     return installed
 
@@ -558,6 +581,7 @@ async def upgrade_community_plugin(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
     background_tasks: BackgroundTasks,
+    viewer: AgeViewerDep,
     payload: Optional[CommunityPluginUpgrade] = None,
 ) -> CommunityPluginDetail:
     """Re-pin an installed plug-in to its listing's current version, now.
@@ -665,7 +689,7 @@ async def upgrade_community_plugin(
     await plugin_schedules_service.reconcile(
         guild_context.guild_id, plugin.id, plugin.definition
     )
-    return await _detail(session, plugin, guild_context, current_user.id)
+    return await _detail(session, plugin, guild_context, current_user.id, viewer)
 
 
 @router.post("/{plugin_id}/upgrade/decline", response_model=CommunityPluginDetail)
@@ -675,6 +699,7 @@ async def decline_community_plugin_upgrade(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginDetail:
     """Keep the pinned version, and stop being asked about this one.
 
@@ -708,7 +733,9 @@ async def decline_community_plugin_upgrade(
         )
     await session.commit()
     await session.refresh(plugin)
-    return await _detail(session, plugin, guild_context, current_user.id, offer=offer)
+    return await _detail(
+        session, plugin, guild_context, current_user.id, viewer, offer=offer
+    )
 
 
 @router.patch("/{plugin_id}", response_model=CommunityPluginRead)
@@ -718,6 +745,7 @@ async def update_community_plugin(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginRead:
     """Rename a plug-in, place it, choose how it updates, or turn it off.
 
@@ -779,7 +807,7 @@ async def update_community_plugin(
     await session.commit()
     await session.refresh(plugin)
     await plugin_installs_service.record(guild_context.guild_id, plugin)
-    return await _read(session, plugin, guild_context)
+    return await _read(session, plugin, guild_context, viewer)
 
 
 @router.delete("/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -842,6 +870,7 @@ async def update_community_plugin_config(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginDetail:
     """Set the guild-wide values a plug-in's connections ask for.
 
@@ -868,7 +897,7 @@ async def update_community_plugin_config(
     await session.commit()
     await session.refresh(plugin)
     await plugin_installs_service.record(guild_context.guild_id, plugin)
-    return await _detail(session, plugin, guild_context, current_user.id)
+    return await _detail(session, plugin, guild_context, current_user.id, viewer)
 
 
 # ---------------------------------------------------------------------------
@@ -936,6 +965,7 @@ async def put_community_plugin_scopes(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginRead:
     """Grant the install exactly these scopes.
 
@@ -971,7 +1001,7 @@ async def put_community_plugin_scopes(
         )
     await session.commit()
     await session.refresh(plugin)
-    return await _read(session, plugin, guild_context)
+    return await _read(session, plugin, guild_context, viewer)
 
 
 # ---------------------------------------------------------------------------
@@ -986,6 +1016,7 @@ async def create_community_plugin_handoff(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginHandoff:
     """Mint the short-lived credential for one of this plug-in's embedded surfaces.
 
@@ -1003,6 +1034,7 @@ async def create_community_plugin_handoff(
         plugin,
         surface_id=surface_id,
         context=guild_context,
+        viewer=viewer,
         # This route reaches a guild and names no initiative. A surface that
         # renders only inside one is not offered here.
         initiative_id=None,
@@ -1025,6 +1057,7 @@ async def create_initiative_plugin_handoff(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginHandoff:
     """Mint the credential for a surface opened inside one initiative.
 
@@ -1048,6 +1081,7 @@ async def create_initiative_plugin_handoff(
         plugin,
         surface_id=surface_id,
         context=guild_context,
+        viewer=viewer,
         initiative_id=initiative.id,
     )
     await session.commit()
@@ -1085,6 +1119,7 @@ async def connect_community_plugin(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
 ) -> CommunityPluginConnectStart:
     """Start the vendor flow behind one connection.
 
@@ -1103,6 +1138,7 @@ async def connect_community_plugin(
     Nothing is stored until it does.
     """
     plugin = await _load(session, plugin_id)
+    _require_old_enough(plugin, viewer)
     if not plugin.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildPluginMessages.DISABLED
@@ -1243,6 +1279,7 @@ async def grant_my_consent(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
     credential: Annotated[str, Depends(require_first_party_session)],
+    viewer: AgeViewerDep,
 ) -> CommunityPluginConsentRead:
     """Allow this plug-in to act as you for one of its requests, at ``access``.
 
@@ -1251,6 +1288,7 @@ async def grant_my_consent(
     signed in is recorded with the answer.
     """
     plugin = await _load(session, plugin_id)
+    _require_old_enough(plugin, viewer)
     row = await _own_consent(
         session, plugin_id=plugin.id, consent_id=consent_id, user_id=current_user.id
     )

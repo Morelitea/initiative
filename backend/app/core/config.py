@@ -1079,6 +1079,15 @@ class Settings(BaseSettings):
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
 
+    # The request header a trusted proxy in front of the deployment writes the
+    # client's country into, as an ISO 3166-1 alpha-2 code — ``CF-IPCountry``
+    # behind Cloudflare. Read to apply a plug-in's minimum age for where
+    # somebody is; never stored. Unset (the default), or a value that is not a
+    # country, means "not known", and a plug-in's highest declared age applies.
+    # Only set it when every request reaches the app through that proxy, or a
+    # client could name its own country.
+    CLIENT_COUNTRY_HEADER: str | None = None
+
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to
     # every route that lacks its own ``@limiter.limit(...)`` decorator. Uses the
     # slowapi/limits string syntax (e.g. ``"100/minute"``, or

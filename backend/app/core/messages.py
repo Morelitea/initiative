@@ -1226,6 +1226,9 @@ class GuildPluginMessages:
     #: The surface was opened in an initiative the plug-in is placed in, and the
     #: caller holds none of the roles that placement allows.
     SURFACE_ROLE_NOT_ALLOWED = "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED"
+    #: The viewer is younger than the plug-in's minimum age where they are, or
+    #: has no date of birth on file to say otherwise.
+    AGE_RESTRICTED = "COMMUNITY_PLUGIN_AGE_RESTRICTED"
     #: The placement sent names an initiative that is not one of this guild's.
     PLACEMENT_INVALID = "COMMUNITY_PLUGIN_PLACEMENT_INVALID"
     #: The placement names a role that is not one of its initiative's.

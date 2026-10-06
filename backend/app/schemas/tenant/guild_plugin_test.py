@@ -21,6 +21,10 @@ from types import SimpleNamespace
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import Guild
 from app.schemas.tenant.guild_plugin import serialize_guild_plugin
+from app.services.tenant.plugin_age import AgeViewer
+
+#: An adult whose country is known, so no age limit is what is under test.
+ADULT = AgeViewer(age=30, country="US")
 
 
 SECRET_DIGEST = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
@@ -83,7 +87,7 @@ def _plugin(**overrides) -> SimpleNamespace:
 
 
 def test_the_pinned_definition_is_passed_through_verbatim():
-    payload = serialize_guild_plugin(_plugin(), context=CONTEXT)
+    payload = serialize_guild_plugin(_plugin(), context=CONTEXT, viewer=ADULT)
 
     assert payload.definition == DEFINITION
     # Including the block this build never interprets — a plug-in reads it here
@@ -94,22 +98,28 @@ def test_the_pinned_definition_is_passed_through_verbatim():
 def test_the_config_state_the_plugin_reported_is_carried():
     """Until a plug-in reports, an install has no verdict; once it does, the
     settings page can say whether the plug-in is happy without leaving the app."""
-    assert serialize_guild_plugin(_plugin(), context=CONTEXT).config_state == "ok"
+    assert (
+        serialize_guild_plugin(_plugin(), context=CONTEXT, viewer=ADULT).config_state
+        == "ok"
+    )
     assert (
         serialize_guild_plugin(
             _plugin(config_state="invalid", config_state_detail="missing_read_orders"),
             context=CONTEXT,
+            viewer=ADULT,
         ).config_state_detail
         == "missing_read_orders"
     )
     assert serialize_guild_plugin(
-        _plugin(config_state="unverified"), context=CONTEXT
+        _plugin(config_state="unverified"), context=CONTEXT, viewer=ADULT
     ).config_state == ("unverified")
 
 
 def test_no_stored_value_appears_anywhere_in_the_payload():
     payload = serialize_guild_plugin(
-        _plugin(config={"admin": {"shop_domain": "example.test"}}), context=CONTEXT
+        _plugin(config={"admin": {"shop_domain": "example.test"}}),
+        context=CONTEXT,
+        viewer=ADULT,
     )
 
     serialized = payload.model_dump_json()
@@ -124,10 +134,15 @@ def test_needs_config_still_reads_from_presence():
     """A required guild-wide field with nothing in it is the one thing this
     build can know by itself, and it is unaffected by the passthrough."""
     assert (
-        serialize_guild_plugin(_plugin(secret_fields={}), context=CONTEXT).needs_config
+        serialize_guild_plugin(
+            _plugin(secret_fields={}), context=CONTEXT, viewer=ADULT
+        ).needs_config
         is True
     )
-    assert serialize_guild_plugin(_plugin(), context=CONTEXT).needs_config is False
+    assert (
+        serialize_guild_plugin(_plugin(), context=CONTEXT, viewer=ADULT).needs_config
+        is False
+    )
 
 
 def test_placements_are_the_rows_handed_in_ordered_by_initiative():
@@ -137,21 +152,31 @@ def test_placements_are_the_rows_handed_in_ordered_by_initiative():
         SimpleNamespace(initiative_id=9, role_ids=[4]),
         SimpleNamespace(initiative_id=2, role_ids=[]),
     ]
-    payload = serialize_guild_plugin(_plugin(), context=CONTEXT, placements=rows)
+    payload = serialize_guild_plugin(
+        _plugin(), context=CONTEXT, placements=rows, viewer=ADULT
+    )
 
     assert [p.model_dump() for p in payload.placements] == [
         {"initiative_id": 2, "role_ids": []},
         {"initiative_id": 9, "role_ids": [4]},
     ]
-    assert serialize_guild_plugin(_plugin(), context=CONTEXT).placements == []
+    assert (
+        serialize_guild_plugin(_plugin(), context=CONTEXT, viewer=ADULT).placements
+        == []
+    )
 
 
 def test_granted_scopes_are_reported_sorted_and_empty_by_default():
     """What the seat consented to reads back as a set in one order, and an
     install nobody has granted anything holds nothing."""
-    assert serialize_guild_plugin(_plugin(), context=CONTEXT).granted_scopes == []
+    assert (
+        serialize_guild_plugin(_plugin(), context=CONTEXT, viewer=ADULT).granted_scopes
+        == []
+    )
     payload = serialize_guild_plugin(
-        _plugin(granted_scopes=["projects:write", "comments:read"]), context=CONTEXT
+        _plugin(granted_scopes=["projects:write", "comments:read"]),
+        context=CONTEXT,
+        viewer=ADULT,
     )
     assert payload.granted_scopes == ["comments:read", "projects:write"]
 
@@ -193,7 +218,10 @@ def test_surface_access_is_computed_for_the_viewer():
 
     def access(context):
         payload = serialize_guild_plugin(
-            _plugin(definition=definition), context=context, placements=rows
+            _plugin(definition=definition),
+            context=context,
+            placements=rows,
+            viewer=ADULT,
         )
         return {one.surface_id: one.model_dump() for one in payload.surface_access}
 

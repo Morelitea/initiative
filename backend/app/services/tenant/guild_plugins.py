@@ -930,6 +930,9 @@ class SurfaceAccess(str, Enum):
     not_here = "not_here"
     #: The surface is here, and this viewer may not open it.
     refused = "refused"
+    #: The surface is here and the viewer's standing would open it, but they
+    #: are younger than the plug-in's minimum age where they are.
+    too_young = "too_young"
 
 
 def requested_scopes(definition: Any) -> list[str]:
@@ -1027,6 +1030,7 @@ def surface_access(
     placement_role_ids: Optional[Collection[int]],
     is_guild_admin: bool,
     member_role_ids: Collection[int],
+    age_allows: bool = True,
 ) -> SurfaceAccess:
     """Whether a viewer may open ``embed`` where it is being opened.
 
@@ -1044,12 +1048,18 @@ def surface_access(
     ``member_role_ids`` are the viewer's initiative roles across the community.
     A role belongs to one initiative and a placement names only its own
     initiative's roles, so meeting one of them here is holding it here.
+
+    ``age_allows`` is :func:`~app.services.tenant.plugin_age.age_allows` for
+    this viewer and plug-in, and it binds admins too: an age limit is about the
+    person, not their standing.
     """
     scope = "community" if initiative_id is None else "initiative"
     if not surface_renders_in(embed, scope):
         return SurfaceAccess.not_here
     if initiative_id is not None and placement_role_ids is None:
         return SurfaceAccess.not_here
+    if not age_allows:
+        return SurfaceAccess.too_young
     if is_guild_admin:
         return SurfaceAccess.open
     if initiative_id is None or is_admin_only(embed):
@@ -1075,6 +1085,7 @@ def surface_openability(
     placements: Sequence[PluginPlacement],
     is_guild_admin: bool,
     member_role_ids: Collection[int],
+    age_allows: bool = True,
 ) -> list[SurfaceOpenability]:
     """Every declared surface, with where this viewer may open it.
 
@@ -1090,6 +1101,7 @@ def surface_openability(
             placement_role_ids=None,
             is_guild_admin=is_guild_admin,
             member_role_ids=member_role_ids,
+            age_allows=age_allows,
         )
         initiatives = tuple(
             row.initiative_id
@@ -1100,6 +1112,7 @@ def surface_openability(
                 placement_role_ids=list(row.role_ids or []),
                 is_guild_admin=is_guild_admin,
                 member_role_ids=member_role_ids,
+                age_allows=age_allows,
             )
             is SurfaceAccess.open
         )

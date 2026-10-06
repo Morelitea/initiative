@@ -1536,3 +1536,22 @@ class TestDeclarative:
 
         assert response.status_code == 502
         assert response.json()["detail"] == PluginDataMessages.SERVICE_UNAVAILABLE
+
+
+async def test_a_viewer_too_young_for_the_plugin_reads_no_tile(
+    client, acting_user, session, upstream
+):
+    """What a tile shows is the plug-in's, so a viewer under its minimum age —
+    or with no date of birth on file — reads none of it."""
+    a, plugin, dashboard = await _workspace(session, acting_user)
+    plugin.definition = {**plugin.definition, "minimum_age": {"default": 16}}
+    session.add(plugin)
+    await session.commit()
+
+    response = await client.get(
+        _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == GuildPluginMessages.AGE_RESTRICTED
+    assert upstream.count == 0
