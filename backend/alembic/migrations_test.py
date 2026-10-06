@@ -70,6 +70,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # no address, so the column cannot be rebuilt for every row. Roll
         # forward; restore from a backup instead.
         "20260915_0274",
+        # apps_are_plug_ins: the app tables, roles and stored values move to
+        # their plug-in names with nothing kept under the old ones. Roll
+        # forward; restore from a backup instead.
+        "20261005_0457",
     }
 )
 
