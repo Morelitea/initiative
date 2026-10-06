@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildCommunity, buildInitiative, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { useCommunities } from "@/hooks/useCommunities";
 
 // Two communities, so the first step is one somebody actually walks — with a
@@ -55,16 +56,16 @@ vi.mock("@/lib/storage", () => ({
   removeItem: vi.fn(),
 }));
 
-import { CreateDocumentWizard, getOpenCreateDocumentWizard } from "./CreateDocumentWizard";
+import { CreateToolWizard, getOpenCreateToolWizard } from "./CreateToolWizard";
 
 const openWizard = async () => {
-  renderWithProviders(<CreateDocumentWizard />, { auth: { user: buildUser() } });
-  await waitFor(() => expect(getOpenCreateDocumentWizard()).not.toBeNull());
-  getOpenCreateDocumentWizard()?.();
+  renderWithProviders(<CreateToolWizard tool={Tool.document} />, { auth: { user: buildUser() } });
+  await waitFor(() => expect(getOpenCreateToolWizard(Tool.document)).not.toBeNull());
+  getOpenCreateToolWizard(Tool.document)?.();
   return screen.findByRole("dialog");
 };
 
-describe("CreateDocumentWizard", () => {
+describe("CreateToolWizard", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("opens on the community step with nowhere to go back to", async () => {

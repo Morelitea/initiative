@@ -39,7 +39,7 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, plural_of
 
 #: Both columns are spelled the same on every collaborative table, so a new one
 #: declares neither.
@@ -65,11 +65,23 @@ class CollaborativeResource:
     content_column: str
     load: Callable[..., Awaitable[Optional[Collaborating]]]
     body_kind: Callable[[], Any]
+    #: A path parameter that differs from ``<kind>_id``.
+    id_param: Optional[str] = None
 
     @property
     def resource_type(self) -> str:
         """The room key's middle term, and the stream register's."""
         return self.entity_type.value
+
+    @property
+    def route_segment(self) -> str:
+        """The kebab plural its routes are served under (``wiki-pages``)."""
+        return plural_of(self.resource_type).replace("_", "-")
+
+    @property
+    def path_param(self) -> str:
+        """The path parameter a body is addressed by."""
+        return self.id_param or f"{self.resource_type}_id"
 
 
 async def _load_document(
@@ -158,6 +170,8 @@ def _wiki_page_resource() -> CollaborativeResource:
         content_column="content",
         load=_load_wiki_page,
         body_kind=lambda: literal("native"),
+        # Every wiki page route names its row ``page_id``.
+        id_param="page_id",
     )
 
 
@@ -171,6 +185,7 @@ def resource_for(resource_type: str) -> CollaborativeResource:
 
 
 def registered_types() -> tuple[str, ...]:
-    """Every collaborative kind, for the tests that walk them."""
+    """Every collaborative kind: what the routes are mounted for, and what the
+    tests walk."""
     resource_for(SearchEntityType.document.value)
     return tuple(sorted(COLLABORATIVE_RESOURCES))

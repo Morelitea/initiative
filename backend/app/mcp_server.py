@@ -38,6 +38,7 @@ from fastmcp.server.providers.openapi import MCPType, RouteMap
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.config import PROJECT_NAME
 from app.core.tools import Tool
 
@@ -58,23 +59,16 @@ if TYPE_CHECKING:
 # in ``_WRITE_ROUTE_MAPS`` covers the same set, so what an agent can read it can
 # also author and edit.
 READ_TAGS = (
-    "projects",
+    # Every tool's own tag, as its list is published under.
+    *(TOOL_LISTS[tool].tag or tool.plural for tool in Tool),
     "tasks",
     "initiatives",
     "task-statuses",
-    "documents",
-    "queues",
-    "counters",
-    "calendars",
     "calendar-events",
     # A window of a calendar: its events, a repeating one expanded into its
     # occurrences, beside the tasks due in it. The events have no list of
     # their own; this is what "what's on this week" reads.
     "calendar-entries",
-    "posts",
-    "galleries",
-    "wikis",
-    "dashboards",
     # How many of each a page holds, and its tag tree: counted from the lists
     # above, for every tool at once.
     "tools",

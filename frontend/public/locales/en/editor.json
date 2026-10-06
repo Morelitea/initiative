@@ -117,6 +117,17 @@
     "makeFeatured": "Make this the featured image",
     "isFeatured": "Featured image"
   },
+  "imageDialog": {
+    "urlTab": "URL",
+    "fileTab": "File",
+    "imageUrl": "Image URL",
+    "imageUrlPlaceholder": "https://example.com/picture.png",
+    "altText": "Alt text",
+    "altTextPlaceholder": "Describe the picture for someone who can’t see it",
+    "upload": "Image upload",
+    "uploadingFile": "Uploading {{name}}…",
+    "uploading": "Uploading…"
+  },
   "embeds": {
     "insert": "Embed",
     "showAsEmbed": "Show in full",

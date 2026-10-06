@@ -24,9 +24,8 @@ import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import type { ToolPaletteListOptions } from "@/hooks/useToolPaletteList";
 import { useToolPaletteList } from "@/hooks/useToolPaletteList";
 import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
-import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
+import { documentIcon } from "@/lib/documentIcon";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
-import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
   id: number;
@@ -84,21 +83,17 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       // index's job now, and it answers for every tool at once.
       const query = useToolPaletteList(TOOL_HOOKS[Tool.document].listQuery, BROWSE_PAGE_HEAVY, ctx);
       return (query.data?.items ?? []).map((doc) => {
-        const DocIcon = getDocumentIcon(
-          doc.document_type,
-          doc.file_content_type,
-          doc.original_filename
-        );
-        const color = getDocumentIconColor(
-          doc.document_type,
-          doc.file_content_type,
-          doc.original_filename
-        );
+        const { Icon: DocIcon, colorClass } = documentIcon({
+          document_type: doc.document_type,
+          mime_type: doc.file_content_type,
+          original_filename: doc.original_filename,
+          smart_link_url: doc.smart_link_url,
+        });
         return {
           id: doc.id,
           label: doc.name,
           keywords: [doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])],
-          icon: <DocIcon className={cn(color)} />,
+          icon: <DocIcon className={colorClass} />,
           path: toolDetailRoute(Tool.document, doc.initiative_id, doc.id),
         };
       });

@@ -39,7 +39,7 @@ from __future__ import annotations
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
 from app.services.export.adapters._common import (
@@ -213,7 +213,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
     from app.services.export.property_values import exported_properties
 
     return {
-        "type": "initiative-document",
+        "type": tool_envelope_type(Tool.document),
         "schema_version": 1,
         "document_type": doc_type_of(document),
         "name": document.name,

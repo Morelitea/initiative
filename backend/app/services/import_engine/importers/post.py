@@ -18,7 +18,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.post import Post
@@ -50,7 +50,7 @@ _NAME_SUFFIX_ROOM = 8
 
 
 class PostImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-post"
+    envelope_type = tool_envelope_type(Tool.post)
     permission = PermissionKey.create_posts
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -149,7 +149,7 @@ class PostImporter(NamesPeopleInPassing):
                 tags_matched += 1
             session.add(
                 tags_service.tag_edge(
-                    tags_service.TAG_LINKS["post"], post.id, resolved.id
+                    tags_service.TOOL_TAG_LINKS[Tool.post], post.id, resolved.id
                 )
             )
 

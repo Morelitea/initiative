@@ -6,7 +6,7 @@
  * and a second copy is how the two drift apart.
  */
 
-import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
+import { type NotificationRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { communityPath } from "@/lib/communityUrl";
 import {
   entityRefTypeFor,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/entityResolver";
 import { formatDate } from "@/lib/formatDate";
 import { storeSellingNow } from "@/lib/storeSelling";
-import { entityRefRoute } from "@/lib/tools";
+import { entityRefRoute, toolKebabSingular } from "@/lib/tools";
 
 /** Whether plan lines may ask the reader to choose a plan here. Not until a
  *  phone's store has answered (`@/lib/storeSelling`). */
@@ -97,7 +97,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
         return entityRefRoute("task", taskId);
       }
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     }
@@ -106,7 +106,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
       return "/";
     case "project_added":
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     case "import_ready":
@@ -136,12 +136,12 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "comment_reply":
     case "comment_on_resource":
       if (typeof data.document_id === "number") {
-        return entityRefRoute("document", data.document_id);
+        return entityRefRoute(toolKebabSingular(Tool.document), data.document_id);
       }
       return entityRefFromData(data);
     case "post_published":
       if (typeof data.post_id === "number") {
-        return entityRefRoute("post", data.post_id);
+        return entityRefRoute(toolKebabSingular(Tool.post), data.post_id);
       }
       return null;
     case "access_grant_requested":

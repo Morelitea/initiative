@@ -190,7 +190,7 @@ async def import_project(
         tag_name_to_id[t.name] = tag_id.id
         session.add(
             tags_service.tag_edge(
-                tags_service.TAG_LINKS["project"], project.id, tag_id.id
+                tags_service.TOOL_TAG_LINKS[Tool.project], project.id, tag_id.id
             )
         )
 

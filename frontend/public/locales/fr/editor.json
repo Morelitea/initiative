@@ -117,6 +117,17 @@
     "makeFeatured": "Utiliser comme image à la une",
     "isFeatured": "Image à la une"
   },
+  "imageDialog": {
+    "urlTab": "URL",
+    "fileTab": "Fichier",
+    "imageUrl": "URL de l’image",
+    "imageUrlPlaceholder": "https://example.com/image.png",
+    "altText": "Texte alternatif",
+    "altTextPlaceholder": "Décrivez l’image pour quelqu’un qui ne peut pas la voir",
+    "upload": "Importer une image",
+    "uploadingFile": "Importation de {{name}}…",
+    "uploading": "Importation…"
+  },
   "embeds": {
     "insert": "Intégrer",
     "showAsEmbed": "Afficher en entier",

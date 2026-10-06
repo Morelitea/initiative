@@ -32,7 +32,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.post import Post
 from app.services.export.adapters._common import (
@@ -90,7 +90,7 @@ def build_post_item(post: Post, format: str, now: datetime) -> RenderItem:
 
 def _envelope(post: Post) -> dict[str, Any]:
     return {
-        "type": "initiative-post",
+        "type": tool_envelope_type(Tool.post),
         "schema_version": 1,
         "name": post.name,
         "body": post.body or {},

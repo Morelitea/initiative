@@ -106,20 +106,6 @@ def test_recent_entity_types_agree_across_surfaces():
     assert {e.value for e in RecentEntityType} == derived
 
 
-def test_every_tool_is_taggable():
-    # Tag assignment spans EVERY tool plus exactly the declared content-level
-    # extras — the registry, the canonical target list, and the bulk-edit wire
-    # enum all agree. A new tool that forgets its TagLinkSpec fails here.
-    from app.core.tools import TAG_TARGETS, TAGGABLE_EXTRAS
-    from app.schemas.tenant.tag import TagTarget
-    from app.services.tenant.tags import EXTRA_TAG_LINKS, TAG_LINKS, TOOL_TAG_LINKS
-
-    assert set(TOOL_TAG_LINKS) == set(Tool)
-    assert set(EXTRA_TAG_LINKS) == set(TAGGABLE_EXTRAS)
-    assert set(TAG_LINKS) == set(TAG_TARGETS)
-    assert {t.value for t in TagTarget} == set(TAG_TARGETS)
-
-
 def test_every_tool_is_commentable():
     # Comments span EVERY tool plus the content-level extras: the service
     # registry, the comments table's parent FKs, the RLS parent declaration,

@@ -30,7 +30,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
 from app.services.export.adapters._common import (
@@ -102,7 +102,7 @@ def build_dashboard_item(dashboard: Dashboard, date: str) -> RenderItem:
 
 def _envelope(dashboard: Dashboard) -> dict[str, Any]:
     return {
-        "type": "initiative-dashboard",
+        "type": tool_envelope_type(Tool.dashboard),
         "schema_version": 1,
         "name": dashboard.name,
         "description": dashboard.description,

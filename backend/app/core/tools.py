@@ -148,15 +148,15 @@ class Kind:
 KINDS: dict[str, Kind] = {
     kind.value: kind
     for kind in (
-        Kind("project", 10),
-        Kind("document", 6),
-        Kind("queue", 11),
-        Kind("counter_group", 4),
-        Kind("calendar", 1),
-        Kind("dashboard", 5),
-        Kind("post", 9),
-        Kind("gallery", 7),
-        Kind("wiki", 15),
+        Kind(Tool.project.value, 10),
+        Kind(Tool.document.value, 6),
+        Kind(Tool.queue.value, 11),
+        Kind(Tool.counter_group.value, 4),
+        Kind(Tool.calendar.value, 1),
+        Kind(Tool.dashboard.value, 5),
+        Kind(Tool.post.value, 9),
+        Kind(Tool.gallery.value, 7),
+        Kind(Tool.wiki.value, 15),
         Kind("task", 14, parent=Tool.project),
         Kind("queue_item", 12, parent=Tool.queue),
         Kind("calendar_event", 2, parent=Tool.calendar),
@@ -264,9 +264,9 @@ def tool_envelope_type(tool: Tool) -> str:
     """The import/export envelope ``type`` discriminator for a tool.
 
     One rule, spelled once: a tool's envelope is ``initiative-<kebab
-    singular>``. The importers and the export adapters each restate it as a
-    literal — a pydantic ``Literal`` cannot be computed — and
-    ``tools_test.py`` holds the importer registry to this.
+    singular>``. The importers and the export adapters read it from here; only
+    the envelope schemas restate it, because a pydantic ``Literal`` cannot be
+    computed, and ``tools_test.py`` holds the importer registry to this.
     """
     return f"initiative-{tool_export_source(tool)}"
 
