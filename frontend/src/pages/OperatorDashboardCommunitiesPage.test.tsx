@@ -118,23 +118,13 @@ vi.mock("@/api/generated/settings/settings", () => ({
     answer ? mintHandoff(communityId, answer) : mintHandoff(communityId),
 }));
 
-// Captured so a test can fire the save's own callbacks and check what the
-// boxes do with a refusal.
-let updateCallbacks: {
-  onSuccess?: (row: (typeof communitiesData)[number]) => void;
-  onError?: (err: unknown) => void;
-} = {};
-
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformCommunities: () => ({
     data: { ...buildPage(communitiesData), support_bound: supportBound },
     isLoading: false,
     isError: false,
   }),
-  useUpdateCommunityStorage: (options: typeof updateCallbacks) => {
-    updateCallbacks = options ?? {};
-    return { mutate, isPending: false };
-  },
+  useUpdateCommunityStorage: () => ({ mutate, isPending: false }),
   useRestoreCommunity: () => ({ mutate: restore, isPending: false }),
   useCommunityNarrowings: () => ({ data: narrowings, isLoading: false }),
   useAgreeCommunityNarrowing: () => ({ mutate: agreeNarrowing, isPending: false }),
@@ -338,9 +328,12 @@ describe("OperatorDashboardCommunitiesPage", () => {
 
       typeAndLeave(input, "99");
       expect(mutate).toHaveBeenCalled();
+      // The other cap, typed in while the save was out, is not what was refused.
+      fireEvent.change(userLimitInput(), { target: { value: "42" } });
 
-      act(() => updateCallbacks.onError?.(new Error("nope")));
+      act(() => mutate.mock.calls[0][1].onError(new Error("nope")));
       expect(storageInput().value).toBe("10");
+      expect(userLimitInput().value).toBe("42");
     });
 
     it("shows what a save actually stored, not what was typed", async () => {

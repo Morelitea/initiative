@@ -219,7 +219,7 @@ export const UserSettingsNotificationsPage = ({
     writePreferences.mutate(enabled ? { quiet_hours: sent } : { clear_quiet_hours: true }, {
       onSuccess: () => quietHours.settle(sent),
       onError: () => {
-        quietHours.reset();
+        quietHours.reset(sent);
         toast.error(t("notifications.toggleError"));
       },
     });

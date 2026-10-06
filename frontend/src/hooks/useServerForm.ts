@@ -27,8 +27,12 @@ export interface ServerForm<V> {
    * every time somebody is quick.
    */
   settle: (saved: V) => void;
-  /** Drop what was typed and follow the server again: a refused or empty entry. */
-  reset: () => void;
+  /**
+   * Put the server's value back in each field `sent` names that still holds
+   * what it says: a refused save, or an entry that is empty or unchanged. A
+   * field typed in since keeps its new value, as `settle` keeps it.
+   */
+  reset: (sent: Partial<V>) => void;
 }
 
 interface State<V> {
@@ -108,8 +112,14 @@ export function useServerForm<S, V extends object>(
     );
   }, []);
 
-  const reset = useCallback(() => {
-    setState((previous) => ({ ...previous, values: previous.seeded, edited: false }));
+  const reset = useCallback((sent: Partial<V>) => {
+    setState((previous) => {
+      const values = { ...previous.values };
+      for (const key of Object.keys(sent) as (keyof V)[]) {
+        if (sameField(previous.values[key], sent[key])) values[key] = previous.seeded[key];
+      }
+      return { ...previous, values, edited: !sameRef.current(values, previous.seeded) };
+    });
   }, []);
 
   return { values: state.values, set, edited: state.edited, settle, reset };

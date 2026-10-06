@@ -105,41 +105,46 @@ export const CommunityOperatorSettingsSheet = ({
 
   const update = useUpdateCommunityStorage({
     onSuccess: (row) => toast.success(t("communities.saved", { name: row.name })),
-    // A refused save leaves the old value in place, so the boxes go back to it
-    // rather than keeping a number nothing accepted.
-    onError: (err) => {
-      form.reset();
-      toast.error(getErrorMessage(err, "settings:communities.saveError"));
-    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:communities.saveError")),
   });
 
   if (!community) return null;
 
+  type Cap = keyof typeof form.values;
   const patch = (data: Parameters<typeof update.mutate>[0]["data"]) =>
     update.mutate({ communityId: community.id, data });
   // A cap is saved from its box, which then goes back to following the server.
-  const commitCap = (data: Parameters<typeof update.mutate>[0]["data"], sent: typeof form.values) =>
-    update.mutate({ communityId: community.id, data }, { onSuccess: () => form.settle(sent) });
+  // A refused save leaves the old value in place, so that box goes back to it
+  // rather than keeping a number nothing accepted.
+  const commitCap = (
+    data: Parameters<typeof update.mutate>[0]["data"],
+    sent: typeof form.values,
+    cap: Cap
+  ) =>
+    update.mutate(
+      { communityId: community.id, data },
+      { onSuccess: () => form.settle(sent), onError: () => form.reset({ [cap]: sent[cap] }) }
+    );
 
   const commitStorage = () => {
     const sent = form.values;
     const { bytes, invalid } = parseGbInput(sent.storage);
     // A malformed entry snaps back to the persisted value rather than saving.
     if (invalid || bytes === (community.max_storage_bytes ?? null)) {
-      form.reset();
+      form.reset({ storage: sent.storage });
       return;
     }
-    commitCap({ max_storage_bytes: bytes }, sent);
+    commitCap({ max_storage_bytes: bytes }, sent, "storage");
   };
 
   const commitUsers = () => {
     const sent = form.values;
     const { limit, invalid } = parseUserLimitInput(sent.users);
     if (invalid || limit === (community.max_users ?? null)) {
-      form.reset();
+      form.reset({ users: sent.users });
       return;
     }
-    commitCap({ max_users: limit }, sent);
+    commitCap({ max_users: limit }, sent, "users");
   };
 
   const options = community.auth_options ?? [];

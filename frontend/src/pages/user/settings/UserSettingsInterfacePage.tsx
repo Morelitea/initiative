@@ -230,11 +230,15 @@ export const UserSettingsInterfacePage = ({
   const prefs: InterfacePrefs = { ...saved, ...pendingPrefs };
   const showPrefs = (patch: Partial<InterfacePrefs>) =>
     setPendingPrefs((previous) => ({ ...previous, ...patch }));
-  const dropPrefs = (patch: object) =>
+  // A choice stops being shown once the save that sent it settles; a newer
+  // choice of the same field waits for its own.
+  const dropPrefs = (sent: { [K in keyof InterfacePrefs]?: unknown }) =>
     setPendingPrefs(
       (previous) =>
         Object.fromEntries(
-          Object.entries(previous).filter(([key]) => !(key in patch))
+          Object.entries(previous).filter(
+            ([key, value]) => !(key in sent && Object.is(sent[key as keyof InterfacePrefs], value))
+          )
         ) as Partial<InterfacePrefs>
     );
   const {
@@ -270,7 +274,7 @@ export const UserSettingsInterfacePage = ({
   }, []);
 
   const updateInterfacePrefs = useUpdateCurrentUser({
-    onSuccess: async (_, variables) => {
+    onSuccess: (_, variables) => {
       if (variables.recent_tabs_limit !== undefined) {
         // The header tabs bar caches recents for 30s; refetch so a higher
         // limit surfaces more items immediately.
@@ -279,11 +283,17 @@ export const UserSettingsInterfacePage = ({
       if (variables.locale) {
         void i18n.changeLanguage(variables.locale);
       }
-      await refreshUser();
       toast.success(t("interface.updateSuccess"));
+      // The saved choice stays on screen until the account read shows it.
+      void refreshUser().then(
+        () => dropPrefs(variables),
+        () => {}
+      );
     },
-    onError: () => toast.error(t("interface.updateError")),
-    onSettled: (_data, _error, variables) => dropPrefs(variables),
+    onError: (_error, variables) => {
+      dropPrefs(variables);
+      toast.error(t("interface.updateError"));
+    },
   });
 
   const savePrefs = (patch: Partial<InterfacePrefs>) => {
@@ -294,7 +304,7 @@ export const UserSettingsInterfacePage = ({
   const commitRecentTabsLimit = () => {
     const clamped = clampRecentTabsLimit(prefs.recent_tabs_limit);
     if (clamped === saved.recent_tabs_limit) {
-      dropPrefs({ recent_tabs_limit: clamped });
+      dropPrefs({ recent_tabs_limit: prefs.recent_tabs_limit });
     } else {
       savePrefs({ recent_tabs_limit: clamped });
     }

@@ -140,10 +140,7 @@ export const UserOperatorSettingsSheet = ({
 
   const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
-    onError: (err) => {
-      form.reset();
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
   const setSuspension = useOperatorSetSuspension({
@@ -211,10 +208,14 @@ export const UserOperatorSettingsSheet = ({
     const sent = form.values;
     const next = sent.username.trim().toLowerCase();
     if (!next || next === user.username) {
-      form.reset();
+      form.reset(sent);
       return;
     }
-    setUsername.mutate({ userId: user.id, username: next }, { onSuccess: () => form.settle(sent) });
+    // A refused name goes back to the stored one.
+    setUsername.mutate(
+      { userId: user.id, username: next },
+      { onSuccess: () => form.settle(sent), onError: () => form.reset(sent) }
+    );
   };
 
   return (

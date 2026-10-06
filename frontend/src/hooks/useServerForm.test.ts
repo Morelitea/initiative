@@ -55,9 +55,22 @@ describe("useServerForm", () => {
     expect(result.current.values.name).toBe("Half-written");
     expect(result.current.edited).toBe(true);
 
-    act(() => result.current.reset());
+    // A refused name goes back; the description typed beside it, and a name
+    // typed again since the save was sent, are not what was refused.
+    act(() => result.current.set({ description: "Typed meanwhile" }));
+    act(() => result.current.reset({ name: "Half-written" }));
 
-    expect(result.current.values.name).toBe("Renamed by somebody else");
+    expect(result.current.values).toEqual({
+      name: "Renamed by somebody else",
+      description: "Typed meanwhile",
+    });
+    expect(result.current.edited).toBe(true);
+
+    act(() => result.current.set({ description: "Typed again" }));
+    act(() => result.current.reset({ description: "Typed meanwhile" }));
+    expect(result.current.values.description).toBe("Typed again");
+
+    act(() => result.current.reset({ description: "Typed again" }));
     expect(result.current.edited).toBe(false);
   });
 
