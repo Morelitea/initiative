@@ -1266,9 +1266,8 @@ def record_age_answer(user: User, birthdate: date) -> bool:
     check_birthdate(birthdate)
     if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
         user.age_below_minimum_at = datetime.now(timezone.utc)
-        # The two are the two answers to one question (``ck_users_age_answer``):
-        # an under-age answer replaces any confirmation rather than sitting
-        # beside it.
+        # One question, one answer (``ck_users_age_answer``): an under-age
+        # answer replaces any confirmation.
         user.age_confirmed_at = None
         return False
     if user.age_confirmed_at is None:
@@ -1278,29 +1277,33 @@ def record_age_answer(user: User, birthdate: date) -> bool:
 
 async def keep_birthdate(
     session: AsyncSession, *, user_id: int, birthdate: date
-) -> None:
-    """Keep this account's date of birth, encrypted, replacing one already kept.
+) -> bool:
+    """Keep this account's date of birth, encrypted. ``True`` when it was kept,
+    ``False`` when one is already on file, which is left as it is.
 
     A plug-in's minimum age differs by country, so one "old enough" answer
-    cannot say whether somebody may use a given plug-in; the date can. On the
+    cannot say whether somebody may use a given plug-in; the date can. One
+    insert, so of two answers arriving together exactly one is kept. On the
     system engine — ``user_birthdates`` has no request-path grants — and the
     caller commits. Checked first with :func:`check_birthdate`, like the answer
     it accompanies.
     """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     check_birthdate(birthdate)
-    ciphertext = encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE)
-    stored = (
-        await session.exec(
-            select(UserBirthdate).where(UserBirthdate.user_id == user_id)
+    now = datetime.now(timezone.utc)
+    kept = await session.exec(
+        pg_insert(UserBirthdate)
+        .values(
+            user_id=user_id,
+            birthdate_encrypted=encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE),
+            created_at=now,
+            updated_at=now,
         )
-    ).first()
-    if stored is None:
-        session.add(UserBirthdate(user_id=user_id, birthdate_encrypted=ciphertext))
-    else:
-        stored.birthdate_encrypted = ciphertext
-        stored.updated_at = datetime.now(timezone.utc)
-        session.add(stored)
-    await session.flush()
+        .on_conflict_do_nothing(index_elements=["user_id"])
+        .returning(UserBirthdate.user_id)
+    )
+    return kept.first() is not None
 
 
 async def birthdate_of(session: AsyncSession, *, user_id: int) -> date | None:

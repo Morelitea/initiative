@@ -796,8 +796,7 @@ async def clear_age_block(
         )
 
     await users_service.forget_birthdate(session, user_id=user_id)
-    # From scratch means every record of the earlier answer: a confirmation left
-    # standing would admit somebody whose new answer is under the minimum.
+    # The account answers from scratch, so every part of the earlier answer goes.
     user.age_below_minimum_at = None
     user.age_confirmed_at = None
     user.updated_at = datetime.now(timezone.utc)

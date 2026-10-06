@@ -1203,3 +1203,25 @@ async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypat
     session.expire_all()
     after = await session.get(type(user), user_id)
     assert after.status == UserStatus.anonymized
+
+
+async def test_a_kept_birthdate_is_never_replaced(session: AsyncSession):
+    """Keeping is one insert: of two answers, exactly one is kept, and a second
+    leaves the first as it is."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        first = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        second = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(2015, 1, 1)
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert (first, second) == (True, False)
+    assert kept == date(1990, 5, 4)

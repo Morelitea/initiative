@@ -1568,27 +1568,27 @@ async def test_a_reset_adult_answering_under_age_is_not_still_confirmed(
     assert subject.user.age_below_minimum_at is not None
 
 
-async def test_a_date_that_failed_to_save_does_not_block_a_retry(
+async def test_an_answer_that_failed_to_save_does_not_block_a_retry(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
-    """The answer is committed before the date, so a date that never saved
-    leaves the question answerable rather than standing."""
+    """The date is kept first and taken back if the answer does not save, so
+    the person can answer again."""
     from app.services.platform import users as users_service
 
     a = await acting_user("member", age_confirmed_at=None)
-    kept = users_service.keep_birthdate
+    recorded = users_service.record_age_answer
 
-    async def fails(*args, **kwargs):
+    def fails(*args, **kwargs):
         raise RuntimeError("storage unavailable")
 
-    monkeypatch.setattr(users_service, "keep_birthdate", fails)
+    monkeypatch.setattr(users_service, "record_age_answer", fails)
     with pytest.raises(RuntimeError):
         await client.post(
             "/api/v1/me/age-confirmation",
             json={"birthdate": ADULT_BIRTHDATE},
             headers=a.headers,
         )
-    monkeypatch.setattr(users_service, "keep_birthdate", kept)
+    monkeypatch.setattr(users_service, "record_age_answer", recorded)
 
     retry = await client.post(
         "/api/v1/me/age-confirmation",

@@ -1118,15 +1118,11 @@ async def confirm_my_age(
     only that it is there. Beside it is the timestamp saying the question was
     answered, which is what shows the deployment asked.
 
-    **A kept date stands.** Answering again once one is on file is refused like
-    an under-age answer is: a date somebody could rewrite until a plug-in let
-    them in is not one. Putting it right is the same support ticket.
+    **A kept date stands.** Answering again once one is on file is refused, as
+    an under-age answer is. Putting it right is the same support ticket.
 
     The comparison is the server's because it is the one that decides. A client
     could work out the same answer, and a client's answer is not evidence.
-
-    Saying it again is not an error and does not move the timestamp — the record
-    is when they first answered.
 
     **An answer of "under age" also stands.** It is recorded — the fact, not the
     date — and the question is not asked again, because a question you can
@@ -1134,18 +1130,17 @@ async def confirm_my_age(
     somebody with ``users.age_unblock``, which is a support ticket rather than
     an appeal to the same form.
     """
-    if (
-        current_user.age_below_minimum_at is not None
-        or await users_service.birthdate_of(system_session, user_id=current_user.id)
-        is not None
-    ):
+    if current_user.age_below_minimum_at is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
+    # The date is kept first, and only one answer per account is kept.
     try:
-        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        kept = await users_service.keep_birthdate(
+            system_session, user_id=current_user.id, birthdate=payload.birthdate
+        )
     except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
@@ -1153,16 +1148,24 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
-    current_user.updated_at = datetime.now(timezone.utc)
-    session.add(current_user)
-    await session.commit()
-    # The date after the answer: a date kept is what refuses a second answer, so
-    # it must never be on file for an answer that was not. Failing here leaves
-    # the answer recorded and the date missing, and the person is asked again.
-    await users_service.keep_birthdate(
-        system_session, user_id=current_user.id, birthdate=payload.birthdate
-    )
+    if not kept:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
     await system_session.commit()
+
+    # Then the answer. If it does not save, the date goes too, so the person can
+    # answer again.
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+    except BaseException:
+        await users_service.forget_birthdate(system_session, user_id=current_user.id)
+        await system_session.commit()
+        raise
     if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
