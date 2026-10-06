@@ -215,13 +215,10 @@ type InterfacePrefs = ReturnType<typeof prefsOf>;
 
 interface UserSettingsInterfacePageProps {
   user: UserRead;
-  refreshUser: () => Promise<void>;
+  acceptUser: (user: UserRead) => void;
 }
 
-export const UserSettingsInterfacePage = ({
-  user,
-  refreshUser,
-}: UserSettingsInterfacePageProps) => {
+export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
   // What the server says, with each choice shown from the moment it is made
   // until its save settles.
@@ -274,7 +271,7 @@ export const UserSettingsInterfacePage = ({
   }, []);
 
   const updateInterfacePrefs = useUpdateCurrentUser({
-    onSuccess: (_, variables) => {
+    onSuccess: (saved, variables) => {
       if (variables.recent_tabs_limit !== undefined) {
         // The header tabs bar caches recents for 30s; refetch so a higher
         // limit surfaces more items immediately.
@@ -284,10 +281,9 @@ export const UserSettingsInterfacePage = ({
         void i18n.changeLanguage(variables.locale);
       }
       toast.success(t("interface.updateSuccess"));
-      // The saved choice stays on screen until the account read settles; a
-      // failed read hands the fields back to the account data.
-      const settle = () => dropPrefs(variables);
-      void refreshUser().then(settle, settle);
+      // The response is the saved account, so the fields read from it.
+      acceptUser(saved);
+      dropPrefs(variables);
     },
     onError: (_error, variables) => {
       dropPrefs(variables);
