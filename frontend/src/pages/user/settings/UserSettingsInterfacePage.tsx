@@ -284,11 +284,10 @@ export const UserSettingsInterfacePage = ({
         void i18n.changeLanguage(variables.locale);
       }
       toast.success(t("interface.updateSuccess"));
-      // The saved choice stays on screen until the account read shows it.
-      void refreshUser().then(
-        () => dropPrefs(variables),
-        () => {}
-      );
+      // The saved choice stays on screen until the account read settles; a
+      // failed read hands the fields back to the account data.
+      const settle = () => dropPrefs(variables);
+      void refreshUser().then(settle, settle);
     },
     onError: (_error, variables) => {
       dropPrefs(variables);
