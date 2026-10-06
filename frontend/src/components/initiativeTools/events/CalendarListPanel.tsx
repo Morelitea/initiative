@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CalendarDays, ChevronDown, Plus, Settings2 } from "lucide-react";
-import { type ComponentProps, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type CalendarSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { cn } from "@/lib/utils";
 
 /** A derived, read-only "calendar" for one project's tasks — rendered from the
  * calendar-entries tasks payload, never stored server-side. */
@@ -34,8 +35,6 @@ interface CalendarListPanelProps {
   calendarLabel?: (calendar: CalendarSummary) => string;
   /** Settings link target for a manageable calendar; null hides the link. */
   settingsPathFor?: (calendar: CalendarSummary) => string | null;
-  canCreate: boolean;
-  onCreate: () => void;
 }
 
 interface CalendarPickerProps {
@@ -49,6 +48,107 @@ interface CalendarPickerProps {
   canCreate: boolean;
   onCreate: () => void;
 }
+
+interface ToggleRowProps {
+  color: string;
+  label: string;
+  shown: boolean;
+  onToggle: () => void;
+  className?: string;
+  /** Marks after the label. */
+  children?: ReactNode;
+}
+
+/** A checkbox, a color dot and a name: one calendar or project to show or hide. */
+const ToggleRow = ({ color, label, shown, onToggle, className, children }: ToggleRowProps) => {
+  const id = useId();
+  return (
+    <li className={cn("group flex items-center gap-2 rounded", className)}>
+      <Checkbox id={id} checked={shown} onCheckedChange={onToggle} />
+      <span
+        aria-hidden
+        className="h-2.5 w-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      <Label htmlFor={id} className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm">
+        {label}
+      </Label>
+      {children}
+    </li>
+  );
+};
+
+interface CalendarRowProps {
+  calendar: CalendarSummary;
+  label?: string;
+  shown: boolean;
+  unread: boolean;
+  onToggle: () => void;
+  settingsPathFor?: (calendar: CalendarSummary) => string | null;
+  className: string;
+}
+
+const CalendarRow = ({
+  calendar,
+  label,
+  shown,
+  unread,
+  onToggle,
+  settingsPathFor,
+  className,
+}: CalendarRowProps) => {
+  const { t } = useTranslation("calendars");
+  const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
+  return (
+    <ToggleRow
+      color={calendar.color}
+      label={label ?? calendar.name}
+      shown={shown}
+      onToggle={onToggle}
+      className={className}
+    >
+      {unread ? <UnreadDot /> : null}
+      {settingsPath ? (
+        <Link
+          to={settingsPath}
+          // Shown on hover, and whenever it has the keyboard's focus.
+          className="rounded text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+          aria-label={t("panel.calendarSettings", { name: calendar.name })}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Link>
+      ) : null}
+    </ToggleRow>
+  );
+};
+
+interface ProjectTaskTogglesProps {
+  projects: ProjectTaskCalendar[];
+  isProjectHidden: (project: ProjectTaskCalendar) => boolean;
+  onToggleProject: (project: ProjectTaskCalendar) => void;
+  className?: string;
+}
+
+/** One checkbox per project with tasks in view, to show or hide its tasks. */
+export const ProjectTaskToggles = ({
+  projects,
+  isProjectHidden,
+  onToggleProject,
+  className,
+}: ProjectTaskTogglesProps) => (
+  <ul className={className}>
+    {projects.map((project) => (
+      <ToggleRow
+        key={`${project.communityId}-${project.projectId}`}
+        color={project.color}
+        label={project.name}
+        shown={!isProjectHidden(project)}
+        onToggle={() => onToggleProject(project)}
+        className="px-1 py-0.5"
+      />
+    ))}
+  </ul>
+);
 
 /** Which calendars the page overlays, as the page's title: the trigger names
  *  what is showing, and opens a checklist of every calendar with "All
@@ -64,7 +164,7 @@ export const CalendarPicker = ({
 }: CalendarPickerProps) => {
   const { t } = useTranslation("calendars");
   const unread = useUnreadTree();
-  const idPrefix = useId();
+  const allId = useId();
   const shown = calendars.filter((calendar) => !isCalendarHidden(calendar));
   const allShown = shown.length === calendars.length;
   // What is showing, read as the page's title.
@@ -78,7 +178,6 @@ export const CalendarPicker = ({
           : shown.length === 0
             ? t("picker.none")
             : t("picker.some", { count: shown.length });
-  const allId = `${idPrefix}-all`;
 
   return (
     <Popover>
@@ -111,46 +210,17 @@ export const CalendarPicker = ({
                 {t("picker.all")}
               </Label>
             </li>
-            {calendars.map((calendar) => {
-              const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
-              const id = `${idPrefix}-${calendar.community_id}-${calendar.id}`;
-              return (
-                <li
-                  key={`${calendar.community_id}-${calendar.id}`}
-                  className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
-                >
-                  <Checkbox
-                    id={id}
-                    checked={!isCalendarHidden(calendar)}
-                    onCheckedChange={() => onToggleCalendar(calendar)}
-                  />
-                  <span
-                    aria-hidden
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: calendar.color }}
-                  />
-                  <Label
-                    htmlFor={id}
-                    className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
-                  >
-                    {calendar.name}
-                  </Label>
-                  {unread.hasResource(calendar.community_id, Tool.calendar, calendar.id) ? (
-                    <UnreadDot />
-                  ) : null}
-                  {settingsPath ? (
-                    <Link
-                      to={settingsPath}
-                      // Shown on hover, and whenever it has the keyboard's focus.
-                      className="rounded text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-                      aria-label={t("panel.calendarSettings", { name: calendar.name })}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </Link>
-                  ) : null}
-                </li>
-              );
-            })}
+            {calendars.map((calendar) => (
+              <CalendarRow
+                key={`${calendar.community_id}-${calendar.id}`}
+                calendar={calendar}
+                shown={!isCalendarHidden(calendar)}
+                unread={unread.hasResource(calendar.community_id, Tool.calendar, calendar.id)}
+                onToggle={() => onToggleCalendar(calendar)}
+                settingsPathFor={settingsPathFor}
+                className="px-2 py-1.5 hover:bg-accent"
+              />
+            ))}
           </ul>
         )}
         {canCreate ? (
@@ -219,8 +289,6 @@ export const CalendarListPanel = ({
   onToggleProject,
   calendarLabel,
   settingsPathFor,
-  canCreate,
-  onCreate,
 }: CalendarListPanelProps) => {
   const { t } = useTranslation("calendars");
   const unread = useUnreadTree();
@@ -235,58 +303,19 @@ export const CalendarListPanel = ({
           <p className="text-muted-foreground text-sm">{t("panel.noCalendars")}</p>
         ) : (
           <ul className="space-y-0.5">
-            {calendars.map((calendar) => {
-              const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
-              return (
-                <li
-                  key={`${calendar.community_id}-${calendar.id}`}
-                  className="group flex items-center gap-2 rounded px-1 py-0.5"
-                >
-                  <Checkbox
-                    id={`calendar-toggle-${calendar.community_id}-${calendar.id}`}
-                    checked={!isCalendarHidden(calendar)}
-                    onCheckedChange={() => onToggleCalendar(calendar)}
-                  />
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: calendar.color }}
-                  />
-                  <Label
-                    htmlFor={`calendar-toggle-${calendar.community_id}-${calendar.id}`}
-                    className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
-                  >
-                    {calendarLabel?.(calendar) ?? calendar.name}
-                  </Label>
-                  {unread.hasResource(calendar.community_id, Tool.calendar, calendar.id) ? (
-                    <UnreadDot />
-                  ) : null}
-                  {settingsPath && (
-                    <Link
-                      to={settingsPath}
-                      className="invisible text-muted-foreground hover:text-foreground group-hover:visible"
-                      aria-label={t("panel.calendarSettings", { name: calendar.name })}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
+            {calendars.map((calendar) => (
+              <CalendarRow
+                key={`${calendar.community_id}-${calendar.id}`}
+                calendar={calendar}
+                label={calendarLabel?.(calendar)}
+                shown={!isCalendarHidden(calendar)}
+                unread={unread.hasResource(calendar.community_id, Tool.calendar, calendar.id)}
+                onToggle={() => onToggleCalendar(calendar)}
+                settingsPathFor={settingsPathFor}
+                className="px-1 py-0.5"
+              />
+            ))}
           </ul>
-        )}
-        {/* Named rather than a bare "+" in the heading: adding a calendar is
-            what this panel is for on the plug-in's own surface, and an icon in a
-            corner read as decoration. */}
-        {canCreate && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-full justify-start gap-2 px-1 font-normal text-muted-foreground hover:text-foreground"
-            onClick={onCreate}
-          >
-            <Plus className="h-4 w-4" />
-            {t("createCalendar")}
-          </Button>
         )}
       </section>
 
@@ -295,30 +324,12 @@ export const CalendarListPanel = ({
           <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
             {t("panel.projectTasks")}
           </h2>
-          <ul className="space-y-0.5">
-            {projectCalendars.map((project) => (
-              <li
-                key={`${project.communityId}-${project.projectId}`}
-                className="flex items-center gap-2 rounded px-1 py-0.5"
-              >
-                <Checkbox
-                  id={`project-calendar-toggle-${project.communityId}-${project.projectId}`}
-                  checked={!isProjectHidden(project)}
-                  onCheckedChange={() => onToggleProject(project)}
-                />
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: project.color }}
-                />
-                <Label
-                  htmlFor={`project-calendar-toggle-${project.communityId}-${project.projectId}`}
-                  className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
-                >
-                  {project.name}
-                </Label>
-              </li>
-            ))}
-          </ul>
+          <ProjectTaskToggles
+            projects={projectCalendars}
+            isProjectHidden={isProjectHidden}
+            onToggleProject={onToggleProject}
+            className="space-y-0.5"
+          />
         </section>
       )}
     </div>

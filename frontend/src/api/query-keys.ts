@@ -467,7 +467,7 @@ const communityInvites = (communityId: number): Spec => ({
 const allCalendarEntries = (): Spec => resourceAndMe("calendar-entries");
 
 const allCalendarEvents = (): Spec =>
-  compose(resourceAndMe("calendar-events"), allCalendarEntries());
+  compose({ communityPrefix: ["/api/v1/calendar-events"] }, allCalendarEntries());
 
 const calendarEvent = (eventId: number): Spec => ({
   communityExact: [`/api/v1/calendar-events/${eventId}`],
@@ -566,7 +566,6 @@ const project = (id: number): Spec => toolEntity(Tool.project, id);
 const allFiles = (): Spec => toolList(Tool.file);
 const file = (id: number): Spec => toolEntity(Tool.file, id);
 const allQueues = (): Spec => toolList(Tool.queue);
-const queue = (id: number): Spec => toolEntity(Tool.queue, id);
 const allCounterGroups = (): Spec => toolList(Tool.counter_group);
 const counterGroup = (id: number): Spec => toolEntity(Tool.counter_group, id);
 const allCalendars = (): Spec => toolList(Tool.calendar);
@@ -685,7 +684,6 @@ export const q = {
   projectTaskStatuses,
   propertyHolder,
   pushSettings,
-  queue,
   recentComments,
   recents,
   relationships,

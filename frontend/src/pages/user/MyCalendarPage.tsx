@@ -19,6 +19,8 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  type EventEntryMeta,
+  type TaskEntryMeta,
   useCalendarVisibility,
 } from "@/components/calendar";
 import {
@@ -29,6 +31,7 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CalendarGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,7 +43,6 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
-import { PRIORITY_ORDER } from "@/lib/sorting";
 import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
@@ -276,39 +278,23 @@ export const MyCalendarPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
-      | {
-          type: string;
-          taskId?: number;
-          eventId?: number;
-          communityId?: number;
-          occurrence?: string;
-        }
+      | (TaskEntryMeta & { communityId?: number })
+      | EventEntryMeta
       | undefined;
     if (!meta) return;
     const scopedPath = (path: string) =>
       meta.communityId ? communityPath(meta.communityId, path) : gp(path);
     // Cross-community rows carry no initiative, so the resolver works out where
     // the entity lives on the way in.
-    if (meta.type === "task" && meta.taskId) {
+    if (meta.type === "task") {
       void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
-    } else if (meta.type === "event" && meta.eventId) {
+    } else if (meta.type === "event") {
       void navigate({
         to: scopedPath(entityRefRoute("calendar-event", meta.eventId)),
         search: meta.occurrence ? { occurrence: meta.occurrence } : {},
       });
     }
   };
-
-  // Status filter options
-  const statusOptions = useMemo(
-    () => [
-      { value: "backlog" as TaskStatusCategory, label: t("tasks:statusCategory.backlog") },
-      { value: "todo" as TaskStatusCategory, label: t("tasks:statusCategory.todo") },
-      { value: "in_progress" as TaskStatusCategory, label: t("tasks:statusCategory.in_progress") },
-      { value: "done" as TaskStatusCategory, label: t("tasks:statusCategory.done") },
-    ],
-    [t]
-  );
 
   // Wait for the calendars metadata too (same gate as the community page):
   // entries rendered before it resolves would flash the generic event color
@@ -368,37 +354,14 @@ export const MyCalendarPage = () => {
                     toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
                   )
                 }
-                canCreate={false}
-                onCreate={() => {}}
               />
             </div>
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByStatusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("tasks:filters.allStatusCategories")}
-                emptyMessage={t("tasks:filters.noStatusCategories")}
-              />
-            </div>
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((p) => ({
-                  value: p,
-                  label: t(`tasks:priority.${p}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("tasks:filters.allPriorities")}
-                emptyMessage={t("tasks:filters.noPriorities")}
-              />
-            </div>
+            <TaskStatusPriorityFilters
+              statusFilters={statusFilters}
+              onStatusChange={setStatusFilters}
+              priorityFilters={priorityFilters}
+              onPriorityChange={setPriorityFilters}
+            />
             <div className="w-full sm:w-48 lg:flex-1">
               <Label className="mb-2 block font-medium text-muted-foreground text-xs">
                 {t("tasks:filters.filterByCommunity")}

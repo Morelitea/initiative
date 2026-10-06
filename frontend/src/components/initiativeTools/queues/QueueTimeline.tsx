@@ -150,7 +150,7 @@ export const QueueTimeline = ({ queue, onEdit, onSetActive, onAct }: QueueTimeli
 
   // Mirror the upstream queue into local state so we control *when* the
   // timeline rows re-render. The hook's `onMutate` (local turn click) and
-  // `useQueueRealtime`'s WebSocket-driven refetch (remote turn change) both
+  // `useToolRealtime`'s WebSocket-driven refetch (remote turn change) both
   // arrive here as a new `queue` prop; below we swap `displayQueue` inside
   // `withViewTransition` so the API morphs the row layout instead of
   // snapping. `useLayoutEffect` runs after commit but before paint, so the

@@ -56,7 +56,7 @@ import {
 } from "@/hooks/useCounters";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
+import { useToolRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
@@ -74,7 +74,7 @@ export function CounterGroupDetailPage() {
   const groupId = groupIdParam ? Number(groupIdParam) : null;
 
   const groupQuery = useCounterGroup(groupId);
-  useCounterGroupRealtime(groupId);
+  useToolRealtime(Tool.counter_group, groupId);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -130,7 +130,6 @@ export function CounterGroupDetailPage() {
   }, [viewedGroupId, recordViewMutation.mutate]);
 
   const canWrite = Boolean(group?.can.edit);
-  const canManage = canWrite;
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -150,8 +149,7 @@ export function CounterGroupDetailPage() {
     const withoutActive = counters
       .filter((c) => c.id !== activeId)
       .map((c) => ({ position: Number(c.position) }));
-    const insertAt = oldIndex < newIndex ? newIndex : newIndex;
-    const newPosition = computeMidpoint(withoutActive, insertAt).toFixed(10);
+    const newPosition = computeMidpoint(withoutActive, newIndex).toFixed(10);
 
     updateCounter.mutate({
       counterId: activeId,
@@ -194,7 +192,7 @@ export function CounterGroupDetailPage() {
         tool={Tool.counter_group}
         initiativeId={group.initiative_id}
         settingsTo={
-          canManage ? toolSettingsRoute(Tool.counter_group, initiativeId, group.id) : undefined
+          canWrite ? toolSettingsRoute(Tool.counter_group, initiativeId, group.id) : undefined
         }
         chest={
           <ToolChest tool={Tool.counter_group} entity={group}>
@@ -204,16 +202,8 @@ export function CounterGroupDetailPage() {
                   variant="outline"
                   size="icon-sm"
                   onClick={toggleLayout}
-                  aria-label={
-                    layout === "row"
-                      ? t("switchToGridView", { defaultValue: "Switch to grid view" })
-                      : t("switchToRowView", { defaultValue: "Switch to row view" })
-                  }
-                  title={
-                    layout === "row"
-                      ? t("switchToGridView", { defaultValue: "Switch to grid view" })
-                      : t("switchToRowView", { defaultValue: "Switch to row view" })
-                  }
+                  aria-label={layout === "row" ? t("switchToGridView") : t("switchToRowView")}
+                  title={layout === "row" ? t("switchToGridView") : t("switchToRowView")}
                 >
                   {layout === "row" ? (
                     <LayoutGrid className="h-4 w-4" />
@@ -283,7 +273,7 @@ export function CounterGroupDetailPage() {
           </ToolChest>
         }
         title={group.name}
-        onRename={canManage ? (name) => updateGroup.mutateAsync({ name }) : undefined}
+        onRename={canWrite ? (name) => updateGroup.mutateAsync({ name }) : undefined}
       >
         {group.description && (
           <p className="max-w-2xl text-muted-foreground text-sm">{group.description}</p>
@@ -318,7 +308,7 @@ export function CounterGroupDetailPage() {
                 <CounterRow
                   key={counter.id}
                   counter={counter}
-                  canWrite={!!canWrite}
+                  canWrite={canWrite}
                   layout={layout}
                   focusHref={gp(counterRoute(initiativeId, group.id, counter.id))}
                   onSetCount={(value) => {
@@ -348,7 +338,7 @@ export function CounterGroupDetailPage() {
       <ToolRelationsPanel
         tool={Tool.counter_group}
         entity={group}
-        canEdit={!!canWrite}
+        canEdit={canWrite}
         entityTitle={group?.name}
       />
 

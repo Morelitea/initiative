@@ -145,7 +145,7 @@ export function EventSettingsPage() {
 
   const range = useEventTiming(details.values);
 
-  const updateEvent = useUpdateCalendarEvent(eventId, {
+  const updateEvent = useUpdateCalendarEvent({
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
@@ -155,8 +155,8 @@ export function EventSettingsPage() {
 
   // Its own instance of the update, so a tag change saves without the
   // details toast.
-  const saveTags = useUpdateCalendarEvent(eventId);
-  const saveRsvpOpen = useUpdateCalendarEvent(eventId, {
+  const saveTags = useUpdateCalendarEvent();
+  const saveRsvpOpen = useUpdateCalendarEvent({
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
@@ -167,7 +167,7 @@ export function EventSettingsPage() {
     const previous = tags;
     setTags(newTags);
     saveTags.mutate(
-      { tag_ids: newTags.map((tag) => tag.id) },
+      { eventId, data: { tag_ids: newTags.map((tag) => tag.id) } },
       { onError: () => setTags(previous) }
     );
   };
@@ -215,13 +215,16 @@ export function EventSettingsPage() {
     if (target === null) return;
     updateEvent.mutate(
       {
-        title: sent.title.trim() || undefined,
-        // Emptied, they are cleared.
-        description: sent.description.trim() || null,
-        location: sent.location.trim() || null,
-        ...range,
-        all_day: sent.allDay,
-        ...target,
+        eventId,
+        data: {
+          title: sent.title.trim() || undefined,
+          // Emptied, they are cleared.
+          description: sent.description.trim() || null,
+          location: sent.location.trim() || null,
+          ...range,
+          all_day: sent.allDay,
+          ...target,
+        },
       },
       {
         onSuccess: (saved) => {
@@ -235,9 +238,10 @@ export function EventSettingsPage() {
   const handleSaveRepeat = () => {
     const sent = repeat.values;
     if (sent.rule === "custom") return;
-    updateEvent.mutate(rulePayload(sent.rule, { allDay: event?.all_day }), {
-      onSuccess: () => repeat.settle(sent),
-    });
+    updateEvent.mutate(
+      { eventId, data: rulePayload(sent.rule, { allDay: event?.all_day }) },
+      { onSuccess: () => repeat.settle(sent) }
+    );
   };
 
   const handleSaveAttendees = async () => {
@@ -484,7 +488,9 @@ export function EventSettingsPage() {
               id="event-rsvp-open"
               checked={event.rsvp_open}
               disabled={!event.can.edit || event.series_id != null || saveRsvpOpen.isPending}
-              onCheckedChange={(next) => saveRsvpOpen.mutate({ rsvp_open: next })}
+              onCheckedChange={(next) =>
+                saveRsvpOpen.mutate({ eventId, data: { rsvp_open: next } })
+              }
               className="mt-0.5 shrink-0"
             />
           </div>
