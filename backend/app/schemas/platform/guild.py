@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
-from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.core.guild_auth_options import CommunityAuthOption
 from app.core.login_methods import LoginMethod
@@ -647,10 +654,13 @@ class MemberDisplayNameUpdate(SanitizedBaseModel):
         default=None, max_length=MEMBER_DISPLAY_NAME_MAX_LENGTH
     )
 
-    @field_validator("display_name")
+    @model_validator(mode="before")
     @classmethod
-    def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
-        return None if value is None else (value.strip() or None)
+    def _blank_is_none(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("display_name"), str):
+            if not data["display_name"].strip():
+                data = {**data, "display_name": None}
+        return data
 
 
 class MemberApiAccessUpdate(SanitizedBaseModel):

@@ -572,12 +572,7 @@ async def create_community(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.COMMUNITY_CREATION_DISABLED,
         )
-    name = guild_in.name.strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.COMMUNITY_NAME_REQUIRED,
-        )
+    name = guild_in.name
 
     if not user_has_capability(
         current_user, Capability.COMMUNITIES_MANAGE
