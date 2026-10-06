@@ -1277,9 +1277,11 @@ def record_age_answer(user: User, birthdate: date) -> bool:
 
 async def keep_birthdate(
     session: AsyncSession, *, user_id: int, birthdate: date
-) -> bool:
-    """Keep this account's date of birth, encrypted. ``True`` when it was kept,
-    ``False`` when one is already on file, which is left as it is.
+) -> str | None:
+    """Keep this account's date of birth, encrypted. The stored ciphertext when
+    it was kept — unique to this keeping, so :func:`forget_birthdate` can take
+    back exactly this one — or ``None`` when one is already on file, which is
+    left as it is.
 
     A plug-in's minimum age differs by country, so one "old enough" answer
     cannot say whether somebody may use a given plug-in; the date can. One
@@ -1292,18 +1294,19 @@ async def keep_birthdate(
 
     check_birthdate(birthdate)
     now = datetime.now(timezone.utc)
+    ciphertext = encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE)
     kept = await session.exec(
         pg_insert(UserBirthdate)
         .values(
             user_id=user_id,
-            birthdate_encrypted=encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE),
+            birthdate_encrypted=ciphertext,
             created_at=now,
             updated_at=now,
         )
         .on_conflict_do_nothing(index_elements=["user_id"])
         .returning(UserBirthdate.user_id)
     )
-    return kept.first() is not None
+    return ciphertext if kept.first() is not None else None
 
 
 async def birthdate_of(session: AsyncSession, *, user_id: int) -> date | None:
@@ -1319,10 +1322,16 @@ async def birthdate_of(session: AsyncSession, *, user_id: int) -> date | None:
     return date.fromisoformat(decrypt_field(stored.birthdate_encrypted, SALT_BIRTHDATE))
 
 
-async def forget_birthdate(session: AsyncSession, *, user_id: int) -> None:
-    """Drop the kept date of birth, so the account answers again. System
-    engine; the caller commits."""
-    await session.exec(delete(UserBirthdate).where(UserBirthdate.user_id == user_id))
+async def forget_birthdate(
+    session: AsyncSession, *, user_id: int, only: str | None = None
+) -> None:
+    """Drop the kept date of birth, so the account answers again. With ``only``
+    (what :func:`keep_birthdate` returned), drop it only if it is still that
+    one. System engine; the caller commits."""
+    statement = delete(UserBirthdate).where(UserBirthdate.user_id == user_id)
+    if only is not None:
+        statement = statement.where(UserBirthdate.birthdate_encrypted == only)
+    await session.exec(statement)
 
 
 def years_old(birthdate: date) -> int:

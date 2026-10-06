@@ -1148,7 +1148,7 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
-    if not kept:
+    if kept is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=UserMessages.AGE_ANSWER_STANDS,
@@ -1163,7 +1163,9 @@ async def confirm_my_age(
         session.add(current_user)
         await session.commit()
     except BaseException:
-        await users_service.forget_birthdate(system_session, user_id=current_user.id)
+        await users_service.forget_birthdate(
+            system_session, user_id=current_user.id, only=kept
+        )
         await system_session.commit()
         raise
     if not old_enough:

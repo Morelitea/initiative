@@ -1223,5 +1223,30 @@ async def test_a_kept_birthdate_is_never_replaced(session: AsyncSession):
         await system_session.commit()
         kept = await user_service.birthdate_of(system_session, user_id=user.id)
 
-    assert (first, second) == (True, False)
+    assert first is not None and second is None
     assert kept == date(1990, 5, 4)
+
+
+async def test_taking_back_a_date_leaves_a_newer_one(session: AsyncSession):
+    """A failed answer takes back only the date it kept, never one a later
+    answer kept after a reset."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        failed = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        await user_service.forget_birthdate(system_session, user_id=user.id)
+        await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1991, 6, 5)
+        )
+        await user_service.forget_birthdate(
+            system_session, user_id=user.id, only=failed
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert kept == date(1991, 6, 5)
