@@ -1481,7 +1481,7 @@ async def _begin_provider_login(
         value=_state_digest(begun.state),
         max_age=OIDC_NEXT_COOKIE_MAX_AGE,
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         samesite="lax",
         path=REFRESH_COOKIE_PATH,
     )
@@ -1491,7 +1491,7 @@ async def _begin_provider_login(
             value=next_path,
             max_age=OIDC_NEXT_COOKIE_MAX_AGE,
             httponly=True,
-            secure=settings.cookie_secure,
+            secure=settings.app_url_is_https,
             samesite="lax",
             path=REFRESH_COOKIE_PATH,
         )

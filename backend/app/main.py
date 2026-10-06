@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
-from functools import lru_cache
 from pathlib import Path
 
 from typing import Annotated, Any
@@ -32,7 +31,7 @@ from app.api.deps import (
     raise_for_guild_access,
 )
 from app.api.plugin_openapi import build_plugin_openapi, mark_plugin_scopes
-from app.api.embed_csp import plugin_frame_policy
+from app.api.embed_csp import content_security_policy, plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
@@ -502,18 +501,6 @@ async def insufficient_privilege_handler(
     raise exc
 
 
-@lru_cache(maxsize=8)
-def _content_security_policy(captcha_provider: str | None) -> str:
-    """The app-wide CSP, built once per captcha provider.
-
-    The provider lives in the settings row, so it can change while the process
-    runs; everything else in the header is fixed for the process lifetime.
-    """
-    return settings.content_security_policy_with_frames(
-        (), captcha_provider=captcha_provider
-    )
-
-
 # The three WebAssembly workers — the dashboard widget sandbox, the direct
 # message ratchet and the PDF viewer's pdf.js worker — and only they, are served
 # with a policy that admits WebAssembly. Vite emits worker bundles into
@@ -567,7 +554,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # route's `script-src 'none'`) instead of overriding it.
         response.headers.setdefault(
             "Content-Security-Policy",
-            _content_security_policy(captcha_config.current_captcha_config().provider),
+            content_security_policy(captcha_config.current_captcha_config().provider),
         )
         if _STRICT_TRANSPORT_SECURITY is not None:
             # Unconditional (not setdefault): unlike CSP there is no legitimate

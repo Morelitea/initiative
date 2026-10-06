@@ -30,7 +30,7 @@ from app.services.marketplace import registration_lookup
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["plugin_frame_policy"]
+__all__ = ["content_security_policy", "plugin_frame_policy"]
 
 
 async def plugin_frame_policy() -> str:
@@ -47,17 +47,20 @@ async def plugin_frame_policy() -> str:
     except Exception:
         logger.warning("embed CSP: could not read the frame origins", exc_info=True)
         origins = ()
-    return _policy_for(origins, captcha_provider)
+    return content_security_policy(captcha_provider, origins)
 
 
 @lru_cache(maxsize=8)
-def _policy_for(origins: tuple[str, ...], captcha_provider: str | None) -> str:
-    """The assembled header for one set of origins.
+def content_security_policy(
+    captcha_provider: str | None, frame_origins: tuple[str, ...] = ()
+) -> str:
+    """The assembled header for one captcha provider and set of frame origins.
 
-    Built once per distinct set rather than once per document: the set changes
-    only when an operator changes a registration, and the string is the same
-    every time until they do.
+    Built once per distinct pair rather than once per response: the provider
+    lives in the settings row and the origins change only when an operator
+    changes a registration, and the string is the same every time until they
+    do. With no origins it is the app-wide policy every response carries.
     """
     return settings.content_security_policy_with_frames(
-        origins, captcha_provider=captcha_provider
+        frame_origins, captcha_provider=captcha_provider
     )

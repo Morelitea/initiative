@@ -136,7 +136,7 @@ def test_env_decides_the_ways_in_of_a_fresh_row(monkeypatch):
 
 
 def test_env_unset_keeps_the_default(monkeypatch):
-    _seed_env(monkeypatch, None)
+    _seed_env(monkeypatch, [])
     assert _build_default_app_settings().login_methods == DEFAULT_METHODS
 
 
