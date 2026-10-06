@@ -42,7 +42,7 @@ describe("useUnreadTree", () => {
 
     expect(result.current.hasCommunity(8)).toBe(false);
     expect(result.current.hasInitiative(7, 10)).toBe(false);
-    expect(result.current.hasTool(7, 9, "document")).toBe(false);
+    expect(result.current.hasTool(7, 9, "file")).toBe(false);
     // The same tool in a different initiative is a different row.
     expect(result.current.hasTool(7, 10, "project")).toBe(false);
   });

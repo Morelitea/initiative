@@ -357,7 +357,7 @@ class Filters:
 def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
     """One row per entity — the chunk that matched best.
 
-    Long text is split across rows, so a document can match several times. The
+    Long text is split across rows, so a file can match several times. The
     highest-ranked chunk is the one worth showing, and is what supplies the
     snippet — drawn by :func:`search` for the rows on the page alone, since a
     headline re-reads the whole chunk.

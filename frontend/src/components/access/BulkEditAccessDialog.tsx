@@ -105,7 +105,7 @@ const toSelectableUser = (member: UserSummary): SelectableUser => ({
  * Bulk-edit sharing across many resources of one tool type. Keeps a safe
  * additive add/remove model (People / Roles) plus an All-members mode, and
  * persists every change in one bulk request per chunk. Resource-agnostic — the
- * per-tool wrappers (documents, projects, queues, counters) supply `items`,
+ * per-tool wrappers (files, projects, queues, counters) supply `items`,
  * `resourceType`, and how to invalidate their caches.
  */
 export function BulkEditAccessDialog({
@@ -120,7 +120,7 @@ export function BulkEditAccessDialog({
   const communityId = useActiveCommunityId();
   const { user: currentUser } = useAuth();
   // The tool noun, pluralized for `count`, so descriptions/toasts read "2 queues"
-  // rather than a hardcoded "documents".
+  // rather than a hardcoded "files".
   const resourceNoun = useCallback(
     (n: number) => t(`bulkBar.resource_${resourceType}`, { count: n }),
     [t, resourceType]

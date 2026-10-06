@@ -82,7 +82,7 @@ class SmartChipStateList(BaseModel):
 
     A ref that names nothing, or something this caller cannot see, is simply
     absent: the two are the same answer, and the chip falls back to the label
-    the document already stored.
+    the file already stored.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)

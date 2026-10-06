@@ -66,7 +66,7 @@ def apply_tool_order(
     rows that compare equal.
 
     ``extra_fields`` names columns one tool sorts by beyond the shared three —
-    a document's ``created_at``, which its own list has always offered.
+    a file's ``created_at``, which its own list has always offered.
     """
     if sort_by == "name":
         column = func.lower(model.name)

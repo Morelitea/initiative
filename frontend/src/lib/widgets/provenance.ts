@@ -17,14 +17,14 @@ import { type EntityKind, entityParams } from "@/lib/widgets/sources";
 /** Names the canvas has already loaded, by kind. Never a fetch of its own: a
  *  dense canvas costs no extra requests. */
 export interface EntityLabels {
-  document: Map<number, string>;
+  file: Map<number, string>;
   /** False while any lookup is still in flight. Nothing may be called
    *  unresolvable until this is true. */
   ready: boolean;
 }
 
 export const EMPTY_LABELS: EntityLabels = {
-  document: new Map(),
+  file: new Map(),
   ready: false,
 };
 
@@ -38,7 +38,7 @@ export interface ProvenanceChip {
 }
 
 const LABEL_MAPS: Record<EntityKind, keyof EntityLabels> = {
-  document: "document",
+  file: "file",
 };
 
 const lookup = (labels: EntityLabels, kind: EntityKind, id: number): string | undefined =>

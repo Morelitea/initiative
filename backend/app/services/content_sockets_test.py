@@ -65,7 +65,7 @@ class StalledWebSocket(FakeWebSocket):
 
 
 USER = SimpleNamespace(id=1)
-DOC = resource_room(1, "document", 3)
+DOC = resource_room(1, "file", 3)
 
 
 @pytest.fixture
@@ -172,7 +172,7 @@ async def test_an_unrouted_signal_sends_nothing(register) -> None:
 async def test_json_never_reaches_a_byte_stream_and_bytes_never_a_json_one(
     register,
 ) -> None:
-    """A document's room holds collaboration sockets; a sharing signal to the
+    """A file's room holds collaboration sockets; a sharing signal to the
     same room is for JSON readers only."""
     editor = FakeWebSocket()
     watcher = FakeWebSocket()
@@ -442,7 +442,7 @@ async def test_a_recheck_replaces_the_rooms(register, monkeypatch) -> None:
 async def test_one_guild_entry_serves_every_socket_of_one_sign_in(
     register, monkeypatch
 ) -> None:
-    """A board, a queue and a document open in one guild cost one entry."""
+    """A board, a queue and a file open in one guild cost one entry."""
     seen = _patch_entry(monkeypatch)
     for key in (guild_room(1), resource_room(1, "queue", 4), DOC):
         _join(register, FakeWebSocket(), rooms={key}, authorize=_answers(key))
@@ -459,7 +459,7 @@ async def test_recheck_room_reaches_only_that_room(register, monkeypatch) -> Non
     _join(
         register,
         elsewhere,
-        rooms={resource_room(1, "document", 4)},
+        rooms={resource_room(1, "file", 4)},
         authorize=_answers(),
     )
 
@@ -483,9 +483,9 @@ async def test_revoke_is_scoped_to_guild_and_user(register, monkeypatch) -> None
     _join(
         register,
         other_guild,
-        rooms={resource_room(2, "document", 3)},
+        rooms={resource_room(2, "file", 3)},
         guild_id=2,
-        authorize=_answers(resource_room(2, "document", 3)),
+        authorize=_answers(resource_room(2, "file", 3)),
     )
 
     await register.revoke_user(1, 1)
@@ -527,7 +527,7 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
     _join(register, with_a_key, rooms={DOC}, authorize=_answers(DOC))
     with_a_password = FakeWebSocket()
     auth_context.set_session_amr(None)
-    other = resource_room(1, "document", 4)
+    other = resource_room(1, "file", 4)
     _join(register, with_a_password, rooms={other}, authorize=_answers(other))
 
     auth_context.set_session_amr(frozenset({"mfa", "hwk"}))
@@ -553,7 +553,7 @@ async def test_recheck_answers_a_narrowed_provider_from_the_socket(
     _join(register, from_acme, rooms={DOC}, authorize=_answers(DOC))
     from_elsewhere = FakeWebSocket()
     auth_context.set_satisfied_claims({"7": {"hd": ["other.example"]}})
-    other = resource_room(1, "document", 4)
+    other = resource_room(1, "file", 4)
     _join(register, from_elsewhere, rooms={other}, authorize=_answers(other))
 
     auth_context.set_satisfied_claims({"7": {"hd": ["third.example"]}})

@@ -59,7 +59,7 @@ from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import wikis as wikis_service
@@ -87,10 +87,10 @@ class ResourceAccessConfig:
     loader: Callable[..., Awaitable[Any]]
     #: async (session, id) -> row | None, for a handler that also *serializes*
     #: the row it authorized: the eager loads a read response reads off it.
-    #: ``None`` where ``loader`` already carries them, which is most tools —
-    #: only projects and documents answer with a graph wider than the decision
-    #: needs, and loading that on every gate check would cost every caller a
-    #: handful of queries none of them reads.
+    #: ``None`` where ``loader`` already carries them. A tool whose response
+    #: reads more than the decision does — its tags, properties, comment
+    #: count, a project's statuses, a file's body — has one, so a gate
+    #: check does not cost every caller the queries none of them reads.
     hydrated_loader: Optional[Callable[..., Awaitable[Any]]] = None
     #: A path parameter that differs from ``<tool>_id``.
     id_param: Optional[str] = None
@@ -129,23 +129,37 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         project_grants.get_project,
         hydrated_loader=project_grants.get_project_hydrated,
     ),
-    Tool.document: ResourceAccessConfig(
-        Tool.document,
-        documents_service.get_document_for_grants,
-        hydrated_loader=documents_service.get_document_hydrated,
+    Tool.file: ResourceAccessConfig(
+        Tool.file,
+        files_service.get_file_for_grants,
+        hydrated_loader=files_service.get_file_hydrated,
     ),
-    Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue),
+    Tool.queue: ResourceAccessConfig(
+        Tool.queue,
+        queues_service.get_queue,
+        hydrated_loader=queues_service.get_queue_hydrated,
+    ),
     # Counter group routes name their row ``group_id``.
     Tool.counter_group: ResourceAccessConfig(
         Tool.counter_group, counters_service.get_counter_group, id_param="group_id"
     ),
     Tool.calendar: ResourceAccessConfig(Tool.calendar, calendars_service.get_calendar),
     Tool.dashboard: ResourceAccessConfig(
-        Tool.dashboard, dashboards_service.get_dashboard
+        Tool.dashboard,
+        dashboards_service.get_dashboard,
+        hydrated_loader=dashboards_service.get_dashboard_hydrated,
     ),
     Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post),
-    Tool.gallery: ResourceAccessConfig(Tool.gallery, galleries_service.get_gallery),
-    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki),
+    Tool.gallery: ResourceAccessConfig(
+        Tool.gallery,
+        galleries_service.get_gallery,
+        hydrated_loader=galleries_service.get_gallery_hydrated,
+    ),
+    Tool.wiki: ResourceAccessConfig(
+        Tool.wiki,
+        wikis_service.get_wiki,
+        hydrated_loader=wikis_service.get_wiki_hydrated,
+    ),
 }
 
 

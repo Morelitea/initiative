@@ -75,8 +75,8 @@ export function getActiveRecentKey(pathname: string): RecentKey | null {
 
 /**
  * Whether a recent item IS the active detail page. Matches on community too —
- * otherwise a community-A document tab would light up while viewing community B's
- * document that happens to share the id.
+ * otherwise a community-A file tab would light up while viewing community B's
+ * file that happens to share the id.
  */
 export function recentKeyMatches(activeKey: RecentKey | null, item: RecentItemRead): boolean {
   if (!activeKey) {

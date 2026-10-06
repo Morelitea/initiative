@@ -31,7 +31,7 @@ from app.api.deps import (
 )
 from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
@@ -64,12 +64,10 @@ class RecentToolSpec:
     extra: Callable[[Any], Dict[str, Any]] | None = None
 
 
-def _document_extra(document: Document) -> Dict[str, Any]:
-    version = document.current_version
+def _file_extra(file: File) -> Dict[str, Any]:
+    version = file.current_version
     return {
-        "document_type": (
-            document.document_type.value if document.document_type is not None else None
-        ),
+        "file_type": (file.file_type.value if file.file_type is not None else None),
         "mime_type": getattr(version, "file_content_type", None),
         "original_filename": getattr(version, "original_filename", None),
     }
@@ -80,7 +78,7 @@ def _document_extra(document: Document) -> Dict[str, Any]:
 # column — is derived below, so adding a tool needs no edit in this module.
 _RECENT_EXTRAS: dict[Tool, Callable[[Any], Dict[str, Any]]] = {
     Tool.project: lambda project: {"icon": project.icon},
-    Tool.document: _document_extra,
+    Tool.file: _file_extra,
 }
 
 RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {

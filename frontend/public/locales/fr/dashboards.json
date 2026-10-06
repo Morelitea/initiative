@@ -99,7 +99,7 @@
     "all_calendar": "Tous les calendriers",
     "all_counter_group": "Tous les groupes de compteurs",
     "all_counter": "Tous les compteurs",
-    "all_document": "Toutes les feuilles de calcul",
+    "all_file": "Toutes les feuilles de calcul",
     "pluginEndpoint": "Ce qu'il lit",
     "plugin": "Plug-in",
     "pluginPlaceholder": "Choisir un plug-in",
@@ -227,7 +227,7 @@
     "card": "Carte"
   },
   "bindingParam": {
-    "document": "Feuille de calcul",
+    "file": "Feuille de calcul",
     "sheet": "Feuille",
     "range": "Plage",
     "plugin_uid": "Plug-in",

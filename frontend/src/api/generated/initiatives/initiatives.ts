@@ -1210,7 +1210,7 @@ export const useUpdateInitiative = <TError = ErrorType<HTTPValidationError>, TCo
 };
 /**
  * Soft-delete an initiative. Cascades the same deleted_at to its
- * projects, documents, queues, and calendar events; their descendants
+ * projects, files, queues, and calendar events; their descendants
  * (tasks, comments, queue items) follow recursively. Restoring the
  * initiative resurfaces everything that was cascaded together.
  * @summary Delete Initiative

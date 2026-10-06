@@ -374,7 +374,7 @@ def test_config_fills_only_what_the_definition_left_open():
             {
                 "id": "w1",
                 "type": "table",
-                "binding": {"source": "sheet_range", "document_id": 3, "range": None},
+                "binding": {"source": "sheet_range", "file_id": 3, "range": None},
             }
         )
     )
@@ -383,7 +383,7 @@ def test_config_fills_only_what_the_definition_left_open():
             "widgets": {
                 "w1": {
                     "range": "A1:B4",
-                    "document_id": 9,
+                    "file_id": 9,
                     "source": "query",
                     "sql": "SELECT title FROM tasks",
                     "initiative_id": 5,

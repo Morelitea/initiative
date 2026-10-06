@@ -9,13 +9,13 @@ pin both halves of that contract on every endpoint that accepts
 
 The regression they guard against: the previous behavior silently truncated
 ``page_size=0`` responses at the cap, dropping rows from task boards and
-document pickers with no signal to the client.
+file pickers with no signal to the client.
 """
 
 import pytest
 
 from app.models.platform.guild import CommunityRole
-from app.testing import create_document, create_project, create_task
+from app.testing import create_file, create_project, create_task
 
 
 WINDOW = 3
@@ -61,18 +61,18 @@ async def test_tasks_fetch_all_windows(client, session, acting_user):
     assert set(ids) == created
 
 
-async def test_documents_fetch_all_windows(client, session, acting_user):
-    """Guild /documents/ (hand-rolled SQL path, now on apply_pagination)."""
+async def test_files_fetch_all_windows(client, session, acting_user):
+    """Guild /files/ (hand-rolled SQL path, now on apply_pagination)."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     created = {
-        (await create_document(session, a.initiative, a.user)).id for _ in range(TOTAL)
+        (await create_file(session, a.initiative, a.user)).id for _ in range(TOTAL)
     }
 
     ids: list[int] = []
     page, pages = 1, 0
     while True:
         response = await client.get(
-            a.g(f"/documents/?page_size=0&page={page}"), headers=a.headers
+            a.g(f"/files/?page_size=0&page={page}"), headers=a.headers
         )
         assert response.status_code == 200
         body = response.json()

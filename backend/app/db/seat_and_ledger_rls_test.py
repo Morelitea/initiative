@@ -237,7 +237,7 @@ async def test_an_admin_below_the_seat_does_not_write_an_install(
     result = await s.exec(
         text(
             "UPDATE guild_plugins SET name = 'Renamed', "
-            "granted_scopes = ARRAY['documents:read'] WHERE id = :id"
+            "granted_scopes = ARRAY['files:read'] WHERE id = :id"
         ).bindparams(id=plugin.id)
     )
     assert result.rowcount == 0
@@ -252,10 +252,10 @@ async def test_the_seat_grants_scopes(session, acting_user, role_session):
     )
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
     row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == plugin.id))).one()
-    row.granted_scopes = ["documents:read"]
+    row.granted_scopes = ["files:read"]
     s.add(row)
     await s.commit()
-    assert await _granted(session, seat.guild.id, plugin.id) == ["documents:read"]
+    assert await _granted(session, seat.guild.id, plugin.id) == ["files:read"]
 
 
 # ---------------------------------------------------------------------------

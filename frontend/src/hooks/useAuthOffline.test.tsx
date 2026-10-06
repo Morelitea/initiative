@@ -39,7 +39,7 @@ vi.mock("@/crypto/messaging", () => ({
 }));
 
 const clearWhiteboards = vi.fn();
-vi.mock("@/components/documents/whiteboardSceneCache", () => ({
+vi.mock("@/components/files/whiteboardSceneCache", () => ({
   clearAllWhiteboardSceneCaches: () => clearWhiteboards(),
 }));
 

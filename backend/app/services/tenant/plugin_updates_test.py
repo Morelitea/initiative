@@ -704,14 +704,14 @@ def test_a_version_asking_to_use_another_plugin_asks_for_more():
         listing_version="1.0.0",
         plugin_kind="service",
         name="Caller",
-        definition=_asking("documents:read"),
-        granted_scopes=["documents:read"],
+        definition=_asking("files:read"),
+        granted_scopes=["files:read"],
         created_by=1,
     )
-    ceiling = ("documents:read", "plugins:tests.github")
+    ceiling = ("files:read", "plugins:tests.github")
 
     asks = plugin_updates.upgrade_asks(
-        plugin, _asking("documents:read", "plugins:tests.github"), ceiling
+        plugin, _asking("files:read", "plugins:tests.github"), ceiling
     )
 
     assert asks.added_scopes == ("plugins:tests.github",)
@@ -724,13 +724,13 @@ def test_a_plugin_scope_above_the_ceiling_asks_for_nothing():
         listing_version="1.0.0",
         plugin_kind="service",
         name="Caller",
-        definition=_asking("documents:read"),
-        granted_scopes=["documents:read"],
+        definition=_asking("files:read"),
+        granted_scopes=["files:read"],
         created_by=1,
     )
 
     asks = plugin_updates.upgrade_asks(
-        plugin, _asking("documents:read", "plugins:tests.github"), ("documents:read",)
+        plugin, _asking("files:read", "plugins:tests.github"), ("files:read",)
     )
 
     assert not asks.asks_more

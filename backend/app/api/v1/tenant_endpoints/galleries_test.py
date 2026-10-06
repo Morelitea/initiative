@@ -137,7 +137,9 @@ async def test_list_carries_newest_picture_as_cover(
     )
 
     listing = await client.get(
-        a.g("/galleries/"), headers=a.headers, params={"initiative_id": a.initiative.id}
+        a.g("/galleries/"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "include_preview": True},
     )
     assert listing.status_code == 200, listing.text
     (item,) = listing.json()["items"]
@@ -154,7 +156,6 @@ async def test_list_carries_newest_picture_as_cover(
     assert chosen.status_code == 200, chosen.text
     assert chosen.json()["cover"]["image_id"] == older.id
     assert chosen.json()["cover_image_id"] == older.id
-    assert len(chosen.json()["preview"]) == 2
 
 
 async def test_preview_is_capped_at_the_newest_few(
@@ -175,7 +176,9 @@ async def test_preview_is_capped_at_the_newest_few(
         for d in range(6)
     ]
 
-    listing = await client.get(a.g("/galleries/"), headers=a.headers)
+    listing = await client.get(
+        a.g("/galleries/"), headers=a.headers, params={"include_preview": True}
+    )
     (item,) = listing.json()["items"]
     assert [p["image_id"] for p in item["preview"]] == [
         i.id for i in reversed(made[-galleries_service.PREVIEW_COUNT :])

@@ -17,7 +17,7 @@ from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant.relationships import Endpoint
 from app.services.tenant.task_description import newly_mentioned
 from app.testing import (
-    create_document,
+    create_file,
     create_resource_grant,
     create_task,
     create_user,
@@ -186,7 +186,7 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
     writer = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, writer.initiative, writer.user)
+    doc = await create_file(session, writer.initiative, writer.user)
     task = await create_task(session, writer.project)
     await session.commit()
 
@@ -196,9 +196,7 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
         json={"description": f"Spec: #doc[Spec]({doc.id})"},
     )
     assert response.status_code == 200, response.text
-    assert await _references(session, writer.guild.id, task.id) == {
-        ("document", doc.id)
-    }
+    assert await _references(session, writer.guild.id, task.id) == {("file", doc.id)}
 
     # Writing the sentence out takes the edge with it.
     session.expunge_all()
@@ -215,7 +213,7 @@ async def test_a_duplicate_points_where_its_original_does_and_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     writer, teammate = await _workspace(acting_user, session)
-    doc = await create_document(session, writer.initiative, writer.user)
+    doc = await create_file(session, writer.initiative, writer.user)
     task = await create_task(
         session,
         writer.project,
@@ -229,7 +227,5 @@ async def test_a_duplicate_points_where_its_original_does_and_tells_nobody(
     assert response.status_code in (200, 201), response.text
     copy_id = response.json()["id"]
 
-    assert await _references(session, writer.guild.id, copy_id) == {
-        ("document", doc.id)
-    }
+    assert await _references(session, writer.guild.id, copy_id) == {("file", doc.id)}
     assert await _mentions_for(session, teammate.user.id) == []

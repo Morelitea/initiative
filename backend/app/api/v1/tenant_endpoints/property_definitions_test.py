@@ -21,7 +21,7 @@ from app.models.tenant.property import (
     PropertyValue,
 )
 from app.testing import (
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_property_definition,
@@ -390,8 +390,8 @@ async def test_patch_removing_option_reports_orphaned_values(
         ],
     )
 
-    # Attach a document value that uses the "live" slug.
-    doc = await create_document(session, a.initiative, a.user)
+    # Attach a file value that uses the "live" slug.
+    doc = await create_file(session, a.initiative, a.user)
     await create_property_value(session, doc, defn, value_text="live")
 
     # Remove "live" from the option list.
@@ -409,7 +409,7 @@ async def test_patch_removing_option_reports_orphaned_values(
     result = await session.exec(
         select(PropertyValue).where(
             PropertyValue.property_id == defn.id,
-            PropertyValue.entity_type == "document",
+            PropertyValue.entity_type == "file",
             PropertyValue.entity_id == doc.id,
         )
     )
@@ -483,7 +483,7 @@ async def test_delete_definition_cascades_to_values(
 
     project = await create_project(session, a.initiative, a.user, name="Proj")
     task = await create_task(session, project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     await create_property_value(session, doc, defn, value_text="a doc value")
     await create_property_value(session, task, defn, value_text="a task value")

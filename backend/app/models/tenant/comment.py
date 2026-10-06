@@ -78,15 +78,15 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
         ),
     )
-    document_id: Optional[int] = Field(
+    file_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
-            Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+            Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=True
         ),
     )
     # Tool-entity parents: every Tool is commentable (drift-tested against the
     # enum in comments_test), one nullable FK per tool alongside the original
-    # task/document pair. ``project_id`` means a comment ON the project itself;
+    # task/file pair. ``project_id`` means a comment ON the project itself;
     # a task comment reports its task's project through the read schema only.
     project_id: Optional[int] = Field(
         default=None,

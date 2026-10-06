@@ -75,7 +75,6 @@ from app.schemas.tenant.timeline import TimelineResponse
 from app.services.permissions import Action
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant import comments as comments_service
 from app.services.tenant import file_versions
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import properties as properties_service
@@ -99,32 +98,6 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _refetch_gallery(
-    session: RLSSessionDep, gallery_id: int, *, user_id: int | None
-) -> Gallery:
-    gallery = await galleries_service.get_gallery(
-        session, gallery_id, populate_existing=True
-    )
-    if not gallery:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.gallery.not_found_code,
-        )
-    await annotate_gallery_rows(session, [gallery])
-    return gallery
-
-
-async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None:
-    """Everything a gallery row carries beyond its columns, one grouped query
-    each for the page."""
-    await tags_service.annotate_tags(session, galleries)
-    await properties_service.annotate_properties(session, galleries)
-    await comments_service.annotate_comment_counts(
-        session, galleries, column="gallery_id"
-    )
-    await galleries_service.annotate_covers(session, galleries)
 
 
 async def _refetch_image(session: RLSSessionDep, image_id: int) -> GalleryImage:
@@ -302,9 +275,8 @@ async def read_gallery(
     include_deleted: IncludeDeletedDep = False,
 ) -> GalleryRead:
     gallery = await resource_access.load_authorized(
-        session, Tool.gallery, gallery_id, current_user, guild_context
+        session, Tool.gallery, gallery_id, current_user, guild_context, hydrated=True
     )
-    await annotate_gallery_rows(session, [gallery])
     return serialize_tool(
         GalleryRead, gallery, user_id=guild_context.user_id, context=guild_context
     )
@@ -354,12 +326,7 @@ async def create_gallery(
     await attachments_service.claim_uploads(session, gallery)
     await properties_service.write_on_create(session, gallery, gallery_in.properties)
     await session.commit()
-    hydrated = await _refetch_gallery(
-        session, gallery.id, user_id=guild_context.user_id
-    )
-    return serialize_tool(
-        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, gallery.id, current_user, guild_context)
 
 
 @router.patch("/{gallery_id}", response_model=GalleryRead)
@@ -386,10 +353,12 @@ async def update_gallery(
     if "cover_image_id" in update_data:
         cover_id = update_data["cover_image_id"]
         if cover_id is not None:
-            cover = await galleries_service.get_image(
-                session, cover_id, gallery_id=gallery.id
+            cover = await session.exec(
+                select(GalleryImage.id).where(
+                    GalleryImage.id == cover_id, GalleryImage.gallery_id == gallery.id
+                )
             )
-            if cover is None:
+            if cover.one_or_none() is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=GalleryMessages.COVER_NOT_IN_GALLERY,
@@ -403,12 +372,7 @@ async def update_gallery(
         await attachments_service.claim_uploads(session, gallery)
         await session.commit()
 
-    hydrated = await _refetch_gallery(
-        session, gallery.id, user_id=guild_context.user_id
-    )
-    return serialize_tool(
-        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, gallery.id, current_user, guild_context)
 
 
 async def read_after_write(
@@ -422,9 +386,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_gallery(
-        session, gallery_id, user_id=guild_context.user_id
+    hydrated = await galleries_service.get_gallery_hydrated(
+        session, gallery_id, populate_existing=True
     )
+    if hydrated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.gallery.not_found_code,
+        )
     return serialize_tool(
         GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )

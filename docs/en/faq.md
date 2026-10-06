@@ -74,7 +74,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
-    We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
+    It's kept, encrypted, and used only to check age limits — a community's, or a plug-in's, which can differ by country. It's never shown back to anyone, you included, and it isn't sold or shared. Deleting your account deletes it.
 
 ??? question "It was just an invite from a friend. Why was I asked?"
     Because the community it leads to is a listed one — anyone signed in can find it. The question follows the community, not the way in.

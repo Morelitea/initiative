@@ -19,7 +19,7 @@ from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import (
     create_comment,
-    create_document,
+    create_file,
     create_initiative_member,
     create_tag,
     create_task,
@@ -161,7 +161,7 @@ async def test_a_first_connect_is_told_nothing(session, acting_user):
     theirs to hear."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project)
-    await create_document(session, a.initiative, a.user)
+    await create_file(session, a.initiative, a.user)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         assert watcher.changes == []

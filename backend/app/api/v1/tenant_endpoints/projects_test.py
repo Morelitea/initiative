@@ -26,7 +26,7 @@ from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import tags as tags_service
 from app.testing.factories import (
     create_comment,
-    create_document,
+    create_file,
     create_guild,
     create_relationship,
     create_guild_membership,
@@ -684,7 +684,7 @@ async def test_duplicate_project_copies_task_relations(
     """Duplicating a project carries its task relations, ids remapped, and
     a symmetric relation to something outside the project is kept as-is; each
     task's tags land on its own copy, and so does the project's attached
-    document. A live project's checklists start over."""
+    file. A live project's checklists start over."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
     source.is_template = False
@@ -712,12 +712,12 @@ async def test_duplicate_project_copies_task_relations(
         relationship_type=RelationshipType.related_to,
     )
 
-    attached = await create_document(session, admin.initiative, admin.user)
+    attached = await create_file(session, admin.initiative, admin.user)
     await create_relationship(
         session,
         admin.guild,
         source=(SearchEntityType.project, source.id),
-        target=(SearchEntityType.document, attached.id),
+        target=(SearchEntityType.file, attached.id),
         relationship_type=RelationshipType.attached,
     )
 
@@ -1383,10 +1383,10 @@ async def test_resaving_the_all_members_grant_does_not_collide_with_itself(
     ] == [("write", None, True)]
 
 
-async def test_project_shows_all_members_document_to_member(
+async def test_project_shows_all_members_file_to_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A document attached to a project and shared with *all initiative members*
+    """A file attached to a project and shared with *all initiative members*
     is among the project's links for a plain member. Regression: the linked-doc
     filter used to ignore all-members grants, so such docs vanished for anyone
     without a personal/role grant."""
@@ -1398,7 +1398,7 @@ async def test_project_shows_all_members_document_to_member(
         initiative_role="member",
     )
     project = await create_project(session, owner.initiative, owner.user)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     # The project too, so the member can open it at all.
     await create_resource_grant(session, project, all_initiative_members=True)
     await create_resource_grant(session, doc, all_initiative_members=True)
@@ -1406,7 +1406,7 @@ async def test_project_shows_all_members_document_to_member(
         session,
         owner.guild,
         source=(SearchEntityType.project, project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         created_by=owner.user.id,
     )
 

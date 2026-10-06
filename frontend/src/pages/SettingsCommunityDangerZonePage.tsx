@@ -103,7 +103,7 @@ export const SettingsCommunityDangerZonePage = () => {
       <li>{t("settings.deleteWhatInitiatives")}</li>
       <li>{t("settings.deleteWhatProjects")}</li>
       <li>{t("settings.deleteWhatTasks")}</li>
-      <li>{t("settings.deleteWhatDocuments")}</li>
+      <li>{t("settings.deleteWhatFiles")}</li>
       <li>{t("settings.deleteWhatMembers")}</li>
       <li>{t("settings.deleteWhatSettings")}</li>
     </ul>

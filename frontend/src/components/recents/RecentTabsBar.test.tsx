@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildRecentCounterGroupItem,
-  buildRecentDocumentItem,
+  buildRecentFileItem,
   buildRecentItem,
   buildRecentProjectItem,
   buildRecentQueueItem,
@@ -42,7 +42,7 @@ describe("RecentTabsBar", () => {
   it("renders one tab per item with its name and entity-specific icons", () => {
     const items = [
       buildRecentProjectItem({ name: "Lost Mines", icon: "⚒️" }),
-      buildRecentDocumentItem({ name: "Session Notes" }),
+      buildRecentFileItem({ name: "Session Notes" }),
       buildRecentQueueItem({ name: "Combat" }),
       buildRecentCounterGroupItem({ name: "HP Trackers" }),
     ];
@@ -66,7 +66,7 @@ describe("RecentTabsBar", () => {
   it("links each item to its community-scoped detail page", () => {
     const items = [
       buildRecentProjectItem({ entity_id: 11, name: "ProjectX" }),
-      buildRecentDocumentItem({ entity_id: 22, name: "DocY" }),
+      buildRecentFileItem({ entity_id: 22, name: "DocY" }),
       buildRecentQueueItem({ entity_id: 33, name: "QueueZ" }),
       buildRecentCounterGroupItem({ entity_id: 44, name: "GroupW" }),
     ];
@@ -83,10 +83,7 @@ describe("RecentTabsBar", () => {
       "href",
       "/c/1/i/5/projects/11"
     );
-    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute(
-      "href",
-      "/c/1/i/5/documents/22"
-    );
+    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute("href", "/c/1/i/5/files/22");
     expect(screen.getByRole("link", { name: /QueueZ/ })).toHaveAttribute(
       "href",
       "/c/1/i/5/queues/33"

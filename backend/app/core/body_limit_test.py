@@ -55,11 +55,11 @@ def test_a_route_no_rule_names_still_has_a_bound():
 
 def test_a_multipart_upload_gets_room_for_the_largest_file_a_route_takes():
     limit, _ = _bound(
-        "/api/v1/c/1/documents/upload",
+        "/api/v1/c/1/files/upload",
         b"multipart/form-data; boundary=x",
     )
     assert limit == MULTIPART_MAX_REQUEST_BYTES
-    assert limit > attachments.MAX_DOCUMENT_FILE_SIZE
+    assert limit > attachments.MAX_FILE_SIZE
     assert limit > galleries.MAX_IMAGE_BYTES
     # A listing sends all of its pictures in one request, beside its body.
     listing = (
@@ -77,29 +77,29 @@ def test_the_default_leaves_room_for_a_calendar_import():
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/c/1/documents/",
-        "/api/v1/c/1/documents",
-        "/api/v1/c/1/documents/42",
+        "/api/v1/c/1/files/",
+        "/api/v1/c/1/files",
+        "/api/v1/c/1/files/42",
         "/api/v1/c/1/wikis/3/pages",
         "/api/v1/c/1/wiki-pages/9",
-        "/api/v1/c/1/collaboration/documents/42/collaborate",
+        "/api/v1/c/1/collaboration/files/42/collaborate",
         "/api/v1/c/1/collaboration/wiki-pages/9/collaborate",
     ],
 )
-def test_the_routes_that_write_a_document_take_a_whiteboard(path):
+def test_the_routes_that_write_a_file_take_a_whiteboard(path):
     assert _limit(path) == DOCUMENT_MAX_REQUEST_BYTES
 
 
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/c/1/documents/42/comments",
-        "/api/v1/c/1/documents/42/duplicate",
+        "/api/v1/c/1/files/42/comments",
+        "/api/v1/c/1/files/42/duplicate",
         "/api/v1/c/1/wikis/3",
         "/api/v1/c/1/wiki-pages/9/move",
     ],
 )
-def test_the_document_rule_names_only_the_routes_that_carry_content(path):
+def test_the_file_rule_names_only_the_routes_that_carry_content(path):
     assert _limit(path) is None
 
 

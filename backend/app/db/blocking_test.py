@@ -26,7 +26,7 @@ from app.testing.factories import (
     create_calendar_event,
     create_counter,
     create_counter_group,
-    create_document,
+    create_file,
     create_task,
 )
 from app.testing.schema_harness import route_session_to_guild
@@ -56,10 +56,10 @@ def test_a_kind_with_no_rule_has_no_opinion():
     tables = {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
     }
-    assert "documents" not in OPEN_WHEN
+    assert "files" not in OPEN_WHEN
     # NULL, not false: "this never finishes" is not the same claim as "this is
     # finished", and only one of them should keep a blocker off a count.
-    assert open_expr("documents", tables["documents"]).compile().string == "NULL"
+    assert open_expr("files", tables["files"]).compile().string == "NULL"
 
 
 # ---------------------------------------------------------------------------
@@ -247,10 +247,10 @@ async def test_an_archived_task_neither_holds_a_project_open_nor_closes_it(
     assert done.completed_at is not None
 
 
-async def test_a_document_never_answers(session: AsyncSession, acting_user):
-    """Nothing on a document says when it stops holding something up."""
+async def test_a_file_never_answers(session: AsyncSession, acting_user):
+    """Nothing on a file says when it stops holding something up."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     await route_session_to_guild(session, a.guild.id)
-    assert await _is_open(session, SearchEntityType.document, doc.id, a.user.id) is None
+    assert await _is_open(session, SearchEntityType.file, doc.id, a.user.id) is None

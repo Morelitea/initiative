@@ -133,9 +133,11 @@ Actions that change who can reach what, how the deployment is configured, or whe
 
 ### Age, and what we ask for
 
-Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Joining one from the directory asks your date of birth, once, and requires you to be 16 or older.
+Every account is asked its date of birth once — at sign-up, or the first time it signs in after that without one. Communities listed in the community directory can be found by anyone signed in, so joining one requires you to be 16 or older. Plug-ins can also set a minimum age, which may differ by country: someone younger than a plug-in's minimum where they are cannot open or use it, though their community can still install it.
 
-**The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
+**The date is kept, encrypted.** It is stored apart from the rest of your account, encrypted at rest, and read only to check an age limit. No response ever sends it back — to you included — nothing logs it, and it is not sold or shared with anyone. Deleting your account deletes it. If you entered it wrongly, whoever runs the server can reset the question so you can answer again.
+
+**Where you are comes from your connection, not from you.** A plug-in's minimum age can depend on the country you are in. Where the server sits behind a provider that reports a visitor's country, that is read for the request and not stored. Where it cannot be told, the plug-in's highest minimum age applies.
 
 The question belongs to the community rather than to the way in: every route into a listed one is covered, an invite included. A private community — one that has not listed itself — never asks, whoever brings somebody in, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
 

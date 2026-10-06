@@ -300,7 +300,7 @@ def decode_session_token(token: str) -> dict[str, Any]:
 # HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
 # the credential as a ``?token=`` query param. The 7-day session JWT never goes
 # in a URL; instead the app mints one of these: a short-lived, uploads-only JWT
-# that the /uploads route (and document download routes) accept via ``?token=``
+# that the /uploads route (and file download routes) accept via ``?token=``
 # but that is useless for any other API call (it carries no ``ver`` and a distinct
 # ``aud``/``scope``, so ``get_current_user`` rejects it).
 # ──────────────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ from app.services.tenant.collaboration import (
 
 #: The kind most of these use. Which kind a room is for does not change how it
 #: is addressed, so one stands for all of them except where two are the point.
-DOC = SearchEntityType.document.value
+DOC = SearchEntityType.file.value
 PAGE = SearchEntityType.wiki_page.value
 
 
@@ -43,15 +43,15 @@ class SlowSession:
     the registry's lock.
     """
 
-    def __init__(self, document=None, delay: float = 0.05):
-        self.document = document
+    def __init__(self, file=None, delay: float = 0.05):
+        self.file = file
         self.delay = delay
         self.reads = 0
 
     async def exec(self, _statement):
         self.reads += 1
         await asyncio.sleep(self.delay)
-        return FakeResult(self.document)
+        return FakeResult(self.file)
 
 
 def loaded_room(
@@ -63,7 +63,7 @@ def loaded_room(
     return room
 
 
-async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
+async def test_the_same_file_id_in_two_guilds_is_two_rooms() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
     manager._rooms[(2, DOC, 5)] = loaded_room(2, 5)
@@ -78,20 +78,20 @@ async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
 
 
 async def test_the_same_id_in_two_kinds_is_two_rooms() -> None:
-    """Document 5 and wiki page 5 are both real, and both exist in the same
+    """File 5 and wiki page 5 are both real, and both exist in the same
     guild. Keyed by the pair alone they would share one Yjs document, and each
     would be served the other's body."""
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5, DOC)
     manager._rooms[(1, PAGE, 5)] = loaded_room(1, 5, PAGE)
 
-    document_room = manager._rooms.get((1, DOC, 5))
+    file_room = manager._rooms.get((1, DOC, 5))
     page_room = manager._rooms.get((1, PAGE, 5))
 
-    assert document_room is not None
+    assert file_room is not None
     assert page_room is not None
-    assert document_room is not page_room
-    assert document_room.resource_type == DOC
+    assert file_room is not page_room
+    assert file_room.resource_type == DOC
     assert page_room.resource_type == PAGE
 
 
@@ -131,7 +131,7 @@ async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
 async def test_loading_one_room_does_not_stall_another() -> None:
     """The registry lock is not held across the read.
 
-    A slow document in one guild must not hold up a room in another, which is
+    A slow file in one guild must not hold up a room in another, which is
     what a lock held across I/O would do.
     """
     manager = CollaborationManager()
@@ -197,8 +197,8 @@ class FakeRegister:
     def __init__(self) -> None:
         self.rooms: dict[tuple, list[RoomMember]] = {}
 
-    def add(self, guild_id, document_id, member) -> None:
-        self.rooms.setdefault((guild_id, "document", document_id), []).append(member)
+    def add(self, guild_id, file_id, member) -> None:
+        self.rooms.setdefault((guild_id, "file", file_id), []).append(member)
 
     def room_size(self, room) -> int:
         return len(self.rooms.get(room, []))
@@ -356,7 +356,7 @@ async def test_an_edit_while_a_sweep_reads_the_row_is_written() -> None:
 
 
 async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
-    """Idle documents cost nothing to keep open."""
+    """Idle files cost nothing to keep open."""
     manager = CollaborationManager()
     clean = loaded_room(1, 5)
     dirty = loaded_room(1, 6)

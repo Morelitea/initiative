@@ -81,7 +81,7 @@ export const WikiPageView = () => {
   // about a body on a pause and, in a live room, writes it on a sweep of its
   // own — both of which finish long after the eye does.
   const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
-  // Live co-editing, over the same room documents use — a page is just
+  // Live co-editing, over the same room files use — a page is just
   // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
     socketPath: validIds ? `${toolRouteSegment("wiki_page")}/${pageId}/collaborate` : null,
@@ -166,7 +166,7 @@ export const WikiPageView = () => {
   const draftTitle = draft?.pageId === pageId ? draft.title : (pageQuery.data?.title ?? "");
 
   // The editor reports every keystroke; the server hears about them 2s after
-  // somebody stops, the same window a document autosaves on. Saving per change
+  // somebody stops, the same window a file autosaves on. Saving per change
   // would be a request per character — and each one re-reads the body for the
   // links it names.
   // The newest body, and a counter that says one arrived. The body itself is a

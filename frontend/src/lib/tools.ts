@@ -52,7 +52,7 @@ import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
  */
 export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.project]: ListTodo,
-  [Tool.document]: ScrollText,
+  [Tool.file]: ScrollText,
   [Tool.queue]: GalleryHorizontalEnd,
   [Tool.counter_group]: Gauge,
   [Tool.calendar]: CalendarDays,
@@ -69,13 +69,13 @@ export const TOOLS = Object.values(Tool) as Tool[];
  * On unless an initiative says otherwise. Mirrors backend
  * `DEFAULT_ENABLED_TOOLS`.
  *
- * Projects and documents used to be exempt from the master switch entirely —
+ * Projects and files used to be exempt from the master switch entirely —
  * always on, with no `{plural}_enabled` column. Relationships ended that: a
  * tool no longer needs either of them to be linkable, so an initiative that is
  * only a calendar is a coherent thing to want. What they keep is the default,
  * which is the part that was ever load-bearing.
  */
-export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
+export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.file]);
 
 /**
  * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
@@ -145,7 +145,7 @@ const TEMPLATE_VIEWS: ToolViewSpec = {
  */
 const TOOL_VIEW_SPECS: Partial<Record<Tool, ToolViewSpec>> = {
   [Tool.project]: TEMPLATE_VIEWS,
-  [Tool.document]: TEMPLATE_VIEWS,
+  [Tool.file]: TEMPLATE_VIEWS,
 };
 
 /** The views a tool's list offers. */
@@ -165,7 +165,7 @@ export const toolViewParams = (tool: Tool, view: ToolView): ToolViewParams =>
 export const SIDEBAR_TOOLS: Tool[] = [
   Tool.calendar,
   Tool.dashboard,
-  Tool.document,
+  Tool.file,
   Tool.gallery,
   Tool.post,
   Tool.queue,
@@ -344,22 +344,22 @@ export const wikiPageRoute = (
 ): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/pages/${pageId}`;
 
 /**
- * A document read inside the wiki it was put in, e.g.
- * "/i/12/wikis/3/documents/8".
+ * A file read inside the wiki it was put in, e.g.
+ * "/i/12/wikis/3/files/8".
  *
- * Its own address stays what it always was — this one says "this document, as
+ * Its own address stays what it always was — this one says "this file, as
  * a page of that wiki", which is what keeps the wiki's navigation standing
  * beside it.
  */
-export const wikiDocumentRoute = (
+export const wikiFileRoute = (
   initiativeId: number | null,
   wikiId: number,
-  documentId: number
-): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/documents/${documentId}`;
+  fileId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/files/${fileId}`;
 
 /**
  * Community-relative resolver route for an entity whose initiative isn't in hand,
- * e.g. "/go/document/42". The resolver reads the entity and replaces itself
+ * e.g. "/go/file/42". The resolver reads the entity and replaces itself
  * with the canonical address.
  *
  * Use ONLY where the caller genuinely holds nothing but an id — a @mention, a

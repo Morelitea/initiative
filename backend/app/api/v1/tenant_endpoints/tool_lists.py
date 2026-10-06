@@ -59,7 +59,7 @@ from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
-from app.api.v1.tenant_endpoints import documents as documents_endpoints
+from app.api.v1.tenant_endpoints import files as files_endpoints
 from app.api.v1.tenant_endpoints import galleries as galleries_endpoints
 from app.api.v1.tenant_endpoints import posts as posts_endpoints
 from app.api.v1.tenant_endpoints import projects as projects_endpoints
@@ -72,7 +72,7 @@ from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.gallery import Gallery
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
@@ -95,9 +95,9 @@ from app.schemas.tenant.dashboard import (
     DashboardPreview,
     DashboardSummary,
 )
-from app.schemas.tenant.document import (
-    DocumentListResponse,
-    DocumentRead,
+from app.schemas.tenant.file import (
+    FileListResponse,
+    FileRead,
 )
 from app.schemas.tenant.gallery import (
     GalleryListResponse,
@@ -123,10 +123,11 @@ from app.schemas.tenant.wiki import (
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
+from app.services.tenant import comments as comments_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
@@ -464,13 +465,18 @@ PreviewLoader = Callable[[AsyncSession, int, list], Awaitable[Mapping[int, Any]]
 def _summaries(
     schema: type[ToolSummaryBase], preview: Optional[PreviewLoader] = None
 ) -> Callable[..., Awaitable[list]]:
-    """The ordinary page: tag the rows, then turn each into its summary. A tool
-    whose card previews what is inside it reads every row's preview for the
-    page at once, and only when the list was asked for them."""
+    """The ordinary page: tag the rows, count their comments where the summary
+    reports them, then turn each into its summary. A tool whose card previews
+    what is inside it reads every row's preview for the page at once, and only
+    when the list was asked for them."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         await properties_service.annotate_properties(req.session, rows)
+        if "comment_count" in schema.model_fields:
+            await comments_service.annotate_comment_counts(
+                req.session, rows, column=f"{spec.tool.value}_id"
+            )
         items = [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
@@ -572,13 +578,13 @@ async def _serialize_projects(spec: ToolListSpec, req: ListRequest, rows: list) 
 
 
 # ---------------------------------------------------------------------------
-# Documents
+# Files
 # ---------------------------------------------------------------------------
 
 
-async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+async def _file_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
-    conditions = documents_endpoints.visible_document_conditions(
+    conditions = files_endpoints.visible_file_conditions(
         req.guild_context,
         req.user_id,
         initiative_id=values.get("initiative_id"),
@@ -586,20 +592,16 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         tag_ids=values.get("tag_ids"),
         untagged=values.get("untagged"),
         is_template=values.get("is_template"),
-        document_type=values.get("document_type"),
+        file_type=values.get("file_type"),
     )
     conditions.append(
-        archive_service.archive_filter_clause(Document, values.get("archived"))
+        archive_service.archive_filter_clause(File, values.get("archived"))
     )
     return conditions
 
 
-async def _serialize_documents(
-    spec: ToolListSpec, req: ListRequest, rows: list
-) -> list:
-    return await documents_endpoints.serialize_document_page(
-        req.session, req.user_id, rows
-    )
+async def _serialize_files(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
+    return await files_endpoints.serialize_file_page(req.session, req.user_id, rows)
 
 
 # ---------------------------------------------------------------------------
@@ -662,31 +664,6 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
 
 
 # ---------------------------------------------------------------------------
-# Galleries and wikis
-# ---------------------------------------------------------------------------
-
-
-async def _serialize_galleries(
-    spec: ToolListSpec, req: ListRequest, rows: list
-) -> list:
-    await galleries_endpoints.annotate_gallery_rows(req.session, rows)
-    return [
-        serialize_tool(
-            GallerySummary, row, context=req.guild_context, user_id=req.user_id
-        )
-        for row in rows
-    ]
-
-
-async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
-    await wikis_endpoints.annotate_wiki_rows(req.session, rows)
-    return [
-        serialize_tool(WikiSummary, row, context=req.guild_context, user_id=req.user_id)
-        for row in rows
-    ]
-
-
-# ---------------------------------------------------------------------------
 # One row per tool
 # ---------------------------------------------------------------------------
 
@@ -724,7 +701,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     default=False,
                     description=(
                         "Return a lightweight projection (id, name, icon, "
-                        "initiative_id, can) without documents, "
+                        "initiative_id, can) without files, "
                         "grants, tags, or the nested initiative. For project "
                         "pickers and other list-only callers."
                     ),
@@ -752,35 +729,35 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_size_param(0, ge=0, le=100),
         ),
     ),
-    Tool.document: ToolListSpec(
-        tool=Tool.document,
-        read_model=DocumentRead,
-        read_row=documents_endpoints.read_after_write,
-        model=Document,
-        response_model=DocumentListResponse,
-        loader_options=_loads(documents_service.list_loader_options),
-        default_order=_order(Document.updated_at.desc(), Document.id.desc()),
-        serialize=_serialize_documents,
-        conditions=_document_conditions,
+    Tool.file: ToolListSpec(
+        tool=Tool.file,
+        read_model=FileRead,
+        read_row=files_endpoints.read_after_write,
+        model=File,
+        response_model=FileListResponse,
+        loader_options=_loads(files_service.list_loader_options),
+        default_order=_order(File.updated_at.desc(), File.id.desc()),
+        serialize=_serialize_files,
+        conditions=_file_conditions,
         views=TEMPLATE_VIEWS,
-        # The one tool that also sorts by when a row was written — a document
+        # The one tool that also sorts by when a row was written — a file
         # list is a filing cabinet, and "newest first" is how you read one.
-        extra_sort_fields={"created_at": Document.created_at},
+        extra_sort_fields={"created_at": File.created_at},
         params=(
             _initiative_id(),
             search_param(description=None),
-            _tag_ids(Tool.document, description="Filter by tag IDs"),
+            _tag_ids(Tool.file, description="Filter by tag IDs"),
             _property_filters(),
             ListParam(
                 "untagged",
                 Optional[bool],
-                Query(default=None, description="Filter to documents with no tags"),
+                Query(default=None, description="Filter to files with no tags"),
             ),
-            _is_template(Tool.document),
+            _is_template(Tool.file),
             ListParam(
-                "document_type",
-                Optional[DocumentType],
-                Query(default=None, description="Filter by document type"),
+                "file_type",
+                Optional[FileType],
+                Query(default=None, description="Filter by file type"),
             ),
             page_param(),
             page_size_param(20, ge=0, le=100),
@@ -789,17 +766,17 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _archived(),
         ),
         list_doc=(
-            "List documents in the active guild visible to the current user.\n"
+            "List files in the active guild visible to the current user.\n"
             "\n"
-            "DAC: Documents shared with the reader directly or through "
+            "DAC: Files shared with the reader directly or through "
             "their initiative role.\n"
             "\n"
             "Pagination: page_size=0 serves the full set in server-bounded "
             "windows —\n"
             "walk page=1,2,... until has_next is false.\n"
             "\n"
-            'Cross-guild "my documents" lives under /me/documents (see '
-            "list_my_documents)."
+            'Cross-guild "my files" lives under /me/files (see '
+            "list_my_files)."
         ),
     ),
     Tool.queue: ToolListSpec(
@@ -1018,7 +995,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=GalleryListResponse,
         loader_options=_loads(galleries_service.list_loader_options),
         default_order=_order(Gallery.updated_at.desc(), Gallery.id.desc()),
-        serialize=_serialize_galleries,
+        serialize=_summaries(
+            GallerySummary,
+            preview=lambda session, _guild_id, rows: galleries_service.list_previews(
+                session, rows
+            ),
+        ),
         params=(
             _initiative_id(),
             search_param(
@@ -1032,6 +1014,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.gallery),
             _property_filters(),
             _archived(),
+            _include_preview(),
             page_param(),
             page_size_param(100, ge=0, le=500),
         ),
@@ -1045,7 +1028,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=WikiListResponse,
         loader_options=_loads(wikis_service.list_loader_options),
         default_order=_order(Wiki.updated_at.desc(), Wiki.id.desc()),
-        serialize=_serialize_wikis,
+        serialize=_summaries(WikiSummary),
         params=(
             _initiative_id(),
             search_param(
@@ -1225,7 +1208,7 @@ async def get_tool_counts(
     filters: Optional[str] = Query(
         default=None,
         description="JSON object of the tool's own list filters, as its list "
-        'route takes them (``{"search": "notes", "document_type": "native"}``), '
+        'route takes them (``{"search": "notes", "file_type": "native"}``), '
         "that the tag counts are for",
     ),
     include_tags: bool = Query(

@@ -83,10 +83,10 @@ describe("CreateInitiativeWizard", () => {
     renderWizard();
     await nameIt();
 
-    // Projects and documents start ticked; turning both off leaves nowhere to
+    // Projects and files start ticked; turning both off leaves nowhere to
     // put anything, which is the one combination the wizard will not build.
     await userEvent.click(await screen.findByRole("switch", { name: /Projects/ }));
-    await userEvent.click(screen.getByRole("switch", { name: /Documents/ }));
+    await userEvent.click(screen.getByRole("switch", { name: /Files/ }));
 
     expect(screen.getByRole("button", { name: "Next: Membership" })).toBeDisabled();
     expect(screen.getByText(/needs somewhere to put things/i)).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("CreateInitiativeWizard", () => {
     expect(created[0]).toMatchObject({
       name: "Apollo",
       projects_enabled: true,
-      documents_enabled: true,
+      files_enabled: true,
       calendars_enabled: true,
       queues_enabled: false,
       galleries_enabled: false,
@@ -164,7 +164,7 @@ describe("CreateInitiativeWizard", () => {
     });
   });
 
-  it("takes projects and documents back off members for managers only", async () => {
+  it("takes projects and files back off members for managers only", async () => {
     const { rolePatches } = stubCreate();
     renderWizard();
     await nameIt();
@@ -174,15 +174,15 @@ describe("CreateInitiativeWizard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create initiative" }));
 
     // "Managers only" is a revoke, not a no-op: the built-in member role
-    // arrives already holding projects and documents, so writing nothing would
+    // arrives already holding projects and files, so writing nothing would
     // leave members able to see exactly what this answer says they cannot.
     await waitFor(() => expect(rolePatches).toHaveLength(1));
     expect(rolePatches[0]).toMatchObject({
       permissions: {
         projects_enabled: false,
-        documents_enabled: false,
+        files_enabled: false,
         create_projects: false,
-        create_documents: false,
+        create_files: false,
       },
     });
   });

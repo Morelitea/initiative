@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { WikiPageKind } from "@/api/generated/initiativeAPI.schemas";
 import { useWikiPages } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
+import { wikiFileRoute, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface WikiPageNavProps {
@@ -51,8 +51,8 @@ export const WikiPageNav = ({
 
   const hrefOf = (row: (typeof items)[number]) =>
     gp(
-      row.kind === WikiPageKind.document
-        ? wikiDocumentRoute(initiativeId, wikiId, row.id)
+      row.kind === WikiPageKind.file
+        ? wikiFileRoute(initiativeId, wikiId, row.id)
         : wikiPageRoute(initiativeId, wikiId, row.id)
     );
 

@@ -137,7 +137,7 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     """Sharing is polymorphic: the event lands on whichever tool was shared.
 
     ``resource_grants`` rows have their own ids and no route, so a grant reports
-    against the project (or document, queue, …) named in the row — which the
+    against the project (or file, queue, …) named in the row — which the
     subscriber can fetch, and which is the thing that actually changed.
     """
 
@@ -491,18 +491,18 @@ async def test_a_comment_on_a_task_names_the_task_and_its_project(session, actin
 
 async def test_a_comment_on_a_tool_entity_names_that_entity(session, acting_user):
     """One parent, and the COALESCE picks it — a comment has exactly one."""
-    from app.testing import create_comment, create_document
+    from app.testing import create_comment, create_file
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
-    comment = await create_comment(session, a.user, document=document)
+    file = await create_file(session, a.initiative, a.user)
+    comment = await create_comment(session, a.user, file=file)
 
     rows = [
         r
         for r in await _outbox(session, a.guild.id)
         if r.resource_type == "comments" and r.resource_id == comment.id
     ]
-    assert _chain(rows[0]) == [("documents", document.id)]
+    assert _chain(rows[0]) == [("files", file.id)]
 
 
 async def test_a_wiki_page_names_itself_once_it_is_not_a_draft(session, acting_user):
@@ -616,37 +616,37 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     person: the plug-in acts as its community. A person's write names the person
     and no install."""
     from app.db.install_standing_test import _install, _route
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    made = Document(
+    s, _ = await _route(role_session, install, ["files:write"])
+    made = File(
         initiative_id=install.a.id,
         name="Made by the plug-in",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
     )
     s.add(made)
     await s.commit()
     made_id = made.id
 
-    person = await _create_document_as(session, install)
+    person = await _create_file_as(session, install)
 
     rows = await _outbox(session, install.guild.id)
     by_plugin = [
-        r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
+        r for r in rows if r.resource_type == "files" and r.resource_id == made_id
     ]
     assert by_plugin, "an install's write produced no outbox row"
-    # The document, and the owner grant the database wrote for the install
+    # The file, and the owner grant the database wrote for the install
     # beside it: both are the plug-in's writes.
     assert {(r.actor_install_id, r.actor_user_id) for r in by_plugin} == {
         (install.plugin.id, None)
     }
 
     by_person = [
-        r for r in rows if r.resource_type == "documents" and r.resource_id == person
+        r for r in rows if r.resource_type == "files" and r.resource_id == person
     ]
     assert by_person
     assert {(r.actor_install_id, r.actor_user_id) for r in by_person} == {
@@ -654,15 +654,15 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     }
 
 
-async def _create_document_as(session, install) -> int:
-    """A document the install's seat creates through the request path."""
-    from app.models.tenant.document import Document, DocumentType
+async def _create_file_as(session, install) -> int:
+    """A file the install's seat creates through the request path."""
+    from app.models.tenant.file import File, FileType
 
     await route_as(session, user_id=install.seat.user.id, guild_id=install.guild.id)
-    made = Document(
+    made = File(
         initiative_id=install.a.id,
         name="Made by a person",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
     )
     session.add(made)
     await session.commit()

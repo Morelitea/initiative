@@ -23,7 +23,7 @@ def plural_of(stem: str) -> str:
 
 class Tool(str, Enum):
     project = "project"
-    document = "document"
+    file = "file"
     queue = "queue"
     counter_group = "counter_group"
     calendar = "calendar"
@@ -149,7 +149,7 @@ KINDS: dict[str, Kind] = {
     kind.value: kind
     for kind in (
         Kind(Tool.project.value, 10),
-        Kind(Tool.document.value, 6),
+        Kind(Tool.file.value, 6),
         Kind(Tool.queue.value, 11),
         Kind(Tool.counter_group.value, 4),
         Kind(Tool.calendar.value, 1),
@@ -172,7 +172,7 @@ CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent
 
 
 # EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
-# the initiative. Projects and documents used to be exempt — always on, with no
+# the initiative. Projects and files used to be exempt — always on, with no
 # column at all — because they were the only places content could live and the
 # other tools hung off them. Relationships ended that: anything links to
 # anything, so an initiative that is only a calendar, or only a gallery, is a
@@ -180,9 +180,9 @@ CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent
 #
 # They keep the *default*, which is the part that was ever load-bearing. An
 # initiative that says nothing about its tools still arrives with projects and
-# documents on, so nothing about making one changes; the switch is simply there
+# files on, so nothing about making one changes; the switch is simply there
 # to turn off now.
-DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
+DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.file})
 
 # Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
 # default is "a new tool is exportable": the adapter-coverage test then fails

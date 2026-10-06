@@ -23,7 +23,7 @@
   "types": {
     "project": "Proyecto",
     "task": "Tarea",
-    "document": "Documento",
+    "file": "Archivo",
     "queue": "Cola",
     "queue_item": "Elemento de cola",
     "counter_group": "Grupo de contadores",

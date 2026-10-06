@@ -19,14 +19,14 @@ type QueryHook = (...args: unknown[]) => QueryState;
 const idle: QueryState = { data: undefined, isLoading: false, isError: false };
 const useSqlQuery = vi.fn<QueryHook>(() => idle);
 const useWidgetQuery = vi.fn<QueryHook>(() => idle);
-const useDocument = vi.fn<QueryHook>(() => idle);
+const useFile = vi.fn<QueryHook>(() => idle);
 
 vi.mock("@/hooks/useSqlQuery", () => ({
   useSqlQuery: (...args: unknown[]) => useSqlQuery(...args),
   useWidgetQuery: (...args: unknown[]) => useWidgetQuery(...args),
 }));
-vi.mock("@/hooks/useDocuments", () => ({
-  useDocument: (...args: unknown[]) => useDocument(...args),
+vi.mock("@/hooks/useFiles", () => ({
+  useFile: (...args: unknown[]) => useFile(...args),
 }));
 // Mocked like every other sibling: this file is about how a binding becomes a
 // request, and the app hooks reach for community context a bare renderHook has no
@@ -48,7 +48,7 @@ const run = (binding: WidgetBinding, initiativeId: number | undefined) =>
 
 beforeEach(() => {
   useSqlQuery.mockClear();
-  useDocument.mockClear();
+  useFile.mockClear();
 });
 
 describe("a query binding", () => {
@@ -115,18 +115,18 @@ describe("a query binding", () => {
 });
 
 describe("a sheet-range binding", () => {
-  it("asks for nothing until it has both a document and a range", () => {
-    const { result } = run({ source: "sheet_range", document_id: 3 }, 4);
+  it("asks for nothing until it has both a file and a range", () => {
+    const { result } = run({ source: "sheet_range", file_id: 3 }, 4);
     expect(result.current.isUnbound).toBe(true);
   });
 
-  it("treats a document in another initiative as absent, not readable", () => {
+  it("treats a file in another initiative as absent, not readable", () => {
     // Bindings do not reach across initiatives; an id pointing elsewhere
     // resolves the same way a deleted or unshared one does.
-    useDocument.mockReturnValue({ ...idle, data: { initiative_id: 99, content: null } });
-    const { result } = run({ source: "sheet_range", document_id: 3, range: "A1:B2" }, 4);
+    useFile.mockReturnValue({ ...idle, data: { initiative_id: 99, content: null } });
+    const { result } = run({ source: "sheet_range", file_id: 3, range: "A1:B2" }, 4);
     expect(result.current.isRestricted).toBe(true);
-    useDocument.mockReturnValue(idle);
+    useFile.mockReturnValue(idle);
   });
 });
 

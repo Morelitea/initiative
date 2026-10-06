@@ -59,7 +59,7 @@ def _url(guild_id: int, suffix: str = "") -> str:
 def _body(**overrides: Any) -> dict:
     return {
         "target_url": f"https://{_WEBHOOK_HOST}/in",
-        "event_types": ["documents.created"],
+        "event_types": ["files.created"],
         **overrides,
     }
 
@@ -90,9 +90,9 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
 ):
     await lift_person_and_guild_ids(session)
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
     capfd.readouterr()
 
     response = await _subscribe(
@@ -100,7 +100,7 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
         installed,
         headers,
         initiative_id=installed.placed.id,
-        event_types=["documents.created", "documents.updated"],
+        event_types=["files.created", "files.updated"],
     )
 
     assert response.status_code == 201, response.text
@@ -130,12 +130,12 @@ async def test_an_install_is_refused_events_its_scopes_do_not_read(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     # The token asks for more than the seat granted; the grant is what holds.
-    headers = install_headers(installed, ["documents:read", "projects:read"])
+    headers = install_headers(installed, ["files:read", "projects:read"])
 
-    for event_types in (["tasks.created"], ["documents.created", "tasks.updated"]):
+    for event_types in (["tasks.created"], ["files.created", "tasks.updated"]):
         response = await _subscribe(
             client,
             installed,
@@ -157,13 +157,13 @@ async def test_a_token_hears_only_the_scopes_it_carries(
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "projects:read"],
+        granted=["files:read", "projects:read"],
     )
 
     left_out = await _subscribe(
         client,
         installed,
-        install_headers(installed, ["documents:read"]),
+        install_headers(installed, ["files:read"]),
         initiative_id=installed.placed.id,
         event_types=["tasks.created"],
     )
@@ -172,9 +172,9 @@ async def test_a_token_hears_only_the_scopes_it_carries(
     carried = await _subscribe(
         client,
         installed,
-        install_headers(installed, ["documents:read", "projects:read"]),
+        install_headers(installed, ["files:read", "projects:read"]),
         initiative_id=installed.placed.id,
-        event_types=["tasks.created", "documents.created"],
+        event_types=["tasks.created", "files.created"],
     )
     assert carried.status_code == 201, carried.text
 
@@ -183,12 +183,12 @@ async def test_an_install_subscribes_only_where_it_is_placed(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     response = await _subscribe(
         client,
         installed,
-        install_headers(installed, ["documents:read"]),
+        install_headers(installed, ["files:read"]),
         initiative_id=installed.unplaced.id,
     )
     assert response.status_code == 403, response.text
@@ -199,10 +199,10 @@ async def test_a_narrowed_token_subscribes_to_its_initiative_only(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     narrowed = install_headers(
-        installed, ["documents:read"], initiative_id=installed.placed.id
+        installed, ["files:read"], initiative_id=installed.placed.id
     )
 
     community_wide = await _subscribe(client, installed, narrowed)
@@ -216,7 +216,7 @@ async def test_a_narrowed_token_subscribes_to_its_initiative_only(
 
     # The same community-wide request on a token that is not narrowed.
     wide = await _subscribe(
-        client, installed, install_headers(installed, ["documents:read"])
+        client, installed, install_headers(installed, ["files:read"])
     )
     assert wide.status_code == 201, wide.text
     assert wide.json()["initiative_id"] is None
@@ -226,14 +226,14 @@ async def test_an_unknown_event_type_is_still_a_400(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     response = await _subscribe(
         client,
         installed,
-        install_headers(installed, ["documents:read"]),
+        install_headers(installed, ["files:read"]),
         initiative_id=installed.placed.id,
-        event_types=["documents.renamed"],
+        event_types=["files.renamed"],
     )
     assert response.status_code == 400, response.text
     assert response.json()["detail"] == WebhookSubscriptionMessages.UNKNOWN_EVENT_TYPE
@@ -243,9 +243,9 @@ async def test_listing_and_rewriting_stay_with_people(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
     created = await _subscribe(
         client, installed, headers, initiative_id=installed.placed.id
     )
@@ -270,9 +270,9 @@ async def test_an_install_removes_its_own_subscription(
     client, session, acting_user, role_session, capfd
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
     created = await _subscribe(
         client, installed, headers, initiative_id=installed.placed.id
     )
@@ -297,7 +297,7 @@ async def test_an_install_cannot_remove_what_it_did_not_register(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     guild_id = installed.guild.id
 
@@ -329,7 +329,7 @@ async def test_an_install_cannot_remove_what_it_did_not_register(
         plugin_install_id=other.id,
         target_url=f"https://{_WEBHOOK_HOST}/other",
         hmac_secret="x" * 64,
-        event_types=["documents.created"],
+        event_types=["files.created"],
         active=True,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -338,7 +338,7 @@ async def test_an_install_cannot_remove_what_it_did_not_register(
     await session.commit()
     await session.refresh(theirs)
 
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
     for subscription_id in (person.json()["id"], theirs.id):
         response = await client.delete(
             _url(guild_id, f"/{subscription_id}"), headers=headers
@@ -357,12 +357,12 @@ async def test_an_install_removes_its_subscription_after_losing_the_scope(
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "comments:read"],
+        granted=["files:read", "comments:read"],
     )
     created = await _subscribe(
         client,
         installed,
-        install_headers(installed, ["documents:read"]),
+        install_headers(installed, ["files:read"]),
         initiative_id=installed.placed.id,
     )
     assert created.status_code == 201, created.text

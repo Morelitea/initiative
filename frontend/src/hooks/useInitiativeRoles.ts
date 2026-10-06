@@ -119,7 +119,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
  * What the ordinary roles may do with a set of tools — the question a brand-new
  * initiative has to answer and cannot answer for itself.
  *
- * The built-in `member` role ships view-only on projects and documents and
+ * The built-in `member` role ships view-only on projects and files and
  * `create_*` off everywhere (the backend's DEFAULT_PERMISSION_VALUES). So an
  * initiative created with, say, a calendar has that calendar on for its
  * managers and invisible to everybody else — the state `ToolAudience` warns
@@ -149,7 +149,7 @@ export const useGrantToolsToMembers = () => {
       if (tools.length === 0) return 0;
       // Written for every chosen tool, in all three answers. "Managers only"
       // is a revoke, not a no-op: the built-in member role arrives holding
-      // projects and documents, so leaving it alone would answer "managers
+      // projects and files, so leaving it alone would answer "managers
       // only" with members who can still see both.
       const permissions: Record<string, boolean> = {};
       for (const tool of tools) {

@@ -115,13 +115,13 @@
     "edit": "Edit this page"
   },
   "updated": "Updated",
-  "documents": {
-    "openDocument": "Open document",
-    "addDocument": "Add a document",
-    "added": "Document added to the wiki",
-    "removed": "Document removed from the wiki",
+  "files": {
+    "openFile": "Open file",
+    "addFile": "Add a file",
+    "added": "File added to the wiki",
+    "removed": "File removed from the wiki",
     "remove": "Remove from this wiki",
-    "none": "No documents to add",
-    "pick": "Which document?"
+    "none": "No files to add",
+    "pick": "Which file?"
   }
 }

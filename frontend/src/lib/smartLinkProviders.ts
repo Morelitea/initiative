@@ -34,7 +34,7 @@ export interface SmartLinkProviderMatch {
     referrerPolicy?: React.HTMLAttributeReferrerPolicy;
   };
   /**
-   * i18n key (in the `documents` namespace) for provider-specific
+   * i18n key (in the `files` namespace) for provider-specific
    * instructions shown when we recognize the provider but the URL isn't
    * an embed URL — e.g., a OneDrive *share* link vs a OneDrive *embed*
    * link. Rendered in the create dialog and on the viewer's link card.

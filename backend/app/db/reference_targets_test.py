@@ -45,7 +45,7 @@ def test_every_visual_names_columns_that_exist():
             *(name for name in (visual.icon, visual.color) if name),
             *(
                 name
-                for name in (visual.document_type, visual.mime, visual.filename)
+                for name in (visual.file_type, visual.mime, visual.filename)
                 if name
             ),
         ]

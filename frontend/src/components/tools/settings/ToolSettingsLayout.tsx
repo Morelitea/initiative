@@ -53,10 +53,10 @@ export interface ToolSettingsLayoutProps {
   isError: boolean;
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
-   * a document's name is edited in the editor.
+   * a file's name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
-  /** Marks it a template or takes it back — projects and documents. */
+  /** Marks it a template or takes it back — projects and files. */
   template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;

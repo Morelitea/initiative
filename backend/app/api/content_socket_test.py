@@ -259,7 +259,7 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
     websocket = Client()
 
     async def keep(_session, _user):
-        return frozenset({resource_room(1, "document", 3)})
+        return frozenset({resource_room(1, "file", 3)})
 
     sub = Subscriber(
         websocket=websocket,  # type: ignore[arg-type]
@@ -268,7 +268,7 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
         wire=Wire.bytes,
         authorize=keep,
         credential=Credential(),
-        rooms=frozenset({resource_room(1, "document", 3)}),
+        rooms=frozenset({resource_room(1, "file", 3)}),
     )
     register.join(sub)
     received: list[bytes] = []
@@ -281,11 +281,11 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
 
     assert received == [b"\x02edit"]
     assert content_socket.HEARTBEAT_FRAME in websocket.sent
-    assert register.room_size(resource_room(1, "document", 3)) == 0
+    assert register.room_size(resource_room(1, "file", 3)) == 0
 
 
 async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> None:
-    """Someone typing alone in a document sends constantly and is sent nothing
+    """Someone typing alone in a file sends constantly and is sent nothing
     back — edits are relayed to everyone else. The beat is measured from what
     the server last said, so their client still hears one and keeps the socket."""
     from types import SimpleNamespace
@@ -318,7 +318,7 @@ async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> No
     websocket = Typist()
 
     async def keep(_session, _user):
-        return frozenset({resource_room(1, "document", 3)})
+        return frozenset({resource_room(1, "file", 3)})
 
     sub = Subscriber(
         websocket=websocket,  # type: ignore[arg-type]
@@ -327,7 +327,7 @@ async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> No
         wire=Wire.bytes,
         authorize=keep,
         credential=Credential(),
-        rooms=frozenset({resource_room(1, "document", 3)}),
+        rooms=frozenset({resource_room(1, "file", 3)}),
     )
     register.join(sub)
     try:

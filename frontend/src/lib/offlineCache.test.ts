@@ -36,7 +36,7 @@ describe("communityIdOfPath", () => {
 describe("isPersistablePath", () => {
   it("keeps community content somebody was reading", () => {
     expect(isPersistablePath("/api/v1/c/3/tasks/2866")).toBe(true);
-    expect(isPersistablePath("/api/v1/c/3/documents")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/files")).toBe(true);
     expect(isPersistablePath("/api/v1/c/12/projects/1/tasks")).toBe(true);
     expect(isPersistablePath("/api/v1/c/3/galleries/4")).toBe(true);
     expect(isPersistablePath("/api/v1/c/3/wiki-pages/5")).toBe(true);
@@ -146,7 +146,7 @@ describe("shouldPersistQuery", () => {
 describe("shardOfQueryKey", () => {
   it("files a community's content under that community", () => {
     expect(shardOfQueryKey(["/api/v1/c/3/tasks/2866"])).toBe("g3");
-    expect(shardOfQueryKey(["/api/v1/c/12/documents"])).toBe("g12");
+    expect(shardOfQueryKey(["/api/v1/c/12/files"])).toBe("g12");
   });
 
   it("files everything else under the platform shard", () => {

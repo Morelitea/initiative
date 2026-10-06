@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.main import app
 from app.models.platform.guild import CommunityRole
 from app.schemas.tenant.archive import ArchivableType
-from app.testing import create_document, create_queue
+from app.testing import create_file, create_queue
 
 
 #: The wire name of every archivable tool, paired with the list route that has
@@ -20,7 +20,7 @@ from app.testing import create_document, create_queue
 #: than written out, so a tool that becomes archivable joins this too.
 _TOOL_LISTS = {
     "project": "projects",
-    "document": "documents",
+    "file": "files",
     "queue": "queues",
     "counter_group": "counter-groups",
     "calendar": "calendars",
@@ -79,10 +79,10 @@ async def test_an_archived_tool_says_it_can_be_taken_back(
     """The level is capped at read — that is what turns the edit affordances
     off — so the way out is a separate answer or there is no way out."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
-    await client.post(a.g(f"/archive/document/{document.id}"), headers=a.headers)
-    read = await client.get(a.g(f"/documents/{document.id}"), headers=a.headers)
+    await client.post(a.g(f"/archive/file/{file.id}"), headers=a.headers)
+    read = await client.get(a.g(f"/files/{file.id}"), headers=a.headers)
 
     body = read.json()
     assert body["archived_at"] is not None
@@ -96,9 +96,9 @@ async def test_a_live_tool_offers_nothing_to_take_back(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
-    read = await client.get(a.g(f"/documents/{document.id}"), headers=a.headers)
+    read = await client.get(a.g(f"/files/{file.id}"), headers=a.headers)
 
     body = read.json()
     assert body["archived_at"] is None
@@ -118,7 +118,7 @@ async def test_a_reader_is_not_offered_the_way_back(
         initiative_role="member",
     )
     created = await client.post(
-        a.g("/documents/"),
+        a.g("/files/"),
         headers=a.headers,
         json={
             "name": "Read only to the other one",
@@ -126,10 +126,10 @@ async def test_a_reader_is_not_offered_the_way_back(
             "grants": [{"user_id": b.user.id, "level": "read"}],
         },
     )
-    document_id = created.json()["id"]
-    await client.post(a.g(f"/archive/document/{document_id}"), headers=a.headers)
+    file_id = created.json()["id"]
+    await client.post(a.g(f"/archive/file/{file_id}"), headers=a.headers)
 
-    read = await client.get(a.g(f"/documents/{document_id}"), headers=b.headers)
+    read = await client.get(a.g(f"/files/{file_id}"), headers=b.headers)
 
     assert read.status_code == 200
     assert read.json()["can"]["unarchive"] is False

@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
@@ -27,17 +26,17 @@ from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import GalleryEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import unique_name_in_initiative
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
 from app.services.tenant import file_versions
-from app.services.tenant import tags as tags_service
 
 
 class GalleryImporter(NamesPeopleInPassing):
@@ -75,18 +74,10 @@ class GalleryImporter(NamesPeopleInPassing):
         guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Gallery.name).where(
-                        Gallery.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        }
         gallery = Gallery(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Gallery, target_initiative.id, env.name
+            ),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -102,24 +93,8 @@ class GalleryImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
-        tags_created = 0
-        tags_matched = 0
-
-        async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
-            nonlocal tags_created, tags_matched
-            for tag_name in names:
-                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-                if resolved.created:
-                    tags_created += 1
-                else:
-                    tags_matched += 1
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TAG_LINKS[surface], entity_id, resolved.id
-                    )
-                )
-
-        await attach_tags("gallery", gallery.id, env.tags)
+        tags = TagRestore(session)
+        await tags.attach(gallery, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -168,7 +143,7 @@ class GalleryImporter(NamesPeopleInPassing):
             created += 1
             if env.cover and key == env.cover:
                 cover_id = row.id
-            await attach_tags("gallery_image", row.id, image_env.tags)
+            await tags.attach(row, image_env.tags)
             await props.attach(row, image_env.properties)
 
         if cover_id is not None:
@@ -183,12 +158,12 @@ class GalleryImporter(NamesPeopleInPassing):
             entity_id=gallery.id,
             entity_title=gallery.name,
             created={
-                "galleries": 1,
+                Tool.gallery.plural: 1,
                 "images": created,
-                "tags": tags_created,
+                "tags": tags.created,
                 "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             failed={"images": missing} if missing else {},
             unmatched_handles=await props.settle(gallery),
             warnings=warnings,

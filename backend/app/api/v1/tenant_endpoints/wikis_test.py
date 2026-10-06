@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import CommunityRole
 from app.testing import (
-    create_document,
+    create_file,
     create_tag,
     create_wiki,
     create_wiki_page,
@@ -396,7 +396,7 @@ async def test_deleting_a_page_takes_its_sub_pages(
 
 
 # ---------------------------------------------------------------------------
-# Documents put in a wiki
+# Files put in a wiki
 # ---------------------------------------------------------------------------
 
 
@@ -422,7 +422,7 @@ def _body(tag: str, heading: str) -> dict:
     }
 
 
-async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
+async def test_a_file_put_in_a_wiki_is_one_of_its_pages(
     client: AsyncClient, acting_user, session
 ):
     """It joins by an edge, so it reads as a page without becoming one — its
@@ -433,25 +433,26 @@ async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     await create_wiki_page(
         session, wiki, a.user, title="Written here", content=_body("h1", "Opening")
     )
-    document = await create_document(
+    file = await create_file(
         session, a.initiative, a.user, content=_body("h3", "Loot table")
     )
 
     response = await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+        a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 204, response.text
 
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     rows = {
-        row["title"]: (row["kind"], row["headings"]) for row in response.json()["items"]
+        row["title"]: (row["kind"], row["headings"]) for row in listed.json()["items"]
     }
     assert rows == {
         "Written here": (
             "page",
             [{"text": "Opening", "level": 1, "anchor": "opening"}],
         ),
-        document.name: (
-            "document",
+        file.name: (
+            "file",
             [{"text": "Loot table", "level": 3, "anchor": "loot-table"}],
         ),
     }
@@ -580,35 +581,28 @@ async def test_trashing_a_page_takes_what_is_filed_under_it(
     assert [row["title"] for row in back.json()["items"]] == ["Rules", "Combat"]
 
 
-async def test_a_document_can_be_moved_among_the_pages(
+async def test_a_file_can_be_moved_among_the_pages(
     client: AsyncClient, acting_user, session
 ):
-    """A borrowed document is a row of the wiki's list, so it is arranged like
-    one — and the document itself is never written to say so."""
+    """A borrowed file is a row of the wiki's list, so it is arranged like
+    one — and the file itself is never written to say so."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="First")
     await create_wiki_page(session, wiki, a.user, title="Second")
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"position": 0},
     )
 
-    assert moved.status_code == 200, moved.text
-    assert [row["title"] for row in moved.json()["items"]] == [
-        "Borrowed",
-        "First",
-        "Second",
-    ]
+    assert moved.status_code == 204, moved.text
 
-    # And it stays there, because the order is the wiki's own record of it.
+    # It stays there, because the order is the wiki's own record of it.
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [row["title"] for row in listed.json()["items"]] == [
         "Borrowed",
@@ -617,10 +611,10 @@ async def test_a_document_can_be_moved_among_the_pages(
     ]
 
 
-async def test_a_document_can_be_filed_under_a_page(
+async def test_a_file_can_be_filed_under_a_page(
     client: AsyncClient, acting_user, session
 ):
-    """Where a document sits is this wiki's record, so filing it under a page
+    """Where a file sits is this wiki's record, so filing it under a page
     is the same kind of fact as its place in the list — and it comes back out
     to the top the same way."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
@@ -631,25 +625,24 @@ async def test_a_document_can_be_filed_under_a_page(
         session, wiki, a.user, title="Combat", parent_page_id=rules.id, position=0
     )
     await create_wiki_page(session, wiki, a.user, title="Afterwards")
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"parent_page_id": rules.id, "position": 1},
     )
-    assert moved.status_code == 200, moved.text
-    rows = moved.json()["items"]
+    assert moved.status_code == 204, moved.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = listed.json()["items"]
     assert [row["title"] for row in rows] == [
         "Rules",
         "Combat",
         "Borrowed",
         "Afterwards",
     ]
-    borrowed = next(row for row in rows if row["kind"] == "document")
+    borrowed = next(row for row in rows if row["kind"] == "file")
     assert borrowed["parent_page_id"] == rules.id
 
     # A page dragged in beside it counts it among its neighbours.
@@ -669,15 +662,17 @@ async def test_a_document_can_be_filed_under_a_page(
     ]
 
     unfiled = await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"position": 0},
     )
-    rows = unfiled.json()["items"]
+    assert unfiled.status_code == 204, unfiled.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = listed.json()["items"]
     assert rows[0]["title"] == "Borrowed" and rows[0]["parent_page_id"] is None
 
 
-async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
+async def test_a_file_is_not_filed_under_a_page_of_another_wiki(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
@@ -685,13 +680,11 @@ async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
     wiki = await create_wiki(session, a.initiative, a.user)
     other = await create_wiki(session, a.initiative, a.user, name="Elsewhere")
     elsewhere = await create_wiki_page(session, other, a.user, title="Not here")
-    document = await create_document(session, a.initiative, a.user)
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user)
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"parent_page_id": elsewhere.id, "position": 0},
     )
@@ -699,21 +692,19 @@ async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
     assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
 
 
-async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
+async def test_a_file_under_a_trashed_page_is_drawn_at_the_top(
     client: AsyncClient, acting_user, session
 ):
-    """The page is the wiki's to put away; the document is not. It stays in
+    """The page is the wiki's to put away; the file is not. It stays in
     the wiki, at the top, and goes back under the page when it is restored."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     rules = await create_wiki_page(session, wiki, a.user, title="Rules")
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
     await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"parent_page_id": rules.id, "position": 0},
     )
@@ -730,45 +721,42 @@ async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
     assert rows[1]["parent_page_id"] == rules.id
 
 
-async def test_a_document_row_says_what_kind_of_document_it_is(
+async def test_a_file_row_says_what_kind_of_file_it_is(
     client: AsyncClient, acting_user, session
 ):
     """So the navigation can draw a spreadsheet as a spreadsheet."""
-    from app.models.tenant.document import DocumentType
+    from app.models.tenant.file import FileType
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="Written here")
-    document = await create_document(
+    file = await create_file(
         session,
         a.initiative,
         a.user,
         name="Budget",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
     )
 
-    response = await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
-    rows = {row["title"]: row for row in response.json()["items"]}
-    assert rows["Budget"]["document_type"] == "spreadsheet"
-    assert rows["Written here"]["document_type"] is None
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = {row["title"]: row for row in listed.json()["items"]}
+    assert rows["Budget"]["file_type"] == "spreadsheet"
+    assert rows["Written here"]["file_type"] is None
 
 
-async def test_a_page_can_be_moved_past_a_document(
+async def test_a_page_can_be_moved_past_a_file(
     client: AsyncClient, acting_user, session
 ):
-    """The other half of one list: moving a page counts the documents in it."""
+    """The other half of one list: moving a page counts the files in it."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     first = await create_wiki_page(session, wiki, a.user, title="First")
     await create_wiki_page(session, wiki, a.user, title="Second")
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
 
     moved = await client.post(
         a.g(f"/wiki-pages/{first.id}/move"),
@@ -785,7 +773,7 @@ async def test_a_page_can_be_moved_past_a_document(
     ]
 
 
-async def test_a_document_taken_out_gives_up_its_place(
+async def test_a_file_taken_out_gives_up_its_place(
     client: AsyncClient, acting_user, session
 ):
     """Put back in later, it arrives at the end like a new one rather than in
@@ -794,65 +782,61 @@ async def test_a_document_taken_out_gives_up_its_place(
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="First")
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
     await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"position": 0},
     )
 
     removed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+        a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers
     )
     assert removed.status_code == 204, removed.text
-    again = await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
 
+    again = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [row["title"] for row in again.json()["items"]] == ["First", "Borrowed"]
 
 
-async def test_a_document_in_a_wiki_is_never_a_draft(
+async def test_a_file_in_a_wiki_is_never_a_draft(
     client: AsyncClient, acting_user, session
 ):
     """It is readable wherever else it lives, so this wiki cannot hold it back."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
     response = await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+        a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers
     )
-    assert response.status_code == 200, response.text
-    row = next(r for r in response.json()["items"] if r["kind"] == "document")
+    assert response.status_code == 204, response.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    row = next(r for r in listed.json()["items"] if r["kind"] == "file")
     assert row["is_draft"] is False
 
 
-async def test_taking_a_document_out_leaves_the_document(
+async def test_taking_a_file_out_leaves_the_file(
     client: AsyncClient, acting_user, session
 ):
-    """The wiki loses a page. The document loses nothing."""
+    """The wiki loses a page. The file loses nothing."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
 
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
     removed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+        a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers
     )
     assert removed.status_code == 204, removed.text
 
     pages = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert pages.json()["items"] == []
 
-    still_there = await client.get(a.g(f"/documents/{document.id}"), headers=a.headers)
+    still_there = await client.get(a.g(f"/files/{file.id}"), headers=a.headers)
     assert still_there.status_code == 200
 
 
@@ -936,7 +920,7 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
     """A page being edited live has its room as the writer of its body, as a
-    document's does. A body arriving over REST is refused; a rename is not."""
+    file's does. A body arriving over REST is refused; a rename is not."""
     from app.services.tenant.collaboration import collaboration_manager
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
@@ -1168,7 +1152,7 @@ async def test_an_unshared_wiki_is_invisible_to_a_co_member(
 async def test_a_copy_has_its_published_pages_in_their_tree(
     client: AsyncClient, acting_user, session
 ):
-    """Drafts stay behind; a published page or borrowed document under a
+    """Drafts stay behind; a published page or borrowed file under a
     draft moves up to the draft's own parent, and the home page points at its
     copy."""
     from sqlmodel import select
@@ -1184,16 +1168,14 @@ async def test_a_copy_has_its_published_pages_in_their_tree(
         session, wiki, a.user, title="Draft", parent_page_id=home.id, is_draft=True
     )
     await create_wiki_page(session, wiki, a.user, title="Leaf", parent_page_id=draft.id)
-    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    file = await create_file(session, a.initiative, a.user, name="Borrowed")
     wiki = await session.get(Wiki, wiki.id)
     wiki.home_page_id = home.id
     session.add(wiki)
     await session.commit()
-    await client.put(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
-    )
+    await client.put(a.g(f"/wikis/{wiki.id}/files/{file.id}"), headers=a.headers)
     await client.post(
-        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        a.g(f"/wikis/{wiki.id}/files/{file.id}/move"),
         headers=a.headers,
         json={"parent_page_id": draft.id, "position": 0},
     )
@@ -1220,7 +1202,7 @@ async def test_a_copy_has_its_published_pages_in_their_tree(
     ).one()
     assert copied.home_page_id == pages["Home"].id
     listed = await client.get(a.g(f"/wikis/{copy_id}/pages"), headers=a.headers)
-    (borrowed,) = [row for row in listed.json()["items"] if row["kind"] == "document"]
+    (borrowed,) = [row for row in listed.json()["items"] if row["kind"] == "file"]
     assert borrowed["parent_page_id"] == pages["Home"].id
 
 

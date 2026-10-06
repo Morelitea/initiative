@@ -66,7 +66,7 @@ const HERO_COMMUNITIES: ExampleCommunity[] = [
     initials: "TB",
     color: "#0f766e",
     members: 4,
-    tools: [Tool.calendar, Tool.project, Tool.document],
+    tools: [Tool.calendar, Tool.project, Tool.file],
     activity: Tool.calendar,
   },
   {

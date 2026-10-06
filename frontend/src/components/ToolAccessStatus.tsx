@@ -10,7 +10,7 @@ type AccessKeys =
   | "calendars:"
   | "counterGroups:"
   | "dashboards:"
-  | "documents:detail."
+  | "files:detail."
   | "galleries:"
   | "posts:"
   | "projects:detail."

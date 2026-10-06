@@ -32,14 +32,14 @@ from app.db.guild_standing import InstallContext
 from app.main import app
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.initiative import InitiativeMember
 from app.services.marketplace import plugin_oauth
 from app.services.marketplace.plugin_refs import (
     ensure_plugin_guild_ref,
     ensure_plugin_ref,
 )
-from app.testing import create_document, route_session_to_guild, drain_notices
+from app.testing import create_file, route_session_to_guild, drain_notices
 from app.testing.plugin_clients import (
     CLIENT,
     InstalledPlugin,
@@ -51,19 +51,19 @@ CONSENT_URL = "/api/v1/plugin-platform/consent-requests"
 TOKEN_URL = "/api/v1/plugin-platform/oauth/token"
 JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
-_PROBE_PATH = "/api/v1/c/{community_id}/member-token-probe/documents"
-_read_documents = plugin_scope("documents:read")
+_PROBE_PATH = "/api/v1/c/{community_id}/member-token-probe/files"
+_read_files = plugin_scope("files:read")
 _probe = APIRouter(route_class=ActorRoute)
 
 
 @_probe.get(_PROBE_PATH)
-async def _probe_documents(
-    actor: Annotated[ActorContext, Depends(_read_documents)],
+async def _probe_files(
+    actor: Annotated[ActorContext, Depends(_read_files)],
     session: ActorSessionDep,
 ) -> dict[str, Any]:
-    names = sorted((await session.exec(select(Document.name))).all())
+    names = sorted((await session.exec(select(File.name))).all())
     member = actor.member_user_id if isinstance(actor, InstallContext) else None
-    return {"member": member, "documents": names}
+    return {"member": member, "files": names}
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +86,7 @@ def _installation_token(installed: InstalledPlugin, **overrides) -> str:
         guild_id=installed.guild.id,
         install_id=installed.plugin.id,
         client_id=CLIENT,
-        scopes=frozenset(overrides.pop("scopes", ["documents:read"])),
+        scopes=frozenset(overrides.pop("scopes", ["files:read"])),
         initiative_id=overrides.pop("initiative_id", None),
         **overrides,
     )
@@ -167,7 +167,7 @@ async def test_a_request_notifies_the_member_once_and_repeats_as_it_stands(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -211,7 +211,7 @@ async def test_a_request_names_a_member_by_this_install_s_reference(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     elsewhere = await ensure_plugin_ref(
@@ -230,7 +230,7 @@ async def test_a_request_is_bound_only_where_the_install_and_token_reach(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -260,7 +260,7 @@ async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     outsider = await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
     outsider_ref = await _ref(installed, outsider.user.id)
@@ -280,7 +280,7 @@ async def test_a_member_token_cannot_ask(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -301,7 +301,7 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     other = await _member(acting_user, installed)
@@ -353,7 +353,7 @@ async def test_an_api_key_cannot_answer(
     from app.services.platform import api_keys as api_keys_service
 
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     await _ask(client, installed, member=await _ref(installed, member.user.id))
@@ -377,7 +377,7 @@ async def test_the_seat_revokes_every_answer_at_once(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -406,11 +406,11 @@ async def test_a_member_token_waits_for_the_answer(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
-    await create_document(session, installed.placed, member.user, name="Theirs")
+    await create_file(session, installed.placed, member.user, name="Theirs")
 
     never_asked = await _grant_token(client, installed, member_ref)
     assert never_asked.status_code == 400
@@ -432,7 +432,7 @@ async def test_a_member_token_waits_for_the_answer(
     issued = await _grant_token(client, installed, member_ref)
     assert issued.status_code == 200, issued.text
     # Read was allowed, so the write scope is issued as read.
-    assert issued.json()["scope"] == "documents:read"
+    assert issued.json()["scope"] == "files:read"
     token = unseal_access_token(issued.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
     assert (token.user_id, token.purpose) == (member.user.id, "node-1")
@@ -442,7 +442,7 @@ async def test_a_member_token_waits_for_the_answer(
         headers=_bearer(issued.json()["access_token"]),
     )
     assert read.status_code == 200, read.text
-    assert read.json() == {"member": member.user.id, "documents": ["Theirs"]}
+    assert read.json() == {"member": member.user.id, "files": ["Theirs"]}
 
 
 async def test_a_member_token_is_issued_within_the_ceiling(
@@ -460,7 +460,7 @@ async def test_a_member_token_is_issued_within_the_ceiling(
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -489,7 +489,7 @@ async def test_a_consent_bound_to_an_initiative_issues_only_narrowed_tokens(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -523,11 +523,11 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
-    await create_document(session, installed.placed, member.user, name="Theirs")
+    await create_file(session, installed.placed, member.user, name="Theirs")
     await _ask(
         client,
         installed,
@@ -542,9 +542,7 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     token = issued.json()["access_token"]
     url = _PROBE_PATH.format(community_id=installed.guild.id)
 
-    assert (await client.get(url, headers=_bearer(token))).json()["documents"] == [
-        "Theirs"
-    ]
+    assert (await client.get(url, headers=_bearer(token))).json()["files"] == ["Theirs"]
 
     await route_session_to_guild(session, installed.guild.id)
     await session.exec(
@@ -557,7 +555,7 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
 
     after_leaving = await client.get(url, headers=_bearer(token))
     assert after_leaving.status_code == 200
-    assert after_leaving.json()["documents"] == []
+    assert after_leaving.json()["files"] == []
     regrant = await _grant_token(client, installed, member_ref, resource=resource)
     assert regrant.json()["error"] == "consent_required"
 
@@ -573,7 +571,7 @@ async def test_the_member_grant_is_its_own_client_authentication(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -629,7 +627,7 @@ async def test_new_requests_of_one_member_are_limited_and_repeats_are_not(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, limits_on
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)
@@ -683,7 +681,7 @@ async def test_an_install_is_limited_however_it_asks(
         plugin_consent_requests, "CONSENT_REQUESTS_PER_INSTALL", parse("3/minute")
     )
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     member = await _member(acting_user, installed)
     member_ref = await _ref(installed, member.user.id)

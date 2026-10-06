@@ -538,7 +538,7 @@ def test_a_plugins_subscription_hears_what_its_reach_covers():
     [
         pytest.param(_reach(placed=frozenset()), id="placement-removed"),
         pytest.param(_reach(placed=frozenset({12})), id="placed-elsewhere"),
-        pytest.param(_reach(readable=frozenset({"documents"})), id="scope-withdrawn"),
+        pytest.param(_reach(readable=frozenset({"files"})), id="scope-withdrawn"),
         pytest.param(_reach(live=False), id="install-not-live"),
         pytest.param(None, id="no-reach-read"),
     ],
