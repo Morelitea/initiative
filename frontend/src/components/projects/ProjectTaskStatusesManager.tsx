@@ -492,12 +492,12 @@ export const ProjectTaskStatusesManager = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead className="min-w-40">{t("statuses.nameColumn")}</TableHead>
+                  <TableHead className="min-w-40">{t("common:name")}</TableHead>
                   <TableHead>{t("statuses.categoryColumn")}</TableHead>
                   <TableHead className="w-32">{t("statuses.iconColumn")}</TableHead>
                   <TableHead className="w-40">{t("statuses.colorColumn")}</TableHead>
                   <TableHead className="w-24 text-center">{t("statuses.defaultColumn")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("statuses.actionsColumn")}</TableHead>
+                  <TableHead className="w-20 text-right">{t("common:actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

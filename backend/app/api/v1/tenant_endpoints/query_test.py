@@ -16,7 +16,13 @@ from app.models.platform.guild import CommunityRole
 from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
-from app.testing import create_initiative_member, create_project, create_task
+from app.models.tenant.file import FileType
+from app.testing import (
+    create_file,
+    create_initiative_member,
+    create_project,
+    create_task,
+)
 
 
 async def test_a_member_can_run_a_query(client, acting_user):
@@ -604,6 +610,33 @@ class TestAskingAboutTheReader:
         )
         assert response.status_code == 200, response.json()
         assert response.json()["rows"] == [[1]]
+
+    async def test_a_file_is_read_through_the_version_it_shows(
+        self, client, session, acting_user
+    ):
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+        await create_file(
+            session,
+            actor.initiative,
+            actor.user,
+            file_type=FileType.file,
+            file_url="/uploads/1/brief.pdf",
+            file_size=2048,
+        )
+
+        response = await client.post(
+            actor.g("/query"),
+            json={
+                "sql": (
+                    "SELECT current_version.file_content_type AS type,"
+                    " current_version.file_size AS size FROM files"
+                ),
+                "initiative_id": actor.initiative.id,
+            },
+            headers=actor.headers,
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["rows"] == [["application/pdf", 2048]]
 
     async def test_a_name_the_surface_keeps_is_refused_where_it_is_written(
         self, client, acting_user

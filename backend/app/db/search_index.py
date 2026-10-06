@@ -11,7 +11,7 @@ be gated by one initiative and indexed under another — the argument
 
 Chunking is a length rule, not a per-table setting: an extractor yields text and
 the trigger splits it if it is long. A tag's name is one chunk by the same code
-path that gives a long document several.
+path that gives a long file several.
 """
 
 from __future__ import annotations
@@ -140,7 +140,7 @@ def _with_words(expr: str) -> str:
 def _post_text(row: str) -> str:
     """A post's searchable text: every word in its Lexical body.
 
-    The same recursive ``text`` path a native document uses — a text node, a
+    The same recursive ``text`` path a native file uses — a text node, a
     mention, and a smart chip's label all keep their words in a field of that
     name — read from ``body`` rather than ``content``, which is what a post
     calls the column. A post whose body is only a picture indexes on its
@@ -152,22 +152,31 @@ def _post_text(row: str) -> str:
 def _wiki_page_text(row: str) -> str:
     """A wiki page's searchable text: every word in its Lexical body.
 
-    The same recursive ``text`` path a post and a native document use. A page
-    needs no branch of its own — a page is always prose, where a document's
+    The same recursive ``text`` path a post and a native file use. A page
+    needs no branch of its own — a page is always prose, where a file's
     ``content`` holds a different shape per type.
     """
     return _json_text(row, "strict $.**.text")
 
 
+def _current_filename(row: str, versions: str) -> str:
+    """The uploaded filename of the version a row shows (its
+    ``current_version_id`` in ``versions``), or empty where it shows none."""
+    return (
+        f"coalesce((SELECT v.original_filename FROM {versions} v"  # noqa: S608 — stated names
+        f" WHERE v.id = {row}.current_version_id), '')"
+    )
+
+
 def _gallery_image_text(row: str) -> str:
     """A picture's searchable text: its caption, and the filename split into
     words so ``round-4-detail.png`` is found by ``detail``."""
-    filename = f"coalesce({row}.original_filename, '')"
+    filename = _current_filename(row, "gallery_image_versions")
     return f"coalesce({row}.caption, '') || ' ' || {_with_words(filename)}"
 
 
-def _document_text(row: str) -> str:
-    """A document's searchable text, by what kind of document it is.
+def _file_text(row: str) -> str:
+    """A file's searchable text, by what kind of file it is.
 
     ``content`` holds a different shape per type, so there is no single
     expression. ``native`` and ``whiteboard`` share one: a Lexical text node
@@ -175,7 +184,7 @@ def _document_text(row: str) -> str:
     named ``text``, and the recursive path reaches nested cases — a mention, a
     wikilink, an image caption's own editor state.
 
-    A ``file`` document contributes nothing here: its bytes live in ``uploads``,
+    An uploaded file contributes nothing here: its bytes live in ``uploads``,
     so its name, description and uploaded filename are all there is to index.
     """
     leaves = _json_text(row, "strict $.**.text")
@@ -189,13 +198,13 @@ def _document_text(row: str) -> str:
     )
     url = _with_words(f"coalesce({row}.content ->> 'url', '')")
     return (
-        f"(CASE {row}.document_type::text"
+        f"(CASE {row}.file_type::text"
         f" WHEN 'native' THEN {leaves}"
         f" WHEN 'whiteboard' THEN {leaves}"
         f" WHEN 'spreadsheet' THEN {cells}"
         f" WHEN 'smart_link' THEN {url}"
         " ELSE '' END)"
-        " || ' ' || " + _with_words(f"coalesce({row}.original_filename, '')")
+        " || ' ' || " + _with_words(_current_filename(row, "file_versions"))
     )
 
 
@@ -289,9 +298,13 @@ def _flag_expr(table: str, flag: str, row: str) -> str | None:
 
 def _written(table: str, source: "SearchSource") -> tuple[str, ...]:
     """The body columns somebody writes in: all of them, less a column that only
-    names a kind (an enum)."""
+    names a kind (an enum) or another row (a foreign key)."""
     columns = SQLModel.metadata.tables[table].columns
-    return tuple(c for c in source.body if not isinstance(columns[c].type, Enum))
+    return tuple(
+        c
+        for c in source.body
+        if not isinstance(columns[c].type, Enum) and not columns[c].foreign_keys
+    )
 
 
 def _mentions_expr(table: str, source: "SearchSource", row: str = ROW) -> str:
@@ -354,9 +367,9 @@ def _inside(kind: SearchEntityType, **fields: Any) -> SearchSource:
 #: Where a tool's text is not simply its name and description. A tool absent
 #: from here is not an omission — it is a tool that takes the shape above.
 TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
-    Tool.document: {
-        "body": ("content", "document_type", "original_filename"),
-        "body_sql": _document_text,
+    Tool.file: {
+        "body": ("content", "file_type", "current_version_id"),
+        "body_sql": _file_text,
     },
     # A post's text is what it says, not a summary of it: the headline is the
     # title and the Lexical body is the body. There is no `description`.
@@ -401,13 +414,14 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         SearchEntityType.gallery_image,
         title="title",
         title_sql=lambda row: (
-            f"coalesce(nullif({row}.title, ''), {row}.original_filename, '')"
+            f"coalesce(nullif({row}.title, ''),"
+            f" {_current_filename(row, 'gallery_image_versions')})"
         ),
-        body=("caption", "original_filename"),
+        body=("caption", "current_version_id"),
         body_sql=_gallery_image_text,
     ),
     # A page is found by its title and by what is written on it. Its body is a
-    # Lexical state, the same shape a native document's is, so it is read by the
+    # Lexical state, the same shape a native file's is, so it is read by the
     # same extractor rather than a second one.
     "wiki_pages": _inside(
         SearchEntityType.wiki_page,
@@ -461,7 +475,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
     "uploads": "stored files, found through the content that shows them",
     "event_outbox": "change log, not content",
-    "app_event_outbox": "app events awaiting delivery, not content",
+    "plugin_event_outbox": "plug-in events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",
     "property_definitions": "field config, reached from the tool it configures",
     "webhook_subscriptions": "integration config",
@@ -472,7 +486,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "recent_views": "one member's own viewing state",
     "project_filter_presets": "one member's saved filters",
     "task_statuses": "column names, reached from the project",
-    "document_file_versions": "history of a document already indexed",
+    "file_versions": "history of a file already indexed",
     "gallery_image_versions": "history of a picture already indexed",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
@@ -562,7 +576,7 @@ DECLARE
     v_title text := coalesce(p_title, '');
     v_body  text := coalesce(p_body, '');
     -- Every chunk carries them: a mention says who the whole entity is about,
-    -- so "Ada budget" finds a long document whose mention and words sit apart.
+    -- so "Ada budget" finds a long file whose mention and words sit apart.
     v_people tsvector := coalesce((
         SELECT string_agg(quote_literal(l) || ':1B', ' ')
           FROM unnest(p_mentions) l

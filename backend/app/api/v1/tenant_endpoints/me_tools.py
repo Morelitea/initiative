@@ -8,7 +8,7 @@ serialized by the same registry entry — so what reaches you here is what its
 page in that community shows. The made-by-me toggle is the one thing added.
 
 ``GET /me/{tool}`` is one route, mounted once for every tool out of
-:data:`MY_TOOL_LISTS`. Projects, documents and calendars each had a cross-guild
+:data:`MY_TOOL_LISTS`. Projects, files and calendars each had a cross-guild
 list of their own before this page existed — for the task wizard, for My
 Calendar — and each was its own copy of the same merge. They answer here now,
 so the nine lists cannot drift. What survives per tool is what a merge across
@@ -143,11 +143,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
             "made-by-me filters."
         ),
     ),
-    Tool.document: MyToolList(
+    Tool.file: MyToolList(
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
-            "Documents that reach the current user across every guild they "
+            "Files that reach the current user across every guild they "
             "belong to.\n"
             "\n"
             "An optional ``guild_ids`` filter narrows to a subset of guilds, "
@@ -250,7 +250,7 @@ async def _conditions(
 ) -> list:
     """What the tool's list answers ``request`` with, and, for the page's other
     view, only what the reader wrote. Authorship, not ownership: handing a
-    document to someone else does not take it out of the things you wrote."""
+    file to someone else does not take it out of the things you wrote."""
     spec = TOOL_LISTS[tool]
     conditions = await list_conditions(spec, request)
     if created_by_me:
@@ -406,10 +406,8 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
             page=page,
             page_size=page_size,
         )
-        response_extras = TOOL_LISTS[tool].response_extras
-        extras = response_extras(values) if response_extras else {}
         return response_model(
-            **build_paginated_response(items, total_count, page, page_size, **extras)
+            **build_paginated_response(items, total_count, page, page_size)
         )
 
     list_rows.__signature__ = _signature(_params(tool, spec.page_size))

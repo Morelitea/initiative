@@ -2,7 +2,7 @@
  * What the router actually resolves each URL to.
  *
  * The initiative subtree puts a tool tab (`/i/5/projects`) beside the
- * initiative's own static children (`/i/5/settings`, `/i/5/apps/3`), and every
+ * initiative's own static children (`/i/5/settings`, `/i/5/plugins/3`), and every
  * link in the app is a plain string rather than a typed route id — so nothing
  * else checks that a built path lands where it was meant to. These failures
  * would otherwise appear only at runtime, as a blank page.
@@ -38,7 +38,7 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
     ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings/`],
     ["/c/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
-    ["/c/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
+    ["/c/1/i/5/files/3", `${INITIATIVE}/files/$fileId/`],
     ["/c/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
     ["/c/1/i/5/counter-groups/6", `${INITIATIVE}/counter-groups/$counterGroupId/`],
     [
@@ -63,7 +63,7 @@ describe("initiative route resolution", () => {
   it("keeps the initiative's own children ahead of the tool tabs", () => {
     // `/settings` is a layout now; its index serves the details section.
     expect(resolvedRouteId("/c/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
-    expect(resolvedRouteId("/c/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
+    expect(resolvedRouteId("/c/1/i/5/plugins/3")).toBe(`${INITIATIVE}/plugins/$pluginId`);
   });
 
   // Each settings section is an address of its own, so a manager can be linked
@@ -88,7 +88,7 @@ describe("initiative route resolution", () => {
     ],
     ["/c/1/i/5/queues/4/settings", `${INITIATIVE}/queues/$queueId/settings/`],
     ["/c/1/i/5/queues/4/settings/advanced", `${INITIATIVE}/queues/$queueId/settings/advanced`],
-    ["/c/1/i/5/documents/3/settings/access", `${INITIATIVE}/documents/$documentId/settings/access`],
+    ["/c/1/i/5/files/3/settings/access", `${INITIATIVE}/files/$fileId/settings/access`],
     [
       "/c/1/i/5/counter-groups/6/settings/advanced",
       `${INITIATIVE}/counter-groups/$counterGroupId/settings/advanced`,
@@ -124,20 +124,20 @@ describe("initiative route resolution", () => {
     );
   });
 
-  // The calendar app's own surface — the community's calendars, not a roll-up of
+  // The calendar plug-in's own surface — the community's calendars, not a roll-up of
   // its initiatives'. That is why this one address survives the list below.
   it("resolves the community's calendars", () => {
     expect(resolvedRouteId("/c/1/calendars")).toBe(`${COMMUNITY}/calendars/`);
   });
 
   it("resolves the entity-reference resolver", () => {
-    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
+    expect(resolvedRouteId("/c/1/go/file/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
   });
 
   // Deleted on purpose — the community home is the cross-initiative browse now.
   it.each([
     "/c/1/projects",
-    "/c/1/documents",
+    "/c/1/files",
     "/c/1/queues",
     "/c/1/dashboards",
     "/c/1/counter-groups",

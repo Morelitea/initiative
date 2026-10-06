@@ -26,9 +26,9 @@ from starlette.requests import Request
 # configurable only creates ways to break them.
 PROJECT_NAME = "Initiative API"
 API_V1_STR = "/api/v1"
-#: Where an installed app calls the API from. The ``0`` stands for the
+#: Where an installed plug-in calls the API from. The ``0`` stands for the
 #: install's own community, which its token names.
-APP_SERVER_URL = f"{API_V1_STR}/c/0"
+PLUGIN_SERVER_URL = f"{API_V1_STR}/c/0"
 
 # Origins used by the Capacitor native apps (iOS, Android and the desktop app).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
@@ -54,7 +54,7 @@ def is_device(request: Request) -> bool:
 
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
-# the Content-Security-Policy (pentest MED-001). These are the document
+# the Content-Security-Policy (pentest MED-001). These are the file
 # "smart link" providers available in the editor (always present).
 CSP_EMBED_FRAME_ORIGINS = [
     "https://www.youtube-nocookie.com",
@@ -461,11 +461,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_database_logins(self) -> "Settings":
-        has_app, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
-        if has_app != has_admin:
+        has_plugin, has_admin = (
+            bool(self.DATABASE_URL_APP),
+            bool(self.DATABASE_URL_ADMIN),
+        )
+        if has_plugin != has_admin:
             given, missing = (
                 ("DATABASE_URL_APP", "DATABASE_URL_ADMIN")
-                if has_app
+                if has_plugin
                 else ("DATABASE_URL_ADMIN", "DATABASE_URL_APP")
             )
             raise ValueError(
@@ -474,7 +477,7 @@ class Settings(BaseSettings):
                 f"neither, with DATABASE_URL as the database owner, and the app "
                 f"makes them."
             )
-        if has_app:
+        if has_plugin:
             self._check_query_login()
             return self
         if self.DATABASE_URL_BOOTSTRAP:
@@ -597,7 +600,7 @@ class Settings(BaseSettings):
         return origins
 
     def content_security_policy_with_frames(
-        self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
+        self, plugin_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:
         """The app-wide CSP, optionally admitting the registered frame origins.
 
@@ -607,16 +610,16 @@ class Settings(BaseSettings):
         injected markup can't execute. ``style-src`` does allow
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
-        Fonts, document embeds, and — when configured — the captcha provider and
+        Fonts, file embeds, and — when configured — the captcha provider and
         app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 
-        ``app_frame_origins`` is how a marketplace app's embedded surface gets
-        framed. It holds the origins of the app services this deployment has
+        ``plugin_frame_origins`` is how a marketplace plug-in's embedded surface gets
+        framed. It holds the origins of the plug-in services this deployment has
         registered — the operator's trusted-site list, passed in by
         ``app.api.embed_csp`` on the documents where ``frame-src`` applies, and
         empty here so the app-wide default names none. ``connect-src`` is
-        untouched: an app's data reaches the browser same-origin through the
+        untouched: a plug-in's data reaches the browser same-origin through the
         proxy.
         """
         ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
@@ -658,7 +661,7 @@ class Settings(BaseSettings):
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
-        for candidate in app_frame_origins:
+        for candidate in plugin_frame_origins:
             origin = _origin_of(candidate) if candidate else None
             if origin:
                 frame_src.append(origin)
@@ -935,25 +938,25 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # --- App platform (external app services; default OFF) ----------------
-    # An app service is an external container this deployment has wired up
-    # (see the app service registry). Everything below is optional: a default
-    # install generates its own signing key, and an owner wires apps up from
+    # --- Plug-in platform (external plug-in services; default OFF) --------
+    # A plug-in service is an external container this deployment has wired up
+    # (see the plug-in service registry). Everything below is optional: a default
+    # install generates its own signing key, and an owner wires plug-ins up from
     # the settings pages.
     #
-    # RSA private key (PEM) signing what Initiative sends an app. Optional:
+    # RSA private key (PEM) signing what Initiative sends a plug-in. Optional:
     # unset, Initiative generates one on first start and keeps it in the
     # database, encrypted under SECRET_KEY, so every replica signs with the same
-    # key. Set it to supply your own (``openssl genrsa -out app-platform.pem
+    # key. Set it to supply your own (``openssl genrsa -out plugin-platform.pem
     # 2048``); while set it wins, and changing it is how the key is rotated.
-    APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
-    # Key id stamped on the JWT header for the key above, so an app picks it out
+    PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    # Key id stamped on the JWT header for the key above, so a plug-in picks it out
     # of the published JWKS during a rotation. A generated key uses its RFC 7638
     # thumbprint instead.
-    APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # Path to a mounted JSON file (an array of entries) wiring app services at
-    # startup, with no owner clicks. An entry gives the app's ``public_id`` and
-    # this deployment's facts about it; what the app is (its listing) comes
+    PLUGIN_PLATFORM_SIGNING_KEY_ID: str | None = None
+    # Path to a mounted JSON file (an array of entries) wiring plug-in services at
+    # startup, with no owner clicks. An entry gives the plug-in's ``public_id`` and
+    # this deployment's facts about it; what the plug-in is (its listing) comes
     # from the marketplace, and an entry naming a listing field is refused:
     #   [{"public_id": "acme.shopify",
     #     "base_url": "http://shopify:9100",
@@ -962,18 +965,18 @@ class Settings(BaseSettings):
     #     "allowed_origins": ["https://shopify.example.com"],
     #     "vendor_env": {"client_secret": "SHOPIFY_CLIENT_SECRET"},
     #     "mandatory": false}]
-    # ``base_url`` is where this server calls the app, so it may be an address
+    # ``base_url`` is where this server calls the plug-in, so it may be an address
     # only the container network resolves; ``embed_origin`` is where a browser
-    # loads its pages, omitted when the app answers both at one address. Give
-    # the app's public keys as ``jwks``, or as ``jwks_uri`` when the app serves
-    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for an app built
+    # loads its pages, omitted when the plug-in answers both at one address. Give
+    # the plug-in's public keys as ``jwks``, or as ``jwks_uri`` when the plug-in serves
+    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for a plug-in built
     # on the SDK). ``vendor_env`` maps a vendor value to the environment
     # variable holding it, so the file names no secret and can be a plain
-    # ConfigMap. An entry waits until its app's listing
+    # ConfigMap. An entry waits until its plug-in's listing
     # arrives. Unset (the default) ⇒ nothing is reconciled.
     # Reconciliation never re-enables a registration an operator disabled, and
     # never blocks boot.
-    APP_SERVICES_CONFIG: str | None = None
+    PLUGIN_SERVICES_CONFIG: str | None = None
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below
@@ -994,7 +997,7 @@ class Settings(BaseSettings):
     # accepted if any block verifies it. The HMAC has a second accepted value
     # for the same staged rotation protocol.
     # --- A bundled service's own channel ----------------------------------
-    # An app this deployment ships rather than installs from the marketplace,
+    # A plug-in this deployment ships rather than installs from the marketplace,
     # named by the ``public_id`` its registration carries, plus the secret it
     # signs its calls on that channel with.
     #
@@ -1045,7 +1048,7 @@ class Settings(BaseSettings):
     # Point it at a mirror or a curated repository signed under the same root.
     #
     # ``MARKETPLACE_REGISTRY_ROOT`` is a path to a different trusted root, for a
-    # repository signed under somebody else's keys. Listings and apps from it
+    # repository signed under somebody else's keys. Listings and plug-ins from it
     # land as usual; reference sectors are honoured only under the shipped root.
     MARKETPLACE_REGISTRY_URL: str = (
         "https://morelitea.github.io/initiative-developer/public/"
@@ -1059,7 +1062,7 @@ class Settings(BaseSettings):
     # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
     # How many processes each server process may run to evaluate declarative
-    # apps' expressions at once. Started on first use; an idle one exits after
+    # plug-ins' expressions at once. Started on first use; an idle one exits after
     # five minutes. A server process with more evaluations than this waits for
     # one to come free.
     EXPRESSION_WORKERS: int = Field(default=2, ge=1, le=16)
@@ -1075,6 +1078,14 @@ class Settings(BaseSettings):
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
+
+    # The request header a trusted proxy in front of the deployment writes the
+    # client's country into, as an ISO 3166-1 alpha-2 code — ``CF-IPCountry``
+    # behind Cloudflare. Read to apply a plug-in's minimum age for where
+    # somebody is; never stored. Unset (the default), or a value that is not a
+    # country, means "not known", and a plug-in's highest declared age applies.
+    # Only set it when every request reaches the app through that proxy.
+    CLIENT_COUNTRY_HEADER: str | None = None
 
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to
     # every route that lacks its own ``@limiter.limit(...)`` decorator. Uses the

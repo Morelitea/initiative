@@ -89,11 +89,11 @@ describe("searchHitPath", () => {
         target({
           entity_type: COMMENT_ENTITY_TYPE,
           entity_id: 3,
-          tool: Tool.document,
+          tool: Tool.file,
           tool_id: 9,
         })
       )
-    ).toBe("/i/5/documents/9");
+    ).toBe("/i/5/files/9");
     expect(
       searchHitPath(
         target({
@@ -111,7 +111,7 @@ describe("searchHitPath", () => {
   });
 
   it("keeps a community-level entity on its community route", () => {
-    // An app-installed calendar has no initiative; `null` means "address me at
+    // An plugin-installed calendar has no initiative; `null` means "address me at
     // the community route", not "initiative unknown".
     expect(
       searchHitPath(
@@ -190,9 +190,7 @@ describe("hitIcon", () => {
     expect(hitIcon(target({ entity_type: SearchEntityType.gallery }))).toBe(
       TOOL_ICONS[Tool.gallery]
     );
-    expect(hitIcon(target({ entity_type: SearchEntityType.document }))).toBe(
-      TOOL_ICONS[Tool.document]
-    );
+    expect(hitIcon(target({ entity_type: SearchEntityType.file }))).toBe(TOOL_ICONS[Tool.file]);
   });
 
   it("still takes the tool a hit names", () => {

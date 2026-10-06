@@ -365,6 +365,36 @@ def test_config_is_scoped_to_the_definitions_widgets():
     assert config == {"widgets": {"w1": {"counter_id": 42}}}
 
 
+def test_config_fills_only_what_the_definition_left_open():
+    """Config carries parameter values. What the widget reads — its source,
+    statement, plug-in and endpoint — and any value the definition already set
+    stay the definition's."""
+    definition = normalize_dashboard_definition(
+        _definition(
+            {
+                "id": "w1",
+                "type": "table",
+                "binding": {"source": "sheet_range", "file_id": 3, "range": None},
+            }
+        )
+    )
+    config = normalize_dashboard_config(
+        {
+            "widgets": {
+                "w1": {
+                    "range": "A1:B4",
+                    "file_id": 9,
+                    "source": "query",
+                    "sql": "SELECT title FROM tasks",
+                    "initiative_id": 5,
+                }
+            }
+        },
+        definition,
+    )
+    assert config == {"widgets": {"w1": {"range": "A1:B4"}}}
+
+
 def test_config_for_a_removed_widget_is_dropped():
     """Updating to a definition without that widget can't leave config behind."""
     definition = normalize_dashboard_definition(
@@ -382,59 +412,59 @@ def test_config_for_a_removed_widget_is_dropped():
 
 
 # ---------------------------------------------------------------------------
-# App widgets and the `app` binding source
+# Plug-in widgets and the `plugin` binding source
 # ---------------------------------------------------------------------------
 #
-# A service app's widget is a *separate* vocabulary from the built-ins, and the
-# separation is what these pin. An app widget is namespaced, binds only `app`,
-# and binds only its own app's sources — so a definition can never point one
-# vendor's module at another vendor's data, and never resolve an app's widget to
+# A service plug-in's widget is a *separate* vocabulary from the built-ins, and the
+# separation is what these pin. A plug-in widget is namespaced, binds only `plugin`,
+# and binds only its own plug-in's sources — so a definition can never point one
+# vendor's module at another vendor's data, and never resolve a plug-in's widget to
 # a built-in renderer.
 #
 # What a source *is* — its parameters, its credentials, its freshness — lives in
-# the installed app's pinned definition and is enforced when the data is
+# the installed plug-in's pinned definition and is enforced when the data is
 # fetched. The validator's job here is shape, not authority.
 
-APP_UID = "SHPAPP00000001"
+PLUGIN_UID = "SHPAPP00000001"
 OTHER_UID = "OTHERAPP000001"
 
 
-def _app_widget(**overrides) -> dict:
+def _plugin_widget(**overrides) -> dict:
     return {
         "id": "w1",
-        "type": f"app:{APP_UID}:summary",
+        "type": f"plugin:{PLUGIN_UID}:summary",
         "binding": {
-            "source": "app",
-            "app_uid": APP_UID,
-            "endpoint_id": "app.acme.shop.orders-summary",
+            "source": "plugin",
+            "plugin_uid": PLUGIN_UID,
+            "endpoint_id": "plugin.acme.shop.orders-summary",
         },
         **overrides,
     }
 
 
-def test_an_app_widget_keeps_its_namespaced_type():
-    result = normalize_dashboard_definition(_definition(_app_widget()))
+def test_a_plugin_widget_keeps_its_namespaced_type():
+    result = normalize_dashboard_definition(_definition(_plugin_widget()))
     widget = result["widgets"][0]
-    assert widget["type"] == f"app:{APP_UID}:summary"
+    assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
     assert widget["binding"] == {
-        "source": "app",
-        "app_uid": APP_UID,
-        "endpoint_id": "app.acme.shop.orders-summary",
+        "source": "plugin",
+        "plugin_uid": PLUGIN_UID,
+        "endpoint_id": "plugin.acme.shop.orders-summary",
     }
-    # It still gets a grid, from the app-widget floor rather than a primitive's.
+    # It still gets a grid, from the plugin-widget floor rather than a primitive's.
     assert widget["grid"]["w"] >= 2 and widget["grid"]["h"] >= 2
 
 
-def test_a_definition_outlives_the_app_its_widgets_came_from():
-    """The check on an app widget is shape, never an install lookup.
+def test_a_definition_outlives_the_plugin_its_widgets_came_from():
+    """The check on a plug-in widget is shape, never an install lookup.
 
     A stored dashboard is the guild's, so re-normalizing it — an edit, an
-    upgrade — must keep accepting its app widgets whether or not the app is
-    still installed. `app:<uid>:<widget>` with valid parts stores verbatim; the
-    client renders the not-installed state and asks for the app to be
+    upgrade — must keep accepting its plug-in widgets whether or not the plug-in is
+    still installed. `plugin:<uid>:<widget>` with valid parts stores verbatim; the
+    client renders the not-installed state and asks for the plug-in to be
     reconnected. Only a malformed type is a rejection (the tests below).
     """
-    definition = _definition(_app_widget())
+    definition = _definition(_plugin_widget())
     first = normalize_dashboard_definition(definition)
     # Idempotent under re-normalization: what was stored stays storable.
     assert normalize_dashboard_definition(first) == first
@@ -446,11 +476,11 @@ def test_declared_parameters_are_kept_as_the_scalars_they_are():
     meant to refuse."""
     result = normalize_dashboard_definition(
         _definition(
-            _app_widget(
+            _plugin_widget(
                 binding={
-                    "source": "app",
-                    "app_uid": APP_UID,
-                    "endpoint_id": "app.acme.shop.orders",
+                    "source": "plugin",
+                    "plugin_uid": PLUGIN_UID,
+                    "endpoint_id": "plugin.acme.shop.orders",
                     "params": {"range": "30d", "limit": 5, "detailed": True},
                 }
             )
@@ -468,18 +498,18 @@ def test_a_parameter_may_hold_several_values():
     several assignees — and a binding that could hold only one of them could not
     say what such a parameter is for.
 
-    This is the shape a widget's own form produces the moment an app declares
+    This is the shape a widget's own form produces the moment a plug-in declares
     `list`, and storing it is what makes that form's Save mean anything: a
     binding refused here fails the whole dashboard write, taking every unrelated
     edit in the same request — a renamed tile, a moved one — down with it.
     """
     result = normalize_dashboard_definition(
         _definition(
-            _app_widget(
+            _plugin_widget(
                 binding={
-                    "source": "app",
-                    "app_uid": APP_UID,
-                    "endpoint_id": "app.acme.shop.orders",
+                    "source": "plugin",
+                    "plugin_uid": PLUGIN_UID,
+                    "endpoint_id": "plugin.acme.shop.orders",
                     "params": {"labels": ["bug", "regression"], "state": "open"},
                 }
             )
@@ -495,11 +525,11 @@ def test_values_inside_a_list_are_held_to_the_same_shapes():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
             _definition(
-                _app_widget(
+                _plugin_widget(
                     binding={
-                        "source": "app",
-                        "app_uid": APP_UID,
-                        "endpoint_id": "app.acme.shop.orders",
+                        "source": "plugin",
+                        "plugin_uid": PLUGIN_UID,
+                        "endpoint_id": "plugin.acme.shop.orders",
                         "params": {"labels": [{"nested": "object"}]},
                     }
                 )
@@ -511,11 +541,11 @@ def test_a_list_longer_than_a_definition_may_carry_is_refused():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
             _definition(
-                _app_widget(
+                _plugin_widget(
                     binding={
-                        "source": "app",
-                        "app_uid": APP_UID,
-                        "endpoint_id": "app.acme.shop.orders",
+                        "source": "plugin",
+                        "plugin_uid": PLUGIN_UID,
+                        "endpoint_id": "plugin.acme.shop.orders",
                         "params": {"labels": ["x"] * 65},
                     }
                 )
@@ -523,132 +553,135 @@ def test_a_list_longer_than_a_definition_may_carry_is_refused():
         )
 
 
-def test_an_app_widget_cannot_bind_another_apps_data():
+def test_a_plugin_widget_cannot_bind_another_plugins_data():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
             _definition(
-                _app_widget(
+                _plugin_widget(
                     binding={
-                        "source": "app",
-                        "app_uid": OTHER_UID,
-                        "endpoint_id": "app.acme.shop.orders",
+                        "source": "plugin",
+                        "plugin_uid": OTHER_UID,
+                        "endpoint_id": "plugin.acme.shop.orders",
                     }
                 )
             )
         )
 
 
-def test_an_app_widget_binds_only_the_app_source():
+def test_a_plugin_widget_binds_only_the_plugin_source():
     for source in sorted(TABULAR_SOURCES):
         with pytest.raises(DashboardDefinitionError):
             normalize_dashboard_definition(
-                _definition(_app_widget(binding={"source": source}))
+                _definition(_plugin_widget(binding={"source": source}))
             )
 
 
-def _builtin_over_an_app(**binding):
+def _builtin_over_a_plugin(**binding):
     return _definition(
         {
             "id": "w1",
             "type": "stat",
             "binding": {
-                "source": "app",
-                "app_uid": APP_UID,
-                "endpoint_id": "app.acme.shop.orders",
+                "source": "plugin",
+                "plugin_uid": PLUGIN_UID,
+                "endpoint_id": "plugin.acme.shop.orders",
                 **binding,
             },
         }
     )
 
 
-def test_a_builtin_widget_cannot_bind_an_app_it_cannot_read():
-    """An app's rows are its own shape — keyed by names it chose, described
+def test_a_builtin_widget_cannot_bind_a_plugin_it_cannot_read():
+    """A plug-in's rows are its own shape — keyed by names it chose, described
     nowhere a built-in can see — so a chart handed them has nothing to draw."""
     with pytest.raises(DashboardDefinitionError):
-        normalize_dashboard_definition(_builtin_over_an_app())
+        normalize_dashboard_definition(_builtin_over_a_plugin())
 
 
-def test_a_statement_is_what_lets_a_builtin_read_an_app():
+def test_a_statement_is_what_lets_a_builtin_read_a_plugin():
     """A statement names the columns it returns, over columns the endpoint
     declared it hands back. That is the whole of what was missing."""
     definition = normalize_dashboard_definition(
-        _builtin_over_an_app(sql="SELECT shop FROM rows")
+        _builtin_over_a_plugin(sql="SELECT shop FROM rows")
     )
     binding = definition["widgets"][0]["binding"]
-    assert binding["source"] == "app"
+    assert binding["source"] == "plugin"
     assert binding["sql"] == "SELECT shop FROM rows"
 
 
 def test_a_statement_a_builtin_cannot_run_is_still_refused():
     with pytest.raises(DashboardDefinitionError):
-        normalize_dashboard_definition(_builtin_over_an_app(sql="DELETE FROM rows"))
+        normalize_dashboard_definition(_builtin_over_a_plugin(sql="DELETE FROM rows"))
 
 
-def test_the_app_source_is_not_in_the_builtin_vocabulary():
+def test_the_plugin_source_is_not_in_the_builtin_vocabulary():
     """`TABULAR_SOURCES` and `WIDGET_TYPES` stay the built-ins' own, so the
     served widget catalog and every drift test keep describing this build's
     renderers rather than whatever some guild happens to have installed."""
-    assert "app" not in TABULAR_SOURCES
-    assert not any(name.startswith("app:") for name in WIDGET_TYPES)
+    assert "plugin" not in TABULAR_SOURCES
+    assert not any(name.startswith("plugin:") for name in WIDGET_TYPES)
 
 
 @pytest.mark.parametrize(
     "widget_type",
     [
-        "app:",
-        "app:SHPAPP00000001",  # no widget id
-        "app:SHPAPP00000001:",  # empty widget id
-        "app:short:summary",  # uid is the wrong length
-        "app:SHOPAPP000000!:summary",  # outside the uid alphabet
-        "app:SHPAPP00000001:Summary!",  # outside the identifier set
+        "plugin:",
+        "plugin:SHPAPP00000001",  # no widget id
+        "plugin:SHPAPP00000001:",  # empty widget id
+        "plugin:short:summary",  # uid is the wrong length
+        "plugin:SHOPAPP000000!:summary",  # outside the uid alphabet
+        "plugin:SHPAPP00000001:Summary!",  # outside the identifier set
     ],
 )
-def test_a_malformed_app_widget_type_is_refused(widget_type):
+def test_a_malformed_plugin_widget_type_is_refused(widget_type):
     with pytest.raises(DashboardDefinitionError):
-        normalize_dashboard_definition(_definition(_app_widget(type=widget_type)))
+        normalize_dashboard_definition(_definition(_plugin_widget(type=widget_type)))
 
 
 @pytest.mark.parametrize(
     "binding",
     [
-        {"source": "app", "endpoint_id": "app.acme.shop.orders"},  # no app named
-        {"source": "app", "app_uid": APP_UID},  # no source named
-        {"source": "app", "app_uid": APP_UID, "endpoint_id": "Orders!"},
         {
-            "source": "app",
-            "app_uid": APP_UID,
-            "endpoint_id": "app.acme.shop.orders",
+            "source": "plugin",
+            "endpoint_id": "plugin.acme.shop.orders",
+        },  # no plug-in named
+        {"source": "plugin", "plugin_uid": PLUGIN_UID},  # no source named
+        {"source": "plugin", "plugin_uid": PLUGIN_UID, "endpoint_id": "Orders!"},
+        {
+            "source": "plugin",
+            "plugin_uid": PLUGIN_UID,
+            "endpoint_id": "plugin.acme.shop.orders",
             "params": [],
         },
         {
-            "source": "app",
-            "app_uid": APP_UID,
-            "endpoint_id": "app.acme.shop.orders",
+            "source": "plugin",
+            "plugin_uid": PLUGIN_UID,
+            "endpoint_id": "plugin.acme.shop.orders",
             "params": {"range": {"nested": 1}},
         },
         {
-            "source": "app",
-            "app_uid": APP_UID,
-            "endpoint_id": "app.acme.shop.orders",
+            "source": "plugin",
+            "plugin_uid": PLUGIN_UID,
+            "endpoint_id": "plugin.acme.shop.orders",
             "params": {"bad key": "x"},
         },
     ],
 )
-def test_a_malformed_app_binding_is_refused(binding):
+def test_a_malformed_plugin_binding_is_refused(binding):
     with pytest.raises(DashboardDefinitionError):
-        normalize_dashboard_definition(_definition(_app_widget(binding=binding)))
+        normalize_dashboard_definition(_definition(_plugin_widget(binding=binding)))
 
 
-def test_an_app_binding_still_has_nowhere_to_put_an_address():
+def test_a_plugin_binding_still_has_nowhere_to_put_an_address():
     """The rule that makes a stored definition safe: it names capabilities, not
-    hosts. Where the app lives comes from the deployment's registration."""
+    hosts. Where the plug-in lives comes from the deployment's registration."""
     result = normalize_dashboard_definition(
         _definition(
-            _app_widget(
+            _plugin_widget(
                 binding={
-                    "source": "app",
-                    "app_uid": APP_UID,
-                    "endpoint_id": "app.acme.shop.orders",
+                    "source": "plugin",
+                    "plugin_uid": PLUGIN_UID,
+                    "endpoint_id": "plugin.acme.shop.orders",
                     "url": "https://evil.test/steal",
                     "base_url": "https://evil.test",
                 }
@@ -656,7 +689,7 @@ def test_an_app_binding_still_has_nowhere_to_put_an_address():
         )
     )
     binding = result["widgets"][0]["binding"]
-    assert set(binding) == {"source", "app_uid", "endpoint_id"}
+    assert set(binding) == {"source", "plugin_uid", "endpoint_id"}
 
 
 def test_a_statement_is_read_before_it_is_stored():
@@ -727,4 +760,26 @@ def test_only_a_repeatable_slot_takes_several_columns():
                     "mapping": {"value": [1, 2]},
                 }
             )
+        )
+
+
+def test_config_cannot_repoint_a_plugin_widget_and_is_checked_like_a_binding():
+    definition = normalize_dashboard_definition(_definition(_plugin_widget()))
+    config = normalize_dashboard_config(
+        {
+            "widgets": {
+                "w1": {
+                    "plugin_uid": OTHER_UID,
+                    "endpoint_id": "plugin.other.orders",
+                    "params": {"range": "30d"},
+                }
+            }
+        },
+        definition,
+    )
+    assert config == {"widgets": {"w1": {"params": {"range": "30d"}}}}
+
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_config(
+            {"widgets": {"w1": {"params": {"range": {"nested": True}}}}}, definition
         )

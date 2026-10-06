@@ -2,9 +2,9 @@ import { FileDown } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Tool, ToolCan } from "@/api/generated/initiativeAPI.schemas";
+import type { FileType, Tool, ToolCan } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard, type ExportWizardScope } from "@/components/exports/ExportWizard";
-import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
+import { selectionExportFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { everyCan } from "@/lib/permissions";
@@ -45,24 +45,27 @@ interface BulkExportButtonProps {
   /** The canonical tool — endpoint, selector param, and formats all derive
    * from the registry, so a bulk-export surface can't drift per page. */
   tool: Tool;
-  /** The selected entities, with what the viewer may do to each. */
-  items: { id: number; can: ToolCan }[];
+  /** The selected entities, with what the viewer may do to each — and, for
+   * files, the type that decides which formats they export to. */
+  items: { id: number; can: ToolCan; file_type?: FileType }[];
 }
 
 /** Bulk-selection export for a tool's list page: one artifact per selected
  * entity in the chosen format, delivered as a zip (a selection of one stays a
  * plain file). Offered only when the viewer may export every one of them — the
- * owner's rung, as deleting is — and shown disabled otherwise. Documents don't
- * use this — their format set depends on the selected documents' types (see
- * DocumentsBulkBar). */
+ * owner's rung, as deleting is — and in a format every one of them has, and
+ * shown disabled otherwise. */
 export function BulkExportButton({ tool, items }: BulkExportButtonProps) {
   const { t } = useTranslation("exports");
-  const formats = TOOL_EXPORT_FORMATS[tool];
+  const formats = selectionExportFormats(tool, items);
   if (!formats || items.length === 0) {
     return null;
   }
   if (!everyCan(items, "export")) {
     return <BulkExportUnavailable title={t("export.ownerRequired")} />;
+  }
+  if (formats.length === 0) {
+    return <BulkExportUnavailable title={t("export.noCommonFormat")} />;
   }
   return (
     <EntitiesExportButton
@@ -75,7 +78,7 @@ export function BulkExportButton({ tool, items }: BulkExportButtonProps) {
 }
 
 /** The export button a selection cannot use, saying why. */
-export function BulkExportUnavailable({ title }: { title: string }) {
+function BulkExportUnavailable({ title }: { title: string }) {
   const { t } = useTranslation("exports");
   return (
     <Button variant="outline" size="sm" disabled title={title} aria-label={title}>

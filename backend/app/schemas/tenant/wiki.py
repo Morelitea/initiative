@@ -11,7 +11,7 @@ from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import LexicalState, MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.file import smart_link_url
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
     PropertiesOnUpdate,
@@ -49,7 +49,6 @@ class WikiSettings(SanitizedBaseModel):
 
     #: How siblings are ordered in the tree.
     page_order: Optional[WikiPageOrder] = None
-    #: Whether the tree shows how many pages sit under each one.
     #: How deep the contents rail goes — 2 to 4 heading levels.
     contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
     #: Whether a page shows what links to it.
@@ -150,16 +149,16 @@ class WikiPageMove(SanitizedBaseModel):
 class WikiPageKind(str, Enum):
     """What a row in a wiki's navigation actually is.
 
-    A wiki holds pages of its own and documents somebody put in it. The second
-    kind is a document still — it is not copied in, it keeps its own address,
+    A wiki holds pages of its own and files somebody put in it. The second
+    kind is a file still — it is not copied in, it keeps its own address,
     its own sharing and its own history — so the navigation has to say which it
     is looking at rather than pretend they are the same row.
     """
 
     #: A page belonging to this wiki, written here.
     page = "page"
-    #: A document placed in this wiki by a ``part_of`` edge.
-    document = "document"
+    #: A file placed in this wiki by a ``part_of`` edge.
+    file = "file"
 
 
 class WikiPageHeading(SanitizedBaseModel):
@@ -196,14 +195,14 @@ class WikiPageSummary(SanitizedBaseModel):
     community_id: GuildId = Field(
         validation_alias=AliasChoices("community_id", "guild_id")
     )
-    #: Which of the two things this row is. A document keeps its own id, so a
+    #: Which of the two things this row is. A file keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
     #: What this row is filed under: a page, or ``None`` for the top. A
-    #: document is filed like a page is, but never holds anything itself.
+    #: file is filed like a page is, but never holds anything itself.
     parent_page_id: Optional[int] = None
     position: int = 0
-    #: A document placed in a wiki is never a draft: it is not this wiki's to
+    #: A file placed in a wiki is never a draft: it is not this wiki's to
     #: hold back, and it is readable wherever else it already lives.
     is_draft: bool = False
     title: str
@@ -216,10 +215,10 @@ class WikiPageSummary(SanitizedBaseModel):
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
-    #: A document row's kind of document and the facts its icon is drawn
+    #: A file row's kind of file and the facts its icon is drawn
     #: from — a PDF, a spreadsheet and a link to a design tool each look like
     #: what they are. ``None`` on a page.
-    document_type: Optional[str] = None
+    file_type: Optional[str] = None
     file_content_type: Optional[str] = None
     original_filename: Optional[str] = None
     smart_link_url: Optional[str] = None
@@ -233,7 +232,6 @@ class WikiPageRead(WikiPageSummary):
     #: ``PATCH`` of ``content`` so the write merges into the body only if
     #: nobody has changed it since. ``null`` when the body was left out.
     content_version: Optional[str] = None
-    comment_count: int = 0
 
 
 class WikiPageTree(SanitizedBaseModel):
@@ -267,8 +265,8 @@ def serialize_wiki_page_summary(
     )
 
 
-def serialize_document_as_page(
-    document: "Any",
+def serialize_file_as_page(
+    file: "Any",
     *,
     context: ActorContext,
     wiki_id: int,
@@ -276,33 +274,33 @@ def serialize_document_as_page(
     heading_nodes: list,
     parent_page_id: Optional[int] = None,
 ) -> WikiPageSummary:
-    """A document, as the wiki's navigation draws it.
+    """A file, as the wiki's navigation draws it.
 
-    Everything a row needs, read off the document itself — including its
-    headings (``heading_nodes``, as the tree read them), so a document in a
+    Everything a row needs, read off the file itself — including its
+    headings (``heading_nodes``, as the tree read them), so a file in a
     wiki opens in the sidebar exactly as a page written here does.
     """
     from app.services.tenant.names import slugify
     from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
-        id=document.id,
+        id=file.id,
         wiki_id=wiki_id,
         community_id=context.guild_id,
-        kind=WikiPageKind.document,
+        kind=WikiPageKind.file,
         parent_page_id=parent_page_id,
         position=position,
         is_draft=False,
-        title=document.name,
-        slug=slugify(document.name, fallback=f"document-{document.id}"),
-        created_by=document.created_by,
-        created_at=document.created_at,
-        updated_at=document.updated_at,
+        title=file.name,
+        slug=slugify(file.name, fallback=f"file-{file.id}"),
+        created_by=file.created_by,
+        created_at=file.created_at,
+        updated_at=file.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(heading_nodes)],
-        document_type=getattr(document.document_type, "value", document.document_type),
-        file_content_type=document.file_content_type,
-        original_filename=document.original_filename,
-        smart_link_url=smart_link_url(document),
+        file_type=getattr(file.file_type, "value", file.file_type),
+        file_content_type=getattr(file.current_version, "file_content_type", None),
+        original_filename=getattr(file.current_version, "original_filename", None),
+        smart_link_url=smart_link_url(file),
     )
 
 
@@ -310,5 +308,4 @@ def serialize_wiki_page(page: "Any", *, context: ActorContext) -> WikiPageRead:
     return WikiPageRead(
         **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},
-        comment_count=getattr(page, "comment_count", 0),
     )

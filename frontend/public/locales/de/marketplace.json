@@ -24,6 +24,7 @@
   "detail": {
     "installs_one": "{{count}} Installation",
     "installs_other": "{{count}} Installationen",
+    "minimumAge": "Ab {{age}} Jahren",
     "install": "Zu einer Initiative hinzufügen",
     "preview": "Vorschau",
     "previewIsSample": "Beispiel mit Beispieldaten",
@@ -54,6 +55,6 @@
     "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
   },
   "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert.",
-  "subtitleApps": "Apps ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen.",
+  "subtitlePlugins": "Plug-ins ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen.",
   "subtitleAuto": "Automatisierungen laufen im Hintergrund für die ganze Community."
 }

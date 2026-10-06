@@ -1,17 +1,17 @@
-"""A vendor's own flow for making an app's vendor client.
+"""A vendor's own flow for making a plug-in's vendor client.
 
-An app's manifest may declare ``vendor.setup``: a flow at the vendor that
-creates the client the app's connections use on this deployment, and answers
+A plug-in's manifest may declare ``vendor.setup``: a flow at the vendor that
+creates the client the plug-in's connections use on this deployment, and answers
 with its values. Initiative runs it from the operator's browser and writes the
 answers into the registration's vendor values through the write the settings
 form uses, so none is typed or copied.
 
 ``github_app_manifest`` is the one flow. GitHub creates a GitHub App from a
 manifest the browser posts to it, sends the operator back with a code, and
-exchanges that code once for the new app's id, slug, client id and secret,
+exchanges that code once for the new GitHub App's id, slug, client id and secret,
 webhook secret and private key.
 
-* :func:`start` builds the manifest, the app's own declaration with the
+* :func:`start` builds the manifest, the plug-in's own declaration with the
   addresses Initiative already knows filled in, and a state for the operator's
   browser to carry to GitHub and back.
 * :func:`complete` checks the state, exchanges the code, and writes each value
@@ -40,20 +40,20 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_APP_VENDOR_SETUP, decrypt_field, encrypt_field
-from app.core.messages import AppServiceMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.core.encryption import SALT_PLUGIN_VENDOR_SETUP, decrypt_field, encrypt_field
+from app.core.messages import PluginServiceMessages
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.auth import challenges as challenge_service
 from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.manifest_values import ListingDefinitionError
-from app.services.marketplace.service_apps import (
+from app.services.marketplace.service_plugins import (
     GITHUB_APP_MANIFEST,
     check_setup_values,
 )
 from app.services.safe_http import ResponseTooLargeError, request_public_target
-from app.services.tenant import app_connection_flows as flows_service
+from app.services.tenant import plugin_connection_flows as flows_service
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -70,7 +70,7 @@ __all__ = [
     "start",
 ]
 
-#: How long an operator has to confirm the app on GitHub and come back.
+#: How long an operator has to confirm the GitHub App on GitHub and come back.
 STATE_TTL = timedelta(hours=1)
 
 GITHUB_URL = "https://github.com"
@@ -123,7 +123,7 @@ def redirect_url(registration_id: int) -> str:
 
 
 async def _manifest(
-    session: AsyncSession, row: AppServiceRegistration
+    session: AsyncSession, row: PluginServiceRegistration
 ) -> tuple[Optional[int], dict[str, Any]]:
     """The registration's listing version and its manifest, as they are now."""
     version = (
@@ -150,7 +150,7 @@ def _organization(value: Optional[str]) -> Optional[str]:
     ):
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=AppServiceMessages.VENDOR_SETUP_INVALID_ORGANIZATION,
+            detail=PluginServiceMessages.VENDOR_SETUP_INVALID_ORGANIZATION,
         )
     return cleaned
 
@@ -162,7 +162,7 @@ async def start(
     organization: Optional[str],
     actor_user_id: int,
 ) -> VendorSetupStart:
-    """Build the manifest for the app's GitHub App, owned by ``organization``
+    """Build the manifest for the plug-in's GitHub App, owned by ``organization``
     or by the operator's own account, and open the state that brings the
     operator back."""
     row = await registrations_service.get_registration(session, registration_id)
@@ -170,7 +170,7 @@ async def start(
     if setup_kind(definition) is None:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.VENDOR_SETUP_UNAVAILABLE,
+            detail=PluginServiceMessages.VENDOR_SETUP_UNAVAILABLE,
         )
     setup = definition["vendor"]["setup"]
     owner = _organization(organization)
@@ -197,12 +197,12 @@ async def start(
                 "values": setup["values"],
             }
         ),
-        SALT_APP_VENDOR_SETUP,
+        SALT_PLUGIN_VENDOR_SETUP,
     )
     await challenge_service.create(
         session,
         user_id=actor_user_id,
-        purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        purpose=challenge_service.ChallengePurpose.plugin_vendor_setup,
         value=state,
         answer=str(row.id),
         ttl=STATE_TTL,
@@ -214,14 +214,14 @@ async def start(
 def _expired() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_400_BAD_REQUEST,
-        detail=AppServiceMessages.VENDOR_SETUP_EXPIRED,
+        detail=PluginServiceMessages.VENDOR_SETUP_EXPIRED,
     )
 
 
 def _failed() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_502_BAD_GATEWAY,
-        detail=AppServiceMessages.VENDOR_SETUP_FAILED,
+        detail=PluginServiceMessages.VENDOR_SETUP_FAILED,
     )
 
 
@@ -234,7 +234,7 @@ async def _spend_state(
     spent = await challenge_service.spend_answered(
         session,
         value=state,
-        purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        purpose=challenge_service.ChallengePurpose.plugin_vendor_setup,
         user_id=actor_user_id,
         answer=str(registration_id),
     )
@@ -242,7 +242,7 @@ async def _spend_state(
     if not spent:
         raise _expired()
     try:
-        sealed = json.loads(decrypt_field(state, SALT_APP_VENDOR_SETUP))
+        sealed = json.loads(decrypt_field(state, SALT_PLUGIN_VENDOR_SETUP))
     except (InvalidToken, UnicodeDecodeError, ValueError) as exc:
         raise _expired() from exc
     if not isinstance(sealed, dict) or not isinstance(sealed.get("values"), dict):
@@ -251,10 +251,10 @@ async def _spend_state(
 
 
 async def _convert(code: str) -> dict[str, Any]:
-    """GitHub's answer for the code: the new app's values."""
+    """GitHub's answer for the code: the new GitHub App's values."""
     if not code or len(code) > _MAX_CODE or any(c not in _CODE_CHARS for c in code):
         raise _failed()
-    url = f"{GITHUB_API_URL}/app-manifests/{quote(code, safe='')}/conversions"
+    url = f"{GITHUB_API_URL}/plugin-manifests/{quote(code, safe='')}/conversions"
     try:
         response = await request_public_target(
             "POST",
@@ -272,11 +272,11 @@ async def _convert(code: str) -> dict[str, Any]:
         WebhookTargetUrlPrivateError,
         ValueError,
     ) as exc:
-        logger.warning("app services: the GitHub App conversion failed (%s)", exc)
+        logger.warning("plug-in services: the GitHub App conversion failed (%s)", exc)
         raise _failed() from exc
     if not isinstance(body, dict):
         logger.warning(
-            "app services: GitHub answered the conversion with %s",
+            "plug-in services: GitHub answered the conversion with %s",
             response.status_code,
         )
         raise _failed()
@@ -290,7 +290,7 @@ async def complete(
     code: str,
     state: str,
     actor_user_id: int,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Finish the setup GitHub sent the operator back from: exchange its code,
     and write each value GitHub answers with to the vendor field the setup
     named when it started, all of them in one write or none.
@@ -315,7 +315,7 @@ async def complete(
                 mapping, fields=vendor_values_service.vendor_fields(definition)
             )
         except ListingDefinitionError as exc:
-            logger.info("app services: a vendor setup no longer fits (%s)", exc)
+            logger.info("plug-in services: a vendor setup no longer fits (%s)", exc)
             raise _expired() from exc
     answer = await _convert(code)
     values: dict[str, Optional[str]] = {}

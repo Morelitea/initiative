@@ -117,7 +117,7 @@ def test_a_grantee_holds_one_grant_per_resource():
         "resource_id",
         "user_id",
         "role_id",
-        "app_install_id",
+        "plugin_install_id",
     ]
 
 
@@ -295,21 +295,21 @@ async def test_restore_gives_content_back_to_a_present_author(session):
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, author, "project_manager")
 
-    document = await TOOL_FACTORIES[Tool.document](session, initiative, author)
+    file = await TOOL_FACTORIES[Tool.file](session, initiative, author)
 
     await route_session_to_guild(session, guild.id)
     await ownership_service.set_resource_owner(
-        session, tool=Tool.document, row=document, new_owner=None
+        session, tool=Tool.file, row=file, new_owner=None
     )
     await session.commit()
 
     claimed = await ownership_service.restore_ownership_to_author(
-        session, row=document, guild_id=guild.id
+        session, row=file, guild_id=guild.id
     )
     await session.commit()
 
     assert claimed is True
-    grant = await _owner_grant(session, Tool.document, document.id)
+    grant = await _owner_grant(session, Tool.file, file.id)
     assert grant is not None and grant.user_id == author.id
 
 
@@ -322,7 +322,7 @@ async def test_restore_leaves_content_unowned_when_the_author_has_gone(session):
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, author, "project_manager")
 
-    document = await TOOL_FACTORIES[Tool.document](session, initiative, author)
+    file = await TOOL_FACTORIES[Tool.file](session, initiative, author)
 
     await initiatives_service.remove_user_from_guild_initiatives(
         session, guild_id=guild.id, user_id=author.id
@@ -340,12 +340,12 @@ async def test_restore_leaves_content_unowned_when_the_author_has_gone(session):
 
     await route_session_to_guild(session, guild.id)
     claimed = await ownership_service.restore_ownership_to_author(
-        session, row=document, guild_id=guild.id
+        session, row=file, guild_id=guild.id
     )
     await session.commit()
 
     assert claimed is False
-    assert await _owner_grant(session, Tool.document, document.id) is None
+    assert await _owner_grant(session, Tool.file, file.id) is None
 
 
 async def test_a_projects_author_gets_it_back_on_restore(session):

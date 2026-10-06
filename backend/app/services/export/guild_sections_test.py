@@ -62,7 +62,7 @@ def test_credential_tables_are_never_carried():
     [
         (None, frozenset(), True),  # hand-made here
         ("", frozenset(), True),
-        ("abc", frozenset({"abc"}), True),  # built on a built-in app
+        ("abc", frozenset({"abc"}), True),  # built on a built-in plug-in
         ("abc", frozenset(), False),  # third-party or withdrawn
         ("abc", frozenset({"xyz"}), False),
     ],

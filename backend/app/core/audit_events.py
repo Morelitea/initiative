@@ -97,11 +97,11 @@ class AuditEventType(str, Enum):
     #: every one of them, read or write. The grant says what somebody was let
     #: into; this says what they then did with it, which is the difference
     #: between "an operator held this community for an hour" and "an operator
-    #: opened four hundred documents". It records the reach, so it is not a
+    #: opened four hundred files". It records the reach, so it is not a
     #: write itself: a request that changed something records that separately,
     #: under the event for what it changed.
     PAM_REQUEST = "pam.request"
-    #: Somebody serving a grant changed a document's or a wiki page's body,
+    #: Somebody serving a grant changed a file's or a wiki page's body,
     #: which happens over a live editing socket rather than through a request.
     #: One line the first time they do it in a session: that they edited it is
     #: the fact worth having, and a line per keystroke would bury it.
@@ -145,15 +145,15 @@ class AuditEventType(str, Enum):
     #: Everything one account owned in a community now belongs to another,
     #: or to nobody. One record per transfer, with counts by tool.
     CONTENT_OWNERSHIP_TRANSFERRED = "content.ownership_transferred"
-    #: A member allowed an installed app's request to act as them, or took
+    #: A member allowed an installed plug-in's request to act as them, or took
     #: that back (or the community's seat ended it for them).
-    APP_CONSENT_GRANTED = "app_consent.granted"
-    APP_CONSENT_REVOKED = "app_consent.revoked"
-    #: One installed app called another through Initiative: which app called,
+    PLUGIN_CONSENT_GRANTED = "plugin_consent.granted"
+    PLUGIN_CONSENT_REVOKED = "plugin_consent.revoked"
+    #: One installed plug-in called another through Initiative: which plug-in called,
     #: which it called, the endpoint, whose behalf it was on, and how it ended.
-    #: It records the reach, as ``pam.request`` does; what the app called then
+    #: It records the reach, as ``pam.request`` does; what the plug-in called then
     #: changed is its own.
-    APP_HUB_CALL = "app_hub.call"
+    PLUGIN_HUB_CALL = "plugin_hub.call"
 
     # Configuration. The record says which fields moved; a value is copied in
     # only where its type rules out a secret (see ``audit.changed_fields``).
@@ -186,11 +186,11 @@ class AuditEventType(str, Enum):
     AI_CONNECTION_CREATED = "ai_connection.created"
     AI_CONNECTION_UPDATED = "ai_connection.updated"
     AI_CONNECTION_DELETED = "ai_connection.deleted"
-    APP_SERVICE_CREATED = "app_service.created"
-    APP_SERVICE_UPDATED = "app_service.updated"
-    APP_SERVICE_DELETED = "app_service.deleted"
-    APP_PUBLISHER_CREATED = "app_publisher.created"
-    APP_PUBLISHER_UPDATED = "app_publisher.updated"
+    PLUGIN_SERVICE_CREATED = "plugin_service.created"
+    PLUGIN_SERVICE_UPDATED = "plugin_service.updated"
+    PLUGIN_SERVICE_DELETED = "plugin_service.deleted"
+    PLUGIN_PUBLISHER_CREATED = "plugin_publisher.created"
+    PLUGIN_PUBLISHER_UPDATED = "plugin_publisher.updated"
     #: An operator re-read the catalogue sources; carries what was published
     #: and withdrawn.
     MARKETPLACE_CATALOG_REFRESHED = "marketplace.catalog_refreshed"
@@ -204,8 +204,8 @@ class AuditEventType(str, Enum):
     MARKETPLACE_LISTING_UPLOADED = "marketplace.listing_uploaded"
     #: A member took down a listing they shared.
     MARKETPLACE_LISTING_WITHDRAWN = "marketplace.listing_withdrawn"
-    #: An installed app's own settings or configuration.
-    APP_UPDATED = "app.updated"
+    #: An installed plug-in's own settings or configuration.
+    PLUGIN_UPDATED = "plugin.updated"
 
     # Lifecycle: accounts and communities coming and going, and the bulk
     # movements of data — out of the deployment, or gone for good.
@@ -248,8 +248,8 @@ class AuditEventType(str, Enum):
     API_KEY_DELETED = "api_key.deleted"
     #: Switched off by staff rather than deleted by its holder, who still sees it.
     API_KEY_REVOKED = "api_key.revoked"
-    APP_INSTALLED = "app.installed"
-    APP_UNINSTALLED = "app.uninstalled"
+    PLUGIN_INSTALLED = "plugin.installed"
+    PLUGIN_UNINSTALLED = "plugin.uninstalled"
     WEBHOOK_CREATED = "webhook.created"
     WEBHOOK_UPDATED = "webhook.updated"
     WEBHOOK_DELETED = "webhook.deleted"
@@ -263,13 +263,13 @@ class AuditCategory(str, Enum):
 
     MODERATION = "moderation"
     AUTHENTICATION = "authentication"
-    #: Who may reach what: memberships, roles, shares, app consents, and
+    #: Who may reach what: memberships, roles, shares, plug-in consents, and
     #: privileged access into a community from outside it.
     AUTHORIZATION = "authorization"
     #: The platform itself: who holds which rung of its ladder. Operator
     #: work, which is a different job from moderating an account.
     PLATFORM = "platform"
-    #: Settings, at either level: how sign-in, email, storage, AI and apps
+    #: Settings, at either level: how sign-in, email, storage, AI and plug-ins
     #: are wired.
     CONFIGURATION = "configuration"
     #: Accounts and communities arriving and leaving, and data moved in
@@ -446,13 +446,13 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.CONTENT_OWNERSHIP_TRANSFERRED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.APP_CONSENT_GRANTED: AuditEventMeta(
+    AuditEventType.PLUGIN_CONSENT_GRANTED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.APP_CONSENT_REVOKED: AuditEventMeta(
+    AuditEventType.PLUGIN_CONSENT_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.APP_HUB_CALL: AuditEventMeta(
+    AuditEventType.PLUGIN_HUB_CALL: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=False
     ),
     # Configuration, at either level.
@@ -510,19 +510,19 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.AI_CONNECTION_DELETED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_SERVICE_CREATED: AuditEventMeta(
+    AuditEventType.PLUGIN_SERVICE_CREATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_SERVICE_UPDATED: AuditEventMeta(
+    AuditEventType.PLUGIN_SERVICE_UPDATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_SERVICE_DELETED: AuditEventMeta(
+    AuditEventType.PLUGIN_SERVICE_DELETED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_PUBLISHER_CREATED: AuditEventMeta(
+    AuditEventType.PLUGIN_PUBLISHER_CREATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_PUBLISHER_UPDATED: AuditEventMeta(
+    AuditEventType.PLUGIN_PUBLISHER_UPDATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.MARKETPLACE_CATALOG_REFRESHED: AuditEventMeta(
@@ -540,7 +540,7 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.MARKETPLACE_LISTING_WITHDRAWN: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_UPDATED: AuditEventMeta(
+    AuditEventType.PLUGIN_UPDATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     # A personal API key is a credential, so it sits with the rest of them.
@@ -596,10 +596,10 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.TRASH_PURGED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
-    AuditEventType.APP_INSTALLED: AuditEventMeta(
+    AuditEventType.PLUGIN_INSTALLED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
-    AuditEventType.APP_UNINSTALLED: AuditEventMeta(
+    AuditEventType.PLUGIN_UNINSTALLED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.WEBHOOK_CREATED: AuditEventMeta(

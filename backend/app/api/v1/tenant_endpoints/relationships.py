@@ -1,7 +1,7 @@
 """One surface for how things connect.
 
-Replaces the per-tool attach endpoints — a project's documents, a queue item's
-documents and tasks, an event's documents — which were five routes saying the
+Replaces the per-tool attach endpoints — a project's files, a queue item's
+files and tasks, an event's files — which were five routes saying the
 same thing about four pairs of kinds. What varies between them is which two
 kinds are named, and that is a parameter.
 
@@ -19,8 +19,7 @@ behalf answers to them too:
 * **Both ends of a link made here are in one initiative.** The table permits a
   cross-initiative edge — that is where the graph gets its reach, and content
   references will make them — but choosing one in a picker is not how they
-  should arrive. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal by the same
-  name.
+  should arrive.
 * **An archived thing takes no new links, and gives none up.** Archiving is a
   statement that a project is finished with, and the policy has no opinion on
   it. Asked of whichever end has the state — only projects and tasks do.
@@ -126,7 +125,7 @@ def _render(
             image_urls=found.image_urls,
             icon=found.icon,
             color=found.color,
-            document_type=found.document_type,
+            file_type=found.file_type,
             mime_type=found.mime_type,
             original_filename=found.original_filename,
             smart_link_url=found.smart_link_url,

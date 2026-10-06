@@ -46,7 +46,7 @@ Worth knowing:
 
 - It's **off unless whoever runs your server turns it on**.
 - Every action runs **as you**, scoped by your key. An assistant reaches only what *you* could reach.
-- The surface is **curated** — any key can read the initiatives you belong to and every kind of tool they hold (projects and tasks, documents, wikis, queues, counters, calendars, galleries, notices and dashboards), the comments on any of them, and what any of them is linked to. It can also run the same **search** the app's own search page runs, ranked across the lot.
+- The surface is **curated** — any key can read the initiatives you belong to and every kind of tool they hold (projects and tasks, files, wikis, queues, counters, calendars, galleries, notices and dashboards), the comments on any of them, and what any of them is linked to. It can also run the same **search** the app's own search page runs, ranked across the lot.
 - A **full-access** key can create and edit those same things, link two of them together, move a task between statuses, and tick a checklist item off. Deleting (a link included), archiving, bulk edits, sharing and AI generation are never exposed, and a read-only key can't write at all.
 
 !!! tip "Read-only, single-community, for assistants"

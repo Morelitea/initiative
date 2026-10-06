@@ -9,7 +9,7 @@ decided.
 
 What the tests below hold is the replacement: the scope decides, the scope is
 all that decides, and an account going away does not end a community's
-integration. What an app may *do* with a delivery is a separate gate in a
+integration. What a plug-in may *do* with a delivery is a separate gate in a
 separate place — its own token's standing, read on every call — and is not
 exercised here.
 """
@@ -171,12 +171,12 @@ async def test_a_community_subscription_hears_every_initiative(
 
 
 # ---------------------------------------------------------------------------
-# A subscription an installed app registered
+# A subscription an installed plug-in registered
 # ---------------------------------------------------------------------------
 
 
-#: Another app's event, and the app that emits it.
-_GH_EVENT = "app.tests.gh.issue_opened"
+#: Another plug-in's event, and the plug-in that emits it.
+_GH_EVENT = "plugin.tests.gh.issue_opened"
 _EMITTERS = {_GH_EVENT: "tests.gh"}
 
 
@@ -186,11 +186,11 @@ def _install_context(**overrides):
     defaults = dict(
         guild_id=1,
         install_id=4,
-        client_id="tests.app",
-        token_scopes=frozenset({"documents:read"}),
+        client_id="tests.plugin",
+        token_scopes=frozenset({"files:read"}),
         live=True,
         member_initiatives=(11, 12),
-        install_read=("documents",),
+        install_read=("files",),
     )
     defaults.update(overrides)
     return InstallContext(**defaults)
@@ -199,22 +199,20 @@ def _install_context(**overrides):
 @pytest.mark.parametrize(
     ("overrides", "event_types", "initiative_id"),
     [
-        pytest.param({}, ["documents.created"], None, id="community-wide"),
-        pytest.param({}, ["documents.updated"], 12, id="a-placed-initiative"),
+        pytest.param({}, ["files.created"], None, id="community-wide"),
+        pytest.param({}, ["files.updated"], 12, id="a-placed-initiative"),
+        pytest.param({"scope_initiative_id": 11}, ["files.deleted"], 11, id="narrowed"),
         pytest.param(
-            {"scope_initiative_id": 11}, ["documents.deleted"], 11, id="narrowed"
-        ),
-        pytest.param(
-            {"install_read": ("documents", "projects")},
-            ["documents.created", "tasks.created"],
+            {"install_read": ("files", "projects")},
+            ["files.created", "tasks.created"],
             None,
             id="every-tool-held",
         ),
         pytest.param(
-            {"token_scopes": frozenset({"apps:tests.gh"})},
+            {"token_scopes": frozenset({"plugins:tests.gh"})},
             [_GH_EVENT],
             None,
-            id="another-apps-event",
+            id="another-plugins-event",
         ),
     ],
 )
@@ -236,29 +234,29 @@ def test_an_install_may_subscribe_within_its_standing(
     [
         pytest.param({}, ["tasks.created"], None, id="tool-scope-missing"),
         pytest.param(
-            {}, ["documents.created", "tasks.created"], None, id="one-type-uncovered"
+            {}, ["files.created", "tasks.created"], None, id="one-type-uncovered"
         ),
-        pytest.param({}, ["apps.created"], None, id="no-scope-reaches-it"),
+        pytest.param({}, ["plugins.created"], None, id="no-scope-reaches-it"),
         pytest.param(
             {"scope_initiative_id": 11},
-            ["documents.created"],
+            ["files.created"],
             None,
             id="narrowed-community-wide",
         ),
         pytest.param(
             {"scope_initiative_id": 11},
-            ["documents.created"],
+            ["files.created"],
             12,
             id="narrowed-other-initiative",
         ),
-        pytest.param({}, ["documents.created"], 13, id="not-placed"),
-        pytest.param({}, [_GH_EVENT], None, id="apps-scope-missing"),
+        pytest.param({}, ["files.created"], 13, id="not-placed"),
+        pytest.param({}, [_GH_EVENT], None, id="plugins-scope-missing"),
     ],
 )
 def test_an_install_may_not_subscribe_beyond_its_standing(
     overrides, event_types, initiative_id
 ):
-    from app.core.messages import AppMessages
+    from app.core.messages import PluginMessages
     from app.services.tenant.webhook_subscriptions import (
         WebhookSubscriptionScopeError,
         assert_install_may_subscribe,
@@ -271,25 +269,25 @@ def test_an_install_may_not_subscribe_beyond_its_standing(
             initiative_id=initiative_id,
             emitters=_EMITTERS,
         )
-    assert refused.value.code == AppMessages.SCOPE_REQUIRED
+    assert refused.value.code == PluginMessages.SCOPE_REQUIRED
 
 
 _HOOK = "https://app.example.test/hook"
 
 
 async def _install_subscribes(role_session, install, *, initiative_id=None):
-    """The install registers a subscription to documents as its community."""
+    """The install registers a subscription to files as its community."""
     from app.db.install_standing_test import _route
     from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
     from app.services.tenant.webhook_subscriptions import create_install_subscription
 
-    s, context = await _route(role_session, install, ["documents:write"])
+    s, context = await _route(role_session, install, ["files:write"])
     row, _secret = await create_install_subscription(
         s,
         context=context,
         payload=WebhookSubscriptionCreate(
             target_url=_HOOK,
-            event_types=["documents.created"],
+            event_types=["files.created"],
             initiative_id=initiative_id,
         ),
     )
@@ -302,10 +300,10 @@ async def test_an_install_registers_a_subscription_naming_no_person(
     from app.db.install_standing_test import _install
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     row = await _install_subscribes(role_session, install)
-    assert row.app_install_id == install.app.id
+    assert row.plugin_install_id == install.plugin.id
     assert row.created_by is None
     assert row.initiative_id is None
 
@@ -319,37 +317,37 @@ async def test_a_narrowed_install_cannot_write_a_community_subscription(
 
     from app.db.install_standing_test import _install, _route
 
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     s, _ = await _route(
-        role_session, install, ["documents:read"], initiative_id=install.a.id
+        role_session, install, ["files:read"], initiative_id=install.a.id
     )
     insert = text(
-        "INSERT INTO webhook_subscriptions (initiative_id, app_install_id,"
+        "INSERT INTO webhook_subscriptions (initiative_id, plugin_install_id,"
         " target_url, hmac_secret, event_types, created_at, updated_at)"
         " VALUES (:i, :a, 'https://app.example.test/hook', 's3cret',"
-        " ARRAY['documents.created'], now(), now())"
+        " ARRAY['files.created'], now(), now())"
     )
     with pytest.raises(DBAPIError, match="row-level security"):
-        await s.exec(insert.bindparams(i=None, a=install.app.id))
+        await s.exec(insert.bindparams(i=None, a=install.plugin.id))
     await s.rollback()
 
     s, _ = await _route(
-        role_session, install, ["documents:read"], initiative_id=install.a.id
+        role_session, install, ["files:read"], initiative_id=install.a.id
     )
-    await s.exec(insert.bindparams(i=install.a.id, a=install.app.id))
+    await s.exec(insert.bindparams(i=install.a.id, a=install.plugin.id))
     await s.rollback()
 
 
 async def _grant_scopes(role_session, install, scopes: list[str]) -> None:
     """Change the install's grant the way a community does: by its seat."""
-    from app.models.tenant.guild_app import GuildApp
+    from app.models.tenant.guild_plugin import GuildPlugin
     from app.testing import route_as
 
     s = await role_session("app_user")
     await route_as(s, user_id=install.seat.user.id, guild_id=install.guild.id)
-    row = (await s.exec(select(GuildApp).where(GuildApp.id == install.app.id))).one()
+    row = (
+        await s.exec(select(GuildPlugin).where(GuildPlugin.id == install.plugin.id))
+    ).one()
     row.granted_scopes = scopes
     s.add(row)
     await s.commit()
@@ -359,31 +357,35 @@ async def _withdraw(session, role_session, install, what: str) -> None:
     """Take one part of the install's reach away."""
     from sqlalchemy import delete
 
-    from app.models.platform.app_service_registration import AppServiceRegistration
-    from app.models.tenant.app_placement import AppPlacement
-    from app.models.tenant.guild_app import GuildApp
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
+    from app.models.tenant.plugin_placement import PluginPlacement
+    from app.models.tenant.guild_plugin import GuildPlugin
     from app.services.marketplace.registration_lookup import invalidate_registrations
 
     session.expunge_all()
     if what == "placement":
         await route_session_to_guild(session, install.guild.id)
         await session.exec(
-            delete(AppPlacement).where(AppPlacement.install_id == install.app.id)
+            delete(PluginPlacement).where(
+                PluginPlacement.install_id == install.plugin.id
+            )
         )
         await session.commit()
     elif what == "scope":
         await _grant_scopes(role_session, install, ["comments:read"])
     elif what == "install":
         await route_session_to_guild(session, install.guild.id)
-        app = await session.get(GuildApp, install.app.id)
-        app.enabled = False
-        session.add(app)
+        plugin = await session.get(GuildPlugin, install.plugin.id)
+        plugin.enabled = False
+        session.add(plugin)
         await session.commit()
     elif what == "registration":
         registration = (
             await session.exec(
-                select(AppServiceRegistration).where(
-                    AppServiceRegistration.listing_uid == install.app.listing_uid
+                select(PluginServiceRegistration).where(
+                    PluginServiceRegistration.listing_uid == install.plugin.listing_uid
                 )
             )
         ).one()
@@ -399,29 +401,31 @@ async def _withdraw(session, role_session, install, what: str) -> None:
 async def test_an_install_hears_what_it_writes_and_is_named_for_it(
     session: AsyncSession, role_session, acting_user, monkeypatch
 ):
-    """An install's subscription carries the documents of the initiative it
-    is placed in, and names the app when the app wrote the change."""
+    """An install's subscription carries the files of the initiative it
+    is placed in, and names the plug-in when the plug-in wrote the change."""
     from app.db.install_standing_test import CLIENT, _install, _route
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.services.tenant import outbox_poller as poller
-    from app.testing import create_document
+    from app.testing import create_file
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"], placed="a"
+        session, acting_user, role_session, granted=["files:write"], placed="a"
     )
     await _install_subscribes(role_session, install)
     sent = _collector(monkeypatch, poller)
     system = await role_session("app_admin")
 
     session.expunge_all()
-    in_a = await create_document(session, install.a, install.seat.user)
+    in_a = await create_file(session, install.a, install.seat.user)
     session.expunge_all()
-    await create_document(session, install.b, install.seat.user)
+    await create_file(session, install.b, install.seat.user)
     session.expunge_all()
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    made = Document(
-        initiative_id=install.a.id, name="By the app", document_type=DocumentType.native
+    s, _ = await _route(role_session, install, ["files:write"])
+    made = File(
+        initiative_id=install.a.id,
+        name="By the plug-in",
+        file_type=FileType.native,
     )
     s.add(made)
     await s.commit()
@@ -434,11 +438,11 @@ async def test_an_install_hears_what_it_writes_and_is_named_for_it(
         for envelope in sent
         for change in envelope["changes"]
     }
-    # B is not a placed initiative, so its document is not heard.
+    # B is not a placed initiative, so its file is not heard.
     assert set(changes) == {in_a.id, made_id}
-    assert changes[made_id]["actor_app"] == CLIENT
+    assert changes[made_id]["actor_plugin"] == CLIENT
     assert changes[made_id]["actor_ref"] is None
-    assert changes[in_a.id]["actor_app"] is None
+    assert changes[in_a.id]["actor_plugin"] is None
 
 
 @pytest.mark.parametrize("what", ["placement", "scope", "install", "registration"])
@@ -447,60 +451,60 @@ async def test_an_install_hears_nothing_once_its_reach_is_withdrawn(
 ):
     from app.db.install_standing_test import _install
     from app.services.tenant import outbox_poller as poller
-    from app.testing import create_document
+    from app.testing import create_file
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:read"], placed="a"
+        session, acting_user, role_session, granted=["files:read"], placed="a"
     )
     await _install_subscribes(role_session, install, initiative_id=install.a.id)
     sent = _collector(monkeypatch, poller)
     system = await role_session("app_admin")
 
     session.expunge_all()
-    before = await create_document(session, install.a, install.seat.user)
+    before = await create_file(session, install.a, install.seat.user)
     session.expunge_all()
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]
 
     await _withdraw(session, role_session, install, what)
-    await create_document(session, install.a, install.seat.user)
+    await create_file(session, install.a, install.seat.user)
     session.expunge_all()
     system.expunge_all()
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]
 
 
-async def test_an_apps_event_is_kept_until_the_subscriber_accepts_it(
+async def test_a_plugins_event_is_kept_until_the_subscriber_accepts_it(
     session: AsyncSession, role_session, acting_user, client, monkeypatch
 ):
-    """An install holding ``apps:<emitter>`` subscribes to another app's event,
-    and an event that app emits is delivered through the poller, retried
+    """An install holding ``plugins:<emitter>`` subscribes to another plug-in's event,
+    and an event that plug-in emits is delivered through the poller, retried
     after a refusal."""
-    from app.core.app_access_token import seal_install_token
+    from app.core.plugin_access_token import seal_install_token
     from app.db.install_standing_test import _install, _route
     from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
     from app.services.tenant import outbox_poller as poller
     from app.services.tenant.webhook_subscriptions import create_install_subscription
-    from app.testing import create_app_service_registration, create_guild_app
+    from app.testing import create_plugin_service_registration, create_guild_plugin
 
     install = await _install(
-        session, acting_user, role_session, granted=["apps:tests.gh"], placed="a"
+        session, acting_user, role_session, granted=["plugins:tests.gh"], placed="a"
     )
-    emitter = await create_guild_app(
+    emitter = await create_guild_plugin(
         session,
         install.guild,
         install.seat.user,
         listing_uid="GHEMTTER000001",
         definition={
-            "app_kind": "service",
+            "plugin_kind": "service",
             "service": {"public_id": "tests.gh", "protocol": 1},
             "endpoints": [{"id": _GH_EVENT, "direction": "emit"}],
         },
     )
-    await create_app_service_registration(
+    await create_plugin_service_registration(
         session, public_id="tests.gh", listing_uid="GHEMTTER000001"
     )
-    s, context = await _route(role_session, install, ["apps:tests.gh"])
+    s, context = await _route(role_session, install, ["plugins:tests.gh"])
     await create_install_subscription(
         s,
         context=context,
@@ -517,7 +521,7 @@ async def test_an_apps_event_is_kept_until_the_subscriber_accepts_it(
         purpose=None,
     )
     emitted = await client.post(
-        "/api/v1/app-platform/installation/events",
+        "/api/v1/plugin-platform/installation/events",
         json={"event_type": _GH_EVENT, "payload": {"number": 12}},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -539,48 +543,48 @@ async def test_an_apps_event_is_kept_until_the_subscriber_accepts_it(
     assert [attempt["event_id"] for attempt in attempts] == [
         attempts[0]["event_id"]
     ] * 2
-    assert attempts[1]["actor_app"] == "tests.gh"
+    assert attempts[1]["actor_plugin"] == "tests.gh"
     assert attempts[1]["changes"] == [
         {
             "event_type": _GH_EVENT,
             "initiative_id": None,
-            "app": "tests.gh",
+            "plugin": "tests.gh",
             "payload": {"number": 12},
         }
     ]
 
 
-async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_does(
+async def test_a_declarative_plugins_event_reaches_a_subscriber_as_a_containers_does(
     session: AsyncSession, role_session, acting_user, client, monkeypatch
 ):
-    """An app whose deliveries Initiative maps is named by its listing, so an
+    """A plug-in whose deliveries Initiative maps is named by its listing, so an
     install may subscribe to its event; what reaches the subscriber is what
-    the same app emitting the same event from a container delivers."""
-    from app.core.app_access_token import seal_install_token
+    the same plug-in emitting the same event from a container delivers."""
+    from app.core.plugin_access_token import seal_install_token
     from app.db.install_standing_test import _install, _route
-    from app.models.platform.app_service_registration import RegistrationKind
-    from app.models.tenant.guild_app import GuildApp
+    from app.models.platform.plugin_service_registration import RegistrationKind
+    from app.models.tenant.guild_plugin import GuildPlugin
     from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
     from app.services.marketplace.registration_lookup import invalidate_registrations
     from app.services.tenant import outbox_poller as poller
     from app.services.tenant.webhook_subscriptions import create_install_subscription
     from app.testing import (
-        create_app_service_registration,
-        create_guild_app,
+        create_plugin_service_registration,
+        create_guild_plugin,
         create_marketplace_listing,
         sealed_vendor_values,
     )
     from app.testing.fake_vendor import FakeVendor, declarative_github
 
     public_id, listing_uid = "tests.ghd", "GHDECXARE00001"
-    event_type = f"app.{public_id}.issue-opened"
+    event_type = f"plugin.{public_id}.issue-opened"
     vendor = FakeVendor()
     vendor.install(monkeypatch)
     install = await _install(
-        session, acting_user, role_session, granted=[f"apps:{public_id}"], placed="a"
+        session, acting_user, role_session, granted=[f"plugins:{public_id}"], placed="a"
     )
     definition = declarative_github(public_id)
-    registration = await create_app_service_registration(
+    registration = await create_plugin_service_registration(
         session,
         public_id=public_id,
         listing_uid=listing_uid,
@@ -591,9 +595,13 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         ),
     )
     await create_marketplace_listing(
-        session, uid=listing_uid, public_id=public_id, kind="app", definition=definition
+        session,
+        uid=listing_uid,
+        public_id=public_id,
+        kind="plugin",
+        definition=definition,
     )
-    emitter = await create_guild_app(
+    emitter = await create_guild_plugin(
         session,
         install.guild,
         install.seat.user,
@@ -601,7 +609,7 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         definition=definition,
         config={"workspace": {"owner": "acme", "installation_id": "42"}},
     )
-    s, context = await _route(role_session, install, [f"apps:{public_id}"])
+    s, context = await _route(role_session, install, [f"plugins:{public_id}"])
     await create_install_subscription(
         s,
         context=context,
@@ -619,7 +627,7 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         }
     )
     response = await client.post(
-        f"/api/v1/app-hooks/{public_id}", content=body, headers=headers
+        f"/api/v1/plugin-hooks/{public_id}", content=body, headers=headers
     )
     assert response.status_code == 202, response.text
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
@@ -628,7 +636,7 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         {
             "event_type": event_type,
             "initiative_id": None,
-            "app": public_id,
+            "plugin": public_id,
             "payload": {
                 "repository": "acme/web",
                 "number": 12,
@@ -637,15 +645,17 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         }
     ]
 
-    # The same app, as a container emitting the same event.
+    # The same plug-in, as a container emitting the same event.
     registration.kind = RegistrationKind.CONTAINER
     session.add(registration)
     await session.commit()
     invalidate_registrations()
     await route_session_to_guild(session, install.guild.id)
-    row = (await session.exec(select(GuildApp).where(GuildApp.id == emitter.id))).one()
+    row = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == emitter.id))
+    ).one()
     row.definition = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": public_id, "protocol": 1},
         "endpoints": [
             entry for entry in definition["endpoints"] if entry["id"] == event_type
@@ -663,7 +673,7 @@ async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_doe
         purpose=None,
     )
     emitted = await client.post(
-        "/api/v1/app-platform/installation/events",
+        "/api/v1/plugin-platform/installation/events",
         json={"event_type": event_type, "payload": declared["changes"][0]["payload"]},
         headers={"Authorization": f"Bearer {token}"},
     )

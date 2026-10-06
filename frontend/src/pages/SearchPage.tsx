@@ -3,7 +3,7 @@
  *
  * Tabs by KIND of thing rather than one per tool, and no counts on any of
  * them: a tab is a place to look, not a reported quantity. Per-tool tabs would
- * privilege projects and documents — an artifact of them being the two core
+ * privilege projects and files — an artifact of them being the two core
  * tools — and would reflow every time a tool is added.
  *
  * A tab is a differently scoped query, not a filter over one, so the tab a
@@ -90,7 +90,7 @@ export function SearchPage() {
       to: ".",
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        tab: next === DEFAULT_SEARCH_CATEGORY ? undefined : next,
+        tab: isSearchCategory(next) && next !== DEFAULT_SEARCH_CATEGORY ? next : undefined,
         page: undefined,
       }),
     });

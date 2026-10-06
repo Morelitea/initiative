@@ -14,7 +14,7 @@
  *   one suspended for nonpayment and then deleted should not come back
  *   trading.
  *
- * What does not come back is its app connections. Those were revoked when it
+ * What does not come back is its plug-in connections. Those were revoked when it
  * was deleted — the community had withdrawn their authorization — and its
  * admins reconnect them.
  */
@@ -167,7 +167,7 @@ export const CommunityRestoreWizard = ({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">{t("communities.restore.appsNote")}</p>
+        <p className="text-muted-foreground text-xs">{t("communities.restore.pluginsNote")}</p>
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={restore.isPending}>

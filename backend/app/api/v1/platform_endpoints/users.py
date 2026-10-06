@@ -22,7 +22,7 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    app_scope,
+    plugin_scope,
     FactorExemptAccountHolder,
     FactorExemptAccountHolderSessionDep,
     RLSSessionDep,
@@ -123,7 +123,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.ownership import (
     OwnedContentItem,
     OwnedContentResponse,
-    OwnerAppSummary,
+    OwnerPluginSummary,
     OwnershipTransferRequest,
     OwnershipTransferResponse,
 )
@@ -145,9 +145,9 @@ from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
 from app.core.tools import Tool
 from app.api import resource_access
-from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_member_consents as consents_service
-from app.services.tenant import app_revocation as app_revocation_service
+from app.services.tenant import plugin_connections as plugin_connections_service
+from app.services.tenant import plugin_member_consents as consents_service
+from app.services.tenant import plugin_revocation as plugin_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
@@ -201,14 +201,14 @@ router = APIRouter()
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
 # members of one guild). Mounted under /c/{community_id}/users. The member
-# search is also what an installed app reads people through, under
+# search is also what an installed plug-in reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
-# A member's picture, by the reference an installed app knows them by. Mounted
+# A member's picture, by the reference an installed plug-in knows them by. Mounted
 # under /c/{community_id}/members.
 members_router = APIRouter(route_class=ActorRoute)
 
-MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
+MembersRead = Annotated[ActorContext, Depends(plugin_scope("members:read"))]
 
 
 @me_router.get("/time-out", response_model=AccountTimeOutRead)
@@ -373,7 +373,7 @@ def _in_initiative(initiative_id: int):
     )
 
 
-async def _search_members_for_app(
+async def _search_members_for_plugin(
     session: AsyncSession,
     *,
     search: Optional[str],
@@ -382,12 +382,12 @@ async def _search_members_for_app(
     page: int,
     page_size: int,
 ) -> UserSummaryListResponse:
-    """The member search, for an installed app.
+    """The member search, for an installed plug-in.
 
     Read through ``current_guild_members``, the projection of the routed
     community's own members, so it needs nothing of the membership table. The
     handle is what it matches and orders by: whether the guild shows real
-    names is the guild row's to say, which an app does not read; a name the
+    names is the guild row's to say, which a plug-in does not read; a name the
     guild shows still comes back on each row.
     """
     base = select(MemberProfile).where(
@@ -445,7 +445,7 @@ async def search_users(
         default=None,
         description=(
             "Only members of this initiative. The caller must reach it: be in "
-            "it, administer the community, or (an app) be placed there."
+            "it, administer the community, or (a plug-in) be placed there."
         ),
     ),
     tool: Optional[Tool] = Query(
@@ -454,7 +454,7 @@ async def search_users(
             "With ``resource_id``: only the people who can open that row, which "
             "is who may be named on content inside it (assignees, attendees, "
             "person properties). The caller must be able to open it too. For a "
-            "person's picker; an installed app's search does not take it."
+            "person's picker; an installed plug-in's search does not take it."
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
@@ -480,8 +480,8 @@ async def search_users(
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
 
-    An installed app (``members:read``) names members by its own references
-    and reads each as an :class:`AppPerson`: the reference, the handle and the
+    An installed plug-in (``members:read``) names members by its own references
+    and reads each as an :class:`PluginPerson`: the reference, the handle and the
     display name set in the community.
     """
     if initiative_id is not None and not (
@@ -496,7 +496,7 @@ async def search_users(
             detail=InitiativeMessages.NOT_A_MEMBER,
         )
     if isinstance(guild_context, InstallContext):
-        return await _search_members_for_app(
+        return await _search_members_for_plugin(
             session,
             search=search,
             user_id=user_id,
@@ -1095,6 +1095,7 @@ async def claim_my_username(
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
@@ -1110,16 +1111,18 @@ async def confirm_my_age(
     answered under age, keeps every private community it belongs to and
     everything in them.
 
-    **The date is not kept.** It is read here, compared against the minimum, and
-    goes out of scope with the request — there is no column for it, nothing logs
-    it, and no audit record carries it. What is written is a timestamp saying
-    the question was answered, which is what shows the deployment asked.
+    **The date is kept, encrypted** (``user_birthdates``, system engine only),
+    because a plug-in's minimum age differs by country and one "old enough"
+    answer cannot say whether somebody may use it. Nothing logs it, no audit
+    record carries it, and no response returns it — ``birthdate_on_file`` says
+    only that it is there. Beside it is the timestamp saying the question was
+    answered, which is what shows the deployment asked.
+
+    **A kept date stands.** Answering again once one is on file is refused, as
+    an under-age answer is. Putting it right is the same support ticket.
 
     The comparison is the server's because it is the one that decides. A client
     could work out the same answer, and a client's answer is not evidence.
-
-    Saying it again is not an error and does not move the timestamp — the record
-    is when they first answered.
 
     **An answer of "under age" also stands.** It is recorded — the fact, not the
     date — and the question is not asked again, because a question you can
@@ -1133,8 +1136,11 @@ async def confirm_my_age(
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
+    # The date is kept first, and only one answer per account is kept.
     try:
-        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        kept = await users_service.keep_birthdate(
+            system_session, user_id=current_user.id, birthdate=payload.birthdate
+        )
     except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
@@ -1142,9 +1148,26 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
-    current_user.updated_at = datetime.now(timezone.utc)
-    session.add(current_user)
-    await session.commit()
+    if kept is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+    await system_session.commit()
+
+    # Then the answer. If it does not save, the date goes too, so the person can
+    # answer again.
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+    except BaseException:
+        await users_service.forget_birthdate(
+            system_session, user_id=current_user.id, only=kept
+        )
+        await system_session.commit()
+        raise
     if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1698,7 +1721,7 @@ async def delete_own_account(
     # action == "soft_delete"
     #
     # Nothing is erased here. The account moves to ``deleted`` and keeps
-    # everything — memberships, initiative roles, the documents it owns — so
+    # everything — memberships, initiative roles, the files it owns — so
     # that coming back restores it whole. It stops existing for everybody
     # else immediately, and ``account_purge`` erases it when the deployment's
     # window runs out. Signing in before then calls the whole thing off.
@@ -1825,7 +1848,7 @@ async def _require_receiving_admin(
 
 
 def _ownership_payload(
-    items: list, eligible_apps: list[OwnerAppSummary]
+    items: list, eligible_plugins: list[OwnerPluginSummary]
 ) -> OwnedContentResponse:
     counts: dict[str, int] = {}
     for item in items:
@@ -1837,7 +1860,7 @@ def _ownership_payload(
         ],
         counts=counts,
         total=len(items),
-        eligible_apps=eligible_apps,
+        eligible_plugins=eligible_plugins,
     )
 
 
@@ -1845,10 +1868,10 @@ async def _recipient(
     session: AsyncSession, *, guild_id: int, payload: OwnershipTransferRequest
 ) -> ownership_service.Owner:
     """Who the request names to receive the content. A person must be an
-    active admin of this guild; an app's eligibility is asked of the content
+    active admin of this guild; a plug-in's eligibility is asked of the content
     it would receive, by the move itself."""
-    if payload.new_owner_app_id is not None:
-        return ownership_service.Owner(app_install_id=payload.new_owner_app_id)
+    if payload.new_owner_plugin_id is not None:
+        return ownership_service.Owner(plugin_install_id=payload.new_owner_plugin_id)
     person_id = payload.new_owner_id
     if person_id is None:
         # The schema requires one of the two; nobody named is nobody eligible.
@@ -1871,8 +1894,8 @@ async def list_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
-    """Everything in this guild that no current member or live app owns, and
-    the apps that may own all of it.
+    """Everything in this guild that no current member or live plug-in owns, and
+    the plug-ins that may own all of it.
 
     Both the content released when someone left and anything orphaned before
     that — either way nobody who can act on it owns it.
@@ -1881,7 +1904,7 @@ async def list_unowned_content(
         session, guild_id=guild_context.guild_id
     )
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1892,8 +1915,8 @@ async def claim_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
-    """Give everything nobody owns to one guild admin, or to an app that may
-    own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise)."""
+    """Give everything nobody owns to one guild admin, or to a plug-in that may
+    own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise)."""
     recipient = await _recipient(
         session, guild_id=guild_context.guild_id, payload=payload
     )
@@ -1915,14 +1938,14 @@ async def list_owned_content(
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
     """What this user owns in this guild, for the transfer dialog to list,
-    and the apps that may own all of it.
+    and the plug-ins that may own all of it.
 
     Works for anyone the grants still name, member or not — accounts get
     abandoned as often as they get closed.
     """
     items = await ownership_service.summarize_owned_content(session, user_id)
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1937,7 +1960,7 @@ async def transfer_ownership(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Move everything ``user_id`` owns in this guild to a guild admin, or to
-    an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+    a plug-in that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
 
     The only place ownership is moved by hand, and guild-admin only.
     """
@@ -2031,12 +2054,12 @@ async def remove_member(
         guild_id=guild_context.guild_id,
         user_id=user_id,
     )
-    # Being removed ends what this guild's apps let this person reach at an
+    # Being removed ends what this guild's plug-ins let this person reach at an
     # outside vendor, exactly as leaving voluntarily does.
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="removed_from_guild"
     )
-    # And what they let this guild's apps do as them, for the same reason.
+    # And what they let this guild's plug-ins do as them, for the same reason.
     await consents_service.delete_member_consents(session, user_id=user_id)
 
     removed_role = membership.role
@@ -2056,7 +2079,7 @@ async def remove_member(
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    app_revocation_service.send_after_response(session, background_tasks)
+    plugin_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------
@@ -2123,8 +2146,8 @@ async def read_member_avatar(
 ) -> Response:
     """Serve the picture a member of this community uploaded.
 
-    Where an installed app's ``avatar_url`` for a person points: the person is
-    named by the app's reference for them. The same bytes and caching as the
+    Where an installed plug-in's ``avatar_url`` for a person points: the person is
+    named by the plug-in's reference for them. The same bytes and caching as the
     profile picture route, and a 404 for a digest that is not the member's
     current picture, or for somebody who is not a member here.
     """

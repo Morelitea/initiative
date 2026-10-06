@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidate,
   patchCachedPost,
@@ -64,7 +64,7 @@ describe("query-keys community scoping", () => {
   it("a property write reaches the row's own reads and the tool it sits in", async () => {
     const page = seed(["/api/v1/c/5/wiki-pages/9"]);
     const tree = seed(["/api/v1/c/5/wikis/3/pages"]);
-    const unrelated = seed(["/api/v1/c/5/documents/"]);
+    const unrelated = seed(["/api/v1/c/5/files/"]);
     const calendarEntries = seed(["/api/v1/c/5/calendar-entries/"]);
 
     setInvalidationCommunity(5);
@@ -221,7 +221,7 @@ describe("patchCachedPost", () => {
     setInvalidationCommunity(null);
   });
 
-  const markRead = (post: Record<string, unknown>) => ({ ...post, is_read: true });
+  const markRead = (post: PostRead) => ({ ...post, is_read: true });
 
   it("patches a post inside an infinite feed's pages", () => {
     const key = ["/api/v1/c/5/posts/", { initiative_id: 1 }];

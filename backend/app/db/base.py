@@ -9,11 +9,11 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
-from app.models.tenant.app_member_consent import AppMemberConsent
-from app.models.tenant.app_placement import AppPlacement
-from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_secret import GuildAppSecret
-from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.models.tenant.plugin_member_consent import PluginMemberConsent
+from app.models.tenant.plugin_placement import PluginPlacement
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.models.tenant.guild_plugin_secret import GuildPluginSecret
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.filter_preset import ProjectFilterPreset
@@ -26,13 +26,13 @@ from app.models.platform.user_passkey import UserPasskey
 # relationships that name a person resolve it by name.
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.api_key import UserApiKey
-from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import (
-    Document,
-    DocumentFileVersion,
+from app.models.tenant.file import (
+    File,
+    FileVersion,
 )
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
@@ -49,9 +49,9 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
-from app.models.tenant.app_event_outbox import AppEventOutbox
-from app.models.tenant.app_hook_delivery import AppHookDelivery
-from app.models.tenant.app_schedule_run import AppScheduleRun
+from app.models.tenant.plugin_event_outbox import PluginEventOutbox
+from app.models.tenant.plugin_hook_delivery import PluginHookDelivery
+from app.models.tenant.plugin_schedule_run import PluginScheduleRun
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard
@@ -104,6 +104,7 @@ from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
+from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
@@ -127,10 +128,10 @@ from app.models.platform.marketplace_registry import (
     MarketplaceTufMetadata,
 )
 from app.models.platform.ai_connection import PlatformAIConnection
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.publisher import Publisher
-from app.models.platform.app_assertion_jti import AppAssertionJti
-from app.models.platform.app_install import AppInstall
+from app.models.platform.plugin_assertion_jti import PluginAssertionJti
+from app.models.platform.plugin_install import PluginInstall
 from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -178,8 +179,8 @@ __all__ = [
     "ProjectOrder",
     "RecentView",
     "Comment",
-    "Document",
-    "DocumentFileVersion",
+    "File",
+    "FileVersion",
     "Notification",
     "OIDCClaimMapping",
     "Tag",
@@ -192,9 +193,9 @@ __all__ = [
     "CalendarEventAnswer",
     "CalendarEventAttendee",
     "EventOutbox",
-    "AppEventOutbox",
-    "AppHookDelivery",
-    "AppScheduleRun",
+    "PluginEventOutbox",
+    "PluginHookDelivery",
+    "PluginScheduleRun",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
@@ -243,10 +244,10 @@ __all__ = [
     "IntakeCase",
     "ModerationReport",
     "ModerationReportReporter",
-    "AppServiceRegistration",
+    "PluginServiceRegistration",
     "Publisher",
-    "AppAssertionJti",
-    "AppInstall",
+    "PluginAssertionJti",
+    "PluginInstall",
     "MarketplaceMedia",
     "MarketplaceRegistryStatus",
     "MarketplaceTufMetadata",
@@ -255,13 +256,14 @@ __all__ = [
     "GuildAIConnectionKey",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
-    "AppMemberConsent",
-    "AppPlacement",
-    "GuildApp",
-    "GuildAppSecret",
-    "GuildAppUserConnection",
+    "PluginMemberConsent",
+    "PluginPlacement",
+    "GuildPlugin",
+    "GuildPluginSecret",
+    "GuildPluginUserConnection",
     "UserTotp",
     "UserTotpSecret",
+    "UserBirthdate",
     "MfaRecoveryCode",
     "AuthChallenge",
 ]

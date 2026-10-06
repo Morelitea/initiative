@@ -45,13 +45,15 @@ class BillingSource(str, Enum):
     """Who initiated a billing write — must match ``initiative_auto`` exactly.
 
     ``support_manual`` and ``operator_manual`` are the human paths and must name
-    an ``actor``; ``support_manual`` may only *raise* the storage cap.
+    an ``actor``; ``support_manual`` may only *raise* the storage cap. A status
+    billing decides itself — an overdue or lapsed subscription, a trial Paddle
+    ended without a payment — travels as ``paddle_webhook``, and so does a
+    notice about a trial.
     """
 
     paddle_webhook = "paddle_webhook"
     platinum_invoice = "platinum_invoice"
     support_manual = "support_manual"
-    trial_expiry = "trial_expiry"
     operator_manual = "operator_manual"
 
 

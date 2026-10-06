@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, TYPE_CHECKING
 
 from pydantic import (
     AliasChoices,
     ConfigDict,
     Field,
     PrivateAttr,
-    field_serializer,
     model_validator,
 )
 
 from app.core import recurrence
-from app.core.identity_boundary import GuildId, PersonId, names_withheld
-from app.core.relationships import Related
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.core.identity_boundary import GuildId, PersonId
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
@@ -28,7 +26,7 @@ from app.schemas.tenant.property import (
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import from_row
-from app.schemas.platform.user import AppPerson, PersonShape, UserPublic
+from app.schemas.platform.user import PluginPerson, PersonShape, UserPublic
 from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -66,24 +64,6 @@ class OccurrenceRequest(SanitizedBaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Document attachment read schema
-# ---------------------------------------------------------------------------
-
-
-class CalendarEventDocumentRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    document_id: int
-    name: str = ""
-    attached_at: datetime
-
-
-# ---------------------------------------------------------------------------
-# Recurrence schema
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Calendar event schemas
 # ---------------------------------------------------------------------------
 
@@ -95,6 +75,10 @@ class CalendarEventBase(SanitizedBaseModel):
     start_at: datetime
     end_at: datetime
     all_day: bool = False
+    #: Whether anyone who can read the event may answer it and so join it.
+    #: Closed, only those already on its list answer, and only someone who
+    #: may edit it adds people. An occurrence follows its series.
+    rsvp_open: bool = True
     recurrence: Optional[str] = None
 
     @model_validator(mode="after")
@@ -114,7 +98,6 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
     tz: Optional[str] = Field(default=None, max_length=64)
     attendee_ids: Optional[List[PersonId]] = None
     tag_ids: Optional[List[int]] = None
-    document_ids: Optional[List[int]] = None
 
 
 class CalendarEventUpdate(PropertiesOnUpdate):
@@ -124,6 +107,7 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None
+    rsvp_open: Optional[bool] = None
     recurrence: Optional[EventRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
     #: is taken from it; an all-day event's days are UTC dates already.
@@ -140,6 +124,10 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     #: The occurrence, by its start in the series. Its new times for "all"
     #: move every occurrence by as much.
     occurrence: Optional[datetime] = None
+
+    _required = reject_null(
+        "title", "start_at", "end_at", "all_day", "rsvp_open", "calendar_id"
+    )
 
 
 class CalendarEventAttendeePreview(PersonShape):
@@ -158,8 +146,8 @@ class CalendarEventAttendeePreview(PersonShape):
     user_id: PersonId
     name: str
     avatar_url: Optional[str] = None
-    #: The person ``name`` was drawn from, for an installed app's response.
-    _person: Optional[AppPerson] = PrivateAttr(default=None)
+    #: The person ``name`` was drawn from, for an installed plug-in's response.
+    _person: Optional[PluginPerson] = PrivateAttr(default=None)
 
     @classmethod
     def of(cls, user: Any) -> "CalendarEventAttendeePreview":
@@ -167,14 +155,16 @@ class CalendarEventAttendeePreview(PersonShape):
         preview = cls(
             user_id=user.id, name=display_name(user), avatar_url=user.avatar_url
         )
-        preview._person = AppPerson.model_validate(user, from_attributes=True)
+        preview._person = PluginPerson.model_validate(user, from_attributes=True)
         return preview
 
-    def app_person(self) -> AppPerson:
-        return self._person or AppPerson(id=self.user_id)
+    def plugin_person(self) -> PluginPerson:
+        return self._person or PluginPerson(id=self.user_id)
 
 
-class CalendarEventSummary(CalendarEventBase):
+class CalendarEventFields(CalendarEventBase):
+    """What every read of an event carries."""
+
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -198,9 +188,6 @@ class CalendarEventSummary(CalendarEventBase):
         validation_alias=AliasChoices("community_id", "guild_id")
     )
     created_by: PersonId | None = None
-    attendee_count: int = 0
-    attendee_names: List[str] = Field(default_factory=list)
-    attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     #: What the caller may do to this event — its calendar's edit, since events
@@ -209,15 +196,13 @@ class CalendarEventSummary(CalendarEventBase):
     created_at: datetime
     updated_at: datetime
 
-    @field_serializer("attendee_names")
-    def _attendee_names_out(self, names: List[str]) -> List[str]:
-        """An installed app reads people's names under ``members:read`` only."""
-        return [] if names_withheld() else names
+
+class CalendarEventSummary(CalendarEventFields):
+    attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
 
 
-class CalendarEventRead(CalendarEventSummary):
+class CalendarEventRead(CalendarEventFields):
     attendees: List[CalendarEventAttendeeRead] = Field(default_factory=list)
-    documents: List[CalendarEventDocumentRead] = Field(default_factory=list)
     #: What an occurrence changed; the rest follows its series.
     overridden_fields: List[str] = Field(default_factory=list)
     #: A series' skipped starts and extra starts.
@@ -230,41 +215,25 @@ class CalendarEventRead(CalendarEventSummary):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_documents(
-    documents: Sequence[Related],
-) -> List[CalendarEventDocumentRead]:
-    """The attached documents, as the read schema wants them.
+def _event_fields(
+    event: "CalendarEvent", *, context: ActorContext, user_id: Optional[int]
+) -> dict[str, Any]:
+    """What every read of ``event`` works out rather than reads off it by name.
+    Access is inherited from the parent calendar, eager-loaded with its level;
+    an installed plug-in has no user id and is answered its own level, as
+    ``client_access`` answers it on a calendar."""
+    # Local import avoids a schema -> service import cycle.
+    from app.db.guild_standing import InstallContext
+    from app.services.permissions import Action, allows
 
-    Handed in rather than read off the event: the edges live in their own table
-    now, and loading them is the caller's job so a page of events pays for one
-    query instead of one per event.
-    """
-    return [
-        CalendarEventDocumentRead(
-            document_id=related.id,
-            name=getattr(related.entity, "name", "") if related.entity else "",
-            attached_at=related.linked_at,
-        )
-        for related in documents
-    ]
-
-
-def _serialize_attendees(
-    event: "CalendarEvent", answers: Mapping[int, RSVPStatus]
-) -> List[CalendarEventAttendeeRead]:
-    attendees_list = getattr(event, "attendees", None) or []
-    result: List[CalendarEventAttendeeRead] = []
-    for att in attendees_list:
-        user = getattr(att, "user", None)
-        result.append(
-            CalendarEventAttendeeRead(
-                user_id=att.user_id,
-                user=UserPublic.model_validate(user) if user else None,
-                rsvp_status=answers.get(att.user_id, att.rsvp_status),
-                created_at=att.created_at,
-            )
-        )
-    return result
+    calendar = event.calendar
+    reader = user_id is not None or isinstance(context, InstallContext)
+    return {
+        "initiative_id": calendar.initiative_id,
+        "properties": annotated_properties(event),
+        "tags": annotated_tags(event),
+        "can": ContentCan(edit=reader and allows(calendar, Action.contribute)),
+    }
 
 
 def serialize_calendar_event_summary(
@@ -274,36 +243,16 @@ def serialize_calendar_event_summary(
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.db.guild_standing import InstallContext
-    from app.services.permissions import Action, allows
-
-    # Access is inherited from the parent calendar; requires ``event.calendar``
-    # eager-loaded with its level. An installed app has no user id and is
-    # answered its own level, as ``client_access`` answers it on a calendar.
-    calendar = event.calendar
-    reader = user_id is not None or isinstance(context, InstallContext)
-    can_edit = reader and calendar is not None and allows(calendar, Action.contribute)
-    attendees_list = getattr(event, "attendees", None) or []
-    names: List[str] = []
-    previews: List[CalendarEventAttendeePreview] = []
-    for att in attendees_list:
-        user = getattr(att, "user", None)
-        if user:
-            preview = CalendarEventAttendeePreview.of(user)
-            names.append(preview.name)
-            previews.append(preview)
     return from_row(
         CalendarEventSummary,
         event,
-        initiative_id=calendar.initiative_id if calendar is not None else 0,
+        **_event_fields(event, context=context, user_id=user_id),
         guild_id=guild_id if guild_id is not None else context.guild_id,
-        attendee_count=len(attendees_list),
-        attendee_names=names,
-        attendee_previews=previews,
-        properties=annotated_properties(event),
-        tags=annotated_tags(event),
-        can=ContentCan(edit=can_edit),
+        attendee_previews=[
+            CalendarEventAttendeePreview.of(attendee.user)
+            for attendee in event.attendees
+            if attendee.user
+        ],
     )
 
 
@@ -312,11 +261,9 @@ def serialize_calendar_event(
     *,
     context: ActorContext,
     user_id: Optional[int] = None,
-    documents: Sequence[Related] = (),
     answers: Mapping[int, RSVPStatus] | None = None,
 ) -> CalendarEventRead:
     """``answers`` are one occurrence's, shown in place of the series'."""
-    summary = serialize_calendar_event_summary(event, context=context, user_id=user_id)
     skipped, extra = (
         recurrence.exception_starts(
             event.recurrence, event.start_at, event.recurrence_shift
@@ -324,10 +271,19 @@ def serialize_calendar_event(
         if event.recurrence
         else ([], [])
     )
-    return CalendarEventRead(
-        **dict(summary),
-        attendees=_serialize_attendees(event, answers or {}),
-        documents=_serialize_documents(documents),
+    return from_row(
+        CalendarEventRead,
+        event,
+        **_event_fields(event, context=context, user_id=user_id),
+        guild_id=context.guild_id,
+        attendees=[
+            from_row(
+                CalendarEventAttendeeRead,
+                attendee,
+                rsvp_status=(answers or {}).get(attendee.user_id, attendee.rsvp_status),
+            )
+            for attendee in event.attendees
+        ],
         overridden_fields=list(event.overridden_fields or []),
         skipped_starts=skipped,
         extra_starts=extra,

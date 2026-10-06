@@ -381,7 +381,7 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     assert can["manage"] is False
     assert can["create"] == [], "a scoped read_write grant must not author"
     # View access is unaffected — core tools stay visible.
-    assert {Tool.project, Tool.document} <= set(can["view"])
+    assert {Tool.project, Tool.file} <= set(can["view"])
 
     created = await client.post(
         host.g("/projects/"),

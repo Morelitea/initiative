@@ -52,7 +52,7 @@ class Dashboard(
 
     ``definition`` is the validated, declarative body — layout plus widgets and
     their data bindings. It is a presentation spec only: it names *where* data
-    comes from (a task filter, a counter, a document range) and never carries
+    comes from (a task filter, a counter, a file range) and never carries
     content, credentials, or actions. Every binding resolves per viewer through
     the normal gated endpoints, so a dashboard grants no access of its own and
     can never mutate what it displays.
@@ -62,10 +62,10 @@ class Dashboard(
     initiative, for everybody who can open it.
 
     ``config`` fills the binding slots a definition leaves open, so one shared
-    definition can be pointed at this initiative's actual counters/documents.
+    definition can be pointed at this initiative's actual counters/files.
 
     Dashboards are initiative-scoped: there is no guild-wide (NULL initiative)
-    form — a guild-level surface is an app, which is a separate concept.
+    form — a guild-level surface is a plug-in, which is a separate concept.
     """
 
     __tablename__ = "dashboards"

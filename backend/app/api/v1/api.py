@@ -1,12 +1,16 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from app.api.deps import DirectMessagesEnabledDep
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+from app.core.tools import Tool
 
 # Endpoints are organized by the kind of data they touch (they must never mix —
 # this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
 #   platform_endpoints/  — public-schema tables (auth, users, guilds, settings,
 #                          …); not tied to a single guild.
-#   tenant_endpoints/    — per-guild-schema tables (projects, tasks, documents,
+#   tenant_endpoints/    — per-guild-schema tables (projects, tasks, files,
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
@@ -17,18 +21,18 @@ from app.api.v1.tenant_endpoints import (
     smart_chips,
     search as guild_search,
     ai_settings,
-    app_data,
+    plugin_data,
     attachments,
     webhooks,
     calendar_entries,
     calendar_events,
     calendars,
     dashboards,
-    guild_apps,
+    guild_plugins,
     collaboration,
     comments,
     counters,
-    documents,
+    files,
     events,
     exports,
     imports,
@@ -67,14 +71,14 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
-    app_consent_requests,
-    app_oauth,
-    app_platform,
-    app_installation,
-    app_hub,
-    app_connection_callbacks,
-    app_hooks,
-    app_services,
+    plugin_consent_requests,
+    plugin_oauth,
+    plugin_platform,
+    plugin_installation,
+    plugin_hub,
+    plugin_connection_callbacks,
+    plugin_hooks,
+    plugin_services,
     auth,
     auth_providers,
     provider_placement,
@@ -164,50 +168,58 @@ api_router.include_router(
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
-# Deployment-level app service wiring (apps.manage — owner). Platform-addressed
+# Deployment-level plug-in service wiring (plugins.manage — owner). Platform-addressed
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(
-    app_services.router, prefix="/app-services", tags=["app-services"]
+    plugin_services.router, prefix="/plugin-services", tags=["plugin-services"]
 )
 api_router.include_router(
-    app_services.publishers_router, prefix="/app-publishers", tags=["app-services"]
+    plugin_services.publishers_router,
+    prefix="/plugin-publishers",
+    tags=["plugin-services"],
 )
-# Public: apps verify the context JWTs we send them against this key set. No
+# Public: plug-ins verify the context JWTs we send them against this key set. No
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
-    app_platform.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_platform.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 api_router.include_router(
-    guild_reference.router, prefix="/app-platform", tags=["app-platform"]
+    guild_reference.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
-# The token endpoint: an app authenticates with a JWT it signs and is issued an
-# app or installation token. The listing of its installs takes the app token.
+# The token endpoint: a plug-in authenticates with a JWT it signs and is issued a
+# plug-in or installation token. The listing of its installs takes the plug-in token.
 api_router.include_router(
-    app_oauth.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_oauth.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
-# An installed app asking a member to let it act as them, on its installation
+# An installed plug-in asking a member to let it act as them, on its installation
 # token. The member answers on their own consent screen.
 api_router.include_router(
-    app_consent_requests.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_consent_requests.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
-# An installed app's calls about its own installation — its configuration, its
+# An installed plug-in's calls about its own installation — its configuration, its
 # members' connections, its verdict on the configuration and the events it
 # re-emits — on its installation token. The install comes from the token.
 api_router.include_router(
-    app_installation.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_installation.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
-# An installed app calling another app's public endpoint, on its installation
+# An installed plug-in calling another plug-in's public endpoint, on its installation
 # or member token. Initiative checks the call and makes it.
-api_router.include_router(app_hub.router, prefix="/app-platform", tags=["app-platform"])
-# Where a vendor returns a person during an app connection's flow. The two
+api_router.include_router(
+    plugin_hub.router, prefix="/plugin-platform", tags=["plugin-platform"]
+)
+# Where a vendor returns a person during a plug-in connection's flow. The two
 # addresses an operator registers with each vendor client; they act on the
 # flow's sealed state alone.
 api_router.include_router(
-    app_connection_callbacks.router, prefix="/app-connections", tags=["app-platform"]
+    plugin_connection_callbacks.router,
+    prefix="/plugin-connections",
+    tags=["plugin-platform"],
 )
-# Where a vendor sends an app's webhooks, one address per app. A delivery is
+# Where a vendor sends a plug-in's webhooks, one address per plug-in. A delivery is
 # admitted by its signature and routed by the install index.
-api_router.include_router(app_hooks.router, prefix="/app-hooks", tags=["app-platform"])
+api_router.include_router(
+    plugin_hooks.router, prefix="/plugin-hooks", tags=["plugin-platform"]
+)
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
@@ -246,12 +258,23 @@ api_router.include_router(
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/c/{community_id}")
+
+
+def _tool_mount(tool: Tool) -> dict[str, Any]:
+    """Where a tool's own router is mounted: under its route segment, with the
+    OpenAPI tag its list is published under."""
+    return {
+        "prefix": f"/{tool.route_segment}",
+        "tags": [TOOL_LISTS[tool].tag or tool.plural],
+    }
+
+
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list, mounted once per Tool at each tool's own path, and the
 # one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).
 # The routes carry their own tags.
 guild_router.include_router(tool_lists.router)
-guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+guild_router.include_router(projects.router, **_tool_mount(Tool.project))
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
@@ -272,40 +295,36 @@ guild_router.include_router(
 guild_router.include_router(
     initiatives.router, prefix="/initiatives", tags=["initiatives"]
 )
-guild_router.include_router(documents.router, prefix="/documents", tags=["documents"])
+guild_router.include_router(files.router, **_tool_mount(Tool.file))
 guild_router.include_router(
     attachments.router, prefix="/attachments", tags=["attachments"]
 )
 guild_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 guild_router.include_router(imports.router, prefix="/imports", tags=["imports"])
-guild_router.include_router(queues.router, prefix="/queues", tags=["queues"])
+guild_router.include_router(queues.router, **_tool_mount(Tool.queue))
 # Flat read-back routes, at the guild root: an event envelope names a
 # resource by its own id, so every evented resource must resolve from one.
-guild_router.include_router(queues.items_router, tags=["queue-items"])
+guild_router.include_router(queues.items_router, tags=_tool_mount(Tool.queue)["tags"])
 
-guild_router.include_router(
-    counters.router, prefix="/counter-groups", tags=["counters"]
-)
+guild_router.include_router(counters.router, **_tool_mount(Tool.counter_group))
 guild_router.include_router(counters.counters_router, tags=["counters"])
-guild_router.include_router(calendars.router, prefix="/calendars", tags=["calendars"])
-guild_router.include_router(
-    dashboards.router, prefix="/dashboards", tags=["dashboards"]
-)
-guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
-guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
-guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
-guild_router.include_router(wikis.pages_router, tags=["wikis"])
-# Apps installed at guild scope. Every member reads them (the sidebar needs to
+guild_router.include_router(calendars.router, **_tool_mount(Tool.calendar))
+guild_router.include_router(dashboards.router, **_tool_mount(Tool.dashboard))
+guild_router.include_router(posts.router, **_tool_mount(Tool.post))
+guild_router.include_router(galleries.router, **_tool_mount(Tool.gallery))
+guild_router.include_router(wikis.router, **_tool_mount(Tool.wiki))
+guild_router.include_router(wikis.pages_router, tags=_tool_mount(Tool.wiki)["tags"])
+# Plug-ins installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
-# The data plane is included FIRST so its literal ``/apps/widget-catalog`` wins
-# the match against ``/apps/{app_id}`` below — the same ordering rule the
+# The data plane is included FIRST so its literal ``/plugins/widget-catalog`` wins
+# the match against ``/plugins/{plugin_id}`` below — the same ordering rule the
 # dashboards router uses for its own widget catalog.
-guild_router.include_router(app_data.router, prefix="/apps", tags=["apps"])
-guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
+guild_router.include_router(plugin_data.router, prefix="/plugins", tags=["plugins"])
+guild_router.include_router(guild_plugins.router, prefix="/plugins", tags=["plugins"])
 # The same installs reached from inside one initiative. Its own router because
 # the initiative leads the path: it is what the request is scoped to.
-guild_router.include_router(guild_apps.initiative_router, tags=["apps"])
+guild_router.include_router(guild_plugins.initiative_router, tags=["plugins"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )
@@ -314,8 +333,8 @@ guild_router.include_router(
     calendar_entries.router, prefix="/calendar-entries", tags=["calendar-entries"]
 )
 # Reading the marketplace — the shelf and a listing's page. Guild-addressed
-# because what a guild is offered depends on which apps it has: a dashboard
-# bundled with an app appears only where that app is installed. Maintaining
+# because what a guild is offered depends on which plug-ins it has: a dashboard
+# bundled with a plug-in appears only where that plug-in is installed. Maintaining
 # the catalog stays platform-addressed (top-level /marketplace).
 guild_router.include_router(
     guild_marketplace.router, prefix="/marketplace", tags=["marketplace"]

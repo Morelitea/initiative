@@ -8,7 +8,7 @@
  * it was handed.
  */
 
-import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
+import type { FileRead } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
 
 import type {
@@ -80,11 +80,11 @@ interface SheetLike {
 }
 
 export const normalizeSheetRange = (
-  document: DocumentRead,
+  file: FileRead,
   sheetName: string | null | undefined,
   range: string | null | undefined
 ): { columns: DataColumn[]; rows: CellValue[][] } | null => {
-  const content = document.content as { sheets?: SheetLike[] } | null;
+  const content = file.content as { sheets?: SheetLike[] } | null;
   const sheets = content?.sheets ?? [];
   if (!sheets.length) return null;
 
@@ -124,6 +124,6 @@ export const normalizeSheetRange = (
 /** The envelope for a binding we fetched nothing for — one whose parameters the
  *  instance config has not filled in yet. */
 export const emptyDataFor = (source: WidgetSource): WidgetData =>
-  source === "app"
-    ? { source: "app", rows: [], values: {} }
+  source === "plugin"
+    ? { source: "plugin", rows: [], values: {} }
     : { source: "rows", columns: [], rows: [] };

@@ -1,4 +1,4 @@
-"""Counter service layer — DAC, query helpers, and value operations.
+"""Counter service layer — query helpers and value operations.
 
 Mirrors the queues service. CounterGroups are owned containers under an
 Initiative; Counters are independent numeric values clamped to optional
@@ -19,23 +19,16 @@ from app.models.tenant.counter import (
     Counter,
     CounterGroup,
 )
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceGrant
 from app.db.query import ids_in
 from app.schemas.tenant.counter import (
     CounterPreview,
     CounterSortDirection,
     CounterSortField,
-    format_decimal,
 )
+from app.schemas.tenant.tool import from_row
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-
-
-# ---------------------------------------------------------------------------
-# Visibility subquery
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +40,7 @@ def list_loader_options() -> list:
     """Eager-load what a counter-group *list* row needs: its sharing, the level
     the request holds on it and its tags."""
     return [
-        selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+        selectinload(CounterGroup.grants),
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),
     ]
@@ -89,14 +82,7 @@ async def list_previews(
     )
     previews: dict[int, list[CounterPreview]] = {group_id: [] for group_id in ids}
     for row in rows.all():
-        previews[row.counter_group_id].append(
-            CounterPreview(
-                id=row.id,
-                name=row.name,
-                color=row.color,
-                count=format_decimal(row.count),
-            )
-        )
+        previews[row.counter_group_id].append(from_row(CounterPreview, row))
     return previews
 
 
@@ -111,7 +97,7 @@ async def get_counter_group(
         .where(CounterGroup.id == group_id)
         .options(
             selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+            selectinload(CounterGroup.grants),
             selectinload(CounterGroup.initiative),
             undefer(CounterGroup.actions),
         )
@@ -125,32 +111,6 @@ async def get_counter_group(
         await properties_service.annotate_properties(session, [group])
         await properties_service.annotate_properties(session, group.counters or [])
     return group
-
-
-async def list_counter_group_ids_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every counter group the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    conditions = [
-        CounterGroup.initiative_id.in_(initiative_ids),
-        Initiative.counter_groups_enabled == True,  # noqa: E712
-    ]
-    statement = (
-        select(CounterGroup.id)
-        .join(Initiative, Initiative.id == CounterGroup.initiative_id)
-        .where(*conditions)
-        .order_by(CounterGroup.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def get_counter(
@@ -237,11 +197,8 @@ async def reset_counter(session: AsyncSession, counter: Counter) -> Counter:
 async def reset_all_counters(
     session: AsyncSession, group: CounterGroup
 ) -> CounterGroup:
-    counters = getattr(group, "counters", None) or []
     now = datetime.now(timezone.utc)
-    for counter in counters:
-        if counter.deleted_at is not None:
-            continue
+    for counter in group.counters or []:
         counter.count = clamp(counter.initial_count, counter.min, counter.max)
         counter.updated_at = now
         session.add(counter)
@@ -275,9 +232,7 @@ async def sort_counters(
     deterministic and repeatable — descending is the exact reverse of
     ascending, and re-sorting an already-sorted group is idempotent.
     """
-    counters = [
-        c for c in (getattr(group, "counters", None) or []) if c.deleted_at is None
-    ]
+    counters = list(group.counters or [])
 
     if field == CounterSortField.name:
 

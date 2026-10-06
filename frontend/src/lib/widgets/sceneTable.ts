@@ -194,7 +194,7 @@ export function sceneToTables(node: SceneNode, t: SceneTableT): TableScene[] {
             { key: "column", label: t("dashboards:tableView.column") },
             { key: "card", label: t("dashboards:tableView.card") },
             { key: "chips", label: t("dashboards:tableView.label") },
-            { key: "date", label: t("dashboards:tableView.due"), align: "end", format: "date" },
+            { key: "date", label: t("common:calendar.due"), align: "end", format: "date" },
           ],
           node.columns.flatMap((column) =>
             column.cards.map((card) => ({

@@ -22,7 +22,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant.soft_delete import hard_purge_entity
 from app.testing.factories import (
     assign_tag,
-    create_document,
+    create_file,
     create_tag,
     create_task,
 )
@@ -75,7 +75,7 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
     session: AsyncSession, acting_user
 ):
     """Ids are unique within a table, not across them. The packed node id is
-    what keeps a document's tags off a task that happens to have the same
+    what keeps a file's tags off a task that happens to have the same
     number — the one thing a per-entity junction got for free."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
@@ -83,7 +83,7 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
     task_tag = await create_tag(session, a.guild, name="for-the-task")
     doc_tag = await create_tag(session, a.guild, name="for-the-doc")
     task = await create_task(session, a.project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     await assign_tag(session, task, task_tag)
     await assign_tag(session, doc, doc_tag)
     await session.commit()
@@ -93,7 +93,7 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
         session, tags_service.TAG_LINKS["task"], task.id
     ) == [task_tag.id]
     assert await tags_service.active_tag_ids(
-        session, tags_service.TAG_LINKS["document"], doc.id
+        session, tags_service.spec_for(doc), doc.id
     ) == [doc_tag.id]
 
 
@@ -182,7 +182,7 @@ async def test_a_tag_assignment_is_invisible_to_a_reader_outside_the_initiative(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     tag = await create_tag(session, owner.guild, name="secret-project")
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     await assign_tag(session, doc, tag, commit=True)
 
     outsider = await acting_user(

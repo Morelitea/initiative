@@ -25,7 +25,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.core.tools import Tool
 from app.db.guild_standing import ActorContext
 from app.db.session import require_actor_context
@@ -38,12 +38,12 @@ from app.models.tenant._mixins import (
 )
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
-from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.counter import Counter
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.queue import QueueItem
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
@@ -51,7 +51,8 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendar_occurrences as occurrences_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
+from app.services.tenant import file_versions
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people, project_grants
 from app.services.tenant import properties as properties_service
@@ -81,7 +82,7 @@ class ToolCopier:
     #: The refusal when the target initiative already has one of this name;
     #: ``None`` where names may repeat.
     name_taken: Optional[str] = None
-    #: Whether a name may carry the reserved sigils, as a document's may: it
+    #: Whether a name may carry the reserved sigils, as a file's may: it
     #: starts life as a filename.
     name_takes_sigils: bool = False
     #: async (session, copy_id, user): tell people about the copy, once it is
@@ -254,7 +255,7 @@ async def duplicate(
         )
 
     columns = _carried(model, copier.reset)
-    # Deferred columns (a document's body) are read too.
+    # Deferred columns (a file's body) are read too.
     await session.refresh(source, columns)
     copy = model(
         **{
@@ -335,46 +336,42 @@ def _beside(source: Any, copy: Any) -> bool:
     return source.initiative_id == copy.initiative_id
 
 
-async def _counter_group_contents(
-    session: AsyncSession, source: CounterGroup, copy: CounterGroup, actor: ActorContext
-) -> list[Counter]:
-    counters = (
-        await session.exec(select(Counter).where(Counter.counter_group_id == source.id))
-    ).all()
-    pairs = await _copy_children(
-        session,
-        counters,
-        beside=_beside(source, copy),
-        values=lambda _: {"counter_group_id": copy.id},
-    )
-    return [clone for _, clone in pairs]
+def _rows_inside(model: type, *carried: str) -> Contents:
+    """The contents of a tool that is a list of ``model`` rows: each copied
+    into the copy, keeping ``carried`` of the references a copy otherwise
+    drops."""
+    parent = resource_access.parent_column(model)
 
+    async def contents(
+        session: AsyncSession, source: Any, copy: Any, actor: ActorContext
+    ) -> list[Any]:
+        rows = (
+            await session.exec(select(model).where(getattr(model, parent) == source.id))
+        ).all()
+        pairs = await _copy_children(
+            session,
+            rows,
+            beside=_beside(source, copy),
+            values=lambda row: {
+                parent: copy.id,
+                **{column: getattr(row, column) for column in carried},
+            },
+        )
+        return [clone for _, clone in pairs]
 
-async def _queue_contents(
-    session: AsyncSession, source: Queue, copy: Queue, actor: ActorContext
-) -> list[QueueItem]:
-    items = (
-        await session.exec(select(QueueItem).where(QueueItem.queue_id == source.id))
-    ).all()
-    pairs = await _copy_children(
-        session,
-        items,
-        beside=_beside(source, copy),
-        values=lambda item: {"queue_id": copy.id, "user_id": item.user_id},
-    )
-    return [clone for _, clone in pairs]
+    return contents
 
 
 async def _gallery_contents(
     session: AsyncSession, source: Gallery, copy: Gallery, actor: ActorContext
-) -> list[GalleryImage]:
+) -> list[Any]:
     images = (
         await session.exec(
             select(GalleryImage).where(GalleryImage.gallery_id == source.id)
         )
     ).all()
-    # Each picture starts again at version 1, authored by whoever copied it; an
-    # app is never an author, so its copy keeps the picture's uploader.
+    # Each picture starts again at version 1, authored by whoever copied it; a
+    # plug-in is never an author, so its copy keeps the picture's uploader.
     pairs = await _copy_children(
         session,
         images,
@@ -384,29 +381,16 @@ async def _gallery_contents(
             "created_by": actor.user_id or image.created_by,
         },
     )
-    session.add_all(
-        GalleryImageVersion(
-            gallery_image_id=clone.id,
-            version_number=1,
-            created_by=clone.created_by,
-            **{c: getattr(clone, c) for c in _IMAGE_FILE_COLUMNS},
+    versions = [
+        file_versions.copy_version(
+            session, image.current_version, clone, created_by=clone.created_by
         )
-        for _, clone in pairs
-    )
+        for image, clone in pairs
+        if image.current_version is not None
+    ]
     copy.cover_image_id = {s.id: c.id for s, c in pairs}.get(source.cover_image_id)
-    return [clone for _, clone in pairs]
-
-
-#: What a picture's version records about its file.
-_IMAGE_FILE_COLUMNS = (
-    "file_url",
-    "thumbnail_url",
-    "file_content_type",
-    "file_size",
-    "original_filename",
-    "width",
-    "height",
-)
+    # The versions name the files, so they are what is claimed for the copy.
+    return [*(clone for _, clone in pairs), *versions]
 
 
 async def _post_contents(
@@ -502,7 +486,7 @@ async def _wiki_contents(
     session: AsyncSession, source: Wiki, copy: Wiki, actor: ActorContext
 ) -> list[WikiPage]:
     """Its published pages, each under its nearest published ancestor, with
-    the borrowed documents filed the same way, and the home and template pages
+    the borrowed files filed the same way, and the home and template pages
     pointed at their copies. Drafts stay behind."""
     pages = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == source.id))
@@ -524,15 +508,15 @@ async def _wiki_contents(
 
     for page, clone in pairs:
         clone.parent_page_id = placed_under(page.parent_page_id)
-    copy.document_positions = {}
-    for document_id in source.document_positions or {}:
-        wikis_service.file_document(
+    copy.file_positions = {}
+    for file_id in source.file_positions or {}:
+        wikis_service.place_file(
             copy,
-            int(document_id),
+            int(file_id),
             parent_page_id=placed_under(
-                wikis_service.document_parent(source, int(document_id))
+                wikis_service.file_parent(source, int(file_id))
             ),
-            position=wikis_service.document_position(source, int(document_id)),
+            position=wikis_service.file_position(source, int(file_id)),
         )
     copy.home_page_id = clones.get(source.home_page_id)
     copy.template_page_id = clones.get(source.template_page_id)
@@ -640,18 +624,18 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         reset={"is_template": False, "pinned_at": None},
         announce=_announce_project,
     ),
-    Tool.document: ToolCopier(
-        contents=documents_service.copy_contents,
+    Tool.file: ToolCopier(
+        contents=files_service.copy_contents,
         reset={"is_template": False, "yjs_state": None, "yjs_updated_at": None},
-        name_taken=DocumentMessages.NAME_ALREADY_EXISTS,
+        name_taken=FileMessages.NAME_ALREADY_EXISTS,
         name_takes_sigils=True,
     ),
     Tool.counter_group: ToolCopier(
-        copies=frozenset({Counter}), contents=_counter_group_contents
+        copies=frozenset({Counter}), contents=_rows_inside(Counter)
     ),
     Tool.queue: ToolCopier(
         copies=frozenset({QueueItem}),
-        contents=_queue_contents,
+        contents=_rows_inside(QueueItem, "user_id"),
         # A copy starts its rotation from the top.
         reset={"is_active": False, "current_round": 1},
     ),

@@ -37,7 +37,6 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.core.tools import Tool
-from app.db.session import require_guild_context
 from app.models.platform.marketplace import (
     MarketplaceListingVersion,
 )
@@ -69,8 +68,8 @@ from app.services.marketplace.installs import (
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import view_as
 from app.services.tenant import tags as tags_service
-from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace.app_data import row_columns
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.services.marketplace.plugin_data import row_columns
 from app.services.tenant.dashboard_definition import (
     DashboardDefinitionError,
     normalize_dashboard_config,
@@ -88,24 +87,24 @@ router = APIRouter()
 
 
 async def _endpoint_columns(session: AsyncSession):
-    """What each installed app says its read endpoints hand back.
+    """What each installed plug-in says its read endpoints hand back.
 
-    Read once per save rather than per widget: a canvas of app tiles is a
+    Read once per save rather than per widget: a canvas of plug-in tiles is a
     handful of installs, and this is what lets a statement over an endpoint's
     rows be refused while its author is looking at it.
     """
-    installed = (await session.exec(select(GuildApp))).all()
+    installed = (await session.exec(select(GuildPlugin))).all()
     declared: dict[tuple[str, str], tuple] = {}
-    for app in installed:
-        for endpoint in (app.definition or {}).get("endpoints") or []:
+    for plugin in installed:
+        for endpoint in (plugin.definition or {}).get("endpoints") or []:
             if not isinstance(endpoint, dict) or endpoint.get("direction") != "read":
                 continue
             endpoint_id = endpoint.get("id")
             if isinstance(endpoint_id, str):
-                declared[(app.listing_uid, endpoint_id)] = row_columns(endpoint)
+                declared[(plugin.listing_uid, endpoint_id)] = row_columns(endpoint)
 
-    def columns(app_uid: str, endpoint_id: str):
-        return declared.get((app_uid, endpoint_id))
+    def columns(plugin_uid: str, endpoint_id: str):
+        return declared.get((plugin_uid, endpoint_id))
 
     return columns
 
@@ -137,18 +136,6 @@ def _listing_canvas(version: MarketplaceListingVersion) -> dict:
     *now*.
     """
     return dict((version.definition or {}).get("definition") or {})
-
-
-async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashboard:
-    dashboard = await dashboards_service.get_dashboard(
-        session, dashboard_id, populate_existing=True
-    )
-    if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.dashboard.not_found_code,
-        )
-    return dashboard
 
 
 # ---------------------------------------------------------------------------
@@ -211,9 +198,16 @@ async def read_dashboard(
     include_deleted: IncludeDeletedDep = False,
 ) -> DashboardRead:
     dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        hydrated=True,
     )
-    return await _serialized(session, dashboard, current_user)
+    return serialize_tool(
+        DashboardRead, dashboard, user_id=current_user.id, context=guild_context
+    )
 
 
 @router.post("/", response_model=DashboardRead, status_code=status.HTTP_201_CREATED)
@@ -289,10 +283,7 @@ async def create_dashboard(
     await session.commit()
     if listing_id is not None:
         await count_install(guild_context.guild_id, listing_id)
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_tool(
-        DashboardRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
 @router.patch("/{dashboard_id}", response_model=DashboardRead)
@@ -343,8 +334,7 @@ async def update_dashboard(
         await attachments_service.claim_uploads(session, dashboard)
         await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return await _serialized(session, hydrated, current_user)
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
 @router.post("/{dashboard_id}/upgrade", response_model=DashboardRead)
@@ -402,8 +392,7 @@ async def upgrade_dashboard(
     session.add(dashboard)
     await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return await _serialized(session, hydrated, current_user)
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
 def _check_view_mode_allows(dashboard: Dashboard, guild_context: GuildContext) -> None:
@@ -511,7 +500,7 @@ async def load_dashboard_data(
     statements run as one statement in one transaction, and every tile reads
     the same moment. A widget whose statement is refused says so in its own
     entry; the rest still answer. What runs is each widget's own stored
-    statement, as for :func:`run_widget_query`.
+    statement, never one the request supplies.
     """
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
@@ -530,7 +519,7 @@ async def canvas_widget_data(
     session: AsyncSession, dashboard: Dashboard, guild_id: int
 ) -> dict[str, DashboardWidgetData]:
     """Every query widget on a dashboard the reader may already read, answered
-    together: the canvas route's work, and a list's preview of each row.
+    together: the canvas route's work.
 
     Raises :class:`query_service.QueryError` when the canvas as a whole is
     refused; a single widget's refusal is its own entry."""
@@ -559,58 +548,6 @@ async def canvas_widget_data(
             else DashboardWidgetData(result=_query_response(outcome))
         )
     return widgets
-
-
-@router.get("/{dashboard_id}/widgets/{widget_id}/query", response_model=QueryResponse)
-async def run_widget_query(
-    dashboard_id: int,
-    widget_id: str,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueryResponse:
-    """Run the statement stored on one of this dashboard's widgets.
-
-    What runs is the widget's own, never one the request supplies. That is what
-    makes running as the initiative safe to serve: its wider read is only ever
-    asked the question stored on the dashboard.
-
-    The dashboard's own four gates decide whether this caller sees anything at
-    all, and they run first. The canvas loads through
-    :func:`load_dashboard_data`; this answers one widget, for the builder.
-    """
-    dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
-    )
-    sql = _stored_sql(dashboard.definition, dashboard.config, widget_id)
-    if sql is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
-        )
-    context = _answered_as(session, dashboard)
-    try:
-        result = await query_service.run(
-            sql,
-            context=context,
-            initiative_id=dashboard.initiative_id,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
-    return _query_response(result)
-
-
-async def _serialized(session: Any, dashboard: Dashboard, user: User) -> DashboardRead:
-    """A dashboard read, with whether the reader may run it as its initiative."""
-    context = require_guild_context(session)
-    read = serialize_tool(DashboardRead, dashboard, context=context, user_id=user.id)
-    read.can_run_as_initiative = view_as.may_run_as_initiative(
-        context, dashboard.initiative_id
-    )
-    return read
 
 
 @router.put("/{dashboard_id}/view-mode", response_model=DashboardRead)
@@ -664,8 +601,7 @@ async def set_view_mode(
         )
         await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard_id)
-    return await _serialized(session, hydrated, current_user)
+    return await read_after_write(session, dashboard_id, current_user, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -684,7 +620,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_dashboard(session, dashboard_id)
+    dashboard = await dashboards_service.get_dashboard_hydrated(
+        session, dashboard_id, populate_existing=True
+    )
+    if not dashboard:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.dashboard.not_found_code,
+        )
     return serialize_tool(
-        DashboardRead, hydrated, user_id=user.id, context=guild_context
+        DashboardRead, dashboard, user_id=user.id, context=guild_context
     )

@@ -3,7 +3,7 @@
 Inside the app a reference names what it points at by id: ``#task[Fix the
 bug](41)`` in markdown (a task's description, a comment), and an
 ``entity-mention``, ``wikilink``, ``smart-chip`` or ``reference-embed`` node in
-an editor state (a document, a post, a wiki page). An id means nothing where an export is
+an editor state (a file, a post, a wiki page). An id means nothing where an export is
 restored — on another instance, or in a community where 41 is something else,
 and even in the same community a restore makes new rows — so the export writes
 each reference as the **ref** of what it named where it was written
@@ -15,7 +15,7 @@ each reference as the **ref** of what it named where it was written
   no id (``0``, or ``None`` for a wikilink) until it is placed.
 
 Every row a restore creates registers itself with the job's link collector
-under the ref it had (``task:41``, ``document:7``), so once the last entry has
+under the ref it had (``task:41``, ``file:7``), so once the last entry has
 flushed :func:`resolve_references` reads each marked body again and places
 every reference: on the row its ref became in this job; on the original, when
 the export came from this same community and the thing did not come over with
@@ -42,6 +42,7 @@ from app.core.references import (
     reference_node_kind,
 )
 from app.core.search import SearchEntityType
+from app.core.tools import Tool, tool_envelope_type
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.services.import_engine.context import ImportContext
@@ -55,7 +56,7 @@ _EXPORTED_TEXT_REFERENCE = re.compile(r"#([\w-]+)\[([^\]]*)\]\(([a-z_]+:\d+)\)")
 
 def _waiting(node_type: str) -> int | None:
     """What a reference node's id field holds while it waits to be placed. A
-    wikilink with no document is one the editor already draws as unlinked; the
+    wikilink with no file is one the editor already draws as unlinked; the
     others keep a number, as a Confluence mention waiting on its page does."""
     return None if node_type == "wikilink" else 0
 
@@ -117,21 +118,21 @@ def detach_editor_references(content: Any) -> Any:
 def _editor_holders(data: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
     """Where a tool envelope keeps its editor-state bodies."""
     kind = data.get("type")
-    if kind == "initiative-document" and data.get("document_type") == "native":
+    if kind == tool_envelope_type(Tool.file) and data.get("file_type") == "native":
         return [(data, "content")]
-    if kind == "initiative-post":
+    if kind == tool_envelope_type(Tool.post):
         return [(data, "body")]
-    if kind == "initiative-wiki":
+    if kind == tool_envelope_type(Tool.wiki):
         return [
             *(
                 (page, "content")
                 for page in data.get("pages") or []
                 if isinstance(page, dict)
             ),
-            # The documents filed in it, carried whole inside it.
+            # The files filed in it, carried whole inside it.
             *(
                 holder
-                for filed in data.get("documents") or []
+                for filed in data.get("files") or []
                 if isinstance(filed, dict)
                 for holder in _editor_holders(filed.get("envelope") or {})
             ),
@@ -203,8 +204,8 @@ def place_markdown_references(
 def place_editor_references(content: Any, resolve: Callable[[str], int | None]) -> Any:
     """``content`` with each exported reference node placed through
     ``resolve``. One that resolves to nothing is its text again; a wikilink
-    stays a wikilink with no document, which is how the editor draws one
-    whose document is gone."""
+    stays a wikilink with no file, which is how the editor draws one
+    whose file is gone."""
     if not isinstance(content, dict) or not isinstance(content.get("root"), dict):
         return content
 

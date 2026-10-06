@@ -97,7 +97,7 @@ export const useCommunitySettingsTabs = (): SettingsTab[] => {
           ]
         : []),
       // What the community hands to somebody outside it — an AI provider, an
-      // app — is the seat's to decide, the way its sign-in is. An ordinary
+      // plug-in — is the seat's to decide, the way its sign-in is. An ordinary
       // admin runs the community; these say who else gets to see it.
       ...(isSuperadmin
         ? [

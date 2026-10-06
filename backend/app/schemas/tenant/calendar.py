@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
@@ -25,7 +25,7 @@ class CalendarCreate(CalendarBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     #: Which initiative the calendar belongs to, or ``None`` for a guild
     #: calendar — one that belongs to the guild itself, the way the calendar
-    #: app's own does. Guild scope answers to no initiative's roles or feature
+    #: plug-in's own does. Guild scope answers to no initiative's roles or feature
     #: switch; its grants decide who reads and writes it.
     initiative_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
@@ -38,12 +38,13 @@ class CalendarCreate(CalendarBase, PropertiesOnCreate):
 class CalendarUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[MentionStr] = None
-    # Absent = unchanged; a null is rejected (a calendar always has a color).
     color: Optional[str] = Field(default=None, min_length=1, max_length=32)
+
+    _required = reject_null("name", "color")
 
 
 class CalendarSummary(CalendarBase, ToolSummaryBase):
-    #: NULL on a guild-level calendar — one an app mounted, belonging to the
+    #: NULL on a guild-level calendar — one a plug-in mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
 

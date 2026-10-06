@@ -1,6 +1,6 @@
 """The vendored contract, and the manifest this build actually accepts.
 
-The vocabulary is declared once, in the app-kit, and vendored here. The kit
+The vocabulary is declared once, in the plugin-kit, and vendored here. The kit
 generates a JSON Schema from the same file. So there are three things that must
 agree, and this module is where they are made to:
 
@@ -24,7 +24,7 @@ and every handler having a term — lives in :mod:`contract_coverage_test`.
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.core.app_scopes import ALL_SCOPES
+from app.core.plugin_scopes import ALL_SCOPES
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
@@ -33,9 +33,9 @@ from app.services.marketplace.manifest_values import (
 )
 from app.services.marketplace.definitions import normalize_listing_definition
 from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
-from app.services.marketplace.service_apps import (
+from app.services.marketplace.service_plugins import (
     ACTOR_KINDS,
-    APP_PROTOCOL_VERSIONS,
+    PLUGIN_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
     DIRECTIONS,
     EMBED_CAPABILITIES,
@@ -55,13 +55,13 @@ pytestmark = pytest.mark.always
 
 
 def platform_accepts(manifest) -> None:
-    """Run a manifest through the whole app path, not the service normalizer.
+    """Run a manifest through the whole plug-in path, not the service normalizer.
 
-    `app_kind` is read by the dispatcher rather than by
-    `normalize_service_app_definition`, so a case that varies it has to enter
+    `plugin_kind` is read by the dispatcher rather than by
+    `normalize_service_plugin_definition`, so a case that varies it has to enter
     where a published manifest actually enters.
     """
-    normalize_listing_definition("app", manifest)
+    normalize_listing_definition("plugin", manifest)
 
 
 # Unannotated on purpose: `jsonschema` builds its validator classes at runtime,
@@ -76,7 +76,7 @@ def validator():
 def _manifest(**overrides):
     """A minimal manifest the platform accepts, for a case to vary one thing of."""
     body = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "acme.tracker", "protocol": 1},
         "features": [],
     }
@@ -138,7 +138,7 @@ def test_vocabularies_come_from_the_validator():
 
     assert set(props["features"]["items"]["enum"]) == FEATURES
     assert set(props["service"]["properties"]["protocol"]["enum"]) == (
-        APP_PROTOCOL_VERSIONS
+        PLUGIN_PROTOCOL_VERSIONS
     )
     assert set(defs["connection"]["properties"]["scope"]["enum"]) == CONNECTION_SCOPES
     assert set(defs["connectionField"]["properties"]["type"]["enum"]) == FIELD_TYPES
@@ -148,7 +148,7 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
     scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
     assert set(scope_items[0]["enum"]) == set(ALL_SCOPES)
-    assert scope_items[1] == {"$ref": "#/$defs/appScope"}
+    assert scope_items[1] == {"$ref": "#/$defs/pluginScope"}
     assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
     assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"
     assert set(defs["embed"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
@@ -177,7 +177,7 @@ def test_a_secret_is_not_a_query_parameter():
     defs = contract.manifest_schema()["$defs"]
     assert "secret" in defs["connectionField"]["properties"]["type"]["enum"]
     assert "secret" not in defs["endpointParam"]["properties"]["type"]["enum"]
-    # And only a connection field is written back by the app.
+    # And only a connection field is written back by the plug-in.
     assert "managed" in defs["connectionField"]["properties"]
     assert "managed" not in defs["endpointParam"]["properties"]
 
@@ -199,7 +199,7 @@ def test_the_schema_names_itself_stably():
     so a drifting `$id` invalidates both."""
     assert (
         contract.manifest_schema()["$id"]
-        == "https://initiative.morels.me/schemas/app-manifest-v1.json"
+        == "https://initiative.morels.me/schemas/plugin-manifest-v1.json"
     )
 
 
@@ -222,17 +222,17 @@ ACCEPTED = [
             service={
                 "public_id": "acme.tracker",
                 "protocol": 1,
-                "scopes": ["projects:read", "apps:acme.github"],
+                "scopes": ["projects:read", "plugins:acme.github"],
             }
         ),
-        id="requested-app-scope",
+        id="requested-plugin-scope",
     ),
     pytest.param(
         _manifest(
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.open",
+                    "id": "plugin.acme.tracker.open",
                     "direction": "write",
                     "public": True,
                     "actors": ["member"],
@@ -257,7 +257,7 @@ ACCEPTED = [
             ],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.issues",
+                    "id": "plugin.acme.tracker.issues",
                     "direction": "read",
                     "cache_ttl_seconds": 300,
                     "params": [
@@ -314,9 +314,9 @@ ACCEPTED = [
         _manifest(
             features=["endpoints"],
             endpoints=[
-                {"id": "app.acme.tracker.issue-opened", "direction": "emit"},
+                {"id": "plugin.acme.tracker.issue-opened", "direction": "emit"},
                 {
-                    "id": "app.acme.tracker.issue-open",
+                    "id": "plugin.acme.tracker.issue-open",
                     "direction": "write",
                     "actors": ["member", "installation"],
                     "params": [
@@ -336,7 +336,7 @@ ACCEPTED = [
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.s",
+                    "id": "plugin.acme.tracker.s",
                     "direction": "read",
                     "cache_ttl_seconds": 10_000_000,
                 }
@@ -347,7 +347,7 @@ ACCEPTED = [
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
+            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read"}],
             some_future_block={"whatever": True},
         ),
         id="unknown-keys-dropped-not-refused",
@@ -374,7 +374,7 @@ ACCEPTED = [
             ],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.s",
+                    "id": "plugin.acme.tracker.s",
                     "direction": "read",
                     # One operator plus a key from a newer manifest revision.
                     # The platform reads the operator and drops the rest, so a
@@ -388,13 +388,13 @@ ACCEPTED = [
     pytest.param(
         _manifest(
             features=["endpoints", "widgets", "dashboards"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
+            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "endpoints": ["app.acme.tracker.s"],
+                    "endpoints": ["plugin.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -407,13 +407,13 @@ ACCEPTED = [
                     "widgets": [
                         {
                             "id": "one",
-                            # Bare, with no uid: the platform stamps the app's
+                            # Bare, with no uid: the platform stamps the plug-in's
                             # own on when it publishes.
                             "type": "w",
                             "title": "One",
                             "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
                             "binding": {
-                                "endpoint_id": "app.acme.tracker.s",
+                                "endpoint_id": "plugin.acme.tracker.s",
                                 "params": {"label": "bug", "limit": 5, "open": True},
                             },
                         }
@@ -421,18 +421,18 @@ ACCEPTED = [
                 }
             ],
         ),
-        id="a-dashboard-the-app-ships-with-itself",
+        id="a-dashboard-the-plugin-ships-with-itself",
     ),
     pytest.param(
         _manifest(
             features=["endpoints", "widgets", "dashboards"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
+            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "endpoints": ["app.acme.tracker.s"],
+                    "endpoints": ["plugin.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -443,7 +443,10 @@ ACCEPTED = [
                     # No description, layout, widget id or grid: a publisher who
                     # wants one tile per widget writes almost nothing.
                     "widgets": [
-                        {"type": "w", "binding": {"endpoint_id": "app.acme.tracker.s"}}
+                        {
+                            "type": "w",
+                            "binding": {"endpoint_id": "plugin.acme.tracker.s"},
+                        }
                     ],
                 }
             ],
@@ -467,7 +470,9 @@ REFUSED_BY_BOTH = [
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", "retries": 3}],
+            endpoints=[
+                {"id": "plugin.acme.tracker.s", "direction": "read", "retries": 3}
+            ],
         ),
         id="endpoint-term-the-contract-does-not-name",
     ),
@@ -476,7 +481,7 @@ REFUSED_BY_BOTH = [
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.s",
+                    "id": "plugin.acme.tracker.s",
                     "direction": "read",
                     "visibility": "member",
                 }
@@ -485,9 +490,9 @@ REFUSED_BY_BOTH = [
         id="endpoint-naming-a-retired-audience-term",
     ),
     pytest.param(
-        {"service": {"public_id": "acme.x"}, "features": []}, id="no-app-kind"
+        {"service": {"public_id": "acme.x"}, "features": []}, id="no-plugin-kind"
     ),
-    pytest.param(_manifest(app_kind="tool_instance"), id="wrong-app-kind"),
+    pytest.param(_manifest(plugin_kind="tool_instance"), id="wrong-plugin-kind"),
     pytest.param(
         _manifest(service={"public_id": "no-dot"}), id="public-id-without-dot"
     ),
@@ -512,17 +517,19 @@ REFUSED_BY_BOTH = [
         id="write-on-a-read-only-resource",
     ),
     pytest.param(
-        _manifest(service={"public_id": "acme.x", "scopes": ["apps:github"]}),
-        id="app-scope-without-a-public-id",
+        _manifest(service={"public_id": "acme.x", "scopes": ["plugins:github"]}),
+        id="plugin-scope-without-a-public-id",
     ),
     pytest.param(
-        _manifest(service={"public_id": "acme.x", "scopes": ["apps:Acme.github"]}),
-        id="app-scope-out-of-charset",
+        _manifest(service={"public_id": "acme.x", "scopes": ["plugins:Acme.github"]}),
+        id="plugin-scope-out-of-charset",
     ),
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", "public": 1}],
+            endpoints=[
+                {"id": "plugin.acme.tracker.s", "direction": "read", "public": 1}
+            ],
         ),
         id="endpoint-public-not-a-boolean",
     ),
@@ -539,7 +546,7 @@ REFUSED_BY_BOTH = [
         _manifest(
             features=["endpoints"],
             endpoints=[
-                {"id": "app.acme.tracker.s", "direction": "read", "admin_only": 1}
+                {"id": "plugin.acme.tracker.s", "direction": "read", "admin_only": 1}
             ],
         ),
         id="endpoint-admin-only-not-a-boolean",
@@ -550,12 +557,12 @@ REFUSED_BY_BOTH = [
             # Direction decides who may call it and whether an answer may be
             # cached, so a value outside the closed set is not a nuance the
             # platform could resolve later.
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "sideways"}],
+            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "sideways"}],
         ),
         id="direction-outside-the-vocabulary",
     ),
     pytest.param(
-        _manifest(features=["endpoints"], endpoints=[{"id": "app.acme.tracker.s"}]),
+        _manifest(features=["endpoints"], endpoints=[{"id": "plugin.acme.tracker.s"}]),
         id="path-climbing-out",
     ),
     pytest.param(
@@ -585,7 +592,7 @@ REFUSED_BY_BOTH = [
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.s",
+                    "id": "plugin.acme.tracker.s",
                     "direction": "read",
                     "requires": {"all_of": ["a"], "any_of": ["b"]},
                 }
@@ -597,7 +604,7 @@ REFUSED_BY_BOTH = [
         _manifest(
             features=["endpoints"],
             endpoints=[
-                {"id": "app.acme.tracker.s", "direction": "read", "requires": {}}
+                {"id": "plugin.acme.tracker.s", "direction": "read", "requires": {}}
             ],
         ),
         id="requires-naming-no-operator",
@@ -675,13 +682,13 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
         (
             _manifest(
                 features=["widgets", "endpoints"],
-                endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
+                endpoints=[{"id": "plugin.acme.tracker.known", "direction": "read"}],
                 widgets=[
                     {
                         "id": "w",
                         "meta": {"name": {"en": "W"}},
                         "module_source": "export default () => ({})",
-                        "endpoints": ["app.acme.tracker.absent"],
+                        "endpoints": ["plugin.acme.tracker.absent"],
                     }
                 ],
             ),
@@ -690,25 +697,54 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
         (
             _manifest(
                 features=["endpoints"],
-                endpoints=[{"id": "app.someone-else.thing", "direction": "emit"}],
+                endpoints=[{"id": "plugin.someone-else.thing", "direction": "emit"}],
             ),
-            "an endpoint namespaced under another app",
+            "an endpoint namespaced under another plug-in",
         ),
         (
             _manifest(
                 features=["endpoints"],
-                endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
-                community_summary="app.acme.tracker.absent",
+                endpoints=[{"id": "plugin.acme.tracker.known", "direction": "read"}],
+                community_summary="plugin.acme.tracker.absent",
             ),
             "a community summary naming an endpoint that does not exist",
         ),
         (
             _manifest(
                 features=["endpoints"],
-                endpoints=[{"id": "app.acme.tracker.told", "direction": "emit"}],
-                community_summary="app.acme.tracker.told",
+                endpoints=[{"id": "plugin.acme.tracker.told", "direction": "emit"}],
+                community_summary="plugin.acme.tracker.told",
             ),
             "a community summary naming an endpoint that is not a read",
+        ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "plugin.acme.tracker.standing",
+                        "direction": "read",
+                        "returns": [{"key": "used", "type": "int", "of": "allowed"}],
+                    }
+                ],
+            ),
+            "a return counted against one the endpoint does not return",
+        ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "plugin.acme.tracker.standing",
+                        "direction": "read",
+                        "returns": [
+                            {"key": "used", "type": "int", "of": "allowed"},
+                            {"key": "allowed", "type": "int", "list": True},
+                        ],
+                    }
+                ],
+            ),
+            "a return counted against a list, which has no one figure",
         ),
     ],
 )
@@ -736,7 +772,7 @@ def test_every_direction_may_describe_itself_and_its_answer():
     endpoint = contract.manifest_schema()["$defs"]["endpoint"]["properties"]
     for key in ("label", "description", "returns", "group", "needs_subject"):
         assert key in endpoint, key
-    # None of them is required: an app that says nothing is still a valid app.
+    # None of them is required: a plug-in that says nothing is still a valid plug-in.
     assert set(contract.manifest_schema()["$defs"]["endpoint"]["required"]) == {
         "id",
         "direction",
@@ -760,11 +796,13 @@ def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
 
 def test_requested_scopes_are_stored_sorted_and_absent_when_none():
     """Canonical, so re-publishing the same manifest stores the same document;
-    and left out when empty, so "does this app ask for anything?" has one
+    and left out when empty, so "does this plug-in ask for anything?" has one
     shape."""
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import (
+        normalize_service_plugin_definition,
+    )
 
-    cleaned = normalize_service_app_definition(
+    cleaned = normalize_service_plugin_definition(
         _manifest(
             service={
                 "public_id": "acme.tracker",
@@ -777,41 +815,43 @@ def test_requested_scopes_are_stored_sorted_and_absent_when_none():
         "projects:read",
         "tags:write",
     ]
-    bare = normalize_service_app_definition(_manifest())
+    bare = normalize_service_plugin_definition(_manifest())
     assert "scopes" not in bare["service"]
 
 
-def test_app_scopes_are_stored_with_the_rest_and_bounded():
-    from app.services.marketplace.service_apps import (
-        MAX_APP_SCOPES,
-        normalize_service_app_definition,
+def test_plugin_scopes_are_stored_with_the_rest_and_bounded():
+    from app.services.marketplace.service_plugins import (
+        MAX_PLUGIN_SCOPES,
+        normalize_service_plugin_definition,
     )
 
-    cleaned = normalize_service_app_definition(
+    cleaned = normalize_service_plugin_definition(
         _manifest(
             service={
                 "public_id": "acme.tracker",
-                "scopes": ["projects:read", "apps:acme.github"],
+                "scopes": ["projects:read", "plugins:acme.github"],
             }
         )
     )
-    assert cleaned["service"]["scopes"] == ["apps:acme.github", "projects:read"]
+    assert cleaned["service"]["scopes"] == ["plugins:acme.github", "projects:read"]
 
-    too_many = [f"apps:acme.app{index}" for index in range(MAX_APP_SCOPES + 1)]
+    too_many = [f"plugins:acme.plugin{index}" for index in range(MAX_PLUGIN_SCOPES + 1)]
     with pytest.raises(ValueError):
-        normalize_service_app_definition(
+        normalize_service_plugin_definition(
             _manifest(service={"public_id": "acme.tracker", "scopes": too_many})
         )
 
 
 def test_public_is_stored_only_when_set_and_refused_on_an_emission():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import (
+        normalize_service_plugin_definition,
+    )
 
     def endpoint(**extra):
-        return normalize_service_app_definition(
+        return normalize_service_plugin_definition(
             _manifest(
                 features=["endpoints"],
-                endpoints=[{"id": "app.acme.tracker.s", **extra}],
+                endpoints=[{"id": "plugin.acme.tracker.s", **extra}],
             )
         )["endpoints"][0]
 
@@ -823,14 +863,16 @@ def test_public_is_stored_only_when_set_and_refused_on_an_emission():
 
 
 def test_admin_only_defaults_to_false_and_is_always_stored():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import (
+        normalize_service_plugin_definition,
+    )
 
     def embed(**extra):
         body = _manifest(
             features=["embeds"],
             embeds=[{"id": "e", "path": "/e", "name": {"en": "E"}, **extra}],
         )
-        return normalize_service_app_definition(body)["embeds"][0]
+        return normalize_service_plugin_definition(body)["embeds"][0]
 
     assert embed()["admin_only"] is False
     assert embed(admin_only=True)["admin_only"] is True
@@ -855,7 +897,7 @@ def test_the_retired_audience_term_is_refused_by_name(where):
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.acme.tracker.s",
+                    "id": "plugin.acme.tracker.s",
                     "direction": "read",
                     "visibility": "guild_admin",
                 }
@@ -866,14 +908,16 @@ def test_the_retired_audience_term_is_refused_by_name(where):
 
 
 def test_an_endpoint_admin_only_defaults_to_false_and_is_always_stored():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import (
+        normalize_service_plugin_definition,
+    )
 
     def endpoint(**extra):
         body = _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", **extra}],
+            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read", **extra}],
         )
-        return normalize_service_app_definition(body)["endpoints"][0]
+        return normalize_service_plugin_definition(body)["endpoints"][0]
 
     assert endpoint()["admin_only"] is False
     assert endpoint(admin_only=True)["admin_only"] is True
@@ -889,7 +933,7 @@ def test_an_emission_is_not_admin_only():
                 features=["endpoints"],
                 endpoints=[
                     {
-                        "id": "app.acme.tracker.told",
+                        "id": "plugin.acme.tracker.told",
                         "direction": "emit",
                         "admin_only": False,
                     }
@@ -913,6 +957,27 @@ def test_an_emission_is_not_admin_only():
     ],
 )
 def test_is_admin_only_reads_both_contracts(declared, expected):
-    from app.services.marketplace.service_apps import is_admin_only
+    from app.services.marketplace.service_plugins import is_admin_only
 
     assert is_admin_only(declared) is expected
+
+
+@pytest.mark.parametrize(
+    "minimum_age",
+    [{"gdpr": 16}, {"us": 13}, {"USA": 13}, {"default": 12}, {"default": 22}, {}],
+)
+def test_a_minimum_age_is_by_country_and_bounded(minimum_age, validator):
+    """A region is a country or ``default`` — GDPR is not one age — and an age
+    the publisher declared for compliance is refused whole when wrong rather
+    than quietly trimmed. The schema and the platform agree on every case."""
+    manifest = _manifest(minimum_age=minimum_age)
+    assert list(validator.iter_errors(manifest)) != []
+    with pytest.raises(ValueError):
+        platform_accepts(manifest)
+
+
+def test_a_minimum_age_is_kept_as_declared(validator):
+    manifest = _manifest(minimum_age={"default": 16, "US": 13, "FR": 15})
+    assert list(validator.iter_errors(manifest)) == []
+    stored = normalize_listing_definition("plugin", manifest)
+    assert stored["minimum_age"] == {"default": 16, "US": 13, "FR": 15}

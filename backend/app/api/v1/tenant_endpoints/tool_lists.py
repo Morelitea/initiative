@@ -51,30 +51,29 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
-from app.api.v1.tenant_endpoints import documents as documents_endpoints
+from app.api.v1.tenant_endpoints import files as files_endpoints
 from app.api.v1.tenant_endpoints import galleries as galleries_endpoints
 from app.api.v1.tenant_endpoints import posts as posts_endpoints
 from app.api.v1.tenant_endpoints import projects as projects_endpoints
 from app.api.v1.tenant_endpoints import queues as queues_endpoints
 from app.api.v1.tenant_endpoints import wikis as wikis_endpoints
-from app.core.messages import DocumentMessages, QueryMessages
+from app.core.messages import QueryMessages
 from app.core.tools import Tool
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.gallery import Gallery
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
 from app.models.tenant.project_order import ProjectOrder
@@ -96,9 +95,9 @@ from app.schemas.tenant.dashboard import (
     DashboardPreview,
     DashboardSummary,
 )
-from app.schemas.tenant.document import (
-    DocumentListResponse,
-    DocumentRead,
+from app.schemas.tenant.file import (
+    FileListResponse,
+    FileRead,
 )
 from app.schemas.tenant.gallery import (
     GalleryListResponse,
@@ -122,13 +121,13 @@ from app.schemas.tenant.wiki import (
     WikiSummary,
 )
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
-from app.services import query as query_service
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
+from app.services.tenant import comments as comments_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
@@ -157,7 +156,7 @@ class ListRequest:
     """
 
     session: AsyncSession
-    #: The person asking; ``None`` when an installed app is.
+    #: The person asking; ``None`` when an installed plug-in is.
     user: Optional[User]
     guild_context: ActorContext
     values: dict[str, Any]
@@ -168,7 +167,7 @@ class ListRequest:
 
     @property
     def user_id(self) -> Optional[int]:
-        """The person asking, by id; ``None`` for an installed app."""
+        """The person asking, by id; ``None`` for an installed plug-in."""
         return self.guild_context.user_id
 
 
@@ -309,7 +308,6 @@ def page_size_param(
 _NOT_FILTERS = frozenset(
     {
         "initiative_id",
-        "ids",
         "scope",
         "slim",
         "writable",
@@ -384,10 +382,6 @@ class ToolListSpec:
 
     tool: Tool
     model: Any
-    #: The initiative's master switch for this tool. Checked against
-    #: ``Tool.view_permission`` below, so the table can be read at a glance
-    #: without becoming a second source of truth for the column's name.
-    enabled_column: Any
     response_model: Any
     #: (req) -> eager loads for the page query
     loader_options: Callable[["ListRequest"], list]
@@ -402,8 +396,8 @@ class ToolListSpec:
     #: tool's own re-read-and-serialize, which the shared sharing route
     #: (``tool_grants.py``) answers with.
     read_row: Callable[..., Awaitable[Any]]
-    #: The sharing route's published description, per tool.
-    grants_doc: Optional[str] = None
+    #: What the sharing route's published description adds for this tool.
+    grants_note: Optional[str] = None
     #: async (spec, req) -> the whole WHERE. Defaults to the shared set.
     conditions: Optional[Callable[..., Awaitable[list]]] = None
     #: Rows belonging to the guild rather than to an initiative (guild calendars).
@@ -419,24 +413,11 @@ class ToolListSpec:
     views: Mapping[str, Mapping[str, Any]] = field(
         default_factory=lambda: dict(DEFAULT_VIEWS)
     )
-    #: (the request's values) -> extra fields on the list response.
-    response_extras: Optional[Callable[[dict], dict]] = None
     list_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
-    #: Whether an installed app may list this tool, under its read scope.
-    serves_apps: bool = True
-
-    def __post_init__(self) -> None:
-        # The switch column is spelled out in the table for readability; this
-        # keeps it from drifting from the name the Tool enum derives
-        # everywhere else.
-        if self.enabled_column.key != self.tool.view_permission:
-            raise ValueError(
-                f"{self.tool.value}: enabled_column is "
-                f"{self.enabled_column.key!r}, expected "
-                f"{self.tool.view_permission!r}"
-            )
+    #: Whether an installed plug-in may list this tool, under its read scope.
+    serves_plugins: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -451,7 +432,6 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         *tool_listing.base_conditions(
             spec.tool,
             spec.model,
-            spec.enabled_column,
             req.user_id,
             context=req.guild_context,
             initiative_id=values.get("initiative_id"),
@@ -485,13 +465,18 @@ PreviewLoader = Callable[[AsyncSession, int, list], Awaitable[Mapping[int, Any]]
 def _summaries(
     schema: type[ToolSummaryBase], preview: Optional[PreviewLoader] = None
 ) -> Callable[..., Awaitable[list]]:
-    """The ordinary page: tag the rows, then turn each into its summary. A tool
-    whose card previews what is inside it reads every row's preview for the
-    page at once, and only when the list was asked for them."""
+    """The ordinary page: tag the rows, count their comments where the summary
+    reports them, then turn each into its summary. A tool whose card previews
+    what is inside it reads every row's preview for the page at once, and only
+    when the list was asked for them."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         await properties_service.annotate_properties(req.session, rows)
+        if "comment_count" in schema.model_fields:
+            await comments_service.annotate_comment_counts(
+                req.session, rows, column=f"{spec.tool.value}_id"
+            )
         items = [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
@@ -522,21 +507,14 @@ def _include_preview() -> ListParam:
 async def _dashboard_previews(
     session: AsyncSession, guild_id: int, rows: list
 ) -> dict[int, DashboardPreview]:
-    """Each dashboard's canvas and its query widgets' answers. A canvas the
-    query service refuses — a busy community, a statement past its limits —
-    previews with no answers rather than failing the list."""
-    previews: dict[int, DashboardPreview] = {}
-    for dashboard in rows:
-        try:
-            widgets = await dashboards_endpoints.canvas_widget_data(
-                session, dashboard, guild_id
-            )
-        except query_service.QueryError:
-            widgets = {}
-        previews[dashboard.id] = DashboardPreview(
-            definition=dashboard.definition, config=dashboard.config, widgets=widgets
+    """Each dashboard's canvas. The card draws its widgets from sample data, so
+    nothing here runs a query."""
+    return {
+        dashboard.id: DashboardPreview(
+            definition=dashboard.definition, config=dashboard.config
         )
-    return previews
+        for dashboard in rows
+    }
 
 
 def _loads(loader: Callable[[], list]) -> Callable[[ListRequest], list]:
@@ -573,7 +551,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
     """Join each reader's own manual positions, which the default order reads.
 
-    An installed app keeps no positions of its own, so its list is left as it
+    An installed plug-in keeps no positions of its own, so its list is left as it
     is and ordered by id (:func:`_project_order`)."""
     if req.user_id is None:
         return lambda statement: statement
@@ -587,7 +565,7 @@ def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
 
 
 def _project_order(req: ListRequest) -> list:
-    """The reader's own manual order, then id; by id alone for an app."""
+    """The reader's own manual order, then id; by id alone for a plug-in."""
     if req.user_id is None:
         return [Project.id.asc()]
     return [ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()]
@@ -600,48 +578,30 @@ async def _serialize_projects(spec: ToolListSpec, req: ListRequest, rows: list) 
 
 
 # ---------------------------------------------------------------------------
-# Documents
+# Files
 # ---------------------------------------------------------------------------
 
 
-async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+async def _file_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
-    if values.get("initiative_id") is not None:
-        # The only list that answers 404 for an initiative outside the guild
-        # rather than an empty page — its callers address a known initiative.
-        await documents_endpoints.get_initiative_or_404(
-            req.session,
-            initiative_id=values["initiative_id"],
-        )
-    ids = values.get("ids")
-    if ids is not None and len(ids) > documents_endpoints.MAX_DOCUMENT_IDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TOO_MANY_IDS,
-        )
-    conditions = documents_endpoints.visible_document_conditions(
+    conditions = files_endpoints.visible_file_conditions(
         req.guild_context,
         req.user_id,
         initiative_id=values.get("initiative_id"),
-        ids=ids,
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         untagged=values.get("untagged"),
         is_template=values.get("is_template"),
-        document_type=values.get("document_type"),
+        file_type=values.get("file_type"),
     )
     conditions.append(
-        archive_service.archive_filter_clause(Document, values.get("archived"))
+        archive_service.archive_filter_clause(File, values.get("archived"))
     )
     return conditions
 
 
-async def _serialize_documents(
-    spec: ToolListSpec, req: ListRequest, rows: list
-) -> list:
-    return await documents_endpoints.serialize_document_page(
-        req.session, req.user_id, rows
-    )
+async def _serialize_files(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
+    return await files_endpoints.serialize_file_page(req.session, req.user_id, rows)
 
 
 # ---------------------------------------------------------------------------
@@ -695,36 +655,11 @@ def _post_order(req: ListRequest) -> list:
 async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     # One grouped query each for the page, so a board of twenty asks a handful
     # of times rather than forty.
-    # An installed app's page carries no reactions, read state or ballots.
+    # An installed plug-in's page carries no reactions, read state or ballots.
     await posts_endpoints.annotate_post_rows(req.session, rows, user_id=req.user_id)
     return [
         serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Galleries and wikis
-# ---------------------------------------------------------------------------
-
-
-async def _serialize_galleries(
-    spec: ToolListSpec, req: ListRequest, rows: list
-) -> list:
-    await galleries_endpoints.annotate_gallery_rows(req.session, rows)
-    return [
-        serialize_tool(
-            GallerySummary, row, context=req.guild_context, user_id=req.user_id
-        )
-        for row in rows
-    ]
-
-
-async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
-    await wikis_endpoints.annotate_wiki_rows(req.session, rows)
-    return [
-        serialize_tool(WikiSummary, row, context=req.guild_context, user_id=req.user_id)
-        for row in rows
     ]
 
 
@@ -738,16 +673,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.project,
         read_model=ProjectRead,
         read_row=projects_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the project's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
-            "Anyone the new grants drop below write access is unassigned from the project's\n"
-            "tasks (you can't be assigned to tasks you can't edit)."
-        ),
         model=Project,
-        enabled_column=Initiative.projects_enabled,
         response_model=ProjectListResponse,
         loader_options=lambda req: projects_endpoints.project_load_options(
             slim=bool(req.values.get("slim"))
@@ -775,7 +701,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     default=False,
                     description=(
                         "Return a lightweight projection (id, name, icon, "
-                        "initiative_id, can) without documents, "
+                        "initiative_id, can) without files, "
                         "grants, tags, or the nested initiative. For project "
                         "pickers and other list-only callers."
                     ),
@@ -803,57 +729,35 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_size_param(0, ge=0, le=100),
         ),
     ),
-    Tool.document: ToolListSpec(
-        tool=Tool.document,
-        read_model=DocumentRead,
-        read_row=documents_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the document's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
-        model=Document,
-        enabled_column=Initiative.documents_enabled,
-        response_model=DocumentListResponse,
-        loader_options=_loads(documents_service.list_loader_options),
-        default_order=_order(Document.updated_at.desc(), Document.id.desc()),
-        serialize=_serialize_documents,
-        conditions=_document_conditions,
+    Tool.file: ToolListSpec(
+        tool=Tool.file,
+        read_model=FileRead,
+        read_row=files_endpoints.read_after_write,
+        model=File,
+        response_model=FileListResponse,
+        loader_options=_loads(files_service.list_loader_options),
+        default_order=_order(File.updated_at.desc(), File.id.desc()),
+        serialize=_serialize_files,
+        conditions=_file_conditions,
         views=TEMPLATE_VIEWS,
-        # The one tool that also sorts by when a row was written — a document
+        # The one tool that also sorts by when a row was written — a file
         # list is a filing cabinet, and "newest first" is how you read one.
-        extra_sort_fields={"created_at": Document.created_at},
-        response_extras=lambda values: {
-            "sort_by": values.get("sort_by"),
-            "sort_dir": values.get("sort_dir"),
-        },
+        extra_sort_fields={"created_at": File.created_at},
         params=(
             _initiative_id(),
-            ListParam(
-                "ids",
-                Optional[List[int]],
-                Query(
-                    default=None,
-                    description=(
-                        "Filter to specific document IDs — for hydrating a known "
-                        "set of documents without walking a collection. Maximum "
-                        f"{documents_endpoints.MAX_DOCUMENT_IDS} IDs."
-                    ),
-                ),
-            ),
             search_param(description=None),
-            _tag_ids(Tool.document, description="Filter by tag IDs"),
+            _tag_ids(Tool.file, description="Filter by tag IDs"),
             _property_filters(),
             ListParam(
                 "untagged",
                 Optional[bool],
-                Query(default=None, description="Filter to documents with no tags"),
+                Query(default=None, description="Filter to files with no tags"),
             ),
-            _is_template(Tool.document),
+            _is_template(Tool.file),
             ListParam(
-                "document_type",
-                Optional[DocumentType],
-                Query(default=None, description="Filter by document type"),
+                "file_type",
+                Optional[FileType],
+                Query(default=None, description="Filter by file type"),
             ),
             page_param(),
             page_size_param(20, ge=0, le=100),
@@ -862,30 +766,24 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _archived(),
         ),
         list_doc=(
-            "List documents in the active guild visible to the current user.\n"
+            "List files in the active guild visible to the current user.\n"
             "\n"
-            "DAC: Documents with explicit DocumentPermission or role-based "
-            "permission.\n"
+            "DAC: Files shared with the reader directly or through "
+            "their initiative role.\n"
             "\n"
             "Pagination: page_size=0 serves the full set in server-bounded "
             "windows —\n"
             "walk page=1,2,... until has_next is false.\n"
             "\n"
-            'Cross-guild "my documents" lives under /me/documents (see '
-            "list_my_documents)."
+            'Cross-guild "my files" lives under /me/files (see '
+            "list_my_files)."
         ),
     ),
     Tool.queue: ToolListSpec(
         tool=Tool.queue,
         read_model=QueueRead,
         read_row=queues_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the queue's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Queue,
-        enabled_column=Initiative.queues_enabled,
         response_model=QueueListResponse,
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
@@ -916,24 +814,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
-        list_doc=(
-            "List queues visible to the current user.\n"
-            "\n"
-            "DAC: Queues with explicit QueuePermission or role-based permission.\n"
-            "Guild admins see all queues."
-        ),
+        list_doc="List queues visible to the current user (guild admins see all).",
     ),
     Tool.counter_group: ToolListSpec(
         tool=Tool.counter_group,
         read_model=CounterGroupRead,
         read_row=counters_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the counter group's entire sharing state in one call — the body\n"
-            "is the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=CounterGroup,
-        enabled_column=Initiative.counter_groups_enabled,
         response_model=CounterGroupListResponse,
         loader_options=_loads(counters_service.list_loader_options),
         default_order=_order(CounterGroup.updated_at.desc(), CounterGroup.id.desc()),
@@ -963,20 +850,14 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.calendar,
         read_model=CalendarRead,
         read_row=calendars_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the calendar's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Calendar,
-        enabled_column=Initiative.calendars_enabled,
         response_model=CalendarListResponse,
         loader_options=_loads(calendars_service.calendar_loader_options),
         default_order=_order(Calendar.name.asc(), Calendar.id.asc()),
         serialize=_summaries(CalendarSummary),
         conditions=_calendar_conditions,
         # A calendar may belong to the guild rather than to an initiative: the
-        # app holds it, and no initiative's switch has anything to say about it.
+        # plug-in holds it, and no initiative's switch has anything to say about it.
         guild_level_rows=True,
         params=(
             _initiative_id(),
@@ -996,7 +877,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "\n"
             "``scope=community`` narrows to the guild's own calendars — the ones the "
             "calendar\n"
-            "app holds, belonging to no initiative. That is the opposite of the\n"
+            "plug-in holds, belonging to no initiative. That is the opposite of the\n"
             "unfiltered list, which is everything in scope, so it is asked for by "
             "name\n"
             "rather than inferred from an absent ``initiative_id``."
@@ -1004,20 +885,15 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
     ),
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
-        # Not among what an installed app reads today.
-        serves_apps=False,
+        # Not among what an installed plug-in reads today.
+        serves_plugins=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the dashboard's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
+        grants_note=(
             "This shares the canvas, not its data: each widget still resolves against\n"
             "the viewer's own access to the sources it binds."
         ),
         model=Dashboard,
-        enabled_column=Initiative.dashboards_enabled,
         response_model=DashboardListResponse,
         loader_options=_loads(dashboards_service.dashboard_loader_options),
         default_order=_order(Dashboard.name.asc(), Dashboard.id.asc()),
@@ -1040,13 +916,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.post,
         read_model=PostRead,
         read_row=posts_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the post's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Post,
-        enabled_column=Initiative.posts_enabled,
         response_model=PostListResponse,
         loader_options=_loads(posts_service.list_loader_options),
         default_order=_post_order,
@@ -1116,17 +986,16 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.gallery,
         read_model=GalleryRead,
         read_row=galleries_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the gallery's entire sharing state in one call — the body is\n"
-            "the full list of grants. Every non-owner grant is rebuilt from it; the\n"
-            "owner is always preserved."
-        ),
         model=Gallery,
-        enabled_column=Initiative.galleries_enabled,
         response_model=GalleryListResponse,
         loader_options=_loads(galleries_service.list_loader_options),
         default_order=_order(Gallery.updated_at.desc(), Gallery.id.desc()),
-        serialize=_serialize_galleries,
+        serialize=_summaries(
+            GallerySummary,
+            preview=lambda session, _guild_id, rows: galleries_service.list_previews(
+                session, rows
+            ),
+        ),
         params=(
             _initiative_id(),
             search_param(
@@ -1140,6 +1009,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.gallery),
             _property_filters(),
             _archived(),
+            _include_preview(),
             page_param(),
             page_size_param(100, ge=0, le=500),
         ),
@@ -1150,11 +1020,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=WikiRead,
         read_row=wikis_endpoints.read_after_write,
         model=Wiki,
-        enabled_column=Initiative.wikis_enabled,
         response_model=WikiListResponse,
         loader_options=_loads(wikis_service.list_loader_options),
         default_order=_order(Wiki.updated_at.desc(), Wiki.id.desc()),
-        serialize=_serialize_wikis,
+        serialize=_summaries(WikiSummary),
         params=(
             _initiative_id(),
             search_param(
@@ -1193,14 +1062,14 @@ _CONTEXT_PARAMS: tuple[tuple[str, Any], ...] = (
 
 
 def _actor_params(tool: Tool) -> tuple[tuple[str, Any], ...]:
-    """The same three, for a list an installed app may call under the tool's
+    """The same three, for a list an installed plug-in may call under the tool's
     read scope: a person arrives exactly as above, and an install through its
     token."""
-    scope = scope_name(tool_resource(tool), AppScopeAccess.read)
+    scope = scope_name(tool_resource(tool), PluginScopeAccess.read)
     return (
         ("session", ActorSessionDep),
         ("current_user", ActorUserDep),
-        ("guild_context", Annotated[ActorContext, Depends(app_scope(scope))]),
+        ("guild_context", Annotated[ActorContext, Depends(plugin_scope(scope))]),
     )
 
 
@@ -1253,14 +1122,13 @@ def _mount_list(spec: ToolListSpec) -> None:
         )
         items = await spec.serialize(spec, request, rows)
         page_size = values["page_size"]
-        extras = spec.response_extras(values) if spec.response_extras else {}
         return spec.response_model(
-            **build_paginated_response(items, total_count, page, page_size, **extras)
+            **build_paginated_response(items, total_count, page, page_size)
         )
 
     list_rows.__signature__ = _signature(
         spec.params,
-        _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
+        _actor_params(spec.tool) if spec.serves_plugins else _CONTEXT_PARAMS,
     )
     router.add_api_route(
         f"/{spec.tool.route_segment}/",
@@ -1335,7 +1203,7 @@ async def get_tool_counts(
     filters: Optional[str] = Query(
         default=None,
         description="JSON object of the tool's own list filters, as its list "
-        'route takes them (``{"search": "notes", "document_type": "native"}``), '
+        'route takes them (``{"search": "notes", "file_type": "native"}``), '
         "that the tag counts are for",
     ),
     include_tags: bool = Query(

@@ -62,13 +62,12 @@ export function buildWikiPage(overrides: Partial<WikiPageRead> = {}): WikiPageRe
     headings: [],
     tags: [],
     properties: [],
-    document_type: null,
+    file_type: null,
     file_content_type: null,
     original_filename: null,
     smart_link_url: null,
     content: {},
     content_version: null,
-    comment_count: 0,
     ...overrides,
   };
 }

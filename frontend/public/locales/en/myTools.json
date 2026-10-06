@@ -20,7 +20,7 @@
   },
   "noTools": {
     "title": "Nothing to browse yet",
-    "description": "Once you're in a project, a document, or anything else, it shows up here.",
+    "description": "Once you're in a project, a file, or anything else, it shows up here.",
     "descriptionMine": "Once you make something, it shows up here."
   }
 }

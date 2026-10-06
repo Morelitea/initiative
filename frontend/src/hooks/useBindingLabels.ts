@@ -6,14 +6,14 @@
  * the entire authorization decision. Nothing here consults the definition for a
  * name, and nothing caches one across sessions.
  *
- * One kind of id survives the move to queries: the document a sheet range sits
+ * One kind of id survives the move to queries: the file a sheet range sits
  * in. A statement mentions no ids at all — it says which datasets it reads, and
  * the server answers that with the rows.
  */
 
 import { useMemo } from "react";
 
-import { useDocument } from "@/hooks/useDocuments";
+import { useFile } from "@/hooks/useFiles";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { EMPTY_LABELS, type EntityLabels } from "@/lib/widgets/provenance";
 
@@ -23,22 +23,22 @@ export function useBindingLabels(
   enabled = true
 ): EntityLabels {
   const scoped = enabled && typeof initiativeId === "number";
-  const documentId = scoped ? (binding.document_id ?? null) : null;
-  const documentQuery = useDocument(documentId);
+  const fileId = scoped ? (binding.file_id ?? null) : null;
+  const fileQuery = useFile(fileId);
 
   return useMemo<EntityLabels>(() => {
     if (!scoped) return EMPTY_LABELS;
-    const document = new Map<number, string>();
+    const file = new Map<number, string>();
     // Held against the dashboard's own initiative, like every other id a
     // binding names: one pointing elsewhere resolves to nothing rather than to
     // a name from another initiative.
     if (
-      documentQuery.data &&
-      documentQuery.data.initiative_id === initiativeId &&
-      typeof documentId === "number"
+      fileQuery.data &&
+      fileQuery.data.initiative_id === initiativeId &&
+      typeof fileId === "number"
     ) {
-      document.set(documentId, documentQuery.data.name);
+      file.set(fileId, fileQuery.data.name);
     }
-    return { document, ready: documentId === null || !documentQuery.isLoading };
-  }, [scoped, initiativeId, documentId, documentQuery.data, documentQuery.isLoading]);
+    return { file, ready: fileId === null || !fileQuery.isLoading };
+  }, [scoped, initiativeId, fileId, fileQuery.data, fileQuery.isLoading]);
 }

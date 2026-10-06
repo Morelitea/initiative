@@ -11,7 +11,8 @@
  * written inside a code fence stays literal.
  */
 
-import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { FileType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { EARLIER_KINDS } from "@/lib/smartChips";
 
 /** People. A separate trigger because they are read from the roster, not the
  *  index — identity is shared across communities, content is not. */
@@ -52,7 +53,12 @@ const TRIGGER_TYPES: [string, SearchEntityType][] = [
   ...MENTIONABLE_TYPES.map((type): [string, SearchEntityType] => [typeTrigger(type), type]),
   // Written by every composer before the type words were derived, and still
   // sitting in stored comments, so it is read as well as the derived spelling.
-  ["doc", SearchEntityType.document] as [string, SearchEntityType],
+  ["doc", SearchEntityType.file] as [string, SearchEntityType],
+  // A kind's earlier spelling, still sitting in stored text.
+  ...Object.entries(EARLIER_KINDS).map(([kind, type]): [string, SearchEntityType] => [
+    kind.replaceAll("_", "-"),
+    type,
+  ]),
 ].sort((a, b) => b[0].length - a[0].length);
 
 /** The type a trigger word names, or `undefined` if it names none. */
@@ -162,5 +168,5 @@ export const activeMention = (text: string): ActiveMention | null => {
  * has no body of its own to write in — none of them has a line of text with a
  * caret in it for a trigger to be typed into.
  */
-export const supportsEntityMentions = (type: DocumentType | null | undefined): boolean =>
-  type === DocumentType.native;
+export const supportsEntityMentions = (type: FileType | null | undefined): boolean =>
+  type === FileType.native;

@@ -14,7 +14,7 @@ from app.core.messages import RelationshipMessages, SharingMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_queue,
@@ -88,6 +88,13 @@ async def test_create_queue(client: AsyncClient, acting_user):
     assert data["created_by"] == a.user.id
     assert data["is_active"] is False
     assert data["current_round"] == 1
+
+    blank = await client.post(
+        a.g("/queues/"),
+        headers=a.headers,
+        json={"name": "  ", "initiative_id": a.initiative.id},
+    )
+    assert blank.status_code == 422, blank.text
 
 
 async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
@@ -185,13 +192,19 @@ async def test_update_queue(client: AsyncClient, acting_user):
     response = await client.patch(
         a.g(f"/queues/{queue_data['id']}"),
         headers=a.headers,
-        json={"name": "Updated Name", "description": "Updated desc"},
+        json={"name": "  Updated Name  ", "description": "Updated desc"},
     )
 
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Name"
     assert data["description"] == "Updated desc"
+
+    for name in (None, "  "):
+        refused = await client.patch(
+            a.g(f"/queues/{queue_data['id']}"), headers=a.headers, json={"name": name}
+        )
+        assert refused.status_code == 422, name
 
 
 async def test_delete_queue(client: AsyncClient, acting_user):
@@ -245,18 +258,20 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
 async def test_an_item_attaches_only_what_a_picker_could(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
-    """A new item's documents and tasks answer to what the relationships surface
-    asks of a link: both ends in one initiative, neither archived."""
+    """A new item's tasks answer to what the relationships surface asks of a
+    link: both ends in one initiative, neither archived."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     elsewhere = await create_initiative(session, a.guild, a.user)
-    foreign_doc = await create_document(session, elsewhere, a.user)
+    foreign_task = await create_task(
+        session, await create_project(session, elsewhere, a.user)
+    )
     archived_task = await create_task(
         session, a.project, archived_at=datetime.now(timezone.utc)
     )
 
     for attach, detail in (
-        ({"document_ids": [foreign_doc.id]}, RelationshipMessages.CROSS_INITIATIVE),
+        ({"task_ids": [foreign_task.id]}, RelationshipMessages.CROSS_INITIATIVE),
         ({"task_ids": [archived_task.id]}, RelationshipMessages.ENDPOINT_ARCHIVED),
     ):
         refused = await client.post(
@@ -285,14 +300,29 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     assert data["label"] == "Renamed"
     assert data["position"] == 5
 
-    # A required field is omitted to keep it, never nulled.
-    for field in ("label", "position", "is_visible"):
+    # A required field is omitted to keep it, never nulled or blanked.
+    for body in (
+        {"label": None},
+        {"label": "  "},
+        {"position": None},
+        {"is_visible": None},
+    ):
         response = await client.patch(
-            a.g(f"/queue-items/{item_data['id']}"),
-            headers=a.headers,
-            json={field: None},
+            a.g(f"/queue-items/{item_data['id']}"), headers=a.headers, json=body
         )
-        assert response.status_code == 422, field
+        assert response.status_code == 422, body
+
+    # Notes clear with a null.
+    noted = await client.patch(
+        a.g(f"/queue-items/{item_data['id']}"),
+        headers=a.headers,
+        json={"notes": "Concentrating"},
+    )
+    assert noted.json()["notes"] == "Concentrating"
+    cleared = await client.patch(
+        a.g(f"/queue-items/{item_data['id']}"), headers=a.headers, json={"notes": None}
+    )
+    assert cleared.json()["notes"] is None
 
 
 async def test_delete_queue_item(client: AsyncClient, acting_user):
@@ -307,13 +337,23 @@ async def test_delete_queue_item(client: AsyncClient, acting_user):
     )
     assert response.status_code == 204
 
+    # A trashed item stays out of the queue's items, even when trashed rows
+    # are asked for.
+    read = await client.get(
+        a.g(f"/queues/{queue_data['id']}"),
+        headers=a.headers,
+        params={"include_deleted": "true"},
+    )
+    assert read.status_code == 200, read.text
+    assert read.json()["items"] == []
+
 
 async def test_fractional_positions(client: AsyncClient, acting_user):
     """Items with the same integer initiative can be split by a fractional position."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     item_a = await _add_item_via_api(client, a, queue_data["id"], "A", position=10)
-    await _add_item_via_api(client, a, queue_data["id"], "B", position=10)
+    item_b = await _add_item_via_api(client, a, queue_data["id"], "B", position=10)
 
     # Drop C between A and B without renumbering either.
     response = await client.post(
@@ -323,6 +363,7 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
     )
     assert response.status_code == 201
     assert response.json()["position"] == 10.5
+    item_c = response.json()
 
     # Persisted precision survives a round-trip.
     update = await client.patch(
@@ -339,19 +380,19 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
         a.g(f"/queues/{queue_data['id']}/start"), headers=a.headers
     )
     assert start.status_code == 200
-    assert start.json()["current_item"]["label"] == "C"
+    assert start.json()["current_item_id"] == item_c["id"]
 
     second = await client.post(
         a.g(f"/queues/{queue_data['id']}/next"), headers=a.headers
     )
     assert second.status_code == 200
-    assert second.json()["current_item"]["label"] == "A"
+    assert second.json()["current_item_id"] == item_a["id"]
 
     third = await client.post(
         a.g(f"/queues/{queue_data['id']}/next"), headers=a.headers
     )
     assert third.status_code == 200
-    assert third.json()["current_item"]["label"] == "B"
+    assert third.json()["current_item_id"] == item_b["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +413,7 @@ async def test_start_and_stop_queue(client: AsyncClient, acting_user):
     assert response.status_code == 200
     data = response.json()
     assert data["is_active"] is True
-    assert data["current_item"] is not None
+    assert data["current_item_id"] is not None
 
     # Stop
     response = await client.post(
@@ -414,7 +455,7 @@ async def test_reset_queue(client: AsyncClient, acting_user):
     assert response.status_code == 200
     data = response.json()
     assert data["current_round"] == 1
-    assert data["current_item"] is not None
+    assert data["current_item_id"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -452,14 +493,14 @@ async def test_hold_current_records_round_and_advances(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert payload["current_round"] == 1
     by_id = _items_by_id(payload)
     assert by_id[a["id"]]["held_at_round"] == 1
 
 
 async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
-    """Holding the last rotation-eligible item leaves current_item = None."""
+    """Holding the last rotation-eligible item leaves current_item_id = None."""
     actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, actor)
     a = await _add_item_via_api(client, actor, queue_data["id"], "Solo", position=10)
@@ -472,7 +513,7 @@ async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"] is None
+    assert payload["current_item_id"] is None
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
@@ -491,7 +532,7 @@ async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_bc["current_item"]["id"] == c["id"]
+    assert after_bc["current_item_id"] == c["id"]
     assert after_bc["current_round"] == 1
     # C -> wraps to round 2; A is the next visible position-desc slot and is
     # auto-released because held_at_round (1) < new round (2).
@@ -500,7 +541,7 @@ async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_wrap["current_item"]["id"] == a["id"]
+    assert after_wrap["current_item_id"] == a["id"]
     assert after_wrap["current_round"] == 2
     assert _items_by_id(after_wrap)[a["id"]]["held_at_round"] is None
     # B and C are untouched.
@@ -526,7 +567,7 @@ async def test_release_clears_hold_without_rewinding(client: AsyncClient, acting
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == b["id"]  # unchanged
+    assert payload["current_item_id"] == b["id"]  # unchanged
     assert payload["current_round"] == 1
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
@@ -553,7 +594,7 @@ async def test_release_with_reposition_lifts_target_above_current(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == a["id"]  # A is now current
+    assert payload["current_item_id"] == a["id"]  # A is now current
     by_id = _items_by_id(payload)
     assert by_id[a["id"]]["held_at_round"] is None
     # A's new position is strictly above B's (and B is still above C).
@@ -569,7 +610,7 @@ async def test_release_with_reposition_lifts_target_above_current(
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_next["current_item"]["id"] == b["id"]
+    assert after_next["current_item_id"] == b["id"]
 
 
 async def test_release_with_reposition_between_current_and_higher(
@@ -604,7 +645,7 @@ async def test_release_with_reposition_between_current_and_higher(
     by_id = _items_by_id(payload)
     assert by_id[b["id"]]["position"] == 20  # midpoint of 30 (A) and 10 (C)
     # B is now current — they're acting now, between A and C.
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     # Sanity: A is still strictly above B, B above C.
     assert (
         by_id[a["id"]]["position"]
@@ -654,7 +695,7 @@ async def test_release_while_stopped(client: AsyncClient, acting_user):
     assert payload["is_active"] is False
     # Current pointer is whatever it was when we stopped — release doesn't
     # rewind it.
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
@@ -672,7 +713,7 @@ async def test_set_active_clears_held(client: AsyncClient, acting_user):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == a["id"]
+    assert payload["current_item_id"] == a["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
@@ -692,7 +733,7 @@ async def test_previous_skips_held_no_auto_release(client: AsyncClient, acting_u
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == c["id"]
+    assert payload["current_item_id"] == c["id"]
     # A is still held.
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
@@ -711,7 +752,7 @@ async def test_reset_preserves_held(client: AsyncClient, acting_user):
     assert response.status_code == 200
     payload = response.json()
     assert payload["current_round"] == 1
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
@@ -856,7 +897,7 @@ async def test_member_without_permission_cannot_view(client: AsyncClient, acting
 
 
 # ---------------------------------------------------------------------------
-# Item associations (tags, documents, tasks)
+# Item associations (tags, tasks)
 # ---------------------------------------------------------------------------
 
 
@@ -999,50 +1040,21 @@ async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user)
 # ---------------------------------------------------------------------------
 
 
-async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
-    client: AsyncClient, acting_user, session
-):
-    """Reading one item showed its attachments and reading the queue did not,
-    because the whole-queue serializer had no session to fetch them with — so a
-    reader opening a queue saw every item as holding nothing."""
-    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
-    queue_data = await _create_queue_via_api(client, a)
-    item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
-    doc = await create_document(session, a.initiative, a.user)
-
-    linked = await client.post(
-        a.g("/relationships/"),
-        headers=a.headers,
-        json={
-            "source": {"type": "queue_item", "id": item["id"]},
-            "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
-        },
-    )
-    assert linked.status_code == 201, linked.text
-
-    read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
-    assert read.status_code == 200
-    (row,) = read.json()["items"]
-    assert [d["document_id"] for d in row["documents"]] == [doc.id]
-
-
 async def test_an_items_attachment_count_covers_every_kind(
     client: AsyncClient, acting_user, session
 ):
-    """A row saying "3 attachments" means three things. An item may be pinned to
-    any of the fourteen kinds, so the count cannot be the two lists added up."""
+    """A row saying "3 attachments" means three things: an item may be pinned
+    to any kind a link can name, and reading the queue as a whole counts them."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
 
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     task = await create_task(session, a.project)
-    # Neither of the two kinds the item serialises a list for.
     other_project = await create_project(session, a.initiative, a.user)
 
     for kind, entity_id in (
-        ("document", doc.id),
+        ("file", doc.id),
         ("task", task.id),
         ("project", other_project.id),
     ):
@@ -1060,9 +1072,6 @@ async def test_an_items_attachment_count_covers_every_kind(
     read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
     (row,) = read.json()["items"]
     assert row["attachment_count"] == 3
-    # The typed lists still only know about their own two kinds, which is why
-    # the count is asked for separately.
-    assert len(row["documents"]) + len(row["tasks"]) == 2
 
 
 async def test_a_copy_starts_its_rotation_over_with_its_items(
@@ -1103,12 +1112,12 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         session, queue, label="Theirs", position=1, user_id=outsider.user.id
     )
     await assign_tag(session, mine, await create_tag(session, a.guild), commit=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.queue_item, mine.id),
-        target=(SearchEntityType.document, document.id),
+        target=(SearchEntityType.file, file.id),
         relationship_type=RelationshipType.attached,
     )
 
@@ -1126,7 +1135,7 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         None,
     )
     assert len(first["tags"]) == 1
-    assert [d["document_id"] for d in first["documents"]] == [document.id]
+    assert first["attachment_count"] == 1
     assert (second["label"], second["user_id"]) == ("Theirs", None)
 
 

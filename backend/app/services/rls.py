@@ -62,7 +62,7 @@ async def check_initiative_permission(
 ) -> bool:
     """Whether ``user``'s role in the initiative permits ``permission_key``.
 
-    ``None`` is an installed app, whose standing carries the keys its scopes
+    ``None`` is an installed plug-in, whose standing carries the keys its scopes
     allow in the initiatives it is placed in.
 
     Asked of the schema's own ``initiative_role_permits`` — the function the

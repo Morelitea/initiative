@@ -35,7 +35,7 @@ import {
   type EntityMentionNode,
 } from "@/components/ui/editor/nodes/entity-mention-node";
 import { ReferenceEmbed } from "@/components/ui/editor/nodes/reference-embed";
-import { isSearchEntityType } from "@/lib/entityResolver";
+import { storedEntityType } from "@/lib/smartChips";
 
 export type SerializedReferenceEmbedNode = Spread<
   {
@@ -54,9 +54,9 @@ const TYPE_ATTR = "data-lexical-reference-embed";
 const ID_ATTR = "data-entity-id";
 
 function $convertEmbedElement(domNode: HTMLElement): DOMConversionOutput | null {
-  const entityType = domNode.getAttribute(TYPE_ATTR);
+  const entityType = storedEntityType(domNode.getAttribute(TYPE_ATTR) ?? "");
   const entityId = Number(domNode.getAttribute(ID_ATTR));
-  if (!entityType || !isSearchEntityType(entityType) || !Number.isFinite(entityId)) return null;
+  if (!entityType || !Number.isFinite(entityId)) return null;
   return {
     node: $createReferenceEmbedNode(entityType, entityId, domNode.textContent ?? ""),
   };
@@ -84,7 +84,7 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
 
   static importJSON(serialized: SerializedReferenceEmbedNode): ReferenceEmbedNode {
     return $createReferenceEmbedNode(
-      serialized.entityType,
+      storedEntityType(serialized.entityType) ?? serialized.entityType,
       serialized.entityId,
       serialized.text
     ).setCollapsed(serialized.collapsed === true);

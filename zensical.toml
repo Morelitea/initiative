@@ -59,7 +59,7 @@ nav = [
     { "Tools" = [
       "en/guides/tools.md",
       "en/guides/projects-and-tasks.md",
-      "en/guides/documents.md",
+      "en/guides/files.md",
       "en/guides/calendar.md",
       "en/guides/queues.md",
       "en/guides/counters.md",
@@ -68,7 +68,7 @@ nav = [
       "en/guides/galleries.md",
       "en/guides/wikis.md",
     ] },
-    "en/guides/apps-and-marketplace.md",
+    "en/guides/plugins-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
     "en/guides/messages.md",
@@ -79,7 +79,7 @@ nav = [
   { "Sharing & access" = [
     "en/sharing/index.md",
     "en/sharing/initiative-roles.md",
-    "en/sharing/sharing-projects-and-documents.md",
+    "en/sharing/sharing-projects-and-files.md",
   ] },
   { "Security & privacy" = [
     "en/security/index.md",

@@ -57,13 +57,13 @@ class NotificationType(str, Enum):
     #: One rolled-up line per conversation with unread activity. It names the
     #: sender and counts the messages; it never carries one.
     direct_message = "direct_message"
-    #: An installed app asks to act as the recipient, for one purpose. Written
+    #: An installed plug-in asks to act as the recipient, for one purpose. Written
     #: once per request; it links to where the recipient answers.
-    app_consent_requested = "app_consent_requested"
-    #: A newer version of an installed app asks for more than the install
+    plugin_consent_requested = "plugin_consent_requested"
+    #: A newer version of an installed plug-in asks for more than the install
     #: holds, and waits for the community's seat. Written once per version to
     #: each seat holder; it links to where they accept or decline it.
-    app_update_pending = "app_update_pending"
+    plugin_update_pending = "plugin_update_pending"
     #: A case this account filed moved: somebody answered it, or it is now
     #: waiting on them, in progress or closed. Names the case and its state,
     #: never what was said.

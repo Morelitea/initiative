@@ -69,7 +69,7 @@ export type CreateToolDialogProps = DialogProps & {
   /** If provided, pre-selects this initiative (but the user can change it). */
   defaultInitiativeId?: number;
   /** Create one belonging to the community rather than to any initiative, the way
-   * the calendar app's own calendars do. There is no initiative to pick. */
+   * the calendar plug-in's own calendars do. There is no initiative to pick. */
   communityScope?: boolean;
   /** Fields only this tool asks for, shown under the description, and what
    * they add to what is sent. */
@@ -82,7 +82,7 @@ export type CreateToolDialogProps = DialogProps & {
  * Naming a new, empty tool: its name, a description, the initiative it goes
  * in, and who else may reach it. Every tool made by naming an empty container
  * is made here, and what differs between them is their strings and the odd
- * field of their own. Documents, posts and projects start from content or a
+ * field of their own. Files, posts and projects start from content or a
  * template, and keep dialogs of their own.
  */
 export const CreateToolDialog = ({
@@ -142,7 +142,7 @@ export const CreateToolDialog = ({
     }
   }, [open, communityScope, defaultInitiativeId, creatableInitiatives]);
 
-  // Every tool but a document has a create hook in the table; each is typed
+  // Every tool but a file has a create hook in the table; each is typed
   // with its own schemas, which this payload satisfies.
   const { useCreate } = TOOL_HOOKS[tool] as unknown as { useCreate: ToolCreateHook };
   const createTool = useCreate({

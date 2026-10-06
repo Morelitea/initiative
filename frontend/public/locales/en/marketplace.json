@@ -24,6 +24,7 @@
   "detail": {
     "installs_one": "{{count}} install",
     "installs_other": "{{count}} installs",
+    "minimumAge": "Ages {{age}}+",
     "install": "Add to an initiative",
     "preview": "Preview",
     "previewIsSample": "Example shown with sample data",
@@ -54,6 +55,6 @@
     "description": "The catalog could not be reached. Try again in a moment."
   },
   "installedUnknown": "Couldn't check which of these you already have, so nothing below is marked as installed.",
-  "subtitleApps": "Apps add something the whole community shares. Only the community's superadmin can add them.",
+  "subtitlePlugins": "Plug-ins add something the whole community shares. Only the community's superadmin can add them.",
   "subtitleAuto": "Automations run in the background for the whole community."
 }

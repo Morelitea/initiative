@@ -102,8 +102,9 @@ class BillingCommunityNoticeKind(str, Enum):
     trial_ended = "trial_ended"
 
 
-#: The sources that send a community notice. Only the trial's end, for now.
-_NOTICE_SOURCES = frozenset({BillingSource.trial_expiry})
+#: The sources that send a community notice. Only Paddle's, for now: a trial
+#: is Paddle's, and billing times its notices off the dates Paddle reports.
+_NOTICE_SOURCES = frozenset({BillingSource.paddle_webhook})
 
 
 class BillingCommunityNotice(SanitizedBaseModel):
@@ -143,7 +144,7 @@ class BillingCommunityNoticeRead(SanitizedBaseModel):
 
 
 class BillingUsageRequest(SanitizedBaseModel):
-    """Body of ``POST /billing/usage`` — the storage read.
+    """Body of ``POST /billing/usage`` — the usage read.
 
     The guild rides the signed body (not a query string) so the envelope's
     HMAC covers it, like every other verb on this boundary.
@@ -153,12 +154,14 @@ class BillingUsageRequest(SanitizedBaseModel):
 
 
 class BillingUsageRead(SanitizedBaseModel):
-    """Current stored bytes for one guild — the same figure
-    ``enforce_storage_quota`` reads. Read-only; the app never pushes usage
-    anywhere."""
+    """Current stored bytes and member count for one guild — the figures
+    ``enforce_storage_quota`` and the ``max_users`` check read. Billing needs
+    the count so a seat purchase is never cut below the people already in the
+    community. Read-only; the app never pushes usage anywhere."""
 
     community_ref: str
     usage_bytes: int
+    member_count: int
 
 
 class BillingCommunityNameRequest(SanitizedBaseModel):

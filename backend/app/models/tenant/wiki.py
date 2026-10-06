@@ -124,14 +124,14 @@ class Wiki(
             String(length=16), nullable=False, server_default=WikiPageOrder.manual.value
         ),
     )
-    #: Where the documents borrowed into this wiki sit in its list, as
-    #: ``{"<document id>": position}`` on the same scale a page's ``position``
-    #: uses. A document is not the wiki's to own — it belongs to whatever else
+    #: Where the files borrowed into this wiki sit in its list, as
+    #: ``{"<file id>": position}`` on the same scale a page's ``position``
+    #: uses. A file is not the wiki's to own — it belongs to whatever else
     #: it is in too — so where it sits is a fact about THIS wiki and is kept
-    #: here, rather than on the document or on the edge that put it in. A
-    #: document nobody has placed yet sorts to the end, which is where it
+    #: here, rather than on the file or on the edge that put it in. A
+    #: file nobody has placed yet sorts to the end, which is where it
     #: arrived.
-    document_positions: dict = Field(
+    file_positions: dict = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
@@ -226,7 +226,7 @@ class Wiki(
 class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     """One page of a wiki.
 
-    A page is a Lexical body, the same editor a native document carries, and it
+    A page is a Lexical body, the same editor a native file carries, and it
     is collaborative through the same Yjs room — ``yjs_state`` mirrors what the
     room holds so a page reopened after everyone has left reads back what was
     written.

@@ -42,7 +42,7 @@ class AccessGrantPurpose(str, Enum):
     #: The community's configuration, and nothing inside it. Held at a rung
     #: from :class:`SettingsLevel`. Separate from content on purpose: helping
     #: with billing or moderation settings is not a reason to read somebody's
-    #: documents.
+    #: files.
     settings = "settings"
 
 

@@ -1,14 +1,8 @@
 {
-  "title": "Compteurs",
-  "group": "Groupe de compteurs",
-  "groups": "Groupes de compteurs",
-  "counter": "Compteur",
   "noGroups": "Pas encore de groupes de compteurs",
   "noGroupsDescription": "Les groupes de compteurs regroupent des valeurs numériques liées — comme les PV, les munitions ou les scores — que vous pouvez incrémenter, décrémenter ou définir directement.",
   "createGroup": "Créer un groupe de compteurs",
-  "name": "Nom",
   "namePlaceholder": "Saisissez le nom du groupe",
-  "description": "Description",
   "descriptionPlaceholder": "Description facultative",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
@@ -31,7 +25,6 @@
   "viewModeRequiresBounds": "La barre de progression et l’horloge segmentée nécessitent un min et un max.",
   "increment": "Incrémenter",
   "decrement": "Décrémenter",
-  "reset": "Réinitialiser",
   "resetAll": "Tout réinitialiser",
   "resetAllConfirm": "Réinitialiser chaque compteur de ce groupe à sa valeur initiale ?",
   "sort": "Trier",
@@ -41,12 +34,10 @@
   "sortCountDesc": "Valeur (décroissant)",
   "noCounters": "Aucun compteur dans ce groupe",
   "noCountersDescription": "Ajoutez des compteurs pour commencer à suivre des valeurs.",
-  "reorder": "Réordonner",
   "dragToReorder": "Glissez pour réordonner",
   "switchToGridView": "Passer à la vue grille",
   "switchToRowView": "Passer à la vue liste",
   "more": "Plus d’actions",
-  "permissions": "Autorisations",
   "error": "Une erreur s’est produite",
   "loading": "Chargement des compteurs...",
   "loadError": "Échec du chargement des compteurs.",
@@ -69,16 +60,10 @@
     "notFound": "Compteur introuvable dans ce groupe"
   },
   "createFirst": "Créez votre premier groupe de compteurs",
-  "details": "Détails",
-  "access": "Accès",
-  "advanced": "Avancé",
-  "dangerZone": "Zone dangereuse",
-  "dangerZoneDescription": "Actions destructives. Les groupes supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
   "filters": {
     "heading": "Filtres",
     "searchGroups": "Rechercher des groupes de compteurs...",
     "searchLabel": "Nom ou description",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."
-  },
-  "tags": "Étiquettes"
+  }
 }

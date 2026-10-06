@@ -1,13 +1,9 @@
 {
   "title": "Wikis",
-  "wiki": "Wiki",
-  "wikis": "Wikis",
   "createWiki": "Neues Wiki",
   "createWikiDescription": "Seiten, die aufeinander verweisen – ein Handbuch, ein Nachschlagewerk, die Antworten auf das, was immer wieder gefragt wird. Gib ihm jetzt einen Namen; die Seiten kommen danach.",
   "creating": "Wird erstellt ...",
-  "name": "Name",
   "namePlaceholder": "Teamhandbuch, Weltenbibel, Hausregeln ...",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Worum es in diesem Wiki geht",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
@@ -28,7 +24,6 @@
     "searchPlaceholder": "Dieses Wiki durchsuchen",
     "searchEmpty": "Keine Seite passt zu „{{query}}“",
     "newPage": "Neue Seite",
-    "untitled": "Ohne Titel",
     "titleLabel": "Titel",
     "titlePlaceholder": "Worum es auf dieser Seite geht",
     "deleted": "Seite in den Papierkorb verschoben",
@@ -44,8 +39,6 @@
     "collapse": "Einklappen",
     "expand": "Ausklappen",
     "draft": "Entwurf",
-    "previous": "Zurück",
-    "next": "Weiter",
     "nav": "Seiten neben dieser",
     "expandAll": "Alle ausklappen",
     "collapseAll": "Alle einklappen",
@@ -117,19 +110,18 @@
     "drafted": "Seite als Entwurf markiert"
   },
   "comments": "Kommentare",
-  "newPage": "Neue Seite",
   "viewMode": {
     "read": "Als Leser ansehen",
     "edit": "Diese Seite bearbeiten"
   },
   "updated": "Aktualisiert",
-  "documents": {
-    "openDocument": "Dokument öffnen",
-    "addDocument": "Dokument hinzufügen",
-    "added": "Dokument zum Wiki hinzugefügt",
-    "removed": "Dokument aus dem Wiki entfernt",
+  "files": {
+    "openFile": "Datei öffnen",
+    "addFile": "Datei hinzufügen",
+    "added": "Datei zum Wiki hinzugefügt",
+    "removed": "Datei aus dem Wiki entfernt",
     "remove": "Aus diesem Wiki entfernen",
-    "none": "Keine Dokumente zum Hinzufügen",
-    "pick": "Welches Dokument?"
+    "none": "Keine Dateien zum Hinzufügen",
+    "pick": "Welche Datei?"
   }
 }

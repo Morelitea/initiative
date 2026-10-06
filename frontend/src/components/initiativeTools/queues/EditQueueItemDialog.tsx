@@ -2,19 +2,10 @@ import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  PropertyTarget,
-  type QueueItemRead,
-  SearchEntityType,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
-import { EntityLinkField } from "@/components/entities/EntityLinkField";
+import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { QueueItemFields } from "@/components/initiativeTools/queues/QueueItemFields";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
-import { MemberSelect } from "@/components/members/MemberSearchSelect";
-import { PropertyPanel } from "@/components/properties";
-import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
-import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
@@ -24,10 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   useDeleteQueueItem,
   useDuplicateQueueItem,
@@ -55,29 +42,21 @@ export const EditQueueItemDialog = ({
   readOnly = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common", "relations", "properties"]);
+  const { t } = useTranslation(["queues", "common"]);
 
+  const form = useQueueItemForm({ open, initiativeId, item });
   const {
     label,
-    setLabel,
     position,
-    setPosition,
     color,
-    setColor,
     notes,
-    setNotes,
     isVisible,
-    setIsVisible,
     selectedTags,
-    setSelectedTags,
     userId,
-    setUserId,
     links,
-    setLinks,
     initialLinks,
     linksLoading,
-    selectedUser,
-  } = useQueueItemForm({ open, initiativeId, item });
+  } = form;
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -147,7 +126,7 @@ export const EditQueueItemDialog = ({
         label: trimmedLabel,
         position: position ? Number(position) : undefined,
         color: color || undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim() || null,
         is_visible: isVisible,
         user_id: userId,
         ...(tagsChanged ? { tag_ids: tagIds } : {}),
@@ -168,143 +147,14 @@ export const EditQueueItemDialog = ({
             <DialogDescription>{item.label}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Label */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-item-label">{t("label")}</Label>
-              <Input
-                id="edit-item-label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder={t("labelPlaceholder")}
-                disabled={readOnly}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && canSubmit) {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-              />
-            </div>
-
-            {/* Position (Initiative Roll) */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-item-position">{t("position")}</Label>
-              <Input
-                id="edit-item-position"
-                type="number"
-                value={position}
-                onChange={(e) => setPosition(e.target.value)}
-                placeholder="0"
-                disabled={readOnly}
-              />
-              <p className="text-muted-foreground text-xs">{t("positionHelp")}</p>
-            </div>
-
-            {/* Color */}
-            <div className="space-y-2">
-              <Label>{t("color")}</Label>
-              <ColorPickerPopover
-                value={color}
-                onChange={setColor}
-                triggerLabel={t("color")}
-                className="h-9"
-                disabled={readOnly}
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-item-notes">{t("notes")}</Label>
-              <Textarea
-                id="edit-item-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={t("notesPlaceholder")}
-                rows={2}
-                disabled={readOnly}
-              />
-            </div>
-
-            {/* Visible toggle */}
-            <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-3">
-              <div>
-                <p className="font-medium text-sm">{t("visible")}</p>
-                <p className="text-muted-foreground text-xs">
-                  {isVisible ? t("visible") : t("hidden")}
-                </p>
-              </div>
-              <Switch
-                checked={isVisible}
-                onCheckedChange={setIsVisible}
-                aria-label={t("visible")}
-                disabled={readOnly}
-              />
-            </div>
-
-            {/* Tags */}
-            <div className="space-y-2">
-              <Label>{t("tags")}</Label>
-              <TagPicker
-                selectedTags={selectedTags}
-                onChange={setSelectedTags}
-                placeholder={t("tags")}
-                disabled={readOnly}
-              />
-            </div>
-
-            {/* Saved as they change, like the links below — the dialog's Save
-                is about the item itself. */}
-            <div className="space-y-2">
-              <Label>{t("properties:title")}</Label>
-              <PropertyPanel
-                target={PropertyTarget.queue_item}
-                entityId={item.id}
-                saved={item.properties}
-                initiativeId={initiativeId}
-                canOpen={{ tool: Tool.queue, id: queueId }}
-                disabled={readOnly}
-              />
-            </div>
-
-            {/* Linked User */}
-            <div className="space-y-2">
-              <Label>{t("linkedUser")}</Label>
-              <div className="flex items-center gap-2">
-                <MemberSelect
-                  scope={{ type: "canOpen", tool: Tool.queue, id: queueId }}
-                  value={userId}
-                  onChange={setUserId}
-                  selectedUser={selectedUser}
-                  placeholder={t("selectUser")}
-                  emptyMessage={t("noUser")}
-                  disabled={readOnly}
-                />
-                {userId !== null && !readOnly && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setUserId(null)}
-                    className="shrink-0"
-                  >
-                    {t("clearUser")}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* One list, any kind — in place of a documents-only picker beside a
-                tasks-only one. */}
-            <EntityLinkField
-              label={t("relations:groups.attached.title")}
-              subject={{ type: SearchEntityType.queue_item, id: item.id }}
-              initiativeId={initiativeId}
-              value={links}
-              onChange={setLinks}
-              readOnly={readOnly}
-            />
-          </div>
+          <QueueItemFields
+            form={form}
+            queueId={queueId}
+            initiativeId={initiativeId}
+            item={item}
+            readOnly={readOnly}
+            onEnter={canSubmit ? handleSubmit : undefined}
+          />
 
           {!readOnly && (
             <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">

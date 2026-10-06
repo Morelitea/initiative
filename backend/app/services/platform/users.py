@@ -13,7 +13,12 @@ from app.core.messages import AuthMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
-from app.core.encryption import hash_email
+from app.core.encryption import (
+    SALT_BIRTHDATE,
+    decrypt_field,
+    encrypt_field,
+    hash_email,
+)
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.user import (
@@ -22,6 +27,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
+from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, CommunityRole
@@ -40,7 +46,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
-from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey
@@ -157,22 +163,22 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
-async def _end_app_access(
+async def _end_plugin_access(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
-    """End everything this account let an app do, in one guild.
+    """End everything this account let a plug-in do, in one guild.
 
-    Every app credential they connected, and every answer they gave an app
+    Every plug-in credential they connected, and every answer they gave a plug-in
     asking to act as them. Losing the account has to end the vendor access it
     opened, and consent to carry somebody's name has nothing left to mean once
     the account it named is gone.
 
     ``session`` is a system session routed into ``guild_id``.
     """
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_member_consents as consents_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_member_consents as consents_service
 
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="account_closed"
     )
     await consents_service.delete_member_consents(session, user_id=user_id)
@@ -183,7 +189,7 @@ async def _in_each_guild(
     work: Callable[[AsyncSession, int], Awaitable[None]],
 ) -> None:
     """Run ``work`` in each guild in turn, on a system session from the guild's
-    cohort routed into it, committing each and telling apps of the credentials
+    cohort routed into it, committing each and telling plug-ins of the credentials
     it ended. Stops at the first failure, so the caller's shared half never
     runs ahead of a guild's."""
     for guild_id in guild_ids:
@@ -206,7 +212,7 @@ async def _member_guild_ids(session: AsyncSession, user_id: int) -> list[int]:
     )
 
 
-async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
+async def _end_plugin_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
     """The same, across every community the account belongs to.
 
     For the paths that keep the roster: a deleted account holds its memberships
@@ -214,17 +220,17 @@ async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> 
     the guilds have to be enumerated for it.
     """
 
-    async def end_app_access(guild_session: AsyncSession, guild_id: int) -> None:
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+    async def end_plugin_access(guild_session: AsyncSession, guild_id: int) -> None:
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
-    await _in_each_guild(await _member_guild_ids(session, user_id), end_app_access)
+    await _in_each_guild(await _member_guild_ids(session, user_id), end_plugin_access)
 
 
 async def _drop_user_memberships(
     session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
 ) -> User:
     """Remove the user from every guild and initiative they belong to,
-    handing owned documents off to PMs along the way. Returns the loaded
+    handing owned files off to PMs along the way. Returns the loaded
     ``User`` row but does NOT commit — the caller is responsible for
     issuing exactly one commit so its own status / PII writes land in
     the same transaction as the membership cleanup.
@@ -232,7 +238,7 @@ async def _drop_user_memberships(
     ``actor_user_id`` is who closed the account — the person themselves, or an
     operator doing it for them — and is what each departure record names.
 
-    Each guild's half — initiative memberships, owned content, app access —
+    Each guild's half — initiative memberships, owned content, plug-in access —
     is done and committed first, guild by guild, and the shared membership
     rows are deleted in the caller's transaction after. A guild that fails
     stops the closure before any membership goes, and running it again
@@ -251,7 +257,7 @@ async def _drop_user_memberships(
         await initiatives_service.remove_user_from_guild_initiatives(
             guild_session, guild_id=guild_id, user_id=user_id
         )
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
     await _in_each_guild(guild_ids, leave)
 
@@ -291,7 +297,7 @@ async def deactivate_user(
     acting on the account.
     """
     user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
-    # Owned documents are handed off to other initiative PMs inside
+    # Owned files are handed off to other initiative PMs inside
     # ``_drop_user_memberships`` above, before the InitiativeMember
     # rows are dropped.
     user.status = UserStatus.deactivated
@@ -317,7 +323,7 @@ async def request_account_deletion(
 
     The account stops existing for everybody else — absent from rosters,
     pickers and search, and its sessions end — while everything it holds stays
-    exactly where it is. Memberships, initiative roles and owned documents are
+    exactly where it is. Memberships, initiative roles and owned files are
     **not** dropped, which is the whole difference from ``deactivate_user``:
     coming back restores the account whole rather than to an empty one.
 
@@ -335,11 +341,11 @@ async def request_account_deletion(
     user = await session.get(User, user_id)
     if user is None:
         raise ValueError(AuthMessages.USER_NOT_FOUND)
-    # The account has withdrawn what it let apps do, so they are told now
+    # The account has withdrawn what it let plug-ins do, so they are told now
     # rather than in a month's time — the same call the community deletion
-    # makes, for the same reason. A restored account comes back with its app
+    # makes, for the same reason. A restored account comes back with its plug-in
     # connections gone, and reconnects them.
-    await _end_app_access_everywhere(session, user_id=user_id)
+    await _end_plugin_access_everywhere(session, user_id=user_id)
     user.status = UserStatus.deleted
     user.status_changed_at = datetime.now(timezone.utc)
     # Every session this account holds ends here. Getting back in is what calls
@@ -459,6 +465,8 @@ async def _erase_personal_rows(session: AsyncSession, *, user_id: int) -> None:
     from app.models.platform.user_ignore import UserIgnore
     from app.models.platform.user_passkey import UserPasskey
 
+    # The date of birth kept for age limits, which is about nobody else.
+    await session.exec(delete(UserBirthdate).where(UserBirthdate.user_id == user_id))
     # What the profile was dressed in: every decoration an installed pack
     # granted. What it was wearing is on the ``users`` row, cleared by the caller.
     await session.exec(delete(UserDecoration).where(UserDecoration.user_id == user_id))
@@ -528,7 +536,7 @@ async def soft_delete_user(
 
     The display name is also scrubbed out of content that embedded it as
     literal text — @-mention markup in comments, Lexical mention nodes in
-    documents, digest-row name snapshots — in EVERY guild schema (not just
+    files, digest-row name snapshots — in EVERY guild schema (not just
     current memberships: content survives leaving a guild).
 
     Every guild's half is done and committed first, guild by guild, and the
@@ -673,22 +681,22 @@ async def soft_delete_user(
         session, recipients=receipt_recipients, locale=receipt_locale
     )
     # Last, because the revocations sent from each guild above name this
-    # person to each app by the very references this removes.
+    # person to each plug-in by the very references this removes.
     await identity_refs.forget_user(user_id=user_id)
 
 
 async def _dispatch_queued_revocations(session: AsyncSession) -> None:
-    """Tell each app that this person's credentials are finished.
+    """Tell each plug-in that this person's credentials are finished.
 
-    After the commit, always: an app told to let go of a credential the database
+    After the commit, always: a plug-in told to let go of a credential the database
     then kept would be the one disagreement worth avoiding. Delivery is
     best-effort — the account is closed either way, and our own delete is the
     authoritative half.
     """
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
+    await plugin_revocation_service.dispatch_revocations(
+        plugin_revocation_service.drain_revocations(session)
     )
 
 
@@ -785,7 +793,7 @@ async def hard_delete_user(
         )
 
         # Scrub the display name out of content that embedded it as literal
-        # text (@-mentions in comments, document mention nodes, digest name
+        # text (@-mentions in comments, file mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
         await set_rls_context(guild_session, SystemMaintenance(guild_id))
@@ -837,7 +845,7 @@ async def hard_delete_user(
             .where(ReactionDigestItem.reactor_id == user_id)
             .values(reactor_id=None)
         )
-        # All per-user DAC grants (project, document, queue, counter group,
+        # All per-user DAC grants (project, file, queue, counter group,
         # calendar event) live in the polymorphic resource_grants table now;
         # one delete clears every resource type for this user in the schema.
         await guild_session.exec(
@@ -1117,7 +1125,34 @@ async def to_self_read(user: User) -> "UserRead":
     payload = UserRead.model_validate(user)
     payload.email = primary.get(user.id)
     payload.email_verified = user.id in proven
+    payload.birthdate_on_file = await _birthdate_on_file(user.id)
     return payload
+
+
+async def _birthdates_on_file(user_ids: List[int]) -> set[int]:
+    """Which of these accounts have a date of birth kept. One query for the
+    page, on the system engine, and never the dates."""
+    from app.db.session import SystemSessionLocal
+
+    if not user_ids:
+        return set()
+    async with SystemSessionLocal() as system_session:
+        rows = await system_session.exec(
+            select(UserBirthdate.user_id).where(UserBirthdate.user_id.in_(user_ids))
+        )
+        return set(rows.all())
+
+
+async def _birthdate_on_file(user_id: int) -> bool:
+    """Whether this account's date of birth is kept — never the date itself.
+
+    On its own system-engine session, like :func:`_reach`: ``user_birthdates``
+    carries no request-path grants.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await birthdate_of(system_session, user_id=user_id) is not None
 
 
 async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
@@ -1136,11 +1171,13 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         if any(u.status == UserStatus.deleted for u in users)
         else None
     )
+    dated = await _birthdates_on_file([u.id for u in users])
     out: List[OperatorUserRead] = []
     for user in users:
         payload = OperatorUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
+        payload.birthdate_on_file = user.id in dated
         payload.purge_at = _erase_at(user, retention)
         payload.second_factor_enrolled = user.id in enrolled
         payload.api_key_count = key_counts.get(user.id, 0)
@@ -1222,13 +1259,81 @@ def record_age_answer(user: User, birthdate: date) -> bool:
     """Write onto the account what a birthdate says about it, and whether it
     is old enough.
 
-    The date itself is not kept: only when the question was first answered,
-    or that it was answered under age.
+    Records when the question was first answered, or that it was answered
+    under age. The date itself is kept beside it by :func:`keep_birthdate`, on
+    the system engine.
     """
     check_birthdate(birthdate)
     if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
         user.age_below_minimum_at = datetime.now(timezone.utc)
+        # One question, one answer (``ck_users_age_answer``): an under-age
+        # answer replaces any confirmation.
+        user.age_confirmed_at = None
         return False
     if user.age_confirmed_at is None:
         user.age_confirmed_at = datetime.now(timezone.utc)
     return True
+
+
+async def keep_birthdate(
+    session: AsyncSession, *, user_id: int, birthdate: date
+) -> str | None:
+    """Keep this account's date of birth, encrypted. The stored ciphertext when
+    it was kept — unique to this keeping, so :func:`forget_birthdate` can take
+    back exactly this one — or ``None`` when one is already on file, which is
+    left as it is.
+
+    A plug-in's minimum age differs by country, so one "old enough" answer
+    cannot say whether somebody may use a given plug-in; the date can. One
+    insert, so of two answers arriving together exactly one is kept. On the
+    system engine — ``user_birthdates`` has no request-path grants — and the
+    caller commits. Checked first with :func:`check_birthdate`, like the answer
+    it accompanies.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    check_birthdate(birthdate)
+    now = datetime.now(timezone.utc)
+    ciphertext = encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE)
+    kept = await session.exec(
+        pg_insert(UserBirthdate)
+        .values(
+            user_id=user_id,
+            birthdate_encrypted=ciphertext,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_nothing(index_elements=["user_id"])
+        .returning(UserBirthdate.user_id)
+    )
+    return ciphertext if kept.first() is not None else None
+
+
+async def birthdate_of(session: AsyncSession, *, user_id: int) -> date | None:
+    """The kept date of birth, or None. System engine only; it decides nothing
+    about who may know it, so it is read to check an age and never handed out."""
+    stored = (
+        await session.exec(
+            select(UserBirthdate).where(UserBirthdate.user_id == user_id)
+        )
+    ).first()
+    if stored is None:
+        return None
+    return date.fromisoformat(decrypt_field(stored.birthdate_encrypted, SALT_BIRTHDATE))
+
+
+async def forget_birthdate(
+    session: AsyncSession, *, user_id: int, only: str | None = None
+) -> None:
+    """Drop the kept date of birth, so the account answers again. With ``only``
+    (what :func:`keep_birthdate` returned), drop it only if it is still that
+    one. System engine; the caller commits."""
+    statement = delete(UserBirthdate).where(UserBirthdate.user_id == user_id)
+    if only is not None:
+        statement = statement.where(UserBirthdate.birthdate_encrypted == only)
+    await session.exec(statement)
+
+
+def years_old(birthdate: date) -> int:
+    """Whole years since ``birthdate`` as of today (UTC)."""
+    return _years_since(birthdate, datetime.now(timezone.utc).date())

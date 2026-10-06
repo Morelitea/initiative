@@ -21,7 +21,6 @@ from app.core.messages import (
     CalendarEventMessages,
     CommonMessages,
     PropertyMessages,
-    RelationshipMessages,
 )
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
@@ -31,7 +30,6 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
-    create_document,
     create_guild_calendar,
     create_initiative,
     create_property_definition,
@@ -607,6 +605,16 @@ async def test_create_event_rejects_end_before_start(
     assert response.status_code == 400
     assert response.json()["detail"] == CalendarEventMessages.ENDS_BEFORE_START
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("title", "start_at", "end_at", "all_day", "rsvp_open"):
+        response = await client.patch(
+            organizer.g(f"/calendar-events/{event.id}"),
+            headers=organizer.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
+
 
 async def test_create_event_requires_calendar_write(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -933,6 +941,59 @@ async def test_rsvp_notifies_organizer(
     assert len(rsvps) == 1
     assert rsvps[0].data["rsvp_status"] == "accepted"
 
+    async def reader():
+        return await acting_user(
+            guild_role=CommunityRole.member,
+            guild=guild,
+            initiative=initiative,
+            initiative_role="member",
+        )
+
+    def answers(response) -> dict:
+        return {a["user_id"]: a["rsvp_status"] for a in response.json()["attendees"]}
+
+    # Open, a reader who was never invited answers and so joins.
+    joiner = await reader()
+    joined = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "tentative"},
+    )
+    assert joined.status_code == 200, joined.text
+    assert answers(joined)[joiner.user.id] == "tentative"
+
+    # Closed, those on the list still answer and anyone else is refused; an
+    # editor still adds people.
+    closed = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}"),
+        headers=organizer.headers,
+        json={"rsvp_open": False},
+    )
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["rsvp_open"] is False
+    newcomer = await reader()
+    refused = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=newcomer.headers,
+        json={"rsvp_status": "accepted"},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.RSVP_CLOSED
+    answered = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "declined"},
+    )
+    assert answered.status_code == 200, answered.text
+    assert answers(answered)[joiner.user.id] == "declined"
+    added = await client.put(
+        organizer.g(f"/calendar-events/{event.id}/attendees"),
+        headers=organizer.headers,
+        json=[attendee.user.id, joiner.user.id, newcomer.user.id],
+    )
+    assert added.status_code == 200, added.text
+    assert answers(added)[newcomer.user.id] == "pending"
+
 
 async def test_guild_entries_filter_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -1069,7 +1130,7 @@ class TestGuildCalendarEvents:
     """A guild calendar holds its own events and reaches into no initiative.
 
     Two questions, and they pull in opposite directions. Its events have to be
-    *visible* — the app's page and a member's own calendar are where they show,
+    *visible* — the plug-in's page and a member's own calendar are where they show,
     and until now every one of those queries required an initiative, so they
     showed nowhere at all. And its events must stay *out* of anything belonging
     to an initiative, which is the same NULL read the other way.
@@ -1093,7 +1154,7 @@ class TestGuildCalendarEvents:
     async def test_a_member_in_no_initiative_sees_them(
         self, client: AsyncClient, acting_user, session
     ):
-        """The point of the app: someone in none of the guild's initiatives
+        """The point of the plug-in: someone in none of the guild's initiatives
         still has the guild's own calendar."""
         a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
@@ -1218,32 +1279,6 @@ class TestGuildCalendarEvents:
         cleared = await client.put(route, headers=a.headers, json={"values": []})
         assert cleared.status_code == 200, cleared.text
         assert cleared.json() == []
-
-    async def test_documents_cannot_be_linked(
-        self, client: AsyncClient, acting_user, session
-    ):
-        """Documents belong to an initiative; a guild calendar holds guild-level
-        content only, so an event there cannot link one."""
-        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-        document = await create_document(session, a.initiative, a.user)
-        calendar = await create_guild_calendar(session, a.guild, a.user)
-
-        # Asked of the create path, which is where an event names its documents
-        # now that the per-tool attach route is one generic one. Both ask the
-        # same seam — see ``relationships_test``.
-        response = await client.post(
-            a.g("/calendar-events/"),
-            headers=a.headers,
-            json={
-                "title": "Guild night",
-                "calendar_id": calendar.id,
-                "start_at": "2026-10-01T18:00:00Z",
-                "end_at": "2026-10-01T20:00:00Z",
-                "document_ids": [document.id],
-            },
-        )
-        assert response.status_code == 400
-        assert response.json()["detail"] == RelationshipMessages.CROSS_INITIATIVE
 
     async def test_an_event_cannot_move_across_the_scope_line(
         self, client: AsyncClient, acting_user, session

@@ -22,7 +22,7 @@ import {
 import { getReadCalendarQueryKey, readCalendar } from "@/api/generated/calendars/calendars";
 import { getReadCounterGroupQueryKey, readCounterGroup } from "@/api/generated/counters/counters";
 import { getReadDashboardQueryKey, readDashboard } from "@/api/generated/dashboards/dashboards";
-import { getReadDocumentQueryKey, readDocument } from "@/api/generated/documents/documents";
+import { getReadFileQueryKey, readFile } from "@/api/generated/files/files";
 import { getReadGalleryQueryKey, readGallery } from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadPostQueryKey, readPost } from "@/api/generated/posts/posts";
@@ -65,9 +65,9 @@ const TOOL_READS: Record<
     key: getReadProjectQueryKey,
     read: readProject,
   },
-  [Tool.document]: {
-    key: getReadDocumentQueryKey,
-    read: readDocument,
+  [Tool.file]: {
+    key: getReadFileQueryKey,
+    read: readFile,
   },
   [Tool.queue]: {
     key: getReadQueueQueryKey,
@@ -100,7 +100,7 @@ const TOOL_READS: Record<
 };
 
 /** The initiative a tool row lives in. `null` is a community-level row (an
- *  app-installed calendar), which keeps a community address — not a failure. */
+ *  plugin-installed calendar), which keeps a community address — not a failure. */
 const toolInitiative = async (
   read: Read,
   communityId: number,
@@ -214,7 +214,7 @@ export async function resolveEntityPath(
 const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/tasks\/(\d+)(\/.*)?$/, (id) => `/go/task/${id}`],
   [/^\/projects\/(\d+)(\/.*)?$/, (id) => `/go/project/${id}`],
-  [/^\/documents\/(\d+)(\/.*)?$/, (id) => `/go/document/${id}`],
+  [/^\/files\/(\d+)(\/.*)?$/, (id) => `/go/file/${id}`],
   [/^\/calendar-events\/(\d+)(\/.*)?$/, (id) => `/go/calendar-event/${id}`],
   // A calendar event's ref type was `event` before every ref type became its
   // kind's kebab singular.
@@ -228,7 +228,7 @@ const LEGACY_LISTS = new Set([
   "/initiatives",
   "/tasks",
   "/projects",
-  "/documents",
+  "/files",
   "/queues",
   "/dashboards",
   "/counter-groups",
@@ -244,15 +244,15 @@ const LEGACY_LISTS = new Set([
  * the ones already sent have to be rewritten on the way out; the server no
  * longer mints it.
  */
-const LEGACY_APP_TARGETS = new Map([
+const LEGACY_PLUGIN_TARGETS = new Map([
   ["/settings/profile", "/profile/account"],
   ["/settings/account", "/profile/account"],
 ]);
 
 /** As {@link normalizeLegacyTarget}, for a path that names no community. */
-export function normalizeAppTarget(path: string): string {
+export function normalizePluginTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return LEGACY_APP_TARGETS.get(normalized) ?? normalized;
+  return LEGACY_PLUGIN_TARGETS.get(normalized) ?? normalized;
 }
 
 export function normalizeLegacyTarget(path: string): string {

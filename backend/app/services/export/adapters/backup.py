@@ -5,7 +5,7 @@ worker):
 
 * ``backup`` — every included tool in its importable format (the per-tool
   JSON envelopes the single-entity exports emit), plus optionally the upload
-  blobs the exported documents reference, indexed by a root ``manifest.json``
+  blobs the exported files reference, indexed by a root ``manifest.json``
   (see ``schemas/tenant/backup_export.py``). One archive a future import
   wizard consumes whole.
 * ``report`` — the same enumeration rendered in per-tool report formats
@@ -17,7 +17,7 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
 
     manifest.json                                   (backup mode)
     initiatives/{id}-{slug}/projects/{id}-{slug}.initiative-project.json
-    initiatives/{id}-{slug}/documents/{id}-{slug}.json
+    initiatives/{id}-{slug}/files/{id}-{slug}.json
     initiatives/{id}-{slug}/queues/{id}-{slug}.initiative-queue.json
     initiatives/{id}-{slug}/counter-groups/{id}-{slug}.initiative-counter-group.json
     initiatives/{id}-{slug}/calendars/{id}-{slug}.initiative-calendar.json
@@ -63,9 +63,13 @@ from app.core.user_display import handle_of
 from app.core.config import settings
 from app.core.messages import ExportMessages, InitiativeMessages
 from app.models.platform.user import User
-from app.models.tenant.document import DocumentType
-from app.services.export.adapters._common import BuildContext, ToolExportAdapter
-from app.services.export.adapters.document import doc_type_of
+from app.models.tenant.file import FileType
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    storage_key_of,
+)
+from app.services.export.adapters.file import doc_type_of
 from app.services.export.contract import RenderItem, RenderRequest
 from app.core.tools import (
     BULK_EXPORT_TOOLS,
@@ -251,7 +255,6 @@ def _filters(params: dict, section: BackupSection):
 async def _section_ids(
     session: AsyncSession,
     user: User,
-    guild_id: int,
     params: dict,
     section: BackupSection,
     initiative_id: int,
@@ -263,15 +266,15 @@ async def _section_ids(
         user,
         section.tool,
         _filters(params, section),
-        await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
+        await section.adapter.initiative_ids(session, initiative_id),
     )
 
 
 def _include_uploads(params: dict) -> bool:
     mode = params.get("mode") or "backup"
     if mode == "report":
-        # Report mode has no uploads toggle: file documents ride as their
-        # original blobs whenever documents are included.
+        # Report mode has no uploads toggle: uploaded files ride as their
+        # original blobs whenever files are included.
         return True
     return bool(params.get("include_uploads", True))
 
@@ -282,7 +285,7 @@ def _include_uploads(params: dict) -> bool:
 
 
 async def _enumerate(
-    session: AsyncSession, user: User, guild_id: int, params: dict, initiatives
+    session: AsyncSession, user: User, params: dict, initiatives
 ) -> dict[str, dict[int, list[int]]]:
     """Per tool, per initiative: the entity ids the creator may export."""
     ids: dict[str, dict[int, list[int]]] = {tool: {} for tool in _TOOLS}
@@ -291,7 +294,7 @@ async def _enumerate(
             if not _included(params, section.key):
                 continue
             ids[section.key][initiative.id] = await _section_ids(
-                session, user, guild_id, params, section, initiative.id
+                session, user, params, section, initiative.id
             )
     return ids
 
@@ -310,11 +313,11 @@ async def _count_scope(
     a job row exists.
 
     Guild scope measures the WHOLE blob store, because that is what it bundles
-    — the blobs documents reference plus the ones nothing points at. Counting
+    — the blobs files reference plus the ones nothing points at. Counting
     only the referenced ones here would let an over-cap export through to the
     worker and fail it there instead of answering now."""
 
-    ids = await _enumerate(session, user, guild_id, params, initiatives)
+    ids = await _enumerate(session, user, params, initiatives)
     total = sum(
         len(v) for per_initiative in ids.values() for v in per_initiative.values()
     )
@@ -322,14 +325,14 @@ async def _count_scope(
     total += await _task_rows(session, user, params, ids["project"])
 
     if _include_uploads(params) and (
-        scope_kind == "guild" or _included(params, "document")
+        scope_kind == "guild" or _included(params, Tool.file.value)
     ):
         if scope_kind == "guild":
             from app.services.tenant.attachments import get_guild_storage_usage
 
             upload_bytes = await get_guild_storage_usage(guild_id)
         else:
-            upload_bytes = await _known_upload_bytes(session, ids["document"])
+            upload_bytes = await _known_upload_bytes(session, ids[Tool.file.value])
         if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
@@ -366,24 +369,23 @@ async def _task_rows(
 
 
 async def _known_upload_bytes(
-    session: AsyncSession, document_ids: dict[int, list[int]]
+    session: AsyncSession, file_ids: dict[int, list[int]]
 ) -> int:
-    """File-document blob bytes for the enumerated documents (the cheap,
+    """Uploaded file blob bytes for the enumerated files (the cheap,
     pre-build number — embedded document images resolve at build time)."""
     from sqlalchemy import func
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileVersion
 
-    all_ids = [d for per in document_ids.values() for d in per]
+    all_ids = [d for per in file_ids.values() for d in per]
     if not all_ids:
         return 0
     total = (
         await session.exec(
-            select(func.coalesce(func.sum(Document.file_size), 0)).where(
-                Document.id.in_(all_ids),
-                Document.document_type == DocumentType.file,
-            )
+            select(func.coalesce(func.sum(FileVersion.file_size), 0))
+            .join(File, File.current_version_id == FileVersion.id)
+            .where(File.id.in_(all_ids))
         )
     ).one()
     return int(total or 0)
@@ -532,11 +534,11 @@ class _ScopeBuilder:
         self._asset_index: dict[str, Any] = {}
         self._asset_bytes = 0
         self._since_refresh = 0
-        #: The initiatives beyond those in scope whose documents and tasks
+        #: The initiatives beyond those in scope whose files and tasks
         #: the items name.
         self.reach: set[int] = set()
-        # The images each native document embeds, and the stored size and
-        # type of each, loaded once per initiative's documents.
+        # The images each native file embeds, and the stored size and
+        # type of each, loaded once per initiative's files.
         self._embedded: dict[int, list[dict]] = {}
         self._upload_info: dict[str, tuple[int, str | None]] = {}
         # The community's member profiles, read once for every initiative's
@@ -568,7 +570,7 @@ class _ScopeBuilder:
             await self._add_section(section, initiative, folder)
         await self._add_initiative_structure(initiative, folder)
         await self._add_initiative_properties(initiative, folder)
-        await self._link_wiki_documents(initiative)
+        await self._link_wiki_files(initiative)
 
     # -- per-tool sections ---------------------------------------------------
 
@@ -589,7 +591,7 @@ class _ScopeBuilder:
             return
         adapter = section.adapter
         ids = await _section_ids(
-            self.session, self.user, self.guild_id, self.params, section, initiative.id
+            self.session, self.user, self.params, section, initiative.id
         )
         if ids:
             batched = adapter.prepares or section.preload is not None
@@ -695,59 +697,56 @@ class _ScopeBuilder:
         """Note who the project's envelope names, for the manifest's people."""
         self._record_people(envelope)
 
-    # -- section hooks: documents ----------------------------------------------
+    # -- section hooks: files ----------------------------------------------
 
-    def _document_format(self, document) -> str:
+    def _file_format(self, file) -> str:
         """Report mode offers per-type choices for native/spreadsheet;
         everything else (whiteboards, smart links) rides as its canonical json
         envelope in both modes."""
-        doc_type = doc_type_of(document)
-        doc_formats = self._document_formats()
+        doc_type = doc_type_of(file)
+        doc_formats = self._file_formats()
         if self.mode == "backup" or doc_type not in doc_formats:
             return "json"
         return doc_formats[doc_type]
 
-    def _write_file_document(self, document, initiative, path_stem: str) -> bool:
-        """A file document is its blob, registered as an asset — or, with
+    def _write_uploaded_file(self, file, initiative, path_stem: str) -> bool:
+        """An uploaded file is its blob, registered as an asset — or, with
         uploads left out, a skipped entry."""
-        if doc_type_of(document) != DocumentType.file.value:
+        if doc_type_of(file) != FileType.file.value:
             return False
         if not _include_uploads(self.params):
             self._skip(
-                Tool.document,
-                document.id,
-                document.name,
+                Tool.file,
+                file.id,
+                file.name,
                 initiative,
                 "uploads_excluded",
             )
             return True
-        self._add_file_document(
-            document, initiative, path_stem, _document_metadata(document)
-        )
+        self._add_uploaded_file(file, initiative, path_stem, _file_metadata(file))
         return True
 
-    def _add_file_document(
-        self, document, initiative, path_stem: str, metadata
-    ) -> None:
+    def _add_uploaded_file(self, file, initiative, path_stem: str, metadata) -> None:
         from app.schemas.tenant.backup_export import ManifestEntry
 
-        storage_key = (document.file_url or "").split("/")[-1]
+        version = file.current_version
+        storage_key = storage_key_of(version.file_url)
         asset_path = self._register_asset(
             storage_key,
-            original_filename=document.original_filename,
-            content_type=document.file_content_type,
-            size_bytes=int(document.file_size or 0),
+            original_filename=version.original_filename,
+            content_type=version.file_content_type,
+            size_bytes=int(version.file_size or 0),
             referenced_by=path_stem,
         )
         if self.mode == "backup":
             self.entries.append(
                 ManifestEntry(
                     path=asset_path,
-                    tool="document",
+                    tool=Tool.file.value,
                     type="file",
                     schema_version=None,
-                    entity_id=document.id,
-                    title=document.name,
+                    entity_id=file.id,
+                    title=file.name,
                     initiative_id=initiative.id,
                     tags=metadata["tags"],
                     properties=metadata["properties"],
@@ -755,8 +754,8 @@ class _ScopeBuilder:
                 )
             )
 
-    async def _preload_embedded_assets(self, documents: list) -> None:
-        """The images the native documents embed, and each one's stored size
+    async def _preload_embedded_assets(self, files: list) -> None:
+        """The images the native files embed, and each one's stored size
         and type in one query, for the envelopes about to be written."""
         self._embedded = {}
         self._upload_info = {}
@@ -765,27 +764,27 @@ class _ScopeBuilder:
         from app.services.export.lexical import blocks_from_editor_state
 
         keys: list[str] = []
-        for document in documents:
-            if doc_type_of(document) != DocumentType.native.value:
+        for file in files:
+            if doc_type_of(file) != FileType.native.value:
                 continue
-            if self._document_format(document) != "json":
+            if self._file_format(file) != "json":
                 continue
             _, assets = blocks_from_editor_state(
-                document.content or {}, guild_id=self.guild_id
+                file.content or {}, guild_id=self.guild_id
             )
             if not assets:
                 continue
-            self._embedded[document.id] = assets
+            self._embedded[file.id] = assets
             keys.extend(a["key"] for a in assets if a["key"] not in self._asset_index)
         self._upload_info = await self._upload_rows(list(dict.fromkeys(keys)))
 
-    async def _collect_embedded_assets(self, document, entry_path: str) -> None:
-        """Native documents can embed same-guild images; when uploads ride,
+    async def _collect_embedded_assets(self, file, entry_path: str) -> None:
+        """Native files can embed same-guild images; when uploads ride,
         those blobs join the archive too — at their REAL stored size, so they
-        count against the byte cap exactly like file-document blobs (the
-        pre-flight count only sees file documents, so build is where embedded
+        count against the byte cap exactly like uploaded file blobs (the
+        pre-flight count only sees uploaded files, so build is where embedded
         bytes get bounded; an over-cap build fails the job closed)."""
-        for asset in self._embedded.pop(document.id, []):
+        for asset in self._embedded.pop(file.id, []):
             size_bytes, content_type = self._upload_info.get(asset["key"], (0, None))
             self._register_asset(
                 asset["key"],
@@ -799,7 +798,7 @@ class _ScopeBuilder:
 
     def _skip_gallery_without_uploads(self, loaded, initiative, path_stem: str) -> bool:
         """A gallery is mostly blobs, so it obeys the uploads toggle the way a
-        file document does — excluded uploads means the pictures do not
+        uploaded file does — excluded uploads means the pictures do not
         travel, and a gallery of captions without them is not worth writing,
         so the whole gallery is recorded as skipped instead."""
         if _include_uploads(self.params):
@@ -813,27 +812,26 @@ class _ScopeBuilder:
     async def _register_gallery_pictures(self, loaded, path: str) -> None:
         """Each picture's bytes, registered as an asset of the gallery's
         entry."""
-        from app.services.export.adapters.gallery import storage_key_of
-
         _gallery, images = loaded
         for image in images:
-            key = storage_key_of(image.file_url)
+            version = image.current_version
+            key = storage_key_of(version.file_url)
             if not key:
                 continue
             # The picture only; a thumbnail is a rendition the app makes
             # again from it.
             self._register_asset(
                 key,
-                original_filename=image.original_filename,
-                content_type=image.file_content_type,
-                size_bytes=int(image.file_size or 0),
+                original_filename=version.original_filename,
+                content_type=version.file_content_type,
+                size_bytes=int(version.file_size or 0),
                 referenced_by=path,
             )
 
     # -- section hooks: dashboards ---------------------------------------------
 
     async def _record_foreign_dashboards(self, initiative, exported: list[int]) -> None:
-        """Dashboards built on an app this build does not ship.
+        """Dashboards built on a plug-in this build does not ship.
 
         The dashboard listing applies the provenance filter, so the ones it
         left out are recovered here separately in order to record them: an
@@ -888,8 +886,8 @@ class _ScopeBuilder:
     def _record_property_people(self, *payloads) -> None:
         """Note everyone a user-type property value names, in any entry.
 
-        Every tool's properties pass through here — a task's, a document's,
-        an event's, a file document's — because a restore places those values
+        Every tool's properties pass through here — a task's, a file's,
+        an event's, an uploaded file's — because a restore places those values
         through the people step's answer, and the step only asks about the
         people the manifest lists. Counted as quoting nothing, like an
         assignee: the number is for comments.
@@ -903,7 +901,7 @@ class _ScopeBuilder:
 
     def _record_mentioned_people(self, payload) -> None:
         """Note everyone an entry's text mentions — a description, a comment,
-        a document, a page. A restore links a mention through the people
+        a file, a page. A restore links a mention through the people
         step's answer, so the step has to ask about them; counted as quoting
         nothing, because the number is for comments."""
         from app.services.import_engine.mentions import mention_handles_in
@@ -924,20 +922,20 @@ class _ScopeBuilder:
             )
         ]
 
-    async def _link_wiki_documents(self, initiative) -> None:
-        """Say which wiki each file document sits in, now that both entries
+    async def _link_wiki_files(self, initiative) -> None:
+        """Say which wiki each uploaded file sits in, now that both entries
         exist.
 
-        A document joins a wiki by an edge (``document part_of wiki``), not
+        A file joins a wiki by an edge (``file part_of wiki``), not
         by a column, and the edge names rows this archive is about to stop
         being able to identify. So it crosses as ``attach_to`` on the
-        document's own entry, naming the wiki by **entry path** — which is
+        file's own entry, naming the wiki by **entry path** — which is
         the one thing both sides agree on — and the importer rebuilds the
         edge once both ends have been applied.
 
         Runs after both tools have been written for this initiative, because
-        documents are added before wikis and a path cannot be named before it
-        exists. A document in more than one wiki keeps the first: one entry
+        files are added before wikis and a path cannot be named before it
+        exists. A file in more than one wiki keeps the first: one entry
         carries one placement, and a second copy of the file is not what the
         edge said. The page it is filed under in that wiki travels with it, by
         the page's slug.
@@ -954,8 +952,8 @@ class _ScopeBuilder:
         wiki_paths = {
             entry.entity_id: entry.path
             for entry in self.entries
-            if entry.tool == "wiki"
-            and entry.type == "initiative-wiki"
+            if entry.tool == Tool.wiki.value
+            and entry.type == tool_envelope_type(Tool.wiki)
             and entry.initiative_id == initiative.id
         }
         file_entries = {
@@ -971,8 +969,8 @@ class _ScopeBuilder:
                 select(EntityRelationship).where(
                     EntityRelationship.source_node.in_(
                         [
-                            node_id(SearchEntityType.document, document_id)
-                            for document_id in file_entries
+                            node_id(SearchEntityType.file, file_id)
+                            for file_id in file_entries
                         ]
                     ),
                     EntityRelationship.target_node.in_(
@@ -987,10 +985,10 @@ class _ScopeBuilder:
                 )
             )
         ).all()
-        # The page each document is filed under, by the slug its page is
+        # The page each file is filed under, by the slug its page is
         # written with in the wiki's envelope.
         from app.models.tenant.wiki import Wiki, WikiPage
-        from app.services.tenant.wikis import document_parent
+        from app.services.tenant.wikis import file_parent
 
         wikis = {
             wiki.id: wiki
@@ -1015,7 +1013,7 @@ class _ScopeBuilder:
             if entry is None or path is None or entry.attach_to is not None:
                 continue
             wiki = wikis.get(edge.target_id)
-            parent = document_parent(wiki, edge.source_id) if wiki else None
+            parent = file_parent(wiki, edge.source_id) if wiki else None
             entry.attach_to = ManifestAttachTo(
                 kind="wiki", ref=path, page=page_slugs.get(parent) if parent else None
             )
@@ -1029,11 +1027,11 @@ class _ScopeBuilder:
         value = formats.get(section.key)
         return value if isinstance(value, str) else "json"
 
-    def _document_formats(self) -> dict[str, str]:
+    def _file_formats(self) -> dict[str, str]:
         if self.mode == "backup":
             return {}
         formats = self.params.get("formats") or {}
-        value = formats.get("document")
+        value = formats.get(Tool.file.value)
         return dict(value) if isinstance(value, dict) else {}
 
     async def _guild_profiles(self) -> dict[int, Any]:
@@ -1381,12 +1379,12 @@ class _ScopeBuilder:
         return path
 
 
-def _document_metadata(document) -> dict:
+def _file_metadata(file) -> dict:
     from app.services.export.property_values import exported_properties
 
     return {
-        "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": exported_properties(document),
+        "tags": sorted(tag.name for tag in file.tags or []),
+        "properties": exported_properties(file),
     }
 
 
@@ -1401,8 +1399,8 @@ Fetch = Callable[[Any, AsyncSession, User, int, int], Awaitable[Any]]
 async def _fetch_wiki_pages(
     adapter: Any, session: AsyncSession, user: User, guild_id: int, wiki_id: int
 ) -> Any:
-    """A wiki and its pages. The documents filed in it are written by the
-    documents section and placed in the wiki by ``attach_to``."""
+    """A wiki and its pages. The files filed in it are written by the
+    files section and placed in the wiki by ``attach_to``."""
     return await adapter.fetch_pages(
         session, user, guild_id, wiki_id, access=_AGGREGATE_ACCESS
     )
@@ -1423,7 +1421,7 @@ class BackupSection:
     #: The formats a report-mode export may choose for this tool. With none
     #: chosen — or none offered — the tool rides as its envelope.
     report_formats: frozenset[str] = frozenset()
-    #: Report formats per document type, for the tool whose formats depend on
+    #: Report formats per file type, for the tool whose formats depend on
     #: the entity rather than the tool.
     type_report_formats: Mapping[str, frozenset[str]] = field(default_factory=dict)
     #: Whether a report-mode export carries this tool at all. A tool with no
@@ -1431,7 +1429,7 @@ class BackupSection:
     #: zip of PDFs and spreadsheets.
     in_reports: bool = True
     #: Whether an envelope's file name carries its envelope type
-    #: (``<slug>.initiative-queue.json``). A document's is ``<slug>.json``.
+    #: (``<slug>.initiative-queue.json``). A file's is ``<slug>.json``.
     type_in_filename: bool = True
     #: Loads one entity; the adapter's ``fetch`` at the read rung otherwise.
     fetch: Fetch | None = None
@@ -1483,15 +1481,15 @@ _SECTIONS: tuple[BackupSection, ...] = (
         before_envelope=_ScopeBuilder._note_project_people,
     ),
     BackupSection(
-        Tool.document,
+        Tool.file,
         type_report_formats={
-            DocumentType.native.value: frozenset({"pdf", "md", "docx"}),
-            DocumentType.spreadsheet.value: frozenset({"csv", "xlsx"}),
+            FileType.native.value: frozenset({"pdf", "md", "docx"}),
+            FileType.spreadsheet.value: frozenset({"csv", "xlsx"}),
         },
         type_in_filename=False,
         preload=_ScopeBuilder._preload_embedded_assets,
-        format_for=_ScopeBuilder._document_format,
-        write_apart=_ScopeBuilder._write_file_document,
+        format_for=_ScopeBuilder._file_format,
+        write_apart=_ScopeBuilder._write_uploaded_file,
         before_envelope=_ScopeBuilder._collect_embedded_assets,
     ),
     BackupSection(Tool.queue, report_formats=frozenset({"pdf", "csv", "xlsx", "md"})),
@@ -1538,7 +1536,7 @@ async def estimate_backup(
     from sqlalchemy import func
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.schemas.tenant.backup_export import BackupEstimate, BackupToolEstimate
     from app.services.tenant.attachments import get_guild_storage_usage
 
@@ -1551,7 +1549,7 @@ async def estimate_backup(
     initiatives = await _resolve_scope(
         session, user, guild_id, params, scope_kind=scope
     )
-    ids = await _enumerate(session, user, guild_id, params, initiatives)
+    ids = await _enumerate(session, user, params, initiatives)
 
     tools: dict[str, BackupToolEstimate] = {}
     estimated_rows = 0
@@ -1566,15 +1564,15 @@ async def estimate_backup(
     uploads_count = 0
     uploads_bytes = 0
     if include_uploads:
-        document_ids = [d for per in ids["document"].values() for d in per]
-        if document_ids:
+        file_ids = [d for per in ids[Tool.file.value].values() for d in per]
+        if file_ids:
             uploads_count = (
                 await session.exec(
                     select(func.count())
-                    .select_from(Document)
+                    .select_from(File)
                     .where(
-                        Document.id.in_(document_ids),
-                        Document.document_type == DocumentType.file,
+                        File.id.in_(file_ids),
+                        File.file_type == FileType.file,
                     )
                 )
             ).one()
@@ -1582,7 +1580,7 @@ async def estimate_backup(
             # Exact total blob usage — an upper bound on what ships.
             uploads_bytes = await get_guild_storage_usage(guild_id)
         else:
-            uploads_bytes = await _known_upload_bytes(session, ids["document"])
+            uploads_bytes = await _known_upload_bytes(session, ids[Tool.file.value])
         estimated_rows += uploads_bytes // _MIB
 
     return BackupEstimate(

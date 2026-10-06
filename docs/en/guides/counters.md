@@ -60,5 +60,5 @@ Counter groups share like every other tool — **Viewer**, **Editor**, **Owner**
 
 - [Dashboards](dashboards.md) — putting counter values on a screen with everything else.
 - [Tools](tools.md) — what every tool shares.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — access levels in full.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — access levels in full.
 - [Your space](your-space.md#my-tools) — every counter group that's reached you, from every community.

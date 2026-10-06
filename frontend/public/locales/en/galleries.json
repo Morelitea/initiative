@@ -1,13 +1,8 @@
 {
-  "title": "Galleries",
-  "gallery": "Gallery",
-  "galleries": "Galleries",
   "createGallery": "New Gallery",
   "createGalleryDescription": "A collection of pictures — mockups, screenshots, exported designs. Name it now; the pictures go in on its page, forty at a time if you like.",
   "creating": "Creating...",
-  "name": "Name",
   "namePlaceholder": "Store assets, Live screen round 4...",
-  "description": "Description",
   "descriptionPlaceholder": "What these pictures are of",
   "initiative": "Initiative",
   "selectInitiative": "Select initiative",
@@ -31,7 +26,6 @@
   "views": {
     "label": "View",
     "masonry": "Masonry",
-    "grid": "Grid",
     "timeline": "Timeline"
   },
   "groups": {
@@ -73,11 +67,7 @@
     "oldestFirst": "Oldest first",
     "noMatchingPictures": "No pictures match your filters."
   },
-  "lightbox": {
-    "details": "Details"
-  },
   "sheet": {
-    "title": "Picture",
     "description": "What this picture is called, who added it, and its history.",
     "titleLabel": "Title",
     "titlePlaceholder": "What is this?",
@@ -120,24 +110,5 @@
     "deleteTitle_one": "Remove {{count}} picture?",
     "deleteTitle_other": "Remove {{count}} pictures?",
     "deleteDescription": "They go to the trash, versions and all, and can be restored before the retention period ends."
-  },
-  "bulkTags": {
-    "title": "Edit Tags",
-    "descriptionAdd_one": "Add tags to {{count}} selected picture.",
-    "descriptionAdd_other": "Add tags to {{count}} selected pictures.",
-    "descriptionRemove_one": "Remove tags from {{count}} selected picture.",
-    "descriptionRemove_other": "Remove tags from {{count}} selected pictures.",
-    "tabAdd": "Add",
-    "tabRemove": "Remove",
-    "addPlaceholder": "Select tags to add...",
-    "removePlaceholder": "Select tags to remove...",
-    "noTags": "No tags on the selected pictures.",
-    "applying": "Applying…",
-    "apply": "Apply",
-    "tagsAdded_one": "Tags added to {{count}} picture",
-    "tagsAdded_other": "Tags added to {{count}} pictures",
-    "tagsRemoved_one": "Tags removed from {{count}} picture",
-    "tagsRemoved_other": "Tags removed from {{count}} pictures",
-    "updateError": "Unable to update tags right now."
   }
 }

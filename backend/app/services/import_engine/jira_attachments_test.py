@@ -53,7 +53,7 @@ def test_attachments_are_read_and_malformed_ones_skipped():
 
 
 async def test_images_come_over_and_everything_else_is_counted():
-    """Raster images download; a PDF is left behind when documents were not
+    """Raster images download; a PDF is left behind when files were not
     asked for, and an SVG always is — both counted, neither fetched."""
     download = _downloader()
     report = await ja.download_images(
@@ -185,9 +185,9 @@ def test_images_are_found_by_filename_and_the_rest_listed_at_the_foot():
     )
 
 
-async def test_other_files_come_over_as_documents_when_asked_for():
-    """A file a document can hold comes over, a table of text included (it
-    becomes a spreadsheet); a type no document holds is left behind."""
+async def test_other_files_come_over_as_files_when_asked_for():
+    """A file of a type an uploaded file can hold comes over, a table of text included (it
+    becomes a spreadsheet); a type no file holds is left behind."""
     download = _downloader()
     store = _sink()
     report = await ja.download_images(
@@ -205,7 +205,7 @@ async def test_other_files_come_over_as_documents_when_asked_for():
         store=store,
         budget_bytes=10_000,
         max_files=100,
-        documents=True,
+        files_allowed=True,
     )
     assert sorted(c[0] for c in download.calls) == ["10", "11", "13"]
     assert (report.images, report.files, report.other_files) == (1, 2, 2)

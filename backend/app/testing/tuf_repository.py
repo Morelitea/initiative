@@ -39,7 +39,7 @@ __all__ = [
     "container_registration",
     "dashboard_definition",
     "png",
-    "service_app_definition",
+    "service_plugin_definition",
 ]
 
 #: Where the fake repository is served from.
@@ -53,9 +53,9 @@ def png(seed: str) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + seed.encode()
 
 
-def service_app_definition(public_id: str) -> dict[str, Any]:
+def service_plugin_definition(public_id: str) -> dict[str, Any]:
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": public_id},
         "features": [],
     }
@@ -147,7 +147,7 @@ class TufRepository:
         uid: str,
         *,
         slug: str = "thing",
-        kind: str = "app",
+        kind: str = "plugin",
         name: str = "A thing",
         versions: tuple[str, ...] = ("1.0.0",),
         definition: Optional[dict[str, Any]] = None,
@@ -162,8 +162,8 @@ class TufRepository:
         files = self.content[prefix]
         if definition is None:
             definition = (
-                service_app_definition(public_id)
-                if kind == "app"
+                service_plugin_definition(public_id)
+                if kind == "plugin"
                 else dashboard_definition()
             )
 
@@ -200,7 +200,7 @@ class TufRepository:
             "versions": version_entries,
             "price": None,
         }
-        if kind == "app":
+        if kind == "plugin":
             entry["registration"] = registration or container_registration()
         entry.update(extra or {})
         files[base + "listing.json"] = _dump(entry)

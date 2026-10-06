@@ -208,7 +208,7 @@ def test_getting_in_and_reaching_in_say_where_from(event_type):
     [
         AuditEventType.SHARING_GRANT_CHANGED,
         AuditEventType.INITIATIVE_MEMBER_ADDED,
-        AuditEventType.APP_INSTALLED,
+        AuditEventType.PLUGIN_INSTALLED,
         AuditEventType.AI_REQUEST_SENT,
         AuditEventType.USER_SUSPENDED,
         AuditEventType.PLATFORM_SETTINGS_CHANGED,

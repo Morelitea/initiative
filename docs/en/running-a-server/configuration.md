@@ -39,7 +39,7 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. Every account is asked its date of birth once, and it is kept encrypted at rest so a plug-in's minimum age — which can differ by country — can be checked against it. Set `CLIENT_COUNTRY_HEADER` to the header your proxy writes the visitor's country into (`CF-IPCountry` behind Cloudflare) so those limits apply by country; unset, a plug-in's highest minimum age applies to everyone. Only set it when every request reaches the server through that proxy. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
 **The rule belongs to the community, not to the way in.** Every route into a listed community is covered: the directory, an invite, and the group rules your identity provider drives. A community that hasn't listed itself asks nobody, whoever brings them in, and an unanswered question never costs somebody a membership they already have or holds up the rest of Initiative.
 
@@ -118,13 +118,13 @@ Deleting an account or a community hides it immediately and erases it later. How
 
 | Window | Default | What happens during it |
 |---|---|---|
-| **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and documents where they left them. You can also restore one. |
+| **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and files where they left them. You can also restore one. |
 | **Keep communities for** | 90 days | It has vanished for its members. An operator can restore it from **Settings → Platform → Communities**, choosing what it comes back as and, where nobody is left who could run it, who takes it over. |
 | **Delete after (days on hold)** | 30 days | The community sits [on hold](platform-roles.md#a-communitys-status). If nobody lifts the hold by the end of the window, it's deleted, and **Keep communities for** starts counting from there. Its superadmins get the date by email the moment it goes on hold. |
 
 Leave any of them blank and **nothing happens on a timer** — the right answer for a deployment required to keep records rather than shed them. Each is counted from the moment each thing was deleted or put on hold, so changing the number moves the date for things already in the queue.
 
-A restored community reconnects its installed apps itself. It authorised those connections in the first place, so it authorises them again.
+A restored community reconnects its installed plug-ins itself. It authorised those connections in the first place, so it authorises them again.
 
 ## Running behind a reverse proxy
 
@@ -188,7 +188,7 @@ Leave it off unless you want that surface. See [API keys & integrations](../acco
 
 ## The Initiative registry
 
-Your server follows the **Initiative registry**, a signed online catalog of apps and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
+Your server follows the **Initiative registry**, a signed online catalog of plug-ins and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
 
 Its panel is in **Settings → Platform → Integrations**, under **Marketplace registry**:
 
@@ -203,17 +203,17 @@ The panel also says when it last updated, how many listings came from it, and wh
 | Variable | What it does | Default |
 |---|---|---|
 | `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
-| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
+| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and plug-ins arrive as usual. | The key built into Initiative |
 | `MARKETPLACE_REGISTRY_TOKEN` | A token for a registry that asks for one. It is sent only to the registry's own address. | None |
 | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
-| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for apps whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
+| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for plug-ins whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
 
-### Apps from the registry
+### Plug-ins from the registry
 
-An app from the registry lands in **Settings → Platform → Integrations**, under **App services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
+A plug-in from the registry lands in **Settings → Platform → Integrations**, under **Plug-in services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
 
 - **Switch it on or off.** Off, every community that added it stops reaching it at once. Nothing is deleted.
-- **Give it an address.** An app that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
+- **Give it an address.** A plug-in that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
 
 ## Your own marketplace listings
 
@@ -286,7 +286,7 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 | `initiative_users`, `initiative_guilds` | Accounts and communities, by `status`. |
 | `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
 | `initiative_active_users` | Accounts that did something in the last day, week and month, by `window`: `1d`, `7d`, `30d`. |
-| `initiative_tools_created_total` | Tools created, by `tool` (`project`, `document`, `wiki`, …). Imports and copies count too. |
+| `initiative_tools_created_total` | Tools created, by `tool` (`project`, `file`, `wiki`, …). Imports and copies count too. |
 | `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$communityId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
 | `initiative_build_info` | The version running, in its `version` label. |
 | `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |

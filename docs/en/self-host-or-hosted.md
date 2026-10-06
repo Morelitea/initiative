@@ -24,7 +24,7 @@ Initiative comes two ways. Same software, same protections, either way. The diff
 
 Initiative itself, entirely. There is no "community edition" here with the good bits quietly filed off.
 
-- **Every feature in the app.** Projects, documents, whiteboards, the calendar, queues, counters, dashboards, boards, tags, the marketplace, encrypted messages. All of it, both ways.
+- **Every feature in the app.** Projects, files, whiteboards, the calendar, queues, counters, dashboards, boards, tags, the marketplace, encrypted messages. All of it, both ways.
 - **Every protection.** The same isolation between groups, the same access model, the same end-to-end encryption on direct messages.
 - **Your data stays yours either way.** Export it, delete it, take it somewhere else. See [Data & compliance](security/data-and-compliance.md).
 
@@ -40,12 +40,12 @@ Nothing in Initiative is held back to make the hosted version look better. What 
 | Where your data lives | Wherever you put it | Where our service runs |
 | Who you ask when it breaks | You, and the community | Us |
 | Version you're on | Whichever you pull | The current one |
-| Apps that need a service behind them | You run the service | Already running |
+| Plug-ins that need a service behind them | You run the service | Already running |
 | Automations | — | Available, metered separately |
 
-### Apps that need something running behind them
+### Plug-ins that need something running behind them
 
-Some [marketplace apps](guides/apps-and-marketplace.md#adding-an-app) aren't just a screen — they need a program running alongside Initiative to do their job.
+Some [marketplace plug-ins](guides/plugins-and-marketplace.md#adding-a-plug-in) aren't just a screen — they need a program running alongside Initiative to do their job.
 
 On a server you run, that's yours to stand up. On the hosted service it's already running. Two we're launching with:
 

@@ -45,7 +45,7 @@ export const WikiDetailPage = () => {
 
   // Inside a wiki, the thing to create is a page. Without this the button in
   // the corner keeps whatever the list before it registered — a second wiki.
-  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("pages.newPage") } : null);
 
   if (!validIds || wikiQuery.isError) {
     return (

@@ -1,10 +1,10 @@
-"""Queues and counters as an installed app calls them.
+"""Queues and counters as an installed plug-in calls them.
 
-Each test installs an app the way a community does (``install_app``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the queue and counter routes that name a scope: the
-reads, create and update, the item edit, and the queue's and counters' own
-commands.
+reads, create and update, adding, editing and deleting items and counters, and
+the queue's and counters' own commands.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any
 
 from sqlmodel import select
 
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.core.tools import Tool
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.queue import Queue, QueueItem
@@ -29,9 +29,9 @@ from app.testing import (
     guild_of,
     route_session_to_guild,
 )
-from app.testing.app_clients import (
+from app.testing.plugin_clients import (
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
 )
@@ -59,7 +59,7 @@ async def _grants_of(
             )
         )
     ).all()
-    return [(g.level, g.app_install_id, g.user_id) for g in rows]
+    return [(g.level, g.plugin_install_id, g.user_id) for g in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ async def test_reads_the_queues_open_to_its_initiative(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["queues:read"]
     )
     seat = installed.seat
@@ -125,7 +125,7 @@ async def test_reads_the_queues_open_to_its_initiative(
 async def test_a_queue_write_needs_the_write_scope(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["queues:write"]
     )
     guild_id = installed.guild.id
@@ -141,6 +141,7 @@ async def test_a_queue_write_needs_the_write_scope(
         ("post", "/queues/", {"name": "No", "initiative_id": installed.placed.id}),
         ("patch", f"/queues/{queue.id}", {"name": "No"}),
         ("patch", f"/queue-items/{item.id}", {"label": "No"}),
+        ("post", f"/queues/{queue.id}/items", {"label": "No"}),
         ("post", f"/queues/{queue.id}/next", None),
         ("post", f"/queues/{queue.id}/start", None),
     ):
@@ -148,14 +149,14 @@ async def test_a_queue_write_needs_the_write_scope(
             method, guild_url(guild_id, path), headers=headers, json=payload
         )
         assert response.status_code == 403, (path, response.text)
-        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+        assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["queues:write"]
     )
     guild_id = installed.guild.id
@@ -172,12 +173,12 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
         },
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
+    assert refused.json()["detail"] == PluginMessages.SHARING_NOT_AVAILABLE
 
     created = await client.post(
         guild_url(guild_id, "/queues/"),
         headers=headers,
-        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -185,7 +186,7 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.queue, body["id"], guild_id) == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
     queue = await session.get(Queue, body["id"])
     assert queue is not None and queue.created_by is None
@@ -193,10 +194,17 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     renamed = await client.patch(
         guild_url(guild_id, f"/queues/{body['id']}"),
         headers=headers,
-        json={"name": "Renamed by the app"},
+        json={"name": "Renamed by the plug-in"},
     )
     assert renamed.status_code == 200, renamed.text
-    assert renamed.json()["name"] == "Renamed by the app"
+    assert renamed.json()["name"] == "Renamed by the plug-in"
+
+    added = await client.post(
+        guild_url(guild_id, f"/queues/{queue.id}/items"),
+        headers=headers,
+        json={"label": "Passing through"},
+    )
+    assert added.status_code == 201, added.text
 
     first = await create_queue_item(session, queue, label="First", position=20)
     second = await create_queue_item(session, queue, label="Second", position=10)
@@ -206,13 +214,13 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     )
     assert started.status_code == 200, started.text
     assert started.json()["is_active"] is True
-    assert started.json()["current_item"]["id"] == first.id
+    assert started.json()["current_item_id"] == first.id
 
     advanced = await client.post(
         guild_url(guild_id, f"/queues/{queue.id}/next"), headers=headers
     )
     assert advanced.status_code == 200, advanced.text
-    assert advanced.json()["current_item"]["id"] == second.id
+    assert advanced.json()["current_item_id"] == second.id
 
     stopped = await client.post(
         guild_url(guild_id, f"/queues/{queue.id}/stop"), headers=headers
@@ -224,7 +232,7 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
 async def test_it_runs_a_command_on_a_queue_shared_for_writing_only(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["queues:write"]
     )
     guild_id = installed.guild.id
@@ -255,7 +263,7 @@ async def test_it_names_a_queue_items_person_by_reference(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["queues:write"]
     )
     seat = installed.seat
@@ -302,7 +310,7 @@ async def test_reads_the_counter_groups_open_to_its_initiative(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["counter_groups:read"]
     )
     seat = installed.seat
@@ -357,7 +365,7 @@ async def test_reads_the_counter_groups_open_to_its_initiative(
 async def test_a_counter_write_needs_the_write_scope(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["counter_groups:write"]
     )
     guild_id = installed.guild.id
@@ -380,19 +388,23 @@ async def test_a_counter_write_needs_the_write_scope(
         ("post", f"{base}/step", {"direction": "up"}),
         ("post", f"{base}/set", {"count": "3"}),
         ("post", f"{base}/reset", None),
+        ("post", f"/counter-groups/{group.id}/counters", {"name": "No"}),
+        ("patch", base, {"name": "No"}),
+        ("post", f"/counter-groups/{group.id}/reset-all", None),
+        ("post", f"/counter-groups/{group.id}/sort", {"field": "name"}),
     ):
         response = await client.request(
             method, guild_url(guild_id, path), headers=headers, json=payload
         )
         assert response.status_code == 403, (path, response.text)
-        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+        assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["counter_groups:write"]
     )
     guild_id = installed.guild.id
@@ -409,12 +421,12 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
         },
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
+    assert refused.json()["detail"] == PluginMessages.SHARING_NOT_AVAILABLE
 
     created = await client.post(
         guild_url(guild_id, "/counter-groups/"),
         headers=headers,
-        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -422,7 +434,7 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.counter_group, body["id"], guild_id) == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
     group = await session.get(CounterGroup, body["id"])
     assert group is not None and group.created_by is None
@@ -430,13 +442,19 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     renamed = await client.patch(
         guild_url(guild_id, f"/counter-groups/{group.id}"),
         headers=headers,
-        json={"description": "Kept by the app"},
+        json={"description": "Kept by the plug-in"},
     )
     assert renamed.status_code == 200, renamed.text
-    assert renamed.json()["description"] == "Kept by the app"
+    assert renamed.json()["description"] == "Kept by the plug-in"
 
-    counter = await create_counter(session, group, name="Round", initial_count=1)
-    base = guild_url(guild_id, f"/counters/{counter.id}")
+    added = await client.post(
+        guild_url(guild_id, f"/counter-groups/{group.id}/counters"),
+        headers=headers,
+        json={"name": "Round", "initial_count": "1"},
+    )
+    assert added.status_code == 201, added.text
+    counter_id = added.json()["id"]
+    base = guild_url(guild_id, f"/counters/{counter_id}")
 
     stepped = await client.post(
         f"{base}/step", headers=headers, json={"direction": "up"}
@@ -457,14 +475,14 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert_names_nobody(reset.text, [installed.seat.user.id, guild_id])
 
     await route_session_to_guild(session, guild_id)
-    stored = await session.get(Counter, counter.id, populate_existing=True)
+    stored = await session.get(Counter, counter_id, populate_existing=True)
     assert stored is not None and stored.count == Decimal("1")
 
 
 async def test_it_steps_a_counter_shared_for_writing_only(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["counter_groups:write"]
     )
     guild_id = installed.guild.id
@@ -506,14 +524,17 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     member stays theirs once the copy's sharing is committed."""
     from datetime import datetime, timezone
 
-    from app.core.app_access_token import seal_install_token
+    from app.core.plugin_access_token import seal_install_token
     from app.models.platform.guild import CommunityRole
-    from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
+    from app.models.tenant.plugin_member_consent import (
+        PluginMemberConsent,
+        ConsentAccess,
+    )
     from app.testing import grant_role_permission
-    from app.testing.app_clients import CLIENT
+    from app.testing.plugin_clients import CLIENT
 
     scopes = ["queues:read", "queues:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     await _switch_on(session, installed.placed)
     member = await acting_user(
         guild_role=CommunityRole.member,
@@ -529,8 +550,8 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     await route_session_to_guild(session, installed.guild.id)
     now = datetime.now(timezone.utc)
     session.add(
-        AppMemberConsent(
-            install_id=installed.app.id,
+        PluginMemberConsent(
+            install_id=installed.plugin.id,
             user_id=member.user.id,
             purpose="node-1",
             label="Act as you",
@@ -542,7 +563,7 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     await session.commit()
     token, _exp = seal_install_token(
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=frozenset(scopes),
         initiative_id=None,

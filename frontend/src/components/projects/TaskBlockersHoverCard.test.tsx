@@ -41,7 +41,7 @@ const blockerRow = (title: string, isOpen: boolean): RelationshipRead => ({
     image_urls: [],
     icon: null,
     color: null,
-    document_type: null,
+    file_type: null,
     mime_type: null,
     original_filename: null,
     smart_link_url: null,

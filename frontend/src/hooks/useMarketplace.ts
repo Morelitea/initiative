@@ -3,13 +3,13 @@
  *
  * The catalog is one shared surface addressed by globally unique ids, and no
  * listing carries a community — but *which* of it a community is offered does depend on
- * the community asking: a dashboard an app ships with itself appears only where the
- * app is installed. So every read here is community-addressed and keyed per community,
+ * the community asking: a dashboard a plug-in ships with itself appears only where the
+ * plug-in is installed. So every read here is community-addressed and keyed per community,
  * the shelf and a single listing alike, and the answer a card gives is the
  * answer the page it opens gives.
  *
  * Whether a listing is *installed here* is a separate per-community question the
- * dashboards and apps endpoints answer; the surface merges those in client-side.
+ * dashboards and plug-ins endpoints answer; the surface merges those in client-side.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -84,7 +84,7 @@ export const useMarketplaceListingByUid = (
     enabled: Boolean(uid) && userEnabled,
     staleTime: CATALOG_STALE_MS,
     // A listing this community cannot take is a real answer for an installed
-    // dashboard — withdrawn, or an app it no longer has — not something to
+    // dashboard — withdrawn, or a plug-in it no longer has — not something to
     // retry.
     retry: false,
     ...rest,

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # was queried from the response size. Costs nothing on our end.
 _RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 _HEADERS = {
-    "User-Agent": "initiative-app",
+    "User-Agent": "initiative-plugin",
     "Add-Padding": "true",
 }
 _TIMEOUT = httpx.Timeout(2.0)

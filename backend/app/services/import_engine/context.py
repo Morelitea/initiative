@@ -40,9 +40,9 @@ class ImportContext:
     #: link in a task to a page there becomes a mention of the page, once the
     #: page has been written in the same job.
     source_url: str | None = None
-    #: Documents to file under a page of a wiki once both exist, as
-    #: ``(document ref, wiki ref, page slug)``: the wiki's own importer knows
-    #: its pages by slug, and the document is applied before the wiki is.
+    #: Files to file under a page of a wiki once both exist, as
+    #: ``(file ref, wiki ref, page slug)``: the wiki's own importer knows
+    #: its pages by slug, and the file is applied before the wiki is.
     placements: list[tuple[str, str, str]] = field(default_factory=list)
     #: Whether what is being imported was exported from this community on this
     #: server. A reference to something the export did not carry still names

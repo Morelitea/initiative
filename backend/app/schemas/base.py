@@ -40,12 +40,12 @@ RawTextStr = Annotated[str, _RawTextMarker()]
 
 MentionStr = Annotated[str, MARKDOWN_MENTIONS]
 """str that may mention people (``@[Name](id)``), translated for an installed
-app (``app.core.identity_boundary.Mentions``)."""
+plug-in (``app.core.identity_boundary.Mentions``)."""
 
 RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
 """Rich text that may mention people, translated as :data:`MentionStr` is."""
 
-#: A Lexical editor state: a document's, a post's or a wiki page's body.
+#: A Lexical editor state: a file's, a post's or a wiki page's body.
 LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 
 
@@ -77,8 +77,8 @@ class _SigilFreeMarker:
 
 
 TitleStr = Annotated[str, _SigilFreeMarker()]
-"""str for a name/title a person types: sanitized, bounded, and rejected if it
-holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
+"""str for a name/title a person types: sanitized, trimmed, refused when blank,
+bounded, and rejected if it holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
 before the rules has to stay readable."""
 
 
@@ -197,7 +197,8 @@ class SanitizedBaseModel(BaseModel):
     (rich text) or :data:`RawTextStr` (large or opaque data) opt out of both,
     even when wrapped in ``Optional[...]``. Enum-typed fields are skipped.
 
-    Fields typed :data:`TitleStr` are additionally bounded at
+    Fields typed :data:`TitleStr` are additionally trimmed, refused when blank,
+    bounded at
     :data:`MAX_TITLE_LENGTH` and reject :data:`RESERVED_SIGILS`.
     """
 
@@ -223,6 +224,9 @@ class SanitizedBaseModel(BaseModel):
                 cleaned = strip_to_plain_text(value)
                 # Both checked on the stripped value, which is what gets stored.
                 if field_name in sigil_free:
+                    cleaned = cleaned.strip()
+                    if not cleaned:
+                        raise ValueError(f"{field_name} cannot be blank")
                     if len(cleaned) > MAX_TITLE_LENGTH:
                         raise ValueError(
                             f"{field_name} exceeds the maximum length of "

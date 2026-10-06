@@ -189,25 +189,6 @@
     "moving": "Wird verschoben…",
     "moveTask": "Aufgabe verschieben"
   },
-  "bulkEditTags": {
-    "title": "Tags bearbeiten",
-    "descriptionAdd": "Tags zu {{count}} ausgewählten Aufgabe hinzufügen.",
-    "descriptionAdd_other": "Tags zu {{count}} ausgewählten Aufgaben hinzufügen.",
-    "descriptionRemove": "Tags von {{count}} ausgewählten Aufgabe entfernen.",
-    "descriptionRemove_other": "Tags von {{count}} ausgewählten Aufgaben entfernen.",
-    "tabAdd": "Hinzufügen",
-    "tabRemove": "Entfernen",
-    "addPlaceholder": "Tags zum Hinzufügen auswählen...",
-    "removePlaceholder": "Tags zum Entfernen auswählen...",
-    "noTags": "Keine Tags an den ausgewählten Aufgaben.",
-    "applying": "Wird angewendet…",
-    "apply": "Anwenden",
-    "tagsAdded": "Tags zu {{count}} Aufgabe hinzugefügt",
-    "tagsAdded_other": "Tags zu {{count}} Aufgaben hinzugefügt",
-    "tagsRemoved": "Tags von {{count}} Aufgabe entfernt",
-    "tagsRemoved_other": "Tags von {{count}} Aufgaben entfernt",
-    "updateError": "Tags können derzeit nicht aktualisiert werden."
-  },
   "createWizard": {
     "title": "Aufgabe hinzufügen",
     "lastUsed": "Zuletzt verwendet",

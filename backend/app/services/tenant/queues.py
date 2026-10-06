@@ -1,11 +1,6 @@
-"""Queue service layer — business logic for queue CRUD, turn management, and DAC.
-
-This module handles:
-  - Discretionary Access Control (DAC) for queues (mirroring the project/document
-    pattern in ``permissions.py``)
-  - Queue and queue-item fetching with eager-loaded relationships
-  - Turn management (advance, previous, start, stop, reset, set active item)
-"""
+"""Queue service layer — queue and queue-item fetching with eager-loaded
+relationships, and turn management (advance, previous, start, stop, reset, set
+active item)."""
 
 from datetime import datetime, timezone
 from typing import Sequence
@@ -17,21 +12,14 @@ from sqlmodel import select
 
 from app.core.messages import QueueMessages
 from app.db.query import ids_in
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.queue import QueueTurnPreview
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-
-
-# ---------------------------------------------------------------------------
-# Visibility subquery
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -42,9 +30,9 @@ from app.services.tenant import tags as tags_service
 def list_loader_options() -> list:
     """Eager-load what a queue *list* row needs: its sharing and the level the
     request holds on it. Lighter than :func:`get_queue`, which also loads the
-    items for the detail read."""
+    items the turn commands walk."""
     return [
-        selectinload(Queue.grants).selectinload(ResourceGrant.role),
+        selectinload(Queue.grants),
         selectinload(Queue.initiative),
         undefer(Queue.actions),
     ]
@@ -56,53 +44,42 @@ async def get_queue(
     *,
     populate_existing: bool = False,
 ) -> Queue | None:
-    """Fetch a queue with all relationships loaded for serialization."""
+    """Fetch a queue with what authorizing it, the grant flow and the turn
+    commands read: its sharing, its level and its items."""
+    stmt = (
+        select(Queue)
+        .where(Queue.id == queue_id)
+        .options(*list_loader_options(), selectinload(Queue.items))
+        .execution_options(populate_existing=populate_existing)
+    )
+    return (await session.exec(stmt)).one_or_none()
+
+
+async def get_queue_hydrated(
+    session: AsyncSession,
+    queue_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Queue | None:
+    """Fetch a queue with everything a serialized ``QueueRead`` reads: what
+    :func:`get_queue` loads, each item's person, and the tags and properties
+    of the queue and its items."""
     stmt = (
         select(Queue)
         .where(Queue.id == queue_id)
         .options(
+            *list_loader_options(),
             selectinload(Queue.items).selectinload(QueueItem.user),
-            selectinload(Queue.grants).selectinload(ResourceGrant.role),
-            selectinload(Queue.initiative),
-            undefer(Queue.actions),
         )
+        .execution_options(populate_existing=populate_existing)
     )
-    if populate_existing:
-        stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    queue = result.one_or_none()
+    queue = (await session.exec(stmt)).one_or_none()
     if queue is not None:
         await tags_service.annotate_tags(session, [queue])
         await properties_service.annotate_properties(session, [queue])
-        await tags_service.annotate_tags(session, queue.items or [])
-        await properties_service.annotate_properties(session, queue.items or [])
+        await tags_service.annotate_tags(session, queue.items)
+        await properties_service.annotate_properties(session, queue.items)
     return queue
-
-
-async def list_queue_ids_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every queue the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    conditions = [
-        Queue.initiative_id.in_(initiative_ids),
-        Initiative.queues_enabled == True,  # noqa: E712
-    ]
-    statement = (
-        select(Queue.id)
-        .join(Initiative, Initiative.id == Queue.initiative_id)
-        .where(*conditions)
-        .order_by(Queue.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def get_queue_item(

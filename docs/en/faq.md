@@ -11,7 +11,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Do I need to know project management to use this?"
     No, and please don't go and learn any first. A project is a board. A task is a to-do on it. That is genuinely enough to run real work, and always has been.
 
-    Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
+    Roles, tools, dashboards, plug-ins — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
 ??? question "There's a lot here. Where do I begin?"
     Make a community. Make one initiative in it, named after what you're doing. Make one project. Put some tasks on it.
@@ -26,14 +26,14 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Is all of it open source?"
     The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
 
-    So are the [app SDK](https://github.com/Morelitea/initiative-app-sdk) and the [GitHub app](https://github.com/Morelitea/initiative-developer/tree/main/apps/github), under MIT, if you fancy building an app of your own.
+    So are the [plug-in SDK](https://github.com/Morelitea/initiative-plugin-sdk) and the [GitHub plug-in](https://github.com/Morelitea/initiative-developer/tree/main/plugins/github), under MIT, if you fancy building a plug-in of your own.
 
     The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
 
 ??? question "Can I add tools that aren't built in?"
-    Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+    Yes — the **marketplace** has ready-made dashboards and plug-ins, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Plug-ins & the marketplace](guides/plugins-and-marketplace.md).
 
-    A few apps need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Apps that need something running behind them](self-host-or-hosted.md#apps-that-need-something-running-behind-them).
+    A few plug-ins need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Plug-ins that need something running behind them](self-host-or-hosted.md#plug-ins-that-need-something-running-behind-them).
 
 ## Getting in
 
@@ -74,7 +74,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
-    We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
+    It's kept, encrypted, and used only to check age limits — a community's, or a plug-in's, which can differ by country. It's never shown back to anyone, you included, and it isn't sold or shared. Deleting your account deletes it.
 
 ??? question "It was just an invite from a friend. Why was I asked?"
     Because the community it leads to is a listed one — anyone signed in can find it. The question follows the community, not the way in.
@@ -110,7 +110,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
 ## Finding things
 
-??? question "I can't find a project or document I know exists"
+??? question "I can't find a project or file I know exists"
     Two likely reasons: you're in a **different community** (check the rail down the far-left edge), or it hasn't been **shared** with you. Fastest way to check is search — ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](guides/search-and-shortcuts.md).
 
 ??? question "A link to something says 'not found' and I know it's there"
@@ -176,12 +176,12 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Can everyone in my community see everything in it?"
     No. Being in a community doesn't hand you its contents.
 
-    An **initiative** is only visible to the people added to it, and individual projects and documents narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
+    An **initiative** is only visible to the people added to it, and individual projects and files narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
 
 ??? question "How do I keep something visible to just two or three people?"
     Put it in an initiative with only those people in it.
 
-    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or document.
+    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or file.
 
 ??? question "Can other groups on the same server see our stuff?"
     No. Each community's data is separated at the database level. See [How your data is kept separate](security/how-your-data-is-kept-separate.md).

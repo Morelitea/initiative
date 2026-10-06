@@ -1,6 +1,6 @@
-"""Who publishes the apps this deployment registers.
+"""Who publishes the plug-ins this deployment registers.
 
-An app's ``public_id`` is ``<prefix>.<slug>``, and the prefix names its
+A plug-in's ``public_id`` is ``<prefix>.<slug>``, and the prefix names its
 publisher. A publisher row gives that prefix a name people read, whether the
 deployment has confirmed who stands behind it (``verified``), and a switch:
 turning a publisher off makes every registration under its prefix not live, in
@@ -8,13 +8,13 @@ the same statement that asks whether each one is.
 
 Every registration belongs to exactly one publisher (``publisher_id``). The
 deployment's own publisher is seeded at boot; an operator adds one for a
-private app's prefix, or it is added, unverified, when a registration names a
+private plug-in's prefix, or it is added, unverified, when a registration names a
 prefix no row has yet; and the registry adds the publishers its verified
 listings arrive under. ``source`` says which: a registry refresh updates a
 ``seed`` or ``registry`` row and leaves an ``operator`` row alone.
 
 Lives in ``public``: a publisher is deployment configuration and carries no
-guild data. It is written on the system engine only. An installed app's
+guild data. It is written on the system engine only. An installed plug-in's
 standing reads ``id`` and ``enabled`` of its own registration's publisher.
 """
 
@@ -37,7 +37,7 @@ __all__ = [
 #: The widest prefix a publisher may have.
 PUBLISHER_PREFIX_MAX_LENGTH = 120
 
-#: The publisher of the apps this project ships, seeded at boot.
+#: The publisher of the plug-ins this project ships, seeded at boot.
 FIRST_PARTY_PUBLISHER_PREFIX = "morelitea"
 FIRST_PARTY_PUBLISHER_NAME = "Morelitea"
 
@@ -47,7 +47,7 @@ class PublisherSource:
 
     #: This project's own publisher, as boot seeds it.
     SEED = "seed"
-    #: Added by an operator, directly or by registering an app under it.
+    #: Added by an operator, directly or by registering a plug-in under it.
     OPERATOR = "operator"
     #: Added or kept up to date by the registry refresh.
     REGISTRY = "registry"
@@ -59,17 +59,17 @@ PUBLISHER_SOURCES: frozenset[str] = frozenset(
 
 
 def publisher_prefix(public_id: str) -> str:
-    """The publisher half of a ``<prefix>.<slug>`` app id."""
+    """The publisher half of a ``<prefix>.<slug>`` plug-in id."""
     return public_id.split(".", 1)[0]
 
 
 class Publisher(SQLModel, table=True):
-    """One publisher of app services on this deployment."""
+    """One publisher of plug-in services on this deployment."""
 
     __tablename__ = "publishers"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    # The ``public_id`` prefix this publisher's apps carry. Unique: one
+    # The ``public_id`` prefix this publisher's plug-ins carry. Unique: one
     # publisher per prefix.
     prefix: str = Field(
         sa_column=Column(
@@ -82,7 +82,7 @@ class Publisher(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # The kill switch for every app under this prefix.
+    # The kill switch for every plug-in under this prefix.
     enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),

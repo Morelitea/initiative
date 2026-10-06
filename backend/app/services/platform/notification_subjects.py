@@ -1,6 +1,6 @@
 """What a notification line is about, read at the moment the line is read.
 
-A notification names the thing it is about — a task, a document, the post
+A notification names the thing it is about — a task, a file, the post
 somebody published — and the bell needs that thing's title to say anything
 useful. The row itself carries only the identifiers, so the titles are read
 here, from the community's own schema, through the same seam a
@@ -24,7 +24,6 @@ from app.core.tools import COMMENT_TARGETS, plural_of
 from app.models.platform.notification import Notification
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
@@ -56,7 +55,6 @@ SUBJECTS: tuple[Subject, ...] = (
     Subject("mentioned_task_title", "mentioned_task_id", Task, "title"),
     Subject("project_name", "project_id", Project, "name"),
     Subject("initiative_name", "initiative_id", Initiative, "name"),
-    Subject("document_name", "document_id", Document, "name"),
     Subject("post_name", "post_id", Post, "name"),
     Subject("event_title", "event_id", CalendarEvent, "title"),
 )

@@ -73,7 +73,7 @@ export const KanbanColumn = ({
   onArchiveDoneTasks,
   isArchiving,
 }: KanbanColumnProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `column-${status.id}`,
     data: { type: "column", statusId: status.id },
@@ -199,7 +199,7 @@ export const KanbanColumn = ({
             disabled={isArchiving}
           >
             <Archive className="h-3.5 w-3.5" />
-            {isArchiving ? t("kanban.archiving") : t("kanban.archiveDone")}
+            {isArchiving ? t("common:toolSettings.archive.archiving") : t("kanban.archiveDone")}
           </Button>
         </div>
       )}

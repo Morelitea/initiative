@@ -332,9 +332,9 @@ class TestPictures:
         assert waiting["definition"]["images"] == []
         assert waiting["definition"]["cover"] is None
 
-    async def test_a_documents_picture_stays_behind(self, client, acting_user, session):
+    async def test_a_files_picture_stays_behind(self, client, acting_user, session):
         from app.services.storage import get_guild_storage
-        from app.testing import create_document, png_bytes
+        from app.testing import create_file, png_bytes
 
         member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
@@ -352,7 +352,7 @@ class TestPictures:
                 },
             ],
         }
-        document = await create_document(
+        file = await create_file(
             session,
             member.initiative,
             member.user,
@@ -360,7 +360,7 @@ class TestPictures:
         )
 
         shared = await _share(
-            client, member, kind="document", entity_id=document.id, name="Handout"
+            client, member, kind="file", entity_id=file.id, name="Handout"
         )
 
         assert shared.status_code == 201, shared.text

@@ -18,7 +18,7 @@ from app.testing import (
     create_resource_grant,
     Actor,
     create_comment,
-    create_document,
+    create_file,
     create_post,
     create_project,
     create_tag,
@@ -67,7 +67,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
         title="budget review",
         description=f"with @[]({ada.user.id})",
     )
-    await create_document(
+    await create_file(
         session,
         a.initiative,
         a.user,
@@ -109,11 +109,11 @@ async def test_it_finds_across_tools_in_one_query(
     """The point of the whole thing: one query, not one per tool."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="renewal task")
-    await create_document(session, a.initiative, a.user, name="renewal doc")
+    await create_file(session, a.initiative, a.user, name="renewal doc")
     await create_tag(session, a.guild, name="renewal")
 
     body = await _search(client, a, search="renewal")
-    assert {h["entity_type"] for h in body["items"]} == {"task", "document", "tag"}
+    assert {h["entity_type"] for h in body["items"]} == {"task", "file", "tag"}
 
 
 async def test_a_hit_carries_what_it_takes_to_reach_it(
@@ -135,7 +135,7 @@ async def test_a_body_match_returns_a_snippet(
     client, session, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await create_document(
+    await create_file(
         session,
         a.initiative,
         a.user,
@@ -202,7 +202,7 @@ async def test_it_can_be_narrowed_by_type_and_initiative(
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="narrow me")
-    await create_document(session, a.initiative, a.user, name="narrow me too")
+    await create_file(session, a.initiative, a.user, name="narrow me too")
 
     only_tasks = await _search(client, a, search="narrow", types=["task"])
     assert {h["entity_type"] for h in only_tasks["items"]} == {"task"}
@@ -412,7 +412,7 @@ async def test_suggest_offers_only_titles_that_match(
     """The palette shows titles, so a hit whose title shows nothing of what was
     typed reads as a mistake — even when the word is genuinely in the body."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await create_document(
+    await create_file(
         session,
         a.initiative,
         a.user,
@@ -428,7 +428,7 @@ async def test_suggest_offers_only_titles_that_match(
             }
         },
     )
-    await create_document(session, a.initiative, a.user, name="Renewal calendar")
+    await create_file(session, a.initiative, a.user, name="Renewal calendar")
 
     response = await client.get(
         a.g("/search/suggest"), headers=a.headers, params={"search": "renewal"}
@@ -498,8 +498,8 @@ async def test_templates_are_found_by_name_and_pickable_on_their_own(
 ) -> None:
     """A template is ordinary content to a search and a category to a picker."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
-    real = await create_document(session, a.initiative, a.user, name="kickoff notes")
-    blank = await create_document(
+    real = await create_file(session, a.initiative, a.user, name="kickoff notes")
+    blank = await create_file(
         session, a.initiative, a.user, name="kickoff notes template", is_template=True
     )
 
@@ -564,7 +564,7 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     """Templates are picked across the whole community, under the same gates as
     everything else — a template the caller holds no grant on stays invisible."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    private_template = await create_document(
+    private_template = await create_file(
         session, owner.initiative, owner.user, name="Private Template", is_template=True
     )
     other = await acting_user(
@@ -577,7 +577,7 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     response = await client.get(
         other.g("/search/suggest"),
         headers=other.headers,
-        params={"search": "private", "types": ["document"], "is_template": True},
+        params={"search": "private", "types": ["file"], "is_template": True},
     )
     assert response.status_code == 200, response.text
     assert private_template.id not in {r["entity_id"] for r in response.json()}
@@ -619,7 +619,7 @@ async def test_recent_takes_the_same_narrowing_the_search_does(
     or picking from the list offers what typing could not."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="a task")
-    await create_document(session, a.initiative, a.user)
+    await create_file(session, a.initiative, a.user)
 
     tasks = await _recent(client, a, types="task")
     assert {item["entity_type"] for item in tasks} == {"task"}
@@ -687,15 +687,13 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
 async def test_a_picker_is_not_offered_the_thing_it_is_writing_in(
     client, session, acting_user: ActingUser
 ) -> None:
-    """A comment on a document, and the document itself, both compose inside
+    """A comment on a file, and the file itself, both compose inside
     something. Naming it would point at the page the words are already on."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    subject = await create_document(session, a.initiative, a.user, name="the page")
-    other = await create_document(session, a.initiative, a.user, name="another page")
+    subject = await create_file(session, a.initiative, a.user, name="the page")
+    other = await create_file(session, a.initiative, a.user, name="another page")
 
-    offered = await _recent(
-        client, a, types="document", subject=f"document:{subject.id}"
-    )
+    offered = await _recent(client, a, types="file", subject=f"file:{subject.id}")
     assert [item["entity_id"] for item in offered] == [other.id]
 
 
@@ -705,16 +703,16 @@ async def test_typing_its_name_does_not_find_it_either(
     """The list a picker opens with and what typing finds are the same set of
     things, so both leave the subject out."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    subject = await create_document(session, a.initiative, a.user, name="riverside")
-    other = await create_document(session, a.initiative, a.user, name="riverside annex")
+    subject = await create_file(session, a.initiative, a.user, name="riverside")
+    other = await create_file(session, a.initiative, a.user, name="riverside annex")
 
     response = await client.get(
         a.g("/search/suggest"),
         headers=a.headers,
         params={
             "search": "riverside",
-            "types": ["document"],
-            "subject": f"document:{subject.id}",
+            "types": ["file"],
+            "subject": f"file:{subject.id}",
         },
     )
     assert response.status_code == 200, response.text
@@ -724,15 +722,13 @@ async def test_typing_its_name_does_not_find_it_either(
 async def test_only_the_subject_itself_is_left_out(
     client, session, acting_user: ActingUser
 ) -> None:
-    """Its kind and its id together — a task numbered the same as the document
+    """Its kind and its id together — a task numbered the same as the file
     being written in is a different thing and still offered."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
-    doc = await create_document(session, a.initiative, a.user, name="the page")
+    doc = await create_file(session, a.initiative, a.user, name="the page")
     task = await create_task(session, a.project, title="the job")
 
-    offered = await _recent(
-        client, a, types=["document", "task"], subject=f"document:{doc.id}"
-    )
+    offered = await _recent(client, a, types=["file", "task"], subject=f"file:{doc.id}")
     assert [(item["entity_type"], item["entity_id"]) for item in offered] == [
         ("task", task.id)
     ]
@@ -744,9 +740,9 @@ async def test_a_subject_that_names_nothing_narrows_nothing(
     """Stored content outlives the build that wrote it. A reference this build
     cannot read costs the exclusion, not the answer."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(session, a.initiative, a.user, name="the page")
+    doc = await create_file(session, a.initiative, a.user, name="the page")
 
-    offered = await _recent(client, a, types="document", subject="sandwich:3")
+    offered = await _recent(client, a, types="file", subject="sandwich:3")
     assert [item["entity_id"] for item in offered] == [doc.id]
 
 
@@ -768,13 +764,11 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
         initiative=a.initiative,
         initiative_role="member",
     )
-    theirs = await create_document(
-        session, a.initiative, b.user, name="Read only to me"
-    )
+    theirs = await create_file(session, a.initiative, b.user, name="Read only to me")
     await create_resource_grant(
         session, theirs, all_initiative_members=True, commit=False
     )
-    mine = await create_document(session, a.initiative, a.user, name="Read only mine")
+    mine = await create_file(session, a.initiative, a.user, name="Read only mine")
     await session.commit()
 
     response = await client.get(

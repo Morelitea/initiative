@@ -460,7 +460,7 @@ async def drop_guild_refs(
     """Everything a deleted guild leaves in this table. Returns the count.
 
     Two halves, because a guild appears here in two ways. The sectors INSIDE
-    it name its members to each app installed there. The guild itself is also
+    it name its members to each plug-in installed there. The guild itself is also
     named — by billing, whose sector is the whole deployment and whose rows
     therefore carry no ``sector_guild_id`` to find them by.
 
@@ -479,7 +479,7 @@ async def drop_guild_refs(
 async def forget_user(*, user_id: int) -> int:
     """Drop every reference to one person, reporting rather than raising.
 
-    Called once the account is erased and after the apps holding those
+    Called once the account is erased and after the plug-ins holding those
     references have been told, so a revocation already on its way still names
     somebody. Opens its own session for the reason ``billing_user_ref`` does —
     the callers are request handlers routed to other roles — and runs after the
@@ -509,7 +509,7 @@ async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
     removed by the deletion path rather than by a cascade. This reclaims the
     ones that path did not manage to remove — it runs after the deletion has
     committed, where there is nothing left to roll back. A guild that is
-    deleted but not yet purged has let its apps go already, so its sectors are
+    deleted but not yet purged has let its plug-ins go already, so its sectors are
     taken too.
     """
     result = await session.exec(

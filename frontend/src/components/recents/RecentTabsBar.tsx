@@ -28,7 +28,7 @@ interface RecentTabsBarProps {
 
 /**
  * Sticky-header tabs bar for the most-recently-opened community-scoped items
- * (projects, documents, queues, counter groups), capped per user by their
+ * (projects, files, queues, counter groups), capped per user by their
  * ``recent_tabs_limit`` interface setting. Replaces the projects-only
  * ``ProjectTabsBar``.
  *
@@ -43,7 +43,7 @@ export const RecentTabsBar = ({
   onCloseOthers,
   onCloseAll,
 }: RecentTabsBarProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
 
   if (!loading && (!items || items.length === 0)) {
     return null;
@@ -92,7 +92,7 @@ export const RecentTabsBar = ({
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onSelect={() => onClose(item)}>
-                    {t("tabsBar.close")}
+                    {t("common:close")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     onSelect={() => onCloseOthers(item)}

@@ -4,9 +4,9 @@ Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
 gates as the content it mirrors.
 
-An installed app may call ``/suggest``.
+An installed plug-in may call ``/suggest``.
 The scope it needs depends on the ``types`` it asks for, so the route takes
-:func:`app.api.deps.app_scope_checked` and the service narrows ``types`` to the
+:func:`app.api.deps.plugin_scope_checked` and the service narrows ``types`` to the
 kinds the install may read.
 """
 
@@ -21,13 +21,13 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     RLSSessionDep,
-    app_scope_checked,
+    plugin_scope_checked,
     get_current_active_user,
     GuildContextDep,
 )
 from app.core.references import parse_ref
 from app.core.search import SearchEntityType
-from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.plugin_rls import SEARCH_ENTRY_READ_SCOPE
 from app.db.guild_standing import InstallContext
 from app.db.search_index import entity_types
 from app.models.platform.user import User
@@ -36,12 +36,12 @@ from app.services.tenant import search as search_service
 
 router = APIRouter(route_class=ActorRoute)
 
-#: ``/suggest`` for a person or an installed app. An app needs the read scope
+#: ``/suggest`` for a person or an installed plug-in. A plug-in needs the read scope
 #: of each kind it asks for, which the service checks once it has ``types``.
 SuggestByEntityType = Annotated[
     ActorContext,
     Depends(
-        app_scope_checked(
+        plugin_scope_checked(
             {f"{resource.value}:read" for resource in SEARCH_ENTRY_READ_SCOPE.values()},
             per="entity type",
         )
@@ -57,7 +57,7 @@ _TEMPLATE_DESCRIPTION = (
     "``false`` only real content (a picker choosing where content goes)."
 )
 _SUBJECT_DESCRIPTION = (
-    "The thing being written in, as a reference (``document:12``). It is left "
+    "The thing being written in, as a reference (``file:12``). It is left "
     "out of the answer: a thing does not point at itself. A reference that "
     "names nothing narrows nothing."
 )
@@ -165,10 +165,10 @@ async def suggest_community(
     Takes the same ``types`` as the search itself, so the palette and the
     results page can be narrowed to the same slice of the guild.
 
-    An installed app is answered the kinds among ``types`` (the default scope
+    An installed plug-in is answered the kinds among ``types`` (the default scope
     when omitted) whose read scope it holds, in the initiatives it is placed
     in, and only what it could read through the tools themselves. Asking only
-    for kinds it holds no read scope for is 403 (``APP_SCOPE_REQUIRED``).
+    for kinds it holds no read scope for is 403 (``PLUGIN_SCOPE_REQUIRED``).
     """
     install = guild_context if isinstance(guild_context, InstallContext) else None
     try:

@@ -81,10 +81,10 @@ class EventOutbox(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
 
-    # The installed app whose request wrote the change, read from the same
+    # The installed plug-in whose request wrote the change, read from the same
     # request context as actor_user_id and weak for the same reason: removing
-    # an app leaves its history in place. Set independently of actor_user_id,
-    # so an app acting as its community names no person, and one acting for a
+    # a plug-in leaves its history in place. Set independently of actor_user_id,
+    # so a plug-in acting as its community names no person, and one acting for a
     # member names both.
     actor_install_id: Optional[int] = Field(
         default=None,

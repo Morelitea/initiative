@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import List, Mapping, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import PersonId
-from app.core.relationships import Related
 from app.schemas.base import (
     MentionStr,
     RichMentionStr,
@@ -24,33 +23,12 @@ from app.schemas.tenant.property import (
     annotated_properties,
 )
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.schemas.tenant.tool import ToolSummaryBase, from_row, serialize_tool
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
     from app.models.tenant.queue import Queue, QueueItem
-
-
-# ---------------------------------------------------------------------------
-# Queue item attachment read schemas
-# ---------------------------------------------------------------------------
-
-
-class QueueItemDocumentRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    document_id: int
-    name: str = ""
-    attached_at: datetime
-
-
-class QueueItemTaskRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    task_id: int
-    title: str = ""
-    attached_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +48,11 @@ class QueueItemCreate(QueueItemBase, PropertiesOnCreate):
     label: TitleStr = Field(..., min_length=1, max_length=255)
     user_id: Optional[PersonId] = None
     tag_ids: Optional[List[int]] = None
-    document_ids: Optional[List[int]] = None
     task_ids: Optional[List[int]] = None
 
 
 class QueueItemUpdate(PropertiesOnUpdate):
-    label: Optional[TitleStr] = None
+    label: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     position: Optional[float] = None
     user_id: Optional[PersonId] = None
     color: Optional[str] = None
@@ -98,12 +75,8 @@ class QueueItemRead(QueueItemBase):
     user: Optional[UserPublic] = None
     tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
-    documents: List[QueueItemDocumentRead] = Field(default_factory=list)
-    tasks: List[QueueItemTaskRead] = Field(default_factory=list)
-    #: How many things are pinned to this item, of whatever kind. Not
-    #: ``len(documents) + len(tasks)``: an item may be attached to any of the
-    #: fourteen kinds a link can name, and a row saying "3 attachments" means
-    #: three things rather than the two sorts that used to have their own lists.
+    #: How many things are pinned to this item, of whatever kind a link can
+    #: name.
     attachment_count: int = 0
     # Round in which the user held this item (NULL = not held). The rotation
     # auto-releases the item at its natural slot in ``held_at_round + 1`` so
@@ -142,8 +115,10 @@ class QueueCreate(QueueBase, PropertiesOnCreate):
 
 
 class QueueUpdate(SanitizedBaseModel):
-    name: Optional[TitleStr] = None
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[MentionStr] = None
+
+    _required = reject_null("name")
 
 
 class QueueTurnPreview(SanitizedBaseModel):
@@ -171,7 +146,7 @@ class QueueListResponse(PageMeta):
 
 class QueueRead(QueueSummary):
     items: List[QueueItemRead] = Field(default_factory=list)
-    current_item: Optional[QueueItemRead] = None
+    current_item_id: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,61 +154,27 @@ class QueueRead(QueueSummary):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_queue_item_documents(
-    documents: Sequence[Related],
-) -> List[QueueItemDocumentRead]:
-    return [
-        QueueItemDocumentRead(
-            document_id=related.id,
-            name=getattr(related.entity, "name", "") if related.entity else "",
-            attached_at=related.linked_at,
-        )
-        for related in documents
-    ]
-
-
-def _serialize_queue_item_tasks(tasks: Sequence[Related]) -> List[QueueItemTaskRead]:
-    return [
-        QueueItemTaskRead(
-            task_id=related.id,
-            title=getattr(related.entity, "title", "") if related.entity else "",
-            attached_at=related.linked_at,
-        )
-        for related in tasks
-    ]
+def active_items(queue: "Queue") -> list["QueueItem"]:
+    """The queue's items that are not in the trash."""
+    items = getattr(queue, "items", None) or []
+    return [item for item in items if item.deleted_at is None]
 
 
 def serialize_queue_item(
-    item: "QueueItem",
-    *,
-    documents: Sequence[Related] = (),
-    tasks: Sequence[Related] = (),
-    attachment_count: int = 0,
+    item: "QueueItem", *, attachment_count: int = 0
 ) -> QueueItemRead:
     """One queue item.
 
-    Attachments are handed in rather than read off the item: they live in their
-    own table now, and a queue shows many items at once, so the caller loads
-    them for the whole page in one go.
+    The attachment count is handed in rather than read off the item: links live
+    in their own table, and a queue shows many items at once, so the caller
+    counts them for the whole page in one go.
     """
-    user = getattr(item, "user", None)
-    return QueueItemRead(
-        id=item.id,
-        queue_id=item.queue_id,
-        label=item.label,
-        position=item.position,
-        user_id=item.user_id,
-        user=UserPublic.model_validate(user) if user else None,
-        color=item.color,
-        notes=item.notes,
-        is_visible=item.is_visible,
-        held_at_round=item.held_at_round,
+    return from_row(
+        QueueItemRead,
+        item,
         tags=annotated_tags(item),
         properties=annotated_properties(item),
-        documents=_serialize_queue_item_documents(documents),
-        tasks=_serialize_queue_item_tasks(tasks),
         attachment_count=attachment_count,
-        created_at=item.created_at,
     )
 
 
@@ -242,38 +183,24 @@ def serialize_queue(
     *,
     context: ActorContext,
     user_id: Optional[int] = None,
-    documents: Optional[Mapping[int, Sequence[Related]]] = None,
-    tasks: Optional[Mapping[int, Sequence[Related]]] = None,
     attachment_counts: Optional[Mapping[int, int]] = None,
 ) -> QueueRead:
-    """A queue and everything in it.
+    """A queue and the items in it that are not in the trash.
 
-    ``documents`` and ``tasks`` are keyed by item id — what one batched read
-    gives for the whole page. Omitting them says the items have no attachments
-    rather than that nobody asked, so a caller with a session should pass them:
+    ``attachment_counts`` is keyed by item id — what one batched read gives for
+    the whole page. Omitting it says the items have no attachments rather than
+    that nobody asked, so a caller with a session should pass it:
     ``_serialized_queue`` in the queues router is the one that does.
     """
-    items = getattr(queue, "items", None) or []
-    serialized_items = [
-        serialize_queue_item(
-            item,
-            documents=(documents or {}).get(item.id, ()),
-            tasks=(tasks or {}).get(item.id, ()),
-            attachment_count=(attachment_counts or {}).get(item.id, 0),
-        )
-        for item in items
-    ]
-    current_item = None
-    if queue.current_item_id:
-        for item in serialized_items:
-            if item.id == queue.current_item_id:
-                current_item = item
-                break
     return serialize_tool(
         QueueRead,
         queue,
         context=context,
         user_id=user_id,
-        items=serialized_items,
-        current_item=current_item,
+        items=[
+            serialize_queue_item(
+                item, attachment_count=(attachment_counts or {}).get(item.id, 0)
+            )
+            for item in active_items(queue)
+        ],
     )

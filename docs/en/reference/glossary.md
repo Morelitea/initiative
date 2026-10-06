@@ -20,7 +20,7 @@ And yes, the app is called Initiative too. Context usually sorts it out. See [Wo
 
 ### Tool
 
-Any of the nine kinds of thing that live inside an initiative: **projects**, **documents**, **calendars**, **queues**, **counters**, **dashboards**, **posts**, **galleries** and **wikis**.
+Any of the nine kinds of thing that live inside an initiative: **projects**, **files**, **calendars**, **queues**, **counters**, **dashboards**, **posts**, **galleries** and **wikis**.
 
 Worth knowing because they all behave alike — same sharing, same tags, same comment threads — so learning one teaches you the rest. The list has grown before. See [Tools](../guides/tools.md).
 
@@ -42,7 +42,7 @@ It's unique to Moderator. No other role can be given it, however much you'd like
 
 ### Access level
 
-How much somebody can do with one specific project or document: **Viewer** (read), **Editor** (read and change), or **Owner** (that, plus deciding who else gets in). Separate from their initiative role, and both apply. See [Sharing projects & documents](../sharing/sharing-projects-and-documents.md).
+How much somebody can do with one specific project or file: **Viewer** (read), **Editor** (read and change), or **Owner** (that, plus deciding who else gets in). Separate from their initiative role, and both apply. See [Sharing projects & files](../sharing/sharing-projects-and-files.md).
 
 ### Join policy
 

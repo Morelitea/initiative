@@ -17,31 +17,30 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import GalleryEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import unique_name_in_initiative
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
-from app.services.storage import get_guild_storage
-from app.services.tenant import tags as tags_service
+from app.services.tenant import file_versions
 
 
 class GalleryImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-gallery"
+    envelope_type = tool_envelope_type(Tool.gallery)
     permission = PermissionKey.create_galleries
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -75,18 +74,10 @@ class GalleryImporter(NamesPeopleInPassing):
         guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Gallery.name).where(
-                        Gallery.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        }
         gallery = Gallery(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Gallery, target_initiative.id, env.name
+            ),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -102,30 +93,13 @@ class GalleryImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
-        tags_created = 0
-        tags_matched = 0
-
-        async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
-            nonlocal tags_created, tags_matched
-            for tag_name in names:
-                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-                if resolved.created:
-                    tags_created += 1
-                else:
-                    tags_matched += 1
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TAG_LINKS[surface], entity_id, resolved.id
-                    )
-                )
-
-        await attach_tags("gallery", gallery.id, env.tags)
+        tags = TagRestore(session)
+        await tags.attach(gallery, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
         await props.attach(gallery, env.properties)
 
-        storage = get_guild_storage(guild_id)
         created = 0
         missing = 0
         cover_id: int | None = None
@@ -136,23 +110,32 @@ class GalleryImporter(NamesPeopleInPassing):
             if not key or "/" in key or "\\" in key or key in (".", ".."):
                 missing += 1
                 continue
-            if storage.open_readable(key) is None:
+            # Stored here, and a picture a gallery shows, by its bytes.
+            content_type = await file_versions.stored_file_type(
+                GalleryImage, guild_id, key
+            )
+            if content_type is None:
                 missing += 1
                 continue
             row = GalleryImage(
                 gallery_id=gallery.id,
                 title=image_env.title,
                 caption=image_env.caption,
-                file_url=f"/uploads/{guild_id}/{key}",
-                file_content_type=image_env.content_type,
-                file_size=image_env.size_bytes,
-                original_filename=image_env.original_filename,
-                width=image_env.width,
-                height=image_env.height,
                 created_by=importer.id,
             )
             session.add(row)
             await session.flush()
+            await file_versions.add_version(
+                session,
+                row,
+                created_by=importer.id,
+                file_url=f"/uploads/{guild_id}/{key}",
+                file_content_type=content_type,
+                file_size=image_env.size_bytes,
+                original_filename=image_env.original_filename,
+                width=image_env.width,
+                height=image_env.height,
+            )
             if context is not None:
                 context.links.register(
                     image_env.external_ref, SearchEntityType.gallery_image, row.id
@@ -160,7 +143,7 @@ class GalleryImporter(NamesPeopleInPassing):
             created += 1
             if env.cover and key == env.cover:
                 cover_id = row.id
-            await attach_tags("gallery_image", row.id, image_env.tags)
+            await tags.attach(row, image_env.tags)
             await props.attach(row, image_env.properties)
 
         if cover_id is not None:
@@ -175,12 +158,12 @@ class GalleryImporter(NamesPeopleInPassing):
             entity_id=gallery.id,
             entity_title=gallery.name,
             created={
-                "galleries": 1,
+                Tool.gallery.plural: 1,
                 "images": created,
-                "tags": tags_created,
+                "tags": tags.created,
                 "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             failed={"images": missing} if missing else {},
             unmatched_handles=await props.settle(gallery),
             warnings=warnings,

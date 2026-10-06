@@ -425,7 +425,7 @@ async def test_read_only_zeroes_an_initiatives_create_flags(
     resp = await client.get(url, headers=a.headers)
     assert resp.status_code == 200, resp.text
     can = resp.json()["can"]
-    assert {Tool.project, Tool.document} <= set(can["create"])
+    assert {Tool.project, Tool.file} <= set(can["create"])
 
     await _set_status(session, a.guild, CommunityStatus.read_only)
 
@@ -433,7 +433,7 @@ async def test_read_only_zeroes_an_initiatives_create_flags(
     assert resp.status_code == 200, resp.text
     can = resp.json()["can"]
     assert can["create"] == [], "no create flag may survive a frozen guild"
-    assert {Tool.project, Tool.document} <= set(can["view"])
+    assert {Tool.project, Tool.file} <= set(can["view"])
 
 
 async def test_read_only_keeps_initiative_isolation(

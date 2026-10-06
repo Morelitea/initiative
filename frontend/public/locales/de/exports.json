@@ -8,6 +8,7 @@
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
     "ownerRequired": "Exportieren kann nur, wer all diese Einträge auch löschen darf.",
+    "noCommonFormat": "Für diese Einträge gibt es kein gemeinsames Exportformat.",
     "headingBackup": "Sicherung",
     "headingReport": "Bericht",
     "formatPdf": "PDF-Dokument",
@@ -59,9 +60,9 @@
       "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte die Person, die diesen Server betreibt, einen einzurichten."
     },
     "report": {
-      "documentNative": "Textdokumente",
-      "documentSpreadsheet": "Tabellen",
-      "documentOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
+      "fileNative": "Textdokumente",
+      "fileSpreadsheet": "Tabellen",
+      "fileOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
     },
     "format": {
       "prompt": "Wähle ein Format"
@@ -161,7 +162,7 @@
       "tasks": "Aufgaben",
       "events": "Termine",
       "project": "Projekt",
-      "document": "Dokument",
+      "file": "Datei",
       "queue": "Warteschlange",
       "calendar": "Kalender",
       "post": "Beitrag",

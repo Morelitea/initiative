@@ -4,7 +4,7 @@ import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCommunity, buildProject, buildTask, writerCan } from "@/__tests__/factories";
+import { buildCommunity, buildTask, writerCan } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -50,7 +50,6 @@ function renderCalendars() {
  */
 function stubEntries(
   { events = [], tasks = [] }: { events?: unknown[]; tasks?: unknown[] },
-  projects = [buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" })],
   calendars: unknown[] = []
 ) {
   const requests: URLSearchParams[] = [];
@@ -65,15 +64,6 @@ function stubEntries(
         total_count: calendars.length,
         page: 1,
         page_size: 100,
-        has_next: false,
-      })
-    ),
-    communityHttp.get("/projects/", () =>
-      HttpResponse.json({
-        items: projects,
-        total_count: projects.length,
-        page: 1,
-        page_size: 0,
         has_next: false,
       })
     )
@@ -150,22 +140,17 @@ describe("CalendarsView calendar-entries query", () => {
   it("lists a task toggle per project with in-window tasks and hides its tasks when toggled off", async () => {
     // The filters derive one toggle per project FROM the tasks payload — a
     // project with no task in the window gets no row.
-    const requests = stubEntries(
-      {
-        tasks: [
-          buildTask({
-            id: 1,
-            title: "Apollo task",
-            project_id: PROJECT_ID,
-            due_date: inFocusMonth(3),
-          }),
-        ],
-      },
-      [
-        buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" }),
-        buildProject({ id: 2, initiative_id: INITIATIVE_ID, name: "Zeus" }),
-      ]
-    );
+    const requests = stubEntries({
+      tasks: [
+        buildTask({
+          id: 1,
+          title: "Apollo task",
+          project_id: PROJECT_ID,
+          project_name: "Apollo",
+          due_date: inFocusMonth(3),
+        }),
+      ],
+    });
 
     const user = userEvent.setup();
     renderCalendars();
@@ -174,9 +159,8 @@ describe("CalendarsView calendar-entries query", () => {
 
     // Which tasks show is a filter: the projects' toggles sit in the panel.
     await user.click(screen.getByRole("button", { name: /^filters$/i }));
-    // Only Apollo has a task in the window, so only it gets a row.
+    // Named from the task, which carries its project's name.
     expect(await screen.findByRole("checkbox", { name: "Apollo" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Zeus" })).toBeNull();
 
     // Unchecking the project hides its tasks from the view, and says so.
     await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
@@ -192,7 +176,7 @@ describe("CalendarsView calendar-entries query", () => {
   });
 
   it("heads the tab's toolbar with the calendar picker, under the initiative's own title", async () => {
-    stubEntries({}, undefined, [
+    stubEntries({}, [
       {
         id: 3,
         name: "Team",
@@ -234,7 +218,7 @@ describe("CalendarsView calendar-entries query", () => {
       tags: [],
       grants: [],
     };
-    const requests = stubEntries({}, undefined, [calendar]);
+    const requests = stubEntries({}, [calendar]);
     const exports: URLSearchParams[] = [];
     server.use(
       communityHttp.get("/exports/events", ({ request }) => {
@@ -281,7 +265,7 @@ describe("CalendarsView calendar-entries query", () => {
 });
 
 describe("CalendarsView on a community calendar", () => {
-  /** The calendar the app mounts: community-level, so it belongs to no initiative. */
+  /** The calendar the plug-in mounts: community-level, so it belongs to no initiative. */
   const communityCalendar = {
     id: 42,
     name: "Community calendar",
@@ -303,7 +287,6 @@ describe("CalendarsView on a community calendar", () => {
   it("asks for its own events only, and reads nothing initiative-shaped", async () => {
     const entries: URLSearchParams[] = [];
     const calendarList: string[] = [];
-    const projectList: string[] = [];
     server.use(
       communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
@@ -316,16 +299,6 @@ describe("CalendarsView on a community calendar", () => {
           total_count: 0,
           page: 1,
           page_size: 100,
-          has_next: false,
-        });
-      }),
-      communityHttp.get("/projects/", ({ request }) => {
-        projectList.push(request.url);
-        return HttpResponse.json({
-          items: [],
-          total_count: 0,
-          page: 1,
-          page_size: 0,
           has_next: false,
         });
       })
@@ -352,13 +325,12 @@ describe("CalendarsView on a community calendar", () => {
     expect(entries[0].get("initiative_id")).toBeNull();
 
     // The panel, the task-calendar rows and the filter bar are all initiative-
-    // shaped, so the surface never lists the community's calendars or projects.
+    // shaped, so the surface never lists the community's calendars.
     expect(calendarList).toEqual([]);
-    expect(projectList).toEqual([]);
   });
 });
 
-describe("CalendarsView on the calendar app's own surface", () => {
+describe("CalendarsView on the calendar plug-in's own surface", () => {
   const communityCalendar = (id: number, name: string) => ({
     id,
     name,
@@ -383,7 +355,6 @@ describe("CalendarsView on the calendar app's own surface", () => {
   ) {
     const entries: URLSearchParams[] = [];
     const calendarList: URLSearchParams[] = [];
-    const projectList: string[] = [];
     server.use(
       communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
@@ -398,19 +369,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
           page_size: 200,
           has_next: false,
         });
-      }),
-      communityHttp.get("/projects/", ({ request }) => {
-        projectList.push(request.url);
-        return HttpResponse.json({
-          items: [],
-          total_count: 0,
-          page: 1,
-          page_size: 0,
-          has_next: false,
-        });
       })
     );
-    return { entries, calendarList, projectList };
+    return { entries, calendarList };
   }
 
   function renderCommunityScope() {
@@ -427,7 +388,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
   }
 
   it("asks for the community's own calendars and overlays all of them", async () => {
-    const { entries, calendarList, projectList } = stubCommunityScope([
+    const { entries, calendarList } = stubCommunityScope([
       communityCalendar(42, "Holidays"),
       communityCalendar(43, "Game nights"),
     ]);
@@ -446,8 +407,6 @@ describe("CalendarsView on the calendar app's own surface", () => {
     expect(entries[0].getAll("calendar_ids")).toEqual([]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
-    // Projects are task-shaped, and this surface holds no tasks.
-    expect(projectList).toEqual([]);
   });
 
   const midsummer = {

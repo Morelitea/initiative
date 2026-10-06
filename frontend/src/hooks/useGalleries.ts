@@ -113,8 +113,8 @@ export const useGalleryImageVersions = (
 
 /** A picture changed, so the wall, the rail, and the gallery's own count and
  *  cover are all stale. */
-const invalidateImages = (galleryId: number) =>
-  invalidate(q.galleryImages(galleryId), q.gallery(galleryId), q.allGalleries());
+export const invalidateImages = (galleryId: number) =>
+  invalidate(q.toolSubtree(Tool.gallery, galleryId), q.allGalleries());
 
 export interface UploadGalleryImageVariables {
   file: File;

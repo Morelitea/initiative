@@ -32,6 +32,8 @@ const widget: DefinitionWidget = {
   type: "stat",
   grid: { x: 0, y: 0, w: 3, h: 2 },
   binding,
+  // Column 0 of the author's own query. The sample's column 0 is a label.
+  mapping: { value: [0] },
 };
 /** A binding that names what it reads, so the fetch has a target to resolve. */
 const boundBinding: WidgetBinding = { source: "query", sql: "SELECT name, count FROM counters" };
@@ -65,7 +67,7 @@ describe("DashboardWidget", () => {
   it("reads no initiative and no dashboard at all in sample mode", () => {
     // The hook still runs — hooks are unconditional — but without an
     // initiative it fail-closes and issues no request. The dashboard goes the
-    // same way: an app source has nothing to address itself to, so a preview
+    // same way: a plug-in source has nothing to address itself to, so a preview
     // cannot reach one either. This is what keeps an uninstalled listing's
     // preview from touching the community's data.
     render(true);
@@ -76,7 +78,8 @@ describe("DashboardWidget", () => {
     // The hook is returning an *unbound* envelope, which on a real dashboard
     // renders the "configure me" notice. In sample mode the tile draws the
     // sample instead, so a value off the sample rows proves where they came
-    // from.
+    // from — and the author's mapping, which names their own query's columns,
+    // is not applied to the sample's.
     const { container } = render(true);
     // The sample's four stages total a hundred tasks. Asserted on the tile's
     // text rather than one node, because the number and its label are laid out

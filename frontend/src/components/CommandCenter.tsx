@@ -17,10 +17,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
-import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { type SearchSuggestion, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { getOpenCreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CommandDialog,
@@ -164,7 +164,7 @@ export function CommandCenter() {
   // Data hooks — all use existing cached data except tasks which fetches when dialog opens
   const recentQuery = useRecents({ staleTime: 30_000 });
   // Searching asks the community index one question and gets every kind of thing
-  // back — tasks, documents, queue items, events, tags — ranked together.
+  // back — tasks, files, queue items, events, tags — ranked together.
   // `null` for Members, who are not in the index: identity is shared across
   // communities while the index is per-community, so they are read from the
   // roster — the same split the results page makes.
@@ -438,21 +438,21 @@ export function CommandCenter() {
               <span>{t("actions.addTask")}</span>
             </CommandItem>
           )}
-          {globalCreate.document && (
+          {globalCreate.tool && (
             <CommandItem
-              value="action-add-document"
+              value="action-add-file"
               onSelect={() => {
                 setOpen(false);
-                getOpenCreateDocumentWizard()?.();
+                getOpenCreateToolWizard(Tool.file)?.();
               }}
             >
               <FilePlus className="text-muted-foreground" />
-              <span>{t("actions.addDocument")}</span>
+              <span>{t("actions.addFile")}</span>
             </CommandItem>
           )}
         </CommandGroup>
 
-        {/* Suggested — mixed recents across projects/documents/queues/counter
+        {/* Suggested — mixed recents across projects/files/queues/counter
             groups. Browsing only: once there is a query, the index answers. */}
         {!isSearching && recentItems.length > 0 && (
           <CommandGroup heading={t("groups.suggested")}>

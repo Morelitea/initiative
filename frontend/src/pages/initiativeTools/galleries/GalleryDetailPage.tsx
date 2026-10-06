@@ -30,7 +30,11 @@ import { UploadProgress } from "@/components/initiativeTools/galleries/UploadPro
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Lightbox, type LightboxItem } from "@/components/shared/Lightbox";
-import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import {
+  CardGridSkeleton,
+  DetailHeaderSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolChest } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
@@ -38,7 +42,6 @@ import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
@@ -94,7 +97,7 @@ export function GalleryDetailPage() {
   const gallery = galleryQuery.data;
   const initiativeId = useCanonicalInitiativeId(gallery?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("gallery", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.gallery, Number(communityId));
   const viewedId = gallery?.id;
   useReadOnOpen(Tool.gallery, viewedId);
   useEffect(() => {
@@ -281,7 +284,7 @@ export function GalleryDetailPage() {
 
   const viewOptions = [
     { value: "masonry" as const, label: t("views.masonry"), icon: MasonryIcon },
-    { value: "grid" as const, label: t("views.grid"), icon: LayoutGrid },
+    { value: "grid" as const, label: t("common:toolbar.viewGrid"), icon: LayoutGrid },
     { value: "timeline" as const, label: t("views.timeline"), icon: Clock },
   ];
 
@@ -303,14 +306,7 @@ export function GalleryDetailPage() {
           ) : null}
         </ToolPageHeader>
       ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-3" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-9 w-64" />
-        </div>
+        <DetailHeaderSkeleton actions={0} description={false} />
       )}
 
       <ToolListToolbar
@@ -497,7 +493,7 @@ export function GalleryDetailPage() {
               onClick={() => setDetailsId(openId)}
             >
               <Info className="size-4" />
-              {t("lightbox.details")}
+              {t("common:toolbar.details")}
             </Button>
           ) : null
         }

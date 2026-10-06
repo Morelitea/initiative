@@ -137,7 +137,9 @@ async def test_list_carries_newest_picture_as_cover(
     )
 
     listing = await client.get(
-        a.g("/galleries/"), headers=a.headers, params={"initiative_id": a.initiative.id}
+        a.g("/galleries/"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "include_preview": True},
     )
     assert listing.status_code == 200, listing.text
     (item,) = listing.json()["items"]
@@ -154,7 +156,6 @@ async def test_list_carries_newest_picture_as_cover(
     assert chosen.status_code == 200, chosen.text
     assert chosen.json()["cover"]["image_id"] == older.id
     assert chosen.json()["cover_image_id"] == older.id
-    assert len(chosen.json()["preview"]) == 2
 
 
 async def test_preview_is_capped_at_the_newest_few(
@@ -175,7 +176,9 @@ async def test_preview_is_capped_at_the_newest_few(
         for d in range(6)
     ]
 
-    listing = await client.get(a.g("/galleries/"), headers=a.headers)
+    listing = await client.get(
+        a.g("/galleries/"), headers=a.headers, params={"include_preview": True}
+    )
     (item,) = listing.json()["items"]
     assert [p["image_id"] for p in item["preview"]] == [
         i.id for i in reversed(made[-galleries_service.PREVIEW_COUNT :])
@@ -378,21 +381,21 @@ def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
     dead one. So the ambiguous case keeps its bytes."""
     from sqlalchemy.exc import IntegrityError, OperationalError
 
-    from app.api.v1.tenant_endpoints import galleries as endpoint
+    from app.services.tenant import file_versions
 
     deleted: list[tuple[int, set[str]]] = []
     monkeypatch.setattr(
-        endpoint.attachments_service,
+        file_versions.attachments_service,
         "delete_blobs",
         lambda guild_id, names: deleted.append((guild_id, set(names))),
     )
 
-    urls = ["/uploads/1/a.png", "/uploads/1/a-thumb.webp"]
-    endpoint._discard_orphans(7, urls, IntegrityError("stmt", {}, Exception()))
+    urls: list[str | None] = ["/uploads/1/a.png", "/uploads/1/a-thumb.webp"]
+    file_versions.discard_orphans(7, urls, IntegrityError("stmt", {}, Exception()))
     assert deleted == [(7, {"a.png", "a-thumb.webp"})]
 
     deleted.clear()
-    endpoint._discard_orphans(7, urls, OperationalError("stmt", {}, Exception()))
+    file_versions.discard_orphans(7, urls, OperationalError("stmt", {}, Exception()))
     assert deleted == [], "an inconclusive failure must leave the bytes alone"
 
 
@@ -817,7 +820,7 @@ async def test_versions_replace_the_picture_and_keep_history(
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, width=4, height=4)
-    first_url = image.file_url
+    first_url = image.current_version.file_url
 
     uploaded = await client.post(
         a.g(f"/galleries/{gallery.id}/images/{image.id}/versions"),
@@ -875,6 +878,10 @@ async def test_deleting_the_current_version_promotes_the_previous(
         )
     ).all()
     assert [v.version_number for v in remaining] == [1]
+    pointer = await session.exec(
+        select(GalleryImage.current_version_id).where(GalleryImage.id == image.id)
+    )
+    assert pointer.one() == remaining[0].id
 
     last = await client.delete(
         a.g(f"/galleries/{gallery.id}/images/{image.id}/versions/{remaining[0].id}"),
@@ -971,7 +978,7 @@ async def test_a_copy_has_its_pictures_and_its_cover(
             select(GalleryImage).where(GalleryImage.gallery_id == copy["id"])
         )
     ).all()
-    assert len(images) == 2
+    assert [image.current_version.version_number for image in images] == [1, 1]
     versions = (
         await session.exec(
             select(GalleryImageVersion).where(
@@ -979,4 +986,8 @@ async def test_a_copy_has_its_pictures_and_its_cover(
             )
         )
     ).all()
-    assert [(v.version_number, v.file_url) for v in versions] == [(1, cover.file_url)]
+    assert [(v.version_number, v.file_url) for v in versions] == [
+        (1, cover.current_version.file_url)
+    ]
+    copied_cover = next(i for i in images if i.id == copy["cover_image_id"])
+    assert copied_cover.current_version_id == versions[0].id

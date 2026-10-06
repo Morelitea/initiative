@@ -31,11 +31,11 @@
   "alphaBadge": "ALPHA",
   "initiativeSettings": "Initiativeneinstellungen",
   "initiativeActions": "Initiativen-Aktionen",
-  "createDocument": "Dokument erstellen",
+  "createFile": "Datei erstellen",
   "createProject": "Projekt erstellen",
   "projectSettings": "Projekteinstellungen",
   "projectActions": "Projekt-Aktionen",
-  "documents": "Dokumente",
+  "files": "Dateien",
   "projects": "Projekte",
   "collapseInitiative": "Initiative einklappen",
   "expandInitiative": "Initiative ausklappen",
@@ -72,7 +72,7 @@
     "messages": "Meine Nachrichten",
     "add": "Erstellen",
     "addTask": "Aufgabe hinzufügen",
-    "addDocument": "Dokument hinzufügen"
+    "addFile": "Datei hinzufügen"
   },
   "navigate": {
     "signInRequired": "Bitte melde dich erneut an, um diesem Link zu folgen.",

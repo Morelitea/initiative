@@ -38,7 +38,7 @@ describe("useCollaboration", () => {
   it("hands nothing over while the socket is open", () => {
     const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
     const { result, unmount } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate" })
+      useCollaboration({ socketPath: "files/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -57,7 +57,7 @@ describe("useCollaboration", () => {
     const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
 
     const { result, unmount } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate" })
+      useCollaboration({ socketPath: "files/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -66,7 +66,7 @@ describe("useCollaboration", () => {
 
     expect(post).toHaveBeenCalledTimes(1);
     const [url, body, config] = post.mock.calls[0];
-    expect(url).toBe("/c/1/collaboration/documents/7/collaborate");
+    expect(url).toBe("/c/1/collaboration/files/7/collaborate");
     expect(config).toMatchObject({ adapter: "fetch", fetchOptions: { keepalive: true } });
     expect(JSON.parse(body as string)).toEqual({ update: "AQI=" });
     expect(calls).toEqual(["destroy"]);
@@ -81,9 +81,7 @@ describe("useCollaboration", () => {
       stateVector: new Uint8Array([3]),
     });
     const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    const { result } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate" })
-    );
+    const { result } = renderHook(() => useCollaboration({ socketPath: "files/7/collaborate" }));
     act(() => {
       result.current.providerFactory?.("7", new Map());
     });
@@ -94,9 +92,7 @@ describe("useCollaboration", () => {
   });
 
   it("counts a body as synced from its first sync on, through a reconnect", () => {
-    const { result } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate" })
-    );
+    const { result } = renderHook(() => useCollaboration({ socketPath: "files/7/collaborate" }));
     act(() => {
       result.current.providerFactory?.("7", new Map());
     });
@@ -116,7 +112,7 @@ describe("useCollaboration", () => {
 
   it("starts over when the page moves to another body", () => {
     const { result, rerender } = renderHook(({ path }) => useCollaboration({ socketPath: path }), {
-      initialProps: { path: "documents/7/collaborate" },
+      initialProps: { path: "files/7/collaborate" },
     });
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -127,7 +123,7 @@ describe("useCollaboration", () => {
     act(() => onSync(true));
     expect(result.current.hasSynced).toBe(true);
 
-    rerender({ path: "documents/8/collaborate" });
+    rerender({ path: "files/8/collaborate" });
     expect(result.current.hasSynced).toBe(false);
   });
 });

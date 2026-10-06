@@ -1,19 +1,24 @@
 """
-Live editing of a collaborative body (a document, a wiki page).
+Live editing of a collaborative body (a file, a wiki page).
 
 The socket carries the Yjs sync protocol, updates and awareness; entry and
 continuous re-authorization are ``app.api.content_socket``'s. The POST beside
 each socket hands over edits a tab made while its socket was closed.
 """
 
+# NOT ``from __future__ import annotations``: the handlers are built per kind
+# with ``Annotated[int, Path(alias=...)]`` closing over a local, and stringized
+# annotations re-evaluate it where that local is out of scope.
+
 import json
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
 
 from fastapi import (
     APIRouter,
     HTTPException,
+    Path,
     WebSocket,
     status,
 )
@@ -26,7 +31,7 @@ from app.api.deps import (
     GuildAccessError,
     raise_for_guild_access,
 )
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.models.platform.user import User
 from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -40,9 +45,9 @@ from app.services.tenant.collaboration import (
 from app.services.tenant.collaborative_resources import (
     CollaborativeResource,
     Collaborating,
+    registered_types,
     resource_for,
 )
-from app.core.search import SearchEntityType
 from app.db.session import require_guild_context
 from app.services import permissions as permissions_service
 from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
@@ -63,30 +68,6 @@ MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 # 6 carried a tab's rendering of the body. The server renders every body now,
 # so a frame of it from an older tab falls through unread.
-
-
-@router.websocket("/documents/{document_id}/collaborate")
-async def websocket_collaborate_document(
-    websocket: WebSocket,
-    guild_id: CommunityIdPath,
-    document_id: int,
-):
-    """Live editing of a document's body."""
-    await _collaborate(
-        websocket, guild_id, resource_for(SearchEntityType.document.value), document_id
-    )
-
-
-@router.websocket("/wiki-pages/{page_id}/collaborate")
-async def websocket_collaborate_wiki_page(
-    websocket: WebSocket,
-    guild_id: CommunityIdPath,
-    page_id: int,
-):
-    """Live editing of a wiki page's body."""
-    await _collaborate(
-        websocket, guild_id, resource_for(SearchEntityType.wiki_page.value), page_id
-    )
 
 
 class _Editing:
@@ -134,7 +115,7 @@ class _Editing:
         elif self.can_write and not writes:
             return None
         # The body's room, and the room of the row whose sharing governs it —
-        # the same room for a document, the wiki's for a page — so a change
+        # the same room for a file, the wiki's for a page — so a change
         # to that sharing re-checks this socket at once.
         return frozenset(
             {
@@ -302,7 +283,7 @@ async def _collaborate(
 
         # Tell the rest of the room only when this was the account's last
         # connection: the others keep a roster of people, and one of somebody's
-        # two tabs closing does not take them out of the document.
+        # two tabs closing does not take them out of the file.
         if not user_has_connection(guild_id, spec.resource_type, resource_id, user.id):
             broadcast_awareness(
                 guild_id,
@@ -316,48 +297,6 @@ async def _collaborate(
         # connected to it — another tab of the same account is another
         # connection, and keeps it.
         await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
-
-
-@router.post(
-    "/documents/{document_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
-)
-async def hand_over_document_edits(
-    guild_id: CommunityIdPath,
-    document_id: int,
-    handover: CollaborationHandover,
-    session: SessionDep,
-    user: CurrentUser,
-) -> None:
-    """Merge edits a tab made while its socket was closed into the document."""
-    await _hand_over(
-        session,
-        user,
-        guild_id,
-        resource_for(SearchEntityType.document.value),
-        document_id,
-        handover,
-    )
-
-
-@router.post(
-    "/wiki-pages/{page_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
-)
-async def hand_over_wiki_page_edits(
-    guild_id: CommunityIdPath,
-    page_id: int,
-    handover: CollaborationHandover,
-    session: SessionDep,
-    user: CurrentUser,
-) -> None:
-    """Merge edits a tab made while its socket was closed into the page."""
-    await _hand_over(
-        session,
-        user,
-        guild_id,
-        resource_for(SearchEntityType.wiki_page.value),
-        page_id,
-        handover,
-    )
 
 
 async def _hand_over(
@@ -403,7 +342,7 @@ async def _hand_over(
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
+                detail=FileMessages.COLLABORATION_UPDATE_INVALID,
             ) from None
         sockets.emit_bytes(
             resource_room(guild_id, spec.resource_type, resource_id),
@@ -419,3 +358,49 @@ async def _hand_over(
         room.release()
         if room.is_empty():
             await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
+
+
+def _mount(spec: CollaborativeResource) -> None:
+    """Mount one kind's socket and its handover at
+    ``/<kind plural>/{<id param>}/collaborate``."""
+    id_param = spec.path_param
+    resource_id_param = Annotated[
+        int, Path(alias=id_param, title=id_param.replace("_", " ").title())
+    ]
+    path = f"/{spec.route_segment}/{{{id_param}}}/collaborate"
+    # What the body is called: ``file_id`` names a file, ``page_id`` a page.
+    name = id_param.removesuffix("_id").replace("_", " ")
+
+    async def collaborate(
+        websocket: WebSocket,
+        guild_id: CommunityIdPath,
+        resource_id: resource_id_param,
+    ):
+        await _collaborate(websocket, guild_id, spec, resource_id)
+
+    async def hand_over(
+        guild_id: CommunityIdPath,
+        resource_id: resource_id_param,
+        handover: CollaborationHandover,
+        session: SessionDep,
+        user: CurrentUser,
+    ) -> None:
+        await _hand_over(session, user, guild_id, spec, resource_id, handover)
+
+    router.add_api_websocket_route(
+        path, collaborate, name=f"websocket_collaborate_{spec.resource_type}"
+    )
+    router.add_api_route(
+        path,
+        hand_over,
+        methods=["POST"],
+        status_code=status.HTTP_204_NO_CONTENT,
+        name=f"hand_over_{spec.resource_type}_edits",
+        description=(
+            f"Merge edits a tab made while its socket was closed into the {name}."
+        ),
+    )
+
+
+for _kind in registered_types():
+    _mount(resource_for(_kind))

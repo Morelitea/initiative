@@ -113,7 +113,7 @@ def _wrap_dashboard_definition(body: dict[str, Any]) -> dict[str, Any]:
     Its body is the canvas alone — ``{widgets, layout, ...}`` — which is the
     ``definition`` field of a dashboard's envelope. Anything that has no
     ``type`` of its own is read that way, so a publisher still writing the
-    older shape (an app's bundled dashboards among them) lands in the same
+    older shape (a plug-in's bundled dashboards among them) lands in the same
     stored form as one writing the envelope.
     """
     return {
@@ -187,7 +187,7 @@ def _canonical_dashboard(envelope: dict[str, Any], *, what: str) -> dict[str, An
     here, by the same validator the create endpoint runs.
 
     ``config`` is dropped. It fills the binding slots a definition leaves open
-    with one community's own counters and documents, which a listing has none
+    with one community's own counters and files, which a listing has none
     of: that is the installer's to fill.
     """
     from app.services.tenant.dashboard_definition import (

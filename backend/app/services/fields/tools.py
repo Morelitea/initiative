@@ -7,34 +7,57 @@ cannot say for itself.
 
 They live together rather than one module each because there is nothing to say
 about any of them individually. A dataset that grows a computed field or a
-relation worth explaining earns its own module then, the way tasks and counters
-have.
+relation worth explaining earns its own module then, the way tasks have.
 """
 
 from __future__ import annotations
 
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
+from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.document import Document
-from app.models.tenant.gallery import Gallery, GalleryImage
+from app.models.tenant.file import File, FileVersion
+from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.services.fields.derive import derive_fields
 from app.services.fields.spec import Dataset, Hop, Relation
 
-#: A document's body is the document. It is a structured blob rather than a
+#: A file's body is the file. It is a structured blob rather than a
 #: value, so there is nothing a comparison would mean against it — the
 #: derivation drops it, and this says why.
-_DOCUMENT_INTERNAL = frozenset({"content"})
+_FILE_INTERNAL = frozenset({"content"})
 
 
-def build_documents() -> Dataset:
+def build_files() -> Dataset:
     return Dataset(
-        model=Document,
-        tool=Tool.document,
-        fields=derive_fields(Document, internal=_DOCUMENT_INTERNAL),
+        model=File,
+        tool=Tool.file,
+        fields=derive_fields(File, internal=_FILE_INTERNAL),
+        relations=(
+            Relation(
+                name="current_version",
+                hops=(
+                    Hop(
+                        dataset="file_versions",
+                        left="current_version_id",
+                        right="id",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def build_file_versions() -> Dataset:
+    """One uploaded version of an uploaded file: its type, size and name. A
+    file reaches the one it shows as ``current_version``."""
+    return Dataset(
+        model=FileVersion,
+        tool=Tool.file,
+        name_override="file_versions",
+        fields=derive_fields(FileVersion),
     )
 
 
@@ -54,6 +77,34 @@ def build_queue_items() -> Dataset:
             Relation(
                 name="queue",
                 hops=(Hop(dataset="queues", left="queue_id", right="id"),),
+            ),
+        ),
+    )
+
+
+def build_counter_groups() -> Dataset:
+    return Dataset(
+        model=CounterGroup,
+        tool=Tool.counter_group,
+        fields=derive_fields(CounterGroup),
+    )
+
+
+def build_counters() -> Dataset:
+    """One counter in a group. Its own dataset for the reason queue items
+    have one: what one counter reads is a question about the counters, and the
+    group is what they are grouped by."""
+    return Dataset(
+        model=Counter,
+        tool=Tool.counter_group,
+        name_override="counters",
+        fields=derive_fields(Counter),
+        relations=(
+            Relation(
+                name="counter_group",
+                hops=(
+                    Hop(dataset="counter_groups", left="counter_group_id", right="id"),
+                ),
             ),
         ),
     )
@@ -131,5 +182,26 @@ def build_gallery_images() -> Dataset:
                 name="gallery",
                 hops=(Hop(dataset="galleries", left="gallery_id", right="id"),),
             ),
+            Relation(
+                name="current_version",
+                hops=(
+                    Hop(
+                        dataset="gallery_image_versions",
+                        left="current_version_id",
+                        right="id",
+                    ),
+                ),
+            ),
         ),
+    )
+
+
+def build_gallery_image_versions() -> Dataset:
+    """One uploaded rendition of a picture: its type, size and dimensions. A
+    picture reaches the one it shows as ``current_version``."""
+    return Dataset(
+        model=GalleryImageVersion,
+        tool=Tool.gallery,
+        name_override="gallery_image_versions",
+        fields=derive_fields(GalleryImageVersion),
     )

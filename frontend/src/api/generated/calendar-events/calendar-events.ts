@@ -592,7 +592,7 @@ export const useDeleteCalendarEvent = <TError = ErrorType<HTTPValidationError>, 
  * Create a calendar event. Requires write access on the calendar.
  *
  * The attendees it names are invited by whoever created it: the person, or
- * an installed app by its name. An installed app's event has no creator.
+ * an installed plug-in by its name. An installed plug-in's event has no creator.
  * @summary Create Calendar Event
  */
 export const createCalendarEvent = (
@@ -1162,7 +1162,7 @@ export const useAddOccurrence = <TError = ErrorType<HTTPValidationError>, TConte
  * Set attendees. Requires write access on the calendar.
  *
  * Everyone newly on the list is invited by whoever set it: the person, or an
- * installed app by its name. ``scope`` works as it does on an update.
+ * installed plug-in by its name. ``scope`` works as it does on an update.
  * @summary Set Attendees
  */
 export const setAttendees = (
@@ -1259,6 +1259,10 @@ export const useSetAttendees = <TError = ErrorType<HTTPValidationError>, TContex
 /**
  * Update the current user's RSVP status. Read access on the calendar
  * suffices — RSVPing is answering an invitation, not editing the event.
+ *
+ * On an event whose RSVP is open, answering puts the reader on its list.
+ * Closed, only someone already on it answers, besides those who may edit
+ * the event. An occurrence's own row carries its series' setting.
  *
  * An answer is for one event: a repeating event is answered one occurrence
  * at a time, named by ``occurrence``.

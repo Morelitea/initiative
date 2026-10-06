@@ -153,20 +153,18 @@ async def test_a_community_admin_is_among_the_readers(
     )
 
 
-async def test_repeated_document_mentions_fold_into_one_line(
-    client, session, acting_user
-):
+async def test_repeated_file_mentions_fold_into_one_line(client, session, acting_user):
     """The editor reports mentions as it saves; an unread line absorbs the next
     report."""
-    from app.testing import create_document
+    from app.testing import create_file
 
     author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    document = await create_document(session, author.initiative, author.user)
+    file = await create_file(session, author.initiative, author.user)
     reader = await acting_user(guild_role=CommunityRole.admin, guild=author.guild)
     await session.commit()
     for _ in range(3):
         posted = await client.post(
-            author.g(f"/documents/{document.id}/mentions"),
+            author.g(f"/files/{file.id}/mentions"),
             json={"mentioned_user_ids": [reader.user.id]},
             headers=author.headers,
         )
@@ -177,6 +175,10 @@ async def test_repeated_document_mentions_fold_into_one_line(
     lines = await _mentions(reader.id)
     assert len(lines) == 1
     assert lines[0].data["comment_count"] == 3
+    assert (lines[0].data["entity_type"], lines[0].data["entity_id"]) == (
+        "file",
+        file.id,
+    )
 
 
 async def test_read_notifications_are_kept_thirty_days_and_unread_forever(session):

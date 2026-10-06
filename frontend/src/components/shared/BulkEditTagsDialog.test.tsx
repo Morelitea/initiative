@@ -4,6 +4,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
+import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { TagBulkEditRequest } from "@/api/generated/initiativeAPI.schemas";
@@ -15,20 +16,8 @@ vi.mock("@/lib/mascotToast", () => ({
 }));
 
 const LABELS = {
-  title: "Edit tags",
-  descriptionAdd: "Add tags to items",
-  descriptionRemove: "Remove tags from items",
-  tabAdd: "Add",
-  tabRemove: "Remove",
-  addPlaceholder: "Pick tags",
-  removePlaceholder: "Pick tags to remove",
-  noTags: "No tags",
-  tagsAdded: "Tags added",
-  tagsRemoved: "Tags removed",
-  applying: "Applying…",
-  apply: "Apply",
-  cancel: "Cancel",
-  updateError: "Update failed",
+  tabRemove: i18n.t("bulkTags.tabRemove", { ns: "common" }),
+  apply: i18n.t("bulkTags.apply", { ns: "common" }),
 };
 
 const alpha = { id: 1, name: "alpha", color: "#6366F1" };
@@ -70,7 +59,6 @@ describe("BulkEditTagsDialog", () => {
         targetType="task"
         communityId={1}
         onInvalidate={onInvalidate}
-        labels={LABELS}
       />
     );
 
@@ -110,10 +98,9 @@ describe("BulkEditTagsDialog", () => {
           { id: 11, tags: [beta] },
           { id: 12, tags: [beta] },
         ]}
-        targetType="document"
+        targetType="file"
         communityId={1}
         onInvalidate={vi.fn()}
-        labels={LABELS}
       />
     );
 
@@ -125,7 +112,7 @@ describe("BulkEditTagsDialog", () => {
     await waitFor(() =>
       expect(bodies).toEqual([
         {
-          target_type: "document",
+          target_type: "file",
           target_ids: [11, 12],
           add_tag_ids: [],
           remove_tag_ids: [beta.id],
@@ -152,7 +139,6 @@ describe("BulkEditTagsDialog", () => {
         targetType="task"
         communityId={1}
         onInvalidate={vi.fn()}
-        labels={LABELS}
       />
     );
 

@@ -36,7 +36,7 @@ class PlatformReportTarget(str, Enum):
     directory_listing = "directory_listing"
     guild = "guild"
     #: A marketplace listing, reported from its page or from an installed
-    #: app. The catalog belongs to whoever runs the server, so its operators
+    #: plug-in. The catalog belongs to whoever runs the server, so its operators
     #: handle it.
     marketplace_listing = "marketplace_listing"
 

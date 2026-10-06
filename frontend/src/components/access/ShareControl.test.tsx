@@ -62,9 +62,9 @@ vi.mock("@/hooks/useUsers", () => ({
   },
 }));
 
-// The community's installed apps, which name an app grantee.
-vi.mock("@/hooks/useCommunityApps", () => ({
-  useCommunityApps: () => ({
+// The community's installed plug-ins, which name a plug-in grantee.
+vi.mock("@/hooks/useCommunityPlugins", () => ({
+  useCommunityPlugins: () => ({
     data: {
       items: [
         { id: 301, name: "Automations", avatar_url: null },
@@ -234,30 +234,30 @@ describe("ShareControl in its community view", () => {
   });
 });
 
-describe("ShareControl with an app", () => {
-  it("shows the owning app by name and picture in the Owner row", () => {
-    const grants: ResourceGrantSchema[] = [{ app_install_id: 302, level: "owner" }];
+describe("ShareControl with a plug-in", () => {
+  it("shows the owning plug-in by name and picture in the Owner row", () => {
+    const grants: ResourceGrantSchema[] = [{ plugin_install_id: 302, level: "owner" }];
 
     renderWithProviders(
       <ShareControl
         initiativeId={1}
         grants={grants}
         ownerId={null}
-        ownerApp={{ id: 302, name: "Storefront", avatar_url: "/media/storefront.png" }}
+        ownerPlugin={{ id: 302, name: "Storefront", avatar_url: "/media/storefront.png" }}
         onChange={vi.fn()}
       />
     );
 
     const row = screen.getByText("Storefront").closest("div") as HTMLElement;
     expect(within(row).getByText("Owner")).toBeInTheDocument();
-    expect(within(row).getByText("App")).toBeInTheDocument();
+    expect(within(row).getByText("Plug-in")).toBeInTheDocument();
     expect(row.querySelector("img")).not.toBeNull();
     // It is not offered as a person to add, and not editable.
     expect(within(row).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("names an owning app from the community's apps when the read model does not", () => {
-    const grants: ResourceGrantSchema[] = [{ app_install_id: 301, level: "owner" }];
+  it("names an owning plug-in from the community's plug-ins when the read model does not", () => {
+    const grants: ResourceGrantSchema[] = [{ plugin_install_id: 301, level: "owner" }];
 
     renderWithProviders(
       <ShareControl initiativeId={1} grants={grants} ownerId={null} onChange={vi.fn()} />
@@ -267,16 +267,16 @@ describe("ShareControl with an app", () => {
     expect(within(row).getByText("Owner")).toBeInTheDocument();
   });
 
-  it("lists an app grantee by name, read-only, and never sends it back", async () => {
+  it("lists a plug-in grantee by name, read-only, and never sends it back", async () => {
     const onChange = vi.fn();
     const grants: ResourceGrantSchema[] = [
-      { app_install_id: 301, level: "write" },
+      { plugin_install_id: 301, level: "write" },
       { user_id: alice.id, level: "read" },
     ];
 
     renderWithProviders(<ShareControl initiativeId={1} grants={grants} onChange={onChange} />);
 
-    expect(screen.getByText("Apps")).toBeInTheDocument();
+    expect(screen.getByText("Plug-ins")).toBeInTheDocument();
     const row = screen.getByText("Automations").closest("div") as HTMLElement;
     expect(within(row).getByText("Editor")).toBeInTheDocument();
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();

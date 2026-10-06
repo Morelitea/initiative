@@ -1,5 +1,5 @@
 """Custom properties: each initiative's definitions, and values on its tasks,
-documents and events."""
+files and events."""
 
 from __future__ import annotations
 
@@ -159,11 +159,11 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
                 },
             ),
             (
-                "document",
+                "file",
                 "Campaign Setting: The Land of Barovia",
                 {"Public Knowledge": True},
             ),
-            ("document", "NPC Roster: Curse of Strahd", {"Public Knowledge": False}),
+            ("file", "NPC Roster: Curse of Strahd", {"Public Knowledge": False}),
             (
                 "calendar_event",
                 "Session 12: Into the Amber Temple",
@@ -178,7 +178,7 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
         ],
         "lmop": [
             (
-                "document",
+                "file",
                 "NPC Compendium: Phandelver",
                 {"Map Link": "https://example.com/maps/lmop-overview"},
             )
@@ -207,12 +207,12 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
                 },
             ),
             (
-                "document",
+                "file",
                 "Faction Guide: Krellix Dominion",
                 {"Faction Tags": ["krellix"]},
             ),
             ("task", "Quell the mutiny on Deck 7", {"Briefing Required": False}),
-            ("document", "Setting Bible: The Exodus Protocol", {"Owner": "Admin User"}),
+            ("file", "Setting Bible: The Exodus Protocol", {"Owner": "Admin User"}),
         ],
         "fringe": [
             (
@@ -249,7 +249,7 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
                 {"Arc": "tidestone_hunt", "Crew Reward (gold)": 9000},
             ),
             (
-                "document",
+                "file",
                 "The Shattered Seas: World Guide",
                 {
                     "Spoilers Allowed": True,
@@ -257,7 +257,7 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
                 },
             ),
             (
-                "document",
+                "file",
                 "Crew Manifest: The Crimson Maiden",
                 {"Spoilers Allowed": False},
             ),
@@ -276,7 +276,7 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
 }
 
 #: Where each target's seeded rows are held on the community, by title.
-_ROWS = {"task": "tasks", "document": "docs", "calendar_event": "events"}
+_ROWS = {"task": "tasks", "file": "files", "calendar_event": "events"}
 
 
 async def seed(c: Community) -> None:

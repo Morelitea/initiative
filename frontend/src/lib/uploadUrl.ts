@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 
 import { apiClient } from "@/api/client";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { toolRouteSegment } from "@/lib/tools";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
@@ -54,39 +56,43 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
   return resolved;
 }
 
+/** A file's own API path, inside its community. */
+const fileApiPath = (communityId: number, fileId: number): string =>
+  `/api/v1/c/${communityId}/${toolRouteSegment(Tool.file)}/${fileId}`;
+
 /**
- * Resolve a document ID to its authorized download URL (current version).
+ * Resolve a file ID to its authorized download URL (current version).
  *
  * The download is community-scoped (``/c/{communityId}/…``): served via iframe/
  * window.open, which can't send headers, so the community rides in the path.
  */
-export function resolveDocumentDownloadUrl(
-  documentId: number,
+export function resolveFileDownloadUrl(
+  fileId: number,
   communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !communityId) {
+  if (!fileId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${communityId}/documents/${documentId}/download`;
+  const base = `${fileApiPath(communityId, fileId)}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
 /**
  * Resolve the authorized download URL for a specific stored version of a file
- * document. Shares the native-platform auth handling with
- * {@link resolveDocumentDownloadUrl}.
+ * file. Shares the native-platform auth handling with
+ * {@link resolveFileDownloadUrl}.
  */
-export function resolveDocumentVersionDownloadUrl(
-  documentId: number,
+export function resolveFileVersionDownloadUrl(
+  fileId: number,
   versionId: number,
   communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !versionId || !communityId) {
+  if (!fileId || !versionId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${communityId}/documents/${documentId}/versions/${versionId}/download`;
+  const base = `${fileApiPath(communityId, fileId)}/versions/${versionId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
@@ -143,7 +149,7 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
 
 /**
  * Resolve a catalog artwork path — a marketplace listing's icon or screenshot,
- * and the artwork an installed app carries — to something a native WebView can
+ * and the artwork an installed plug-in carries — to something a native WebView can
  * load.
  *
  * Two kinds of same-origin path arrive here. Artwork this build ships

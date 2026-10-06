@@ -471,7 +471,7 @@ async def test_pin_requires_read_access_before_the_manager_check(
 async def test_a_notice_is_taken_up_to_the_length_ceiling(
     client: AsyncClient, board: Actor, length: int, status: int, detail: str | None
 ):
-    """A board is read, not studied — something longer than this is a document.
+    """A board is read, not studied — something longer than this is a file.
     The ceiling itself is inclusive."""
     response = await client.post(
         board.g("/posts/"),
@@ -847,14 +847,12 @@ async def test_the_board_dates_a_notice_by_when_it_went_up(
 async def test_a_draft_is_not_exported(board: Actor, session):
     """An export is a record of what a board has said, and a draft has said
     nothing yet — including to the author it belongs to."""
-    from app.services.tenant.posts import list_post_ids_for_export
+    from app.services.export.adapters.post import PostAdapter
 
     live = await create_post(session, board.initiative, board.user, name="Up")
     await _draft(session, board, name="Not up")
 
-    ids = await list_post_ids_for_export(
-        session, board.user, board.guild.id, initiative_ids=[board.initiative.id]
-    )
+    ids = await PostAdapter().initiative_ids(session, board.initiative.id)
     assert ids == [live.id]
 
 

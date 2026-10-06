@@ -390,7 +390,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     """The names outside parties know somebody by are part of the erasure.
 
     Billing holds one and keeps it — it is the key an account's history hangs
-    on — and each installed app holds its own. Once the person is gone, none of
+    on — and each installed plug-in holds its own. Once the person is gone, none of
     them has anyone left to resolve to, and the mapping is the only thing that
     could still join them back to a row.
 
@@ -409,11 +409,11 @@ async def test_erasing_a_user_stops_their_references_resolving(
         entity_id=victim.id,
         purpose=IdentityPurpose.billing,
     )
-    app_ref = await ensure_ref(
+    plugin_ref = await ensure_ref(
         session,
         entity_type=IdentityEntity.user,
         entity_id=victim.id,
-        purpose=IdentityPurpose.app,
+        purpose=IdentityPurpose.plugin,
         sector_guild_id=1,
         sector_id=1,
     )
@@ -428,7 +428,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     await user_service.soft_delete_user(session, victim.id)
 
     assert await resolve_ref(session, ref=billing_ref) is None
-    assert await resolve_ref(session, ref=app_ref) is None
+    assert await resolve_ref(session, ref=plugin_ref) is None
     # One person's erasure is not everybody's.
     assert await resolve_ref(session, ref=kept) is not None
 
@@ -751,7 +751,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     session: AsyncSession, role_session
 ):
     """Anonymizing a user leaves content as it is, since a mention holds no
-    name, and takes the names out of the collaboration state of every document
+    name, and takes the names out of the collaboration state of every file
     and wiki page that mentions them, archived ones included: an editor from
     before names were left out can have written one into it. A state that
     cannot be read is left as it is. Digest rows lose
@@ -759,7 +759,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     from sqlalchemy import text
 
     from app.db.session import set_rls_context
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.models.tenant.wiki import WikiPage
     from app.services.tenant.mention_parser import (
@@ -768,7 +768,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     )
     from app.testing import MENTIONING_YJS_STATE
     from app.testing.factories import (
-        create_document,
+        create_file,
         create_initiative,
         create_initiative_member,
         create_project,
@@ -789,10 +789,10 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     project = await create_project(session, initiative, author)
     task = await create_task(session, project)
     mentioning = lexical_body("Thanks ", mentioning=victim.id)
-    document = await create_document(
+    file = await create_file(
         session, initiative, author, content=mentioning, yjs_state=MENTIONING_YJS_STATE
     )
-    archived = await create_document(
+    archived = await create_file(
         session,
         initiative,
         author,
@@ -800,14 +800,14 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
         yjs_state=MENTIONING_YJS_STATE,
         archived_at=datetime.now(timezone.utc),
     )
-    elsewhere = await create_document(
+    elsewhere = await create_file(
         session,
         initiative,
         author,
         content=lexical_body("Thanks ", mentioning=author.id),
         yjs_state=b"kept-state",
     )
-    unreadable = await create_document(
+    unreadable = await create_file(
         session, initiative, author, content=mentioning, yjs_state=b"unreadable"
     )
     await enable_all_tools(session, initiative)
@@ -839,7 +839,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     await set_rls_context(session, Unattributed())
     await session.exec(
         text(
-            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".documents '
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".files '
             "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
         )
     )
@@ -853,10 +853,10 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     states = dict(
         (
             await session.exec(
-                select(Document.id, Document.yjs_state)
+                select(File.id, File.yjs_state)
                 .where(
-                    Document.id.in_(  # type: ignore[union-attr]
-                        [document.id, archived.id, elsewhere.id, unreadable.id]
+                    File.id.in_(  # type: ignore[union-attr]
+                        [file.id, archived.id, elsewhere.id, unreadable.id]
                     )
                 )
                 .execution_options(include_archived=True)
@@ -1049,6 +1049,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
     from app.models.platform.email_outbox import EmailOutboxItem
     from app.models.platform.notification import Notification
     from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_birthdate import UserBirthdate
     from app.models.platform.user_cookie_consent import UserCookieConsent
     from app.models.platform.user_decoration import UserDecoration
     from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -1088,6 +1089,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
             ),
             AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
             UserCookieConsent(user_id=user.id, version=1),
+            UserBirthdate(user_id=user.id, birthdate_encrypted="sealed"),
             DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
             DmConversationMember(conversation_id=conversation.id, user_id=user.id),
             DmConversationMember(conversation_id=conversation.id, user_id=other.id),
@@ -1120,6 +1122,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
         (EmailOutboxItem, EmailOutboxItem.user_id),
         (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
         (UserCookieConsent, UserCookieConsent.user_id),
+        (UserBirthdate, UserBirthdate.user_id),
         (DmDevice, DmDevice.user_id),
         (DmConversationMember, DmConversationMember.user_id),
         (UserDmSettings, UserDmSettings.user_id),
@@ -1200,3 +1203,50 @@ async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypat
     session.expire_all()
     after = await session.get(type(user), user_id)
     assert after.status == UserStatus.anonymized
+
+
+async def test_a_kept_birthdate_is_never_replaced(session: AsyncSession):
+    """Keeping is one insert: of two answers, exactly one is kept, and a second
+    leaves the first as it is."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        first = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        second = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(2015, 1, 1)
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert first is not None and second is None
+    assert kept == date(1990, 5, 4)
+
+
+async def test_taking_back_a_date_leaves_a_newer_one(session: AsyncSession):
+    """A failed answer takes back only the date it kept, never one a later
+    answer kept after a reset."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        failed = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        await user_service.forget_birthdate(system_session, user_id=user.id)
+        await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1991, 6, 5)
+        )
+        await user_service.forget_birthdate(
+            system_session, user_id=user.id, only=failed
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert kept == date(1991, 6, 5)

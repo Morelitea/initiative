@@ -10,10 +10,10 @@ import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/Da
 import { InitiativeViewNotice } from "@/components/initiativeTools/dashboards/InitiativeViewNotice";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
+import { DetailHeaderSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useUpdateDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
@@ -40,7 +40,7 @@ export function DashboardDetailPage() {
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("dashboard", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.dashboard, Number(communityId));
   const viewedDashboardId = dashboard?.id;
   useReadOnOpen(Tool.dashboard, viewedDashboardId);
   useEffect(() => {
@@ -112,14 +112,7 @@ export function DashboardDetailPage() {
           {dashboard.view_mode === DashboardViewMode.initiative && <InitiativeViewNotice />}
         </ToolPageHeader>
       ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-3" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-9 w-64" />
-        </div>
+        <DetailHeaderSkeleton actions={0} description={false} />
       )}
 
       <DashboardCanvas

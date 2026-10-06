@@ -236,7 +236,7 @@ def _open_blocker_count_expression():
     What counts as outstanding is per kind and comes from
     :data:`app.db.blocking.OPEN_WHEN`: a task not yet done, an event not yet
     passed, a counter short of its target. A kind with no rule there is not
-    counted at all, which is the honest reading — nothing says when a document
+    counted at all, which is the honest reading — nothing says when a file
     stops blocking. One ``EXISTS`` arm per registered kind, built from the
     registry, so a kind gains a count the day it gains a rule.
 
@@ -976,9 +976,9 @@ _PERSON_FILTER_FIELDS = frozenset({"assignee_ids", "created_by"})
 
 
 def refuse_person_filters(q: TaskListQuery) -> None:
-    """Refuse, for an installed app, a filter that names people.
+    """Refuse, for an installed plug-in, a filter that names people.
 
-    A filter's values are row ids inside a JSON string, which an app does not
+    A filter's values are row ids inside a JSON string, which a plug-in does not
     hold, so the fields that take one are left to people: ``assignee_ids``
     and ``created_by`` (bar asking whether there is one), and a
     person-valued custom property.
@@ -1315,6 +1315,7 @@ async def query_guild_tasks(
     include_archived: bool = False,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
+    initiative_id: Optional[int] = None,
 ) -> list[TaskListRead]:
     """Fetch every guild task matching the filter (no pagination).
 
@@ -1322,7 +1323,8 @@ async def query_guild_tasks(
     the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
     parse → guild query builder → eager loads → sort → annotate → serialize path,
     so access + shaping are identical. ``start_after``/``start_before`` bound the
-    result to the calendar window regardless of ``conditions``.
+    result to the calendar window, and ``initiative_id`` to one initiative's
+    projects, regardless of ``conditions``.
     """
     q = await parse_task_list_query(session, conditions, sorting, tz)
     build = await guild_task_query_builder(
@@ -1338,6 +1340,8 @@ async def query_guild_tasks(
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         statement = statement.where(window)
+    if initiative_id is not None:
+        statement = statement.where(Project.initiative_id == initiative_id)
     rows = list((await session.exec(statement)).all())
     return await list_reads(session, rows, routed_guild_id(session))
 

@@ -14,7 +14,7 @@ Initiative is **multi-tenant**: many separate groups (communities) share one ser
 
 ## Each community gets its own space in the database
 
-A community is not just a label attached to shared rows. Each community's content — its initiatives, projects, tasks, documents, calendar, queues, counters, posts, tags, and comments — lives in its **own dedicated area of the database** (a separate schema), provisioned when the community is created and removed when the community is deleted.
+A community is not just a label attached to shared rows. Each community's content — its initiatives, projects, tasks, files, calendar, queues, counters, posts, tags, and comments — lives in its **own dedicated area of the database** (a separate schema), provisioned when the community is created and removed when the community is deleted.
 
 Shared identity and configuration (the list of users, community memberships, invitations, server settings) lives in a common area. Everything that *belongs to a community* lives in that community's own space.
 
@@ -50,7 +50,7 @@ graph TD
 1. **Community** — no community data exists for you unless you belong to the community. This is the outer wall.
 2. **Initiative** — within a community, you can't reach the content of an initiative you're not a member of. This is the hard isolation boundary that keeps sensitive efforts away from non-involved members of the *same* community.
 3. **Initiative role** — your role decides which *kinds* of tools you may use, and how.
-4. **Item sharing** — for a specific project or document, per-item grants decide whether you can view, edit, or own it.
+4. **Item sharing** — for a specific project or file, per-item grants decide whether you can view, edit, or own it.
 
 Two deliberate overrides sit above the four gates:
 

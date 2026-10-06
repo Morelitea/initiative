@@ -6,7 +6,7 @@ state from the content when a row has none, renders the content from the state
 when a room saves, and writes a change to the content into the state, rewriting
 only what changed. How depends on the editor whose state it is:
 
-- a document or wiki page is the Lexical editor's, which only the editor itself
+- a file or wiki page is the Lexical editor's, which only the editor itself
   maps (:mod:`app.services.editor_engine`);
 - a whiteboard is one Excalidraw scene, held as a JSON string under
   ``excalidraw.scene`` (``WhiteboardDocumentEditor.tsx``);
@@ -90,7 +90,7 @@ def _read(state: bytes) -> Doc:
 
 def _editor_state(content: Any) -> Optional[dict]:
     """``content`` as the editor can start from it, or ``None`` for an empty
-    document. A body nobody has written is stored as ``{}``, or as a root with
+    file. A body nobody has written is stored as ``{}``, or as a root with
     no children, and the editor refuses both as a starting state."""
     root = content.get("root") if isinstance(content, dict) else None
     children = root.get("children") if isinstance(root, dict) else None
@@ -136,12 +136,10 @@ class _Whiteboard:
 
     @staticmethod
     def _normalized(content: Any) -> dict:
-        from app.models.tenant.document import DocumentType
-        from app.services.tenant.documents import normalize_document_content
+        from app.models.tenant.file import FileType
+        from app.services.tenant.files import normalize_file_content
 
-        return normalize_document_content(
-            content, document_type=DocumentType.whiteboard
-        )
+        return normalize_file_content(content, file_type=FileType.whiteboard)
 
     async def bootstrap(self, content: Any) -> bytes:
         return await self.apply(b"", self._normalized(content))
@@ -192,18 +190,18 @@ class _Spreadsheet:
 
     @staticmethod
     def _normalized(content: Any) -> dict:
-        from app.services.tenant.documents_spreadsheet import (
+        from app.services.tenant.files_spreadsheet import (
             normalize_spreadsheet_content,
         )
 
         return normalize_spreadsheet_content(content)
 
     async def bootstrap(self, content: Any) -> bytes:
-        from app.services.tenant.documents import DocumentContentError
+        from app.services.tenant.files import FileContentError
 
         try:
             workbook = self._normalized(content)
-        except DocumentContentError:
+        except FileContentError:
             logger.warning("A spreadsheet's stored content is not a workbook")
             workbook = self._normalized(None)
         return await self.apply(b"", workbook)
@@ -213,7 +211,7 @@ class _Spreadsheet:
         return any(len(doc.get(key, type=Map)) for key in (_SHEETS, _META, *_PARTS))
 
     async def render(self, state: bytes) -> Optional[dict]:
-        from app.services.tenant.documents import DocumentContentError
+        from app.services.tenant.files import FileContentError
 
         doc = _read(state)
         sheets: list[tuple[Any, str, dict]] = []
@@ -222,7 +220,7 @@ class _Spreadsheet:
                 sheets.append(self._sheet(sheet_id, container))
         if not sheets:
             # Written before a workbook held several sheets: its maps sit at
-            # the top of the document, and are the one sheet.
+            # the top of the file, and are the one sheet.
             legacy = {key: doc.get(key, type=Map) for key in (_META, *_PARTS)}
             if not any(len(part) for part in legacy.values()):
                 return None
@@ -237,7 +235,7 @@ class _Spreadsheet:
                     "sheets": [sheet for _, _, sheet in sheets],
                 }
             )
-        except DocumentContentError:
+        except FileContentError:
             logger.warning("A spreadsheet's live state is not a workbook")
             return None
 
@@ -300,7 +298,7 @@ class _Spreadsheet:
                 _sync(container[_META], meta)
                 for key in _PARTS:
                     _sync(container[key], sheet[key])
-            # A document from before several sheets keeps its maps at the
+            # A file from before several sheets keeps its maps at the
             # top; the workbook now holds them.
             for key in (_META, *_PARTS):
                 legacy = doc.get(key, type=Map)
@@ -337,15 +335,15 @@ _BY_KIND: dict[str, BodyState] = {
 
 
 def for_row(row: Any) -> Optional[BodyState]:
-    """How a stored row's body moves between its views: a document's by its
+    """How a stored row's body moves between its views: a file's by its
     type, a wiki page's as prose."""
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
 
-    return for_kind(row.document_type) if isinstance(row, Document) else LEXICAL
+    return for_kind(row.file_type) if isinstance(row, File) else LEXICAL
 
 
 def for_kind(kind: Any) -> Optional[BodyState]:
-    """How a body of ``kind`` — a document type, or ``"native"`` for any
+    """How a body of ``kind`` — a file type, or ``"native"`` for any
     Lexical body — moves between its views; ``None`` for one with no live
     editor."""
     return _BY_KIND.get(getattr(kind, "value", kind))

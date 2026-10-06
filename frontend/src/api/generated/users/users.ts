@@ -510,8 +510,8 @@ export function useListUsers<
  * Pass ``user_id`` one or more times to resolve a known selection (a picker
  * rehydrating stored ids into names/avatars) rather than searching.
  *
- * An installed app (``members:read``) names members by its own references
- * and reads each as an :class:`AppPerson`: the reference, the handle and the
+ * An installed plug-in (``members:read``) names members by its own references
+ * and reads each as an :class:`PluginPerson`: the reference, the handle and the
  * display name set in the community.
  * @summary Search Users
  */
@@ -906,8 +906,8 @@ export function useExportUsersCsv<
 }
 
 /**
- * Everything in this guild that no current member or live app owns, and
- * the apps that may own all of it.
+ * Everything in this guild that no current member or live plug-in owns, and
+ * the plug-ins that may own all of it.
  *
  * Both the content released when someone left and anything orphaned before
  * that — either way nobody who can act on it owns it.
@@ -1036,8 +1036,8 @@ export function useListUnownedContent<
 }
 
 /**
- * Give everything nobody owns to one guild admin, or to an app that may
- * own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+ * Give everything nobody owns to one guild admin, or to a plug-in that may
+ * own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
  * @summary Claim Unowned Content
  */
 export const claimUnownedContent = (
@@ -1130,7 +1130,7 @@ export const useClaimUnownedContent = <TError = ErrorType<HTTPValidationError>, 
 };
 /**
  * What this user owns in this guild, for the transfer dialog to list,
- * and the apps that may own all of it.
+ * and the plug-ins that may own all of it.
  *
  * Works for anyone the grants still name, member or not — accounts get
  * abandoned as often as they get closed.
@@ -1263,7 +1263,7 @@ export function useListOwnedContent<
 
 /**
  * Move everything ``user_id`` owns in this guild to a guild admin, or to
- * an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+ * a plug-in that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
  *
  * The only place ownership is moved by hand, and guild-admin only.
  * @summary Transfer Ownership
@@ -1447,8 +1447,8 @@ export const useRemoveMember = <TError = ErrorType<HTTPValidationError>, TContex
 /**
  * Serve the picture a member of this community uploaded.
  *
- * Where an installed app's ``avatar_url`` for a person points: the person is
- * named by the app's reference for them. The same bytes and caching as the
+ * Where an installed plug-in's ``avatar_url`` for a person points: the person is
+ * named by the plug-in's reference for them. The same bytes and caching as the
  * profile picture route, and a 404 for a digest that is not the member's
  * current picture, or for somebody who is not a member here.
  * @summary Read Member Avatar
@@ -2552,16 +2552,18 @@ export const useClaimMyUsername = <TError = ErrorType<HTTPValidationError>, TCon
  * answered under age, keeps every private community it belongs to and
  * everything in them.
  *
- * **The date is not kept.** It is read here, compared against the minimum, and
- * goes out of scope with the request — there is no column for it, nothing logs
- * it, and no audit record carries it. What is written is a timestamp saying
- * the question was answered, which is what shows the deployment asked.
+ * **The date is kept, encrypted** (``user_birthdates``, system engine only),
+ * because a plug-in's minimum age differs by country and one "old enough"
+ * answer cannot say whether somebody may use it. Nothing logs it, no audit
+ * record carries it, and no response returns it — ``birthdate_on_file`` says
+ * only that it is there. Beside it is the timestamp saying the question was
+ * answered, which is what shows the deployment asked.
+ *
+ * **A kept date stands.** Answering again once one is on file is refused, as
+ * an under-age answer is. Putting it right is the same support ticket.
  *
  * The comparison is the server's because it is the one that decides. A client
  * could work out the same answer, and a client's answer is not evidence.
- *
- * Saying it again is not an error and does not move the timestamp — the record
- * is when they first answered.
  *
  * **An answer of "under age" also stands.** It is recorded — the fact, not the
  * date — and the question is not asked again, because a question you can

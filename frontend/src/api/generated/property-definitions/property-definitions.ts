@@ -55,7 +55,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * With ``initiative_id``, returns definitions for that initiative only
  * (filtered explicitly and subject to RLS). Without it, RLS returns the
  * union across every initiative the caller can see — used by global
- * views (My Tasks, Created Tasks, global Documents list).
+ * views (My Tasks, Created Tasks, global Files list).
  * @summary List Property Definitions
  */
 export const listPropertyDefinitions = (

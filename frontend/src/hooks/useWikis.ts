@@ -9,17 +9,17 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addDocumentToWiki,
+  addFileToWiki,
   createWikiPage,
   deleteWikiPage,
   duplicateWikiPage,
   getListWikiPagesQueryKey,
   getReadWikiPageQueryKey,
   listWikiPages,
-  moveWikiDocument,
+  moveWikiFile,
   moveWikiPage,
   readWikiPage,
-  removeDocumentFromWiki,
+  removeFileFromWiki,
   updateWikiPage,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
@@ -80,8 +80,7 @@ export const useCreateWikiPage = (
   useCommunityMutation<WikiPageRead, WikiPageCreate>(
     {
       mutationFn: (communityId, data) => createWikiPage(communityId, wikiId, data),
-      // The tree gains a row and the wiki's page count changes with it.
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
@@ -94,34 +93,33 @@ export const useDuplicateWikiPage = (
   useCommunityMutation<WikiPageRead, number>(
     {
       mutationFn: (communityId, pageId) => duplicateWikiPage(communityId, pageId),
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
-      errorKey: "common:error",
-    },
-    options
-  );
-
-/**
- * Put an existing document in this wiki, or take it back out.
- *
- * Neither writes the document. A document joins a wiki by an edge, so what
- * changes is what the wiki contains — which is why both invalidate the page
- * list and the wiki, and nothing belonging to the document itself.
- */
-export const useAddWikiDocument = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
-  useCommunityMutation<WikiPageTree, number>(
-    {
-      mutationFn: (communityId, documentId) => addDocumentToWiki(communityId, wikiId, documentId),
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
   );
 
-export const useRemoveWikiDocument = (wikiId: number, options?: MutationOpts<void, number>) =>
+/**
+ * Put an existing file in this wiki, or take it back out.
+ *
+ * Neither writes the file. A file joins a wiki by an edge, so what
+ * changes is what the wiki contains — which is why both invalidate the page
+ * list, and nothing belonging to the file itself.
+ */
+export const useAddWikiFile = (wikiId: number, options?: MutationOpts<void, number>) =>
   useCommunityMutation<void, number>(
     {
-      mutationFn: (communityId, documentId) =>
-        removeDocumentFromWiki(communityId, wikiId, documentId),
+      mutationFn: (communityId, fileId) => addFileToWiki(communityId, wikiId, fileId),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      errorKey: "wikis:error",
+    },
+    options
+  );
+
+export const useRemoveWikiFile = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useCommunityMutation<void, number>(
+    {
+      mutationFn: (communityId, fileId) => removeFileFromWiki(communityId, wikiId, fileId),
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
     },
@@ -163,18 +161,15 @@ export const useMoveWikiPage = (
     options
   );
 
-export type MoveWikiDocumentVars = WikiPageMove & { documentId: number };
+export type MoveWikiFileVars = WikiPageMove & { fileId: number };
 
-/** A borrowed document is a row of the same list, so it moves the same way —
- *  the wiki records where it put it, and the document is not touched. */
-export const useMoveWikiDocument = (
-  wikiId: number,
-  options?: MutationOpts<WikiPageTree, MoveWikiDocumentVars>
-) =>
-  useCommunityMutation<WikiPageTree, MoveWikiDocumentVars>(
+/** A borrowed file is a row of the same list, so it moves the same way —
+ *  the wiki records where it put it, and the file is not touched. */
+export const useMoveWikiFile = (wikiId: number, options?: MutationOpts<void, MoveWikiFileVars>) =>
+  useCommunityMutation<void, MoveWikiFileVars>(
     {
-      mutationFn: (communityId, { documentId, ...move }) =>
-        moveWikiDocument(communityId, wikiId, documentId, move),
+      mutationFn: (communityId, { fileId, ...move }) =>
+        moveWikiFile(communityId, wikiId, fileId, move),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },

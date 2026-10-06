@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { QueueView } from "@/hooks/useQueueView";
 import { cn } from "@/lib/utils";
+
+export type QueueView = "list" | "on-deck";
 
 interface QueueViewToggleProps {
   view: QueueView;

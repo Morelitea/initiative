@@ -6,17 +6,17 @@
  * and a second copy is how the two drift apart.
  */
 
-import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
+import { type NotificationRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { communityPath } from "@/lib/communityUrl";
 import {
   entityRefTypeFor,
   isSearchEntityType,
-  normalizeAppTarget,
   normalizeLegacyTarget,
+  normalizePluginTarget,
 } from "@/lib/entityResolver";
 import { formatDate } from "@/lib/formatDate";
 import { storeSellingNow } from "@/lib/storeSelling";
-import { entityRefRoute } from "@/lib/tools";
+import { entityRefRoute, toolKebabSingular } from "@/lib/tools";
 
 /** Whether plan lines may ask the reader to choose a plan here. Not until a
  *  phone's store has answered (`@/lib/storeSelling`). */
@@ -52,7 +52,7 @@ export const resolveSmartLink = (notification: NotificationRead): string | null 
     // treated a bare `target_path` as an app-level route; this matches it.
     return communityId !== null
       ? buildCommunityPath(communityId, targetPath)
-      : normalizeAppTarget(targetPath);
+      : normalizePluginTarget(targetPath);
   }
 
   if (typeof data.smart_link === "string" && data.smart_link) {
@@ -97,7 +97,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
         return entityRefRoute("task", taskId);
       }
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     }
@@ -106,7 +106,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
       return "/";
     case "project_added":
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     case "import_ready":
@@ -135,13 +135,10 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
-      if (typeof data.document_id === "number") {
-        return entityRefRoute("document", data.document_id);
-      }
       return entityRefFromData(data);
     case "post_published":
       if (typeof data.post_id === "number") {
-        return entityRefRoute("post", data.post_id);
+        return entityRefRoute(toolKebabSingular(Tool.post), data.post_id);
       }
       return null;
     case "access_grant_requested":
@@ -274,7 +271,7 @@ export const notificationText = (
         email: data.email ?? t("notifications.plain.user"),
       });
     case "mention":
-      // A comment, a task's description, or a document.
+      // A comment, a task's description, or a file.
       if (data.comment_id) {
         return t("notifications.mentionComment", {
           mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
@@ -287,11 +284,9 @@ export const notificationText = (
           taskTitle: data.task_title ?? t("notifications.plain.item"),
         });
       }
-      return t("notifications.mentionDocument", {
+      return t("notifications.mentionFile", {
         mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
-        // Notifications stored before the rename still carry `document_title`.
-        documentTitle:
-          data.document_name ?? data.document_title ?? t("notifications.plain.document"),
+        fileTitle: data.entity_name ?? t("notifications.plain.file"),
       });
     case "comment_on_task": {
       const { name, others, count } = commentSummary(data);
@@ -459,15 +454,15 @@ export const notificationText = (
         : t("notifications.accountSuspended");
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
-    case "app_consent_requested":
-      // The label is the app's own words, quoted as such by the string.
-      return t("notifications.appConsentRequested", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_consent_requested":
+      // The label is the plug-in's own words, quoted as such by the string.
+      return t("notifications.pluginConsentRequested", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         label: typeof data.label === "string" ? data.label : "",
       });
-    case "app_update_pending":
-      return t("notifications.appUpdatePending", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_update_pending":
+      return t("notifications.pluginUpdatePending", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         version: typeof data.version === "string" ? data.version : "",
       });
     case "community_on_hold": {

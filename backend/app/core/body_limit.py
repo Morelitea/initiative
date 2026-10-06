@@ -23,7 +23,9 @@ import re
 from typing import Awaitable, Callable
 
 from app.core.messages import CommonMessages
+from app.core.tools import Tool
 from app.services.import_engine import limits as import_limits
+from app.services.tenant.collaborative_resources import registered_types, resource_for
 
 #: The most a request no rule names may carry. The largest ordinary body is a
 #: calendar import — two million characters of iCalendar text in JSON — and
@@ -31,28 +33,33 @@ from app.services.import_engine import limits as import_limits
 DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
 #: The most a multipart upload no rule names may carry: the largest file any
-#: upload route takes (a document file, 50 MiB) plus 1 MiB for framing. The
+#: upload route takes (an uploaded file, 50 MiB) plus 1 MiB for framing. The
 #: handler's bounded read still enforces each route's own cap exactly.
 MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + 1_048_576
 
-#: The most a document's content may carry. A whiteboard keeps its pictures
+#: The most a file's content may carry. A whiteboard keeps its pictures
 #: inline in the scene, so a board is far larger than any other JSON body.
 DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
 
-#: The most an installed app's installation call may carry. Sized for the
+#: The most an installed plug-in's installation call may carry. Sized for the
 #: largest route on that surface — events — plus its envelope, and kept here
 #: rather than imported from the router so this module stays free of app-layer
 #: imports.
-APP_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
+PLUGIN_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
 
 #: The most one vendor webhook delivery may carry.
-APP_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
+PLUGIN_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
 
 #: The most an Atlassian request may carry. A connect is a site URL, an
 #: account's address and an API token; a start is a credential id, an
 #: initiative and at most 200 short project keys. Generous for either and
 #: still far too small to be worth anybody's while as a buffer.
 ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
+
+#: The route segments of every body several people can edit at once.
+_COLLABORATIVE = "|".join(
+    resource_for(kind).route_segment for kind in registered_types()
+)
 
 # (path pattern, limit getter, machine-readable error code). Getters read
 # settings lazily — the limit is a property of request time, not boot time.
@@ -90,27 +97,27 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         "IMPORT_TOO_LARGE",
     ),
     (
-        # An installed app's installation calls are configuration writes and
+        # An installed plug-in's installation calls are configuration writes and
         # events, none larger than an event. The transport refuses a body past
         # that first, and the handler's exact cap still applies after.
-        re.compile(r"^/api/v1/app-platform/installation(/|$)"),
-        lambda: APP_INSTALLATION_MAX_REQUEST_BYTES,
-        "APP_CHANNEL_EVENT_TOO_LARGE",
+        re.compile(r"^/api/v1/plugin-platform/installation(/|$)"),
+        lambda: PLUGIN_INSTALLATION_MAX_REQUEST_BYTES,
+        "PLUGIN_CHANNEL_EVENT_TOO_LARGE",
     ),
     (
-        re.compile(r"^/api/v1/app-hooks/[^/]+$"),
-        lambda: APP_HOOK_MAX_REQUEST_BYTES,
+        re.compile(r"^/api/v1/plugin-hooks/[^/]+$"),
+        lambda: PLUGIN_HOOK_MAX_REQUEST_BYTES,
         CommonMessages.REQUEST_TOO_LARGE,
     ),
     (
-        # The routes that write a document's content: create, update, a wiki
+        # The routes that write a file's content: create, update, a wiki
         # page, and the edits a closing tab hands over to a room.
         re.compile(
             r"^/api/v1/c/\d+/("
-            r"documents(/\d+)?"
-            r"|wikis/\d+/pages"
-            r"|wiki-pages/\d+"
-            r"|collaboration/(documents|wiki-pages)/\d+/collaborate"
+            rf"{Tool.file.route_segment}"
+            rf"|{Tool.wiki.route_segment}/\d+/pages"
+            rf"|({_COLLABORATIVE})/\d+"
+            rf"|collaboration/({_COLLABORATIVE})/\d+/collaborate"
             r")/?$"
         ),
         lambda: DOCUMENT_MAX_REQUEST_BYTES,

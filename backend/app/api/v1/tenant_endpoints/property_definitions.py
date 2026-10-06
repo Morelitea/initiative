@@ -14,7 +14,7 @@ from app.api.deps import (
     ActorSessionDep,
     GuildContext,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -36,10 +36,10 @@ from app.services.tenant.names import ensure_name_free
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. Property definitions are part of how
+#: The routes an installed plug-in may call. Property definitions are part of how
 #: an initiative is set up, so they answer to the initiatives scope.
 PropertyDefinitionsRead = Annotated[
-    ActorContext, Depends(app_scope("initiatives:read"))
+    ActorContext, Depends(plugin_scope("initiatives:read"))
 ]
 
 
@@ -180,7 +180,7 @@ async def list_property_definitions(
     With ``initiative_id``, returns definitions for that initiative only
     (filtered explicitly and subject to RLS). Without it, RLS returns the
     union across every initiative the caller can see — used by global
-    views (My Tasks, Created Tasks, global Documents list).
+    views (My Tasks, Created Tasks, global Files list).
     """
     stmt = select(PropertyDefinition)
     if initiative_id is not None:

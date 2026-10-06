@@ -34,7 +34,7 @@
  * `matches()` below, the only code in the app that decides whether a cached key
  * belongs to the current community.
  */
-import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 import { PARENT_TOOL, TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
@@ -69,7 +69,7 @@ export type Spec = {
   personalPrefix?: readonly string[];
   /**
    * Hand-written keys named by their first element and carrying their community in
-   * the second (`["community-app", communityId, appId]`). Scoped to the active community by
+   * the second (`["community-plugin", communityId, pluginId]`). Scoped to the active community by
    * that element, like every other community key.
    */
   communityNamed?: readonly string[];
@@ -231,17 +231,15 @@ const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
 const favoriteProjects = (): Spec => ({ communityExact: ["/api/v1/projects/favorites"] });
 
-const writableProjects = (): Spec => ({ communityExact: ["/api/v1/projects/writable"] });
-
-// ── Documents (community) ────────────────────────────────────────────────────────
+// ── Files (community) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
 const relationships = (): Spec => ({
   communityPrefix: ["/api/v1/relationships"],
 });
 
-const documentVersions = (documentId: number): Spec => ({
-  communityExact: [`/api/v1/documents/${documentId}/versions`],
+const fileVersions = (fileId: number): Spec => ({
+  communityExact: [`/api/v1/files/${fileId}/versions`],
 });
 
 // ── Comments (community) ─────────────────────────────────────────────────────────
@@ -384,16 +382,16 @@ const moderationReports = (initiativeId: number): Spec => ({
 // so its list lives in the personal/platform family, not under any /c/ key.
 const platformCommunities = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
-// ── App services (personal / platform) ───────────────────────────────────────
-// Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
-// as `/api/v1/app-services/{id}` (no slash), so they are siblings rather than a
+// ── Plug-in services (personal / platform) ──────────────────────────────────
+// Orval keys the list as `/api/v1/plugin-services/` (trailing slash) and each row
+// as `/api/v1/plugin-services/{id}` (no slash), so they are siblings rather than a
 // prefix pair. Name the shared path so one description reaches the list and
 // every detail read.
-const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
+const pluginServices = (): Spec => ({ personalPrefix: ["/api/v1/plugin-services"] });
 
-// ── Installed apps (community) ───────────────────────────────────────────────────
+// ── Installed plug-ins (community) ──────────────────────────────────────────────
 // The other half of the same domain: a service is the platform's registration
-// of an app, an install is one community's copy of it.
+// of a plug-in, an install is one community's copy of it.
 //
 // One description for every read of an install, because one write moves all of
 // them — the sidebar's list, the settings dialog's detail, the members view —
@@ -401,9 +399,9 @@ const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
 // Two key shapes: the list is Orval's URL key, while the detail and members
 // reads are hand-written and keyed by name. The named pair carries its community in
 // element 1, so it is scoped like every other community key rather than by name.
-const apps = (): Spec => ({
-  communityPrefix: ["/api/v1/apps"],
-  communityNamed: ["community-app", "community-app-members"],
+const plugins = (): Spec => ({
+  communityPrefix: ["/api/v1/plugins"],
+  communityNamed: ["community-plugin", "community-plugin-members"],
 });
 
 // ── AI Settings (platform config is personal; community/member/resolved are community) ──
@@ -469,7 +467,7 @@ const communityInvites = (communityId: number): Spec => ({
 const allCalendarEntries = (): Spec => resourceAndMe("calendar-entries");
 
 const allCalendarEvents = (): Spec =>
-  compose(resourceAndMe("calendar-events"), allCalendarEntries());
+  compose({ communityPrefix: ["/api/v1/calendar-events"] }, allCalendarEntries());
 
 const calendarEvent = (eventId: number): Spec => ({
   communityExact: [`/api/v1/calendar-events/${eventId}`],
@@ -488,14 +486,6 @@ const calendarEvent = (eventId: number): Spec => ({
  */
 const postTimeline = (): Spec => ({ communityPrefix: ["/api/v1/posts/timeline"] });
 
-// ── Galleries (community) ────────────────────────────────────────────────────────
-
-/** A gallery's pictures — every page of the list, the timeline rail, and
- *  each picture's own reads and versions — without the gallery row itself. */
-const galleryImages = (galleryId: number): Spec => ({
-  communityPrefix: [`/api/v1/galleries/${galleryId}/images`],
-});
-
 // ── Wikis (community) ────────────────────────────────────────────────────────────
 
 /** A wiki's pages — the tree and each page's own read — without the wiki row
@@ -513,10 +503,6 @@ const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pag
 const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
 
 const latestVersion = (): Spec => ({ personalExact: ["/api/v1/version/latest"] });
-
-// ── Task Statuses (community) ────────────────────────────────────────────────────
-
-const allTaskStatuses = (): Spec => ({ communityPrefix: ["/api/v1/projects"] });
 
 // ── Properties (community) ───────────────────────────────────────────────────────
 
@@ -569,10 +555,9 @@ const tool = (which: Tool, id: number): Spec => compose(toolEntity(which, id), t
 // The same two, by name, for the call sites that already know their tool.
 const allProjects = (): Spec => toolList(Tool.project);
 const project = (id: number): Spec => toolEntity(Tool.project, id);
-const allDocuments = (): Spec => toolList(Tool.document);
-const document = (id: number): Spec => toolEntity(Tool.document, id);
+const allFiles = (): Spec => toolList(Tool.file);
+const file = (id: number): Spec => toolEntity(Tool.file, id);
 const allQueues = (): Spec => toolList(Tool.queue);
-const queue = (id: number): Spec => toolEntity(Tool.queue, id);
 const allCounterGroups = (): Spec => toolList(Tool.counter_group);
 const counterGroup = (id: number): Spec => toolEntity(Tool.counter_group, id);
 const allCalendars = (): Spec => toolList(Tool.calendar);
@@ -622,7 +607,7 @@ export const q = {
   allComments,
   allCounterGroups,
   allDashboards,
-  allDocuments,
+  allFiles,
   allGalleries,
   allCommunities,
   allInitiatives,
@@ -633,13 +618,12 @@ export const q = {
   allQueues,
   allSettings,
   allTags,
-  allTaskStatuses,
   allWikis,
   allTasks,
   announcements,
   appConfig,
-  appServices,
-  apps,
+  pluginServices,
+  plugins,
   authProviders,
   communityNarrowings,
   authSettings,
@@ -661,8 +645,8 @@ export const q = {
   dashboard,
   directMessages,
   dmSettings,
-  document,
-  documentVersions,
+  file,
+  fileVersions,
   emailSettings,
   favoriteProjects,
   fcmConfig,
@@ -684,7 +668,6 @@ export const q = {
   platformAIMode,
   platformCommunities,
   gallery,
-  galleryImages,
   post,
   postTimeline,
   project,
@@ -692,7 +675,6 @@ export const q = {
   projectTaskStatuses,
   propertyHolder,
   pushSettings,
-  queue,
   recentComments,
   recents,
   relationships,
@@ -707,7 +689,6 @@ export const q = {
   toolSubtree,
   userStats,
   version,
-  writableProjects,
   wiki,
   wikiPage,
   wikiPages,
@@ -741,8 +722,7 @@ export const resetCommunityScopedQueries = (arrivingCommunityId?: number | null)
 
 // ── Rewriting a cached post in place (not an invalidation) ───────────────────
 
-type CachedPost = Record<string, unknown>;
-type CachedPage = { items?: CachedPost[] };
+type CachedPage = { items?: PostRead[] };
 
 /**
  * One page of posts, with this post rewritten. Returns the SAME object when
@@ -752,7 +732,7 @@ type CachedPage = { items?: CachedPost[] };
 const patchPostPage = (
   page: unknown,
   postId: number,
-  update: (post: CachedPost) => CachedPost
+  update: (post: PostRead) => PostRead
 ): unknown => {
   const asList = page as CachedPage;
   if (!Array.isArray(asList.items)) return page;
@@ -777,7 +757,7 @@ const patchPostPage = (
  * other two would leave every optimistic update invisible on the surface it
  * was made from.
  */
-export const patchCachedPost = (postId: number, update: (post: CachedPost) => CachedPost) => {
+export const patchCachedPost = (postId: number, update: (post: PostRead) => PostRead) => {
   const matcher = merge([allPosts()]);
   queryClient.setQueriesData<unknown>(
     { predicate: (query) => matches(matcher, query.queryKey) },
@@ -794,7 +774,7 @@ export const patchCachedPost = (postId: number, update: (post: CachedPost) => Ca
       const patched = patchPostPage(data, postId, update);
       if (patched !== data) return patched;
 
-      const asPost = data as CachedPost;
+      const asPost = data as PostRead;
       return asPost.id === postId ? update(asPost) : data;
     }
   );

@@ -26,6 +26,7 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  type EventEntryMeta,
   rescheduledDates,
   type TaskEntryMeta,
   useCalendarVisibility,
@@ -36,6 +37,7 @@ import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPicker,
   type ProjectTaskCalendar,
+  ProjectTaskToggles,
 } from "@/components/initiativeTools/events/CalendarListPanel";
 import { CreateCalendarDialog } from "@/components/initiativeTools/events/CreateCalendarDialog";
 import {
@@ -56,9 +58,10 @@ import {
   CardGridSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
+import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DateRangeField,
   dateRangeBounds,
@@ -68,20 +71,19 @@ import {
 } from "@/components/ui/date-range-field";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
-import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useUpdateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
@@ -89,14 +91,11 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
-import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
-import { eventRoute, taskRoute, toolSettingsRoute, toolViewParams } from "@/lib/tools";
+import { eventRoute, taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
-
-const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
 interface StoredPrefs {
   statusFilters: TaskStatusCategory[];
@@ -138,13 +137,13 @@ type CalendarsViewProps = {
    * visible so the deep link always shows its events. */
   focusCalendarId?: number;
   /** A community calendar rendered as its own whole surface — a deep link to one
-   * of them. Community apps show community-level content only, so this mode shows
+   * of them. Community plug-ins show community-level content only, so this mode shows
    * exactly this calendar's events: no tasks, no projects, no other calendars,
    * no initiative-flavored filters. */
   soloCalendar?: CalendarSummary;
-  /** The calendar app's own surface: every community calendar this reader may see,
+  /** The calendar plug-in's own surface: every community calendar this reader may see,
    * overlaid. Community-level content only, like {@link soloCalendar} — but the
-   * app holds many calendars, so this one keeps the calendar list panel and
+   * plug-in holds many calendars, so this one keeps the calendar list panel and
    * the create seam. */
   communityScope?: boolean;
 };
@@ -263,11 +262,6 @@ export const CalendarsView = ({
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
 
-    // If initiativeId is specified, filter by that initiative; otherwise show all community tasks
-    if (initiativeId) {
-      conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
-    }
-
     // Only add filters if explicitly selected by user
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
@@ -288,7 +282,7 @@ export const CalendarsView = ({
       });
     }
     return conditions;
-  }, [initiativeId, statusFilters, priorityFilters, propertyFilters]);
+  }, [statusFilters, priorityFilters, propertyFilters]);
 
   // The real calendars backing the list panel, colors, and the create seams.
   // Asked for before the entries, because on a community surface they are what
@@ -313,7 +307,7 @@ export const CalendarsView = ({
   const entriesParams = useMemo((): ListCalendarEntriesParams => {
     const span = entriesWindow ?? visibleRange;
     // A community surface: community-level events, and nothing task- or
-    // initiative-shaped at all. The app asks by scope rather than by naming its
+    // initiative-shaped at all. The plug-in asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event
     // on one that fell off the end would simply not be drawn.
     if (communityOnly) {
@@ -397,17 +391,6 @@ export const CalendarsView = ({
     dateRange,
   ]);
 
-  // Same param shape the sidebar and dashboard filters use, so this shares their cache.
-  const projectsQuery = useProjects(
-    { slim: true, ...toolViewParams(Tool.project, "active") },
-    { staleTime: 30_000, enabled: !communityOnly }
-  );
-  const projectNamesById = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const project of projectsQuery.data?.items ?? []) map.set(project.id, project.name);
-    return map;
-  }, [projectsQuery.data]);
-
   // One read-only virtual calendar per project with a task in the window —
   // fully derived from the entries payload, never stored.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
@@ -418,12 +401,12 @@ export const CalendarsView = ({
       seen.set(task.project_id, {
         projectId: task.project_id,
         communityId: task.community_id ?? communityId,
-        name: projectNamesById.get(task.project_id) ?? `#${task.project_id}`,
+        name: task.project_name ?? `#${task.project_id}`,
         color: getProjectColor(task.project_id),
       });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [entriesData, projectNamesById, communityId]);
+  }, [entriesData, communityId]);
 
   // Creating a CALENDAR is the role-permission gate; creating an EVENT is
   // write access on at least one calendar (the project→task pattern). An
@@ -546,40 +529,26 @@ export const CalendarsView = ({
   };
 
   const handleEntryClick = (entry: CalendarEntry) => {
-    const meta = entry.meta as
-      | {
-          type: string;
-          taskId?: number;
-          projectId?: number;
-          eventId?: number;
-          calendarId?: number;
-          occurrence?: string;
-        }
-      | undefined;
-    if (!meta) return;
-    if (meta.type === "event" && meta.eventId && meta.calendarId) {
+    const meta = entry.meta as TaskEntryMeta | EventEntryMeta | undefined;
+    if (meta?.type === "event") {
       void router.navigate({
         to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)),
         search: meta.occurrence ? { occurrence: meta.occurrence } : {},
       });
-    } else if (meta.type === "task" && meta.taskId && meta.projectId) {
+    } else if (meta?.type === "task") {
       void router.navigate({ to: gp(taskRoute(initiativeId, meta.projectId, meta.taskId)) });
     }
   };
 
   // Drag-to-reschedule for events (the backend enforces calendar write).
   const updateTask = useUpdateTask();
-  const rescheduleEvent = useRescheduleCalendarEvent();
+  const rescheduleEvent = useUpdateCalendarEvent();
   const scopePrompt = useScopePrompt();
 
   const handleEntryReschedule = useCallback(
     async ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
-      const meta = entry.meta as
-        | Partial<TaskEntryMeta>
-        | { type: "event"; eventId?: number; occurrence?: string }
-        | undefined;
-      if (!meta) return;
-      if (meta.type === "event" && meta.eventId) {
+      const meta = entry.meta as TaskEntryMeta | EventEntryMeta | undefined;
+      if (meta?.type === "event") {
         // An occurrence of a repeating event moves alone, from here on, or
         // with every other one, as the person picks.
         const scope = meta.occurrence ? await scopePrompt.ask("edit") : undefined;
@@ -593,7 +562,7 @@ export const CalendarsView = ({
         });
         return;
       }
-      if (meta.type === "task" && meta.taskId) {
+      if (meta?.type === "task") {
         // Dates are each task's own, so moving one asks only whether the
         // tasks after it move too.
         const scope = meta.repeating
@@ -610,15 +579,6 @@ export const CalendarsView = ({
   );
 
   const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
-
-  const statusOptions = useMemo(
-    () =>
-      STATUS_CATEGORIES.map((cat) => ({
-        value: cat,
-        label: t(`tasks:statusCategory.${cat}`),
-      })),
-    [t]
-  );
 
   // Which calendars are drawn. The picker is the page's title: it names what
   // is showing and opens the checklist that changes it.
@@ -746,7 +706,7 @@ export const CalendarsView = ({
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
-          title={t("filters.heading")}
+          title={t("common:toolbar.filters")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
         >
@@ -768,30 +728,16 @@ export const CalendarsView = ({
                   <legend className="mb-1 font-medium text-muted-foreground text-xs">
                     {t("panel.projectTasks")}
                   </legend>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                    {projectCalendars.map((project) => {
-                      const id = `project-calendar-toggle-${project.communityId}-${project.projectId}`;
-                      return (
-                        <li key={id} className="flex items-center gap-2">
-                          <Checkbox
-                            id={id}
-                            checked={!visibility.isProjectHidden(communityId, project.projectId)}
-                            onCheckedChange={() =>
-                              visibility.toggleProject(communityId, project.projectId)
-                            }
-                          />
-                          <span
-                            aria-hidden
-                            className="h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: project.color }}
-                          />
-                          <Label htmlFor={id} className="cursor-pointer font-normal text-sm">
-                            {project.name}
-                          </Label>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <ProjectTaskToggles
+                    projects={projectCalendars}
+                    isProjectHidden={(project) =>
+                      visibility.isProjectHidden(communityId, project.projectId)
+                    }
+                    onToggleProject={(project) =>
+                      visibility.toggleProject(communityId, project.projectId)
+                    }
+                    className="flex flex-wrap gap-x-4 gap-y-1"
+                  />
                 </fieldset>
               ) : null}
             </div>
@@ -806,36 +752,12 @@ export const CalendarsView = ({
               <DateRangeField id="calendar-date-range" value={dateRange} onChange={setDateRange} />
             </div>
 
-            {/* Status filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByStatusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("tasks:filters.allStatusCategories")}
-                emptyMessage={t("tasks:filters.noStatusCategories")}
-              />
-            </div>
-
-            {/* Priority filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((p) => ({
-                  value: p,
-                  label: t(`tasks:priority.${p}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("tasks:filters.allPriorities")}
-                emptyMessage={t("tasks:filters.noPriorities")}
-              />
-            </div>
+            <TaskStatusPriorityFilters
+              statusFilters={statusFilters}
+              onStatusChange={setStatusFilters}
+              priorityFilters={priorityFilters}
+              onPriorityChange={setPriorityFilters}
+            />
 
             {/* Custom property filters — applied to both events and tasks
                 rendered on the calendar. Scoped to the active initiative
@@ -917,7 +839,7 @@ export const CalendarsView = ({
 };
 
 /**
- * The /calendars route — the calendar app's own surface.
+ * The /calendars route — the calendar plug-in's own surface.
  *
  * Every community calendar this reader may see, overlaid in one view: the community's
  * own events and nothing else. Which calendars are showing is the reader's to
@@ -935,10 +857,13 @@ export function CalendarFocusPage() {
   const calendarId = Number(calendarIdParam);
   const calendarQuery = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
   const calendar = calendarQuery.data;
+  const { t } = useTranslation("calendars");
+  const gp = useCommunityPath();
+  const initiativeId = useCanonicalInitiativeId(calendar?.initiative_id);
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("calendar", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.calendar, Number(communityId));
   const viewedCalendarId = calendar?.id;
   useReadOnOpen(Tool.calendar, viewedCalendarId);
   useEffect(() => {
@@ -947,10 +872,20 @@ export function CalendarFocusPage() {
   }, [viewedCalendarId, recordViewMutation.mutate]);
 
   // Which kind of calendar decides which surface renders, so nothing renders
-  // until the read resolves: a community calendar (the app) must never flash the
+  // until the read resolves: a community calendar (the plug-in) must never flash the
   // community-wide view, whose fetches reach into initiative content.
-  if (!calendar) {
+  if (calendarQuery.isLoading) {
     return <CalendarPageSkeleton />;
+  }
+  if (calendarQuery.isError || !calendar) {
+    return (
+      <ToolAccessStatus
+        error={calendarQuery.error}
+        keys="calendars:"
+        backTo={gp(toolListRoute(Tool.calendar, initiativeId))}
+        backLabel={t("backToEvents")}
+      />
+    );
   }
 
   const isCommunityCalendar = calendar.initiative_id == null;

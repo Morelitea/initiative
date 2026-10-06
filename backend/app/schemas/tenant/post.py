@@ -29,7 +29,7 @@ EXCERPT_CHARS = 280
 
 # How long a notice may be. A board is read, not studied: this is roughly
 # 1,500 words, which is far more than any notice needs and still short enough
-# that a page of twenty stays a page. Something longer is a document, and the
+# that a page of twenty stays a page. Something longer is a file, and the
 # initiative already has those.
 MAX_POST_TEXT_CHARS = 10_000
 
@@ -47,7 +47,7 @@ class PostBase(SanitizedBaseModel):
 class PostCreate(PostBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
-    # A Lexical editor state, the same shape a native document stores — which
+    # A Lexical editor state, the same shape a native file stores — which
     # is what lets a post carry inline images and smart chips. Empty is
     # allowed: a headline with a picture under it is a legitimate notice.
     body: LexicalState = Field(default_factory=dict)
@@ -318,7 +318,7 @@ def post_body_too_long(body: Any) -> bool:
 
     Two ceilings because they answer different questions. The character count
     is the product rule — a board is read, not studied, and something this long
-    is a document. The byte size is structural, and independent of how much of
+    is a file. The byte size is structural, and independent of how much of
     it is words: images and files are references rather than embedded data, so
     a legitimate notice is nowhere near it and only a hand-made payload of
     deeply nested empty nodes trips it.

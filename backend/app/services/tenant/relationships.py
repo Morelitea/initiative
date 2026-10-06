@@ -468,10 +468,10 @@ async def list_for_entity(
     the OR form can use neither index and degrades to a scan of the table, and a
     scan happens *before* the policy has narrowed anything. Both directions are
     genuinely needed by default — a symmetric edge is stored in node-id order,
-    so a given document sits on whichever side sorted lower.
+    so a given file sits on whichever side sorted lower.
 
     ``direction`` narrows to one side for the relations where the two sides are
-    different questions: what this document names is one list, and what names
+    different questions: what this file names is one list, and what names
     it is another.
     """
 
@@ -590,7 +590,7 @@ async def counts_for_many(
 
     The counting form of :func:`related_for_many`, and one query rather than its
     two: a count needs no far end resolved. No ``other_kind`` on purpose — a
-    surface that says "3 attachments" means three things, not three documents
+    surface that says "3 attachments" means three things, not three files
     and separately two tasks, and the far ends may be any of the fourteen kinds.
 
     Gated the same way: the policy ANDs both endpoints, so something the reader
@@ -655,7 +655,7 @@ async def related_ids(
 ) -> list[int]:
     """Ids of one kind connected to this entity by one type.
 
-    What the per-tool read schemas ask for: a project's attached documents, a
+    What the per-tool read schemas ask for: a project's attached files, a
     queue item's tasks. Order is by when the edge was made, which is the order
     the junctions produced.
     """
@@ -866,7 +866,7 @@ __all__ = [
 
 
 def records_edges(session: AsyncSession) -> bool:
-    """Whether this request writes ``references`` edges. An installed app
+    """Whether this request writes ``references`` edges. An installed plug-in
     writes relationships only under its ``relationships:write`` scope; without
     it, what its content points at is left unrecorded."""
     context = install_context(session)

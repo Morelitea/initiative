@@ -2,7 +2,7 @@
  * One placed widget: its data, its chrome, and its authoring affordances.
  *
  * Sits between the canvas (which owns position) and `WidgetTile` (which owns
- * running the widget and drawing its scene). Everything visible here is app
+ * running the widget and drawing its scene). Everything visible here is plug-in
  * code — the drag handle, the menu, the unbound state — because a widget draws
  * only inside its box and must never be able to render something that looks
  * like the frame around it.
@@ -20,8 +20,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { appWidgetSample, appWidgetSource } from "@/api/appData";
-import type { DashboardWidgetData } from "@/api/generated/initiativeAPI.schemas";
+import { pluginWidgetSample, pluginWidgetSource } from "@/api/pluginData";
 import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
@@ -31,14 +30,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useBindingLabels } from "@/hooks/useBindingLabels";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
+import { usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
-import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
-import { emptyDataFor, normalizeQueryRows } from "@/lib/widgets/normalize";
+import { type DefinitionWidget, isPluginWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
@@ -48,7 +46,7 @@ export interface DashboardWidgetProps {
   binding: WidgetBinding;
   /** The dashboard's own initiative — the only one its widgets read from. */
   initiativeId: number | undefined;
-  /** The dashboard row itself. Only the `app` source needs it: its data is
+  /** The dashboard row itself. Only the `plugin` source needs it: its data is
    *  community-level, so the proxy is told which initiative-scoped surface is
    *  asking and decides against that row's gates. */
   dashboardId?: number;
@@ -58,10 +56,6 @@ export interface DashboardWidgetProps {
    *  isn't installed shows what it *looks like*, never anyone's data, so it
    *  renders the same for every viewer. */
   sampleData?: boolean;
-  /** This widget's answer, read with a list's page for its card preview, or
-   *  null where the page brought none. A query widget in a preview draws its
-   *  answer or nothing — never sample rows that could pass for real ones. */
-  answer?: DashboardWidgetData | null;
   onConfigure?: (widgetId: string) => void;
   onRemove?: (widgetId: string) => void;
 }
@@ -73,26 +67,27 @@ export function DashboardWidget({
   dashboardId,
   canEdit,
   sampleData,
-  answer,
   onConfigure,
   onRemove,
 }: DashboardWidgetProps) {
   const { t } = useTranslation("dashboards");
-  const isAppWidget = isAppWidgetType(widget.type);
+  const isPluginWidget = isPluginWidgetType(widget.type);
 
-  // An app widget's module lives in the install's pinned definition rather than
+  // A plug-in widget's module lives in the install's pinned definition rather than
   // in this build's registry — the seam `WidgetTile.source` exists for. The
-  // catalog is one shared query per community, so a canvas full of app widgets
+  // catalog is one shared query per community, so a canvas full of plug-in widgets
   // resolves them all from one request.
   //
-  // In sample mode it is fetched too, and only then: a preview draws the app's
-  // *own* sample rows through the app's own module, so what it shows is the
+  // In sample mode it is fetched too, and only then: a preview draws the plug-in's
+  // *own* sample rows through the plug-in's own module, so what it shows is the
   // listing rather than a stand-in. It still issues no data request — no
   // initiative, no dashboard, nothing to fetch.
-  const appCatalogQuery = useAppWidgetCatalog(isAppWidget);
-  const moduleSource = isAppWidget ? appWidgetSource(appCatalogQuery.data, widget.type) : undefined;
+  const pluginCatalogQuery = usePluginWidgetCatalog(isPluginWidget);
+  const moduleSource = isPluginWidget
+    ? pluginWidgetSource(pluginCatalogQuery.data, widget.type)
+    : undefined;
 
-  // Named from its own module, like every widget: an app names its widgets in
+  // Named from its own module, like every widget: a plug-in names its widgets in
   // the manifest, so a marketplace tile has a real title without a locale edit
   // here. Falls back to the type id until the sandbox read resolves.
   const { name, meta } = useWidgetMeta(widget.type, moduleSource);
@@ -113,30 +108,30 @@ export function DashboardWidget({
   const labels = useBindingLabels(binding, initiativeId, !sampleData);
   const [view, setView] = useState<"scene" | "table">("scene");
 
-  const appSample = appWidgetSample(appCatalogQuery.data, widget.type, binding.endpoint_id);
-  const answered = answer?.result
-    ? normalizeQueryRows(answer.result.columns, answer.result.rows)
-    : undefined;
-  const data = answered
-    ? { source: "rows" as const, ...answered }
-    : answer !== undefined && binding.source === "query"
-      ? emptyDataFor("query")
-      : sampleData
-        ? isAppWidget
-          ? { source: "app" as const, ...appSample }
-          : sampleFor(widget.type)
-        : live.data;
+  const pluginSample = pluginWidgetSample(
+    pluginCatalogQuery.data,
+    widget.type,
+    binding.endpoint_id
+  );
+  const data = sampleData
+    ? isPluginWidget
+      ? { source: "plugin" as const, ...pluginSample }
+      : sampleFor(widget.type)
+    : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the
   // sandbox: it needs the widget's declared shape and the author's overrides,
   // and neither is the widget's to read.
   const catalogQuery = useWidgetCatalog();
   const shape = shapeFor(widget.type, catalogQuery.data);
   const rows = data.source === "rows";
-  const slots = rows ? resolveMapping(data.columns, shape, widget.mapping) : undefined;
+  // The author's overrides name columns of their own query, so sample rows are
+  // matched to the slots afresh.
+  const mapping = sampleData ? undefined : widget.mapping;
+  const slots = rows ? resolveMapping(data.columns, shape, mapping) : undefined;
   // A query edited under a saved widget can stop returning the shape it draws.
   // The table draws any shape, so it is what a tile falls back to — showing the
   // rows that did come back beats showing an empty chart.
-  const drawable = !rows || canDraw(data.columns, shape, widget.mapping);
+  const drawable = !rows || canDraw(data.columns, shape, mapping);
   const isLoading = sampleData ? false : live.isLoading;
   const errorCode = sampleData ? undefined : live.errorCode;
 
@@ -235,7 +230,7 @@ export function DashboardWidget({
             slots={slots}
             source={moduleSource}
             errorCode={errorCode}
-            isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
+            isLoading={isLoading || (isPluginWidget && pluginCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
             view={drawable ? view : "table"}
             chromeless

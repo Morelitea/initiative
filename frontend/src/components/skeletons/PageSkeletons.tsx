@@ -343,15 +343,15 @@ export interface DetailPageSkeletonProps {
   className?: string;
 }
 
-/** A tool entity's page: breadcrumb, actions, title, and its body. */
-export const DetailPageSkeleton = ({
+/** A tool entity's header alone — breadcrumb, actions, title — for a page that
+ *  draws its own body while the entity loads. */
+export const DetailHeaderSkeleton = ({
   breadcrumb = true,
   actions = 2,
   title = true,
   description = true,
-  children,
   className,
-}: DetailPageSkeletonProps) => (
+}: Omit<DetailPageSkeletonProps, "children">) => (
   <div className={cn("space-y-6", className)}>
     {breadcrumb || actions > 0 ? (
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -373,6 +373,13 @@ export const DetailPageSkeleton = ({
         {description ? <Skeleton className="h-4 w-full max-w-lg" /> : null}
       </div>
     ) : null}
+  </div>
+);
+
+/** A tool entity's page: breadcrumb, actions, title, and its body. */
+export const DetailPageSkeleton = ({ children, className, ...header }: DetailPageSkeletonProps) => (
+  <div className={cn("space-y-6", className)}>
+    <DetailHeaderSkeleton {...header} />
     {children ?? (
       <Card>
         <CardContent className="space-y-3 pt-6">
@@ -434,7 +441,7 @@ export const ContentCardSkeleton = ({
   </Card>
 );
 
-/** The writing surface of a document or a task. */
+/** The writing surface of a file or a task. */
 export const EditorSkeleton = ({
   lines = 10,
   className,
@@ -503,8 +510,8 @@ export const ProjectDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   </SkeletonRegion>
 );
 
-/** A document's page: breadcrumb, toolbar, title, and the editor. */
-export const DocumentDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
+/** A file's page: breadcrumb, toolbar, title, and the editor. */
+export const FileDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label}>
     <DetailPageSkeleton actions={3} description={false}>
       <EditorSkeleton lines={14} />

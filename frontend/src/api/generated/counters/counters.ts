@@ -1189,7 +1189,7 @@ export function useReadCounter<
 
 /**
  * Copy the counter to the end of its group as "<name> (Copy)", with its
- * count, tags and properties.
+ * count and properties.
  * @summary Duplicate Counter
  */
 export const duplicateCounter = (
@@ -1540,9 +1540,12 @@ export const useResetCounter = <TError = ErrorType<HTTPValidationError>, TContex
   return useMutation(getResetCounterMutationOptions(options), queryClient);
 };
 /**
- * Replace the counter group's entire sharing state in one call — the body
- * is the full list of grants (all-initiative-members / per-user / per-role).
- * Every non-owner grant is rebuilt from it; the owner is always preserved.
+ * Replace the counter group's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the counter group is taken off
+ * whatever in it names them.
  * @summary Set Counter Group Grants
  */
 export const setCounterGroupGrants = (
@@ -1639,7 +1642,7 @@ export const useSetCounterGroupGrants = <
   return useMutation(getSetCounterGroupGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Counter Group
  */
 export const duplicateCounterGroup = (

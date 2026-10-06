@@ -17,7 +17,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
 import { CommunityLocationLine } from "@/components/communities/CommunityLocationLine";
 import { CommunityBannerBadges } from "@/components/communityHome/CommunityBannerBadges";
 import { CommunityHomeEmptyState } from "@/components/communityHome/CommunityHomeEmptyState";
@@ -26,6 +25,7 @@ import { InitiativeDirectory } from "@/components/communityHome/InitiativeDirect
 import { CreateInitiativeWizard } from "@/components/initiatives/CreateInitiativeWizard";
 import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { PageBanner } from "@/components/PageBanner";
+import { PluginSettingsDialog } from "@/components/plugins/PluginSettingsDialog";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
 import { ToolTable } from "@/components/toolBrowser/ToolTable";
@@ -49,7 +49,7 @@ export function CommunityHomePage() {
   const { search, setSearch, selectTool, query, table } = useToolBrowserSearch<{
     create?: string;
     state?: string;
-    app?: number;
+    plugin?: number;
   }>();
 
   const initiativesQuery = useInitiatives();
@@ -246,15 +246,15 @@ export function CommunityHomePage() {
           </>
         )}
 
-        {/* `?app=` opens one app's settings where the reader answers what it
+        {/* `?plugin=` opens one plug-in's settings where the reader answers what it
             asked to do as them — the link its notification carries. */}
-        {search.app ? (
-          <AppSettingsDialog
-            appId={search.app}
+        {search.plugin ? (
+          <PluginSettingsDialog
+            pluginId={search.plugin}
             isCommunityAdmin={isCommunityAdmin}
             open
             onOpenChange={(next) => {
-              if (!next) setSearch({ app: undefined });
+              if (!next) setSearch({ plugin: undefined });
             }}
           />
         ) : null}

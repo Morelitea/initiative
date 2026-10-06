@@ -33,7 +33,7 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
-import { wikiPageRoute } from "@/lib/tools";
+import { toolRouteSegment, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /**
@@ -81,10 +81,12 @@ export const WikiPageView = () => {
   // about a body on a pause and, in a live room, writes it on a sweep of its
   // own — both of which finish long after the eye does.
   const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
-  // Live co-editing, over the same room documents use — a page is just
+  // Live co-editing, over the same room files use — a page is just
   // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
-    socketPath: validIds ? `wiki-pages/${pageId}/collaborate` : null,
+    socketPath: validIds
+      ? `${toolRouteSegment(SearchEntityType.wiki_page)}/${pageId}/collaborate`
+      : null,
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
@@ -117,10 +119,10 @@ export const WikiPageView = () => {
   // do not both send the same rename. Cleared when the page changes.
   const sentTitle = useRef<string | null>(null);
   const loadedPageId = pageQuery.data?.id;
-  useReadOnOpen("wiki_page", loadedPageId);
+  useReadOnOpen(SearchEntityType.wiki_page, loadedPageId);
   // Track recently viewed wikis for the layout header tabs bar. A wiki is read
   // through its pages, so each page that opens opens the wiki.
-  const { mutate: recordView } = useRecordRecentView("wiki", Number(communityId));
+  const { mutate: recordView } = useRecordRecentView(Tool.wiki, Number(communityId));
   const loadedWikiId = pageQuery.data?.wiki_id;
   useEffect(() => {
     if (!loadedPageId || !loadedWikiId) return;
@@ -166,7 +168,7 @@ export const WikiPageView = () => {
   const draftTitle = draft?.pageId === pageId ? draft.title : (pageQuery.data?.title ?? "");
 
   // The editor reports every keystroke; the server hears about them 2s after
-  // somebody stops, the same window a document autosaves on. Saving per change
+  // somebody stops, the same window a file autosaves on. Saving per change
   // would be a request per character — and each one re-reads the body for the
   // links it names.
   // The newest body, and a counter that says one arrived. The body itself is a
@@ -218,7 +220,7 @@ export const WikiPageView = () => {
       // Words left over from the page before are not this page's words, and
       // the page they were written into has been rebuilt behind us.
       if (body.pageId !== pageId || isCollaborating) return;
-      savePage({ content: body.state as unknown as Record<string, unknown> });
+      savePage({ content: { ...body.state } });
     }, 2000);
     return () => clearTimeout(timer);
   }, [bodyRevision, pageId, savePage, isCollaborating]);
@@ -258,7 +260,7 @@ export const WikiPageView = () => {
     if (!unsent || unsent.pageId !== pageId) return;
     pendingBody.current = null;
     if (isCollaborating) return;
-    savePage({ content: unsent.state as unknown as Record<string, unknown> });
+    savePage({ content: { ...unsent.state } });
   }, [isEditing, validIds, pageId, isCollaborating, savePage]);
 
   // What the editor is handed, and a token that changes with it.
@@ -328,7 +330,7 @@ export const WikiPageView = () => {
 
   // The screen's primary create action is a page, not another wiki — this is
   // the inside of one.
-  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("pages.newPage") } : null);
 
   if (!validIds || pageQuery.isError) {
     return (
@@ -368,7 +370,7 @@ export const WikiPageView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={isEditing ? draftTitle : page?.title || t("pages.untitled")}
+          pageTitle={isEditing ? draftTitle : page?.title || t("common:untitled")}
           onRename={isEditing ? (value) => setDraft({ pageId, title: value }) : undefined}
           // Leaving the field sends the name now. Clicking a page in the tree
           // blurs before it navigates, so a rename typed and immediately
@@ -537,7 +539,7 @@ export const WikiPageView = () => {
             <ToolCommentsPanel
               tool={Tool.wiki}
               entity={wiki}
-              target={{ type: "wiki_page", id: pageId }}
+              target={{ type: SearchEntityType.wiki_page, id: pageId }}
             />
           </div>
         </SheetContent>

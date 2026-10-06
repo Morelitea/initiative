@@ -17,7 +17,7 @@ def _artifact(key: str, content: bytes = b"x", filename: str | None = None):
 
 def test_single_artifact_passes_through_unwrapped():
     artifact = _artifact("report")
-    assert _bundle([artifact], format="pdf", stem="document-2026-07-14") is artifact
+    assert _bundle([artifact], format="pdf", stem="file-2026-07-14") is artifact
 
 
 def test_batch_zips_with_per_artifact_names():
@@ -26,9 +26,9 @@ def test_batch_zips_with_per_artifact_names():
         # A named artifact (e.g. .lexical) keeps its own filename.
         _artifact("beta", b"BBB", filename="beta-2026-07-14.lexical"),
     ]
-    bundle = _bundle(artifacts, format="pdf", stem="document-2026-07-14")
+    bundle = _bundle(artifacts, format="pdf", stem="file-2026-07-14")
     assert bundle.content_type == "application/zip"
-    assert bundle.filename == "document-2026-07-14.zip"
+    assert bundle.filename == "file-2026-07-14.zip"
     archive = zipfile.ZipFile(io.BytesIO(bundle.content))
     assert set(archive.namelist()) == {
         "alpha-2026-07-14.pdf",
@@ -46,7 +46,7 @@ def test_batch_dedupes_colliding_entry_names():
         _artifact("notes-2026-07-14", b"SECOND"),
         _artifact("notes-2026-07-14", b"THIRD"),
     ]
-    bundle = _bundle(artifacts, format="json", stem="document-2026-07-14")
+    bundle = _bundle(artifacts, format="json", stem="file-2026-07-14")
     archive = zipfile.ZipFile(io.BytesIO(bundle.content))
     assert set(archive.namelist()) == {
         "notes-2026-07-14.json",

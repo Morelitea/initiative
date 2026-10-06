@@ -26,7 +26,7 @@
  * the key.
  */
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCalendar,
@@ -62,15 +62,16 @@ import {
   updateDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import {
-  createDocument,
-  deleteDocument,
-  duplicateDocument,
-  getListDocumentsQueryKey,
-  getReadDocumentQueryKey,
-  listDocuments,
-  readDocument,
-  setDocumentGrants,
-} from "@/api/generated/documents/documents";
+  createFile,
+  deleteFile,
+  duplicateFile,
+  getListFilesQueryKey,
+  getReadFileQueryKey,
+  listFiles,
+  readFile,
+  setFileGrants,
+  updateFile,
+} from "@/api/generated/files/files";
 import {
   createGallery,
   deleteGallery,
@@ -83,7 +84,7 @@ import {
   updateGallery,
 } from "@/api/generated/galleries/galleries";
 import type {
-  ListDocumentsParams,
+  ListFilesParams,
   ResourceGrantSchema,
   ToolDuplicateRequest,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -92,7 +93,7 @@ import {
   getListMyCalendarsQueryKey,
   getListMyCounterGroupsQueryKey,
   getListMyDashboardsQueryKey,
-  getListMyDocumentsQueryKey,
+  getListMyFilesQueryKey,
   getListMyGalleriesQueryKey,
   getListMyPostsQueryKey,
   getListMyProjectsQueryKey,
@@ -101,7 +102,7 @@ import {
   listMyCalendars,
   listMyCounterGroups,
   listMyDashboards,
-  listMyDocuments,
+  listMyFiles,
   listMyGalleries,
   listMyPosts,
   listMyProjects,
@@ -128,6 +129,7 @@ import {
   listProjects,
   readProject,
   setProjectGrants,
+  updateProject,
 } from "@/api/generated/projects/projects";
 import {
   createQueue,
@@ -155,7 +157,6 @@ import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
-import { queryClient } from "@/lib/queryClient";
 import { toolCamelPlural } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -176,7 +177,7 @@ type Duplicated = { id: number; initiative_id: number | null };
 /**
  * The narrowing every tool's community-wide list understands.
  *
- * The nine endpoints accept far more than this between them — a document has
+ * The nine endpoints accept far more than this between them — a file has
  * tags and a type, a calendar has a scope — but these are the terms they ALL
  * take, which is what lets one caller drive every tool from one params object.
  * A tool's own list hook keeps its own generated params type and can ask for
@@ -321,6 +322,12 @@ interface ToolWriteOptions {
    * came from, then jumps forward again when the refetch arrives.
    */
   seedsDetailOnUpdate?: boolean;
+  /**
+   * Whether a save refreshes the relationship graph: a body save rewrites
+   * what the body refers to, which is what the other end's "linked from"
+   * panel reads.
+   */
+  refreshesRelationships?: boolean;
 }
 
 const updateHook = <TRead, TUpdate>(
@@ -330,18 +337,21 @@ const updateHook = <TRead, TUpdate>(
     tool: Tool;
   },
   errorKey: string,
-  { seedsDetailOnUpdate = false }: ToolWriteOptions = {}
+  { seedsDetailOnUpdate = false, refreshesRelationships = false }: ToolWriteOptions = {}
 ) => {
   return (id: number, options?: MutationOpts<TRead, TUpdate>) => {
     const communityId = useActiveCommunityId();
+    const client = useQueryClient();
     return useCommunityMutation<TRead, TUpdate>(
       {
         mutationFn: (community, data) => endpoints.update(community, id, data),
         invalidate: (updated) => {
           if (seedsDetailOnUpdate) {
-            queryClient.setQueryData(endpoints.detailKey(communityId, id), updated);
+            client.setQueryData(endpoints.detailKey(communityId, id), updated);
           }
-          return invalidate(q.tool(endpoints.tool, id));
+          return refreshesRelationships
+            ? invalidate(q.tool(endpoints.tool, id), q.relationships())
+            : invalidate(q.tool(endpoints.tool, id));
         },
         errorKey,
       },
@@ -417,6 +427,7 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
     ...listQueries(endpoints),
     create: endpoints.create,
     duplicate: endpoints.duplicate,
+    remove: endpoints.remove,
     useList: listHook(endpoints),
     useDetail: detailHook(endpoints),
     useCreate: createHook(endpoints, errorKey),
@@ -473,33 +484,37 @@ const dashboardEndpoints = {
   tool: Tool.dashboard,
 };
 
-// Documents have no standard list hook (theirs takes filters no other tool has,
-// and keeps its own placeholder rows), create (theirs can also link the new row
-// to a project) or update (theirs seeds the cache and refreshes the
-// relationship graph) — all three live in `useDocuments.ts`. The list QUERY is
-// here like every other tool's, and that hook wraps it.
-const documentEndpoints = {
-  listKey: getListDocumentsQueryKey,
+// Only a file's create is hand-written (`useFiles.ts`): it copies a
+// template client-side and can link the new row to a project.
+const fileEndpoints = {
+  listKey: getListFilesQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
-  list: (communityId: number, params?: ListDocumentsParams) =>
-    fetchAllPages(listDocuments, communityId, params ?? {}),
-  myListKey: getListMyDocumentsQueryKey,
-  myList: listMyDocuments,
-  detailKey: getReadDocumentQueryKey,
-  detail: readDocument,
-  remove: deleteDocument,
-  setGrants: setDocumentGrants,
-  tool: Tool.document,
+  list: (communityId: number, params?: ListFilesParams) =>
+    fetchAllPages(listFiles, communityId, params ?? {}),
+  myListKey: getListMyFilesQueryKey,
+  myList: listMyFiles,
+  detailKey: getReadFileQueryKey,
+  detail: readFile,
+  update: updateFile,
+  remove: deleteFile,
+  setGrants: setFileGrants,
+  tool: Tool.file,
 };
 
-const documentHooks = {
-  ...listQueries(documentEndpoints),
-  create: createDocument,
-  duplicate: duplicateDocument,
-  useDetail: detailHook(documentEndpoints),
-  useDelete: deleteHook(documentEndpoints, "documents:bulk.deleteError"),
-  useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
+const fileHooks = {
+  ...listQueries(fileEndpoints),
+  create: createFile,
+  duplicate: duplicateFile,
+  remove: fileEndpoints.remove,
+  useList: listHook(fileEndpoints),
+  useDetail: detailHook(fileEndpoints),
+  useUpdate: updateHook(fileEndpoints, "files:error", {
+    seedsDetailOnUpdate: true,
+    refreshesRelationships: true,
+  }),
+  useDelete: deleteHook(fileEndpoints, "files:error"),
+  useSetGrants: grantsHook(fileEndpoints, "files:settings.updateAccessError"),
 };
 
 const galleryEndpoints = {
@@ -532,9 +547,6 @@ const postEndpoints = {
   tool: Tool.post,
 };
 
-// Projects have no standard list hook or update (theirs names the list
-// alone) — both live in `useProjects.ts`. The list QUERY is here like every
-// other tool's, and that hook wraps it.
 const projectEndpoints = {
   listKey: getListProjectsQueryKey,
   list: listProjects,
@@ -543,19 +555,11 @@ const projectEndpoints = {
   detailKey: getReadProjectQueryKey,
   detail: readProject,
   create: createProject,
+  update: updateProject,
   remove: deleteProject,
   setGrants: setProjectGrants,
-  tool: Tool.project,
-};
-
-const projectHooks = {
-  ...listQueries(projectEndpoints),
-  create: projectEndpoints.create,
   duplicate: duplicateProject,
-  useDetail: detailHook(projectEndpoints),
-  useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
-  useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
-  useSetGrants: grantsHook(projectEndpoints, "projects:settings.access.updateError"),
+  tool: Tool.project,
 };
 
 const queueEndpoints = {
@@ -614,6 +618,8 @@ interface ToolQueries {
   ) => Promise<{ id: number }>;
   /** Copies one into an initiative — what the settings page's duplicate card sends. */
   duplicate: Duplicate;
+  /** Deletes one — what a list's bulk delete sends, once a row. */
+  remove: (communityId: number, id: number) => Promise<void>;
 }
 
 /**
@@ -624,13 +630,16 @@ interface ToolQueries {
  * its endpoint record.
  */
 export const TOOL_HOOKS = {
-  [Tool.project]: projectHooks,
-  [Tool.document]: documentHooks,
+  [Tool.project]: makeToolHooks(projectEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.file]: fileHooks,
   [Tool.queue]: makeToolHooks(queueEndpoints),
   [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),
-  [Tool.calendar]: makeToolHooks(calendarEndpoints),
+  [Tool.calendar]: makeToolHooks(calendarEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.dashboard]: makeToolHooks(dashboardEndpoints, { seedsDetailOnUpdate: true }),
-  [Tool.post]: makeToolHooks(postEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.post]: makeToolHooks(postEndpoints, {
+    seedsDetailOnUpdate: true,
+    refreshesRelationships: true,
+  }),
   [Tool.gallery]: makeToolHooks(galleryEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.wiki]: makeToolHooks(wikiEndpoints),
 } satisfies Record<Tool, ToolQueries>;
@@ -648,6 +657,52 @@ export const useDuplicateTool = (
       mutationFn: (communityId, { id, data }) => TOOL_HOOKS[tool].duplicate(communityId, id, data),
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:toolSettings.duplicate.error",
+    },
+    options
+  );
+
+/**
+ * Every request of a bulk action, run to the end. When some fail, the list is
+ * refreshed anyway — the ones that landed are real — and the first failure is
+ * what the action reports.
+ */
+const settleAll = async <T>(tool: Tool, requests: Promise<T>[]): Promise<T[]> => {
+  const results = await Promise.allSettled(requests);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) {
+    void invalidate(q.toolList(tool));
+    throw failed.reason;
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<T>).value);
+};
+
+/** A copy of each of `ids` beside its original, named as the server names one. */
+export const useDuplicateTools = (tool: Tool, options?: MutationOpts<Duplicated[], number[]>) =>
+  useCommunityMutation<Duplicated[], number[]>(
+    {
+      mutationFn: (communityId, ids) =>
+        settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].duplicate(communityId, id, {}))
+        ),
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:bulkActions.duplicateError",
+    },
+    options
+  );
+
+/** Delete every one of `ids`. */
+export const useDeleteTools = (tool: Tool, options?: MutationOpts<void, number[]>) =>
+  useCommunityMutation<void, number[]>(
+    {
+      mutationFn: async (communityId, ids) => {
+        await settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].remove(communityId, id))
+        );
+      },
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:bulkActions.deleteError",
     },
     options
   );

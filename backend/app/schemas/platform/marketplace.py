@@ -19,7 +19,11 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
+from app.services.marketplace.definitions import (
+    LISTING_KINDS,
+    LISTING_SOURCES,
+    published_by_us,
+)
 
 if TYPE_CHECKING:
     from app.models.platform.marketplace import (
@@ -76,6 +80,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
     name: str
     #: Who publishes it. Required in the catalog, so this is always present.
     publisher: str
+    #: Whether this project publishes it, so it is neither reported nor
+    #: introduced as somebody else's.
+    first_party: bool
     description: str
     avatar_url: str
     images: List[str] = []
@@ -106,18 +113,18 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: supplied their own, always present, and never installable. Display
     #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
-    #: For an app: the scopes its latest version asks a community to grant,
+    #: For a plug-in: the scopes its latest version asks a community to grant,
     #: in vocabulary order. Empty for every other kind.
     requested_scopes: List[str] = []
     #: The requested scopes this deployment's registration lets a community
     #: grant. What the install dialog offers ticked; the rest are shown
     #: disabled.
     grantable_scopes: List[str] = []
-    #: For each requested ``apps:`` scope, the name the app it lets this one
-    #: use goes by, keyed by that app's public id. Its public id when the
+    #: For each requested ``plugins:`` scope, the name the plug-in it lets this one
+    #: use goes by, keyed by that plug-in's public id. Its public id when the
     #: catalog has no name for it.
-    app_names: Dict[str, str] = {}
-    #: Whether the app offers a surface inside initiatives, and so has
+    plugin_names: Dict[str, str] = {}
+    #: Whether the plug-in offers a surface inside initiatives, and so has
     #: somewhere to be placed.
     has_initiative_surfaces: bool = False
 
@@ -284,6 +291,7 @@ def serialize_listing_summary(
         source=listing.source,
         name=listing.name,
         publisher=listing.publisher,
+        first_party=published_by_us(listing.source, listing.public_id),
         # Attribution travels with the provenance that bounds it: a card, the
         # detail page and the install dialog all answer "who wrote this?" from
         # these two fields together, so neither is served without the other.

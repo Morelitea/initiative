@@ -2,7 +2,7 @@
 
 The half of ``app.services.auth.credentials`` that needs no database: tells the
 kinds apart and checks what can be checked locally — a session or upload
-token's signature, audience and expiry, an installed app's seal. Personal API
+token's signature, audience and expiry, an installed plug-in's seal. Personal API
 keys are opaque here; only their lookup can say whom they name.
 
 Read before any dependency runs, by the rate limiter and by the choice of
@@ -20,9 +20,9 @@ from typing import NamedTuple
 import jwt
 from starlette.requests import HTTPConnection
 
-from app.core.app_access_token import (
+from app.core.plugin_access_token import (
     AccessTokenError,
-    AppAccessToken,
+    PluginAccessToken,
     InstallAccessToken,
     is_access_token,
     unseal_access_token,
@@ -78,17 +78,17 @@ class Identified:
     token: str
     allow: frozenset[CredentialKind]
     #: Whether it arrived in an ``Authorization: Bearer`` header, the only
-    #: place an installed app's token is read from.
+    #: place an installed plug-in's token is read from.
     bearer: bool = False
     session: TokenPayload | None = None
     upload: VerifiedUpload | None = None
-    access: InstallAccessToken | AppAccessToken | None = None
+    access: InstallAccessToken | PluginAccessToken | None = None
     #: Why it was refused, when its local check failed.
     refused: str | None = None
 
     @property
-    def app_token(self) -> InstallAccessToken | AppAccessToken | None:
-        """The installed app's or app's token, when it came as a bearer."""
+    def plugin_token(self) -> InstallAccessToken | PluginAccessToken | None:
+        """The installed plug-in's or plug-in's token, when it came as a bearer."""
         return self.access if self.bearer else None
 
     @property
@@ -99,11 +99,11 @@ class Identified:
             return f"subject:{self.session.sub}"
         if self.upload is not None:
             return f"user:{self.upload.user_id}"
-        token = self.app_token
+        token = self.plugin_token
         if isinstance(token, InstallAccessToken):
             return f"install:{token.client_id}:{token.guild_id}:{token.install_id}"
-        if isinstance(token, AppAccessToken):
-            return f"app:{token.client_id}"
+        if isinstance(token, PluginAccessToken):
+            return f"plugin:{token.client_id}"
         return None
 
 
@@ -121,7 +121,7 @@ def identify_token(
 ) -> Identified:
     """Read ``token`` as one of the kinds in ``allow``, locally.
 
-    The kinds tell themselves apart without being told: an installed app's
+    The kinds tell themselves apart without being told: an installed plug-in's
     token by its prefix, the two token kinds by being JWTs with their own
     audiences, and an API key by being neither.
     """
@@ -182,13 +182,13 @@ def identify(connection: HTTPConnection) -> Identified | None:
     return identified
 
 
-def bearer_app_token(
+def bearer_plugin_token(
     connection: HTTPConnection,
-) -> InstallAccessToken | AppAccessToken | None:
-    """The installed app's or app's token in the request's bearer header,
+) -> InstallAccessToken | PluginAccessToken | None:
+    """The installed plug-in's or plug-in's token in the request's bearer header,
     unsealed. ``None`` when there is none or it does not unseal."""
     identified = identify(connection)
-    return identified.app_token if identified is not None else None
+    return identified.plugin_token if identified is not None else None
 
 
 def identify_url_token(connection: HTTPConnection) -> Identified | None:

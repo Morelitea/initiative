@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  type DocumentRead,
   type EndpointRef,
+  type FileRead,
   SearchEntityType,
   type SearchSuggestion,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -30,13 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useUploadDocument } from "@/hooks/useDocuments";
+import { useUploadFile } from "@/hooks/useFiles";
 import { type ToolRef, useRelate } from "@/hooks/useRelationships";
+import { fileIcon } from "@/lib/fileIcon";
 import {
-  DOCUMENT_UPLOAD_ACCEPT,
+  FILE_UPLOAD_ACCEPT,
   formatBytes,
-  getDocumentIcon,
-  getDocumentIconColor,
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
@@ -60,7 +59,7 @@ interface AddLinkDialogProps {
   anchorTool?: ToolRef | null;
   /** The groups this surface lets somebody add to. */
   assertable: RelationGroup[];
-  /** Whether a file may be uploaded here as a new document to link. */
+  /** Whether a file may be uploaded here to link. */
   canUpload: boolean;
   /** A file dropped on the section before the dialog opened. */
   initialFile?: File | null;
@@ -73,7 +72,7 @@ interface AddLinkDialogProps {
  * Mounted only while open, so every opening starts from nothing — or from the
  * file somebody dropped on the section to open it.
  *
- * An upload is the other way to name the far end. The file becomes a document
+ * An upload is the other way to name the far end. The upload becomes a file
  * in this initiative the moment the link is made, not before: choosing a file
  * and then closing the dialog leaves nothing behind.
  */
@@ -86,7 +85,7 @@ export const AddLinkDialog = ({
   initialFile = null,
   onClose,
 }: AddLinkDialogProps) => {
-  const { t } = useTranslation(["relations", "documents"]);
+  const { t } = useTranslation(["relations", "files"]);
   const { maxUploadBytes } = useAppConfig();
 
   /** Set only once somebody overrides what was proposed for what they picked. */
@@ -97,15 +96,15 @@ export const AddLinkDialog = ({
     canUpload && initialFile ? nameWithoutExtension(initialFile.name) : ""
   );
   /**
-   * The document an earlier attempt already made. If the upload landed and
-   * the link did not, trying again links that document rather than uploading
+   * The file an earlier attempt already made. If the upload landed and
+   * the link did not, trying again links that file rather than uploading
    * the same file twice.
    */
-  const [uploaded, setUploaded] = useState<{ file: File; document: DocumentRead } | null>(null);
+  const [uploaded, setUploaded] = useState<{ file: File; created: FileRead } | null>(null);
 
-  /** The far end's kind: what was picked, or the document a file will become. */
-  const farType = picked?.entity_type ?? (file ? SearchEntityType.document : null);
-  /** A document somebody uploads is theirs, so every link to it is theirs to make. */
+  /** The far end's kind: what was picked, or the file an upload will become. */
+  const farType = picked?.entity_type ?? (file ? SearchEntityType.file : null);
+  /** A file somebody uploads is theirs, so every link to it is theirs to make. */
   const farWritable = file ? true : picked?.can_write !== false;
   const farTitle = picked?.title ?? (file ? fileName.trim() || file.name : null);
 
@@ -155,10 +154,10 @@ export const AddLinkDialog = ({
 
   const chooseFile = (next: File) => {
     if (maxUploadBytes !== null && next.size > maxUploadBytes) {
-      toast.error(t("documents:create.fileTooLarge"));
+      toast.error(t("files:create.fileTooLarge"));
       return;
     }
-    if (farType !== SearchEntityType.document) setGroupKey(null);
+    if (farType !== SearchEntityType.file) setGroupKey(null);
     setPicked(null);
     setFile(next);
     setFileName(nameWithoutExtension(next.name));
@@ -169,7 +168,7 @@ export const AddLinkDialog = ({
     setFileName("");
   };
 
-  const upload = useUploadDocument();
+  const upload = useUploadFile();
   const relate = useRelate(anchorTool, {
     onSuccess: () => {
       toast.success(file ? t("uploaded") : t("added"));
@@ -185,10 +184,10 @@ export const AddLinkDialog = ({
     let other: EndpointRef;
     if (file) {
       if (initiativeId == null) return;
-      let document = uploaded?.file === file ? uploaded.document : null;
-      if (!document) {
+      let created = uploaded?.file === file ? uploaded.created : null;
+      if (!created) {
         try {
-          document = await upload.mutateAsync({
+          created = await upload.mutateAsync({
             file,
             name: fileName.trim() || file.name,
             initiative_id: initiativeId,
@@ -198,9 +197,9 @@ export const AddLinkDialog = ({
           // The upload hook has already said what went wrong.
           return;
         }
-        setUploaded({ file, document });
+        setUploaded({ file, created });
       }
-      other = { type: SearchEntityType.document, id: document.id };
+      other = { type: SearchEntityType.file, id: created.id };
     } else if (picked) {
       other = { type: picked.entity_type, id: picked.entity_id };
     } else {
@@ -214,7 +213,9 @@ export const AddLinkDialog = ({
     defaultValue: t("anchor.generic"),
   });
 
-  const FileIcon = file ? getDocumentIcon("file", file.type, file.name) : null;
+  const fileMark = file
+    ? fileIcon({ file_type: "file", mime_type: file.type, original_filename: file.name })
+    : null;
 
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
@@ -227,19 +228,17 @@ export const AddLinkDialog = ({
         </DialogHeader>
         <div className="space-y-4">
           {/* The thing first. Nobody opens this thinking "part_of" — they
-              think of the document they mean, and the picker offers what they
+              think of the file they mean, and the picker offers what they
               looked at recently before they have typed anything. What the
               link SAYS is asked below, once there are two real names to say
               it about. */}
           <div className="space-y-2">
             <Label>{t("dialog.entity")}</Label>
-            {file && FileIcon ? (
+            {file && fileMark ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <FileIcon
-                      className={cn("h-5 w-5", getDocumentIconColor("file", file.type, file.name))}
-                    />
+                    <fileMark.Icon className={cn("h-5 w-5", fileMark.colorClass)} />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-medium text-sm">{file.name}</p>
@@ -284,7 +283,7 @@ export const AddLinkDialog = ({
             /* The other way to name the far end: something that is not in the
                app yet. */
             <FileDropArea
-              accept={DOCUMENT_UPLOAD_ACCEPT}
+              accept={FILE_UPLOAD_ACCEPT}
               onFile={chooseFile}
               prompt={t("dialog.upload.prompt")}
             />

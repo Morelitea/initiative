@@ -1,18 +1,12 @@
 {
-  "title": "Projects",
   "addProject": "Add Project",
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
-  "pinned": "Pinned",
-  "noProjects": "No projects yet. Create one to get started.",
+  "error": "Something went wrong",
+  "noProjects": "No projects yet",
+  "noProjectsDescription": "A project holds tasks and tracks them on a board or in a table until they are done.",
+  "createFirst": "Create Your First Project",
   "noMatchingProjects": "No projects match your filters.",
-  "onlyPinnedMatch": "Only pinned projects match your filters.",
-  "accessRestricted": "Access Restricted",
-  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Ask a community admin or an initiative manager if you believe this is an error.",
-  "view": {
-    "grid": "Grid",
-    "list": "List"
-  },
   "filters": {
     "heading": "Filters",
     "searchLabel": "Name or description",
@@ -20,15 +14,6 @@
     "selectedInitiative": "Selected initiative",
     "filterByTag": "Filter by tag",
     "allTags": "All tags",
-    "sortProjects": "Sort projects",
-    "selectSortOrder": "Select sort order",
-    "sortCustom": "Custom (drag & drop)",
-    "sortRecentlyOpened": "Recently opened",
-    "sortRecentlyUpdated": "Recently updated",
-    "sortRecentlyCreated": "Recently created",
-    "sortAlphabetical": "Alphabetical",
-    "favorites": "Favorites",
-    "showOnlyFavorites": "Show only favorites",
     "filterByAssignee": "Filter by assignee",
     "allAssignees": "All assignees",
     "noUsersAvailable": "No users available",
@@ -73,33 +58,14 @@
       "mine": "Mine"
     }
   },
-  "templates": {
-    "loading": "Loading templates…",
-    "loadError": "Unable to load templates.",
-    "stopUsingAsTemplate": "Stop using as template",
-    "noTemplates": "No templates available",
-    "noTemplatesDescription": "Create a template from any project in project settings."
-  },
-  "archived": {
-    "loading": "Loading archived projects…",
-    "loadError": "Unable to load archived projects.",
-    "unarchive": "Unarchive",
-    "noArchived": "No archived projects",
-    "noArchivedDescription": "Active projects stay on the Active tab."
-  },
   "createDialog": {
     "title": "Create project",
     "description": "Give the project a name, optional description, and owning initiative.",
     "iconLabel": "Icon (optional)",
-    "nameLabel": "Name",
     "namePlaceholder": "Foundation refresh",
     "descriptionLabel": "Description (Markdown supported)",
     "descriptionPlaceholder": "Share context to help the initiative prioritize.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Loading initiatives…",
-    "initiativeLoadError": "Unable to load initiatives.",
-    "selectInitiative": "Select initiative",
-    "noInitiatives": "No initiatives available.",
     "templateLabel": "Template (optional)",
     "loadingTemplates": "Loading templates…",
     "templateLoadError": "Unable to load templates.",
@@ -114,7 +80,6 @@
   "detail": {
     "backToProjects": "← Back to projects",
     "loading": "Loading project…",
-    "deleteError": "Unable to delete the project right now.",
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",
@@ -137,7 +102,6 @@
   "tabsBar": {
     "loadingRecent": "Loading recent items…",
     "closeItem": "Close {{name}}",
-    "close": "Close",
     "closeOthers": "Close others",
     "closeAll": "Close all"
   },
@@ -179,14 +143,12 @@
     "add": "Add",
     "existingStatuses": "Existing statuses",
     "saveChanges": "Save changes",
-    "nameColumn": "Name",
     "categoryColumn": "Category",
     "iconColumn": "Icon",
     "colorColumn": "Color",
     "iconPlaceholder": "Pick an icon",
     "colorPlaceholder": "Pick a color",
     "defaultColumn": "Default",
-    "actionsColumn": "Actions",
     "noStatuses": "No statuses configured yet.",
     "deleteTitle": "Delete status",
     "deleteStatus": "Delete {{name}}",
@@ -212,43 +174,7 @@
     "unknownError": "Unknown error"
   },
   "settings": {
-    "title": "Project settings",
-    "breadcrumbSettings": "Settings",
     "tabTaskStatuses": "Task statuses",
-    "details": {
-      "description": "Update the icon, name, and description shown across the workspace.",
-      "identityHeading": "Identity",
-      "identityDescription": "Give the project a recognizable name and emoji.",
-      "iconLabel": "Icon",
-      "iconHint": "Pick an emoji to make this project easy to spot.",
-      "nameLabel": "Name",
-      "namePlaceholder": "Product roadmap",
-      "saving": "Saving...",
-      "saveDetails": "Save changes",
-      "detailsUpdated": "Project details updated",
-      "updateError": "Unable to update project.",
-      "noWriteAccess": "You need write access to edit these details.",
-      "descriptionHeading": "Description",
-      "descriptionDescription": "Share context to help collaborators understand the work.",
-      "descriptionPlaceholder": "What are we trying to accomplish?",
-      "scheduleHeading": "Dates",
-      "scheduleDescription": "Set when the project starts and ends. Both are optional."
-    },
-    "access": {
-      "updateError": "Unable to update access"
-    },
-    "templateStatus": {
-      "title": "Template status",
-      "description": "Convert this project into a reusable template or revert it back to a standard project.",
-      "isTemplate": "This project is currently a template and appears on the Templates page.",
-      "isStandard": "This project behaves like a standard project.",
-      "convertToStandard": "Convert to standard project",
-      "markAsTemplate": "Mark as template",
-      "noWriteAccess": "You need write access to change template status.",
-      "viewAllTemplates": "View all templates",
-      "markedAsTemplate": "Project marked as template",
-      "removedFromTemplates": "Project removed from templates"
-    },
     "tabFilterPresets": "Views",
     "filterPresetsHeading": "Filter presets",
     "filterPresetsDescription": "Saved filter sets everyone in this project can pick from. The default is what the project opens on.",
@@ -262,8 +188,8 @@
     "presetMoveUp": "Move preset up",
     "presetMoveDown": "Move preset down"
   },
-  "documents": {
-    "newDocument": "New document"
+  "files": {
+    "newFile": "New file"
   },
   "tasks": {
     "projectTasks": "Project tasks",
@@ -278,7 +204,6 @@
     "archiveDialogDescription": "This will archive {{count}} task. Archived tasks are hidden by default but can be shown using the filter.",
     "archiveDialogDescription_other": "This will archive {{count}} tasks. Archived tasks are hidden by default but can be shown using the filter.",
     "archiveConfirm": "Archive",
-    "archiving": "Archiving…",
     "archivedSuccess": "{{count}} task archived",
     "archivedSuccess_other": "{{count}} tasks archived",
     "archiveError": "Unable to archive tasks.",
@@ -314,7 +239,6 @@
     "due": "Due: {{date}}",
     "dropHere": "Drop tasks here",
     "noTasks": "No tasks yet.",
-    "archiving": "Archiving…",
     "archiveDone": "Archive done tasks",
     "taskCount_one": "{{count}} task",
     "taskCount_other": "{{count}} tasks",
@@ -391,9 +315,8 @@
   "preview": {
     "updated": "Updated {{date}}",
     "tasksDone": "{{completed}}/{{total}} done",
-    "templateBadge": "Template",
-    "archivedBadge": "Archived",
-    "archivedOn": "Archived {{date}}"
+    "archivedOn": "Archived {{date}}",
+    "reorder": "Reorder project"
   },
   "activitySidebar": {
     "title": "Project activity",

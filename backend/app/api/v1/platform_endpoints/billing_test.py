@@ -45,6 +45,7 @@ from app.testing import (
     billing_guild_ref,
     guild_administration,
     create_guild,
+    create_guild_membership,
     create_upload,
     create_user,
     drain_notices,
@@ -666,33 +667,34 @@ async def test_support_source_may_only_raise_storage(
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
 
 
-async def test_trial_expiry_sets_status_unattributed(
+async def test_a_status_billing_decides_is_paddles_and_unattributed(
     client: AsyncClient, session: AsyncSession
 ):
+    """A status billing's sweep decides — a subscription lapsed, or a trial
+    Paddle ended without a payment — comes as ``paddle_webhook``, names nobody,
+    and leaves the caps alone."""
     guild = await create_guild(session, max_storage_bytes=4096)
 
-    expired = await _post(
+    lapsed = await _post(
         client,
         "community-tier",
         await _tier_payload(
             guild.id,
-            source="trial_expiry",
-            event_id="evt-trial-expiry",
+            source="paddle_webhook",
+            event_id="evt-lapsed",
             status="read_only",
         ),
     )
-    assert expired.status_code == 200, expired.text
-    assert expired.json()["status"] == "read_only"
-    assert expired.json()["max_storage_bytes"] == 4096
+    assert lapsed.status_code == 200, lapsed.text
+    assert lapsed.json()["status"] == "read_only"
+    assert lapsed.json()["max_storage_bytes"] == 4096
 
     row = (
         await session.exec(
-            select(BillingEventLog).where(
-                BillingEventLog.event_id == "evt-trial-expiry"
-            )
+            select(BillingEventLog).where(BillingEventLog.event_id == "evt-lapsed")
         )
     ).one()
-    assert (row.source, row.actor) == ("trial_expiry", None)
+    assert (row.source, row.actor) == ("paddle_webhook", None)
 
 
 async def test_operator_manual_sets_status_and_names_the_actor(
@@ -889,7 +891,7 @@ async def test_malformed_payload_rejected_after_verification(
     assert response.json()["detail"] == "BILLING_INVALID_PAYLOAD"
 
 
-# --- usage (signed storage read) -------------------------------------------------
+# --- usage (signed storage + membership read) -----------------------------------
 
 
 async def test_a_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
@@ -929,6 +931,7 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
     assert response.json() == {
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 1234,
+        "member_count": 0,
     }
 
 
@@ -941,7 +944,32 @@ async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSes
     assert response.json() == {
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 0,
+        "member_count": 0,
     }
+
+
+async def test_usage_counts_guild_members(client: AsyncClient, session: AsyncSession):
+    """The read carries the guild's whole membership — the figure the
+    ``max_users`` check compares against — counted on the system session (the
+    billing role can't see ``guild_memberships``). Another guild's members
+    don't leak into it."""
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session, creator=owner)
+    for n in range(2):
+        member = await create_user(session, email=f"member{n}@example.com")
+        await create_guild_membership(session, user=member, guild=guild)
+    other = await create_guild(session, creator=owner)
+    await create_guild_membership(
+        session,
+        user=await create_user(session, email="elsewhere@example.com"),
+        guild=other,
+    )
+
+    response = await _post(
+        client, "usage", {"community_ref": await billing_guild_ref(guild.id)}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["member_count"] == 3
 
 
 async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):

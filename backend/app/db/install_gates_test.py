@@ -1,4 +1,4 @@
-"""An installed app answers to its scopes at every gate.
+"""An installed plug-in answers to its scopes at every gate.
 
 ``install_standing_test`` shows the standing is what the rows say. These show
 the gates read it: an install routed through the seam on the real request
@@ -20,9 +20,9 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.core.tools import Tool
-from app.db.app_rls import APP_REFUSED_TABLES, APP_TABLE_ACCESS
+from app.db.plugin_rls import PLUGIN_REFUSED_TABLES, PLUGIN_TABLE_ACCESS
 from app.db.authorization import IN_POLICY
-from app.db.guild_ddl import APP_POLICY_TABLES, render_guild_rls_ddl
+from app.db.guild_ddl import PLUGIN_POLICY_TABLES, render_guild_rls_ddl
 from app.db.install_standing_test import (
     _install,
     _route,
@@ -31,7 +31,7 @@ from app.models.platform.guild import CommunityRole
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -41,7 +41,7 @@ from app.testing import (
     create_calendar,
     create_calendar_event,
     create_comment,
-    create_document,
+    create_file,
     create_tag,
     route_as,
     route_session_to_guild,
@@ -51,7 +51,7 @@ _INSTALL_LEG = IN_POLICY.install_id
 
 
 # ---------------------------------------------------------------------------
-# The render: every table an app reaches asks its scope
+# The render: every table a plug-in reaches asks its scope
 # ---------------------------------------------------------------------------
 
 _POLICY = re.compile(
@@ -94,14 +94,14 @@ def _read_asks_the_install(policies, table: str, seen: frozenset[str] = frozense
 
 
 @pytest.mark.parametrize("command", ["SELECT", "INSERT", "UPDATE", "DELETE"])
-def test_every_table_an_app_reaches_asks_the_install(command):
-    """Each command on each table the app role is granted carries the leg in
+def test_every_table_a_plugin_reaches_asks_the_install(command):
+    """Each command on each table the plug-in role is granted carries the leg in
     its own policies. A child's read is the one exception: it is an EXISTS
     into its parent, and that parent's own read asks."""
     policies = _policies()
     missing = [
         table
-        for table in sorted(APP_TABLE_ACCESS)
+        for table in sorted(PLUGIN_TABLE_ACCESS)
         if not (
             _read_asks_the_install(policies, table)
             if command == "SELECT"
@@ -113,20 +113,20 @@ def test_every_table_an_app_reaches_asks_the_install(command):
 
 def test_the_refused_tables_refuse_every_command():
     policies = _policies()
-    for table in sorted(APP_REFUSED_TABLES):
-        assert table not in APP_TABLE_ACCESS, table
+    for table in sorted(PLUGIN_REFUSED_TABLES):
+        assert table not in PLUGIN_TABLE_ACCESS, table
         for command in ("SELECT", "INSERT", "UPDATE", "DELETE"):
             assert _asks_the_install(policies, table, command), (table, command)
 
 
-def test_the_app_policies_are_restrictive():
+def test_the_plugin_policies_are_restrictive():
     """They narrow what the table's own policies admit, and admit nothing."""
     found: dict[str, set[str]] = {}
     for name, table, kind, _command, _body in _POLICY.findall(render_guild_rls_ddl()):
-        if name.startswith("app_scope_"):
+        if name.startswith("plugin_scope_"):
             assert kind == "RESTRICTIVE", (table, name)
             found.setdefault(table, set()).add(name)
-    assert set(found) == set(APP_POLICY_TABLES)
+    assert set(found) == set(PLUGIN_POLICY_TABLES)
 
 
 # ---------------------------------------------------------------------------
@@ -150,11 +150,9 @@ async def _as_person(role_session, actor, install):
     return s
 
 
-async def _rename(s, document_id: int, name: str) -> int:
+async def _rename(s, file_id: int, name: str) -> int:
     result = await s.exec(
-        text("UPDATE documents SET name = :n WHERE id = :id").bindparams(
-            n=name, id=document_id
-        )
+        text("UPDATE files SET name = :n WHERE id = :id").bindparams(n=name, id=file_id)
     )
     return result.rowcount
 
@@ -164,63 +162,60 @@ async def _rename(s, document_id: int, name: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-async def test_a_document_is_read_with_read_and_changed_with_write(
+async def test_a_file_is_read_with_read_and_changed_with_write(
     session, acting_user, role_session
 ):
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
-    document = await create_document(
-        session, install.a, install.seat.user, name="Shared"
-    )
-    await create_resource_grant(session, document, all_initiative_members=True)
+    file = await create_file(session, install.a, install.seat.user, name="Shared")
+    await create_resource_grant(session, file, all_initiative_members=True)
     # A write grant naming the install; the scope still decides.
     await create_resource_grant(
         session,
-        document,
-        app_install_id=install.app.id,
+        file,
+        plugin_install_id=install.plugin.id,
         level=ResourceAccessLevel.write,
     )
 
-    reader, _ = await _route(role_session, install, ["documents:read"])
-    assert (await reader.exec(select(Document.name))).all() == ["Shared"]
-    assert await _rename(reader, document.id, "Changed by a reader") == 0
+    reader, _ = await _route(role_session, install, ["files:read"])
+    assert (await reader.exec(select(File.name))).all() == ["Shared"]
+    assert await _rename(reader, file.id, "Changed by a reader") == 0
     await reader.rollback()
 
-    writer, _ = await _route(role_session, install, ["documents:write"])
-    assert await _rename(writer, document.id, "Changed by a writer") == 1
+    writer, _ = await _route(role_session, install, ["files:write"])
+    assert await _rename(writer, file.id, "Changed by a writer") == 1
     await writer.rollback()
 
     # A member's own write grant still answers for them.
     member = await _member(acting_user, install)
     await create_resource_grant(
-        session, document, user=member.user, level=ResourceAccessLevel.write
+        session, file, user=member.user, level=ResourceAccessLevel.write
     )
     person = await _as_person(role_session, member, install)
-    assert (await person.exec(select(Document.name))).all() == ["Shared"]
-    assert await _rename(person, document.id, "Changed by a member") == 1
+    assert (await person.exec(select(File.name))).all() == ["Shared"]
+    assert await _rename(person, file.id, "Changed by a member") == 1
     await person.rollback()
 
 
-async def test_a_private_document_is_the_installs_once_a_grant_names_it(
+async def test_a_private_file_is_the_installs_once_a_grant_names_it(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
-    private = await create_document(
-        session, install.a, install.seat.user, name="Private"
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    private = await create_file(session, install.a, install.seat.user, name="Private")
 
-    s, _ = await _route(role_session, install, ["documents:read"])
-    assert (await s.exec(select(Document.name))).all() == []
+    s, _ = await _route(role_session, install, ["files:read"])
+    assert (await s.exec(select(File.name))).all() == []
     await s.rollback()
 
     await create_resource_grant(
-        session, private, app_install_id=install.app.id, level=ResourceAccessLevel.read
+        session,
+        private,
+        plugin_install_id=install.plugin.id,
+        level=ResourceAccessLevel.read,
     )
-    s, _ = await _route(role_session, install, ["documents:read"])
-    assert (await s.exec(select(Document.name))).all() == ["Private"]
+    s, _ = await _route(role_session, install, ["files:read"])
+    assert (await s.exec(select(File.name))).all() == ["Private"]
     await s.rollback()
 
 
@@ -228,20 +223,20 @@ async def test_creating_asks_the_scope_of_what_is_created(
     session, acting_user, role_session
 ):
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    s.add(Project(initiative_id=install.a.id, name="Not the app's to make"))
+    s, _ = await _route(role_session, install, ["files:write"])
+    s.add(Project(initiative_id=install.a.id, name="Not the plug-in's to make"))
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.flush()
     await s.rollback()
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    made = Document(
+    s, _ = await _route(role_session, install, ["files:write"])
+    made = File(
         initiative_id=install.a.id,
-        name="Made by the app",
-        document_type=DocumentType.native,
+        name="Made by the plug-in",
+        file_type=FileType.native,
     )
     s.add(made)
     await s.flush()
@@ -249,43 +244,43 @@ async def test_creating_asks_the_scope_of_what_is_created(
     grants = (
         await s.exec(
             select(ResourceGrant).where(
-                ResourceGrant.resource_type == Tool.document.value,
+                ResourceGrant.resource_type == Tool.file.value,
                 ResourceGrant.resource_id == made.id,
             )
         )
     ).all()
     assert [
-        (g.level, g.app_install_id, g.user_id, g.initiative_id) for g in grants
-    ] == [(ResourceAccessLevel.owner, install.app.id, None, install.a.id)]
-    assert (
-        await s.exec(select(Document.name).where(Document.id == made.id))
-    ).all() == ["Made by the app"]
+        (g.level, g.plugin_install_id, g.user_id, g.initiative_id) for g in grants
+    ] == [(ResourceAccessLevel.owner, install.plugin.id, None, install.a.id)]
+    assert (await s.exec(select(File.name).where(File.id == made.id))).all() == [
+        "Made by the plug-in"
+    ]
     await s.rollback()
 
 
-async def test_a_person_creating_a_document_gets_no_install_grant(
+async def test_a_person_creating_a_file_gets_no_install_grant(
     session, acting_user, role_session
 ):
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     person = await _as_person(role_session, install.seat, install)
-    made = Document(
+    made = File(
         initiative_id=install.a.id,
         name="Made by a person",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
     )
     person.add(made)
     await person.flush()
     rows = (
         await person.exec(
             select(ResourceGrant).where(
-                ResourceGrant.resource_type == Tool.document.value,
+                ResourceGrant.resource_type == Tool.file.value,
                 ResourceGrant.resource_id == made.id,
             )
         )
     ).all()
-    assert [(row.level, row.user_id, row.app_install_id) for row in rows] == [
+    assert [(row.level, row.user_id, row.plugin_install_id) for row in rows] == [
         (ResourceAccessLevel.owner, install.seat.user.id, None)
     ]
     await person.rollback()
@@ -296,44 +291,44 @@ async def test_an_install_writes_no_grant_itself(
     session, acting_user, role_session, target
 ):
     """Every grant row an install's request inserts directly is refused: an
-    owner row naming itself on a document it can read, owned or not, and any
-    row on a document it has just made."""
+    owner row naming itself on a file it can read, owned or not, and any
+    row on a file it has just made."""
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
-    owned = await create_document(session, install.a, install.seat.user)
+    owned = await create_file(session, install.a, install.seat.user)
     await create_resource_grant(session, owned, all_initiative_members=True)
-    unowned = await create_document(session, install.a, install.seat.user)
+    unowned = await create_file(session, install.a, install.seat.user)
     await create_resource_grant(session, unowned, all_initiative_members=True)
     await route_session_to_guild(session, install.guild.id)
     await session.exec(
         text(
-            "DELETE FROM resource_grants WHERE resource_type = 'document' "
+            "DELETE FROM resource_grants WHERE resource_type = 'file' "
             "AND resource_id = :id AND level = 'owner'"
         ).bindparams(id=unowned.id)
     )
     await session.commit()
 
-    s, _ = await _route(role_session, install, ["documents:write"])
+    s, _ = await _route(role_session, install, ["files:write"])
     if target in ("owned", "unowned"):
         resource_id = (owned if target == "owned" else unowned).id
         row = ResourceGrant(
-            resource_type=Tool.document.value,
+            resource_type=Tool.file.value,
             resource_id=resource_id,
-            app_install_id=install.app.id,
+            plugin_install_id=install.plugin.id,
             level=ResourceAccessLevel.owner,
             initiative_id=install.a.id,
         )
     else:
-        made = Document(
+        made = File(
             initiative_id=install.a.id,
-            name="Made by the app",
-            document_type=DocumentType.native,
+            name="Made by the plug-in",
+            file_type=FileType.native,
         )
         s.add(made)
         await s.flush()
         row = ResourceGrant(
-            resource_type=Tool.document.value,
+            resource_type=Tool.file.value,
             resource_id=made.id,
             level=ResourceAccessLevel.read,
             initiative_id=install.a.id,
@@ -386,36 +381,36 @@ async def test_comments_ask_the_comments_scope(session, acting_user, role_sessio
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "comments:write"],
+        granted=["files:read", "comments:write"],
     )
-    document = await create_document(session, install.a, install.seat.user)
-    await create_resource_grant(session, document, all_initiative_members=True)
-    await create_comment(session, install.seat.user, document=document, content="First")
+    file = await create_file(session, install.a, install.seat.user)
+    await create_resource_grant(session, file, all_initiative_members=True)
+    await create_comment(session, install.seat.user, file=file, content="First")
 
-    s, _ = await _route(role_session, install, ["documents:read"])
+    s, _ = await _route(role_session, install, ["files:read"])
     assert (await s.exec(select(Comment.content))).all() == []
     await s.rollback()
 
-    s, _ = await _route(role_session, install, ["documents:read", "comments:read"])
+    s, _ = await _route(role_session, install, ["files:read", "comments:read"])
     assert (await s.exec(select(Comment.content))).all() == ["First"]
-    s.add(Comment(content="From a reader", document_id=document.id))
+    s.add(Comment(content="From a reader", file_id=file.id))
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.flush()
     await s.rollback()
 
-    s, _ = await _route(role_session, install, ["documents:read", "comments:write"])
-    s.add(Comment(content="From the app", document_id=document.id))
+    s, _ = await _route(role_session, install, ["files:read", "comments:write"])
+    s.add(Comment(content="From the plug-in", file_id=file.id))
     await s.flush()
     assert set((await s.exec(select(Comment.content))).all()) == {
         "First",
-        "From the app",
+        "From the plug-in",
     }
     await s.rollback()
 
     member = await _member(acting_user, install)
     person = await _as_person(role_session, member, install)
     assert (await person.exec(select(Comment.content))).all() == ["First"]
-    person.add(Comment(content="From a member", document_id=document.id))
+    person.add(Comment(content="From a member", file_id=file.id))
     await person.flush()
     await person.rollback()
 
@@ -425,11 +420,11 @@ async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
         session,
         acting_user,
         role_session,
-        granted=["tags:write", "documents:read"],
+        granted=["tags:write", "files:read"],
     )
     await create_tag(session, install.guild, name="urgent")
 
-    s, _ = await _route(role_session, install, ["documents:read"])
+    s, _ = await _route(role_session, install, ["files:read"])
     assert (await s.exec(select(Tag.name))).all() == []
     await s.rollback()
 
@@ -441,7 +436,7 @@ async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
     await s.rollback()
 
     s, _ = await _route(role_session, install, ["tags:write"])
-    s.add(Tag(name="from-the-app"))
+    s.add(Tag(name="from-the-plug-in"))
     await s.flush()
     await s.rollback()
 
@@ -463,10 +458,10 @@ async def test_the_roster_is_read_with_members_read_and_never_written(
         session,
         acting_user,
         role_session,
-        granted=["members:read", "documents:read"],
+        granted=["members:read", "files:read"],
     )
 
-    s, _ = await _route(role_session, install, ["documents:read"])
+    s, _ = await _route(role_session, install, ["files:read"])
     assert (await s.exec(select(InitiativeMember.user_id))).all() == []
     await s.rollback()
 
@@ -483,15 +478,15 @@ async def test_the_roster_is_read_with_members_read_and_never_written(
     await s.rollback()
 
 
-async def _subscription(session, install, *, app_install_id, url: str) -> None:
+async def _subscription(session, install, *, plugin_install_id, url: str) -> None:
     await route_session_to_guild(session, install.guild.id)
     await session.exec(
         text(
-            "INSERT INTO webhook_subscriptions (initiative_id, app_install_id,"
+            "INSERT INTO webhook_subscriptions (initiative_id, plugin_install_id,"
             " target_url, hmac_secret, event_types, created_at, updated_at)"
-            " VALUES (:i, :a, :u, 's3cret', ARRAY['documents.created'],"
+            " VALUES (:i, :a, :u, 's3cret', ARRAY['files.created'],"
             " now(), now())"
-        ).bindparams(i=install.a.id, a=app_install_id, u=url)
+        ).bindparams(i=install.a.id, a=plugin_install_id, u=url)
     )
     await session.commit()
 
@@ -499,22 +494,23 @@ async def _subscription(session, install, *, app_install_id, url: str) -> None:
 async def test_an_install_sees_only_its_own_subscriptions(
     session, acting_user, role_session
 ):
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    await _subscription(
+        session,
+        install,
+        plugin_install_id=install.plugin.id,
+        url="https://app.test/own",
     )
     await _subscription(
-        session, install, app_install_id=install.app.id, url="https://app.test/own"
-    )
-    await _subscription(
-        session, install, app_install_id=None, url="https://member.test/theirs"
+        session, install, plugin_install_id=None, url="https://member.test/theirs"
     )
 
-    s, _ = await _route(role_session, install, ["documents:read"])
+    s, _ = await _route(role_session, install, ["files:read"])
     urls = (await s.exec(text("SELECT target_url FROM webhook_subscriptions"))).all()
     assert [row[0] for row in urls] == ["https://app.test/own"]
     changed = await s.exec(
         text(
-            "UPDATE webhook_subscriptions SET active = false WHERE app_install_id IS NULL"
+            "UPDATE webhook_subscriptions SET active = false WHERE plugin_install_id IS NULL"
         )
     )
     assert changed.rowcount == 0

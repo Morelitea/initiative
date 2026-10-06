@@ -18,7 +18,7 @@ is there (``import_engine.mentions``). A reference to another thing —
 ``#task[Title](task:41)``, and the restore points it at whatever that became
 (``import_engine.references``).
 
-Out of scope (see plan): documents, attachments, project-role permissions,
+Out of scope (see plan): files, attachments, project-role permissions,
 favorites, recents, queues. Those would extend the schema under a future
 ``schema_version`` bump.
 """
@@ -47,7 +47,6 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
-    SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
     ProjectExportProject,
@@ -70,32 +69,32 @@ from app.services.tenant import tags as tags_service
 
 async def build_project_export(
     session: AsyncSession,
-    project_id: int,
+    project: Project,
     *,
     exported_by_handle: Optional[str] = None,
     source_instance_url: Optional[str] = None,
     source_guild_id: Optional[int] = None,
 ) -> ProjectExportEnvelope:
-    """Eager-load the project graph and serialize it to an envelope.
+    """Serialize ``project`` and its tasks to an envelope.
 
-    The caller is responsible for permission checks before invoking this.
+    ``project`` is the row the export loaded and authorized, with its task
+    statuses (``project_grants.get_project_hydrated``); its tasks are read
+    here.
     """
-    stmt = (
-        select(Project)
-        .where(Project.id == project_id)
-        .options(
-            selectinload(Project.task_statuses),
-            selectinload(Project.tasks).selectinload(Task.task_status),
-            selectinload(Project.tasks).selectinload(Task.assignees),
+    project_tasks = list(
+        await session.exec(
+            select(Task)
+            .where(Task.project_id == project.id)
+            .options(selectinload(Task.assignees))
+            .order_by(Task.position, Task.id)
         )
     )
-    project = (await session.exec(stmt)).one()
     await tags_service.annotate_tags(session, [project])
     await properties_service.annotate_properties(session, [project])
-    await tags_service.annotate_tags(session, project.tasks or [])
-    await properties_service.annotate_properties(session, project.tasks or [])
+    await tags_service.annotate_tags(session, project_tasks)
+    await properties_service.annotate_properties(session, project_tasks)
 
-    task_ids = [task.id for task in (project.tasks or []) if task.id is not None]
+    task_ids = [task.id for task in project_tasks if task.id is not None]
     comments_by_task = await _load_comments(session, task_ids)
     links_by_task = await _load_links(session, task_ids)
     # Everybody a description or a comment mentions, read once for the whole
@@ -103,7 +102,7 @@ async def build_project_export(
     mention_handles = await load_mention_handles(
         session,
         set().union(
-            *(markdown_mention_ids(task.description) for task in project.tasks or []),
+            *(markdown_mention_ids(task.description) for task in project_tasks),
             *(
                 markdown_mention_ids(comment.body)
                 for comments in comments_by_task.values()
@@ -147,8 +146,8 @@ async def build_project_export(
     referenced_property_ids = {
         summary.property_id for summary in annotated_properties(project)
     }
-    tasks_sorted = sorted(project.tasks or [], key=lambda t: (t.position, t.id or 0))
-    for task in tasks_sorted:
+    status_names = {s.id: s.name for s in statuses_sorted}
+    for task in project_tasks:
         referenced_property_ids.update(
             summary.property_id for summary in annotated_properties(task)
         )
@@ -173,10 +172,8 @@ async def build_project_export(
 
         assignee_handles = [handle_of(u) for u in (task.assignees or [])]
 
-        status_name = (
-            task.task_status.name
-            if task.task_status is not None
-            else _fallback_status_name(statuses_sorted)
+        status_name = status_names.get(task.task_status_id) or _fallback_status_name(
+            statuses_sorted
         )
 
         description, described = detach_markdown_mentions(
@@ -230,7 +227,6 @@ async def build_project_export(
     ]
 
     return ProjectExportEnvelope(
-        schema_version=SCHEMA_VERSION,
         app_version=get_version(),
         exported_at=datetime.now(timezone.utc),
         exported_by_handle=exported_by_handle,
@@ -375,37 +371,6 @@ async def _load_links(
             )
         )
     return by_task
-
-
-async def list_project_ids_for_export(
-    session,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every project the user may include in an aggregate export —
-    DAC-visible (a request that reaches the whole guild sees all), in
-    initiatives that have projects switched on. The aggregate export includes
-    read-accessible projects by design; the per-project seams still enforce
-    their own access level per entity."""
-    from sqlmodel import select
-
-    from app.models.tenant.initiative import Initiative
-    from app.models.tenant.project import Project
-
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Project.id)
-        .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(
-            Project.initiative_id.in_(initiative_ids),
-            Initiative.projects_enabled.is_(True),
-        )
-        .order_by(Project.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def _portable_carry(

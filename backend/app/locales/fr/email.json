@@ -54,10 +54,10 @@
     "redactedItem": "Une tâche vous a été attribuée"
   },
   "mention": {
-    "document": {
-      "subject": "Vous avez été mentionné(e) dans {{document}}",
+    "file": {
+      "subject": "Vous avez été mentionné(e) dans {{file}}",
       "title": "Vous avez été mentionné(e)",
-      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Vous avez été mentionné(e) dans un commentaire",
@@ -427,7 +427,7 @@
   "communityTrialEnding": {
     "subject": "L’essai de {{community}} se termine le {{date}}",
     "title": "L’essai de {{community}} se termine le {{date}}",
-    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
+    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Ensuite, son forfait continue et est facturé au moyen de paiement enregistré. Vérifiez vos informations de facturation, ou annulez d’ici là si vous ne souhaitez pas continuer.",
     "buttonLabel": "Ouvrir le portail de facturation"
   },
   "communityTrialEnded": {

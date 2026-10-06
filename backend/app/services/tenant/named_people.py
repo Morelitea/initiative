@@ -67,7 +67,7 @@ _ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admi
 @dataclass(frozen=True)
 class Governing:
     """The tool row whose sharing decides who may be named on content inside
-    it: a task's project, an event's calendar, a document itself."""
+    it: a task's project, an event's calendar, a file itself."""
 
     tool: Tool
     resource_id: int
@@ -171,7 +171,7 @@ async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
     """Where the routed community's roster is read for ``session``'s request.
 
     The request's own session for a person, so a row it has just made is seen.
-    An installed app's role reads as much of the roster as its scopes allow,
+    An installed plug-in's role reads as much of the roster as its scopes allow,
     and who can open something is not its scopes' to say, so its requests are
     answered by the community's own read instead, as
     :mod:`app.services.reachability` does.

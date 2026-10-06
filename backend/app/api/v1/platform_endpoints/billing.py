@@ -287,19 +287,19 @@ async def community_status(
 
 @router.post("/usage", response_model=BillingUsageRead)
 async def community_usage(request: Request, session: SessionDep) -> BillingUsageRead:
-    """Signed read: current stored bytes for one guild.
+    """Signed read: current stored bytes and member count for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other
-    reads; the actual ``SUM(uploads.size_bytes)`` runs on a system session from
-    the guild's cohort routed into its schema (the billing role can't reach
-    it). A missing guild 404s with the jti unredeemed (retryable).
+    reads; the actual ``SUM(uploads.size_bytes)`` and membership count run on a
+    system session from the guild's cohort (the billing role can reach neither).
+    A missing guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
     guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     try:
-        usage_bytes = await billing_service.guild_storage_usage(guild_id)
+        usage = await billing_service.guild_usage(guild_id)
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -307,5 +307,7 @@ async def community_usage(request: Request, session: SessionDep) -> BillingUsage
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
     return BillingUsageRead(
-        community_ref=payload.community_ref, usage_bytes=usage_bytes
+        community_ref=payload.community_ref,
+        usage_bytes=usage.usage_bytes,
+        member_count=usage.member_count,
     )

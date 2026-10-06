@@ -46,7 +46,7 @@ Banners and frames move. Trophies hold still, because six wiggling things in a r
 
 Not every frame is a ring, either. Several stand *in front* of your picture, so you end up sitting in the teacup, in one bay of the Colosseum, or wearing the headphones. Yes, really. We had a lot of fun with these.
 
-You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
+You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
 
 Picking the thing you're already wearing takes it off again, so there's no separate "none" to hunt for. Press **Save look** when you're happy with yourself.
 
@@ -174,13 +174,13 @@ Before deletion, Initiative makes sure your **owned projects are transferred**, 
 You also get an email confirming it happened, to every address you'd confirmed. The one moment somebody most wants it in writing.
 
 !!! tip "There's a window where you can change your mind"
-    **Sign back in during it and the whole thing is called off** — communities, roles, documents, exactly where you left them. Thirty days on most servers, though whoever runs yours sets the number and may have set none at all, in which case nothing is erased on a timer.
+    **Sign back in during it and the whole thing is called off** — communities, roles, files, exactly where you left them. Thirty days on most servers, though whoever runs yours sets the number and may have set none at all, in which case nothing is erased on a timer.
 
     After that it's properly permanent, and there is no undo, no support ticket and no clever recovery. If you're unsure, deactivate instead.
 
 ## Related
 
-- [Apps & the marketplace](../guides/apps-and-marketplace.md) — where decoration packs come from.
+- [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md) — where decoration packs come from.
 - [Messages](../guides/messages.md) — the Privacy tab in full.
 - [Notifications](../guides/notifications.md) — what you're told about, and where.
 - [API keys & integrations](api-keys-and-integrations.md) — the Security tab's access keys.

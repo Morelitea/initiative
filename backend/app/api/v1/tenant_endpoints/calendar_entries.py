@@ -29,6 +29,7 @@ from app.models.platform.user import User
 from app.schemas.tenant.calendar_entry import CalendarEntriesResponse
 from app.schemas.tenant.calendar_event import serialize_calendar_event_summary
 from app.api.v1.tenant_endpoints import calendar_events as calendar_events_api
+from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import task_queries
 
@@ -66,12 +67,16 @@ async def list_calendar_entries(
     exactly it rather than everything and filtering client-side.
 
     ``scope=community`` is the same question asked by kind rather than by name: every
-    guild calendar, however many there are. The calendar app shows all of them
+    guild calendar, however many there are. The calendar plug-in shows all of them
     at once, and a list of ids it had to assemble first would be a page of them.
+
+    ``initiative_id`` and ``scope`` bound both legs: an initiative's tasks are
+    those of its projects, and the community as a whole holds none, since
+    every project is an initiative's.
     """
     events_out = []
     if include_events:
-        events = await calendar_events_api.query_guild_calendar_events(
+        events = await events_service.query_guild_calendar_events(
             session,
             current_user,
             guild_context,
@@ -83,7 +88,7 @@ async def list_calendar_entries(
             tz=tz,
             property_filters=property_filters,
         )
-        events_out = calendar_events_api.occurrences(
+        events_out = events_service.occurrences(
             [
                 serialize_calendar_event_summary(
                     e, user_id=current_user.id, context=guild_context
@@ -99,7 +104,7 @@ async def list_calendar_entries(
         )
 
     tasks_out, task_occurrences = [], []
-    if include_tasks:
+    if include_tasks and scope != "community":
         tasks_out, task_occurrences = task_queries.projected_occurrences(
             await task_queries.query_guild_tasks(
                 session,
@@ -109,6 +114,7 @@ async def list_calendar_entries(
                 tz=tz,
                 start_after=window.start_after,
                 start_before=window.start_before,
+                initiative_id=initiative_id,
             ),
             window.start_after,
             window.start_before,
@@ -142,14 +148,13 @@ async def list_my_calendar_entries(
     """
     events_out = []
     if include_events:
-        events = await calendar_events_api.query_my_calendar_events(
+        events = await events_service.query_my_calendar_events(
             session,
             current_user,
             guild_ids=guild_ids,
             start_after=window.start_after,
             start_before=window.start_before,
             tz=tz,
-            expand=True,
         )
         # Already serialized and expanded inside each guild's own routed fetch.
         events_out = events

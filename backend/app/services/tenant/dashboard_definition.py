@@ -25,7 +25,7 @@ in two places. They are stored as given, bounded by the definition size cap, and
 checked where they are used: the filter DSL parser enforces its own limits, and
 every id is authorized against the viewer by RLS at fetch time.
 
-Normalization mirrors ``documents_spreadsheet``: unrecognized *structure* is
+Normalization mirrors ``files_spreadsheet``: unrecognized *structure* is
 dropped rather than preserved, so a stored definition always has canonical shape.
 """
 
@@ -41,8 +41,8 @@ from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
 )
 from app.services.fields.spec import FieldType
-from app.services.marketplace.service_apps import (
-    APP_WIDGET_TYPE_PREFIX,
+from app.services.marketplace.service_plugins import (
+    PLUGIN_WIDGET_TYPE_PREFIX,
     ENDPOINT_ID_CHARS,
     MAX_ENDPOINT_ID_LENGTH,
 )
@@ -317,7 +317,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
 
 #: What a binding may name. Three, and only the first is ours to write: a
 #: **query** is a statement over this guild's datasets, a **sheet_range** is a
-#: cell range in a spreadsheet document, and **app** is an installed listing's
+#: cell range in a spreadsheet file, and **plugin** is an installed listing's
 #: own endpoint. The first two both answer with columns and rows, so a widget
 #: draws them by the same path and never learns which it was given.
 QUERY_SOURCE = "query"
@@ -325,48 +325,48 @@ SHEET_SOURCE = "sheet_range"
 TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 
 
-# --- app widgets ------------------------------------------------------------
+# --- plug-in widgets ------------------------------------------------------------
 #
-# A service app contributes its own widgets and its own data sources (§7, §9.1).
+# A service plug-in contributes its own widgets and its own data sources (§7, §9.1).
 # They are deliberately a *separate* vocabulary from the built-ins above rather
 # than an addition to it:
 #
-# * an app widget's type is namespaced ``app:<listing_uid>:<widget_id>``, so it
+# * a plug-in widget's type is namespaced ``plugin:<listing_uid>:<widget_id>``, so it
 #   can never resolve to a built-in renderer, and a built-in can never resolve
-#   to an app's module;
-# * ``app`` is the only source an app widget binds, and no built-in binds it —
-#   an app's rows are opaque here, so nothing in this build could draw them.
+#   to a plug-in's module;
+# * ``plugin`` is the only source a plug-in widget binds, and no built-in binds it —
+#   a plug-in's rows are opaque here, so nothing in this build could draw them.
 #
 # The binding names a listing and a source; it never names an address, and there
 # is still nowhere in a definition to put one. What that source *is* — its
-# parameters, its credentials, its freshness — lives in the installed app's
+# parameters, its credentials, its freshness — lives in the installed plug-in's
 # pinned definition and is enforced when the data is fetched, under the caller's
 # own session.
 #
 # The check here is deliberately shape, not an install lookup: a well-formed
-# ``app:<uid>:<widget>`` stores whether or not that app is installed, so a
-# stored dashboard outlives the app it drew from. What a guild built is the
-# guild's; the client renders the not-installed state and asks for the app to
+# ``plugin:<uid>:<widget>`` stores whether or not that plug-in is installed, so a
+# stored dashboard outlives the plug-in it drew from. What a guild built is the
+# guild's; the client renders the not-installed state and asks for the plug-in to
 # be reconnected. Only a malformed type is a rejection.
 
-#: The one binding source an app widget may name.
-APP_BINDING_SOURCE = "app"
+#: The one binding source a plug-in widget may name.
+PLUGIN_BINDING_SOURCE = "plugin"
 
-#: Size floors for an app widget. Uniform, because this build cannot know what
+#: Size floors for a plug-in widget. Uniform, because this build cannot know what
 #: a vendor's module draws; the floor is simply "big enough to read". It
-#: declares no shape: an app's rows are its own, described in its manifest, and
+#: declares no shape: a plug-in's rows are its own, described in its manifest, and
 #: the module that draws them ships alongside — there is nothing here to map.
-APP_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
+PLUGIN_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
 
-#: What one app binding may carry, mirroring the manifest's per-source cap.
-MAX_APP_BINDING_PARAMS = 12
+#: What one plug-in binding may carry, mirroring the manifest's per-source cap.
+MAX_PLUGIN_BINDING_PARAMS = 12
 #: A parameter value is a scalar the endpoint declared a type for, or several
 #: of them where it declared ``list``. Checked again against that type at fetch
 #: time; bounded here so a definition stays small.
-MAX_APP_PARAM_LENGTH = 2_000
+MAX_PLUGIN_PARAM_LENGTH = 2_000
 #: How many values one parameter may carry. A parameter declaring ``list`` is
 #: still one answer on a form, so this bounds a definition rather than a query.
-MAX_APP_PARAM_VALUES = 64
+MAX_PLUGIN_PARAM_VALUES = 64
 
 
 def _check_identifier(value: Any) -> str:
@@ -382,9 +382,9 @@ def _check_endpoint_id(value: Any) -> str:
     """One endpoint id on a binding.
 
     A different character set from an identifier: an endpoint id is namespaced
-    under its app's service id, so it carries dots. The prefix itself is checked
+    under its plug-in's service id, so it carries dots. The prefix itself is checked
     where the manifest is normalized — a dashboard definition is not the place
-    that knows which app it belongs to.
+    that knows which plug-in it belongs to.
     """
     if not isinstance(value, str) or not value or len(value) > MAX_ENDPOINT_ID_LENGTH:
         _fail(DashboardMessages.BINDING_INVALID)
@@ -403,15 +403,15 @@ def _check_uid(value: Any, code: str) -> str:
     return value
 
 
-def app_widget_parts(declared: str) -> tuple[str, str] | None:
-    """Split ``app:<listing_uid>:<widget_id>``, or None if it is not one.
+def plugin_widget_parts(declared: str) -> tuple[str, str] | None:
+    """Split ``plugin:<listing_uid>:<widget_id>``, or None if it is not one.
 
     ``:`` is outside the identifier character set on both halves, so the three
-    parts stay unambiguous however an app names its widget.
+    parts stay unambiguous however a plug-in names its widget.
     """
-    if not declared.startswith(APP_WIDGET_TYPE_PREFIX):
+    if not declared.startswith(PLUGIN_WIDGET_TYPE_PREFIX):
         return None
-    remainder = declared[len(APP_WIDGET_TYPE_PREFIX) :]
+    remainder = declared[len(PLUGIN_WIDGET_TYPE_PREFIX) :]
     listing_uid, separator, widget_id = remainder.partition(":")
     if not separator:
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
@@ -425,7 +425,7 @@ def app_widget_parts(declared: str) -> tuple[str, str] | None:
     return listing_uid, widget_id
 
 
-#: How a caller looks up what an endpoint hands back: given an app and one of
+#: How a caller looks up what an endpoint hands back: given a plug-in and one of
 #: its endpoints, the columns its rows hold, or ``None`` where this caller
 #: cannot say. A dashboard is saved through a request that can look up the
 #: install; a listing is validated with its own manifest in hand; a factory has
@@ -433,19 +433,21 @@ def app_widget_parts(declared: str) -> tuple[str, str] | None:
 EndpointColumns = Callable[[str, str], "Optional[Sequence[RowColumn]]"]
 
 
-def _normalize_app_binding(
+def _normalize_plugin_binding(
     binding: dict[str, Any],
     listing_uid: str,
     endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
-    """An ``app`` binding: which installed app, which source, which parameters.
+    """A ``plugin`` binding: which installed plug-in, which source, which parameters.
 
-    ``app_uid`` has to be the app the widget came from. A widget is one app's
-    module and its endpoints are that app's, so letting a definition point one
-    app's widget at another app's data would be a definition choosing what
+    ``plugin_uid`` has to be the plug-in the widget came from. A widget is one plug-in's
+    module and its endpoints are that plug-in's, so letting a definition point one
+    plug-in's widget at another plug-in's data would be a definition choosing what
     crosses between two vendors.
     """
-    declared_uid = _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID)
+    declared_uid = _check_uid(
+        binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID
+    )
     if declared_uid != listing_uid:
         _fail(DashboardMessages.BINDING_INVALID)
     endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
@@ -453,14 +455,17 @@ def _normalize_app_binding(
     raw_params = binding.get("params")
     params: dict[str, Any] = {}
     if raw_params is not None:
-        if not isinstance(raw_params, dict) or len(raw_params) > MAX_APP_BINDING_PARAMS:
+        if (
+            not isinstance(raw_params, dict)
+            or len(raw_params) > MAX_PLUGIN_BINDING_PARAMS
+        ):
             _fail(DashboardMessages.BINDING_INVALID)
         for key, value in raw_params.items():
-            params[_check_identifier(key)] = _check_app_param(value)
+            params[_check_identifier(key)] = _check_plugin_param(value)
 
     cleaned: dict[str, Any] = {
-        "source": APP_BINDING_SOURCE,
-        "app_uid": listing_uid,
+        "source": PLUGIN_BINDING_SOURCE,
+        "plugin_uid": listing_uid,
         "endpoint_id": endpoint_id,
     }
     if params:
@@ -484,7 +489,7 @@ def _checked_row_statement(
     Its shape is checked here whatever the caller knows — one ``SELECT``, the
     allowed nodes and functions, and ``rows`` as its only relation. Its
     *columns* are checked too wherever the caller can say what the endpoint
-    hands back, which is what keeps a widget naming a column its app does not
+    hands back, which is what keeps a widget naming a column its plug-in does not
     send from being storable.
     """
     if raw is None or (isinstance(raw, str) and not raw.strip()):
@@ -506,7 +511,7 @@ def _checked_row_statement(
     return raw
 
 
-def _check_app_param(value: Any) -> Any:
+def _check_plugin_param(value: Any) -> Any:
     """One parameter value: a scalar, or several of them.
 
     Deliberately not coerced: the source's own ``params_schema`` declares the
@@ -516,22 +521,22 @@ def _check_app_param(value: Any) -> Any:
     An array is a stored value like any other because an endpoint may declare a
     parameter ``list`` — several labels, several assignees — and a binding that
     could hold only one of them could not express what such a parameter is for.
-    Which parameters those are is the app's declaration and is checked where it
+    Which parameters those are is the plug-in's declaration and is checked where it
     is enforced, at fetch time; what is checked here is only the shape and the
     bound, which is all a definition can know about somebody else's manifest.
     """
     if isinstance(value, list):
-        if len(value) > MAX_APP_PARAM_VALUES:
+        if len(value) > MAX_PLUGIN_PARAM_VALUES:
             _fail(DashboardMessages.BINDING_INVALID)
-        return [_check_app_scalar(entry) for entry in value]
-    return _check_app_scalar(value)
+        return [_check_plugin_scalar(entry) for entry in value]
+    return _check_plugin_scalar(value)
 
 
-def _check_app_scalar(value: Any) -> Any:
+def _check_plugin_scalar(value: Any) -> Any:
     """One value inside a parameter, of the types a manifest may declare."""
     if isinstance(value, bool) or isinstance(value, int):
         return value
-    if isinstance(value, str) and len(value) <= MAX_APP_PARAM_LENGTH:
+    if isinstance(value, str) and len(value) <= MAX_PLUGIN_PARAM_LENGTH:
         return value
     _fail(DashboardMessages.BINDING_INVALID)
 
@@ -635,12 +640,18 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
 #: rather than by re-opening a free-form id here.
 _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
+#: Binding keys only a definition sets: what a widget reads, as opposed to the
+#: values it reads it with. Instance config never carries them.
+_DEFINITION_ONLY_KEYS = (
+    frozenset({"source", "sql", "plugin_uid", "endpoint_id"}) | _CONTEXT_ONLY_PARAMS
+)
+
 
 def _normalize_binding(
     raw: Any,
     spec: WidgetSpec,
     *,
-    app_listing_uid: str | None = None,
+    plugin_listing_uid: str | None = None,
     endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
@@ -648,28 +659,28 @@ def _normalize_binding(
     binding = _require_mapping(raw, DashboardMessages.BINDING_INVALID)
     source = binding.get("source")
 
-    if app_listing_uid is not None:
-        # An app widget draws its own app's data and nothing else, so this is a
+    if plugin_listing_uid is not None:
+        # A plug-in widget draws its own plug-in's data and nothing else, so this is a
         # total branch rather than an extra allowed value.
-        if source != APP_BINDING_SOURCE:
+        if source != PLUGIN_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        return _normalize_app_binding(binding, app_listing_uid, endpoint_columns)
+        return _normalize_plugin_binding(binding, plugin_listing_uid, endpoint_columns)
 
-    if source == APP_BINDING_SOURCE:
+    if source == PLUGIN_BINDING_SOURCE:
         # A widget of this build's own — a chart, a table, a total — reading an
-        # app, which is possible exactly as far as the rows are described. A
+        # plug-in, which is possible exactly as far as the rows are described. A
         # statement makes them so: it names the columns it returns, and the
-        # endpoint declared the ones it reads. Without one they are the app's
-        # own shape, which only the app's own module knows how to draw.
+        # endpoint declared the ones it reads. Without one they are the plug-in's
+        # own shape, which only the plug-in's own module knows how to draw.
         if not str(binding.get("sql") or "").strip():
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        # It has no module of its own to be one app's, so it names the app it
+        # It has no module of its own to be one plug-in's, so it names the plug-in it
         # reads rather than inheriting one. What it may see is decided exactly
-        # where an app widget's is: the dashboard's gates and the binding the
+        # where a plug-in widget's is: the dashboard's gates and the binding the
         # definition stores.
-        return _normalize_app_binding(
+        return _normalize_plugin_binding(
             binding,
-            _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),
+            _check_uid(binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID),
             endpoint_columns,
         )
 
@@ -783,14 +794,14 @@ def _normalize_widget(
     if not isinstance(declared, str):
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
 
-    # An app's widget keeps its namespaced type verbatim: the module that draws
-    # it lives in the installed app's pinned definition, and this build resolves
+    # A plug-in's widget keeps its namespaced type verbatim: the module that draws
+    # it lives in the installed plug-in's pinned definition, and this build resolves
     # it there rather than in the built-in registry.
-    app_parts = app_widget_parts(declared)
-    if app_parts is not None:
+    plugin_parts = plugin_widget_parts(declared)
+    if plugin_parts is not None:
         preset = None
         primitive = declared
-        spec = APP_WIDGET_SPEC
+        spec = PLUGIN_WIDGET_SPEC
     else:
         if declared not in WIDGET_TYPES:
             _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
@@ -812,7 +823,7 @@ def _normalize_widget(
         "binding": _normalize_binding(
             widget.get("binding"),
             spec,
-            app_listing_uid=app_parts[0] if app_parts else None,
+            plugin_listing_uid=plugin_parts[0] if plugin_parts else None,
             endpoint_columns=endpoint_columns,
         ),
     }
@@ -877,10 +888,12 @@ def normalize_dashboard_config(
     """Validate instance config against a definition's widgets.
 
     Config fills the binding parameters a definition left open (the ids a
-    catalog listing can't know). Entries naming a widget the definition doesn't
-    have are dropped, so updating to a version that removes a widget can't leave
-    dangling config behind. The parameter values are the fetcher's business,
-    exactly as in a binding.
+    catalog listing can't know), and nothing else: a key the definition set, or
+    one that says what the widget reads rather than how (its source, statement,
+    plug-in or endpoint), is dropped. What remains is checked by the same
+    normalizer as the definition's own binding, laid over it. Entries naming a
+    widget the definition doesn't have are dropped too, so updating to a
+    version that removes a widget can't leave dangling config behind.
     """
     config = _require_mapping(payload, DashboardMessages.CONFIG_INVALID)
     raw_widgets = config.get("widgets")
@@ -888,10 +901,26 @@ def normalize_dashboard_config(
         return {"widgets": {}}
     widget_config = _require_mapping(raw_widgets, DashboardMessages.CONFIG_INVALID)
 
-    known_ids = {widget["id"] for widget in definition.get("widgets", [])}
-    cleaned = {
-        widget_id: values
-        for widget_id, values in widget_config.items()
-        if widget_id in known_ids and isinstance(values, dict) and values
-    }
+    cleaned: dict[str, dict[str, Any]] = {}
+    for widget in definition.get("widgets", []):
+        values = widget_config.get(widget["id"])
+        if not isinstance(values, dict):
+            continue
+        binding = widget["binding"]
+        open_values = {
+            key: value
+            for key, value in values.items()
+            if key not in _DEFINITION_ONLY_KEYS and binding.get(key) is None
+        }
+        if not open_values:
+            continue
+        plugin_parts = plugin_widget_parts(widget["type"])
+        resolved = _normalize_binding(
+            {**binding, **open_values},
+            PLUGIN_WIDGET_SPEC if plugin_parts else WIDGET_SPECS[widget["type"]],
+            plugin_listing_uid=plugin_parts[0] if plugin_parts else None,
+        )
+        kept = {key: resolved[key] for key in open_values if key in resolved}
+        if kept:
+            cleaned[widget["id"]] = kept
     return {"widgets": cleaned}

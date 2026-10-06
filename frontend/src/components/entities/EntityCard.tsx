@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { documentIcon } from "@/lib/documentIcon";
 import { entityRefTypeFor } from "@/lib/entityResolver";
+import { fileIcon } from "@/lib/fileIcon";
 import { relatedTarget } from "@/lib/relationships";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
 import { CHIP_TONE_CLASSES } from "@/lib/smartChips";
@@ -65,8 +65,8 @@ interface EntityCardProps {
  *
  * Pictures, the emoji and the colour are tried in that order and at most one of
  * them is set; a kind with none of the three draws as its own icon, which is
- * most of them. A document picks its mark from what sort of document it is, out
- * of the same helper the document card uses.
+ * most of them. A file picks its mark from what sort of file it is, out
+ * of the same helper the file card uses.
  *
  * **`compact`** is a line in a list rather than a tile: the same facts, at the
  * size a sidebar column or a dialog can afford.
@@ -94,10 +94,10 @@ export const EntityCard = ({
   // nobody told us still has a page, it just takes a redirect to reach.
   const refType = entityRefTypeFor(end.type);
   const path = searchHitPath(target) ?? (refType ? entityRefRoute(refType, end.id) : null);
-  // A document is not one sort of thing, so it picks its mark from what sort it
-  // is — the same rule the document card follows, out of the same helper.
-  const document = end.type === SearchEntityType.document ? documentIcon(end) : null;
-  const KindIcon = document?.Icon ?? hitIcon(target);
+  // A file is not one sort of thing, so it picks its mark from what sort it
+  // is — the same rule the file card follows, out of the same helper.
+  const file = end.type === SearchEntityType.file ? fileIcon(end) : null;
+  const KindIcon = file?.Icon ?? hitIcon(target);
   const kindLabel = t(`search:types.${end.type}`, { defaultValue: end.type });
   const title = end.title?.trim() || t("untitled");
   const pictures = end.image_urls
@@ -153,7 +153,7 @@ export const EntityCard = ({
         <KindIcon
           className={cn(
             compact ? "h-3.5 w-3.5" : "h-1/3 w-1/3",
-            document?.colorClass ?? "text-muted-foreground"
+            file?.colorClass ?? "text-muted-foreground"
           )}
         />
       )}
@@ -207,7 +207,7 @@ export const EntityCard = ({
   ) : (
     <>
       {/* One fixed shape whatever the kind, so a grid of mixed things does not
-          jump between rows. Shorter below `sm`, as a document card is. */}
+          jump between rows. Shorter below `sm`, as a file card is. */}
       <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {mark}
         {badge ? (

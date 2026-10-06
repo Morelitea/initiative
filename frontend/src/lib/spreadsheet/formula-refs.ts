@@ -109,7 +109,7 @@ const matchReferenceAt = (body: string, i: number): RefMatch | null => {
 export type SheetFilter = (sheet: string | null) => boolean;
 
 /** The default: only unqualified references, which is every reference in a
- *  single-sheet document. */
+ *  single-sheet file. */
 const LOCAL_ONLY: SheetFilter = (sheet) => sheet === null;
 
 /**
@@ -206,7 +206,7 @@ const emitRef = (endpoint: RefEndpoint, a1: string | null, prefix?: string): str
  *
  * ``applies`` selects which references the shift reaches, by the sheet they
  * name. It defaults to unqualified references only — right for a formula
- * sitting on the sheet being transformed in a single-sheet document. A
+ * sitting on the sheet being transformed in a single-sheet file. A
  * workbook passes a filter that also matches the transformed sheet's own
  * name, and a second pass over the *other* sheets passes one that matches
  * only that name (see ``transform.ts``).

@@ -19,7 +19,7 @@ def _report(formats: dict[str, Any]) -> dict[str, Any]:
         {"project": "pdf"},
         {"queue": "md", "counter_group": "xlsx"},
         {"calendar": "json"},
-        {"document": {"native": "docx", "spreadsheet": "csv"}},
+        {"file": {"native": "docx", "spreadsheet": "csv"}},
     ],
 )
 def test_report_formats_a_section_offers_are_accepted(formats):
@@ -36,11 +36,11 @@ def test_report_formats_a_section_offers_are_accepted(formats):
         {"post": "json"},
         {"wiki": "pdf"},
         {"gallery": "json"},
-        # A document's choices are per type, and only for the two with any.
-        {"document": "pdf"},
-        {"document": {"whiteboard": "json"}},
-        {"document": {"smart_link": "md"}},
-        {"document": {"native": "csv"}},
+        # A file's choices are per type, and only for the two with any.
+        {"file": "pdf"},
+        {"file": {"whiteboard": "json"}},
+        {"file": {"smart_link": "md"}},
+        {"file": {"native": "csv"}},
         {"not_a_tool": "pdf"},
         # A format that is not a string is refused rather than looked up.
         {"queue": {"md": True}},

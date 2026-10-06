@@ -13,8 +13,8 @@
   "emptyState": {
     "title": "Todavía no te has unido a ninguna iniciativa",
     "adminTitle": "Esta comunidad todavía no tiene iniciativas",
-    "description": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
-    "adminDescription": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Crea la primera para decir para qué es esta comunidad.",
+    "description": "Las iniciativas contienen todo lo de una comunidad: proyectos, archivos y lo demás. Únete a una para ver su trabajo.",
+    "adminDescription": "Las iniciativas contienen todo lo de una comunidad: proyectos, archivos y lo demás. Crea la primera para decir para qué es esta comunidad.",
     "nothingListedTitle": "Nada a lo que unirse todavía",
     "adminNothingListedTitle": "Crea la primera iniciativa",
     "nothingListedDescription": "Ninguna iniciativa de esta comunidad está abierta ahora mismo. Un administrador de la comunidad o un gerente de proyecto puede añadirte.",
@@ -53,7 +53,7 @@
     "updated": "Última actualización",
     "detail": {
       "projects": "Progreso",
-      "documents": "Tipo",
+      "files": "Tipo",
       "calendars": "Descripción",
       "dashboards": "Origen",
       "posts": "Vista previa"
@@ -63,8 +63,8 @@
     "tasksDone": "{{completed}} de {{total}} tareas",
     "fromMarketplace": "Mercado",
     "builtHere": "Creado aquí",
-    "documentType": {
-      "native": "Documento",
+    "fileType": {
+      "native": "Documento de texto",
       "file": "Archivo",
       "whiteboard": "Pizarra",
       "smart_link": "Enlace",
@@ -76,8 +76,6 @@
     "noComments": "Aún no hay comentarios",
     "loadError": "No se pudieron cargar los comentarios recientes. Inténtalo de nuevo más tarde.",
     "unknownAuthor": "Desconocido",
-    "onTask": "en {{taskTitle}}",
-    "onDocument": "en {{documentTitle}}",
     "onEntity": "en {{entityName}}",
     "inProject": "en {{projectName}}",
     "readMore": "Leer más",

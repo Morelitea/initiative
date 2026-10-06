@@ -2,8 +2,7 @@
 
 Two kinds of thing arrive. A picture the page shows becomes an upload,
 rendered where the page embedded it — the same path a Jira issue's images
-take. Every other file, and any picture the page never showed, becomes a file
-document filed in the wiki: a file has one home, the initiative's documents,
+take. Every other file, and any picture the page never showed, becomes an uploaded file filed in the wiki: a file has one home, the initiative's files,
 and being in the wiki is the relation that is a second view of it (D10).
 
 Both are blobs under the bundle's ``assets/``, restored by the ordinary
@@ -30,7 +29,7 @@ from app.services.import_engine.jira_attachments import (
     AssetBudget,
     AssetSink,
     StoredImage,
-    document_can_hold,
+    file_can_hold,
     file_extension,
 )
 
@@ -95,8 +94,8 @@ class PageMedia:
     #: Every other file that came over, by filename.
     files: dict[str, StoredImage] = field(default_factory=dict)
 
-    def documents(self, shown: list[str]) -> list[StoredImage]:
-        """What becomes a file document: every file, and every picture the
+    def as_files(self, shown: list[str]) -> list[StoredImage]:
+        """What becomes an uploaded file: every file, and every picture the
         page has but never shows — so nothing attached is kept only in
         storage."""
         seen = set(shown)
@@ -112,7 +111,7 @@ class PageMedia:
 
 @dataclass(frozen=True)
 class PageFile:
-    """A file document, and the page it was attached to — which it is filed
+    """An uploaded file, and the page it was attached to — which it is filed
     under in the wiki — by that page's slug."""
 
     stored: StoredImage
@@ -122,7 +121,7 @@ class PageFile:
 @dataclass
 class AttachmentReport:
     """What downloading cost. What the files became is the mapping's to
-    count, since a picture a page never shows turns out to be a document."""
+    count, since a picture a page never shows turns out to be a file."""
 
     bytes: int = 0
     #: Over a per-file cap, or past the bundle's budget.
@@ -131,7 +130,7 @@ class AttachmentReport:
     unreadable: int = 0
     #: A type never brought over.
     refused: int = 0
-    #: Files that could not become documents in the chosen initiative.
+    #: Attachments that could not become files in the chosen initiative.
     blocked: int = 0
 
 
@@ -146,7 +145,7 @@ async def download_page_attachments(
     store: AssetSink,
     budget: AssetBudget,
     report: AttachmentReport,
-    documents: bool = True,
+    files_allowed: bool = True,
     tick: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> PageMedia:
     """Fetch one page's attachments, within the caps and the shared budget.
@@ -157,18 +156,18 @@ async def download_page_attachments(
     lose the space — but being throttled stops the fetch, as it does
     everywhere else.
 
-    ``documents`` false is an initiative that cannot take file documents:
+    ``files_allowed`` false is an initiative that cannot take uploaded files:
     only the pictures come, to be shown where the page put them.
     """
     media = PageMedia()
     for attachment in attachments:
         if attachment.media_type in REFUSED_TYPES or (
             not attachment.is_image
-            and not document_can_hold(attachment.filename, attachment.media_type)
+            and not file_can_hold(attachment.filename, attachment.media_type)
         ):
             report.refused += 1
             continue
-        if not documents and not attachment.is_image:
+        if not files_allowed and not attachment.is_image:
             report.blocked += 1
             continue
         cap = MAX_IMAGE_BYTES if attachment.is_image else MAX_FILE_BYTES
@@ -214,6 +213,6 @@ async def download_page_attachments(
 
 
 def file_ref(stored: StoredImage) -> str:
-    """The name a file document answers to once the apply has written it:
+    """The name an uploaded file answers to once the apply has written it:
     its manifest entry, which sits at its asset's path."""
     return f"entry:assets/{stored.storage_key}"

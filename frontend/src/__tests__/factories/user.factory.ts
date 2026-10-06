@@ -47,7 +47,7 @@ const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
   owner: [
     "access.approve",
     "announcements.manage",
-    "apps.manage",
+    "plugins.manage",
     "billing.insights",
     "config.manage",
     "content.moderate",
@@ -133,6 +133,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // Agreed, for the same reason: only the terms gate's own tests want an
     // account that has not.
     legal_acceptance_required: false,
+    // Answered, so the one-time birthdate screen does not stand in front of
+    // whatever a test renders.
+    birthdate_on_file: true,
     age_below_minimum_at: null,
     avatar_url: null,
     role: "member",

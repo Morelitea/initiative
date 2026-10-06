@@ -50,20 +50,20 @@ describe("useGlobalCreateAccess", () => {
     });
 
     const { result } = renderHook(() => useGlobalCreateAccess());
-    expect(result.current).toEqual({ document: false, task: false });
+    expect(result.current).toEqual({ tool: false, task: false });
   });
 
   it("separates authoring from writing for a read_write grant", () => {
     mockUseCommunities.mockReturnValue({ communities: [grantEntry("read_write")] });
 
     const { result } = renderHook(() => useGlobalCreateAccess());
-    expect(result.current).toEqual({ document: false, task: true });
+    expect(result.current).toEqual({ tool: false, task: true });
   });
 
   it("is true for both when a member community is present", () => {
     mockUseCommunities.mockReturnValue({ communities: [memberCommunity()] });
 
     const { result } = renderHook(() => useGlobalCreateAccess());
-    expect(result.current).toEqual({ document: true, task: true });
+    expect(result.current).toEqual({ tool: true, task: true });
   });
 });

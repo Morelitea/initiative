@@ -1,11 +1,11 @@
 """``initiative-calendar`` importer: one envelope holds a whole calendar —
-the calendar row (the shareable container) plus its events. The importer
+the calendar row (the shareable container) and its tags, plus its events. The importer
 becomes the calendar's owner; events apply in per-event savepoints (the ICS
 import's partial-success pattern) so a malformed event fails alone, never the
 batch.
 
 Attendees resolve by handle against the target initiative's members; the
-matched keep their RSVP, the unmatched are reported. Linked document titles
+matched keep their RSVP, the unmatched are reported. Linked file titles
 in the envelope are informational and dropped."""
 
 from __future__ import annotations
@@ -14,13 +14,12 @@ from datetime import datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
@@ -34,17 +33,17 @@ from app.schemas.tenant.import_envelopes import (
     EventEnvelopeItem,
 )
 from app.services.import_engine.common import (
-    ensure_tag,
     handle_key,
     load_initiative_member_handles,
     parse_datetime,
-    unique_name,
+    unique_name_in_initiative,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
@@ -54,7 +53,6 @@ from app.services.import_engine.people import (
     initiative_member_id,
 )
 from app.services.tenant import calendar_occurrences
-from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
 if TYPE_CHECKING:
@@ -62,7 +60,7 @@ if TYPE_CHECKING:
 
 
 class CalendarImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-calendar"
+    envelope_type = tool_envelope_type(Tool.calendar)
     permission = PermissionKey.create_calendars
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -105,18 +103,10 @@ class CalendarImporter(NamesPeopleInPassing):
             session, initiative_id=target_initiative.id
         )
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Calendar.name).where(
-                        Calendar.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        }
         calendar = Calendar(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Calendar, target_initiative.id, env.name
+            ),
             description=env.description,
             color=env.color or DEFAULT_CALENDAR_COLOR,
             initiative_id=target_initiative.id,
@@ -133,6 +123,8 @@ class CalendarImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags = TagRestore(session)
+        await tags.attach(calendar, env.tags)
         props = PropertyRestore(
             session,
             initiative_id=target_initiative.id,
@@ -143,8 +135,8 @@ class CalendarImporter(NamesPeopleInPassing):
 
         created = 0
         failed = 0
-        tags_created = 0
-        tags_matched = 0
+        tags_created = tags.created
+        tags_matched = tags.matched
         props_created = props.created
         props_matched = props.matched
         attendees_matched = 0
@@ -193,7 +185,7 @@ class CalendarImporter(NamesPeopleInPassing):
             entity_id=calendar.id,
             entity_title=calendar.name,
             created={
-                "calendars": 1,
+                Tool.calendar.plural: 1,
                 "events": created,
                 "tags": tags_created,
                 "properties": props_created,
@@ -314,19 +306,9 @@ class CalendarImporter(NamesPeopleInPassing):
             )
             attendees_matched += 1
 
-        tags_created = 0
-        tags_matched = 0
-        for tag_name in item.tags:
-            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-            if resolved.created:
-                tags_created += 1
-            else:
-                tags_matched += 1
-            session.add(
-                tags_service.tag_edge(
-                    tags_service.TAG_LINKS["calendar_event"], event.id, resolved.id
-                )
-            )
+        # Its own restore: what the event's savepoint rolls back goes with it.
+        tags = TagRestore(session)
+        await tags.attach(event, item.tags)
 
         props = PropertyRestore(
             session,
@@ -340,8 +322,8 @@ class CalendarImporter(NamesPeopleInPassing):
             named_handles.setdefault(user_id, handle)
 
         return {
-            "tags_created": tags_created,
-            "tags_matched": tags_matched,
+            "tags_created": tags.created,
+            "tags_matched": tags.matched,
             "props_created": props.created,
             "props_matched": props.matched,
             "attendees_matched": attendees_matched,

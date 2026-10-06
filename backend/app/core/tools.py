@@ -23,7 +23,7 @@ def plural_of(stem: str) -> str:
 
 class Tool(str, Enum):
     project = "project"
-    document = "document"
+    file = "file"
     queue = "queue"
     counter_group = "counter_group"
     calendar = "calendar"
@@ -148,15 +148,15 @@ class Kind:
 KINDS: dict[str, Kind] = {
     kind.value: kind
     for kind in (
-        Kind("project", 10),
-        Kind("document", 6),
-        Kind("queue", 11),
-        Kind("counter_group", 4),
-        Kind("calendar", 1),
-        Kind("dashboard", 5),
-        Kind("post", 9),
-        Kind("gallery", 7),
-        Kind("wiki", 15),
+        Kind(Tool.project.value, 10),
+        Kind(Tool.file.value, 6),
+        Kind(Tool.queue.value, 11),
+        Kind(Tool.counter_group.value, 4),
+        Kind(Tool.calendar.value, 1),
+        Kind(Tool.dashboard.value, 5),
+        Kind(Tool.post.value, 9),
+        Kind(Tool.gallery.value, 7),
+        Kind(Tool.wiki.value, 15),
         Kind("task", 14, parent=Tool.project),
         Kind("queue_item", 12, parent=Tool.queue),
         Kind("calendar_event", 2, parent=Tool.calendar),
@@ -172,7 +172,7 @@ CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent
 
 
 # EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
-# the initiative. Projects and documents used to be exempt — always on, with no
+# the initiative. Projects and files used to be exempt — always on, with no
 # column at all — because they were the only places content could live and the
 # other tools hung off them. Relationships ended that: anything links to
 # anything, so an initiative that is only a calendar, or only a gallery, is a
@@ -180,9 +180,9 @@ CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent
 #
 # They keep the *default*, which is the part that was ever load-bearing. An
 # initiative that says nothing about its tools still arrives with projects and
-# documents on, so nothing about making one changes; the switch is simply there
+# files on, so nothing about making one changes; the switch is simply there
 # to turn off now.
-DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
+DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.file})
 
 # Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
 # default is "a new tool is exportable": the adapter-coverage test then fails
@@ -191,7 +191,7 @@ DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 #
 # Empty, and that is the point: every tool has an export source. What used to
 # sit here (``Tool.dashboard``) is now handled where it belongs — an entity
-# built on an app this build does not ship is filtered by provenance in
+# built on a plug-in this build does not ship is filtered by provenance in
 # ``services.export.provenance``, which is a property of the ROW, not of the
 # tool. A whole tool is the wrong unit for that rule: most dashboards are
 # hand-built here and are ordinary content.
@@ -264,9 +264,9 @@ def tool_envelope_type(tool: Tool) -> str:
     """The import/export envelope ``type`` discriminator for a tool.
 
     One rule, spelled once: a tool's envelope is ``initiative-<kebab
-    singular>``. The importers and the export adapters each restate it as a
-    literal — a pydantic ``Literal`` cannot be computed — and
-    ``tools_test.py`` holds the importer registry to this.
+    singular>``. The importers and the export adapters read it from here; only
+    the envelope schemas restate it, because a pydantic ``Literal`` cannot be
+    computed, and ``tools_test.py`` holds the importer registry to this.
     """
     return f"initiative-{tool_export_source(tool)}"
 

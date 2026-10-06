@@ -14,7 +14,7 @@ def _value(handle, property_type="user_reference"):
 
 
 def test_user_values_are_found_at_any_depth():
-    """A task's properties sit two levels down, a document's one, an event's
+    """A task's properties sit two levels down, a file's one, an event's
     two again; the walk does not care which."""
     envelope = {
         "properties": [_value("Robin")],

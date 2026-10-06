@@ -101,9 +101,9 @@ const RESOURCE_SPECS: Record<string, (id: number, recount: boolean) => Spec[]> =
   tags: (id) => [q.tag(id), q.allTags()],
   // An install belongs to no initiative, so it arrives community-wide with no
   // parent to carry it — this is the only thing that refreshes the sidebar's
-  // app list and the settings dialog for another admin's install, rename or
+  // plug-in list and the settings dialog for another admin's install, rename or
   // configuration. Takes no id: the reads are keyed by community, not by install.
-  apps: () => [q.apps()],
+  plugins: () => [q.plugins()],
 };
 
 /**

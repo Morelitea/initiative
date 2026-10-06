@@ -14,7 +14,7 @@ from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
     create_resource_grant,
     create_calendar_event,
-    create_document,
+    create_file,
     create_guild_calendar,
     create_gallery,
     create_gallery_image,
@@ -37,14 +37,14 @@ async def _galleries_enabled(session, initiative) -> None:
     await session.refresh(initiative)
 
 
-def _wikilink_body(document_id: int) -> dict:
-    """A document body holding one ``[[ ]]`` link."""
+def _wikilink_body(file_id: int) -> dict:
+    """A file body holding one ``[[ ]]`` link."""
     return {
         "root": {
             "children": [
                 {
                     "type": "paragraph",
-                    "children": [{"type": "wikilink", "documentId": document_id}],
+                    "children": [{"type": "wikilink", "documentId": file_id}],
                 }
             ]
         }
@@ -57,7 +57,7 @@ async def test_a_link_is_made_and_read_back_from_either_side(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     created = await client.post(
         _url(a),
@@ -65,20 +65,20 @@ async def test_a_link_is_made_and_read_back_from_either_side(
         json={
             "source": {"type": "project", "id": a.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert created.status_code == 201, created.text
     body = created.json()
-    assert body["other"]["type"] == "document"
+    assert body["other"]["type"] == "file"
     assert body["other"]["id"] == doc.id
     assert body["other"]["title"] == doc.name
     assert body["other"]["initiative_id"] == a.initiative.id
 
-    # The same edge, asked for from the document. ``attached`` is symmetric and
+    # The same edge, asked for from the file. ``attached`` is symmetric and
     # stored once in node-id order, which the caller never has to know.
     from_doc = await client.get(
-        _url(a), headers=a.headers, params={"entity": f"document:{doc.id}"}
+        _url(a), headers=a.headers, params={"entity": f"file:{doc.id}"}
     )
     assert from_doc.status_code == 200, from_doc.text
     (edge,) = from_doc.json()
@@ -92,11 +92,11 @@ async def test_the_same_pair_is_refused_twice(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     payload = {
         "source": {"type": "project", "id": a.project.id},
         "relationship_type": "attached",
-        "target": {"type": "document", "id": doc.id},
+        "target": {"type": "file", "id": doc.id},
     }
     assert (
         await client.post(_url(a), headers=a.headers, json=payload)
@@ -134,7 +134,7 @@ async def test_a_picker_does_not_reach_across_initiatives(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     elsewhere = await create_initiative(session, a.guild, a.user)
-    doc = await create_document(session, elsewhere, a.user)
+    doc = await create_file(session, elsewhere, a.user)
 
     response = await client.post(
         _url(a),
@@ -142,7 +142,7 @@ async def test_a_picker_does_not_reach_across_initiatives(
         json={
             "source": {"type": "project", "id": a.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert response.status_code == 400, response.text
@@ -158,7 +158,7 @@ async def test_an_end_the_caller_cannot_open_is_absent(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     hidden = await create_initiative(session, owner.guild, owner.user)
-    doc = await create_document(session, hidden, owner.user)
+    doc = await create_file(session, hidden, owner.user)
 
     reader = await acting_user(
         guild_role=CommunityRole.member,
@@ -172,7 +172,7 @@ async def test_an_end_the_caller_cannot_open_is_absent(
         json={
             "source": {"type": "project", "id": owner.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert response.status_code == 404
@@ -183,13 +183,13 @@ async def test_a_slice_is_replaced_wholesale(client: AsyncClient, acting_user, s
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    first = await create_document(session, a.initiative, a.user, name="First")
-    second = await create_document(session, a.initiative, a.user, name="Second")
+    first = await create_file(session, a.initiative, a.user, name="First")
+    second = await create_file(session, a.initiative, a.user, name="Second")
 
     params = {
         "entity": f"project:{a.project.id}",
         "relationship_type": "attached",
-        "other_type": "document",
+        "other_type": "file",
     }
     set_one = await client.put(
         _url(a), headers=a.headers, params=params, json=[first.id]
@@ -210,14 +210,14 @@ async def test_a_link_you_made_is_yours_to_remove(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     created = await client.post(
         _url(a),
         headers=a.headers,
         json={
             "source": {"type": "project", "id": a.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     edge_id = created.json()["id"]
@@ -234,13 +234,13 @@ async def test_a_link_you_made_is_yours_to_remove(
 async def test_a_task_link_is_addressed_by_the_same_surface(
     client: AsyncClient, acting_user, session
 ):
-    """The point of one router: a queue item's tasks and a project's documents
+    """The point of one router: a queue item's tasks and a project's files
     are the same request with different kinds in it."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, a.project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     response = await client.post(
         _url(a),
@@ -248,11 +248,11 @@ async def test_a_task_link_is_addressed_by_the_same_surface(
         json={
             "source": {"type": "task", "id": task.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert response.status_code == 201, response.text
-    assert response.json()["other"]["type"] == "document"
+    assert response.json()["other"]["type"] == "file"
 
 
 async def test_a_kind_no_edge_may_name_is_refused(
@@ -272,10 +272,10 @@ async def test_a_guild_calendars_event_holds_no_initiative_content(
     client: AsyncClient, acting_user, session
 ):
     """An event takes its initiative from its calendar, and a guild calendar
-    has none — so its events are guild-level content and a document is not
+    has none — so its events are guild-level content and a file is not
     theirs to link."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     calendar = await create_guild_calendar(session, a.guild, a.user)
     event = await create_calendar_event(session, calendar, a.user)
 
@@ -285,7 +285,7 @@ async def test_a_guild_calendars_event_holds_no_initiative_content(
         json={
             "source": {"type": "calendar_event", "id": event.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": document.id},
+            "target": {"type": "file", "id": file.id},
         },
     )
     assert response.status_code == 400, response.text
@@ -326,14 +326,14 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
     owner = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     made = await client.post(
         _url(owner),
         headers=owner.headers,
         json={
             "source": {"type": "project", "id": owner.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert made.status_code == 201, made.text
@@ -354,7 +354,7 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
         params={
             "entity": f"project:{owner.project.id}",
             "relationship_type": "attached",
-            "other_type": "document",
+            "other_type": "file",
         },
         json=[],
     )
@@ -398,7 +398,7 @@ async def test_an_archived_project_takes_no_new_links(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     await route_session_to_guild(session, a.guild.id)
     a.project.archived_at = datetime.now(timezone.utc)
     session.add(a.project)
@@ -410,7 +410,7 @@ async def test_an_archived_project_takes_no_new_links(
         json={
             "source": {"type": "project", "id": a.project.id},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "file", "id": doc.id},
         },
     )
     assert response.status_code == 400, response.text
@@ -422,16 +422,16 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_assert_by_hand(
 ):
     """Writing the sentence is how you make one."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
-    other = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
+    other = await create_file(session, a.initiative, a.user)
 
     refused = await client.post(
         _url(a),
         headers=a.headers,
         json={
-            "source": {"type": "document", "id": doc.id},
+            "source": {"type": "file", "id": doc.id},
             "relationship_type": "references",
-            "target": {"type": "document", "id": other.id},
+            "target": {"type": "file", "id": other.id},
         },
     )
     assert refused.status_code == 400, refused.text
@@ -442,15 +442,15 @@ async def test_a_slice_of_derived_links_is_not_one_to_restate(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     refused = await client.put(
         _url(a),
         headers=a.headers,
         params={
-            "entity": f"document:{doc.id}",
+            "entity": f"file:{doc.id}",
             "relationship_type": "references",
-            "other_type": "document",
+            "other_type": "file",
         },
         json=[],
     )
@@ -467,13 +467,13 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_unlink_by_hand(
     from app.services.tenant.relationships import Endpoint
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
-    other = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
+    other = await create_file(session, a.initiative, a.user)
 
     await route_session_to_guild(session, a.guild.id)
     await content_references.sync_for_entity(
         session,
-        Endpoint(SearchEntityType.document, doc.id),
+        Endpoint(SearchEntityType.file, doc.id),
         body=_wikilink_body(other.id),
         author_id=a.user.id,
     )
@@ -482,7 +482,7 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_unlink_by_hand(
     listed = await client.get(
         _url(a),
         headers=a.headers,
-        params={"entity": f"document:{doc.id}", "relationship_type": "references"},
+        params={"entity": f"file:{doc.id}", "relationship_type": "references"},
     )
     assert listed.status_code == 200, listed.text
     (edge,) = listed.json()
@@ -503,13 +503,13 @@ async def test_inbound_asks_what_links_here(client: AsyncClient, acting_user, se
     from app.services.tenant.relationships import Endpoint
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
-    other = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
+    other = await create_file(session, a.initiative, a.user)
 
     await route_session_to_guild(session, a.guild.id)
     await content_references.sync_for_entity(
         session,
-        Endpoint(SearchEntityType.document, doc.id),
+        Endpoint(SearchEntityType.file, doc.id),
         body=_wikilink_body(other.id),
         author_id=a.user.id,
     )
@@ -520,7 +520,7 @@ async def test_inbound_asks_what_links_here(client: AsyncClient, acting_user, se
             _url(a),
             headers=a.headers,
             params={
-                "entity": f"document:{entity}",
+                "entity": f"file:{entity}",
                 "relationship_type": "references",
                 "direction": direction,
             },
@@ -586,11 +586,11 @@ async def test_a_far_end_that_is_a_tool_names_itself(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
-    end = await _attach(client, a, "document", doc.id)
+    end = await _attach(client, a, "file", doc.id)
 
-    assert end["tool"] == "document"
+    assert end["tool"] == "file"
     assert end["tool_id"] == doc.id
 
 
@@ -610,17 +610,17 @@ async def test_the_guilds_vocabulary_is_addressed_by_nothing_else(
     assert end["tool_id"] is None
 
 
-async def test_a_document_brings_its_featured_image(
+async def test_a_file_brings_its_featured_image(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(
+    doc = await create_file(
         session, a.initiative, a.user, featured_image_url="/uploads/3/cover.png"
     )
 
-    end = await _attach(client, a, "document", doc.id)
+    end = await _attach(client, a, "file", doc.id)
 
     assert end["image_urls"] == ["/uploads/3/cover.png"]
     assert end["icon"] is None
@@ -644,7 +644,7 @@ async def test_a_picture_brings_its_thumbnail_and_falls_back_to_itself(
     )
 
     assert (await _attach(client, a, "gallery_image", small.id))["image_urls"] == [
-        small.file_url
+        small.current_version.file_url
     ]
     assert (await _attach(client, a, "gallery_image", large.id))["image_urls"] == [
         "/uploads/3/thumb.webp"
@@ -717,21 +717,19 @@ async def test_a_kind_with_no_look_of_its_own_says_so(
     assert end["color"] is None
 
 
-async def test_a_document_says_what_sort_of_document_it_is(
+async def test_a_file_says_what_sort_of_file_it_is(
     client: AsyncClient, acting_user, session
 ):
-    """A spreadsheet, a whiteboard and a PDF are all documents and none of them
+    """A spreadsheet, a whiteboard and a PDF are all files and none of them
     should be drawn as a scroll, so the far end carries what picks the icon."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    sheet = await create_document(
-        session, a.initiative, a.user, document_type="spreadsheet"
-    )
+    sheet = await create_file(session, a.initiative, a.user, file_type="spreadsheet")
 
-    end = await _attach(client, a, "document", sheet.id)
+    end = await _attach(client, a, "file", sheet.id)
 
-    assert end["document_type"] == "spreadsheet"
+    assert end["file_type"] == "spreadsheet"
 
 
 async def test_a_kind_with_one_fixed_icon_says_nothing_about_its_sort(
@@ -744,7 +742,7 @@ async def test_a_kind_with_one_fixed_icon_says_nothing_about_its_sort(
 
     end = await _attach(client, a, "task", task.id)
 
-    assert end["document_type"] is None
+    assert end["file_type"] is None
     assert end["mime_type"] is None
     assert end["original_filename"] is None
     assert end["smart_link_url"] is None
@@ -842,14 +840,14 @@ async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
         initiative=a.initiative,
         initiative_role="member",
     )
-    theirs = await create_document(session, a.initiative, b.user)
+    theirs = await create_file(session, a.initiative, b.user)
     await create_resource_grant(session, theirs, all_initiative_members=True)
 
     response = await client.post(
         _url(a),
         headers=a.headers,
         json={
-            "source": {"type": "document", "id": theirs.id},
+            "source": {"type": "file", "id": theirs.id},
             "relationship_type": "attached",
             "target": {"type": "project", "id": a.project.id},
         },

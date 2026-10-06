@@ -58,7 +58,7 @@ Put some tasks on it. That's a working setup — everything else in these guides
 
 You can belong to as many as you want — work, the volunteer thing, your family — and they stay completely separate from each other.
 
-Click a community's icon on the rail and the whole app moves over with you: sidebar, projects, documents, everything. Nothing leaks between them, ever, in either direction.
+Click a community's icon on the rail and the whole app moves over with you: sidebar, projects, files, everything. Nothing leaks between them, ever, in either direction.
 
 ??? techspec "For the technically minded — a community is a hard boundary"
     Each community's content lives in its own database schema, created with the community, and a request is routed into exactly one of them — so reads and writes reach only communities you belong to, enforced at the database level rather than in the interface. Two browser tabs can sit in two different communities at once with no crossover. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).

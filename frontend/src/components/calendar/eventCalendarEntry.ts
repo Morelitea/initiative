@@ -14,6 +14,16 @@ export const allDayRange = (startAt: string, endAt: string) => {
   return { start_at: `${day(startAt)}T00:00:00Z`, end_at: `${day(endAt)}T23:59:59Z` };
 };
 
+/** What an event's calendar entry carries for opening and rescheduling it. */
+export type EventEntryMeta = {
+  type: "event";
+  eventId: number;
+  calendarId: number;
+  communityId: number;
+  /** The occurrence's start in its series, for one of a repeating event. */
+  occurrence?: string;
+};
+
 /** A calendar's color when none is set — the server's own default. */
 export const DEFAULT_CALENDAR_COLOR = "#6366f1";
 
@@ -23,8 +33,7 @@ export const DEFAULT_CALENDAR_COLOR = "#6366f1";
  * The id carries the community because the cross-community calendar holds events whose
  * per-community ids collide, and a repeating event's occurrence because the series
  * is there once for each; `meta` carries everything either calendar navigates
- * or reschedules by: an occurrence names its start in the series, and one with
- * a row of its own names the series too.
+ * or reschedules by: an occurrence names its start in the series.
  */
 export const buildEventCalendarEntry = (
   event: CalendarEventSummary,
@@ -54,6 +63,5 @@ export const buildEventCalendarEntry = (
     calendarId: event.calendar_id,
     communityId: event.community_id,
     occurrence: event.original_start ?? undefined,
-    seriesId: event.series_id ?? undefined,
-  },
+  } satisfies EventEntryMeta,
 });

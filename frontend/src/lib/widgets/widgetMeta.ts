@@ -8,7 +8,7 @@
  * the registry. So a module exports `meta` alongside `render`, carrying its
  * strings in every language its author supports.
  *
- * What stays app-owned is what is genuinely ours: binding *source* labels (they
+ * What stays plugin-owned is what is genuinely ours: binding *source* labels (they
  * name our endpoints and are shared by every widget) and page chrome.
  *
  * Meta is untrusted input like any other widget output, so it crosses the same
@@ -37,14 +37,14 @@ export interface WidgetMeta {
 }
 
 /**
- * What this trims by, read from the vendored app-kit contract.
+ * What this trims by, read from the vendored plugin-kit contract.
  *
  * The server validates the same meta in Python over catalog content, and the
  * two cannot call each other — but they must trim identically, or a widget is
  * accepted by the catalog and then re-rendered differently here. Both read
  * these numbers rather than each holding a copy.
  *
- * Refresh the vendored contract with `backend/scripts/refresh_app_kit.py`.
+ * Refresh the vendored contract with `backend/scripts/refresh_plugin_kit.py`.
  */
 export const META_LIMITS = {
   maxTextLength: contract.caps.textLength,

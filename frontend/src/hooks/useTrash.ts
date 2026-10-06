@@ -64,7 +64,7 @@ const RESTORED: Record<EntityType, () => Spec> = {
   wiki: q.allWikis,
   wiki_page: q.allWikis,
   task: q.allTasks,
-  document: q.allDocuments,
+  file: q.allFiles,
   comment: q.allComments,
   initiative: q.allInitiatives,
   tag: q.allTags,

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Plug-ins can have a minimum age**, which may differ by country. Someone younger than a plug-in's minimum where they are can't open or use it; their community can still install it. **Server operators:** set `CLIENT_COUNTRY_HEADER` (`CF-IPCountry` behind Cloudflare) so the limits apply by country; unset, a plug-in's highest minimum applies to everyone.
 - **Billing insights** for operators and owners, under **Operator dashboard → Billing** on servers connected to a billing service: revenue, subscribers and cancellations across every community, without opening any one of them. The new `billing.insights` capability gates it.
 - **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.
 - **Some sign-in changes wait two days** when made from somewhere your account is new to, with **Cancel the change** in every email and in your settings. Signing in with a passkey skips the wait.
@@ -24,10 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
-- **Report a marketplace listing or an app** with the flag on its listing page or at the top of the app. Reports go to whoever runs the server.
+- **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
+- **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
+- **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
+- **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins Morelitea publishes have no flag.
 
 ### Changed
 
+- **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
+- **Documents are now called Files.** Text documents, whiteboards, spreadsheets, links and uploads live in the Files tool, and the API says so: `/api/v1/c/{community_id}/files/…`, `file_id`, `file_type` and `files_enabled`, webhook events `files.*`, plug-in scopes `files:read` and `files:write`, and the export type `initiative-file`. Upgrading moves what is already stored, including plug-in grants, webhook subscriptions and the SQL in dashboards. A plug-in manifest that still asks for `documents:read` or `documents:write` is refused until it is republished with plug-in kit 3.0.0. Links to the old `/documents/…` pages and `/go/document/…` no longer open, and saved list layouts for the tool start fresh. Backups made before the rename still restore.
+- **Queue API.** A queue reports `current_item_id` instead of the whole `current_item`, and queue items no longer carry `tasks` (read an item's links from the relationships API). Queue item routes sit under the `queues` tag, so an agent can read a queue item back. Plug-ins with a queue's or counter group's write scope can now add its items and counters, edit counters, reset all counters and sort them.
+- **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do. The API drops what nothing read: document list `projects`, `yjs_updated_at`, `sort_by`/`sort_dir` and the `ids` filter, and the attached-document fields on queue items and calendar events (link them as relationships).
+- **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
+- **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
+- **Dashboard queries read a file's type, size and name through `current_version`** (`current_version.file_size` on `documents` and `gallery_images`), the version the file shows. The new `document_versions` and `gallery_image_versions` datasets hold every version.
+- **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
 - **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
 - **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it: install the new one, sign in, then uninstall the old one. The old app keeps working with upgraded servers in the meantime. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
@@ -39,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
 - **On iPhone, an app update is sent to the App Store**, not to an APK download.
-- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Apps a community already added still open, after a one-time note saying who made them.
+- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Plug-ins a community already added open too; one Morelitea doesn't publish shows a one-time note first saying who made it.
 - **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
 - **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
 - **An app installed from Google Play is sent back to Play** when it needs updating.
@@ -47,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
 - **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
 - **Rate limits count per account, not per network**, so people sharing an office address no longer share a limit or lock each other out.
+- **The API drops `GET /dashboards/{id}/widgets/{widget_id}/query`.** `GET /dashboards/{id}/data` answers every query widget on a dashboard.
 - **Links in notification emails sent before this release no longer open.** Open the notification in the app instead.
 - **User settings are reorganised.** **Interface** is now **Preferences**, and the **Danger Zone** tab has moved into **Account**.
 - **One header for every tool page**, with status, tags and properties editable in place, and a tidier, more consistent layout throughout.
@@ -65,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An imported dashboard keeps its tags**, as other tools do.
+- **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
+- **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.
+- **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.
+- **Someone who loses access to a calendar, queue or other tool is taken off what is in it.** Event attendees, people on queue items and person fields now let go of them when sharing changes, as task assignees already did.
+- **Files restored from a backup or brought in with a wiki or gallery import keep a version history and a type**, as uploaded ones do; a file whose type isn't one the tool shows is skipped and reported.
+- **A comment that fails to post, save or delete says so in words** rather than showing a raw message key.
 - **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
 - **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
 - **Image captions in documents and wiki pages are saved.**
@@ -77,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dialogs taller than the screen scroll**, so their buttons stay within reach.
 - **Repeating events keep their dates within the calendar**, and a range with too many occurrences asks for a shorter one.
 - **A post published after its poll's deadline** opens the poll instead of posting it closed.
+- **Voting in a poll or editing a notice no longer marks it unread** or raises its "Read by" count.
+- **Dashboard settings accept only the values a widget asks for**, including in imported dashboards.
+- **A new dashboard offers Run as Initiative straight away** to people who may turn it on.
+- **A failed dashboard update shows one message, not two**, and a poll nobody has answered says so.
 - **Comments offer Delete only to people who can delete them**, and ask first.
 - **Reports and help requests:** escalated reports carry what reporters wrote, repeat reports add to the case, the help form hides while the support project is archived, non-owner operators can switch help requests on, and both are limited per account.
 - **Access grants show as expired** when their time runs out.
@@ -88,7 +112,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An account made through a provider with no email address can make a confirmed address its primary.**
 - **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
 - **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
+- **A wiki's "Show when a page was last updated" setting is saved**, and editing a wiki or one of its pages dates it.
+- **A new, copied or moved wiki page shows its tags and properties straight away.**
+- **Exporting a wiki keeps its settings**: page order, contents depth, connections, last-updated, reading width, accent colour and template page come back when it is imported.
+- **Plug-ins with a wiki's or gallery's write access can add, edit and move its pages and pictures**, and upload new versions of a picture. Removing them stays with people.
 - **Community locations.** A community can say where it is, from just a country down to a street address, with its own name for the place ("Queen Anne Neighborhood, Seattle, WA"). It shows on the community's front page and its card; street and postcode stay behind a hover or tap. The directory's search finds communities by place too, country names included, and **Near me** puts the closest ones first. Sign-up asks where you are when you're looking for a community.
+- **Clearing an event's description or location saves.** The emptied field used to come back.
+- **Saving an event or calendar with an empty required field is refused** instead of failing with a server error.
+- **A calendar's color follows what was saved**, and can no longer look cleared.
+- **A calendar or event link you can't open says so** instead of loading forever.
+- **iCal import problems show in your language.**
+- **An initiative's calendar shows only its own tasks**, and the community calendar shows none.
 
 ## [0.74.0] - 2026-10-01
 

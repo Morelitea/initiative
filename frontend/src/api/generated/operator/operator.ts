@@ -673,7 +673,7 @@ export const useReactivateUser = <TError = ErrorType<HTTPValidationError>, TCont
  * a deletion they made on somebody's behalf.
  *
  * Nothing is restored as such: the account never lost anything. It kept its
- * memberships, its initiative roles and the documents it owns for the whole
+ * memberships, its initiative roles and the files it owns for the whole
  * window, so this puts it back exactly where it was.
  *
  * Separate from ``reactivate``, which is for a *deactivated* account and
@@ -1233,11 +1233,11 @@ export const useRevokeUserApiKeys = <TError = ErrorType<HTTPValidationError>, TC
 /**
  * Let an account answer the age question again.
  *
- * An account that answered as under age keeps that answer, and the question
- * is not re-asked — otherwise it is not a question. This is the way back for
- * the case that is nearly all of them: a mistyped year. It clears the record
- * of the answer and nothing else; the account answers again from scratch, and
- * the deployment has no more idea of anybody's birthday than it did before.
+ * An answer stands — an under-age one, and any kept date of birth — and the
+ * question is not re-asked, otherwise it is not a question. This is the way
+ * back for the case that is nearly all of them: a mistyped year. It clears
+ * the under-age record, the confirmation and the kept date, and nothing
+ * else; the account answers again from scratch.
  *
  * Gated on ``users.age_unblock``, which the support tier holds — the lowest
  * rung, because getting somebody back into their account after a typo is

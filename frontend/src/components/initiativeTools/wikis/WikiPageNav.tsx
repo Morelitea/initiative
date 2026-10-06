@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { WikiPageKind } from "@/api/generated/initiativeAPI.schemas";
 import { useWikiPages } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
+import { wikiFileRoute, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface WikiPageNavProps {
@@ -36,7 +36,7 @@ export const WikiPageNav = ({
   currentKind = WikiPageKind.page,
   className,
 }: WikiPageNavProps) => {
-  const { t } = useTranslation("wikis");
+  const { t } = useTranslation(["wikis", "common"]);
   const gp = useCommunityPath();
   const { data } = useWikiPages(Number.isFinite(wikiId) ? wikiId : null);
 
@@ -51,8 +51,8 @@ export const WikiPageNav = ({
 
   const hrefOf = (row: (typeof items)[number]) =>
     gp(
-      row.kind === WikiPageKind.document
-        ? wikiDocumentRoute(initiativeId, wikiId, row.id)
+      row.kind === WikiPageKind.file
+        ? wikiFileRoute(initiativeId, wikiId, row.id)
         : wikiPageRoute(initiativeId, wikiId, row.id)
     );
 
@@ -68,9 +68,9 @@ export const WikiPageNav = ({
         >
           <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block text-muted-foreground text-xs">{t("pages.previous")}</span>
+            <span className="block text-muted-foreground text-xs">{t("common:previous")}</span>
             <span className="block truncate font-medium text-sm">
-              {previous.title || t("pages.untitled")}
+              {previous.title || t("common:untitled")}
             </span>
           </span>
         </Link>
@@ -86,9 +86,9 @@ export const WikiPageNav = ({
           className="group flex min-w-0 flex-1 items-center gap-2 rounded-md border p-3 text-right hover:bg-accent"
         >
           <span className="min-w-0 flex-1">
-            <span className="block text-muted-foreground text-xs">{t("pages.next")}</span>
+            <span className="block text-muted-foreground text-xs">{t("common:next")}</span>
             <span className="block truncate font-medium text-sm">
-              {next.title || t("pages.untitled")}
+              {next.title || t("common:untitled")}
             </span>
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />

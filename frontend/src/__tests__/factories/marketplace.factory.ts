@@ -28,8 +28,8 @@ export function buildMarketplaceVersion(
  *
  * Defaults to the shape a shipped listing has — `builtin`, published by
  * Initiative — because that is the one every deployment always has. Pass
- * `source` and `publisher` together to build the non-first-party case:
- * a listing a registry signed, or one an operator added.
+ * `source`, `publisher` and `first_party: false` together to build the
+ * non-first-party case: a listing a registry signed, or one an operator added.
  */
 export function buildMarketplaceListing(
   overrides: Partial<MarketplaceListingSummary> = {}
@@ -43,6 +43,7 @@ export function buildMarketplaceListing(
     source: "builtin",
     name: `Listing ${counter}`,
     publisher: "Initiative",
+    first_party: true,
     description: "What this listing is for.",
     avatar_url: "/marketplace/test.svg",
     images: [],
@@ -66,7 +67,7 @@ export function buildMarketplaceListingDetail(
     example: null,
     requested_scopes: [],
     grantable_scopes: [],
-    app_names: {},
+    plugin_names: {},
     has_initiative_surfaces: false,
     ...overrides,
   };

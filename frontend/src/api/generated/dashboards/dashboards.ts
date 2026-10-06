@@ -30,7 +30,6 @@ import type {
   DashboardViewModeRequest,
   HTTPValidationError,
   ListDashboardsParams,
-  QueryResponse,
   ReadDashboardParams,
   ResourceGrantSchema,
   ToolDuplicateRequest,
@@ -975,7 +974,7 @@ export const useUpgradeDashboard = <TError = ErrorType<HTTPValidationError>, TCo
  * statements run as one statement in one transaction, and every tile reads
  * the same moment. A widget whose statement is refused says so in its own
  * entry; the rest still answer. What runs is each widget's own stored
- * statement, as for :func:`run_widget_query`.
+ * statement, never one the request supplies.
  * @summary Load Dashboard Data
  */
 export const loadDashboardData = (
@@ -1109,163 +1108,6 @@ export function useLoadDashboardData<
 }
 
 /**
- * Run the statement stored on one of this dashboard's widgets.
- *
- * What runs is the widget's own, never one the request supplies. That is what
- * makes running as the initiative safe to serve: its wider read is only ever
- * asked the question stored on the dashboard.
- *
- * The dashboard's own four gates decide whether this caller sees anything at
- * all, and they run first. The canvas loads through
- * :func:`load_dashboard_data`; this answers one widget, for the builder.
- * @summary Run Widget Query
- */
-export const runWidgetQuery = (
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<QueryResponse>(
-    {
-      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/widgets/${widgetId}/query`,
-      method: "GET",
-      signal,
-    },
-    options
-  );
-};
-
-export const getRunWidgetQueryQueryKey = (
-  communityId: number,
-  dashboardId: number,
-  widgetId: string
-) => {
-  return [`/api/v1/c/${communityId}/dashboards/${dashboardId}/widgets/${widgetId}/query`] as const;
-};
-
-export const getRunWidgetQueryQueryOptions = <
-  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getRunWidgetQueryQueryKey(communityId, dashboardId, widgetId);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof runWidgetQuery>>> = ({ signal }) =>
-    runWidgetQuery(communityId, dashboardId, widgetId, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled:
-      communityId !== null &&
-      communityId !== undefined &&
-      dashboardId !== null &&
-      dashboardId !== undefined &&
-      widgetId !== null &&
-      widgetId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-};
-
-export type RunWidgetQueryQueryResult = NonNullable<Awaited<ReturnType<typeof runWidgetQuery>>>;
-export type RunWidgetQueryQueryError = ErrorType<HTTPValidationError>;
-
-export function useRunWidgetQuery<
-  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>> &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof runWidgetQuery>>,
-          TError,
-          Awaited<ReturnType<typeof runWidgetQuery>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRunWidgetQuery<
-  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>> &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof runWidgetQuery>>,
-          TError,
-          Awaited<ReturnType<typeof runWidgetQuery>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRunWidgetQuery<
-  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Run Widget Query
- */
-
-export function useRunWidgetQuery<
-  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  dashboardId: number,
-  widgetId: string,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getRunWidgetQueryQueryOptions(communityId, dashboardId, widgetId, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
  * Choose whose access this dashboard's query widgets answer from.
  *
  * ``individual`` is each viewer's own. ``initiative`` is full read access to
@@ -1364,9 +1206,12 @@ export const useSetViewMode = <TError = ErrorType<HTTPValidationError>, TContext
   return useMutation(getSetViewModeMutationOptions(options), queryClient);
 };
 /**
- * Replace the dashboard's entire sharing state in one call — the body is
- * the full list of grants (all-initiative-members / per-user / per-role).
- * Every non-owner grant is rebuilt from it; the owner is always preserved.
+ * Replace the dashboard's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the dashboard is taken off
+ * whatever in it names them.
  *
  * This shares the canvas, not its data: each widget still resolves against
  * the viewer's own access to the sources it binds.
@@ -1463,7 +1308,7 @@ export const useSetDashboardGrants = <TError = ErrorType<HTTPValidationError>, T
   return useMutation(getSetDashboardGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Dashboard
  */
 export const duplicateDashboard = (

@@ -545,16 +545,6 @@ export interface ApiKeyListResponse {
 }
 
 /**
- * A successful token response (RFC 6749 §5.1).
- */
-export interface AppAccessTokenResponse {
-  access_token: string;
-  token_type?: string;
-  expires_in: number;
-  scope: string;
-}
-
-/**
  * Public-safe captcha settings the SPA needs to render a widget.
  *
  * Only the provider name and the (public) site key are exposed —
@@ -606,492 +596,13 @@ export interface AppConfig {
 }
 
 /**
- * How deeply an app may act as the member.
- */
-export type ConsentAccess = (typeof ConsentAccess)[keyof typeof ConsentAccess];
-
-export const ConsentAccess = {
-  read: "read",
-  read_write: "read_write",
-} as const;
-
-/**
- * An app asking one member to let it act as them, for one purpose.
- */
-export interface AppConsentRequestCreate {
-  /**
-   * @minLength 1
-   * @maxLength 64
-   */
-  member: string;
-  purpose?: string | null;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  label: string;
-  initiative_id?: number | null;
-  access: ConsentAccess;
-}
-
-/**
- * Where a request stands, read off its columns.
- */
-export type ConsentStatus = (typeof ConsentStatus)[keyof typeof ConsentStatus];
-
-export const ConsentStatus = {
-  pending: "pending",
-  granted: "granted",
-  declined: "declined",
-  revoked: "revoked",
-} as const;
-
-/**
- * A request to act as a member, as it stands.
- */
-export interface AppConsentRequestRead {
-  member: string;
-  purpose?: string | null;
-  label: string;
-  initiative_id?: number | null;
-  requested_access: ConsentAccess;
-  status: ConsentStatus;
-  granted_access?: ConsentAccess | null;
-  requested_at: string;
-}
-
-export type AppDataParamLabel = { [key: string]: string };
-
-export type AppParamOptionSourceNeeds = { [key: string]: string };
-
-/**
- * Where a parameter's permitted values come from, when only the app knows.
- *
- * A repository, a label, a board: every one of them differs per install,
- * changes after it, and can be enumerated only by the app holding that
- * install's credential — so none can be written into a manifest, which is
- * published once and identical on every deployment. The manifest names a read
- * of the app's own instead, and this is that naming, carried through to
- * whoever draws the control.
- */
-export interface AppParamOptionSource {
-  endpoint: string;
-  key: string;
-  label_key?: string | null;
-  needs?: AppParamOptionSourceNeeds;
-}
-
-/**
- * One parameter an endpoint accepts, from its ``params``.
- */
-export interface AppDataParam {
-  key: string;
-  type: string;
-  label?: AppDataParamLabel;
-  required?: boolean;
-  options?: string[] | null;
-  options_from?: AppParamOptionSource | null;
-  list?: boolean;
-}
-
-export type AppDataResponseRowsItem = { [key: string]: unknown };
-
-export type AppDataResponseValues = { [key: string]: unknown };
-
-/**
- * What a value *is*, for comparison and formatting.
- *
- * Coarser than a SQL type on purpose: a consumer needs to know that a due date
- * orders and a title does not, never that one is ``timestamptz`` and the other
- * ``varchar(200)``.
- */
-export type FieldType = (typeof FieldType)[keyof typeof FieldType];
-
-export const FieldType = {
-  text: "text",
-  number: "number",
-  date: "date",
-  boolean: "boolean",
-  enum: "enum",
-  reference: "reference",
-} as const;
-
-/**
- * One output column, as the database describes it before running.
- */
-export interface QueryColumnDescription {
-  name: string;
-  type: FieldType;
-  grain?: string | null;
-}
-
-/**
- * Rows a statement produced, and what they hold.
- *
- * Positional against ``columns`` rather than keyed by name, for the reason
- * every other read of this surface is: a statement may name two outputs the
- * same thing, and a mapping would keep one of the two.
- */
-export interface AppDataTable {
-  columns?: QueryColumnDescription[];
-  rows?: unknown[][];
-}
-
-/**
- * One data source's answer, in the two shapes its endpoint declared.
- */
-export interface AppDataResponse {
-  rows?: AppDataResponseRowsItem[];
-  table?: AppDataTable | null;
-  values?: AppDataResponseValues;
-  fetched_at: string;
-  cached?: boolean;
-}
-
-export type AppDataReturnLabel = { [key: string]: string };
-
-/**
- * One thing an endpoint hands back, from its ``returns``.
- *
- * Declared rather than discovered, because a consumer binds one of these
- * before the endpoint has ever run. The ones marked ``list`` are what become
- * the rows — so they are also the columns a statement over those rows may
- * name.
- */
-export interface AppDataReturn {
-  key: string;
-  type: string;
-  label?: AppDataReturnLabel;
-  list?: boolean;
-}
-
-/**
- * A read endpoint a widget may bind to.
- *
- * Reads only. A write and an emission are both real endpoints and neither
- * fills a tile, so neither belongs in a widget picker.
- */
-export interface AppEndpointRead {
-  id: string;
-  admin_only?: boolean;
-  cache_ttl_seconds?: number;
-  params?: AppDataParam[];
-  returns?: AppDataReturn[];
-}
-
-/**
- * One install of the calling app.
- */
-export interface AppInstallationRead {
-  installation: string;
-  active: boolean;
-}
-
-/**
- * An error response (RFC 6749 §5.2).
- */
-export interface AppOAuthErrorResponse {
-  error: string;
-  error_description: string;
-}
-
-/**
- * One value a parameter permits.
- */
-export interface AppParamOption {
-  value: string;
-  label?: string | null;
-}
-
-/**
- * The menu for one parameter, or why there is not one.
- *
- * ``unavailable`` is never an error. A source that will not resolve — the app
- * is down, a credential nobody has connected, a sibling not yet chosen — must
- * leave the parameter **enterable**, because a control disabled on those
- * grounds has made a valid configuration unreachable. A consumer draws a menu
- * when there is one and a text field when there is not.
- */
-export interface AppParamOptionsResponse {
-  options?: AppParamOption[];
-  unavailable?: string | null;
-}
-
-/**
- * One initiative an app is placed in, and who may open it there.
- */
-export interface AppPlacementRead {
-  initiative_id: number;
-  role_ids: number[];
-}
-
-/**
- * Who may open an app's surfaces in one initiative.
- *
- * The whole set: a role left out is no longer allowed. Every id must be a
- * role of that initiative. An empty list places the app with no role, so
- * only guild admins open it there.
- */
-export interface AppPlacementUpdate {
-  /** @maxItems 200 */
-  role_ids?: number[];
-}
-
-/**
- * Add a publisher for a prefix, unverified.
- */
-export interface AppPublisherCreate {
-  /** @maxLength 120 */
-  prefix: string;
-  /** @maxLength 200 */
-  display_name: string;
-  enabled?: boolean;
-}
-
-/**
- * A publisher as the owner's settings see it.
- */
-export interface AppPublisherRead {
-  id: number;
-  prefix: string;
-  display_name: string;
-  verified: boolean;
-  enabled: boolean;
-  created_at: string;
-}
-
-/**
- * Rename a publisher, or switch it on or off.
- */
-export interface AppPublisherUpdate {
-  display_name?: string | null;
-  enabled?: boolean | null;
-}
-
-/**
- * One key the app serves under its base URL: what Connect shows, and what
- * the operator confirms.
- */
-export interface AppServicePublishedKey {
-  kid: string;
-  /** @maxLength 64 */
-  fingerprint: string;
-}
-
-/**
- * Pin the key set the app serves, as the operator confirmed it.
- */
-export interface AppServiceConnect {
-  /**
-   * @minItems 1
-   * @maxItems 20
-   */
-  keys: AppServicePublishedKey[];
-}
-
-export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
-
-export type AppServiceRegistrationCreateVendorValues = { [key: string]: string | null } | null;
-
-/**
- * Set up an app service's deployment facts before its listing arrives.
- *
- * ``public_id`` names the app. ``embed_origin`` is optional, and unset is the
- * ordinary case: an app reachable at one address needs only ``base_url``.
- * Give one when the address a browser must use is not the address this
- * deployment calls.
- *
- * Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
- * over https, or both. A registration with neither is not live.
- */
-export interface AppServiceRegistrationCreate {
-  /** @maxLength 120 */
-  public_id: string;
-  /** @maxLength 1000 */
-  base_url: string;
-  embed_origin?: string | null;
-  allowed_origins?: string[] | null;
-  jwks?: AppServiceRegistrationCreateJwks;
-  jwks_uri?: string | null;
-  mandatory?: boolean;
-  enabled?: boolean;
-  vendor_values?: AppServiceRegistrationCreateVendorValues;
-}
-
-export type AppServiceRegistrationReadJwks = { [key: string]: unknown } | null;
-
-export type AppServiceRegistrationReadVendorValues = { [key: string]: string };
-
-export type AppVendorFieldReadLabel = { [key: string]: string };
-
-/**
- * One value an operator supplies for the app's vendor client, as the
- * listing's manifest declares it.
- */
-export interface AppVendorFieldRead {
-  key: string;
-  type: string;
-  required: boolean;
-  label: AppVendorFieldReadLabel;
-}
-
-/**
- * A registration as the owner's settings see it.
- */
-export interface AppServiceRegistrationRead {
-  id: number;
-  public_id: string;
-  listing_uid: string | null;
-  kind: string;
-  publisher_id: number;
-  publisher_prefix: string;
-  publisher_name: string;
-  publisher_enabled: boolean;
-  base_url: string | null;
-  embed_origin: string | null;
-  allowed_origins: string[];
-  jwks: AppServiceRegistrationReadJwks;
-  jwks_uri: string | null;
-  scope_ceiling: string[];
-  mandatory: boolean;
-  enabled: boolean;
-  source: string;
-  image_digest: string | null;
-  compose_service: string | null;
-  compose_base_url: string | null;
-  vendor_fields: AppVendorFieldRead[];
-  vendor_values: AppServiceRegistrationReadVendorValues;
-  vendor_set: string[];
-  vendor_ready: boolean;
-  vendor_setup: string | null;
-  connection_callback_url: string;
-  connection_setup_url: string;
-  webhook_url: string;
-  live: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export type AppServiceRegistrationUpdateJwks = { [key: string]: unknown } | null;
-
-export type AppServiceRegistrationUpdateVendorValues = { [key: string]: string | null } | null;
-
-/**
- * Partial edit.
- *
- * An empty ``embed_origin`` clears it, putting both surfaces back on
- * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
- * object clears the pasted set. In ``vendor_values`` a key sent empty or
- * null clears that value, and a key left out keeps it, so a secret is kept
- * by not sending it.
- */
-export interface AppServiceRegistrationUpdate {
-  base_url?: string | null;
-  embed_origin?: string | null;
-  allowed_origins?: string[] | null;
-  jwks?: AppServiceRegistrationUpdateJwks;
-  jwks_uri?: string | null;
-  mandatory?: boolean | null;
-  enabled?: boolean | null;
-  vendor_values?: AppServiceRegistrationUpdateVendorValues;
-}
-
-/**
- * What the operator's browser posts to the vendor: ``manifest`` as a form
- * field, to ``action`` with ``state`` in its query.
- */
-export interface AppServiceVendorSetup {
-  action: string;
-  manifest: string;
-  state: string;
-}
-
-/**
- * What the vendor sent the operator back with.
- */
-export interface AppServiceVendorSetupComplete {
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  code: string;
-  /**
-   * @minLength 1
-   * @maxLength 4000
-   */
-  state: string;
-}
-
-/**
- * Start the vendor's own setup for the app's client.
- */
-export interface AppServiceVendorSetupStart {
-  organization?: string | null;
-}
-
-/**
- * Where the viewer may open one of an app's surfaces.
- *
- * Computed on the server by the same decision the handoff makes, so the
- * client offers exactly the doors that open.
- */
-export interface AppSurfaceAccessRead {
-  surface_id: string;
-  openable_community_wide: boolean;
-  openable_initiatives: number[];
-}
-
-export type AppSurfaceSummaryName = { [key: string]: string };
-
-/**
- * One of an app's embedded surfaces, by id and by its localized name.
- */
-export interface AppSurfaceSummary {
-  id: string;
-  name: AppSurfaceSummaryName;
-}
-
-export type AppWidgetReadMeta = { [key: string]: unknown };
-
-export type AppWidgetReadSampleData = { [key: string]: unknown };
-
-/**
- * One widget an installed app contributes.
- */
-export interface AppWidgetRead {
-  type: string;
-  id: string;
-  meta?: AppWidgetReadMeta;
-  module_source: string;
-  endpoints?: string[];
-  sample_data?: AppWidgetReadSampleData;
-}
-
-/**
- * One installed app's contribution to the widget palette.
- */
-export interface AppWidgetCatalogEntry {
-  app_id: number;
-  /** @maxLength 14 */
-  app_uid: string;
-  name: string;
-  enabled?: boolean;
-  widgets?: AppWidgetRead[];
-  endpoints?: AppEndpointRead[];
-}
-
-export interface AppWidgetCatalogResponse {
-  items?: AppWidgetCatalogEntry[];
-}
-
-/**
  * Things that can be archived.
  */
 export type ArchivableType = (typeof ArchivableType)[keyof typeof ArchivableType];
 
 export const ArchivableType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -1443,13 +954,13 @@ export interface BodySetCommunityIcon {
 export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
 
 export const ListingKind = {
-  app: "app",
   auto: "auto",
   calendar: "calendar",
   counter_group: "counter_group",
   dashboard: "dashboard",
-  document: "document",
+  file: "file",
   gallery: "gallery",
+  plugin: "plugin",
   post: "post",
   profile_pack: "profile_pack",
   project: "project",
@@ -1487,13 +998,13 @@ export interface BodyUploadBackup {
   file: Blob;
 }
 
-export interface BodyUploadDocumentFile {
+export interface BodyUploadFile {
   name: string;
   initiative_id: number;
   file: Blob;
 }
 
-export interface BodyUploadDocumentVersion {
+export interface BodyUploadFileVersion {
   file: Blob;
 }
 
@@ -1584,8 +1095,8 @@ export const ResourceAccessLevel = {
 /**
  * One ``resource_grants`` row — exactly the columns that define a grant: a
  * ``level`` for a user (``user_id``), an initiative role (``role_id``), all
- * initiative members (``all_initiative_members``), or an installed app
- * (``app_install_id``). Exactly one grantee is set.
+ * initiative members (``all_initiative_members``), or an installed plug-in
+ * (``plugin_install_id``). Exactly one grantee is set.
  *
  * The identical shape both reports a resource's grants (``grants`` is a list of
  * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
@@ -1593,8 +1104,8 @@ export const ResourceAccessLevel = {
  * grant. Role display names are resolved client-side from the initiative's roles
  * by ``role_id``.
  *
- * An **app install** grantee is reported here and not taken from here: kept by
- * the server whatever this list says. What an app may reach is the seat's to
+ * A **plug-in install** grantee is reported here and not taken from here: kept by
+ * the server whatever this list says. What a plug-in may reach is the seat's to
  * decide, not a resource owner's sharing panel.
  */
 export interface ResourceGrantSchema {
@@ -1602,7 +1113,7 @@ export interface ResourceGrantSchema {
   user_id?: number | null;
   role_id?: number | null;
   all_initiative_members?: boolean;
-  app_install_id?: number | null;
+  plugin_install_id?: number | null;
 }
 
 export interface CalendarCreate {
@@ -1618,20 +1129,6 @@ export interface CalendarCreate {
   initiative_id?: number | null;
   tag_ids?: number[] | null;
   grants?: ResourceGrantSchema[];
-}
-
-/**
- * Compact per-attendee snapshot for list responses.
- *
- * Carries the id + avatar fields the SPA needs to render tinted,
- * image-backed avatars on the calendar list view. The full
- * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
- * still exposed on the detail endpoint.
- */
-export interface CalendarEventAttendeePreview {
-  user_id: number;
-  name: string;
-  avatar_url: string | null;
 }
 
 /**
@@ -1681,7 +1178,7 @@ export interface PropertySummary {
   name: string;
   type: PropertyType;
   options: PropertyOption[] | null;
-  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, or an AppPerson when the reader is an installed app. */
+  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, or an PluginPerson when the reader is an installed plug-in. */
   value: unknown;
 }
 
@@ -1704,6 +1201,20 @@ export interface ContentCan {
   edit: boolean;
 }
 
+/**
+ * Compact per-attendee snapshot for list responses.
+ *
+ * Carries the id + avatar fields the SPA needs to render tinted,
+ * image-backed avatars on the calendar list view. The full
+ * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
+ * still exposed on the detail endpoint.
+ */
+export interface CalendarEventAttendeePreview {
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+}
+
 export interface CalendarEventSummary {
   /**
    * @minLength 1
@@ -1715,6 +1226,7 @@ export interface CalendarEventSummary {
   start_at: string;
   end_at: string;
   all_day: boolean;
+  rsvp_open: boolean;
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
@@ -1724,14 +1236,12 @@ export interface CalendarEventSummary {
   initiative_id: number | null;
   community_id: number;
   created_by: number | null;
-  attendee_count: number;
-  attendee_names: string[];
-  attendee_previews: CalendarEventAttendeePreview[];
   properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
   created_at: string;
   updated_at: string;
+  attendee_previews: CalendarEventAttendeePreview[];
 }
 
 export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
@@ -1903,18 +1413,12 @@ export interface CalendarEventCreate {
   start_at: string;
   end_at: string;
   all_day?: boolean;
+  rsvp_open?: boolean;
   recurrence?: string | null;
   calendar_id: number;
   tz?: string | null;
   attendee_ids?: number[] | null;
   tag_ids?: number[] | null;
-  document_ids?: number[] | null;
-}
-
-export interface CalendarEventDocumentRead {
-  document_id: number;
-  name?: string;
-  attached_at: string;
 }
 
 export interface CalendarEventRSVPUpdate {
@@ -1933,6 +1437,7 @@ export interface CalendarEventRead {
   start_at: string;
   end_at: string;
   all_day: boolean;
+  rsvp_open: boolean;
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
@@ -1942,16 +1447,12 @@ export interface CalendarEventRead {
   initiative_id: number | null;
   community_id: number;
   created_by: number | null;
-  attendee_count: number;
-  attendee_names: string[];
-  attendee_previews: CalendarEventAttendeePreview[];
   properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
   created_at: string;
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
-  documents: CalendarEventDocumentRead[];
   overridden_fields: string[];
   skipped_starts: string[];
   extra_starts: string[];
@@ -1975,6 +1476,7 @@ export interface CalendarEventUpdate {
   start_at?: string | null;
   end_at?: string | null;
   all_day?: boolean | null;
+  rsvp_open?: boolean | null;
   recurrence?: string | null;
   tz?: string | null;
   calendar_id?: number | null;
@@ -2079,7 +1581,7 @@ export const Capability = {
   accessrequest: "access.request",
   accessapprove: "access.approve",
   configmanage: "config.manage",
-  appsmanage: "apps.manage",
+  pluginsmanage: "plugins.manage",
 } as const;
 
 /**
@@ -2314,8 +1816,8 @@ export interface CommentCreate {
   content: string;
   task_id?: number | null;
   wiki_page_id?: number | null;
-  document_id?: number | null;
   project_id?: number | null;
+  file_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -2348,13 +1850,16 @@ export interface ReactionGroup {
   users: ReactionUser[];
 }
 
+/**
+ * One comment. ``project_id`` is its own for a comment on a project and
+ * the task's for a task comment (filled by the service's serializer).
+ */
 export interface CommentRead {
   content: string;
-  id: number;
-  created_by: number | null;
   task_id: number | null;
   wiki_page_id: number | null;
-  document_id: number | null;
+  project_id: number | null;
+  file_id: number | null;
   queue_id: number | null;
   counter_group_id: number | null;
   calendar_id: number | null;
@@ -2362,12 +1867,13 @@ export interface CommentRead {
   post_id: number | null;
   gallery_id: number | null;
   wiki_id: number | null;
+  id: number;
+  created_by: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
   author: CommentAuthor | null;
   imported_author_name: string | null;
-  project_id: number | null;
   reactions: ReactionGroup[];
   can_remove: boolean;
   audience: CommentAudience;
@@ -2388,378 +1894,6 @@ export interface CommentListResponse {
  */
 export interface CommentUpdate {
   content: string;
-}
-
-/**
- * One thing an install produced.
- */
-export interface CommunityAppArtifact {
-  type: string;
-  id: number;
-}
-
-export type CommunityAppConfigUpdateValues = { [key: string]: { [key: string]: unknown } };
-
-/**
- * Guild-scoped connection values, keyed by connection then field.
- *
- * A key sent as ``null`` clears that value; a key left out is untouched, so a
- * form rendering part of a connection cannot wipe the rest.
- *
- * Deliberately untyped at this layer. A credential is opaque bytes to us, so
- * sanitizing one would corrupt it, and the declared field types live in the
- * pinned definition rather than in this schema — the service checks each value
- * against the type its own connection declared, which coercion here would
- * quietly defeat (a ``true`` arriving at an ``int`` field must be refused, not
- * turned into ``1``).
- */
-export interface CommunityAppConfigUpdate {
-  values?: CommunityAppConfigUpdateValues;
-}
-
-/**
- * Where to send the person connecting: the vendor's authorization page,
- * or its install page for a connection an organization installs.
- *
- * Initiative runs the flow, and the vendor returns the person to Initiative's
- * own callback. Nothing is stored until it does.
- */
-export interface CommunityAppConnectStart {
-  connection_id: string;
-  connect_url: string;
-  status: string;
-}
-
-export type CommunityAppConnectionReadLabel = { [key: string]: string };
-
-export type CommunityAppConnectionReadFieldsItem = { [key: string]: unknown };
-
-export type CommunityAppConnectionReadAccessHint = { [key: string]: unknown } | null;
-
-export type CommunityAppConnectionReadValues = { [key: string]: unknown };
-
-export type CommunityAppConnectionReadHasValue = { [key: string]: boolean };
-
-/**
- * One connection of an install, as the current viewer sees it.
- *
- * ``has_value`` is the whole of what is disclosed about stored values. For a
- * per-member connection the presence, status and account label are the
- * *viewer's own* — a colleague who has connected and one who has not are both
- * looking at a correct answer, because the underlying vendor access genuinely
- * differs per person.
- */
-export interface CommunityAppConnectionRead {
-  id: string;
-  scope: string;
-  label: CommunityAppConnectionReadLabel;
-  fields: CommunityAppConnectionReadFieldsItem[];
-  access_hint: CommunityAppConnectionReadAccessHint;
-  values: CommunityAppConnectionReadValues;
-  has_value: CommunityAppConnectionReadHasValue;
-  satisfied: boolean;
-  runs_flow: boolean;
-  status: string | null;
-  account_label: string | null;
-  blocked: boolean;
-}
-
-export type CommunityAppConnectionSummaryLabel = { [key: string]: string };
-
-/**
- * The aggregate an admin actually wants: how many of the guild connected.
- */
-export interface CommunityAppConnectionSummary {
-  connection_id: string;
-  label: CommunityAppConnectionSummaryLabel;
-  connected_count: number;
-  blocked_count: number;
-  member_count: number;
-}
-
-/**
- * Allow a request, at ``access``: never more than the app asked for.
- * Declining is withdrawing a request that was never granted.
- */
-export interface CommunityAppConsentAnswer {
-  access: ConsentAccess;
-}
-
-/**
- * One request from this app to act as the viewer, and their answer.
- *
- * ``label`` is the app's own description of what it wants to do, shown as
- * the app's words. ``purpose`` is the app's id for it; absent for app-wide
- * consent.
- */
-export interface CommunityAppConsentRead {
-  id: number;
-  purpose: string | null;
-  label: string;
-  initiative_id: number | null;
-  requested_access: ConsentAccess;
-  granted_access: ConsentAccess | null;
-  status: ConsentStatus;
-  requested_at: string;
-  granted_at: string | null;
-  revoked_at: string | null;
-}
-
-/**
- * Every member's answers to this app's requests, counted.
- */
-export interface CommunityAppConsentSummary {
-  member_count: number;
-  allowed_count: number;
-  open_count: number;
-}
-
-/**
- * Keep the pinned version, and stop being asked about this one.
- */
-export interface CommunityAppDecline {
-  /** @maxLength 32 */
-  version: string;
-}
-
-export type CommunityAppDetailDefinition = { [key: string]: unknown };
-
-export type CommunityAppDetailAppNames = { [key: string]: string };
-
-/**
- * A version that asks for more than the install holds.
- *
- * ``added_scopes`` are grantable scopes neither the grant nor the pinned
- * version names; ``added_surfaces`` are surfaces inside initiatives the
- * pinned version does not have. ``declined`` says the seat declined this
- * version: the install stays where it is and the sweep does not ask again.
- */
-export interface CommunityAppUpgradeAsks {
-  version: string;
-  added_scopes: string[];
-  added_surfaces: AppSurfaceSummary[];
-  declined: boolean;
-}
-
-/**
- * How a listing reached this deployment.
- */
-export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
-
-export const ListingSource = {
-  builtin: "builtin",
-  local: "local",
-  operator: "operator",
-  registry: "registry",
-} as const;
-
-/**
- * Where an install came from in the catalog, as the app's page shows it.
- *
- * Read from the catalog rather than pinned, like the artwork: who publishes a
- * listing is the catalog's to say.
- */
-export interface CommunityAppListingRef {
-  id: number;
-  source: ListingSource;
-  publisher: string;
-}
-
-/**
- * An install plus its connections, for the settings page.
- *
- * Separate from the list payload because the connection blocks carry the whole
- * pinned form and the sidebar has no use for it.
- */
-export interface CommunityAppDetail {
-  id: number;
-  community_id: number;
-  listing_uid: string;
-  listing_version: string;
-  app_kind: string;
-  name: string;
-  enabled: boolean;
-  auto_update: boolean;
-  artifacts: CommunityAppArtifact[];
-  needs_config: boolean;
-  config_state: string;
-  config_state_detail: string | null;
-  tool: string | null;
-  avatar_url: string | null;
-  features: string[];
-  definition: CommunityAppDetailDefinition;
-  placements: AppPlacementRead[];
-  surface_access: AppSurfaceAccessRead[];
-  granted_scopes: string[];
-  mandatory: boolean;
-  available: boolean;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-  connections: CommunityAppConnectionRead[];
-  consents: CommunityAppConsentRead[];
-  update_version: string | null;
-  requested_scopes: string[];
-  grantable_scopes: string[];
-  pending_update: CommunityAppUpgradeAsks | null;
-  app_names: CommunityAppDetailAppNames;
-  listing: CommunityAppListingRef | null;
-}
-
-/**
- * A short-lived credential for one of an app's embedded surfaces.
- *
- * The token reaches the iframe by ``postMessage`` and never a query string,
- * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
- * accepts messages from — the registration's own list, not a client guess.
- */
-export interface CommunityAppHandoff {
-  handoff_token: string;
-  expires_in_seconds: number;
-  embed_url: string;
-  allowed_origins: string[];
-  audience: string;
-  surface_id: string;
-}
-
-/**
- * Install a listing into this guild, with the seat's consent.
- *
- * The definition comes from the catalog, and the content the install creates
- * is made server-side. What the request adds is the seat's answer to the
- * install dialog: what the app may reach, where it appears, and who opens it
- * there. The install, its grant and its placements are one transaction.
- */
-export interface CommunityAppInstall {
-  /** @maxLength 14 */
-  listing_uid: string;
-  name?: string | null;
-  /** @maxItems 64 */
-  granted_scopes?: string[];
-  placements?: "all" | number[];
-  /** @maxItems 10 */
-  role_kinds?: string[];
-}
-
-export type CommunityAppReadDefinition = { [key: string]: unknown };
-
-export interface CommunityAppRead {
-  id: number;
-  community_id: number;
-  listing_uid: string;
-  listing_version: string;
-  app_kind: string;
-  name: string;
-  enabled: boolean;
-  auto_update: boolean;
-  artifacts: CommunityAppArtifact[];
-  needs_config: boolean;
-  config_state: string;
-  config_state_detail: string | null;
-  tool: string | null;
-  avatar_url: string | null;
-  features: string[];
-  definition: CommunityAppReadDefinition;
-  placements: AppPlacementRead[];
-  surface_access: AppSurfaceAccessRead[];
-  granted_scopes: string[];
-  mandatory: boolean;
-  available: boolean;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CommunityAppListResponse {
-  items: CommunityAppRead[];
-}
-
-/**
- * One member's connection, in the admin's Members view.
- *
- * Who connected, as which vendor account, when, and whether they are blocked.
- * No values, and no ``connection_ref`` — the handle is between the platform
- * and the app, and putting it in an admin screen would make it something
- * people copy around.
- */
-export interface CommunityAppMemberConnection {
-  connection_id: string;
-  user_id: number;
-  status: string;
-  account_label: string | null;
-  blocked: boolean;
-  blocked_by_id: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * One member's answer to one of the app's requests, in the seat's Members
- * view.
- */
-export interface CommunityAppMemberConsent {
-  id: number;
-  purpose: string | null;
-  label: string;
-  initiative_id: number | null;
-  requested_access: ConsentAccess;
-  granted_access: ConsentAccess | null;
-  status: ConsentStatus;
-  requested_at: string;
-  granted_at: string | null;
-  revoked_at: string | null;
-  user_id: number;
-}
-
-/**
- * One page of the members who connected to this app or answered it.
- *
- * ``summary`` and ``consent_summary`` count across every member; ``items``
- * and ``consents`` are the rows of the members on this page.
- */
-export interface CommunityAppMembersResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  summary: CommunityAppConnectionSummary[];
-  items: CommunityAppMemberConnection[];
-  consents: CommunityAppMemberConsent[];
-  consent_summary: CommunityAppConsentSummary;
-}
-
-/**
- * The scopes the seat grants an install, as the whole set.
- *
- * Each must be one the app's manifest requests and one this deployment
- * allows the app. An empty list withdraws every grant.
- */
-export interface CommunityAppScopesUpdate {
-  /** @maxItems 64 */
-  granted?: string[];
-}
-
-export interface CommunityAppUpdate {
-  name?: string | null;
-  enabled?: boolean | null;
-  auto_update?: boolean | null;
-  placed_initiative_ids?: number[] | null;
-}
-
-/**
- * The seat's consent to a version that asks for more.
- *
- * ``version`` is the version the seat was shown; if the catalog offers a
- * different one now, nothing is applied. ``add_scopes`` are the scopes the
- * seat grants with it, each requested by that version and within the
- * ceiling. Consenting to a version's new surfaces alone sends none.
- */
-export interface CommunityAppUpgrade {
-  /** @maxLength 32 */
-  version: string;
-  /** @maxItems 64 */
-  add_scopes?: string[];
 }
 
 export type CommunityAuthOption = (typeof CommunityAuthOption)[keyof typeof CommunityAuthOption];
@@ -3065,7 +2199,7 @@ export interface CommunityCreate {
  * Body for ``DELETE /communities/{id}``.
  *
  * Deleting a guild cascades through every initiative, project, task,
- * document, membership, invite, and settings row it owns, so the
+ * file, membership, invite, and settings row it owns, so the
  * endpoint gates on two confirmations:
  *
  * - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
@@ -3317,6 +2451,431 @@ export interface CommunityOrderUpdate {
 
 export interface CommunityPaymentIssueRead {
   payment_failed?: boolean;
+}
+
+/**
+ * One thing an install produced.
+ */
+export interface CommunityPluginArtifact {
+  type: string;
+  id: number;
+}
+
+export type CommunityPluginConfigUpdateValues = { [key: string]: { [key: string]: unknown } };
+
+/**
+ * Guild-scoped connection values, keyed by connection then field.
+ *
+ * A key sent as ``null`` clears that value; a key left out is untouched, so a
+ * form rendering part of a connection cannot wipe the rest.
+ *
+ * Deliberately untyped at this layer. A credential is opaque bytes to us, so
+ * sanitizing one would corrupt it, and the declared field types live in the
+ * pinned definition rather than in this schema — the service checks each value
+ * against the type its own connection declared, which coercion here would
+ * quietly defeat (a ``true`` arriving at an ``int`` field must be refused, not
+ * turned into ``1``).
+ */
+export interface CommunityPluginConfigUpdate {
+  values?: CommunityPluginConfigUpdateValues;
+}
+
+/**
+ * Where to send the person connecting: the vendor's authorization page,
+ * or its install page for a connection an organization installs.
+ *
+ * Initiative runs the flow, and the vendor returns the person to Initiative's
+ * own callback. Nothing is stored until it does.
+ */
+export interface CommunityPluginConnectStart {
+  connection_id: string;
+  connect_url: string;
+  status: string;
+}
+
+export type CommunityPluginConnectionReadLabel = { [key: string]: string };
+
+export type CommunityPluginConnectionReadFieldsItem = { [key: string]: unknown };
+
+export type CommunityPluginConnectionReadAccessHint = { [key: string]: unknown } | null;
+
+export type CommunityPluginConnectionReadValues = { [key: string]: unknown };
+
+export type CommunityPluginConnectionReadHasValue = { [key: string]: boolean };
+
+/**
+ * One connection of an install, as the current viewer sees it.
+ *
+ * ``has_value`` is the whole of what is disclosed about stored values. For a
+ * per-member connection the presence, status and account label are the
+ * *viewer's own* — a colleague who has connected and one who has not are both
+ * looking at a correct answer, because the underlying vendor access genuinely
+ * differs per person.
+ */
+export interface CommunityPluginConnectionRead {
+  id: string;
+  scope: string;
+  label: CommunityPluginConnectionReadLabel;
+  fields: CommunityPluginConnectionReadFieldsItem[];
+  access_hint: CommunityPluginConnectionReadAccessHint;
+  values: CommunityPluginConnectionReadValues;
+  has_value: CommunityPluginConnectionReadHasValue;
+  satisfied: boolean;
+  runs_flow: boolean;
+  status: string | null;
+  account_label: string | null;
+  blocked: boolean;
+}
+
+export type CommunityPluginConnectionSummaryLabel = { [key: string]: string };
+
+/**
+ * The aggregate an admin actually wants: how many of the guild connected.
+ */
+export interface CommunityPluginConnectionSummary {
+  connection_id: string;
+  label: CommunityPluginConnectionSummaryLabel;
+  connected_count: number;
+  blocked_count: number;
+  member_count: number;
+}
+
+/**
+ * How deeply a plug-in may act as the member.
+ */
+export type ConsentAccess = (typeof ConsentAccess)[keyof typeof ConsentAccess];
+
+export const ConsentAccess = {
+  read: "read",
+  read_write: "read_write",
+} as const;
+
+/**
+ * Allow a request, at ``access``: never more than the plug-in asked for.
+ * Declining is withdrawing a request that was never granted.
+ */
+export interface CommunityPluginConsentAnswer {
+  access: ConsentAccess;
+}
+
+/**
+ * Where a request stands, read off its columns.
+ */
+export type ConsentStatus = (typeof ConsentStatus)[keyof typeof ConsentStatus];
+
+export const ConsentStatus = {
+  pending: "pending",
+  granted: "granted",
+  declined: "declined",
+  revoked: "revoked",
+} as const;
+
+/**
+ * One request from this plug-in to act as the viewer, and their answer.
+ *
+ * ``label`` is the plug-in's own description of what it wants to do, shown as
+ * the plug-in's words. ``purpose`` is the plug-in's id for it; absent for plug-in-wide
+ * consent.
+ */
+export interface CommunityPluginConsentRead {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
+ * Every member's answers to this plug-in's requests, counted.
+ */
+export interface CommunityPluginConsentSummary {
+  member_count: number;
+  allowed_count: number;
+  open_count: number;
+}
+
+/**
+ * Keep the pinned version, and stop being asked about this one.
+ */
+export interface CommunityPluginDecline {
+  /** @maxLength 32 */
+  version: string;
+}
+
+export type CommunityPluginDetailDefinition = { [key: string]: unknown };
+
+export type CommunityPluginDetailPluginNames = { [key: string]: string };
+
+/**
+ * One initiative a plug-in is placed in, and who may open it there.
+ */
+export interface PluginPlacementRead {
+  initiative_id: number;
+  role_ids: number[];
+}
+
+/**
+ * Where the viewer may open one of a plug-in's surfaces.
+ *
+ * Computed on the server by the same decision the handoff makes, so the
+ * client offers exactly the doors that open.
+ */
+export interface PluginSurfaceAccessRead {
+  surface_id: string;
+  openable_community_wide: boolean;
+  openable_initiatives: number[];
+}
+
+export type PluginSurfaceSummaryName = { [key: string]: string };
+
+/**
+ * One of a plug-in's embedded surfaces, by id and by its localized name.
+ */
+export interface PluginSurfaceSummary {
+  id: string;
+  name: PluginSurfaceSummaryName;
+}
+
+/**
+ * A version that asks for more than the install holds.
+ *
+ * ``added_scopes`` are grantable scopes neither the grant nor the pinned
+ * version names; ``added_surfaces`` are surfaces inside initiatives the
+ * pinned version does not have. ``declined`` says the seat declined this
+ * version: the install stays where it is and the sweep does not ask again.
+ */
+export interface CommunityPluginUpgradeAsks {
+  version: string;
+  added_scopes: string[];
+  added_surfaces: PluginSurfaceSummary[];
+  declined: boolean;
+}
+
+/**
+ * How a listing reached this deployment.
+ */
+export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
+
+export const ListingSource = {
+  builtin: "builtin",
+  local: "local",
+  operator: "operator",
+  registry: "registry",
+} as const;
+
+/**
+ * Where an install came from in the catalog, as the plug-in's page shows it.
+ *
+ * Read from the catalog rather than pinned, like the artwork: who publishes a
+ * listing is the catalog's to say.
+ */
+export interface CommunityPluginListingRef {
+  id: number;
+  source: ListingSource;
+  publisher: string;
+  first_party: boolean;
+}
+
+/**
+ * An install plus its connections, for the settings page.
+ *
+ * Separate from the list payload because the connection blocks carry the whole
+ * pinned form and the sidebar has no use for it.
+ */
+export interface CommunityPluginDetail {
+  id: number;
+  community_id: number;
+  listing_uid: string;
+  listing_version: string;
+  plugin_kind: string;
+  name: string;
+  enabled: boolean;
+  auto_update: boolean;
+  artifacts: CommunityPluginArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
+  tool: string | null;
+  avatar_url: string | null;
+  features: string[];
+  definition: CommunityPluginDetailDefinition;
+  placements: PluginPlacementRead[];
+  surface_access: PluginSurfaceAccessRead[];
+  granted_scopes: string[];
+  mandatory: boolean;
+  available: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  connections: CommunityPluginConnectionRead[];
+  consents: CommunityPluginConsentRead[];
+  update_version: string | null;
+  requested_scopes: string[];
+  grantable_scopes: string[];
+  pending_update: CommunityPluginUpgradeAsks | null;
+  plugin_names: CommunityPluginDetailPluginNames;
+  listing: CommunityPluginListingRef | null;
+}
+
+/**
+ * A short-lived credential for one of a plug-in's embedded surfaces.
+ *
+ * The token reaches the iframe by ``postMessage`` and never a query string,
+ * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
+ * accepts messages from — the registration's own list, not a client guess.
+ */
+export interface CommunityPluginHandoff {
+  handoff_token: string;
+  expires_in_seconds: number;
+  embed_url: string;
+  allowed_origins: string[];
+  audience: string;
+  surface_id: string;
+}
+
+/**
+ * Install a listing into this guild, with the seat's consent.
+ *
+ * The definition comes from the catalog, and the content the install creates
+ * is made server-side. What the request adds is the seat's answer to the
+ * install dialog: what the plug-in may reach, where it appears, and who opens it
+ * there. The install, its grant and its placements are one transaction.
+ */
+export interface CommunityPluginInstall {
+  /** @maxLength 14 */
+  listing_uid: string;
+  name?: string | null;
+  /** @maxItems 64 */
+  granted_scopes?: string[];
+  placements?: "all" | number[];
+  /** @maxItems 10 */
+  role_kinds?: string[];
+}
+
+export type CommunityPluginReadDefinition = { [key: string]: unknown };
+
+export interface CommunityPluginRead {
+  id: number;
+  community_id: number;
+  listing_uid: string;
+  listing_version: string;
+  plugin_kind: string;
+  name: string;
+  enabled: boolean;
+  auto_update: boolean;
+  artifacts: CommunityPluginArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
+  tool: string | null;
+  avatar_url: string | null;
+  features: string[];
+  definition: CommunityPluginReadDefinition;
+  placements: PluginPlacementRead[];
+  surface_access: PluginSurfaceAccessRead[];
+  granted_scopes: string[];
+  mandatory: boolean;
+  available: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommunityPluginListResponse {
+  items: CommunityPluginRead[];
+}
+
+/**
+ * One member's connection, in the admin's Members view.
+ *
+ * Who connected, as which vendor account, when, and whether they are blocked.
+ * No values, and no ``connection_ref`` — the handle is between the platform
+ * and the plug-in, and putting it in an admin screen would make it something
+ * people copy around.
+ */
+export interface CommunityPluginMemberConnection {
+  connection_id: string;
+  user_id: number;
+  status: string;
+  account_label: string | null;
+  blocked: boolean;
+  blocked_by_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * One member's answer to one of the plug-in's requests, in the seat's Members
+ * view.
+ */
+export interface CommunityPluginMemberConsent {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+  user_id: number;
+}
+
+/**
+ * One page of the members who connected to this plug-in or answered it.
+ *
+ * ``summary`` and ``consent_summary`` count across every member; ``items``
+ * and ``consents`` are the rows of the members on this page.
+ */
+export interface CommunityPluginMembersResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  summary: CommunityPluginConnectionSummary[];
+  items: CommunityPluginMemberConnection[];
+  consents: CommunityPluginMemberConsent[];
+  consent_summary: CommunityPluginConsentSummary;
+}
+
+/**
+ * The scopes the seat grants an install, as the whole set.
+ *
+ * Each must be one the plug-in's manifest requests and one this deployment
+ * allows the plug-in. An empty list withdraws every grant.
+ */
+export interface CommunityPluginScopesUpdate {
+  /** @maxItems 64 */
+  granted?: string[];
+}
+
+export interface CommunityPluginUpdate {
+  name?: string | null;
+  enabled?: boolean | null;
+  auto_update?: boolean | null;
+  placed_initiative_ids?: number[] | null;
+}
+
+/**
+ * The seat's consent to a version that asks for more.
+ *
+ * ``version`` is the version the seat was shown; if the catalog offers a
+ * different one now, nothing is applied. ``add_scopes`` are the scopes the
+ * seat grants with it, each requested by that version and within the
+ * ceiling. Consenting to a version's new surfaces alone sends none.
+ */
+export interface CommunityPluginUpgrade {
+  /** @maxLength 32 */
+  version: string;
+  /** @maxItems 64 */
+  add_scopes?: string[];
 }
 
 /**
@@ -3779,10 +3338,8 @@ export interface CounterGroupListResponse {
 }
 
 /**
- * Serialized counter. Numeric fields are returned as plain decimal
- * strings (e.g. "0", "12.5") rather than ``Decimal`` so JSON never emits
- * PostgreSQL's exponent notation (``0E-10``) from ``Numeric(20, 10)``
- * columns.
+ * Serialized counter. Numeric fields are plain decimal strings (e.g. "0",
+ * "12.5"), never exponent notation.
  */
 export interface CounterRead {
   id: number;
@@ -3919,6 +3476,33 @@ export interface DashboardCreate {
 }
 
 /**
+ * What a value *is*, for comparison and formatting.
+ *
+ * Coarser than a SQL type on purpose: a consumer needs to know that a due date
+ * orders and a title does not, never that one is ``timestamptz`` and the other
+ * ``varchar(200)``.
+ */
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
+
+export const FieldType = {
+  text: "text",
+  number: "number",
+  date: "date",
+  boolean: "boolean",
+  enum: "enum",
+  reference: "reference",
+} as const;
+
+/**
+ * One output column, as the database describes it before running.
+ */
+export interface QueryColumnDescription {
+  name: string;
+  type: FieldType;
+  grain?: string | null;
+}
+
+/**
  * What the statement returned.
  */
 export interface QueryResponse {
@@ -3979,16 +3563,13 @@ export type DashboardPreviewDefinition = { [key: string]: unknown };
 
 export type DashboardPreviewConfig = { [key: string]: unknown };
 
-export type DashboardPreviewWidgets = { [key: string]: DashboardWidgetData };
-
 /**
- * A dashboard as a list's card draws it: its canvas and its query widgets'
- * answers. Widgets bound to anything else draw from sample data there.
+ * A dashboard as a list's card draws it: its canvas alone. Every widget
+ * draws from sample data there, so a list runs none of their queries.
  */
 export interface DashboardPreview {
   definition: DashboardPreviewDefinition;
   config: DashboardPreviewConfig;
-  widgets: DashboardPreviewWidgets;
 }
 
 export interface DashboardSummary {
@@ -4086,7 +3667,8 @@ export const DatasetName = {
   task_statuses: "task_statuses",
   task_assignees: "task_assignees",
   members: "members",
-  documents: "documents",
+  files: "files",
+  file_versions: "file_versions",
   queues: "queues",
   queue_items: "queue_items",
   calendars: "calendars",
@@ -4094,6 +3676,7 @@ export const DatasetName = {
   posts: "posts",
   galleries: "galleries",
   gallery_images: "gallery_images",
+  gallery_image_versions: "gallery_image_versions",
   wikis: "wikis",
   wiki_pages: "wiki_pages",
 } as const;
@@ -4521,173 +4104,6 @@ export interface DmVerificationSend {
   body: string;
 }
 
-export type DocumentCreateContent = { [key: string]: unknown } | null;
-
-export type DocumentCreateDocumentType =
-  (typeof DocumentCreateDocumentType)[keyof typeof DocumentCreateDocumentType];
-
-export const DocumentCreateDocumentType = {
-  native: "native",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
-
-export interface DocumentCreate {
-  properties?: PropertyValueInput[];
-  name: string;
-  initiative_id: number;
-  featured_image_url?: string | null;
-  is_template?: boolean;
-  content?: DocumentCreateContent;
-  document_type?: DocumentCreateDocumentType;
-  grants?: ResourceGrantSchema[];
-}
-
-/**
- * A single stored version of a file-type document. The binary is fetched
- * via the version download endpoint by id — ``file_url`` is intentionally
- * not exposed.
- */
-export interface DocumentFileVersionRead {
-  id: number;
-  version_number: number;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  created_by: number;
-  created_at: string;
-  is_current: boolean;
-}
-
-/**
- * An initiative as something else names it: enough to label and link it.
- *
- * What a project, a document or a task carries about the initiative it is in.
- * The initiative's own read is :class:`InitiativeRead`.
- */
-export interface InitiativeSummary {
-  id: number;
-  name: string;
-  color: string | null;
-}
-
-/**
- * An installed app that owns a resource, or may be handed one: the
- * install's id, its name in this community, and its listing's picture.
- */
-export interface OwnerAppSummary {
-  id: number;
-  name: string;
-  avatar_url: string | null;
-}
-
-export interface DocumentProjectLink {
-  project_id: number;
-  project_name?: string | null;
-  project_icon?: string | null;
-  project_initiative_id?: number | null;
-  attached_at: string;
-}
-
-/**
- * Discriminator for document type.
- */
-export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
-
-export const DocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
-
-export interface DocumentSummary {
-  archived_at: string | null;
-  can: ToolCan;
-  id: number;
-  initiative_id: number;
-  community_id: number;
-  created_by: number | null;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
-  name: string;
-  featured_image_url: string | null;
-  is_template: boolean;
-  initiative: InitiativeSummary | null;
-  owner: UserPublic | null;
-  owner_app: OwnerAppSummary | null;
-  projects: DocumentProjectLink[];
-  comment_count: number;
-  document_type: DocumentType;
-  file_url: string | null;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  smart_link_url: string | null;
-  yjs_updated_at: string | null;
-}
-
-export interface DocumentListResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  items: DocumentSummary[];
-  sort_by: string | null;
-  sort_dir: string | null;
-}
-
-export type DocumentReadContent = { [key: string]: unknown };
-
-export interface DocumentRead {
-  archived_at: string | null;
-  can: ToolCan;
-  id: number;
-  initiative_id: number;
-  community_id: number;
-  created_by: number | null;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
-  name: string;
-  featured_image_url: string | null;
-  is_template: boolean;
-  initiative: InitiativeSummary | null;
-  owner: UserPublic | null;
-  owner_app: OwnerAppSummary | null;
-  projects: DocumentProjectLink[];
-  comment_count: number;
-  document_type: DocumentType;
-  file_url: string | null;
-  file_content_type: string | null;
-  file_size: number | null;
-  original_filename: string | null;
-  smart_link_url: string | null;
-  yjs_updated_at: string | null;
-  content: DocumentReadContent;
-  content_version: string | null;
-}
-
-export type DocumentUpdateContent = { [key: string]: unknown } | null;
-
-export interface DocumentUpdate {
-  name?: string | null;
-  content?: DocumentUpdateContent;
-  content_version?: string | null;
-  featured_image_url?: string | null;
-  is_template?: boolean | null;
-}
-
 /**
  * How often email is allowed to arrive.
  *
@@ -4846,7 +4262,7 @@ export const SearchEntityType = {
   counter: "counter",
   counter_group: "counter_group",
   dashboard: "dashboard",
-  document: "document",
+  file: "file",
   gallery: "gallery",
   gallery_image: "gallery_image",
   post: "post",
@@ -4874,7 +4290,7 @@ export type EntityType = (typeof EntityType)[keyof typeof EntityType];
 
 export const EntityType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -4988,6 +4404,158 @@ export interface FieldCatalogResponse {
   fields: FieldDescription[];
   relations?: RelationDescription[];
   default_filters?: DefaultFilter[];
+}
+
+export type FileCreateContent = { [key: string]: unknown } | null;
+
+export type FileCreateFileType = (typeof FileCreateFileType)[keyof typeof FileCreateFileType];
+
+export const FileCreateFileType = {
+  native: "native",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
+
+export interface FileCreate {
+  properties?: PropertyValueInput[];
+  name: string;
+  initiative_id: number;
+  featured_image_url?: string | null;
+  is_template?: boolean;
+  content?: FileCreateContent;
+  file_type?: FileCreateFileType;
+  grants?: ResourceGrantSchema[];
+}
+
+/**
+ * An initiative as something else names it: enough to label and link it.
+ *
+ * What a project, a file or a task carries about the initiative it is in.
+ * The initiative's own read is :class:`InitiativeRead`.
+ */
+export interface InitiativeSummary {
+  id: number;
+  name: string;
+  color: string | null;
+}
+
+/**
+ * An installed plug-in that owns a resource, or may be handed one: the
+ * install's id, its name in this community, and its listing's picture.
+ */
+export interface OwnerPluginSummary {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+}
+
+/**
+ * Discriminator for file type.
+ */
+export type FileType = (typeof FileType)[keyof typeof FileType];
+
+export const FileType = {
+  native: "native",
+  file: "file",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
+
+export interface FileSummary {
+  archived_at: string | null;
+  can: ToolCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
+  owner_plugin: OwnerPluginSummary | null;
+  comment_count: number;
+  file_type: FileType;
+  file_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
+}
+
+export interface FileListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: FileSummary[];
+}
+
+export type FileReadContent = { [key: string]: unknown };
+
+export interface FileRead {
+  archived_at: string | null;
+  can: ToolCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
+  owner_plugin: OwnerPluginSummary | null;
+  comment_count: number;
+  file_type: FileType;
+  file_url: string | null;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
+  content: FileReadContent;
+  content_version: string | null;
+}
+
+export type FileUpdateContent = { [key: string]: unknown } | null;
+
+export interface FileUpdate {
+  name?: string | null;
+  content?: FileUpdateContent;
+  content_version?: string | null;
+  featured_image_url?: string | null;
+  is_template?: boolean | null;
+}
+
+/**
+ * A single stored version of an uploaded file. The binary is fetched
+ * via the version download endpoint by id — ``file_url`` is intentionally
+ * not exposed.
+ */
+export interface FileVersionRead {
+  id: number;
+  version_number: number;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  created_by: number;
+  created_at: string;
+  is_current: boolean;
 }
 
 /**
@@ -5230,7 +4798,7 @@ export interface GalleryImageRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   uploader: CommentAuthor | null;
   created_at: string;
   updated_at: string;
@@ -5268,7 +4836,7 @@ export interface GalleryImageVersionRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   is_current: boolean;
 }
@@ -5357,9 +4925,9 @@ export interface GenerateDescriptionResponse {
 }
 
 /**
- * Response schema for document summarization.
+ * Response schema for file summarization.
  */
-export interface GenerateDocumentSummaryResponse {
+export interface GenerateFileSummaryResponse {
   summary: string;
 }
 
@@ -5427,6 +4995,22 @@ export interface ICalEventPreview {
   has_recurrence: boolean;
 }
 
+/**
+ * Why one event in the file was not imported.
+ */
+export type ICalImportProblem = (typeof ICalImportProblem)[keyof typeof ICalImportProblem];
+
+export const ICalImportProblem = {
+  no_start: "no_start",
+  unreadable: "unreadable",
+  not_saved: "not_saved",
+} as const;
+
+export interface ICalImportError {
+  problem: ICalImportProblem;
+  title?: string | null;
+}
+
 export interface ICalImportRequest {
   calendar_id: number;
   /** @maxLength 2000000 */
@@ -5437,7 +5021,7 @@ export interface ICalImportRequest {
 export interface ICalImportResult {
   events_created?: number;
   events_failed?: number;
-  errors?: string[];
+  errors?: ICalImportError[];
 }
 
 export interface ICalParseRequest {
@@ -5518,7 +5102,7 @@ export type Tool = (typeof Tool)[keyof typeof Tool];
 
 export const Tool = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -5565,7 +5149,7 @@ export const InitiativeJoinPolicy = {
 
 export interface InitiativeCreate {
   projects_enabled?: boolean;
-  documents_enabled?: boolean;
+  files_enabled?: boolean;
   queues_enabled?: boolean;
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
@@ -5733,7 +5317,7 @@ export interface InitiativeMemberUpdate {
  */
 export interface InitiativeRead {
   projects_enabled: boolean;
-  documents_enabled: boolean;
+  files_enabled: boolean;
   queues_enabled: boolean;
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
@@ -5762,8 +5346,8 @@ export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 export const PermissionKey = {
   projects_enabled: "projects_enabled",
   create_projects: "create_projects",
-  documents_enabled: "documents_enabled",
-  create_documents: "create_documents",
+  files_enabled: "files_enabled",
+  create_files: "create_files",
   queues_enabled: "queues_enabled",
   create_queues: "create_queues",
   counter_groups_enabled: "counter_groups_enabled",
@@ -5866,7 +5450,7 @@ export interface InitiativeTaskStatusRead {
 
 export interface InitiativeUpdate {
   projects_enabled?: boolean | null;
-  documents_enabled?: boolean | null;
+  files_enabled?: boolean | null;
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
@@ -6115,7 +5699,7 @@ export type MarketplaceListingDetailDefinition = { [key: string]: unknown } | nu
 
 export type MarketplaceListingDetailExample = { [key: string]: unknown } | null;
 
-export type MarketplaceListingDetailAppNames = { [key: string]: string };
+export type MarketplaceListingDetailPluginNames = { [key: string]: string };
 
 /**
  * One published version of a listing.
@@ -6139,6 +5723,7 @@ export interface MarketplaceListingDetail {
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -6152,7 +5737,7 @@ export interface MarketplaceListingDetail {
   example: MarketplaceListingDetailExample;
   requested_scopes: string[];
   grantable_scopes: string[];
-  app_names: MarketplaceListingDetailAppNames;
+  plugin_names: MarketplaceListingDetailPluginNames;
   has_initiative_surfaces: boolean;
 }
 
@@ -6167,6 +5752,7 @@ export interface MarketplaceListingSummary {
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -6237,6 +5823,7 @@ export interface MarketplaceSharedListingRead {
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -6486,8 +6073,8 @@ export const NotificationType = {
   message_request_received: "message_request_received",
   message_request_accepted: "message_request_accepted",
   direct_message: "direct_message",
-  app_consent_requested: "app_consent_requested",
-  app_update_pending: "app_update_pending",
+  plugin_consent_requested: "plugin_consent_requested",
+  plugin_update_pending: "plugin_update_pending",
   ticket_updated: "ticket_updated",
 } as const;
 
@@ -6770,6 +6357,7 @@ export interface OperatorUserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  birthdate_on_file: boolean;
   cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;
@@ -6848,15 +6436,15 @@ export type OwnedContentResponseCounts = { [key: string]: number };
  * What a user owns in this guild, or what no current member owns.
  *
  * ``counts`` is per tool, keyed by the ``Tool`` value, so the dialog can say
- * "3 projects, 1 calendar" without walking the list. ``eligible_apps`` are the
- * installed apps that may own every item listed, which the dialog offers
+ * "3 projects, 1 calendar" without walking the list. ``eligible_plugins`` are the
+ * installed plug-ins that may own every item listed, which the dialog offers
  * beside the community's admins.
  */
 export interface OwnedContentResponse {
   items: OwnedContentItem[];
   counts: OwnedContentResponseCounts;
   total: number;
-  eligible_apps: OwnerAppSummary[];
+  eligible_plugins: OwnerPluginSummary[];
 }
 
 /**
@@ -6869,12 +6457,12 @@ export interface OwnedDecorationsResponse {
 
 /**
  * Who should end up owning it: an active admin of this guild
- * (``new_owner_id``), or an installed app that may own all of it
- * (``new_owner_app_id``). Exactly one is set.
+ * (``new_owner_id``), or an installed plug-in that may own all of it
+ * (``new_owner_plugin_id``). Exactly one is set.
  */
 export interface OwnershipTransferRequest {
   new_owner_id?: number | null;
-  new_owner_app_id?: number | null;
+  new_owner_plugin_id?: number | null;
 }
 
 export type OwnershipTransferResponseCounts = { [key: string]: number };
@@ -7308,6 +6896,443 @@ export interface PlatformRoleUpdate {
   role: UserRole;
 }
 
+/**
+ * A successful token response (RFC 6749 §5.1).
+ */
+export interface PluginAccessTokenResponse {
+  access_token: string;
+  token_type?: string;
+  expires_in: number;
+  scope: string;
+}
+
+/**
+ * A plug-in asking one member to let it act as them, for one purpose.
+ */
+export interface PluginConsentRequestCreate {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  member: string;
+  purpose?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  label: string;
+  initiative_id?: number | null;
+  access: ConsentAccess;
+}
+
+/**
+ * A request to act as a member, as it stands.
+ */
+export interface PluginConsentRequestRead {
+  member: string;
+  purpose?: string | null;
+  label: string;
+  initiative_id?: number | null;
+  requested_access: ConsentAccess;
+  status: ConsentStatus;
+  granted_access?: ConsentAccess | null;
+  requested_at: string;
+}
+
+export type PluginDataParamLabel = { [key: string]: string };
+
+export type PluginParamOptionSourceNeeds = { [key: string]: string };
+
+/**
+ * Where a parameter's permitted values come from, when only the plug-in knows.
+ *
+ * A repository, a label, a board: every one of them differs per install,
+ * changes after it, and can be enumerated only by the plug-in holding that
+ * install's credential — so none can be written into a manifest, which is
+ * published once and identical on every deployment. The manifest names a read
+ * of the plug-in's own instead, and this is that naming, carried through to
+ * whoever draws the control.
+ */
+export interface PluginParamOptionSource {
+  endpoint: string;
+  key: string;
+  label_key?: string | null;
+  needs?: PluginParamOptionSourceNeeds;
+}
+
+/**
+ * One parameter an endpoint accepts, from its ``params``.
+ */
+export interface PluginDataParam {
+  key: string;
+  type: string;
+  label?: PluginDataParamLabel;
+  required?: boolean;
+  options?: string[] | null;
+  options_from?: PluginParamOptionSource | null;
+  list?: boolean;
+}
+
+export type PluginDataResponseRowsItem = { [key: string]: unknown };
+
+export type PluginDataResponseValues = { [key: string]: unknown };
+
+/**
+ * Rows a statement produced, and what they hold.
+ *
+ * Positional against ``columns`` rather than keyed by name, for the reason
+ * every other read of this surface is: a statement may name two outputs the
+ * same thing, and a mapping would keep one of the two.
+ */
+export interface PluginDataTable {
+  columns?: QueryColumnDescription[];
+  rows?: unknown[][];
+}
+
+/**
+ * One data source's answer, in the two shapes its endpoint declared.
+ */
+export interface PluginDataResponse {
+  rows?: PluginDataResponseRowsItem[];
+  table?: PluginDataTable | null;
+  values?: PluginDataResponseValues;
+  fetched_at: string;
+  cached?: boolean;
+}
+
+export type PluginDataReturnLabel = { [key: string]: string };
+
+/**
+ * One thing an endpoint hands back, from its ``returns``.
+ *
+ * Declared rather than discovered, because a consumer binds one of these
+ * before the endpoint has ever run. The ones marked ``list`` are what become
+ * the rows — so they are also the columns a statement over those rows may
+ * name.
+ */
+export interface PluginDataReturn {
+  key: string;
+  type: string;
+  label?: PluginDataReturnLabel;
+  list?: boolean;
+}
+
+/**
+ * A read endpoint a widget may bind to.
+ *
+ * Reads only. A write and an emission are both real endpoints and neither
+ * fills a tile, so neither belongs in a widget picker.
+ */
+export interface PluginEndpointRead {
+  id: string;
+  admin_only?: boolean;
+  cache_ttl_seconds?: number;
+  params?: PluginDataParam[];
+  returns?: PluginDataReturn[];
+}
+
+/**
+ * One install of the calling plug-in.
+ */
+export interface PluginInstallationRead {
+  installation: string;
+  active: boolean;
+}
+
+/**
+ * An error response (RFC 6749 §5.2).
+ */
+export interface PluginOAuthErrorResponse {
+  error: string;
+  error_description: string;
+}
+
+/**
+ * One value a parameter permits.
+ */
+export interface PluginParamOption {
+  value: string;
+  label?: string | null;
+}
+
+/**
+ * The menu for one parameter, or why there is not one.
+ *
+ * ``unavailable`` is never an error. A source that will not resolve — the plug-in
+ * is down, a credential nobody has connected, a sibling not yet chosen — must
+ * leave the parameter **enterable**, because a control disabled on those
+ * grounds has made a valid configuration unreachable. A consumer draws a menu
+ * when there is one and a text field when there is not.
+ */
+export interface PluginParamOptionsResponse {
+  options?: PluginParamOption[];
+  unavailable?: string | null;
+}
+
+/**
+ * Who may open a plug-in's surfaces in one initiative.
+ *
+ * The whole set: a role left out is no longer allowed. Every id must be a
+ * role of that initiative. An empty list places the plug-in with no role, so
+ * only guild admins open it there.
+ */
+export interface PluginPlacementUpdate {
+  /** @maxItems 200 */
+  role_ids?: number[];
+}
+
+/**
+ * Add a publisher for a prefix, unverified.
+ */
+export interface PluginPublisherCreate {
+  /** @maxLength 120 */
+  prefix: string;
+  /** @maxLength 200 */
+  display_name: string;
+  enabled?: boolean;
+}
+
+/**
+ * A publisher as the owner's settings see it.
+ */
+export interface PluginPublisherRead {
+  id: number;
+  prefix: string;
+  display_name: string;
+  verified: boolean;
+  enabled: boolean;
+  created_at: string;
+}
+
+/**
+ * Rename a publisher, or switch it on or off.
+ */
+export interface PluginPublisherUpdate {
+  display_name?: string | null;
+  enabled?: boolean | null;
+}
+
+/**
+ * One key the plug-in serves under its base URL: what Connect shows, and what
+ * the operator confirms.
+ */
+export interface PluginServicePublishedKey {
+  kid: string;
+  /** @maxLength 64 */
+  fingerprint: string;
+}
+
+/**
+ * Pin the key set the plug-in serves, as the operator confirmed it.
+ */
+export interface PluginServiceConnect {
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  keys: PluginServicePublishedKey[];
+}
+
+export type PluginServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
+
+export type PluginServiceRegistrationCreateVendorValues = { [key: string]: string | null } | null;
+
+/**
+ * Set up a plug-in service's deployment facts before its listing arrives.
+ *
+ * ``public_id`` names the plug-in. ``embed_origin`` is optional, and unset is the
+ * ordinary case: a plug-in reachable at one address needs only ``base_url``.
+ * Give one when the address a browser must use is not the address this
+ * deployment calls.
+ *
+ * Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
+ * over https, or both. A registration with neither is not live.
+ */
+export interface PluginServiceRegistrationCreate {
+  /** @maxLength 120 */
+  public_id: string;
+  /** @maxLength 1000 */
+  base_url: string;
+  embed_origin?: string | null;
+  allowed_origins?: string[] | null;
+  jwks?: PluginServiceRegistrationCreateJwks;
+  jwks_uri?: string | null;
+  mandatory?: boolean;
+  enabled?: boolean;
+  vendor_values?: PluginServiceRegistrationCreateVendorValues;
+}
+
+export type PluginServiceRegistrationReadJwks = { [key: string]: unknown } | null;
+
+export type PluginServiceRegistrationReadVendorValues = { [key: string]: string };
+
+export type PluginVendorFieldReadLabel = { [key: string]: string };
+
+/**
+ * One value an operator supplies for the plug-in's vendor client, as the
+ * listing's manifest declares it.
+ */
+export interface PluginVendorFieldRead {
+  key: string;
+  type: string;
+  required: boolean;
+  label: PluginVendorFieldReadLabel;
+}
+
+/**
+ * A registration as the owner's settings see it.
+ */
+export interface PluginServiceRegistrationRead {
+  id: number;
+  public_id: string;
+  listing_uid: string | null;
+  kind: string;
+  publisher_id: number;
+  publisher_prefix: string;
+  publisher_name: string;
+  publisher_enabled: boolean;
+  base_url: string | null;
+  embed_origin: string | null;
+  allowed_origins: string[];
+  jwks: PluginServiceRegistrationReadJwks;
+  jwks_uri: string | null;
+  scope_ceiling: string[];
+  mandatory: boolean;
+  enabled: boolean;
+  source: string;
+  image_digest: string | null;
+  compose_service: string | null;
+  compose_base_url: string | null;
+  vendor_fields: PluginVendorFieldRead[];
+  vendor_values: PluginServiceRegistrationReadVendorValues;
+  vendor_set: string[];
+  vendor_ready: boolean;
+  vendor_setup: string | null;
+  connection_callback_url: string;
+  connection_setup_url: string;
+  webhook_url: string;
+  live: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PluginServiceRegistrationUpdateJwks = { [key: string]: unknown } | null;
+
+export type PluginServiceRegistrationUpdateVendorValues = { [key: string]: string | null } | null;
+
+/**
+ * Partial edit.
+ *
+ * An empty ``embed_origin`` clears it, putting both surfaces back on
+ * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
+ * object clears the pasted set. In ``vendor_values`` a key sent empty or
+ * null clears that value, and a key left out keeps it, so a secret is kept
+ * by not sending it.
+ */
+export interface PluginServiceRegistrationUpdate {
+  base_url?: string | null;
+  embed_origin?: string | null;
+  allowed_origins?: string[] | null;
+  jwks?: PluginServiceRegistrationUpdateJwks;
+  jwks_uri?: string | null;
+  mandatory?: boolean | null;
+  enabled?: boolean | null;
+  vendor_values?: PluginServiceRegistrationUpdateVendorValues;
+}
+
+/**
+ * What the operator's browser posts to the vendor: ``manifest`` as a form
+ * field, to ``action`` with ``state`` in its query.
+ */
+export interface PluginServiceVendorSetup {
+  action: string;
+  manifest: string;
+  state: string;
+}
+
+/**
+ * What the vendor sent the operator back with.
+ */
+export interface PluginServiceVendorSetupComplete {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  code: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  state: string;
+}
+
+/**
+ * Start the vendor's own setup for the plug-in's client.
+ */
+export interface PluginServiceVendorSetupStart {
+  organization?: string | null;
+}
+
+export type PluginSummaryReturnLabel = { [key: string]: string } | null;
+
+/**
+ * One figure a plug-in's community summary declares: its key, its type,
+ * the plug-in's own label for it, and what it is counted against.
+ */
+export interface PluginSummaryReturn {
+  key: string;
+  type: string;
+  label?: PluginSummaryReturnLabel;
+  list?: boolean;
+  of?: string | null;
+}
+
+/**
+ * An installed plug-in that says where the community stands with it.
+ */
+export interface PluginSummaryRead {
+  plugin_id: number;
+  name: string;
+  returns?: PluginSummaryReturn[];
+}
+
+export interface PluginSummaryListResponse {
+  items?: PluginSummaryRead[];
+}
+
+export type PluginWidgetReadMeta = { [key: string]: unknown };
+
+export type PluginWidgetReadSampleData = { [key: string]: unknown };
+
+/**
+ * One widget an installed plug-in contributes.
+ */
+export interface PluginWidgetRead {
+  type: string;
+  id: string;
+  meta?: PluginWidgetReadMeta;
+  module_source: string;
+  endpoints?: string[];
+  sample_data?: PluginWidgetReadSampleData;
+}
+
+/**
+ * One installed plug-in's contribution to the widget palette.
+ */
+export interface PluginWidgetCatalogEntry {
+  plugin_id: number;
+  /** @maxLength 14 */
+  plugin_uid: string;
+  name: string;
+  enabled?: boolean;
+  widgets?: PluginWidgetRead[];
+  endpoints?: PluginEndpointRead[];
+}
+
+export interface PluginWidgetCatalogResponse {
+  items?: PluginWidgetCatalogEntry[];
+}
+
 export interface PollOptionRead {
   id: number;
   text: string;
@@ -7610,17 +7635,15 @@ export interface ProjectCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export interface ProjectDocumentSummary {
-  document_id: number;
-  name: string;
-  updated_at: string;
-  attached_at: string;
-}
+export type ProjectReadDefaultViewMode =
+  | (typeof ProjectReadDefaultViewMode)[keyof typeof ProjectReadDefaultViewMode]
+  | null;
 
-export interface ProjectFavoriteStatus {
-  project_id: number;
-  is_favorited: boolean;
-}
+export const ProjectReadDefaultViewMode = {
+  table: "table",
+  kanban: "kanban",
+  calendar: "calendar",
+} as const;
 
 export interface ProjectTaskSummary {
   total: number;
@@ -7630,33 +7653,32 @@ export interface ProjectTaskSummary {
 export interface ProjectRead {
   archived_at: string | null;
   can: ProjectCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
   name: string;
   description: string | null;
   icon: string | null;
   start_date: string | null;
   end_date: string | null;
-  id: number;
   owner_id: number | null;
-  initiative_id: number;
-  community_id: number | null;
-  created_at: string;
-  updated_at: string;
   is_template: boolean;
   pinned_at: string | null;
-  default_view_mode: string | null;
+  default_view_mode: ProjectReadDefaultViewMode;
   owner: UserPublic | null;
-  owner_app: OwnerAppSummary | null;
+  owner_plugin: OwnerPluginSummary | null;
   initiative: InitiativeSummary | null;
-  sort_order: number | null;
   is_favorited: boolean;
   last_viewed_at: string | null;
-  documents: ProjectDocumentSummary[];
   task_summary: ProjectTaskSummary;
   task_statuses: TaskStatusRead[];
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface ProjectListResponse {
@@ -7755,7 +7777,7 @@ export type PropertyTarget = (typeof PropertyTarget)[keyof typeof PropertyTarget
 
 export const PropertyTarget = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -8023,20 +8045,7 @@ export interface QueueItemCreate {
   is_visible?: boolean;
   user_id?: number | null;
   tag_ids?: number[] | null;
-  document_ids?: number[] | null;
   task_ids?: number[] | null;
-}
-
-export interface QueueItemDocumentRead {
-  document_id: number;
-  name?: string;
-  attached_at: string;
-}
-
-export interface QueueItemTaskRead {
-  task_id: number;
-  title?: string;
-  attached_at: string;
 }
 
 export interface QueueItemRead {
@@ -8055,8 +8064,6 @@ export interface QueueItemRead {
   user: UserPublic | null;
   tags: TagSummary[];
   properties: PropertySummary[];
-  documents: QueueItemDocumentRead[];
-  tasks: QueueItemTaskRead[];
   attachment_count: number;
   held_at_round: number | null;
   created_at: string;
@@ -8140,7 +8147,7 @@ export interface QueueRead {
   is_active: boolean;
   preview: QueueTurnPreview[] | null;
   items: QueueItemRead[];
-  current_item: QueueItemRead | null;
+  current_item_id: number | null;
 }
 
 /**
@@ -8187,10 +8194,6 @@ export interface RecentActivityEntry {
   content: string;
   created_at: string;
   author: CommentAuthor | null;
-  task_id: number | null;
-  task_title: string | null;
-  document_id: number | null;
-  document_name: string | null;
   project_id: number | null;
   project_name: string | null;
   entity_type: string | null;
@@ -8204,7 +8207,7 @@ export type RecentEntityType = (typeof RecentEntityType)[keyof typeof RecentEnti
 
 export const RecentEntityType = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -8228,7 +8231,7 @@ export interface RecentItemRead {
   name: string;
   last_viewed_at: string;
   icon: string | null;
-  document_type: string | null;
+  file_type: string | null;
   mime_type: string | null;
   original_filename: string | null;
 }
@@ -8379,7 +8382,7 @@ export interface RelatedEnd {
   image_urls: string[];
   icon: string | null;
   color: string | null;
-  document_type: string | null;
+  file_type: string | null;
   mime_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
@@ -8737,7 +8740,7 @@ export interface SmartChipState {
  *
  * A ref that names nothing, or something this caller cannot see, is simply
  * absent: the two are the same answer, and the chip falls back to the label
- * the document already stored.
+ * the file already stored.
  */
 export interface SmartChipStateList {
   items: SmartChipState[];
@@ -8877,7 +8880,7 @@ export type TagTarget = (typeof TagTarget)[keyof typeof TagTarget];
 
 export const TagTarget = {
   project: "project",
-  document: "document",
+  file: "file",
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
@@ -9276,7 +9279,7 @@ export interface UnreadPlacesResponse {
  *
  * Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
  * or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
- * param. This token is accepted only by the /uploads + document-download
+ * param. This token is accepted only by the /uploads + file-download
  * routes and expires quickly; the 7-day session JWT never goes in a URL.
  * ``expires_in`` is the lifetime in seconds so the SPA can refresh before it
  * lapses.
@@ -9404,6 +9407,7 @@ export interface UserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  birthdate_on_file: boolean;
   cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;
@@ -9625,7 +9629,7 @@ export interface WebhookSubscriptionCreated {
  * secret from the create response or rotate the subscription.
  *
  * The guild and the creator are named by reference, because this view is read
- * by whoever registered the subscription — which may be an app. ``id`` and
+ * by whoever registered the subscription — which may be a plug-in. ``id`` and
  * ``initiative_id`` are per-guild-schema and say nothing without the guild.
  */
 export interface WebhookSubscriptionRead {
@@ -9817,8 +9821,8 @@ export interface WikiPageHeading {
 /**
  * What a row in a wiki's navigation actually is.
  *
- * A wiki holds pages of its own and documents somebody put in it. The second
- * kind is a document still — it is not copied in, it keeps its own address,
+ * A wiki holds pages of its own and files somebody put in it. The second
+ * kind is a file still — it is not copied in, it keeps its own address,
  * its own sharing and its own history — so the navigation has to say which it
  * is looking at rather than pretend they are the same row.
  */
@@ -9826,7 +9830,7 @@ export type WikiPageKind = (typeof WikiPageKind)[keyof typeof WikiPageKind];
 
 export const WikiPageKind = {
   page: "page",
-  document: "document",
+  file: "file",
 } as const;
 
 /**
@@ -9863,13 +9867,12 @@ export interface WikiPageRead {
   headings: WikiPageHeading[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: string | null;
+  file_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
   content: WikiPageReadContent;
   content_version: string | null;
-  comment_count: number;
 }
 
 /**
@@ -9895,7 +9898,7 @@ export interface WikiPageSummary {
   headings: WikiPageHeading[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: string | null;
+  file_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
@@ -10258,45 +10261,45 @@ export const CreatePlatformCommunityBillingServiceHandoffConsole = {
   operator: "operator",
 } as const;
 
-export type ReadAppPlatformJwks200 = { [key: string]: unknown };
+export type ReadPluginPlatformJwks200 = { [key: string]: unknown };
 
-export type IssueAppAccessTokenBodyGrantType =
-  (typeof IssueAppAccessTokenBodyGrantType)[keyof typeof IssueAppAccessTokenBodyGrantType];
+export type IssuePluginAccessTokenBodyGrantType =
+  (typeof IssuePluginAccessTokenBodyGrantType)[keyof typeof IssuePluginAccessTokenBodyGrantType];
 
-export const IssueAppAccessTokenBodyGrantType = {
+export const IssuePluginAccessTokenBodyGrantType = {
   client_credentials: "client_credentials",
   "urn:ietf:params:oauth:grant-type:jwt-bearer": "urn:ietf:params:oauth:grant-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenBodyClientAssertionType =
-  (typeof IssueAppAccessTokenBodyClientAssertionType)[keyof typeof IssueAppAccessTokenBodyClientAssertionType];
+export type IssuePluginAccessTokenBodyClientAssertionType =
+  (typeof IssuePluginAccessTokenBodyClientAssertionType)[keyof typeof IssuePluginAccessTokenBodyClientAssertionType];
 
-export const IssueAppAccessTokenBodyClientAssertionType = {
+export const IssuePluginAccessTokenBodyClientAssertionType = {
   "urn:ietf:params:oauth:client-assertion-type:jwt-bearer":
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenBodyLevel =
-  (typeof IssueAppAccessTokenBodyLevel)[keyof typeof IssueAppAccessTokenBodyLevel];
+export type IssuePluginAccessTokenBodyLevel =
+  (typeof IssuePluginAccessTokenBodyLevel)[keyof typeof IssuePluginAccessTokenBodyLevel];
 
-export const IssueAppAccessTokenBodyLevel = {
+export const IssuePluginAccessTokenBodyLevel = {
   moderator: "moderator",
   community_admin: "community_admin",
 } as const;
 
-export type IssueAppAccessTokenBody = {
-  grant_type: IssueAppAccessTokenBodyGrantType;
-  client_assertion_type?: IssueAppAccessTokenBodyClientAssertionType;
+export type IssuePluginAccessTokenBody = {
+  grant_type: IssuePluginAccessTokenBodyGrantType;
+  client_assertion_type?: IssuePluginAccessTokenBodyClientAssertionType;
   client_assertion?: string;
   client_id?: string;
   installation?: string;
   scope?: string;
   resource?: string;
-  level?: IssueAppAccessTokenBodyLevel;
+  level?: IssuePluginAccessTokenBodyLevel;
   assertion?: string;
 };
 
-export type ListAppInstallationsParams = {
+export type ListPluginInstallationsParams = {
   /**
    * @minimum 1
    * @maximum 200
@@ -10333,7 +10336,7 @@ export type GetToolCountsParams = {
    */
   view?: string;
   /**
-   * JSON object of the tool's own list filters, as its list route takes them (``{"search": "notes", "document_type": "native"}``), that the tag counts are for
+   * JSON object of the tool's own list filters, as its list route takes them (``{"search": "notes", "file_type": "native"}``), that the tag counts are for
    */
   filters?: string | null;
   /**
@@ -10360,7 +10363,7 @@ export type ListProjectsParams = {
    */
   initiative_id?: number | null;
   /**
-   * Return a lightweight projection (id, name, icon, initiative_id, can) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
+   * Return a lightweight projection (id, name, icon, initiative_id, can) without files, grants, tags, or the nested initiative. For project pickers and other list-only callers.
    */
   slim?: boolean;
   /**
@@ -10394,12 +10397,8 @@ export type ListProjectsParams = {
   page_size?: number;
 };
 
-export type ListDocumentsParams = {
+export type ListFilesParams = {
   initiative_id?: number | null;
-  /**
-   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
-   */
-  ids?: number[] | null;
   search?: string | null;
   /**
    * Filter by tag IDs
@@ -10410,17 +10409,17 @@ export type ListDocumentsParams = {
    */
   property_filters?: string | null;
   /**
-   * Filter to documents with no tags
+   * Filter to files with no tags
    */
   untagged?: boolean | null;
   /**
-   * Only templates (true) or only documents that are not templates (false). Omit for both.
+   * Only templates (true) or only files that are not templates (false). Omit for both.
    */
   is_template?: boolean | null;
   /**
-   * Filter by document type
+   * Filter by file type
    */
-  document_type?: DocumentType | null;
+  file_type?: FileType | null;
   /**
    * @minimum 1
    */
@@ -10682,6 +10681,10 @@ export type ListGalleriesParams = {
    */
   archived?: boolean | null;
   /**
+   * Also send what each row's card shows of what is inside it, read for the whole page at once.
+   */
+  include_preview?: boolean;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -10820,9 +10823,16 @@ export type ListReportsParams = {
 };
 
 export type ListCommentsParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  cursor?: string | null;
   task_id?: number | null;
-  document_id?: number | null;
+  wiki_page_id?: number | null;
   project_id?: number | null;
+  file_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -10830,13 +10840,6 @@ export type ListCommentsParams = {
   post_id?: number | null;
   gallery_id?: number | null;
   wiki_id?: number | null;
-  wiki_page_id?: number | null;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: number;
-  cursor?: string | null;
 };
 
 export type RecentCommentsParams = {
@@ -10913,9 +10916,9 @@ export type SearchInitiativeMembersParams = {
   page_size?: number;
 };
 
-export type ReadDocumentParams = {
+export type ReadFileParams = {
   /**
-   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
+   * Include the file body. Pass false for the metadata alone — a file's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
    */
   include_content?: boolean;
   /**
@@ -11015,7 +11018,7 @@ export type ExportInitiativeParams = {
    */
   include?: string | null;
   /**
-   * Report mode: JSON object of tool→format; the document entry is a nested map, e.g. {"project": "pdf", "document": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
+   * Report mode: JSON object of tool→format; the file entry is a nested map, e.g. {"project": "pdf", "file": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
    */
   formats?: string | null;
   /**
@@ -11076,7 +11079,7 @@ export type ExportToolParams = {
    */
   ids?: number[] | null;
   /**
-   * One of the tool's export formats (project: json, pdf, csv, xlsx; document: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
+   * One of the tool's export formats (project: json, pdf, csv, xlsx; file: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A file's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
    */
   format?: ExportToolFormat;
   /**
@@ -11220,7 +11223,7 @@ export type GetGalleryImageTimelineParams = {
   tz?: string | null;
 };
 
-export type ReadAppDataParams = {
+export type ReadPluginDataParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
    */
@@ -11235,7 +11238,7 @@ export type ReadAppDataParams = {
   widget_id?: string | null;
 };
 
-export type ReadAppParamOptionsParams = {
+export type ReadPluginParamOptionsParams = {
   /**
    * Which of the endpoint's parameters to fill a menu for.
    */
@@ -11246,7 +11249,7 @@ export type ReadAppParamOptionsParams = {
   params?: string | null;
 };
 
-export type ListCommunityAppMembersParams = {
+export type ListCommunityPluginMembersParams = {
   /**
    * @minimum 1
    */
@@ -11377,7 +11380,7 @@ export type SearchCommunityParams = {
    */
   search: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11405,7 +11408,7 @@ export type SearchCommunityParams = {
 
 export type RecentCommunityParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11417,7 +11420,7 @@ export type RecentCommunityParams = {
    */
   is_template?: boolean | null;
   /**
-   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   * The thing being written in, as a reference (``file:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
   subject?: string | null;
   /**
@@ -11433,7 +11436,7 @@ export type SuggestCommunityParams = {
    */
   search: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, file, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -11445,7 +11448,7 @@ export type SuggestCommunityParams = {
    */
   is_template?: boolean | null;
   /**
-   * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
+   * The thing being written in, as a reference (``file:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
   subject?: string | null;
   /**
@@ -11509,11 +11512,11 @@ export type SearchUsersParams = {
   search?: string | null;
   user_id?: number[] | null;
   /**
-   * Only members of this initiative. The caller must reach it: be in it, administer the community, or (an app) be placed there.
+   * Only members of this initiative. The caller must reach it: be in it, administer the community, or (a plug-in) be placed there.
    */
   initiative_id?: number | null;
   /**
-   * With ``resource_id``: only the people who can open that row, which is who may be named on content inside it (assignees, attendees, person properties). The caller must be able to open it too. For a person's picker; an installed app's search does not take it.
+   * With ``resource_id``: only the people who can open that row, which is who may be named on content inside it (assignees, attendees, person properties). The caller must be able to open it too. For a person's picker; an installed plug-in's search does not take it.
    */
   tool?: Tool | null;
   resource_id?: number | null;
@@ -11612,11 +11615,11 @@ export type ListMyProjectsParams = {
   page_size?: number;
 };
 
-export type ListMyDocumentsParams = {
+export type ListMyFilesParams = {
   community_ids?: number[] | null;
   search?: string | null;
   /**
-   * Narrow to documents the caller created.
+   * Narrow to files the caller created.
    */
   created_by_me?: boolean;
   /**

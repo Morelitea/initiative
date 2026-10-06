@@ -176,11 +176,15 @@ async def test_register_answers_the_age_question(client: AsyncClient):
     adult = await register("adult", date(today.year - 30, 1, 1))
     assert adult.status_code == 201
     assert adult.json()["age_confirmed_at"] is not None
+    # The date is kept beside the answer, and only said to be there.
+    assert adult.json()["birthdate_on_file"] is True
+    assert str(today.year - 30) not in adult.text
 
     minor = await register("minor", date(today.year - 10, 1, 1))
     assert minor.status_code == 201
     assert minor.json()["age_confirmed_at"] is None
     assert minor.json()["age_below_minimum_at"] is not None
+    assert minor.json()["birthdate_on_file"] is True
 
     # Two days on, so no time zone the suite runs in reads it as today.
     unborn = await register("unborn", today + timedelta(days=2))

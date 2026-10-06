@@ -23,7 +23,7 @@ SCRIPT = BACKEND_DIR / "scripts" / "export_openapi.py"
 
 
 @pytest.mark.parametrize(
-    ("flags", "path"), [([], "/api/v1/auth/token"), (["--app"], "/projects/")]
+    ("flags", "path"), [([], "/api/v1/auth/token"), (["--plugin"], "/projects/")]
 )
 def test_export_runs_without_app_env(tmp_path, flags, path):
     out = tmp_path / "openapi.json"

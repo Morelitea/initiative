@@ -4,7 +4,7 @@ import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
  * Which marketplace offers a listing.
  *
  * Every kind but one installs to a **community** — a dashboard lands in an
- * initiative, an app mounts in a community, and installing is something a
+ * initiative, a plug-in mounts in a community, and installing is something a
  * community's admins do. A profile pack installs to a **person**: its
  * decorations land in one account's library and belong to that person across
  * every community they are in.
@@ -21,7 +21,7 @@ export const USER_SHELVES = [ListingKind.profile_pack] as const;
 
 export const COMMUNITY_SHELVES = [
   ListingKind.dashboard,
-  ListingKind.app,
+  ListingKind.plugin,
   ListingKind.auto,
 ] as const;
 
@@ -32,7 +32,7 @@ export const COMMUNITY_SHELVES = [
  */
 export const UNSHELVED_KINDS = [
   ListingKind.project,
-  ListingKind.document,
+  ListingKind.file,
   ListingKind.queue,
   ListingKind.counter_group,
   ListingKind.calendar,
@@ -79,3 +79,30 @@ export const parseCommunityShelf = (value: unknown): CommunityShelf =>
 
 /** Whether this kind is bought by a person rather than by a community. */
 export const isUserShelf = (kind: ListingKind): boolean => USER_SHELF_KINDS.has(kind);
+
+/** The region of a BCP 47 tag (`en-US` → `US`), or null when it names none. */
+const regionOf = (tag: string | undefined): string | null => {
+  if (!tag) return null;
+  try {
+    return new Intl.Locale(tag).region ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** The minimum age a plug-in declares for somebody in the viewer's region: the
+ *  region's own entry, else `default`, else null (the plug-in sets none beyond
+ *  the deployment's). The region comes from the browser's language tag, the
+ *  only place a listing page can learn one; it is a hint for display, not a
+ *  gate. */
+export const minimumAgeFor = (
+  definition: Record<string, unknown> | null | undefined,
+  languageTag: string | undefined
+): number | null => {
+  const declared = definition?.minimum_age;
+  if (!declared || typeof declared !== "object") return null;
+  const ages = declared as Record<string, unknown>;
+  const region = regionOf(languageTag);
+  const age = (region ? ages[region] : undefined) ?? ages.default;
+  return typeof age === "number" ? age : null;
+};

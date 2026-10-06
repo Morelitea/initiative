@@ -1,11 +1,10 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolSettingsPage } from "@/pages/toolSettings/ToolSettingsPage";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/queues/$queueId/settings"
 )({
-  component: lazyRouteComponent(() =>
-    import("@/pages/initiativeTools/queues/QueueSettingsPage").then((m) => ({
-      default: m.QueueSettingsPage,
-    }))
-  ),
+  component: () => <ToolSettingsPage tool={Tool.queue} />,
 });

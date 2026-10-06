@@ -30,7 +30,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.services.export.adapters._common import require_may_leave
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
-from app.services.tenant.ical_service import documents_for_events, event_export_dict
+from app.services.tenant.ical_service import files_for_events, event_export_dict
 
 
 class CalendarEventsAdapter:
@@ -66,10 +66,8 @@ class CalendarEventsAdapter:
     ) -> RenderRequest:
         events = await _query(session, user, params)
         reach = await require_may_leave(session, await _reach(session, events))
-        documents = await documents_for_events(session, events)
-        dicts = [
-            event_export_dict(event, documents.get(event.id, [])) for event in events
-        ]
+        files = await files_for_events(session, events)
+        dicts = [event_export_dict(event, files.get(event.id, [])) for event in events]
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
@@ -109,7 +107,7 @@ def _filters(params: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _conditions(session: AsyncSession, user: User, params: dict[str, Any]):
-    from app.api.v1.tenant_endpoints.calendar_events import (
+    from app.services.tenant.calendar_events import (
         guild_calendar_event_conditions,
     )
 
@@ -121,7 +119,7 @@ async def _conditions(session: AsyncSession, user: User, params: dict[str, Any])
 async def _query(
     session: AsyncSession, user: User, params: dict[str, Any]
 ) -> list[CalendarEvent]:
-    from app.api.v1.tenant_endpoints.calendar_events import (
+    from app.services.tenant.calendar_events import (
         query_guild_calendar_events,
     )
 

@@ -27,15 +27,15 @@ UPLOADS_URL_PREFIX = "/uploads/"
 #: description, a comment — starts with. The server chooses every stored name,
 #: so this is how an upload says it was pasted, and only an upload that says so
 #: is ever deleted because the text stopped showing it. An image copied in from
-#: a document or a gallery keeps its own name and is never touched.
+#: a file or a gallery keeps its own name and is never touched.
 PASTED_IMAGE_PREFIX = "pasted-"
 
 #: An upload's address inside markdown: ``/uploads/{community_id}/{filename}``,
 #: optionally behind an origin.
 _MARKDOWN_UPLOAD_URL = re.compile(rf"(?:https?://[^\s()<>]+?)?{UPLOAD_PATH_SHAPE}")
 
-# Maximum file size for document uploads: 50 MB
-MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
+# Maximum file size for file uploads: 50 MB
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 
 class FileTooLargeError(Exception):
@@ -87,8 +87,8 @@ def compute_content_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-# Supported MIME types for document file uploads (based on react-doc-viewer support)
-ALLOWED_DOCUMENT_MIME_TYPES: Dict[str, str] = {
+# Supported MIME types for uploaded files (based on react-doc-viewer support)
+ALLOWED_FILE_MIME_TYPES: Dict[str, str] = {
     "application/pdf": ".pdf",
     "application/msword": ".doc",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
@@ -166,44 +166,37 @@ def upload_names(urls: Iterable[str | None]) -> Set[str]:
     return {Path(n).name for n in (normalize_upload_url(u) for u in urls) if n}
 
 
-async def purge_document_uploads(session, documents: Iterable[Any]) -> Set[str]:
-    """Delete the uploads of documents about to be hard-purged.
+async def purge_file_uploads(session, files: Iterable[Any]) -> Set[str]:
+    """Delete the uploads of files about to be hard-purged.
 
-    A file document's file, and every version of it, backs that document alone,
-    so they go with it. What a document shows — pictures in its body, its
+    An uploaded file's blob, and every version of it, backs that file alone,
+    so they go with it. What a file shows — pictures in its body, its
     featured image — goes only when nothing that stays shows it too; a trashed
-    document still counts, since it may be restored.
+    file still counts, since it may be restored.
 
     Caller must use a session that can DELETE from ``uploads``; caller commits,
     then deletes the blobs of the stored names returned.
     """
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
+    from app.models.tenant.file import File, FileVersion
 
-    doomed = list(documents)
+    doomed = list(files)
     if not doomed:
         return set()
     doomed_ids = {d.id for d in doomed}
 
     versions = await session.exec(
-        select(DocumentFileVersion.file_url).where(
-            DocumentFileVersion.document_id.in_(doomed_ids)
-        )
+        select(FileVersion.file_url).where(FileVersion.file_id.in_(doomed_ids))
     )
-    stored = upload_names(
-        [d.file_url for d in doomed if d.document_type == DocumentType.file]
-    ) | upload_names(versions.all())
-    removed = await _drop_upload_rows(session, stored)
+    removed = await _drop_upload_rows(session, upload_names(versions.all()))
 
     shown: Set[str] = set()
     for d in doomed:
         shown |= extract_upload_urls(d.content)
         if d.featured_image_url:
             shown.add(d.featured_image_url)
-    return removed | await release_uploads(
-        session, shown, leaving={Document: doomed_ids}
-    )
+    return removed | await release_uploads(session, shown, leaving={File: doomed_ids})
 
 
 async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str]:
@@ -229,8 +222,7 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str
             GalleryImageVersion.gallery_image_id.in_({i.id for i in doomed})
         )
     )
-    urls = [u for image in doomed for u in (image.file_url, image.thumbnail_url)]
-    urls += [u for row in versions.all() for u in row]
+    urls = [u for row in versions.all() for u in row]
     return await _drop_upload_rows(session, upload_names(urls))
 
 
@@ -257,10 +249,11 @@ UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
 
 def _upload_columns() -> tuple[tuple[type, str], ...]:
     """Every column a stored upload can be shown from: every column somebody
-    writes in, and the file columns of documents and pictures."""
+    writes in, a file's featured image, and the files of every version of
+    an uploaded file or a picture."""
     from app.db.search_index import written_columns
-    from app.models.tenant.document import Document, DocumentFileVersion
-    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
+    from app.models.tenant.file import File, FileVersion
+    from app.models.tenant.gallery import GalleryImageVersion
 
     return (
         *(
@@ -268,11 +261,8 @@ def _upload_columns() -> tuple[tuple[type, str], ...]:
             for model, columns in written_columns().items()
             for column in columns
         ),
-        (Document, "featured_image_url"),
-        (Document, "file_url"),
-        (DocumentFileVersion, "file_url"),
-        (GalleryImage, "file_url"),
-        (GalleryImage, "thumbnail_url"),
+        (File, "featured_image_url"),
+        (FileVersion, "file_url"),
         (GalleryImageVersion, "file_url"),
         (GalleryImageVersion, "thumbnail_url"),
     )
@@ -631,7 +621,7 @@ async def claim_uploads(
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
-    from app.db.app_rls import APP_TABLE_ACCESS
+    from app.db.plugin_rls import PLUGIN_TABLE_ACCESS
     from app.db.initiative_rls import INITIATIVE_PATHS
     from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
@@ -703,7 +693,7 @@ async def claim_uploads(
     if not wanted or (person is None and uploaded_by is not None):
         return
     if install_context(session) is not None:
-        # An installed app reaches a file through the content showing it, so
+        # An installed plug-in reaches a file through the content showing it, so
         # it copies one only when content it reads shows it: other content,
         # or rows it carried here.
         saving: Dict[type, list[int]] = {}
@@ -717,7 +707,7 @@ async def claim_uploads(
                     session,
                     Path(url).name,
                     leaving={} if carried else saving,
-                    tables=set(APP_TABLE_ACCESS),
+                    tables=set(PLUGIN_TABLE_ACCESS),
                 )
             }
     copies = {
@@ -817,12 +807,12 @@ def detect_mime_type(content: bytes, filename: str | None = None) -> str | None:
     return None
 
 
-def validate_document_file(
+def validate_file(
     content: bytes,
     filename: str | None,
     content_type: str | None,
 ) -> Tuple[str, str]:
-    """Validate an uploaded document file.
+    """Validate an uploaded file.
 
     Args:
         content: File content bytes
@@ -835,9 +825,9 @@ def validate_document_file(
     Raises:
         ValueError: If validation fails
     """
-    if len(content) > MAX_DOCUMENT_FILE_SIZE:
+    if len(content) > MAX_FILE_SIZE:
         raise ValueError(
-            f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB"
+            f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)} MB"
         )
 
     if not content:
@@ -846,13 +836,13 @@ def validate_document_file(
     # Detect actual MIME type
     detected_mime = detect_mime_type(content, filename)
 
-    if detected_mime and detected_mime not in ALLOWED_DOCUMENT_MIME_TYPES:
+    if detected_mime and detected_mime not in ALLOWED_FILE_MIME_TYPES:
         # Magic returned an unrecognized type — fall back to extension if it
         # maps to an allowed type (e.g. magic returns text/x-markdown for .md)
         if filename:
             file_ext = Path(filename).suffix.lower()
             ext_mime = EXTENSION_TO_MIME.get(file_ext)
-            if ext_mime and ext_mime in ALLOWED_DOCUMENT_MIME_TYPES:
+            if ext_mime and ext_mime in ALLOWED_FILE_MIME_TYPES:
                 detected_mime = ext_mime
             else:
                 raise ValueError(f"Unsupported file type: {detected_mime}")
@@ -861,7 +851,7 @@ def validate_document_file(
 
     # If we couldn't detect the MIME type, fall back to Content-Type header
     if not detected_mime:
-        if content_type and content_type in ALLOWED_DOCUMENT_MIME_TYPES:
+        if content_type and content_type in ALLOWED_FILE_MIME_TYPES:
             detected_mime = content_type
         else:
             raise ValueError(
@@ -869,7 +859,7 @@ def validate_document_file(
             )
 
     # Get extension for the detected MIME type
-    extension = ALLOWED_DOCUMENT_MIME_TYPES.get(detected_mime, "")
+    extension = ALLOWED_FILE_MIME_TYPES.get(detected_mime, "")
 
     # If we have a filename, prefer its extension if it matches
     if filename:
@@ -898,7 +888,7 @@ async def store_upload(
     filename: str,
     data: bytes,
     content_type: str | None,
-    created_by: int,
+    created_by: int | None,
     initiative_id: int | None = None,
 ) -> str:
     """Write ``data`` to the guild's storage as ``filename`` and record it in
@@ -1028,7 +1018,7 @@ _ROOT_NAME_ENDS = (b" ", b"\t", b"\r", b"\n", b">", b"/")
 
 
 def _past_the_prolog(head: bytes) -> bytes:
-    """Drop what an XML document may carry before its root element — a
+    """Drop what an XML file may carry before its root element — a
     byte-order mark, whitespace, the declaration, comments and a doctype —
     and return what is left of ``head``."""
     head = head.lstrip(b"\xef\xbb\xbf").lstrip()

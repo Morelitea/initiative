@@ -33,11 +33,11 @@ interface WikiChromeProps {
   onToggleEditing: () => void;
   onOpenComments: () => void;
   /** Whether there is a thread to open. The wiki answers for its own pages;
-   *  a borrowed document answers for itself. */
+   *  a borrowed file answers for itself. */
   commentsEnabled?: boolean;
   onToggleConnections: () => void;
   connectionsOpen: boolean;
-  /** Anything this particular surface adds — a way out to a document, say. */
+  /** Anything this particular surface adds — a way out to a file, say. */
   trailing?: ReactNode;
 }
 

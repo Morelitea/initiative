@@ -10,7 +10,7 @@ import { Loader2, LogOut, Settings, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AcceptTerms } from "@/components/AcceptTerms";
 import { AccountTimeOut } from "@/components/AccountTimeOut";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -18,8 +18,8 @@ import { AnnouncementCenter } from "@/components/announcements/AnnouncementCente
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
+import { ConfirmBirthdate } from "@/components/ConfirmBirthdate";
 import { CommunityAccessBanner } from "@/components/communities/CommunityAccessBanner";
-import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
@@ -30,6 +30,7 @@ import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { StartFlow } from "@/components/start/StartFlow";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { CreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Button } from "@/components/ui/button";
 import { DocumentOutlineScope } from "@/components/ui/editor/DocumentOutline";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -163,6 +164,13 @@ function AppLayout() {
     return <AcceptTerms />;
   }
 
+  // No date of birth on file. Asked once of every account — plug-ins can have a
+  // minimum age that differs by country — and never again once answered. An
+  // account already blocked as under age has nothing left to answer here.
+  if (!loading && user && !user.birthdate_on_file && !user.age_below_minimum_at) {
+    return <ConfirmBirthdate />;
+  }
+
   // Now we can have conditional returns
   // Show loading state while auth or community membership is being determined
   if (loading || communitiesLoading) {
@@ -250,9 +258,9 @@ function AppLayout() {
   // ProjectActivitySidebar still wants the active project directly — and the
   // initiative it sits in, since a task's URL names that too.
   const activeProjectId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.entityId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.entityId : null;
   const activeProjectInitiativeId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.initiativeId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.initiativeId : null;
 
   // const isDark = document.documentElement.classList.contains("dark");
 
@@ -260,7 +268,7 @@ function AppLayout() {
     <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
-      <CreateDocumentWizard />
+      <CreateToolWizard tool={Tool.file} />
       {/* A real height rather than a minimum: `min-h-screen` leaves every
           descendant sizing to its own content, so a page cannot ask for the
           height of what it is in. Scrolling moves from the document into
@@ -388,7 +396,7 @@ function AppLayout() {
                       `height: auto`, and a percentage height resolves against
                       the parent's *height* — so `h-full` on a page would
                       silently become `auto`. Three pages depend on that chain
-                      (My Messages, a document, an app surface): each pins
+                      (My Messages, a document, a plug-in surface): each pins
                       something to an edge and needs a real height to do it.
 
                       A grid row is definite either way. It is at least the

@@ -8,7 +8,7 @@ Designed to run from the backend/ directory (CWD) so app imports resolve.
 Saves created IDs to .vscode/.dev_seed_ids.json. The dataset itself lives in
 ``scripts/seed/``, one module per area; this file runs them in order.
 
-Creates 3 communities with multiple users, initiatives, projects, tasks, documents,
+Creates 3 communities with multiple users, initiatives, projects, tasks, files,
 tags, and comments to exercise all features of the app, plus six small communities
 that exist to fill the community directory (which this switches on). Communities 1
 and 2 stay invite-only so the unlisted case is still there to look at.
@@ -58,7 +58,7 @@ from seed import (  # noqa: E402
     counters,
     dashboards,
     directory,
-    documents,
+    files,
     galleries,
     guilds,
     initiatives,
@@ -84,7 +84,7 @@ AREAS = (
     initiatives,
     tags,
     projects,
-    documents,
+    files,
     comments,
     queues,
     counters,
@@ -164,7 +164,7 @@ async def seed() -> None:
         f"({len(ids['initiatives'])} initiatives); community directory on"
     )
     print(f"  {len(ids['projects'])} projects, {len(ids['tasks'])} tasks")
-    print(f"  {len(ids['documents'])} documents, {len(ids['tags'])} tags")
+    print(f"  {len(ids['files'])} files, {len(ids['tags'])} tags")
     print(f"  {len(ids['queues'])} queues, {len(ids['queue_items'])} queue items")
     print(
         f"  {len(ids['counter_groups'])} counter groups, "

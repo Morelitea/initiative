@@ -6,7 +6,7 @@ the enum — plus the content-level extras in ``EXTRA_COMMENT_TARGETS``, which
 are not tools and anchor to the tool that owns them for access (a task to its
 project, a wiki page to its wiki). Reading a thread takes read access on that
 anchor, posting takes write access, exactly as it always has for tasks and
-documents.
+files.
 
 Every tool entity also carries its own switch, ``comments_enabled``: while it
 is off, that entity's thread is neither readable nor postable and the UI shows
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -48,7 +48,7 @@ from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -111,18 +111,13 @@ _REGISTERED = (
     Calendar,
     CounterGroup,
     Dashboard,
-    Document,
+    File,
     Gallery,
     Post,
     Project,
     Queue,
     Wiki,
 )
-
-#: The one tool whose "no such thing" code is its own rather than the generic
-#: comment-target one. A document comment is the oldest surface here and its
-#: refusal is already mapped in every locale under that code.
-_OWN_NOT_FOUND_CODE = frozenset({Tool.document})
 
 # Every Tool is commentable, derived from the enum rather than listed — a new
 # tool carries a comment thread the day its model exists. comments_test asserts
@@ -132,9 +127,7 @@ TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
     tool: CommentTarget(
         tool,
         tool_models()[tool.plural],
-        tool.not_found_code
-        if tool in _OWN_NOT_FOUND_CODE
-        else CommentMessages.TARGET_NOT_FOUND,
+        CommentMessages.TARGET_NOT_FOUND,
         tool.feature_disabled_code,
     )
     for tool in Tool
@@ -273,7 +266,7 @@ class _ParentContext:
         return self.tool.value if self.tool is not None else None
 
 
-def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
+def _single_target(ids: Mapping[str, Optional[int]]) -> tuple[str, int]:
     provided = [(column, value) for column, value in ids.items() if value is not None]
     if len(provided) != 1:
         raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
@@ -514,7 +507,7 @@ async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
 
     rows = [c for c in comments if c.id is not None]
     if not rows or install_context(session) is not None:
-        # An installed app reads no reactions: each is one person's gesture.
+        # An installed plug-in reads no reactions: each is one person's gesture.
         return
     grouped = await reactions_service.load_reactions(
         session,
@@ -553,7 +546,7 @@ async def _resolved_parent(
 ) -> _ParentContext:
     """Load + authorize one comment parent, raising the comment-shaped errors.
 
-    ``user`` is ``None`` for an installed app, which is in no initiative as a
+    ``user`` is ``None`` for an installed plug-in, which is in no initiative as a
     member: a parent its policies hid is simply not found.
     """
     ctx = await _load_parent(
@@ -579,7 +572,7 @@ def removes_others_comments(
     ``initiative_id``: a community admin, or a manager of that initiative.
 
     Read off the standing the seam computed, so it costs no query and answers
-    exactly what the delete route checks. An installed app and granted access
+    exactly what the delete route checks. An installed plug-in and granted access
     take down nobody's words but their own.
     """
     context = guild_context(session)
@@ -705,27 +698,19 @@ async def _ensure_said_to_a_filer(
 async def create_comment(
     session: AsyncSession,
     *,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     guild_id: int,
     content: str,
-    task_id: Optional[int] = None,
-    document_id: Optional[int] = None,
-    project_id: Optional[int] = None,
-    queue_id: Optional[int] = None,
-    counter_group_id: Optional[int] = None,
-    calendar_id: Optional[int] = None,
-    dashboard_id: Optional[int] = None,
-    post_id: Optional[int] = None,
-    gallery_id: Optional[int] = None,
-    wiki_id: Optional[int] = None,
-    wiki_page_id: Optional[int] = None,
+    targets: Mapping[str, Optional[int]],
     parent_comment_id: Optional[int] = None,
     audience: CommentAudience = CommentAudience.members,
 ) -> Comment:
     """Post one comment on one parent, and tell whoever it concerns.
 
-    ``author`` is the person posting, or the installed app posting as itself:
-    its comment names no author, and the notices name the app.
+    ``targets`` maps comment-parent columns to ids; exactly one is set.
+
+    ``author`` is the person posting, or the installed plug-in posting as itself:
+    its comment names no author, and the notices name the plug-in.
 
     ``audience`` is ``filer`` for a reply to whoever filed an operations case:
     only a person posts one, only on a case task that has a filer, and only
@@ -738,21 +723,7 @@ async def create_comment(
         if not parent_comment:
             raise CommentNotFoundError(CommentMessages.PARENT_NOT_FOUND)
 
-    column, entity_id = _single_target(
-        {
-            "task_id": task_id,
-            "wiki_page_id": wiki_page_id,
-            "document_id": document_id,
-            "project_id": project_id,
-            "queue_id": queue_id,
-            "counter_group_id": counter_group_id,
-            "calendar_id": calendar_id,
-            "dashboard_id": dashboard_id,
-            "post_id": post_id,
-            "gallery_id": gallery_id,
-            "wiki_id": wiki_id,
-        }
-    )
+    column, entity_id = _single_target(targets)
     ctx = await _resolved_parent(
         session,
         column=column,
@@ -817,7 +788,7 @@ async def notify_task_assignees(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     task: Task,
     thread: notifications.Subject | None = None,
     recipients: Sequence[int] | None = None,
@@ -862,7 +833,7 @@ async def _process_comment_notifications(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     ctx: _ParentContext,
     parent_comment: Comment | None,
 ) -> None:
@@ -890,14 +861,10 @@ async def _process_comment_notifications(
         told.update(fresh)
         return fresh
 
-    # The thread's own fields, the way every comment notice has named it: a
-    # task and a document by their columns, any other parent as an entity.
-    where = {
-        "comment_id": comment.id,
-        "task_id": comment.task_id,
-        "document_id": comment.document_id,
-    }
-    if ctx.tool is not None and ctx.tool is not Tool.document:
+    # The thread's own fields: a task by its column, any other parent as an
+    # entity.
+    where = {"comment_id": comment.id, "task_id": comment.task_id}
+    if ctx.tool is not None:
         where |= {"entity_type": ctx.ref_type, "entity_id": ctx.entity_id}
 
     if parent_comment is not None:
@@ -946,7 +913,6 @@ async def _process_comment_notifications(
                 "comment_id": comment.id,
                 "mentioned_task_id": task_id,
                 "context_task_id": comment.task_id,
-                "context_document_id": comment.document_id,
                 "context_entity_type": where.get("entity_type"),
                 "context_entity_id": where.get("entity_id"),
                 "mentioned_by_name": name,
@@ -995,17 +961,7 @@ async def list_comments(
     *,
     user: Optional[User],
     guild_id: int,
-    task_id: Optional[int] = None,
-    document_id: Optional[int] = None,
-    project_id: Optional[int] = None,
-    queue_id: Optional[int] = None,
-    counter_group_id: Optional[int] = None,
-    calendar_id: Optional[int] = None,
-    dashboard_id: Optional[int] = None,
-    post_id: Optional[int] = None,
-    gallery_id: Optional[int] = None,
-    wiki_id: Optional[int] = None,
-    wiki_page_id: Optional[int] = None,
+    targets: Mapping[str, Optional[int]],
     limit: int,
     cursor: Optional[str] = None,
 ) -> tuple[Sequence[Comment], Optional[str]]:
@@ -1015,21 +971,7 @@ async def list_comments(
     with every reply under them, so a conversation is never split across
     pages. The rows come back in the order they were written.
     """
-    column, entity_id = _single_target(
-        {
-            "task_id": task_id,
-            "wiki_page_id": wiki_page_id,
-            "document_id": document_id,
-            "project_id": project_id,
-            "queue_id": queue_id,
-            "counter_group_id": counter_group_id,
-            "calendar_id": calendar_id,
-            "dashboard_id": dashboard_id,
-            "post_id": post_id,
-            "gallery_id": gallery_id,
-            "wiki_id": wiki_id,
-        }
-    )
+    column, entity_id = _single_target(targets)
     ctx = await _resolved_parent(
         session,
         column=column,
@@ -1342,8 +1284,6 @@ async def recent_activity(
             task = tasks_by_id.get(comment.task_id)
             project = projects_by_id.get(task.project_id) if task else None
             fields.update(
-                task_id=task.id if task else None,
-                task_title=task.title if task else None,
                 project_id=project.id if project else None,
                 project_name=project.name if project else None,
                 entity_type="task",
@@ -1385,16 +1325,6 @@ async def recent_activity(
                     entity_name=row.name if row else None,
                     initiative_id=row.initiative_id if row else None,
                 )
-                if tool is Tool.document:
-                    fields.update(
-                        document_id=value,
-                        document_name=row.name if row else None,
-                    )
-                elif tool is Tool.project:
-                    fields.update(
-                        project_id=value,
-                        project_name=row.name if row else None,
-                    )
                 break
         entries.append(RecentActivityEntry(**fields))
     return entries

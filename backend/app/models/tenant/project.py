@@ -16,11 +16,9 @@ from app.models.tenant._mixins import (
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
-    from app.models.tenant.project_order import ProjectOrder
     from app.models.tenant.filter_preset import ProjectFilterPreset
     from app.models.tenant.task import Task, TaskStatus
     from app.models.tenant.initiative import Initiative
-    from app.models.tenant.project_activity import ProjectFavorite
     from app.models.tenant.resource_grant import ResourceGrant
 
 
@@ -87,14 +85,6 @@ class Project(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     filter_presets: List["ProjectFilterPreset"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    orders: List["ProjectOrder"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    favorite_entries: List["ProjectFavorite"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

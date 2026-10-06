@@ -4,7 +4,7 @@ icon: lucide/hard-drive
 
 # File & object storage
 
-Uploaded files — image attachments, document files, and their versions — go through a pluggable storage backend. By default everything lives on local disk, which is right for most deployments. Prefer S3-compatible object storage? That's a configuration change and nothing else.
+Uploaded files — image attachments, uploads in Files, and their versions — go through a pluggable storage backend. By default everything lives on local disk, which is right for most deployments. Prefer S3-compatible object storage? That's a configuration change and nothing else.
 
 ## Choosing a backend
 

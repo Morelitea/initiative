@@ -68,7 +68,7 @@ from app.testing import (
     Actor,
     create_access_grant,
     create_counter_group,
-    create_document,
+    create_file,
     create_project,
     create_queue,
     create_wiki,
@@ -79,7 +79,7 @@ from app.testing import (
     route_as,
     route_as_install,
 )
-from app.testing.app_clients import CLIENT, install_app
+from app.testing.plugin_clients import CLIENT, install_plugin
 
 pytestmark = pytest.mark.seam
 
@@ -103,7 +103,7 @@ class World:
 
 
 async def _world(session, acting_user, role_session) -> World:
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["projects:read"]
     )
     guild, owner = installed.guild, installed.seat.user
@@ -138,7 +138,7 @@ async def _world(session, acting_user, role_session) -> World:
         people[name] = person.id
     return World(
         guild_id=guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         owner_id=owner.id,
         member_id=member.user.id,
         reader_id=people["reader"],
@@ -217,7 +217,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         _NONE,
     ),
     Scenario(
-        "installed app",
+        "installed plug-in",
         Install,
         "app_user",
         lambda w, s: route_as_install(
@@ -422,7 +422,7 @@ async def test_every_socket_admits_through_the_seam(
     )
     group = await create_counter_group(session, initiative, owner)
     queue = await create_queue(session, initiative, owner)
-    document = await create_document(session, initiative, owner)
+    file = await create_file(session, initiative, owner)
     wiki = await create_wiki(session, initiative, owner)
     page = await create_wiki_page(session, wiki, owner)
 
@@ -437,8 +437,8 @@ async def test_every_socket_admits_through_the_seam(
             f"{base}/counter-groups/{group.id}/ws"
         ),
         "/api/v1/c/{community_id}/events/updates": f"{base}/events/updates",
-        "/api/v1/c/{community_id}/collaboration/documents/{document_id}/collaborate": (
-            f"{base}/collaboration/documents/{document.id}/collaborate"
+        "/api/v1/c/{community_id}/collaboration/files/{file_id}/collaborate": (
+            f"{base}/collaboration/files/{file.id}/collaborate"
         ),
         "/api/v1/c/{community_id}/collaboration/wiki-pages/{page_id}/collaborate": (
             f"{base}/collaboration/wiki-pages/{page.id}/collaborate"

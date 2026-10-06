@@ -152,6 +152,14 @@ def test_title_str_allows_ordinary_punctuation() -> None:
     assert m.display == "Q3 Report (final) & notes — v2"
 
 
+def test_title_str_is_trimmed() -> None:
+    assert _Model(name="  x  ", display="  Q3 Report  ").display == "Q3 Report"
+    assert _Model(name="  x  ").name == "  x  "
+    # Nothing left once trimmed is no title at all.
+    with pytest.raises(ValidationError):
+        _Model(name="x", display="   ")
+
+
 def test_title_str_none_passes_through() -> None:
     assert _Model(name="x", display=None).display is None
 
@@ -219,12 +227,12 @@ _NAME_FIELDS = frozenset({"name", "title", "label"})
 #: Request-body fields deliberately outside the rule, and why.
 _SIGIL_EXEMPT: frozenset[str] = frozenset(
     {
-        # A document's name starts life as a filename, and a filename may
+        # A file's name starts life as a filename, and a filename may
         # legitimately carry either character.
-        "app.schemas.tenant.document.DocumentCreate.name",
-        "app.schemas.tenant.document.DocumentUpdate.name",
+        "app.schemas.tenant.file.FileCreate.name",
+        "app.schemas.tenant.file.FileUpdate.name",
         # Any tool's copy: held in ``tool_copy.duplicate`` to the rule its
-        # tool's own name follows, since a document's may carry either.
+        # tool's own name follows, since a file's may carry either.
         "app.schemas.tenant.tool.ToolDuplicateRequest.name",
         # Configuration labels: named by whoever administers the thing, and not
         # written into the search index.
@@ -233,8 +241,8 @@ _SIGIL_EXEMPT: frozenset[str] = frozenset(
         "app.schemas.platform.api_key.ApiKeyCreateRequest.name",
         "app.schemas.tenant.filter_preset.FilterPresetCreate.name",
         "app.schemas.tenant.filter_preset.FilterPresetUpdate.name",
-        "app.schemas.tenant.guild_app.CommunityAppInstall.name",
-        "app.schemas.tenant.guild_app.CommunityAppUpdate.name",
+        "app.schemas.tenant.guild_plugin.CommunityPluginInstall.name",
+        "app.schemas.tenant.guild_plugin.CommunityPluginUpdate.name",
         "app.schemas.tenant.initiative.InitiativeRoleCreate.name",
         "app.schemas.tenant.property.PropertyDefinitionCreate.name",
         "app.schemas.tenant.property.PropertyDefinitionUpdate.name",

@@ -29,16 +29,15 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope_by,
+    plugin_scope_by,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import ARCHIVE_TARGETS, KINDS, Tool, plural_of
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
@@ -52,16 +51,16 @@ def _governing(entity_type: str) -> Tool:
     return KINDS[entity_type].parent or Tool(entity_type)
 
 
-#: What an installed app needs to archive each kind: the write scope of the tool
+#: What an installed plug-in needs to archive each kind: the write scope of the tool
 #: whose sharing governs it. An initiative is the guild admins' to archive, so
-#: no app may ask for one.
+#: no plug-in may ask for one.
 _ARCHIVE_SCOPES: dict[str, str] = {
-    target: scope_name(tool_resource(_governing(target)), AppScopeAccess.write)
+    target: scope_name(tool_resource(_governing(target)), PluginScopeAccess.write)
     for target in ARCHIVE_TARGETS
     if target != "initiative"
 }
 ArchiveWrite = Annotated[
-    ActorContext, Depends(app_scope_by("entity_type", _ARCHIVE_SCOPES))
+    ActorContext, Depends(plugin_scope_by("entity_type", _ARCHIVE_SCOPES))
 ]
 
 #: Wire name -> the model it addresses. Derived from the mixin: the archivable
@@ -89,16 +88,14 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
         tool = ARCHIVE_REGISTRY[inside.value]
         via = getattr(model, inside.value)
         stmt = stmt.options(
-            selectinload(via)
-            .selectinload(tool.grants)
-            .selectinload(ResourceGrant.role),
+            selectinload(via).selectinload(tool.grants),
             selectinload(via).selectinload(tool.initiative),
             selectinload(via).undefer(tool.actions),
         )
     elif entity_type != "initiative":
         stmt = stmt.options(
             selectinload(model.initiative),
-            selectinload(model.grants).selectinload(ResourceGrant.role),
+            selectinload(model.grants),
             undefer(model.actions),
         )
     row = (await session.exec(stmt)).one_or_none()

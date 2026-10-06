@@ -192,7 +192,7 @@ export const CreatePostDialog = ({
               create.mutate({
                 name: name.trim(),
                 initiative_id: initiativeId,
-                body: (body ?? {}) as unknown as Record<string, unknown>,
+                body: { ...body },
                 grants,
                 scheduled_for: fromLocalDateTimeInput(scheduledFor),
                 poll: poll ? pollDraftToWrite(poll) : null,

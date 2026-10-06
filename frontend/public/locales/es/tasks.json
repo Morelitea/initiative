@@ -189,25 +189,6 @@
     "moving": "Moviendo…",
     "moveTask": "Mover tarea"
   },
-  "bulkEditTags": {
-    "title": "Editar etiquetas",
-    "descriptionAdd": "Agregar etiquetas a {{count}} tarea seleccionada.",
-    "descriptionAdd_other": "Agregar etiquetas a {{count}} tareas seleccionadas.",
-    "descriptionRemove": "Eliminar etiquetas de {{count}} tarea seleccionada.",
-    "descriptionRemove_other": "Eliminar etiquetas de {{count}} tareas seleccionadas.",
-    "tabAdd": "Agregar",
-    "tabRemove": "Eliminar",
-    "addPlaceholder": "Seleccionar etiquetas para agregar...",
-    "removePlaceholder": "Seleccionar etiquetas para eliminar...",
-    "noTags": "No hay etiquetas en las tareas seleccionadas.",
-    "applying": "Aplicando…",
-    "apply": "Aplicar",
-    "tagsAdded": "Etiquetas agregadas a {{count}} tarea",
-    "tagsAdded_other": "Etiquetas agregadas a {{count}} tareas",
-    "tagsRemoved": "Etiquetas eliminadas de {{count}} tarea",
-    "tagsRemoved_other": "Etiquetas eliminadas de {{count}} tareas",
-    "updateError": "No se pudieron actualizar las etiquetas en este momento."
-  },
   "createWizard": {
     "title": "Agregar tarea",
     "lastUsed": "Último usado",

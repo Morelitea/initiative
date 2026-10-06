@@ -286,7 +286,8 @@ async def test_anonymity_can_be_turned_on_but_never_off(
 
 
 async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
-    """Answering is a read-level gesture, like reacting — not an edit."""
+    """Answering is a read-level gesture, like reacting — not an edit. The
+    answer is the post as this reader sees it, read state included."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
@@ -299,6 +300,9 @@ async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
     )
     read = await client.get(a.g(f"/posts/{post.id}"), headers=b.headers)
     thursday = _option_id(read.json(), "Thursday")
+    await client.post(
+        a.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
+    )
 
     response = await client.put(
         a.g(f"/posts/{post.id}/poll/vote"),
@@ -307,6 +311,7 @@ async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
     )
 
     assert response.status_code == 200, response.text
+    assert response.json()["is_read"] is True
     poll = response.json()["poll"]
     assert poll["has_voted"] is True
     assert poll["total_voters"] == 1

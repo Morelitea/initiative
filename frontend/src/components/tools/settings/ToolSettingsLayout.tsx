@@ -4,8 +4,8 @@
  * Rename, describe, tag, share, and delete are identical for all six tools, so
  * they live here once. Everything the frame needs is derived from the `tool`
  * value — breadcrumb labels, section routes, the tag mutation — and all of its
- * copy comes from the shared `common:toolSettings.*` namespace, so adding a
- * tool costs a wrapper that names its data hooks and nothing else.
+ * copy comes from the shared `common:toolSettings.*` namespace, so a tool with
+ * nothing of its own is mounted as `ToolSettingsPage`, over its `TOOL_HOOKS`.
  *
  * The sections are real routes — `/settings/access` is a place, not a piece of
  * component state — so sharing can be linked to, and the back button walks
@@ -53,13 +53,14 @@ export interface ToolSettingsLayoutProps {
   isError: boolean;
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
-   * projects save those fields through their own richer form, and a document's
-   * name is edited in the editor.
+   * a file's name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
+  /** Marks it a template or takes it back — projects and files. */
+  template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
-  /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
+  /** Extra cards for the Details section, e.g. a calendar's color. */
   detailsExtra?: ReactNode;
   /** Extra fields inside the Details card itself, below the description. Each
    *  saves on its own; the card's Save button is for the name and description. */
@@ -87,6 +88,7 @@ export const ToolSettingsLayout = ({
   isLoading,
   isError,
   update,
+  template,
   setGrants,
   remove,
   detailsExtra,
@@ -185,6 +187,7 @@ export const ToolSettingsLayout = ({
           tool,
           entity,
           update,
+          template,
           setGrants,
           remove,
           detailsExtra,

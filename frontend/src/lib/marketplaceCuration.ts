@@ -6,9 +6,9 @@
  * a server's operator or members added are left out there. Every other
  * platform shows the whole catalogue.
  *
- * Apps a community has already installed are not affected — the community chose
- * them — but the iPhone app shows a notice the first time a member opens one
- * that did not ship with Initiative (see `AppProviderNotice`).
+ * Plug-ins a community has already installed are not affected — the community
+ * chose them — but the iPhone app shows a notice the first time a member opens
+ * one that Morelitea does not publish (see `PluginProviderNotice`).
  */
 
 import { Capacitor } from "@capacitor/core";

@@ -51,7 +51,7 @@ interface CommentThreadProps {
   onEdit: (commentId: number, content: string) => Promise<boolean>;
   currentUserId?: number;
   initiativeId: number;
-  /** The thing the thread is on, as a reference (`document:12`). Never offered
+  /** The thing the thread is on, as a reference (`file:12`). Never offered
    *  by a reply or an edit — see `CommentInput.subject`. */
   subject?: string | null;
   isSubmitting?: boolean;
@@ -99,7 +99,7 @@ export const CommentThread = ({
   // wrote the row rather than whoever said this.
   const importedAuthorName = comment.imported_author_name?.trim() || null;
   const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
-  // A comment an app wrote as its community names no account, and neither
+  // A comment a plug-in wrote as its community names no account, and neither
   // does a note the platform wrote on an operations case; the platform's
   // notes say what wrote them.
   const displayName =
@@ -107,7 +107,7 @@ export const CommentThread = ({
     (comment.created_by == null
       ? comment.system_kind
         ? t("comments:platformAuthor")
-        : t("comments:appAuthor")
+        : t("comments:pluginAuthor")
       : getUserDisplayName(comment.author ?? { id: comment.created_by }));
   // The server says who may delete, from the rule the delete route applies.
   const canDelete = comment.can_remove;

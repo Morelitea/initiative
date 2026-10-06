@@ -142,6 +142,11 @@
       "duplicated": "Copié dans {{initiative}}",
       "error": "La copie n’a pas pu être créée."
     },
+    "template": {
+      "title": "Modèle",
+      "description": "Un modèle est destiné à être copié plutôt que modifié directement, et figure parmi les modèles de son initiative.",
+      "toggle": "Basculer le statut de modèle"
+    },
     "export": {
       "title": "Exporter",
       "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter."
@@ -175,6 +180,47 @@
     "notFound": "Introuvable",
     "permissionRequired": "Permission requise",
     "permissionRequiredDescription": "Vous n'avez pas accès à cette section de ces paramètres."
+  },
+  "bulkActions": {
+    "editTags": "Modifier les étiquettes",
+    "duplicate": "Dupliquer",
+    "duplicated_one": "{{count}} copie créée",
+    "duplicated_other": "{{count}} copies créées",
+    "duplicateError": "Impossible de créer les copies pour l'instant.",
+    "deleteConfirm_one": "Supprimer {{count}} élément ?",
+    "deleteConfirm_other": "Supprimer {{count}} éléments ?",
+    "deleted_one": "{{count}} élément supprimé",
+    "deleted_other": "{{count}} éléments supprimés",
+    "deleteError": "Impossible de supprimer pour l'instant.",
+    "needEdit": "Vous avez besoin d'un accès en modification à chaque élément sélectionné.",
+    "needDelete": "Vous ne pouvez supprimer que les éléments dont vous êtes propriétaire."
+  },
+  "bulkTags": {
+    "title": "Modifier les étiquettes",
+    "descriptionAdd_one": "Ajouter des étiquettes à {{count}} élément sélectionné.",
+    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} éléments sélectionnés.",
+    "descriptionRemove_one": "Supprimer des étiquettes de {{count}} élément sélectionné.",
+    "descriptionRemove_other": "Supprimer des étiquettes de {{count}} éléments sélectionnés.",
+    "tabAdd": "Ajouter",
+    "tabRemove": "Supprimer",
+    "addPlaceholder": "Sélectionner des étiquettes à ajouter...",
+    "removePlaceholder": "Sélectionner des étiquettes à supprimer...",
+    "noTags": "Aucune étiquette sur les éléments sélectionnés.",
+    "applying": "Application en cours…",
+    "apply": "Appliquer",
+    "tagsAdded_one": "Étiquettes ajoutées à {{count}} élément",
+    "tagsAdded_other": "Étiquettes ajoutées à {{count}} éléments",
+    "tagsRemoved_one": "Étiquettes supprimées de {{count}} élément",
+    "tagsRemoved_other": "Étiquettes supprimées de {{count}} éléments",
+    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
+  },
+  "toolIndex": {
+    "lastUpdated": "Dernière mise à jour",
+    "tags": "Étiquettes",
+    "emptyArchivedTitle": "Rien d'archivé",
+    "emptyArchivedBody": "Ce que vous archivez arrive ici, en lecture seule, jusqu'à ce que vous le restauriez.",
+    "emptyTemplatesTitle": "Aucun modèle pour l'instant",
+    "emptyTemplatesBody": "Marquez un élément comme modèle dans ses paramètres pour le réutiliser plus tard."
   },
   "toolbar": {
     "filters": "Filtres",

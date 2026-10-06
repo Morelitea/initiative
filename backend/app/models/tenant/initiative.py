@@ -35,7 +35,7 @@ from app.models.tenant._mixins import (
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.queue import Queue
     from app.models.tenant.calendar import Calendar
     from app.models.tenant.counter import CounterGroup
@@ -73,12 +73,11 @@ class JoinRequestStatus(str, Enum):
 
 
 # Permission keys for role-based access control — derived from the Tool enum,
-# one `{plural}_enabled` + `create_{plural}` pair per tool, plus the few
-# EXTRA_PERMISSION_KEYS that are not a tool of their own
-# (documents_enabled, create_documents, …, counter_groups_enabled,
-# create_counter_groups). A new Tool member gets its keys automatically; only
-# the DB CHECK constraint on initiative_role_permissions still needs a guild
-# migration to accept the new values.
+# one `{plural}_enabled` + `create_{plural}` pair per tool (projects_enabled,
+# create_projects, …), plus the few EXTRA_PERMISSION_KEYS that are not a tool of
+# their own. A new Tool member gets its keys automatically; only the DB CHECK
+# constraint on initiative_role_permissions still needs a guild migration to
+# accept the new values.
 #: Role keys that are not a tool's pair. Each is a capability inside a tool
 #: rather than the tool itself, defaults to off for an ordinary role, and is
 #: held by every manager role.
@@ -441,7 +440,7 @@ class Initiative(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     projects: List["Project"] = Relationship(back_populates="initiative")
-    documents: List["Document"] = Relationship(
+    files: List["File"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

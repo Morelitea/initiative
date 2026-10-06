@@ -218,7 +218,7 @@ describe("tool i18n", () => {
 describe("tool routes", () => {
   // A tool's list IS its initiative tab, so the route lives inside the
   // initiative tree. Six sibling files rather than one dynamic $toolSegment
-  // route: a dynamic segment beside `settings`/`apps` would resolve by
+  // route: a dynamic segment beside `settings`/`plugins` would resolve by
   // static-beats-dynamic ranking, which fails silently and only at runtime.
   it("every tool has its initiative tab route", () => {
     for (const tool of TOOLS) {
@@ -259,7 +259,7 @@ describe("tool routes", () => {
   // The tab routes are siblings of the initiative's own static children, so a
   // tool whose segment collided with one would be unreachable.
   it("no tool segment collides with a reserved initiative child route", () => {
-    const reserved = new Set(["settings", "apps"]);
+    const reserved = new Set(["settings", "plugins"]);
     for (const tool of TOOLS) {
       expect(
         reserved.has(toolRouteSegment(tool)),
@@ -305,7 +305,7 @@ describe("tool route builders", () => {
     );
   });
 
-  // Only calendars have community-level entities (an app installs one). A null
+  // Only calendars have community-level entities (a plug-in installs one). A null
   // initiative means "address me at the community route", never "unknown".
   it("keeps a community-level entity at its community route", () => {
     expect(toolListRoute(Tool.calendar, null)).toBe("/calendars");
@@ -326,7 +326,7 @@ describe("tool route builders", () => {
   });
 
   it("routes a bare id through the resolver", () => {
-    expect(entityRefRoute("document", 42)).toBe("/go/document/42");
+    expect(entityRefRoute("file", 42)).toBe("/go/file/42");
   });
 });
 
@@ -434,30 +434,27 @@ describe("tool surfaces are wired, not just typed", () => {
 
 describe("tool exports", () => {
   it("every bulk-export tool has a format source, and only those", async () => {
-    const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
-      "@/components/exports/formats"
-    );
-    const { DocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { FILE_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import("@/components/exports/formats");
+    const { FileType } = await import("@/api/generated/initiativeAPI.schemas");
     const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
 
     for (const tool of BULK_EXPORT_TOOLS) {
-      // Documents are per-type (their format set depends on the selection);
-      // every document type must offer at least one engine format.
-      if (tool === Tool.document) continue;
+      // Files are per-type (their format set depends on the selection);
+      // every file type must offer at least one engine format.
+      if (tool === Tool.file) continue;
       expect(
         TOOL_EXPORT_FORMATS[tool]?.length,
         `missing TOOL_EXPORT_FORMATS[${tool}]`
       ).toBeGreaterThan(0);
     }
-    for (const type of Object.values(DocumentType)) {
-      expect(
-        DOCUMENT_TYPE_FORMATS[type]?.length,
-        `missing DOCUMENT_TYPE_FORMATS.${type}`
-      ).toBeGreaterThan(0);
+    for (const type of Object.values(FileType)) {
+      expect(FILE_TYPE_FORMATS[type]?.length, `missing FILE_TYPE_FORMATS.${type}`).toBeGreaterThan(
+        0
+      );
     }
     // Exact coverage: a formats entry for a non-export tool is drift too.
     for (const tool of TOOLS) {
-      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.document) {
+      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.file) {
         expect(
           TOOL_EXPORT_FORMATS[tool],
           `${tool} declares formats but is in NON_EXPORTABLE_TOOLS`

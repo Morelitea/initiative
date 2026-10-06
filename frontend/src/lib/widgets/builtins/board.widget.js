@@ -4,7 +4,7 @@
  * Names and option labels live in the module rather than in the app's locale
  * files: a marketplace widget has to be able to name itself without an app
  * release, and the built-ins get no special treatment. Binding *source* labels
- * stay app-owned — they name our endpoints and are shared by every widget.
+ * stay plugin-owned — they name our endpoints and are shared by every widget.
  */
 const meta = {
   name: {

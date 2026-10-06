@@ -252,7 +252,7 @@ def user_reference_handles(payload: Any) -> list[str]:
 
     ``payload`` is an envelope as plain data — a dict from a zip, or a model
     dumped to JSON — walked whole, because property values sit at different
-    depths in different tools' envelopes (a task's, a document's, an event's)
+    depths in different tools' envelopes (a task's, a file's, an event's)
     and all of them are the same shape: ``property_type`` of
     ``user_reference`` beside a ``value_handle``.
 
