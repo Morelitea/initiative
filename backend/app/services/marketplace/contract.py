@@ -21,6 +21,9 @@ next release — and a term the vendored contract declares that this build does
 not act on is a failing test (:mod:`contract_coverage_test`), not a value
 quietly dropped.
 
+The kit's version is also the plug-in API contract this build serves
+(:mod:`app.services.marketplace.plugin_api`).
+
 Refresh the vendored copy with ``python scripts/refresh_plugin_kit.py``.
 """
 
@@ -35,6 +38,7 @@ __all__ = [
     "KIT_REVISION",
     "discarded_terms",
     "KIT_VERSION",
+    "PLUGIN_API_PATH",
     "SCHEMA_PATH",
     "cap",
     "charset",
@@ -52,6 +56,11 @@ _VENDOR = Path(__file__).resolve().parents[3] / "vendor" / "plugin-kit"
 #: The JSON Schema the kit generates from the same contract. Not read by the
 #: validator — it is what the conformance tests measure this build against.
 SCHEMA_PATH = _VENDOR / "plugin-manifest.json"
+
+#: The plug-in API's OpenAPI document as the kit publishes it, at the kit
+#: version above. Absent until a kit release that ships it is vendored. Not
+#: read at run time: the test that holds this build's plug-in API to it is.
+PLUGIN_API_PATH = _VENDOR / "plugin-api.json"
 
 
 def _read(name: str) -> str:

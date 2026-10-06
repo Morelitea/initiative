@@ -223,6 +223,13 @@ class MarketplaceListingVersion(SQLModel, table=True):
     min_app_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
+    # The oldest plug-in API contract (``MAJOR.MINOR``) the version needs,
+    # compared against the contract this deployment serves (the plug-in SDK
+    # version it vendors). A version this deployment cannot run is refused on
+    # install and upgrade. NULL runs on any contract.
+    min_plugin_api: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
     published_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

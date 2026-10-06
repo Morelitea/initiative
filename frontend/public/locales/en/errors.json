@@ -375,6 +375,7 @@
   "MARKETPLACE_LISTING_NEEDS_PLUGIN": "This dashboard comes with a plug-in your community has not installed. Install the plug-in first, then add the dashboard.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "This listing has been withdrawn and can no longer be installed.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "This listing needs a newer version of the app. Ask whoever runs this server to update, then try again.",
+  "MARKETPLACE_LISTING_PLUGIN_API_INCOMPATIBLE": "This version of the plug-in was built for a plug-in API this server doesn't provide. It needs a newer server, or a release of the plug-in made for this one.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "This was built here rather than installed, so there is no listing to update it from.",
   "MARKETPLACE_ALREADY_LATEST_VERSION": "This is already on the latest version.",
   "MARKETPLACE_LISTING_HAS_NO_EXAMPLE": "This listing has no example to start from.",

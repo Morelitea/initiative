@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
 - **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins BeyondersStudio publishes have no flag.
 - **Plug-ins can create custom properties.** A community can grant a plug-in **Properties**, which lets it read an initiative's property definitions and add new ones. A plug-in that can change something, such as a task, can still fill in that thing's properties without it.
+- **A plug-in can say which plug-in API it needs**, as `min_plugin_api` in its listing or manifest (`"4.1"`). A server that doesn't provide that API refuses to install or upgrade to it, and says why; listings that don't say keep working. The plug-in API document (`/api/v1/plugin-platform/openapi.json`) is now versioned as the plug-in SDK it matches, not as the server release.
 
 ### Changed
 

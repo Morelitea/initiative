@@ -703,6 +703,24 @@ class TestOneListingsPage:
         assert body["installable"] is False
         assert body["latest_version"]["compatible"] is False
 
+    async def test_a_listing_needing_a_plugin_api_not_served_here_says_so(
+        self, client, acting_user, session
+    ):
+        await create_marketplace_listing(
+            session,
+            uid=marketplace_uid("otherapi"),
+            public_id="tests.otherapi",
+            min_plugin_api="99.0",
+        )
+        actor = await acting_user(guild_role=CommunityRole.member)
+        body = (
+            await client.get(
+                actor.g("/marketplace/listings/tests.otherapi"), headers=actor.headers
+            )
+        ).json()
+        assert body["installable"] is False
+        assert body["latest_version"]["compatible"] is False
+
 
 #: A counter group a publisher shares: the blank template installs empty, the
 #: example the way they filled it in.

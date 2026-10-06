@@ -467,6 +467,61 @@ class TestVersions:
         assert service.version_is_compatible(None) is True
 
 
+class TestPluginApiFloor:
+    """``min_plugin_api``: the oldest plug-in API contract a version needs, as
+    its listing says beside ``min_app_version`` or its manifest does."""
+
+    async def _stored(self, session, manifest):
+        listing = await service.upsert_listing(session, manifest, source="builtin")
+        return await service.get_listing_version(session, listing.latest_version_id)
+
+    async def test_a_listing_s_floor_is_stored_with_its_version(self, session):
+        version = await self._stored(session, _manifest(min_plugin_api="4.1"))
+        assert version is not None and version.min_plugin_api == "4.1"
+
+    async def test_a_manifest_s_floor_is_stored_too(self, session):
+        manifest = _manifest()
+        manifest["definition"] = {**manifest["definition"], "min_plugin_api": "4.0"}
+        version = await self._stored(session, manifest)
+        assert version is not None and version.min_plugin_api == "4.0"
+
+    async def test_a_listing_and_manifest_that_agree_are_taken(self, session):
+        manifest = _manifest(min_plugin_api="4.1")
+        manifest["definition"] = {**manifest["definition"], "min_plugin_api": "4.1"}
+        version = await self._stored(session, manifest)
+        assert version is not None and version.min_plugin_api == "4.1"
+
+    async def test_a_listing_and_manifest_that_disagree_are_refused(self, session):
+        manifest = _manifest(min_plugin_api="4.1")
+        manifest["definition"] = {**manifest["definition"], "min_plugin_api": "4.2"}
+        with pytest.raises(CatalogError, match="differs from its manifest"):
+            await service.upsert_listing(session, manifest, source="builtin")
+
+    @pytest.mark.parametrize("value", ["4", "4.1.0", "latest", 4])
+    async def test_a_floor_that_is_not_major_minor_is_refused(self, session, value):
+        with pytest.raises(CatalogError, match="MAJOR.MINOR"):
+            await service.upsert_listing(
+                session, _manifest(min_plugin_api=value), source="builtin"
+            )
+
+    async def test_a_listing_without_one_runs_on_any_contract(self, session):
+        version = await self._stored(session, _manifest())
+        assert version is not None and version.min_plugin_api is None
+        assert service.version_runs_here(version) is True
+
+    async def test_a_published_version_cannot_move_its_floor(self, session):
+        await service.upsert_listing(session, _manifest(), source="builtin")
+        with pytest.raises(CatalogError, match="already published with different"):
+            await service.upsert_listing(
+                session, _manifest(min_plugin_api="4.0"), source="builtin"
+            )
+
+    async def test_a_version_needing_another_contract_does_not_run_here(self, session):
+        version = await self._stored(session, _manifest(min_plugin_api="99.0"))
+        assert version is not None
+        assert service.version_runs_here(version) is False
+
+
 class TestSearch:
     async def test_search_matches_name_description_and_publisher(self, session):
         await create_marketplace_listing(
@@ -581,6 +636,8 @@ def _body(manifest: dict) -> tuple:
         example,
         manifest.get("release_notes"),
         manifest.get("min_app_version"),
+        manifest.get("min_plugin_api")
+        or (manifest.get("definition") or {}).get("min_plugin_api"),
     )
 
 

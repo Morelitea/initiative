@@ -21,6 +21,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.messages import MarketplaceMessages
 from app.models.platform.guild import CommunityRole
+from app.services.marketplace.plugin_api import PLUGIN_API_VERSION
 from app.testing import create_marketplace_listing, marketplace_uid
 from app.testing import route_as
 
@@ -28,6 +29,7 @@ from app.testing import route_as
 INSTALL_UID = marketplace_uid("sprinthealth")
 WITHDRAWN_UID = marketplace_uid("withdrawn")
 TOO_NEW_UID = marketplace_uid("toonew")
+OTHER_API_UID = marketplace_uid("otherapi")
 
 
 def _definition(
@@ -181,6 +183,60 @@ class TestInstall:
             response.json()["detail"]
             == MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE
         )
+
+    async def test_a_listing_needing_a_plugin_api_not_served_here_is_refused(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """A version built against a plug-in API contract this deployment
+        does not serve (another major, or a newer minor) is refused, with
+        words of its own."""
+        await create_marketplace_listing(
+            session,
+            uid=OTHER_API_UID,
+            public_id="tests.otherapi",
+            min_plugin_api="99.0",
+        )
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+        await _enable(session, a.initiative)
+
+        response = await client.post(
+            a.g("/dashboards/"),
+            headers=a.headers,
+            json={
+                "name": "Other API",
+                "initiative_id": a.initiative.id,
+                "listing_uid": OTHER_API_UID,
+            },
+        )
+        assert response.status_code == 409
+        assert (
+            response.json()["detail"]
+            == MarketplaceMessages.LISTING_PLUGIN_API_INCOMPATIBLE
+        )
+
+    async def test_a_listing_needing_the_plugin_api_served_here_installs(
+        self, client: AsyncClient, acting_user, session
+    ):
+        major, minor, *_ = PLUGIN_API_VERSION.split(".")
+        await create_marketplace_listing(
+            session,
+            uid=OTHER_API_UID,
+            public_id="tests.otherapi",
+            min_plugin_api=f"{major}.{minor}",
+        )
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+        await _enable(session, a.initiative)
+
+        response = await client.post(
+            a.g("/dashboards/"),
+            headers=a.headers,
+            json={
+                "name": "This API",
+                "initiative_id": a.initiative.id,
+                "listing_uid": OTHER_API_UID,
+            },
+        )
+        assert response.status_code == 201, response.text
 
     async def test_installing_still_needs_the_create_permission(
         self, client: AsyncClient, acting_user, session, listing

@@ -29,6 +29,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace import plugin_api
 from app.services.marketplace import registration_lookup
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,11 @@ async def resolve_listing_install(
         # plug-in. Silently installing an older one would be worse: the guild would
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
+    if not plugin_api.serves_plugin_api(version.min_plugin_api):
+        # Built against a plug-in API contract this deployment does not serve:
+        # a newer minor than it has, or another major. The same refusal as a
+        # version needing a newer app, for the same reason.
+        raise ListingInstallError(MarketplaceMessages.LISTING_PLUGIN_API_INCOMPATIBLE)
     if not already_installed and not await registration_lookup.plugin_is_offered(
         version.definition, listing_uid=listing.uid
     ):

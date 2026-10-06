@@ -58,8 +58,9 @@ class MarketplaceVersionRead(SanitizedBaseModel):
     release_notes: Optional[str] = None
     min_app_version: Optional[str] = None
     published_at: datetime
-    #: Whether this deployment is new enough to install it. A version needing a
-    #: newer app is shown, not hidden, so the reason is legible.
+    #: Whether this deployment can install it: new enough, and serving the
+    #: plug-in API contract it needs. A version it cannot run is shown, not
+    #: hidden, so the reason is legible.
     compatible: bool = True
 
 
@@ -262,7 +263,7 @@ def serialize_version(
     version: Optional["MarketplaceListingVersion"],
 ) -> Optional[MarketplaceVersionRead]:
     # Local import avoids a schema -> service import cycle.
-    from app.services.marketplace.catalog import version_is_compatible
+    from app.services.marketplace.catalog import version_runs_here
 
     if version is None:
         return None
@@ -271,7 +272,7 @@ def serialize_version(
         release_notes=version.release_notes,
         min_app_version=version.min_app_version,
         published_at=version.published_at,
-        compatible=version_is_compatible(version.min_app_version),
+        compatible=version_runs_here(version),
     )
 
 
