@@ -150,9 +150,7 @@ def project_load_options(*, slim: bool = False) -> list:
             undefer(Project.actions),
         ]
     return [
-        selectinload(Project.grants).options(
-            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-        ),
+        selectinload(Project.grants).selectinload(ResourceGrant.user),
         selectinload(Project.initiative),
         undefer(Project.actions),
     ]

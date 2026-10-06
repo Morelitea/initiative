@@ -38,7 +38,6 @@ from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import ARCHIVE_TARGETS, KINDS, Tool, plural_of
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
@@ -89,16 +88,14 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
         tool = ARCHIVE_REGISTRY[inside.value]
         via = getattr(model, inside.value)
         stmt = stmt.options(
-            selectinload(via)
-            .selectinload(tool.grants)
-            .selectinload(ResourceGrant.role),
+            selectinload(via).selectinload(tool.grants),
             selectinload(via).selectinload(tool.initiative),
             selectinload(via).undefer(tool.actions),
         )
     elif entity_type != "initiative":
         stmt = stmt.options(
             selectinload(model.initiative),
-            selectinload(model.grants).selectinload(ResourceGrant.role),
+            selectinload(model.grants),
             undefer(model.actions),
         )
     row = (await session.exec(stmt)).one_or_none()

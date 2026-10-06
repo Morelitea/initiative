@@ -71,15 +71,6 @@ class DocumentAdapter(ToolExportAdapter):
         dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
     )
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.documents import list_document_ids_for_export
-
-        return await list_document_ids_for_export(
-            session, initiative_ids=[initiative_id]
-        )
-
     async def load(
         self,
         session: AsyncSession,

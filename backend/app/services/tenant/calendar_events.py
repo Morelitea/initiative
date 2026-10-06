@@ -16,7 +16,6 @@ from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
 )
-from app.models.tenant.resource_grant import ResourceGrant
 from app.core.tools import Tool
 from app.services.tenant import named_people
 from app.services.tenant import properties as properties_service
@@ -42,9 +41,7 @@ async def get_event(
             selectinload(CalendarEvent.attendees).selectinload(
                 CalendarEventAttendee.user
             ),
-            selectinload(CalendarEvent.calendar)
-            .selectinload(Calendar.grants)
-            .selectinload(ResourceGrant.role),
+            selectinload(CalendarEvent.calendar).selectinload(Calendar.grants),
             selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
             selectinload(CalendarEvent.calendar).undefer(Calendar.actions),
         )

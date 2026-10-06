@@ -88,7 +88,6 @@ async def _load_document(
     session: Any, resource_id: int, guild_id: int
 ) -> Optional[Collaborating]:
     from app.models.tenant.document import Document
-    from app.models.tenant.resource_grant import ResourceGrant
 
     statement = (
         select(Document)
@@ -96,7 +95,7 @@ async def _load_document(
         .options(
             selectinload(Document.initiative),
             undefer(Document.actions),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
+            selectinload(Document.grants),
         )
     )
     document = (await session.exec(statement)).one_or_none()
@@ -115,7 +114,6 @@ async def _load_wiki_page(
     That is the same rule the REST path applies — a page is the wiki's content
     — so the socket asks the same question of the same row.
     """
-    from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.wiki import Wiki, WikiPage
 
     page = (
@@ -130,7 +128,7 @@ async def _load_wiki_page(
         .options(
             selectinload(Wiki.initiative),
             undefer(Wiki.actions),
-            selectinload(Wiki.grants).selectinload(ResourceGrant.role),
+            selectinload(Wiki.grants),
         )
     )
     wiki = (await session.exec(statement)).one_or_none()

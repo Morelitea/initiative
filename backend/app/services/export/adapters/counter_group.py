@@ -22,8 +22,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
@@ -58,15 +56,6 @@ def _columns(locale: str) -> list[dict]:
 class CounterGroupAdapter(ToolExportAdapter):
     tool = Tool.counter_group
     formats = ("json", "pdf", "csv", "xlsx", "md")
-
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.counters import list_counter_group_ids_for_export
-
-        return await list_counter_group_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
 
     def rows(self, group: CounterGroup, /) -> int:
         return len(group.counters)

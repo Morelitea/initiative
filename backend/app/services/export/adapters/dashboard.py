@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
@@ -73,15 +74,21 @@ class DashboardAdapter(ToolExportAdapter):
         return dashboard
 
     async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+        self, session: AsyncSession, initiative_id: int, /
     ) -> list[int]:
         """Only the dashboards built on this build's own plug-ins — the rest are
         left out by provenance."""
-        from app.services.tenant.dashboards import list_dashboard_ids_for_export
+        from app.services.export.provenance import builtin_listing_uids, is_exportable
 
-        return await list_dashboard_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
+        rows = list(
+            await session.exec(
+                select(Dashboard.id, Dashboard.listing_uid)
+                .where(*self.in_initiative(initiative_id))
+                .order_by(Dashboard.id.asc())
+            )
         )
+        builtin = await builtin_listing_uids(session, [uid for _, uid in rows])
+        return [did for did, uid in rows if is_exportable(uid, builtin)]
 
     def rows(self, dashboard: Dashboard, /) -> int:
         """A dashboard is worth its widgets: the definition is the size, and a
