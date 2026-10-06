@@ -34,7 +34,7 @@ The panel also says when it last updated, how many listings came from it, and wh
 
 The registry re-signs itself every day, so its signatures are always fresh. A server that hasn't reached it in a while says when the ones it holds ran out, and that its listings may be out of date. Nothing it already brought stops working, and the next successful update brings it current.
 
-To read a mirror, a curated copy, or a registry somebody else signs, see the `MARKETPLACE_REGISTRY_*` settings in [Configuration](configuration.md#the-initiative-registry-and-plug-ins).
+There's nothing to configure for any of this. A network that can't reach the registry directly can read a mirror instead; see [Configuration](configuration.md#the-initiative-registry-and-plug-ins).
 
 ## The two kinds of plug-in
 
