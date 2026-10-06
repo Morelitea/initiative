@@ -63,7 +63,7 @@ from app.db.errors import (
     dbapi_sqlstate,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.models.tenant._mixins import archive_models
+from app.models.tenant._mixins import ArchiveMixin, SoftDeleteMixin, archive_models
 from app.models.tenant.wiki import WikiPage
 
 #: The SQLSTATE the guard raises, with a constraint name so it is told apart
@@ -78,13 +78,10 @@ FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
 
 
 #: What a frozen row may still change: the columns that describe the freeze
-#: itself, plus the timestamp every write touches. Everything else is content.
-LIFECYCLE_COLUMNS: tuple[str, ...] = (
-    "archived_at",
-    "deleted_at",
-    "deleted_by",
-    "purge_at",
-    "updated_at",
+#: itself (the two lifecycle mixins' fields), plus the timestamp every write
+#: touches. Everything else is content.
+LIFECYCLE_COLUMNS: tuple[str, ...] = tuple(
+    sorted({*ArchiveMixin.model_fields, *SoftDeleteMixin.model_fields, "updated_at"})
 )
 
 #: Rows that hold a NAME which is unique among their siblings, mapped to the

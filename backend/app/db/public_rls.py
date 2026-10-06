@@ -419,12 +419,13 @@ class SharedTable:
     tiers: dict[Capability, frozenset[str]] = field(default_factory=dict)
 
 
-#: Every shared table (``system_grants.GRANTABLE_SHARED_TABLES``): its row
-#: security, whose policy names are the ones the migrations gave them, and its
-#: grants. Migrations remain the record of *when* a grant changed (they run the
+#: Every shared (``public``) table, with why it is shared, its row security
+#: (whose policy names are the ones the migrations gave them) and its grants.
+#: ``app.db.tenancy.SHARED_TABLES`` is its keys that a model maps. Migrations remain the record of *when* a grant changed (they run the
 #: ``GRANT``/``REVOKE``); this is the current truth, held to the live catalog
 #: by ``security_invariants_test`` and ``public_rls_test``.
 SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
+    # Time-bound access to a guild: cross-guild by nature (request, approve, scoped).
     "access_grants": SharedTable(
         rls=TableRls(
             policies=(
@@ -446,6 +447,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # An announcement's pictures. Deployment-wide, like the announcement.
     "announcement_images": SharedTable(
         rls=TableRls(
             policies=(
@@ -477,6 +479,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             Capability.ANNOUNCEMENTS_MANAGE: frozenset({INSERT, UPDATE, DELETE}),
         },
     ),
+    # What each person has done with an announcement: kept per account, not per
+    # membership.
     "announcement_reads": SharedTable(
         rls=TableRls(
             policies=(
@@ -507,6 +511,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, UPDATE}),
         ),
     ),
+    # Deployment-wide notices. One announcement is shown in every guild and read by an
+    # account, not by a membership, so it has no guild to live in.
     "announcements": SharedTable(
         rls=TableRls(
             policies=(
@@ -546,6 +552,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             Capability.ANNOUNCEMENTS_MANAGE: frozenset({INSERT, UPDATE, DELETE}),
         },
     ),
+    # Platform-wide configuration (OIDC, SMTP, branding).
     "app_settings": SharedTable(
         rls=TableRls(
             policies=(
@@ -572,6 +579,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             Capability.CONFIG_MANAGE: frozenset({INSERT, UPDATE, DELETE}),
         },
     ),
+    # The billing write boundary (the external billing service, the initiative_billing
+    # role): an idempotency claim and append-only audit, with a weak guild reference.
     "billing_event_log": SharedTable(
         rls=TableRls(
             policies=(
@@ -597,6 +606,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # Who an account has agreed to hear from. Per-account and cross-guild, like
+    # ``user_dm_settings``.
     "contact_grants": SharedTable(
         rls=TableRls(
             policies=(
@@ -635,6 +646,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # Part of the direct-message transport, per-account and cross-guild (see
+    # ``dm_devices``).
     "dm_conversation_members": SharedTable(
         rls=TableRls(
             policies=(
@@ -672,6 +685,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # Part of the direct-message transport, per-account and cross-guild (see
+    # ``dm_devices``).
     "dm_conversations": SharedTable(
         rls=TableRls(
             policies=(
@@ -712,6 +727,10 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # The direct-message transport (with ``dm_one_time_keys``, ``dm_conversations``,
+    # ``dm_conversation_members`` and ``dm_queue``): a directory of public keys, a
+    # roster of who is talking to whom, and ciphertext waiting to be collected.
+    # Per-account and cross-guild, and none of it holds anything a reader could open.
     "dm_devices": SharedTable(
         rls=TableRls(
             policies=(
@@ -757,6 +776,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # Part of the direct-message transport, per-account and cross-guild (see
+    # ``dm_devices``).
     "dm_one_time_keys": SharedTable(
         rls=TableRls(
             policies=(
@@ -787,6 +808,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # Part of the direct-message transport, per-account and cross-guild (see
+    # ``dm_devices``).
     "dm_queue": SharedTable(
         rls=TableRls(
             policies=(
@@ -817,6 +840,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # The verification relay between one account's own devices: public keys and MACs,
+    # deleted when collected or ten minutes after writing.
     "dm_verification_messages": SharedTable(
         rls=TableRls(
             policies=(
@@ -846,6 +871,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # (provider, subject) -> user links. One user's identities span guilds.
     "federated_identities": SharedTable(
         rls=TableRls(
             policies=(
@@ -867,6 +893,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # The operator-set half of a guild (caps, plan label, sign-in entitlement), split
+    # off ``guilds`` so identity and administration carry different grants. Shared, like
+    # the guild row it hangs off.
     "guild_administration": SharedTable(
         rls=TableRls(
             policies=(
@@ -942,6 +971,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # A community's sign-in requirement, read before routing by the gate.
     "guild_auth_policies": SharedTable(
         rls=TableRls(
             policies=(
@@ -1001,6 +1031,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_superadmin=DML,
         ),
     ),
+    # The pictures a guild is known by — its icon, and the two renditions of its banner.
+    # Identity, like the name and description they sit beside, and read by people
+    # browsing the directory, who hold no role in any guild schema.
     "guild_images": SharedTable(
         rls=TableRls(
             policies=(
@@ -1041,6 +1074,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # Looked up by code before the user is a member.
     # An invite is the administrator's: issued, listed and withdrawn on a
     # routed request by the community's admin or a live settings grant at
     # either rung, so the policies name the guild floor. Redeeming, previewing
@@ -1089,6 +1123,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=None,
         ),
     ),
+    # The tenancy roster: read before a request is routed.
     "guild_memberships": SharedTable(
         rls=TableRls(
             policies=(
@@ -1180,6 +1215,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # Which of the platform's providers a community signs in through, and the tenant it
+    # narrows one to. Read at sign-in on the system engine.
     "guild_provider_connections": SharedTable(
         rls=TableRls(
             policies=(
@@ -1220,6 +1257,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # The tenancy roster: read before a request is routed.
     "guilds": SharedTable(
         rls=TableRls(
             policies=(
@@ -1316,6 +1354,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # What outside parties — a payment processor, an installed plug-in — call a user or
+    # a guild. One per purpose, so no two parties hold the same value for the same
+    # entity. Cross-guild and pre-routing, like the accounts and guilds it names.
     "identity_refs": SharedTable(
         rls=TableRls(
             policies=(
@@ -1361,6 +1402,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=frozenset({SELECT, INSERT}),
         ),
     ),
+    # What an account agreed to when it was created. A deployment's terms are the
+    # platform's, not any one community's, so the record of accepting them belongs
+    # beside the account rather than in a schema.
     "legal_acceptances": SharedTable(
         rls=TableRls(
             policies=(
@@ -1391,6 +1435,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT}),
         ),
     ),
+    # The marketplace catalog's versions, platform-wide like the listings.
     "marketplace_listing_versions": SharedTable(
         rls=TableRls(
             policies=(
@@ -1413,6 +1458,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # The marketplace catalog: what is installable, platform-wide. Holds no guild_id by
+    # design — the catalog never records who installed what.
     "marketplace_listings": SharedTable(
         rls=TableRls(
             policies=(
@@ -1441,6 +1488,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # Registry client state, no guild (see ``marketplace_tuf_metadata``).
     "marketplace_media": SharedTable(
         rls=TableRls(
             policies=(
@@ -1467,6 +1515,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=None,
         ),
     ),
+    # The operator's AI connections (platform configuration mode).
     "platform_ai_connections": SharedTable(
         rls=TableRls(
             policies=(
@@ -1497,6 +1546,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             Capability.CONFIG_MANAGE: DML,
         },
     ),
+    # The arrangement ``guild_provider_connections`` makes, answered once for a
+    # community that has not made one. Read by the gate on the request path.
     "platform_provider_defaults": SharedTable(
         rls=TableRls(
             policies=(
@@ -1515,6 +1566,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # Who one account has starred on My Contacts. Personal, cross-guild and
+    # one-directional: the list is the holder's, and it may name people they share no
+    # guild with.
     "profile_favorites": SharedTable(
         rls=TableRls(
             policies=(
@@ -1553,6 +1607,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # The picture on a user's profile. Public-plane identity like the row it hangs off:
+    # one user spans guilds, and the bytes are served to anyone holding the URL.
     "user_avatars": SharedTable(
         rls=TableRls(
             policies=(
@@ -1602,6 +1658,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # What an account allows to be kept in a browser. Per-account and cross-guild: the
+    # question is about the deployment, not about any one community.
     "user_cookie_consent": SharedTable(
         rls=TableRls(
             policies=(
@@ -1641,6 +1699,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # What one account may dress its profile in beyond what ships with the app. Personal
+    # and cross-guild, like the row it hangs off.
     "user_decorations": SharedTable(
         rls=TableRls(
             policies=(
@@ -1666,6 +1726,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
         ),
     ),
+    # The communities an account takes no messages from. Per-account and cross-guild,
+    # like ``user_dm_settings``.
     "user_dm_guild_optouts": SharedTable(
         rls=TableRls(
             policies=(
@@ -1698,6 +1760,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # Who may ask to message an account. Per-account and cross-guild, and no guild's
+    # business.
     "user_dm_settings": SharedTable(
         rls=TableRls(
             policies=(
@@ -1741,6 +1805,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # Who an account has chosen not to hear from. Per-account and cross-guild, like
+    # ``user_dm_settings``.
     "user_ignores": SharedTable(
         rls=TableRls(
             policies=(
@@ -1772,6 +1838,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
+    # What one account wants to be told about. Off ``users`` on purpose: that table is
+    # read whole by the platform tiers.
     "user_notification_prefs": SharedTable(
         rls=TableRls(
             policies=(
@@ -1807,6 +1875,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # Personal UI state (filters, sort, view mode), per-account and cross-guild.
     "user_view_preferences": SharedTable(
         rls=TableRls(
             policies=(
@@ -1826,6 +1895,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # The account. One user spans many guilds.
     "users": SharedTable(
         rls=TableRls(
             policies=(
@@ -1891,6 +1961,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # Spent client-assertion jtis from the plug-in token endpoint. Hangs off a
+    # registration, which is platform-wide.
     "plugin_assertion_jtis": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -1902,6 +1974,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
+    # Which community holds which install, and the value a vendor webhook routes to it
+    # by. An index over the guild schemas, holding no content.
     "plugin_installs": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -1910,6 +1984,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # The settings' stored credentials.
     "app_setting_secrets": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -1924,6 +1999,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # Deployment-level wiring for external plug-in services (listing, URL, public keys,
+    # operator-conferred grants). Platform-wide by definition — one row per plug-in,
+    # never per guild — and owner-managed.
     # Everything else is the system engine's. An installed plug-in's standing reads
     # the registration its token was issued to (its column grant is public_id,
     # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url and
@@ -1957,6 +2035,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # Who publishes the plug-ins in ``plugin_service_registrations``: one row per
+    # public_id prefix, with the switch that stops every plug-in under it. Deployment
+    # configuration.
     # Everything else is the system engine's. An installed plug-in's standing reads
     # whether the publisher of its token's registration is on (its column grant
     # is id and enabled alone).
@@ -1986,6 +2067,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # A sign-in between its password and its code.
     "auth_challenges": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -1993,6 +2075,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # A provider's client secret, the system engine's companion to ``auth_providers``.
     "auth_provider_secrets": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2003,6 +2086,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
+    # The sign-in provider registry, read before routing; every row is the operator's.
     "auth_providers": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2021,6 +2105,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # The session and refresh store (a token's sid is the row id).
     "auth_sessions": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2035,6 +2120,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # An identity provider's refresh token, the system engine's companion to
+    # ``federated_identities``.
     "federated_identity_secrets": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2045,6 +2132,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
+    # Registry client state, no guild (see ``marketplace_tuf_metadata``).
     "marketplace_registry_status": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2053,6 +2141,10 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=frozenset({SELECT, INSERT, UPDATE}),
         ),
     ),
+    # Registry client state (with ``marketplace_registry_status`` and
+    # ``marketplace_media``): the TUF metadata this deployment last verified, how the
+    # last refresh went, and the artwork its listings named, kept locally so listing
+    # media is served from here. Operator and system state, no guild.
     "marketplace_tuf_metadata": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2065,6 +2157,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
+    # The codes that stand in for an account's second factor, presented while signing
+    # in.
     "mfa_recovery_codes": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2073,6 +2167,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # SSO auto-join rules, read across all guilds at sign-in.
     "oidc_claim_mappings": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2083,6 +2178,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # Per-account, like the account it hangs off.
     "user_api_keys": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2097,6 +2193,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
+    # Per-account, like the account it hangs off.
     "user_tokens": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2113,6 +2210,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=None,
         ),
     ),
+    # Account changes waiting to apply.
     "account_change_holds": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2124,6 +2222,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=None,
         ),
     ),
+    # Which providers assert an account's addresses.
     "user_email_assertions": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2131,6 +2230,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # Recent wrong answers, per account.
     "sign_in_locks": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2138,6 +2238,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # The addresses an account signs in with.
     "user_emails": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2145,6 +2246,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # WebAuthn credentials. An assertion arrives before any account is known.
     "user_passkeys": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2157,6 +2259,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
+    # The account's own second factor, presented while signing in.
     "user_totp": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2165,6 +2268,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # The seed behind an account's second factor, presented while signing in.
     "user_totp_secrets": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2173,6 +2277,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # An account's date of birth, encrypted, checked against a plug-in's minimum age on
+    # the system engine.
     "user_birthdates": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
@@ -2204,6 +2310,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=None,
         ),
     ),
+    # One-shot billing service-JWT redemption.
     "billing_jti_blocklist": SharedTable(
         rls=NO_RLS,
         grants=Grants(
@@ -2212,6 +2319,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=frozenset({SELECT, DELETE}),
         ),
     ),
+    # Notification email waiting to go out. Per-account and cross-guild: one message can
+    # gather rows from every community somebody is in, so it belongs to none of them.
     "email_outbox": SharedTable(
         rls=NO_RLS,
         grants=Grants(
@@ -2224,6 +2333,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
         ),
     ),
+    # A notice waiting to be delivered to one account, from whichever community it
+    # happened in. Per-account and cross-guild, like ``email_outbox``.
     "notice_outbox": SharedTable(
         rls=NO_RLS,
         grants=Grants(
@@ -2240,6 +2351,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=frozenset({INSERT}),
         ),
     ),
+    # A device of one account, which spans many guilds.
     "push_tokens": SharedTable(
         rls=TableRls(
             policies=(
@@ -2282,6 +2394,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=DML,
         ),
     ),
+    # Per-account inbox spanning guilds; each row carries its own place.
     "notifications": SharedTable(
         rls=TableRls(
             policies=(

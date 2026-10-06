@@ -11,9 +11,11 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, TypeVar
 
-from sqlalchemy import ARRAY, DateTime, Integer, String, func, select
+from sqlalchemy import ARRAY, DateTime, Integer, String, func, literal_column, select
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
+
+from app.db import gucs
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.core.tools import Tool
@@ -223,6 +225,17 @@ def archive_models() -> list[type[ArchiveMixin]]:
     return [found[name] for name in sorted(found)]
 
 
+def soft_delete_models() -> list[type[SoftDeleteMixin]]:
+    """Every mapped model carrying :class:`SoftDeleteMixin`, by table name.
+
+    The single source for "which tables have a trash can" — the active-row
+    filter, the trash routes and the purge read it, so a model is trashable
+    everywhere the moment it declares the mixin.
+    """
+    found = _mapped_subclasses(SoftDeleteMixin)
+    return [found[name] for name in sorted(found)]
+
+
 def created_by_models() -> list[type[CreatedByMixin]]:
     """Every mapped model carrying :class:`CreatedByMixin`, by table name.
 
@@ -294,9 +307,7 @@ def attach_initiative_actions(model: type[SQLModel]) -> None:
 
 def _reader() -> Any:
     """The request's user, as the policies read it."""
-    return func.nullif(func.current_setting("app.current_user_id", True), "").cast(
-        Integer
-    )
+    return literal_column(gucs.USER_ID.sql, Integer)
 
 
 def _standing() -> Any:

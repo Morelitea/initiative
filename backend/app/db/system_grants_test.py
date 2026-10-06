@@ -1,7 +1,7 @@
 """The shared-table grant registry (issue #782): verbs and their render.
 
-Pure metadata — no database. That every shared table has a record is
-``public_rls_test``; that the live catalog matches the registry (drift in
+Pure metadata — no database. That every shared model table has a record is
+``tenancy_test``; that the live catalog matches the registry (drift in
 either direction) is ``security_invariants_test`` (integration).
 """
 

@@ -1,7 +1,6 @@
 """The shared-table RLS registry, held to the catalog in both directions.
 
-Unit half: the registry names every shared table and nothing else, every
-policy is well formed, and the render is stable. Integration half: applying
+Unit half: every policy is well formed, and the render is stable. Integration half: applying
 the registry to a migrated database changes nothing — so the migrations and
 the registry say the same thing, and a fresh install and an upgraded one
 carry the same rules — and the catalog holds no policy the registry does not
@@ -26,25 +25,10 @@ from app.db.public_rls import (
     render_public_rls_ddl,
     unregistered_policies,
 )
-from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
 pytestmark = pytest.mark.always
 
 # --- unit ---------------------------------------------------------------------
-
-
-def test_registry_covers_exactly_the_shared_tables():
-    """Every shared table has a row-security decision, and only shared tables
-    do. A new ``public`` table with no entry fails here (the strictest state,
-    ``FORCED_NO_POLICY``, is a real entry); a dropped table fails the other
-    half."""
-    missing = GRANTABLE_SHARED_TABLES - set(PUBLIC_RLS)
-    assert not missing, (
-        f"shared tables with no row-security decision {sorted(missing)}: add each "
-        "to app/db/public_rls.py"
-    )
-    phantom = set(PUBLIC_RLS) - GRANTABLE_SHARED_TABLES
-    assert not phantom, f"registry names non-shared tables {sorted(phantom)}"
 
 
 def test_policy_names_are_unique_per_table():

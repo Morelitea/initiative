@@ -12,8 +12,7 @@ from typing import Any, Callable, Iterable
 
 from sqlalchemy import ForeignKeyConstraint
 
-from app.db.system_grants import NON_MODEL_SHARED_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES
+from app.db.tenancy import GUILD_SCOPED_TABLES, NON_MODEL_SHARED_TABLES
 
 IncludeObject = Callable[[object, str, str, bool, object], bool]
 
