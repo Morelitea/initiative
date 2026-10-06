@@ -73,7 +73,7 @@ async def get_calendar(
 
 def _event_export_loader_options() -> list:
     """Eager-load each event's relationships that export serialization reads —
-    ``event_export_dict`` walks attendees, tags, linked documents, and property
+    ``event_export_dict`` walks attendees, tags, linked files, and property
     values, and async SQLAlchemy forbids the lazy loads those would otherwise
     trigger on the worker's render-time replay."""
     return [

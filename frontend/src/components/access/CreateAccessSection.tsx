@@ -17,7 +17,7 @@ export interface CreateAccessSectionProps {
   onChange: (grants: ResourceGrantSchema[]) => void;
   /**
    * Whether the "Advanced options" accordion starts expanded. Defaults to
-   * `true`; every create dialog opens it by default except the document dialog.
+   * `true`; every create dialog opens it by default except the file dialog.
    */
   defaultOpen?: boolean;
 }

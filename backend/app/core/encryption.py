@@ -44,6 +44,9 @@ SALT_PLUGIN_PLATFORM_SIGNING_KEY = (
 SALT_PLUGIN_CONNECTION_FLOW = b"app-connection-flow"  # stored value, do not change
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
+# An account's date of birth, kept so a plug-in's minimum age can be checked
+# against it. Read on the system engine only, and never sent back to anyone.
+SALT_BIRTHDATE = b"birthdate"  # stored value, do not change
 # The access tokens the plug-in platform's token endpoint issues. Transient: a
 # token lives ten minutes and is never stored, so a key rotation ends the ones
 # in flight and their plug-ins ask again.

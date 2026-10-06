@@ -24,10 +24,10 @@ from app.core.security import create_upload_token
 from app.core.user_display import handle_of
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.wiki import WikiPage
 from app.testing import (
-    create_document,
+    create_file,
     create_user,
     create_wiki,
     create_wiki_page,
@@ -53,7 +53,7 @@ WHITEBOARD = {"elements": [], "appState": {}, "files": {}}
 
 
 def _lexical(words: str) -> dict:
-    """A document holding one paragraph of ``words``."""
+    """A file holding one paragraph of ``words``."""
     return {
         "root": {
             "type": "root",
@@ -77,8 +77,8 @@ def _words(content: dict) -> str:
     )
 
 
-def _document_url(guild_id: int, document_id: int) -> str:
-    return f"/api/v1/c/{guild_id}/collaboration/documents/{document_id}/collaborate"
+def _file_url(guild_id: int, file_id: int) -> str:
+    return f"/api/v1/c/{guild_id}/collaboration/files/{file_id}/collaborate"
 
 
 def _b64(data: bytes) -> str:
@@ -106,7 +106,7 @@ def _text_of(yjs_state: bytes) -> str:
 async def test_collaboration_guild_admin_gets_full_access(
     session: AsyncSession, acting_user, role_session
 ) -> None:
-    """A guild admin must get full collaboration access to a restricted document
+    """A guild admin must get full collaboration access to a restricted file
     they hold no grant on and aren't an initiative member of — mirroring the REST
     guild-admin bypass. The collaboration paths resolve access straight through
     the shared DAC engine (``permissions.allows``), which reads the
@@ -114,14 +114,14 @@ async def test_collaboration_guild_admin_gets_full_access(
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
     admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     # The socket resolves a body through the resource registry, so the test
     # asks the same way the endpoint does: on the request login, routed
     # through the seam as the admin, the row arrives with the level the
     # standing gives — owner, grant or no grant.
     s = await role_session("app_user")
     await route_as(s, user_id=admin.user.id, guild_id=owner.guild.id)
-    resolved = await resource_for(SearchEntityType.document.value).load(
+    resolved = await resource_for(SearchEntityType.file.value).load(
         s, doc.id, owner.guild.id
     )
     assert resolved is not None
@@ -135,11 +135,11 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     the content column is the server's rendering of it."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     stored = await body_states.WHITEBOARD.bootstrap(WHITEBOARD)
-    doc = await create_document(
+    doc = await create_file(
         session,
         owner.initiative,
         owner.user,
-        document_type=DocumentType.whiteboard,
+        file_type=FileType.whiteboard,
         content=WHITEBOARD,
         yjs_state=stored,
     )
@@ -150,7 +150,7 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     offline.apply_update(await body_states.WHITEBOARD.apply(stored, drawn))
 
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(offline),
         headers=owner.headers,
     )
@@ -158,9 +158,9 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     assert response.status_code == 204, response.text
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
+            select(File)
+            .where(File.id == doc.id)
+            .options(undefer(File.content), undefer(File.yjs_state))
         )
     ).one()
     assert saved.content == drawn
@@ -172,10 +172,10 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
 async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """A native document's content is what the server reads its Yjs state
+    """A native file's content is what the server reads its Yjs state
     as, offline edits included."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session, owner.initiative, owner.user, content=_lexical("on the server")
     )
     # A paragraph the tab wrote while its socket was gone, as Lexical writes it.
@@ -183,7 +183,7 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     offline.apply_update(await editor_engine.bootstrap(_lexical("written offline")))
 
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(offline),
         headers=owner.headers,
     )
@@ -191,9 +191,7 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     assert response.status_code == 204, response.text
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.content))
+            select(File).where(File.id == doc.id).options(undefer(File.content))
         )
     ).one()
     words = _words(saved.content)
@@ -203,10 +201,10 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
 async def test_an_editor_body_with_no_state_has_it_made_once(
     session: AsyncSession, acting_user, role_session
 ) -> None:
-    """Rooms opening a native document with no Yjs state together make it on
-    the server once, from the document's content."""
+    """Rooms opening a native file with no Yjs state together make it on
+    the server once, from the file's content."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session, owner.initiative, owner.user, content=_lexical("as it was saved")
     )
 
@@ -214,16 +212,14 @@ async def test_an_editor_body_with_no_state_has_it_made_once(
         routed = await role_session("app_user")
         await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
         return await CollaborationManager().get_or_create_room(
-            owner.guild.id, SearchEntityType.document.value, doc.id, routed
+            owner.guild.id, SearchEntityType.file.value, doc.id, routed
         )
 
     first, second = await asyncio.gather(open_room(), open_room())
 
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.yjs_state))
+            select(File).where(File.id == doc.id).options(undefer(File.yjs_state))
         )
     ).one()
     assert saved.yjs_state is not None
@@ -238,7 +234,7 @@ async def _a_process_editing(owner, doc_id: int, role_session):
     await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
     manager = CollaborationManager()
     room = await manager.get_or_create_room(
-        owner.guild.id, SearchEntityType.document.value, doc_id, routed
+        owner.guild.id, SearchEntityType.file.value, doc_id, routed
     )
     room.hold()  # somebody is in it
     return manager, room
@@ -257,8 +253,8 @@ async def test_two_processes_saving_one_body_keep_each_others_edits(
     """Each save merges what the other saved before writing, so the row ends
     up holding both processes' edits, not the last writer's."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(
-        session, owner.initiative, owner.user, document_type=DocumentType.spreadsheet
+    doc = await create_file(
+        session, owner.initiative, owner.user, file_type=FileType.spreadsheet
     )
     one, room_one = await _a_process_editing(owner, doc.id, role_session)
     two, room_two = await _a_process_editing(owner, doc.id, role_session)
@@ -270,9 +266,9 @@ async def test_two_processes_saving_one_body_keep_each_others_edits(
 
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
+            select(File)
+            .where(File.id == doc.id)
+            .options(undefer(File.content), undefer(File.yjs_state))
         )
     ).one()
     assert saved.content["sheets"][0]["cells"] == {"0:0": "from one", "1:1": "from two"}
@@ -286,8 +282,8 @@ async def test_a_room_takes_what_another_process_saved_on_the_next_sweep(
     """Editors on one replica see a save made on another within a sweep, and
     the room has nothing of its own to write back for it."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(
-        session, owner.initiative, owner.user, document_type=DocumentType.spreadsheet
+    doc = await create_file(
+        session, owner.initiative, owner.user, file_type=FileType.spreadsheet
     )
     here, watching = await _a_process_editing(owner, doc.id, role_session)
     elsewhere, editing = await _a_process_editing(owner, doc.id, role_session)
@@ -306,7 +302,7 @@ async def test_a_room_takes_what_another_process_saved_on_the_next_sweep(
     assert workbook is not None
     assert workbook["sheets"][0]["cells"] == {"2:2": "from elsewhere"}
     assert [key for key, _ in sent] == [
-        resource_room(owner.guild.id, SearchEntityType.document.value, doc.id)
+        resource_room(owner.guild.id, SearchEntityType.file.value, doc.id)
     ]
     assert watching.is_dirty is False
 
@@ -336,28 +332,28 @@ async def test_an_unreadable_update_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
 
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json={"update": _b64(b"not yjs"), "state_vector": _b64(b"\x00")},
         headers={"Authorization": f"Bearer {get_auth_token(owner.user)}"},
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_COLLABORATION_UPDATE_INVALID"
+    assert response.json()["detail"] == "FILE_COLLABORATION_UPDATE_INVALID"
     # The room it opened to try is not left behind for the next caller.
-    key = (owner.guild.id, SearchEntityType.document.value, doc.id)
+    key = (owner.guild.id, SearchEntityType.file.value, doc.id)
     assert key not in collaboration_manager._rooms
 
 
-async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
+async def test_a_refused_handover_leaves_the_next_one_the_saved_file(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A handover that is refused loads the room and takes nothing; the next one
     still merges into what the row holds, not into a room left behind."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         owner.initiative,
         owner.user,
@@ -366,7 +362,7 @@ async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
     headers = {"Authorization": f"Bearer {get_auth_token(owner.user)}"}
 
     refused = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json={"update": _b64(b"not yjs"), "state_vector": _b64(b"\x00")},
         headers=headers,
     )
@@ -377,7 +373,7 @@ async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
     await session.commit()
 
     taken = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("offline")),
         headers=headers,
     )
@@ -385,9 +381,7 @@ async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
     assert taken.status_code == 204, taken.text
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.yjs_state))
+            select(File).where(File.id == doc.id).options(undefer(File.yjs_state))
         )
     ).one()
     merged = _text_of(saved.yjs_state or b"")
@@ -400,11 +394,11 @@ async def test_a_token_in_the_query_is_refused(
     """The handover is a write: a ``?token=`` authenticates none, the
     uploads-scoped one included."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     token, _ = create_upload_token(user_id=owner.user.id)
 
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
+        f"{_file_url(owner.guild.id, doc.id)}?token={token}",
         json=_handover(_typed("x")),
     )
 
@@ -418,7 +412,7 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
     it does on a page: the session opened with a passkey writes, the one
     opened with a password is refused."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     session.add(
         GuildAuthPolicy(
             guild_id=owner.guild.id, policy="required", require_methods=["passkey"]
@@ -427,14 +421,14 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
     await session.commit()
 
     with_a_password = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
         headers={"Authorization": f"Bearer {get_auth_token(owner.user, amr=['pwd'])}"},
     )
     assert with_a_password.status_code == 401, with_a_password.text
 
     with_a_passkey = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
         headers={
             "Authorization": (
@@ -449,10 +443,10 @@ async def test_a_non_member_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     outsider = await create_user(session)
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
         headers=get_auth_headers(outsider),
     )
@@ -486,13 +480,13 @@ async def test_a_break_glass_grantee_can_hand_over(
     """A platform operator who is not a member but holds a live ``read_write``
     break-glass grant edits existing content for the grant's window."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     grantee = await create_user(session, role=UserRole.operator)
     await _approved_grant(
         session, user=grantee, guild=owner.guild, owner=owner.user, level="read_write"
     )
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
         headers=get_auth_headers(grantee),
     )
@@ -506,19 +500,19 @@ async def test_a_read_grant_cannot_hand_over(
     """A read grant reaches the guild but not the write level the handover
     needs."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     grantee = await create_user(session)
     await _approved_grant(
         session, user=grantee, guild=owner.guild, owner=owner.user, level="read"
     )
     response = await client.post(
-        _document_url(owner.guild.id, doc.id),
+        _file_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
         headers=get_auth_headers(grantee),
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "DOCUMENT_WRITE_ACCESS_REQUIRED"
+    assert response.json()["detail"] == "FILE_WRITE_ACCESS_REQUIRED"
 
 
 async def test_the_roster_names_a_collaborator_as_their_community_does(
@@ -527,8 +521,8 @@ async def test_the_roster_names_a_collaborator_as_their_community_does(
     """Who is editing reads the same as everywhere else in the community: the
     name set there, the handle where there is none."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
-    path = _document_url(owner.guild.id, doc.id)
+    doc = await create_file(session, owner.initiative, owner.user)
+    path = _file_url(owner.guild.id, doc.id)
 
     def roster_name() -> str:
         with socket_client.websocket_connect(path) as ws:

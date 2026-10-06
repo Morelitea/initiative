@@ -31,7 +31,7 @@ CONSENT_URL = "/api/v1/plugin-platform/consent-requests"
 
 async def _installed(session, acting_user, role_session) -> InstalledPlugin:
     return await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
 
 
@@ -51,7 +51,7 @@ async def _asked(client: AsyncClient, installed: InstalledPlugin, member) -> int
         guild_id=installed.guild.id,
         install_id=installed.plugin.id,
         client_id=CLIENT,
-        scopes=frozenset(["documents:read"]),
+        scopes=frozenset(["files:read"]),
         initiative_id=None,
     )
     asked = await client.post(

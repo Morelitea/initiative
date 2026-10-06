@@ -23,7 +23,7 @@ const paragraph = (text: string) => ({
 const embed = (entityId: number, text: string, collapsed = false) => ({
   type: "reference-embed",
   version: 1,
-  entityType: "document",
+  entityType: "file",
   entityId,
   text,
   collapsed,
@@ -38,8 +38,8 @@ const OUTER = page(paragraph("The outer page."), embed(2, "Inner"));
 const INNER = page(paragraph("Here be dragons."), embed(1, "Outer"));
 
 const BODIES: Record<string, { title: string; body: object }> = {
-  "document:1": { title: "Outer", body: OUTER },
-  "document:2": { title: "Inner", body: INNER },
+  "file:1": { title: "Outer", body: OUTER },
+  "file:2": { title: "Inner", body: INNER },
 };
 
 const serveBodies = () =>
@@ -49,7 +49,7 @@ const serveBodies = () =>
       return HttpResponse.json({
         items: refs.map((ref) => ({
           ref,
-          entity_type: "document",
+          entity_type: "file",
           title: BODIES[ref].title,
           description: null,
           body: BODIES[ref].body,

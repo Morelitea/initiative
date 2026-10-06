@@ -189,7 +189,7 @@ async def _hub(
         acting_user,
         role_session,
         granted=list(granted),
-        requested=[PLUGINS_SCOPE, "documents:read"],
+        requested=[PLUGINS_SCOPE, "files:read"],
     )
     if declarative:
         await create_plugin_service_registration(
@@ -331,7 +331,7 @@ async def test_a_caller_without_the_scope_is_refused(
     response = await client.post(
         _url(ISSUES),
         json={"params": {}},
-        headers=_installation_headers(installed, scopes=("documents:read",)),
+        headers=_installation_headers(installed, scopes=("files:read",)),
     )
 
     assert response.status_code == 403
@@ -344,7 +344,7 @@ async def test_a_scope_the_seat_took_back_is_refused(
 ):
     """The token still carries it; the grant no longer does."""
     installed, _target = await _hub(
-        session, acting_user, role_session, granted=("documents:read",)
+        session, acting_user, role_session, granted=("files:read",)
     )
 
     response = await client.post(

@@ -188,8 +188,8 @@
     "presetMoveUp": "Monter le préréglage",
     "presetMoveDown": "Descendre le préréglage"
   },
-  "documents": {
-    "newDocument": "Nouveau document"
+  "files": {
+    "newFile": "Nouveau fichier"
   },
   "tasks": {
     "projectTasks": "Tâches du projet",

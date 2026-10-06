@@ -63,7 +63,7 @@ def test_kinds_keep_their_codes_and_live_where_their_sharing_says():
 
 def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
-    # column + read/create/update schema fields) — projects and documents
+    # column + read/create/update schema fields) — projects and files
     # included, which is the whole of making them optional.
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
@@ -77,7 +77,7 @@ def test_every_tool_has_an_initiative_master_switch():
     assert switches <= update_fields
 
 
-def test_an_initiative_starts_with_projects_and_documents_on():
+def test_an_initiative_starts_with_projects_and_files_on():
     # Optional is not the same as off. An initiative created without an opinion
     # about its tools is the one people already had, so the two that used to be
     # unconditional keep arriving switched on and everything else stays opt-in.
@@ -85,7 +85,7 @@ def test_an_initiative_starts_with_projects_and_documents_on():
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase
 
-    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.document}
+    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.file}
     for tool in Tool:
         expected = tool in DEFAULT_ENABLED_TOOLS
         assert Initiative.model_fields[tool.view_permission].default is expected
@@ -369,7 +369,7 @@ def test_every_tool_mounts_the_grants_route():
 
 def test_every_tool_mounts_its_cross_guild_list_route():
     # The My Tools page's list is one route, mounted from MY_TOOL_LISTS for
-    # every tool (tenant_endpoints/me_tools.py). Projects, documents and
+    # every tool (tenant_endpoints/me_tools.py). Projects, files and
     # calendars each carried a hand-written copy of it until this registry took
     # them over, so the count is asserted as well as the presence: a tool that
     # loses its list, or grows a second one anywhere else under /me, fails here
@@ -396,7 +396,7 @@ def test_every_tool_mounts_its_cross_guild_list_route():
 
 def test_tool_models_spell_the_shared_columns_the_same():
     # The facts every tool table carries spell the same on each of them: one
-    # display column called `name` (documents said `title` until 0191), and
+    # display column called `name` (files said `title` until 0191), and
     # the shared scope/author/lifecycle columns under their canonical names.
     # A new tool that renames one of these — or labels rows through a synonym
     # like `title`/`label` — fails here. Sub-resources (tasks, queue items,

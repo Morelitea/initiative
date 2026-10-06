@@ -16,14 +16,14 @@ import type {
   ListCalendarsParams,
   ListCounterGroupsParams,
   ListDashboardsParams,
-  ListDocumentsParams,
+  ListFilesParams,
   ListGalleriesParams,
   ListPostsParams,
   ListProjectsParams,
   ListQueuesParams,
   ListWikisParams,
 } from "@/api/generated/initiativeAPI.schemas";
-import { DocumentType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { FileType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ import type { TranslateFn } from "@/types/i18n";
 /** Each tool's list params, as its list route takes them. */
 type ToolListParams = {
   [Tool.project]: ListProjectsParams;
-  [Tool.document]: ListDocumentsParams;
+  [Tool.file]: ListFilesParams;
   [Tool.queue]: ListQueuesParams;
   [Tool.counter_group]: ListCounterGroupsParams;
   [Tool.calendar]: ListCalendarsParams;
@@ -196,22 +196,22 @@ const QueueFilterFields = ({
 };
 
 /** "All" is a sentinel: the underlying filter is absent, not a value. */
-const ALL_DOCUMENT_TYPES = "all";
+const ALL_FILE_TYPES = "all";
 
-/** A documents list is also narrowed to one type of document. */
-const DocumentFilterFields = ({
+/** A files list is also narrowed to one type of file. */
+const FileFilterFields = ({
   value,
   onChange,
   initiativeId,
   children,
-}: ToolFilterFieldsProps<typeof Tool.document>) => {
-  const { t } = useTranslation("documents");
+}: ToolFilterFieldsProps<typeof Tool.file>) => {
+  const { t } = useTranslation("files");
   const id = useId();
 
   return (
     <SearchTagFields
-      tool={Tool.document}
-      placeholder="filters.searchDocuments"
+      tool={Tool.file}
+      placeholder="filters.searchFiles"
       value={value}
       onChange={onChange}
       initiativeId={initiativeId}
@@ -221,11 +221,11 @@ const DocumentFilterFields = ({
           {t("filters.type")}
         </Label>
         <Select
-          value={value.document_type ?? ALL_DOCUMENT_TYPES}
+          value={value.file_type ?? ALL_FILE_TYPES}
           onValueChange={(next) =>
             onChange({
               ...value,
-              document_type: next === ALL_DOCUMENT_TYPES ? undefined : (next as DocumentType),
+              file_type: next === ALL_FILE_TYPES ? undefined : (next as FileType),
             })
           }
         >
@@ -233,8 +233,8 @@ const DocumentFilterFields = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_DOCUMENT_TYPES}>{t("filters.allTypes")}</SelectItem>
-            {Object.values(DocumentType).map((type) => (
+            <SelectItem value={ALL_FILE_TYPES}>{t("filters.allTypes")}</SelectItem>
+            {Object.values(FileType).map((type) => (
               <SelectItem key={type} value={type}>
                 {t(`filters.types.${type}`)}
               </SelectItem>
@@ -255,7 +255,7 @@ const searchAndTags = (tool: Tool, placeholder: string) => (props: ToolFilterFie
  *  has to say how its list is narrowed. */
 const TOOL_FILTER_FIELDS: { [T in Tool]: ComponentType<ToolFilterFieldsProps<T>> } = {
   [Tool.project]: searchAndTags(Tool.project, "filters.searchProjects"),
-  [Tool.document]: DocumentFilterFields,
+  [Tool.file]: FileFilterFields,
   [Tool.queue]: QueueFilterFields,
   [Tool.counter_group]: searchAndTags(Tool.counter_group, "filters.searchGroups"),
   [Tool.calendar]: searchAndTags(Tool.calendar, "filters.searchCalendars"),

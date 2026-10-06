@@ -14,7 +14,7 @@ worked all do. Sub-resources with an id of their own (``comments``,
 parent the envelope never carries.
 
 Anything that is a facet rather than a resource — a project's statuses, a
-document's versions, a task's tags — reports against the parent instead (see
+file's versions, a task's tags — reports against the parent instead (see
 ``ReportsAs``), so it needs no route of its own and never reaches this test.
 Between the two, a new evented table owes no new API surface.
 """

@@ -35,7 +35,7 @@ from app.testing.factories import (
     checklist_items,
     create_counter,
     create_counter_group,
-    create_document,
+    create_file,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -2068,21 +2068,21 @@ async def test_a_project_blocks_until_the_work_in_it_is_done(
     assert response.json()["blocked_by_open_count"] == 0
 
 
-async def test_a_document_is_not_counted_as_a_blocker(
+async def test_a_file_is_not_counted_as_a_blocker(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Nothing on a document says when it stops holding something up, so it is
+    """Nothing on a file says when it stops holding something up, so it is
     shown as a link and left out of the count rather than blocking forever."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, a.project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.task, task.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         relationship_type=RelationshipType.depends_on,
         created_by=a.user.id,
     )

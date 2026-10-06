@@ -50,7 +50,7 @@ export interface ToolChestEntity {
   can: Pick<ToolCan, "edit" | "unarchive">;
 }
 
-/** A tool that can be a template (projects and documents): whether it is one,
+/** A tool that can be a template (projects and files): whether it is one,
  *  and how to change that. */
 export interface ToolChestTemplate {
   isTemplate: boolean;

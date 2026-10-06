@@ -52,7 +52,7 @@ class ImportJob(CreatedByMixin, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_by: int = Field(foreign_key="users.id", nullable=False)
 
-    # Envelope type ("initiative-document", …) or "backup".
+    # Envelope type ("initiative-file", …) or "backup".
     source: str = Field(nullable=False)
     # The caller's OPTIONS (target initiative, include map) — never content.
     params: dict[str, Any] = Field(

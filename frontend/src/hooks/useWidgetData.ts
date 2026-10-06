@@ -20,7 +20,7 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import { resolvePluginBinding } from "@/api/pluginData";
-import { useDocument } from "@/hooks/useDocuments";
+import { useFile } from "@/hooks/useFiles";
 import { usePluginData, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useSqlQuery, useWidgetQuery } from "@/hooks/useSqlQuery";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
@@ -43,7 +43,7 @@ export interface WidgetBinding {
    *  than leaving somebody to read their own statement back. Absent for a
    *  statement that did not come from the builder. */
   spec?: unknown;
-  document_id?: number | null;
+  file_id?: number | null;
   sheet?: string | null;
   range?: string | null;
   /** `plugin`: which installed plug-in, which of its sources, and the arguments the
@@ -87,7 +87,7 @@ export interface WidgetDataResult {
  * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
  * a binding cannot say otherwise: dashboards are an initiative's tool, so a
  * widget reads that initiative and nothing else. Without an initiative nothing
- * is fetched at all (unbound, not community-wide), and a document fetched by id is
+ * is fetched at all (unbound, not community-wide), and a file fetched by id is
  * held against the initiative afterwards, so an id pointing into another one
  * resolves to absent — the same rendering as a deleted or unshared target.
  *
@@ -150,9 +150,7 @@ export function useWidgetData(
     { enabled: scoped && source === "query" && !placed }
   );
   const answering = placed ? widgetQuery : sqlQuery;
-  const documentQuery = useDocument(
-    scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
-  );
+  const fileQuery = useFile(scoped && source === "sheet_range" ? (binding.file_id ?? null) : null);
 
   // The plug-in palette is one request per community, shared by every plug-in widget on the
   // canvas. It is what turns a binding's `plugin_uid` into an install id and tells
@@ -176,9 +174,9 @@ export function useWidgetData(
 
   const refetch = useCallback(() => {
     if (source === "query") void answering.refetch();
-    if (source === "sheet_range") void documentQuery.refetch();
+    if (source === "sheet_range") void fileQuery.refetch();
     if (isPlugin) void pluginQuery.refetch();
-  }, [source, isPlugin, answering.refetch, documentQuery.refetch, pluginQuery.refetch]);
+  }, [source, isPlugin, answering.refetch, fileQuery.refetch, pluginQuery.refetch]);
 
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
@@ -241,12 +239,11 @@ export function useWidgetData(
       }
 
       case "sheet_range": {
-        if (!binding.document_id || !binding.range) return unbound();
-        // A document outside this initiative is absent, not readable.
-        const document =
-          documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
-        const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
-        if (!range) return absent(documentQuery);
+        if (!binding.file_id || !binding.range) return unbound();
+        // A file outside this initiative is absent, not readable.
+        const file = fileQuery.data?.initiative_id === initiativeId ? fileQuery.data : undefined;
+        const range = file ? normalizeSheetRange(file, binding.sheet, binding.range) : null;
+        if (!range) return absent(fileQuery);
         const meta: DataMeta = { total: range.rows.length, truncated: false };
         return {
           data: { source: "rows", ...range, meta },
@@ -365,15 +362,15 @@ export function useWidgetData(
     source,
     initiativeId,
     binding.sql,
-    binding.document_id,
+    binding.file_id,
     binding.range,
     binding.sheet,
     answering.data,
     answering.isLoading,
     answering.isError,
-    documentQuery.data,
-    documentQuery.isLoading,
-    documentQuery.isError,
+    fileQuery.data,
+    fileQuery.isLoading,
+    fileQuery.isError,
     scoped,
     dashboardId,
     binding.plugin_uid,
@@ -386,6 +383,6 @@ export function useWidgetData(
     pluginQuery.isLoading,
     pluginQuery.isError,
     refetch,
-    documentQuery,
+    fileQuery,
   ]);
 }

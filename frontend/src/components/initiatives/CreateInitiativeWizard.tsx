@@ -18,7 +18,7 @@
  * initiative *is*. Nothing else in the app has had the chance to yet.
  *
  * Step 4 exists because of a gap nothing else closes. The built-in `member`
- * role ships view-only on projects and documents and `create_*` off everywhere,
+ * role ships view-only on projects and files and `create_*` off everywhere,
  * so an initiative created with a calendar has that calendar switched on for
  * its managers and invisible to everybody else. Asking here costs one screen;
  * finding out later costs somebody filing a bug about an empty sidebar.

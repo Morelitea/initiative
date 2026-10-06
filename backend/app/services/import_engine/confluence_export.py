@@ -744,7 +744,7 @@ async def export_to_fetched(
     guild_id: int,
     app_version: str,
     asset_budget: Optional[AssetBudget],
-    documents: bool,
+    files_allowed: bool,
     store: Optional[AssetSink] = None,
     max_rows: Optional[int] = None,
 ) -> tuple[ConfluenceFetched, str]:
@@ -752,8 +752,8 @@ async def export_to_fetched(
     point issues at, when they do.
 
     ``asset_budget`` is what the bundle can hold for attachments, and
-    ``store`` where each one goes; without a budget none are brought. ``documents`` false is an initiative that cannot take
-    file documents: only the pictures the pages show come.
+    ``store`` where each one goes; without a budget none are brought. ``files_allowed`` false is an initiative that cannot take
+    uploaded files: only the pictures the pages show come.
     """
     space = await asyncio.to_thread(read_export, archive)
     budget_rows = import_limits.IMPORT_FETCH_MAX_ROWS if max_rows is None else max_rows
@@ -800,7 +800,7 @@ async def export_to_fetched(
                 store=store,
                 budget=asset_budget,
                 report=gathered.downloads,
-                documents=documents,
+                files_allowed=files_allowed,
             )
 
     # The first page at the top of the tree is where a reader starts.
@@ -820,7 +820,7 @@ async def export_to_fetched(
             0, import_limits.IMPORT_FETCH_MAX_SPACE_BYTES - _ENVELOPE_RESERVE_BYTES
         ),
         media=media,
-        documents=documents,
+        files_allowed=files_allowed,
     )
     gathered.add(space.key, mapped, counted_references=asset_budget is None)
     gathered.report.pages_over_limit += max(0, len(space.pages) - len(pages))

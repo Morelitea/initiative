@@ -54,7 +54,7 @@ from app.schemas.tenant.wiki import (
     WikiRead,
     WikiUpdate,
     serialize_wiki_page,
-    serialize_document_as_page,
+    serialize_file_as_page,
     serialize_wiki_page_summary,
 )
 from app.schemas.tenant.tool import serialize_tool
@@ -275,18 +275,18 @@ async def list_wiki_pages(
     await tags_service.annotate_tags(session, pages)
     await properties_service.annotate_properties(session, pages)
     # The position each row is SERVED with is its place in the list as drawn —
-    # a document's is kept on the wiki and a page's in its own column, and
+    # a file's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
     known = {page.id for page in pages}
     items = [
         serialize_wiki_page_summary(row, context=guild_context, heading_nodes=nodes)
         if isinstance(row, WikiPage)
-        else serialize_document_as_page(
+        else serialize_file_as_page(
             row,
             wiki_id=wiki.id,
             position=spot,
             heading_nodes=nodes,
-            parent_page_id=wikis_service.visible_document_parent(wiki, row.id, known),
+            parent_page_id=wikis_service.visible_file_parent(wiki, row.id, known),
             context=guild_context,
         )
         for spot, (row, nodes) in enumerate(rows)
@@ -294,36 +294,34 @@ async def list_wiki_pages(
     return WikiPageTree(items=items)
 
 
-@router.put(
-    "/{wiki_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def add_document_to_wiki(
+@router.put("/{wiki_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def add_file_to_wiki(
     wiki_id: int,
-    document_id: int,
+    file_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> None:
-    """Put an existing document in this wiki.
+    """Put an existing file in this wiki.
 
     Two gates, because two things are involved: write on the wiki, because the
-    wiki is what gains a page, and read on the document, because you cannot put
+    wiki is what gains a page, and read on the file, because you cannot put
     something in front of people that you cannot see yourself.
 
-    The document is not moved or copied. It joins by an edge — ``document
+    The file is not moved or copied. It joins by an edge — ``file
     part_of wiki`` — so it keeps its address, its sharing and its history, and
     goes on belonging to whatever else it already belonged to.
     """
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
     )
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context
+    file = await resource_access.load_authorized(
+        session, Tool.file, file_id, current_user, guild_context
     )
 
     await relationships_service.create(
         session,
-        source=relationships_service.Endpoint(SearchEntityType.document, document.id),
+        source=relationships_service.Endpoint(SearchEntityType.file, file.id),
         relationship_type=RelationshipType.part_of,
         target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
         created_by=current_user.id,
@@ -331,34 +329,32 @@ async def add_document_to_wiki(
     await session.commit()
 
 
-@router.post(
-    "/{wiki_id}/documents/{document_id}/move", status_code=status.HTTP_204_NO_CONTENT
-)
-async def move_wiki_document(
+@router.post("/{wiki_id}/files/{file_id}/move", status_code=status.HTTP_204_NO_CONTENT)
+async def move_wiki_file(
     wiki_id: int,
-    document_id: int,
+    file_id: int,
     move: WikiPageMove,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> None:
-    """File a borrowed document under a page of this wiki, or at its top, and
+    """File a borrowed file under a page of this wiki, or at its top, and
     put it in order there.
 
-    Where it sits is recorded on the wiki, not on the document: the same
-    document can sit somewhere else entirely in another wiki.
+    Where it sits is recorded on the wiki, not on the file: the same
+    file can sit somewhere else entirely in another wiki.
 
-    Write on the wiki is the whole gate, and read on the document is implied by
+    Write on the wiki is the whole gate, and read on the file is implied by
     it already being in a wiki this person may write: where it sits is a
-    decision about the wiki, not a change to the document — which is why the
-    document itself is never written.
+    decision about the wiki, not a change to the file — which is why the
+    file itself is never written.
     """
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
     )
-    documents = await wikis_service.linked_documents(session, wiki.id)
-    document = next((d for d in documents if d.id == document_id), None)
-    if document is None:
+    files = await wikis_service.linked_files(session, wiki.id)
+    file = next((d for d in files if d.id == file_id), None)
+    if file is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
         )
@@ -371,24 +367,22 @@ async def move_wiki_document(
             status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
         )
     await wikis_service.place_in_list(
-        session, wiki, document, move.position, move.parent_page_id
+        session, wiki, file, move.position, move.parent_page_id
     )
     await session.commit()
 
 
-@router.delete(
-    "/{wiki_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_document_from_wiki(
+@router.delete("/{wiki_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_file_from_wiki(
     wiki_id: int,
-    document_id: int,
+    file_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> None:
-    """Take a document back out of this wiki.
+    """Take a file back out of this wiki.
 
-    The wiki loses a page; the document loses nothing. Write on the wiki is the
+    The wiki loses a page; the file loses nothing. Write on the wiki is the
     only gate — this is a decision about what the wiki contains.
     """
     wiki = await resource_access.load_authorized(
@@ -396,13 +390,13 @@ async def remove_document_from_wiki(
     )
     edge = await relationships_service.find(
         session,
-        source=relationships_service.Endpoint(SearchEntityType.document, document_id),
+        source=relationships_service.Endpoint(SearchEntityType.file, file_id),
         relationship_type=RelationshipType.part_of,
         target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
     )
     if edge is not None:
         await relationships_service.remove(session, edge, removed_by=current_user.id)
-        wikis_service.forget_document_placement(wiki, document_id)
+        wikis_service.forget_file_placement(wiki, file_id)
         session.add(wiki)
         await session.commit()
 
@@ -476,7 +470,7 @@ async def create_wiki_page(
             tag_ids=page_in.tag_ids,
         )
 
-    # What the body names becomes `references` edges, the same way a document's
+    # What the body names becomes `references` edges, the same way a file's
     # does — which is what makes the backlinks below say anything.
     await content_references.sync_for_entity(
         session,

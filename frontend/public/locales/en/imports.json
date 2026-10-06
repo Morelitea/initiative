@@ -168,8 +168,8 @@
         "comments_other": "{{count}} comments",
         "images_one": "{{count}} image ({{size}})",
         "images_other": "{{count}} images ({{size}})",
-        "files_one": "{{count}} attached file, as a document on its task ({{size}})",
-        "files_other": "{{count}} attached files, each as a document on its task ({{size}})",
+        "files_one": "{{count}} attached file, as a file on its task ({{size}})",
+        "files_other": "{{count}} attached files, each as a file on its task ({{size}})",
         "sprints_one": "{{count}} sprint on {{calendars}} calendar(s)",
         "sprints_other": "{{count}} sprints on {{calendars}} calendar(s)",
         "propertiesTitle": "Fields that become properties",
@@ -216,12 +216,12 @@
         "attachments_other": "{{count}} attached files stay behind, because attachments were switched off",
         "commentsResolved_one": "{{count}} resolved inline comment",
         "commentsResolved_other": "{{count}} resolved inline comments",
-        "attachmentsArriving_one": "{{count}} attachment ({{size}}): pictures where the pages show them, files as documents in the wiki",
-        "attachmentsArriving_other": "{{count}} attachments ({{size}}): pictures where the pages show them, files as documents in the wiki",
+        "attachmentsArriving_one": "{{count}} attachment ({{size}}): pictures where the pages show them, files in the wiki",
+        "attachmentsArriving_other": "{{count}} attachments ({{size}}): pictures where the pages show them, files in the wiki",
         "attachmentsSkipped_one": "{{count}} attachment that's too large or couldn't be read",
         "attachmentsSkipped_other": "{{count}} attachments that are too large or couldn't be read",
-        "filesBlocked_one": "{{count}} file, because this initiative has documents switched off",
-        "filesBlocked_other": "{{count}} files, because this initiative has documents switched off",
+        "filesBlocked_one": "{{count}} file, because this initiative has files switched off",
+        "filesBlocked_other": "{{count}} files, because this initiative has files switched off",
         "dropped": "Left out: {{items}}"
       }
     }
@@ -269,7 +269,7 @@
     "source": {
       "backup": "Backup",
       "initiative-project": "Project",
-      "initiative-document": "Document",
+      "initiative-file": "File",
       "initiative-queue": "Queue",
       "initiative-calendar": "Calendar",
       "initiative-post": "Post",

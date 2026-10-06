@@ -41,7 +41,7 @@ export interface EditorProps {
    *  document in place. */
   hasSynced?: boolean;
   initiativeId?: number | null;
-  /** What is being written, as a reference (`document:12`) — see
+  /** What is being written, as a reference (`file:12`) — see
    *  `Plugins.subject`. Absent while it does not exist yet, which is a thing
    *  nothing can point at anyway. */
   subject?: string | null;
@@ -54,7 +54,7 @@ export interface EditorProps {
   maxLength?: number;
   /** The container already supplies the horizontal gutter — see `Plugins.compact`. */
   compact?: boolean;
-  onWikilinkNavigate?: (documentId: number) => void;
+  onWikilinkNavigate?: (fileId: number) => void;
   onCreateReferencedThing?: (
     name: string,
     onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void

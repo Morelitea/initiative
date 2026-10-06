@@ -32,7 +32,7 @@
   "hidden": "Ausgeblendet",
   "unassigned": "Nicht zugewiesen",
   "tags": "Tags",
-  "documents": "Dokumente",
+  "files": "Dateien",
   "tasks": "Aufgaben",
   "round": "Runde",
   "roundN": "Runde {{count}}",

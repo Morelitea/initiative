@@ -1,7 +1,7 @@
 from pycrdt import Doc, Map
 
 from app.services.tenant.body_states import LEXICAL, SPREADSHEET, WHITEBOARD
-from app.services.tenant.documents_spreadsheet import normalize_spreadsheet_content
+from app.services.tenant.files_spreadsheet import normalize_spreadsheet_content
 from app.testing import lexical_body
 
 WORKBOOK = normalize_spreadsheet_content(

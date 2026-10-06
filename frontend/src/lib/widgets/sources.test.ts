@@ -24,18 +24,15 @@ describe("the source registry", () => {
   it("reports the parameters a binding still needs", () => {
     expect(unboundSlots(binding({ source: "query" }))).toEqual(["sql"]);
     expect(unboundSlots(binding({ source: "query", sql: "SELECT 1" }))).toEqual([]);
-    expect(unboundSlots(binding({ source: "sheet_range" })).sort()).toEqual([
-      "document_id",
-      "range",
-    ]);
-    expect(
-      unboundSlots(binding({ source: "sheet_range", document_id: 3, range: "A1:B2" }))
-    ).toEqual([]);
+    expect(unboundSlots(binding({ source: "sheet_range" })).sort()).toEqual(["file_id", "range"]);
+    expect(unboundSlots(binding({ source: "sheet_range", file_id: 3, range: "A1:B2" }))).toEqual(
+      []
+    );
   });
 
   it("names no entity for a statement, and one for a sheet range", () => {
     expect(entityParams("query")).toEqual([]);
-    expect(entityParams("sheet_range").map((param) => param.entity)).toEqual(["document"]);
+    expect(entityParams("sheet_range").map((param) => param.entity)).toEqual(["file"]);
   });
 
   it("says nothing about a source it does not know", () => {

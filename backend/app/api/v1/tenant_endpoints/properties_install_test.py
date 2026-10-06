@@ -31,9 +31,9 @@ from app.testing.plugin_clients import (
 )
 
 
-async def _document(client: Any, session: Any, installed: Any, headers: dict) -> int:
+async def _file(client: Any, session: Any, installed: Any, headers: dict) -> int:
     created = await client.post(
-        guild_url(installed.guild.id, "/documents/"),
+        guild_url(installed.guild.id, "/files/"),
         headers=headers,
         json={"name": "The plug-in's", "initiative_id": installed.placed.id},
     )
@@ -86,7 +86,7 @@ async def _event(client: Any, session: Any, installed: Any, headers: dict) -> in
 #: Per target: the tool's scopes, how to make an item the install may write,
 #: and the route it is read from.
 _KINDS = {
-    "document": ("documents", _document, "/documents"),
+    "file": ("files", _file, "/files"),
     "task": ("projects", _task, "/tasks"),
     "calendar_event": ("calendars", _event, "/calendar-events"),
 }
@@ -193,11 +193,11 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
 async def test_a_person_named_any_other_way_is_a_422(
     client, session, acting_user, role_session
 ):
-    scopes = ["documents:read", "documents:write", "initiatives:read", "members:read"]
+    scopes = ["files:read", "files:write", "initiatives:read", "members:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
-    document_id = await _document(client, session, installed, headers)
+    file_id = await _file(client, session, installed, headers)
     owner = await create_property_definition(
         session, installed.placed, name="Owner", type=PropertyType.user_reference
     )
@@ -218,7 +218,7 @@ async def test_a_person_named_any_other_way_is_a_422(
 
     for named in (foreign, installed.seat.user.id, "uplu_" + "x" * 32):
         response = await client.put(
-            guild_url(guild_id, f"/properties/document/{document_id}"),
+            guild_url(guild_id, f"/properties/file/{file_id}"),
             headers=headers,
             json={"values": [{"property_id": owner.id, "value": named}]},
         )
@@ -226,14 +226,14 @@ async def test_a_person_named_any_other_way_is_a_422(
         assert response.json()["detail"] == PluginMessages.REFERENCE_UNKNOWN
 
 
-async def test_a_document_list_filter_that_names_a_person_is_refused(
+async def test_a_file_list_filter_that_names_a_person_is_refused(
     client, session, acting_user, role_session
 ):
-    scopes = ["documents:read", "documents:write", "initiatives:read", "members:read"]
+    scopes = ["files:read", "files:write", "initiatives:read", "members:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
-    await _document(client, session, installed, headers)
+    await _file(client, session, installed, headers)
     owner = await create_property_definition(
         session, installed.placed, name="Owner", type=PropertyType.user_reference
     )
@@ -246,7 +246,7 @@ async def test_a_document_list_filter_that_names_a_person_is_refused(
         }
 
     named = await client.get(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=headers,
         params=_filters("eq", installed.seat.user.id),
     )
@@ -255,7 +255,7 @@ async def test_a_document_list_filter_that_names_a_person_is_refused(
 
     # Asking whether anyone is set names nobody.
     unset = await client.get(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=headers,
         params=_filters("is_null", True),
     )
@@ -263,7 +263,7 @@ async def test_a_document_list_filter_that_names_a_person_is_refused(
 
     # A person filters by the row id as before.
     as_person = await client.get(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=installed.seat.headers,
         params=_filters("eq", installed.seat.user.id),
     )

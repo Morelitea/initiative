@@ -1,7 +1,7 @@
 """Service layer for the polymorphic recent-items bar.
 
 Handles upserting, clearing, and reading entries in the ``recent_views``
-table that powers the layout header's tabs across projects, documents,
+table that powers the layout header's tabs across projects, files,
 queues, and counter groups.
 """
 

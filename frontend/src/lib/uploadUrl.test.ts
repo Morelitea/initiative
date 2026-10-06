@@ -6,8 +6,8 @@ import { apiClient } from "@/api/client";
 import { getUploadToken } from "./uploadToken";
 import {
   resolveArtworkUrl,
-  resolveDocumentDownloadUrl,
-  resolveDocumentVersionDownloadUrl,
+  resolveFileDownloadUrl,
+  resolveFileVersionDownloadUrl,
   resolveUploadUrl,
 } from "./uploadUrl";
 
@@ -22,27 +22,25 @@ const getUploadTokenMock = vi.mocked(getUploadToken);
 // Capacitor.isNativePlatform() is globally mocked to `false` in test setup,
 // so the default-path tests cover the web (same-origin, cookie-auth) flow.
 
-describe("resolveDocumentVersionDownloadUrl", () => {
+describe("resolveFileVersionDownloadUrl", () => {
   it("builds the community-scoped version download path", () => {
-    expect(resolveDocumentVersionDownloadUrl(5, 3, 7)).toBe(
-      "/api/v1/c/7/documents/5/versions/3/download"
-    );
+    expect(resolveFileVersionDownloadUrl(5, 3, 7)).toBe("/api/v1/c/7/files/5/versions/3/download");
   });
 
   it("appends inline=1 when requested", () => {
-    expect(resolveDocumentVersionDownloadUrl(5, 3, 7, true)).toBe(
-      "/api/v1/c/7/documents/5/versions/3/download?inline=1"
+    expect(resolveFileVersionDownloadUrl(5, 3, 7, true)).toBe(
+      "/api/v1/c/7/files/5/versions/3/download?inline=1"
     );
   });
 
   it("returns null when ids are missing", () => {
-    expect(resolveDocumentVersionDownloadUrl(0, 3, 7)).toBeNull();
-    expect(resolveDocumentVersionDownloadUrl(5, 0, 7)).toBeNull();
-    expect(resolveDocumentVersionDownloadUrl(5, 3, 0)).toBeNull();
+    expect(resolveFileVersionDownloadUrl(0, 3, 7)).toBeNull();
+    expect(resolveFileVersionDownloadUrl(5, 0, 7)).toBeNull();
+    expect(resolveFileVersionDownloadUrl(5, 3, 0)).toBeNull();
   });
 
-  it("differs from the current-document download path", () => {
-    expect(resolveDocumentVersionDownloadUrl(5, 3, 7)).not.toBe(resolveDocumentDownloadUrl(5, 7));
+  it("differs from the current-file download path", () => {
+    expect(resolveFileVersionDownloadUrl(5, 3, 7)).not.toBe(resolveFileDownloadUrl(5, 7));
   });
 });
 

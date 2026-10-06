@@ -176,7 +176,7 @@ describe("relatedTarget", () => {
       image_urls: [],
       icon: null,
       color: null,
-      document_type: null,
+      file_type: null,
       mime_type: null,
       original_filename: null,
       smart_link_url: null,
@@ -195,7 +195,7 @@ describe("relatedTarget", () => {
 describe("comparing sets of links", () => {
   it("reads a reorder as no change", () => {
     // The old queue dialog compared these position by position, so reordering
-    // the same documents counted as a change and a straight swap did not.
+    // the same files counted as a change and a straight swap did not.
     expect(sameIds([1, 2, 3], [3, 1, 2])).toBe(true);
     expect(sameIds([1, 2], [1, 3])).toBe(false);
     expect(sameIds([1], [1, 2])).toBe(false);
@@ -204,11 +204,11 @@ describe("comparing sets of links", () => {
 
   it("groups ids by kind", () => {
     const grouped = idsByKind([
-      { type: SearchEntityType.document, id: 1, title: null },
+      { type: SearchEntityType.file, id: 1, title: null },
       { type: SearchEntityType.task, id: 2, title: null },
-      { type: SearchEntityType.document, id: 3, title: null },
+      { type: SearchEntityType.file, id: 3, title: null },
     ]);
-    expect(grouped.get(SearchEntityType.document)).toEqual([1, 3]);
+    expect(grouped.get(SearchEntityType.file)).toEqual([1, 3]);
     expect(grouped.get(SearchEntityType.task)).toEqual([2]);
   });
 
@@ -217,9 +217,9 @@ describe("comparing sets of links", () => {
   });
 
   describe("what the dialog proposes once something is picked", () => {
-    it("reads a document or a picture as something attached", () => {
-      expect(defaultGroupFor(SearchEntityType.task, SearchEntityType.document)).toBe("attached");
-      expect(defaultGroupFor(SearchEntityType.document, SearchEntityType.task)).toBe("attached");
+    it("reads a file or a picture as something attached", () => {
+      expect(defaultGroupFor(SearchEntityType.task, SearchEntityType.file)).toBe("attached");
+      expect(defaultGroupFor(SearchEntityType.file, SearchEntityType.task)).toBe("attached");
       expect(defaultGroupFor(SearchEntityType.project, SearchEntityType.gallery_image)).toBe(
         "attached"
       );
@@ -268,7 +268,7 @@ describe("comparing sets of links", () => {
     it("leaves a mixed pair in the order the surface set", () => {
       const ordered = groupOrderFor(
         SearchEntityType.task,
-        SearchEntityType.document,
+        SearchEntityType.file,
         ASSERTABLE_GROUPS
       );
       expect(ordered.map((group) => group.key)).toEqual(

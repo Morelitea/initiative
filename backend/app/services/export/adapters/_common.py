@@ -28,7 +28,7 @@ from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
 from app.models.platform.user import User
 from app.models.tenant._mixins import tool_models
-from app.models.tenant.document import Document, DocumentFileVersion
+from app.models.tenant.file import File, FileVersion
 from app.models.tenant.gallery import GalleryImageVersion
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
@@ -81,10 +81,10 @@ async def require_may_leave(
 
 
 async def related_reach(session: AsyncSession, related: Iterable[Related]) -> set[int]:
-    """The initiatives of the documents and tasks at the far end of these
-    edges: a document's own, and a task's by its project."""
+    """The initiatives of the files and tasks at the far end of these
+    edges: a file's own, and a task's by its project."""
     entities = [r.entity for r in related if r.entity is not None]
-    reach = {e.initiative_id for e in entities if isinstance(e, Document)}
+    reach = {e.initiative_id for e in entities if isinstance(e, File)}
     project_ids = {e.project_id for e in entities if isinstance(e, Task)}
     if project_ids:
         reach |= set(
@@ -153,7 +153,7 @@ def storage_key_of(url: str | None) -> str:
 
 def asset_item(
     storage: "StorageBackend",
-    version: DocumentFileVersion | GalleryImageVersion | None,
+    version: FileVersion | GalleryImageVersion | None,
 ) -> RenderItem | None:
     """A stored file's bytes, zipped under ``assets/`` by its storage key
     beside the envelope naming it — or ``None`` when the file is gone."""

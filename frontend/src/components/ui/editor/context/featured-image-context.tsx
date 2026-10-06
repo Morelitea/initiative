@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
-/** The featured image of the document an editor is writing, for the editor's
- *  pictures to be made it. Nothing provides it outside a document page, so a
+/** The featured image of the file an editor is writing, for the editor's
+ *  pictures to be made it. Nothing provides it outside a file page, so a
  *  comment or a post offers no such thing. */
 export interface FeaturedImage {
   url: string | null;

@@ -42,7 +42,7 @@ def test_a_requested_zone_that_names_none_is_refused(value: str):
         "/",
         "/c/5/projects/3",
         "/settings?tab=auth",
-        "/c/5/documents/7#section",
+        "/c/5/files/7#section",
     ],
 )
 def test_safe_next_paths_accepted(value: str):

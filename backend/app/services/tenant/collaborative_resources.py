@@ -1,12 +1,12 @@
 """What can be edited by several people at once, and how each one is reached.
 
 A collaboration room is a Yjs document plus the row it is a body of. Which row
-that is differs — a document's body is its own, a wiki page's body is the
+that is differs — a file's body is its own, a wiki page's body is the
 page's while the *sharing* belongs to the wiki it sits in — and that difference
 is the whole of what varies between them.
 
 So it is declared once here, per kind, and the room, the socket and the
-persistence sweep all read it rather than each knowing about documents:
+persistence sweep all read it rather than each knowing about files:
 
 ``entity_type``
     The room's ``resource_type`` in the stream register, and the reference kind
@@ -18,7 +18,7 @@ persistence sweep all read it rather than each knowing about documents:
     Where the JSON body lives. The Yjs columns are spelled the same on every
     collaborative table, so they are not restated.
 ``body_kind``
-    Which editor a row's body is for, as a SQL expression: a document's type,
+    Which editor a row's body is for, as a SQL expression: a file's type,
     or ``"native"`` for a page, which is always prose. The server makes the
     body's Yjs state and renders its content with that editor's mapping
     (:mod:`app.services.tenant.body_states`).
@@ -50,7 +50,7 @@ YJS_UPDATED_COLUMN = "yjs_updated_at"
 @dataclass(frozen=True)
 class Collaborating:
     """One resolved resource: the row holding the body, and the row that says
-    who may read or write it. They are the same row for a document."""
+    who may read or write it. They are the same row for a file."""
 
     body: Any
     governing: Any
@@ -84,26 +84,24 @@ class CollaborativeResource:
         return self.id_param or f"{self.resource_type}_id"
 
 
-async def _load_document(
+async def _load_file(
     session: Any, resource_id: int, guild_id: int
 ) -> Optional[Collaborating]:
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
 
     statement = (
-        select(Document)
-        .where(Document.id == resource_id)
+        select(File)
+        .where(File.id == resource_id)
         .options(
-            selectinload(Document.initiative),
-            undefer(Document.actions),
-            selectinload(Document.grants),
+            selectinload(File.initiative),
+            undefer(File.actions),
+            selectinload(File.grants),
         )
     )
-    document = (await session.exec(statement)).one_or_none()
-    if document is None:
+    file = (await session.exec(statement)).one_or_none()
+    if file is None:
         return None
-    return Collaborating(
-        body=document, governing=document, initiative_id=document.initiative_id
-    )
+    return Collaborating(body=file, governing=file, initiative_id=file.initiative_id)
 
 
 async def _load_wiki_page(
@@ -145,16 +143,16 @@ def _register(resource: CollaborativeResource) -> CollaborativeResource:
     return resource
 
 
-def _document_resource() -> CollaborativeResource:
-    from app.models.tenant.document import Document
+def _file_resource() -> CollaborativeResource:
+    from app.models.tenant.file import File
 
     return CollaborativeResource(
-        entity_type=SearchEntityType.document,
-        tool=Tool.document,
-        model=Document,
+        entity_type=SearchEntityType.file,
+        tool=Tool.file,
+        model=File,
         content_column="content",
-        load=_load_document,
-        body_kind=lambda: Document.document_type,
+        load=_load_file,
+        body_kind=lambda: File.file_type,
     )
 
 
@@ -177,7 +175,7 @@ def resource_for(resource_type: str) -> CollaborativeResource:
     """The declaration for one kind. Raises for a kind nothing registered,
     which is a wiring mistake rather than a request error."""
     if not COLLABORATIVE_RESOURCES:
-        _register(_document_resource())
+        _register(_file_resource())
         _register(_wiki_page_resource())
     return COLLABORATIVE_RESOURCES[resource_type]
 
@@ -185,5 +183,5 @@ def resource_for(resource_type: str) -> CollaborativeResource:
 def registered_types() -> tuple[str, ...]:
     """Every collaborative kind: what the routes are mounted for, and what the
     tests walk."""
-    resource_for(SearchEntityType.document.value)
+    resource_for(SearchEntityType.file.value)
     return tuple(sorted(COLLABORATIVE_RESOURCES))

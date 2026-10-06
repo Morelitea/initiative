@@ -36,7 +36,7 @@ IMPORT_APPLY_SLOTS = 2
 #: from a Confluence export — is bounded by these rather than by the upload
 #: bounds above, which exist for zips somebody else built. The community's
 #: storage quota narrows the attachment budget further (``jira_attachments``).
-#: Rows one fetch may bring: tasks, comments, pages, file documents.
+#: Rows one fetch may bring: tasks, comments, pages, uploaded files.
 IMPORT_FETCH_MAX_ROWS = 250_000
 #: Declared uncompressed size of a fetched bundle, attachments and envelopes
 #: together. It is written to disk as it is read, so this is a disk bound.

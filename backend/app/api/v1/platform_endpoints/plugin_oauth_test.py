@@ -77,7 +77,7 @@ async def _installation(installed: InstalledPlugin) -> str:
 async def test_a_plugin_token_names_only_the_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await _ask(client)
 
@@ -95,7 +95,7 @@ async def test_a_plugin_token_names_only_the_client(
 async def test_a_p256_key_authenticates_too(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await _ask(client, assertion=_assertion(key="ec"))
 
@@ -114,19 +114,19 @@ async def test_an_installation_token_carries_every_granted_scope(
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
 
     response = await _ask(client, installation=await _installation(installed))
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "comments:read documents:write"
+    assert response.json()["scope"] == "comments:read files:write"
     token = unseal_access_token(response.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
     assert token.guild_id == installed.guild.id
     assert token.install_id == installed.plugin.id
     assert token.client_id == CLIENT
-    assert token.scopes == frozenset({"documents:write", "comments:read"})
+    assert token.scopes == frozenset({"files:write", "comments:read"})
     assert token.initiative_id is None
 
 
@@ -137,7 +137,7 @@ async def test_an_installation_token_can_be_down_scoped(
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
 
     response = await _ask(
@@ -155,15 +155,15 @@ async def test_a_written_resource_may_be_asked_for_at_read(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
 
     response = await _ask(
-        client, installation=await _installation(installed), scope="documents:read"
+        client, installation=await _installation(installed), scope="files:read"
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "documents:read"
+    assert response.json()["scope"] == "files:read"
 
 
 async def test_a_scope_to_use_another_plugin_is_issued_and_asked_for_by_name(
@@ -173,14 +173,14 @@ async def test_a_scope_to_use_another_plugin_is_issued_and_asked_for_by_name(
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "plugins:tests.github"],
-        requested=["documents:read", "plugins:tests.github"],
+        granted=["files:read", "plugins:tests.github"],
+        requested=["files:read", "plugins:tests.github"],
     )
     installation = await _installation(installed)
 
     everything = await _ask(client, installation=installation)
     assert everything.status_code == 200, everything.text
-    assert everything.json()["scope"] == "documents:read plugins:tests.github"
+    assert everything.json()["scope"] == "files:read plugins:tests.github"
 
     narrowed = await _ask(
         client, installation=installation, scope="plugins:tests.github"
@@ -195,12 +195,12 @@ async def test_a_scope_to_use_another_plugin_is_issued_and_asked_for_by_name(
     assert _error(other) == "invalid_scope"
 
 
-@pytest.mark.parametrize("scope", ["projects:read", "documents:write", "not-a-scope"])
+@pytest.mark.parametrize("scope", ["projects:read", "files:write", "not-a-scope"])
 async def test_a_scope_beyond_the_grant_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, scope
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
 
     response = await _ask(
@@ -243,23 +243,23 @@ async def test_a_scope_the_pinned_version_dropped_is_not_issued(
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
     installation = await _installation(installed)
     before = await _ask(client, installation=installation)
-    assert before.json()["scope"] == "comments:read documents:write"
+    assert before.json()["scope"] == "comments:read files:write"
 
     await _upgrade_dropping(session, installed, ["comments:read"])
 
     after = await _ask(client, installation=installation)
     assert after.status_code == 200, after.text
     assert after.json()["scope"] == "comments:read"
-    refused = await _ask(client, installation=installation, scope="documents:write")
+    refused = await _ask(client, installation=installation, scope="files:write")
     assert refused.status_code == 400
     assert _error(refused) == "invalid_scope"
 
     (row,) = (await session.exec(select(GuildPlugin))).all()
-    assert sorted(row.granted_scopes) == ["comments:read", "documents:write"]
+    assert sorted(row.granted_scopes) == ["comments:read", "files:write"]
 
 
 async def test_a_scope_the_ceiling_no_longer_allows_is_not_issued(
@@ -276,7 +276,7 @@ async def test_a_scope_the_ceiling_no_longer_allows_is_not_issued(
         session,
         acting_user,
         role_session,
-        granted=["documents:write", "comments:read"],
+        granted=["files:write", "comments:read"],
     )
     installation = await _installation(installed)
 
@@ -301,7 +301,7 @@ async def test_a_placed_initiative_narrows_the_token(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
 
     response = await _ask(
@@ -321,7 +321,7 @@ async def test_an_initiative_it_is_not_placed_in_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, which
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     resource = (
         f"urn:initiative:initiative:{installed.unplaced.id}"
@@ -348,20 +348,20 @@ async def test_a_granted_standing_is_not_on_a_token_that_did_not_ask(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(client, installation=await _installation(installed))
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "documents:read"
+    assert response.json()["scope"] == "files:read"
 
 
 async def test_a_moderator_level_carries_its_scope_into_the_initiative(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
@@ -372,10 +372,10 @@ async def test_a_moderator_level_carries_its_scope_into_the_initiative(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "documents:read initiatives:moderate"
+    assert response.json()["scope"] == "files:read initiatives:moderate"
     token = unseal_access_token(response.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
-    assert token.scopes == frozenset({"documents:read", "initiatives:moderate"})
+    assert token.scopes == frozenset({"files:read", "initiatives:moderate"})
     assert token.initiative_id == installed.placed.id
 
 
@@ -383,18 +383,18 @@ async def test_a_guild_admin_level_carries_its_scope(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
         client,
         installation=await _installation(installed),
-        scope="documents:read",
+        scope="files:read",
         level="community_admin",
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "community:admin documents:read"
+    assert response.json()["scope"] == "community:admin files:read"
 
 
 @pytest.mark.parametrize(
@@ -409,7 +409,7 @@ async def test_a_level_the_community_did_not_grant_is_refused(
     narrowed,
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     form = {"level": level}
     if narrowed:
@@ -430,7 +430,7 @@ async def test_a_level_the_ceiling_does_not_allow_is_refused(
     from app.services.marketplace import registration_lookup
 
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
     registration = (
         await session.exec(
@@ -439,7 +439,7 @@ async def test_a_level_the_ceiling_does_not_allow_is_refused(
             )
         )
     ).one()
-    registration.scope_ceiling = ["documents:read"]
+    registration.scope_ceiling = ["files:read"]
     session.add(registration)
     await session.commit()
     registration_lookup.invalidate_registrations()
@@ -457,7 +457,7 @@ async def test_a_moderator_level_names_its_initiative(
 ):
     """A moderator moderates one initiative, which the token names."""
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
@@ -473,7 +473,7 @@ async def test_a_guild_admin_level_may_be_narrowed(
 ):
     """Narrowed, it administers within that one initiative."""
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
@@ -486,7 +486,7 @@ async def test_a_guild_admin_level_may_be_narrowed(
     assert response.status_code == 200, response.text
     token = unseal_access_token(response.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
-    assert token.scopes == frozenset({"documents:read", "community:admin"})
+    assert token.scopes == frozenset({"files:read", "community:admin"})
     assert token.initiative_id == installed.placed.id
 
 
@@ -495,13 +495,13 @@ async def test_a_standing_is_not_asked_for_by_scope(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, standing
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
         client,
         installation=await _installation(installed),
-        scope=f"documents:read {standing}",
+        scope=f"files:read {standing}",
     )
 
     assert response.status_code == 400
@@ -512,7 +512,7 @@ async def test_an_unknown_level_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+        session, acting_user, role_session, granted=["files:read", *_STANDINGS]
     )
 
     response = await _ask(
@@ -559,7 +559,7 @@ async def test_a_member_token_takes_no_level(
 async def test_an_unknown_installation_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await _ask(client, installation="not-a-reference")
 
@@ -570,12 +570,12 @@ async def test_an_unknown_installation_is_refused(
 async def test_another_clients_installation_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     other = await install_plugin(
         session,
         acting_user,
         role_session,
-        granted=["documents:read"],
+        granted=["files:read"],
         client_id="tests.other-client",
         listing_uid="OTHERCLIENT001",
     )
@@ -591,7 +591,7 @@ async def test_the_member_grant_takes_no_client_assertion(
 ):
     """Its assertion authenticates the client (RFC 7523 §3); the member grant
     itself is in ``plugin_member_tokens_test``."""
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await _ask(
         client, grant_type="urn:ietf:params:oauth:grant-type:jwt-bearer"
@@ -604,7 +604,7 @@ async def test_the_member_grant_takes_no_client_assertion(
 async def test_an_unknown_grant_type_is_unsupported(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await _ask(client, grant_type="password")
 
@@ -635,7 +635,7 @@ async def test_an_unknown_grant_type_is_unsupported(
 async def test_a_bad_assertion_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, overrides
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     overrides = dict(overrides)
     issued_ago = overrides.pop("issued_ago", None)
     if issued_ago is not None:
@@ -650,7 +650,7 @@ async def test_a_bad_assertion_is_an_invalid_client(
 async def test_an_assertion_is_used_once(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     assertion = _assertion()
 
     first = await _ask(client, assertion=assertion)
@@ -665,7 +665,7 @@ async def test_a_disabled_registration_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"], enabled=False
+        session, acting_user, role_session, granted=["files:read"], enabled=False
     )
 
     response = await _ask(client)
@@ -679,7 +679,7 @@ async def test_a_declarative_registration_is_never_a_client(
 ):
     """A declarative plug-in runs no code, so keys left on its registration
     authenticate nothing."""
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
     registration = (
         await session.exec(
             select(PluginServiceRegistration).where(
@@ -702,7 +702,7 @@ async def test_a_declarative_registration_is_never_a_client(
 async def test_no_assertion_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    await install_plugin(session, acting_user, role_session, granted=["documents:read"])
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
 
     response = await client.post(TOKEN_URL, data={"grant_type": "client_credentials"})
 
@@ -728,7 +728,7 @@ async def test_a_plugin_token_lists_the_installs_a_page_at_a_time(
     """Read from the install index, with the next page named in a ``Link``
     header until the last."""
     first = await install_plugin(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     second = await install_plugin(
         session, acting_user, role_session, granted=[], register=False
@@ -758,7 +758,7 @@ async def test_a_paused_install_is_listed_as_inactive(
     paused_by: str,
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     plugin_token = (await _ask(client)).json()["access_token"]
     installation = await _installation(installed)
@@ -792,7 +792,7 @@ async def test_an_installation_token_does_not_list_installs(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     installation_token = (
         await _ask(client, installation=await _installation(installed))

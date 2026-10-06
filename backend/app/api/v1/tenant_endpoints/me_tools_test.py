@@ -297,9 +297,9 @@ async def test_a_co_member_reads_what_was_shared_with_the_initiative(
         initiative_role="member",
     )
     # Created through the API, so it carries the default all-members read grant.
-    admin_doc = await _create(client, admin, Tool.document, "Admin's Doc")
+    admin_doc = await _create(client, admin, Tool.file, "Admin's Doc")
 
-    response = await client.get("/api/v1/me/documents", headers=other.headers)
+    response = await client.get("/api/v1/me/files", headers=other.headers)
 
     assert response.status_code == 200
     assert admin_doc["id"] in {d["id"] for d in response.json()["items"]}

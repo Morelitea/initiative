@@ -34,7 +34,7 @@ import type { MutationOpts } from "@/types/mutation";
  * - ``initiativeId`` bound: scopes to that one initiative (for per-entity
  *   pickers and the initiative settings manager page).
  * - ``initiativeId`` omitted: returns the union across every initiative the
- *   caller is a member of — used by global views (My Tasks, Documents list,
+ *   caller is a member of — used by global views (My Tasks, Files list,
  *   events list) so property columns and filters aggregate across initiatives.
  */
 export const useProperties = (options?: { initiativeId?: number; enabled?: boolean }) => {

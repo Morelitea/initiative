@@ -39,7 +39,7 @@ from app.services.fields.spec import ControlKind, FieldSpec, column, computed
 #:
 #: The one place this is decided, for every dataset: a column referencing
 #: ``users`` is filled by a member picker whether it is a task's author, a
-#: document's owner, or a column added next year. A reference to anything absent
+#: file's owner, or a column added next year. A reference to anything absent
 #: here has no picker, so it is filterable by a stored definition and not
 #: offered as a control — the safe default for a table nobody has taught the UI
 #: to browse.

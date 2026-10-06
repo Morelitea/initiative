@@ -62,16 +62,16 @@ import {
   updateDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import {
-  createDocument,
-  deleteDocument,
-  duplicateDocument,
-  getListDocumentsQueryKey,
-  getReadDocumentQueryKey,
-  listDocuments,
-  readDocument,
-  setDocumentGrants,
-  updateDocument,
-} from "@/api/generated/documents/documents";
+  createFile,
+  deleteFile,
+  duplicateFile,
+  getListFilesQueryKey,
+  getReadFileQueryKey,
+  listFiles,
+  readFile,
+  setFileGrants,
+  updateFile,
+} from "@/api/generated/files/files";
 import {
   createGallery,
   deleteGallery,
@@ -84,7 +84,7 @@ import {
   updateGallery,
 } from "@/api/generated/galleries/galleries";
 import type {
-  ListDocumentsParams,
+  ListFilesParams,
   ResourceGrantSchema,
   ToolDuplicateRequest,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -93,7 +93,7 @@ import {
   getListMyCalendarsQueryKey,
   getListMyCounterGroupsQueryKey,
   getListMyDashboardsQueryKey,
-  getListMyDocumentsQueryKey,
+  getListMyFilesQueryKey,
   getListMyGalleriesQueryKey,
   getListMyPostsQueryKey,
   getListMyProjectsQueryKey,
@@ -102,7 +102,7 @@ import {
   listMyCalendars,
   listMyCounterGroups,
   listMyDashboards,
-  listMyDocuments,
+  listMyFiles,
   listMyGalleries,
   listMyPosts,
   listMyProjects,
@@ -177,7 +177,7 @@ type Duplicated = { id: number; initiative_id: number | null };
 /**
  * The narrowing every tool's community-wide list understands.
  *
- * The nine endpoints accept far more than this between them — a document has
+ * The nine endpoints accept far more than this between them — a file has
  * tags and a type, a calendar has a scope — but these are the terms they ALL
  * take, which is what lets one caller drive every tool from one params object.
  * A tool's own list hook keeps its own generated params type and can ask for
@@ -484,37 +484,37 @@ const dashboardEndpoints = {
   tool: Tool.dashboard,
 };
 
-// Only a document's create is hand-written (`useDocuments.ts`): it copies a
+// Only a file's create is hand-written (`useFiles.ts`): it copies a
 // template client-side and can link the new row to a project.
-const documentEndpoints = {
-  listKey: getListDocumentsQueryKey,
+const fileEndpoints = {
+  listKey: getListFilesQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
-  list: (communityId: number, params?: ListDocumentsParams) =>
-    fetchAllPages(listDocuments, communityId, params ?? {}),
-  myListKey: getListMyDocumentsQueryKey,
-  myList: listMyDocuments,
-  detailKey: getReadDocumentQueryKey,
-  detail: readDocument,
-  update: updateDocument,
-  remove: deleteDocument,
-  setGrants: setDocumentGrants,
-  tool: Tool.document,
+  list: (communityId: number, params?: ListFilesParams) =>
+    fetchAllPages(listFiles, communityId, params ?? {}),
+  myListKey: getListMyFilesQueryKey,
+  myList: listMyFiles,
+  detailKey: getReadFileQueryKey,
+  detail: readFile,
+  update: updateFile,
+  remove: deleteFile,
+  setGrants: setFileGrants,
+  tool: Tool.file,
 };
 
-const documentHooks = {
-  ...listQueries(documentEndpoints),
-  create: createDocument,
-  duplicate: duplicateDocument,
-  remove: documentEndpoints.remove,
-  useList: listHook(documentEndpoints),
-  useDetail: detailHook(documentEndpoints),
-  useUpdate: updateHook(documentEndpoints, "documents:error", {
+const fileHooks = {
+  ...listQueries(fileEndpoints),
+  create: createFile,
+  duplicate: duplicateFile,
+  remove: fileEndpoints.remove,
+  useList: listHook(fileEndpoints),
+  useDetail: detailHook(fileEndpoints),
+  useUpdate: updateHook(fileEndpoints, "files:error", {
     seedsDetailOnUpdate: true,
     refreshesRelationships: true,
   }),
-  useDelete: deleteHook(documentEndpoints, "documents:error"),
-  useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
+  useDelete: deleteHook(fileEndpoints, "files:error"),
+  useSetGrants: grantsHook(fileEndpoints, "files:settings.updateAccessError"),
 };
 
 const galleryEndpoints = {
@@ -631,7 +631,7 @@ interface ToolQueries {
  */
 export const TOOL_HOOKS = {
   [Tool.project]: makeToolHooks(projectEndpoints, { seedsDetailOnUpdate: true }),
-  [Tool.document]: documentHooks,
+  [Tool.file]: fileHooks,
   [Tool.queue]: makeToolHooks(queueEndpoints),
   [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),
   [Tool.calendar]: makeToolHooks(calendarEndpoints, { seedsDetailOnUpdate: true }),

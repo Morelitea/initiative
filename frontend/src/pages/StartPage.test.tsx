@@ -183,7 +183,7 @@ it("links the privacy policy beside the birthdate where the deployment publishes
   await press("Continue");
   await heading("About you");
 
-  expect(screen.getByText("We don't share this with anyone.")).toBeInTheDocument();
+  expect(screen.getByText(/We don't sell your data\./)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
     "href",
     "/legal/privacy"

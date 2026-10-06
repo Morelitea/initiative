@@ -190,7 +190,7 @@ const ToolAudience = ({
 };
 
 /**
- * The tool grid, derived from the registry — projects and documents included.
+ * The tool grid, derived from the registry — projects and files included.
  * They were exempt when everything else hung off them; relationships ended
  * that, so they are cards here like the rest and differ only in starting on.
  *
@@ -218,7 +218,7 @@ export const ToolsSection = ({
     <div className="grid grid-cols-[repeat(auto-fill,minmax(min(13rem,100%),1fr))] gap-3">
       {SIDEBAR_TOOLS.map((tool) => {
         const camel = toolCamelPlural(tool);
-        // Unset means the tool's own default, not off — projects and documents
+        // Unset means the tool's own default, not off — projects and files
         // are in this list now and start on.
         const enabled = values[tool] ?? DEFAULT_ENABLED_TOOLS.has(tool);
         return (

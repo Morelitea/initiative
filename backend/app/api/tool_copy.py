@@ -25,7 +25,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.core.tools import Tool
 from app.db.guild_standing import ActorContext
 from app.db.session import require_actor_context
@@ -51,7 +51,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendar_occurrences as occurrences_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import file_versions
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people, project_grants
@@ -82,7 +82,7 @@ class ToolCopier:
     #: The refusal when the target initiative already has one of this name;
     #: ``None`` where names may repeat.
     name_taken: Optional[str] = None
-    #: Whether a name may carry the reserved sigils, as a document's may: it
+    #: Whether a name may carry the reserved sigils, as a file's may: it
     #: starts life as a filename.
     name_takes_sigils: bool = False
     #: async (session, copy_id, user): tell people about the copy, once it is
@@ -255,7 +255,7 @@ async def duplicate(
         )
 
     columns = _carried(model, copier.reset)
-    # Deferred columns (a document's body) are read too.
+    # Deferred columns (a file's body) are read too.
     await session.refresh(source, columns)
     copy = model(
         **{
@@ -486,7 +486,7 @@ async def _wiki_contents(
     session: AsyncSession, source: Wiki, copy: Wiki, actor: ActorContext
 ) -> list[WikiPage]:
     """Its published pages, each under its nearest published ancestor, with
-    the borrowed documents filed the same way, and the home and template pages
+    the borrowed files filed the same way, and the home and template pages
     pointed at their copies. Drafts stay behind."""
     pages = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == source.id))
@@ -508,15 +508,15 @@ async def _wiki_contents(
 
     for page, clone in pairs:
         clone.parent_page_id = placed_under(page.parent_page_id)
-    copy.document_positions = {}
-    for document_id in source.document_positions or {}:
-        wikis_service.file_document(
+    copy.file_positions = {}
+    for file_id in source.file_positions or {}:
+        wikis_service.place_file(
             copy,
-            int(document_id),
+            int(file_id),
             parent_page_id=placed_under(
-                wikis_service.document_parent(source, int(document_id))
+                wikis_service.file_parent(source, int(file_id))
             ),
-            position=wikis_service.document_position(source, int(document_id)),
+            position=wikis_service.file_position(source, int(file_id)),
         )
     copy.home_page_id = clones.get(source.home_page_id)
     copy.template_page_id = clones.get(source.template_page_id)
@@ -624,10 +624,10 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         reset={"is_template": False, "pinned_at": None},
         announce=_announce_project,
     ),
-    Tool.document: ToolCopier(
-        contents=documents_service.copy_contents,
+    Tool.file: ToolCopier(
+        contents=files_service.copy_contents,
         reset={"is_template": False, "yjs_state": None, "yjs_updated_at": None},
-        name_taken=DocumentMessages.NAME_ALREADY_EXISTS,
+        name_taken=FileMessages.NAME_ALREADY_EXISTS,
         name_takes_sigils=True,
     ),
     Tool.counter_group: ToolCopier(

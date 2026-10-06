@@ -19,6 +19,8 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
+from app.services.tenant import plugin_age
+from app.services.tenant.plugin_age import AgeViewer
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
 from app.core.identify import (
@@ -386,6 +388,15 @@ async def get_active_user_exempt_from_factor(
 
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+
+
+async def get_age_viewer(request: Request, current_user: CurrentUser) -> AgeViewer:
+    """The person making the request, as a plug-in's minimum age reads them:
+    their age from the kept date of birth, their country from the request."""
+    return await plugin_age.viewer_for(request, current_user.id)
+
+
+AgeViewerDep = Annotated[AgeViewer, Depends(get_age_viewer)]
 #: For the handful of routes above. Everything else takes ``CurrentUser``.
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
@@ -612,7 +623,7 @@ async def _enforce_guild_api_access(
     a personal API key at all; the grant branch refuses one before this.
 
     Covers every path that resolves its guild through
-    :func:`_load_guild_context`: REST, uploads and document downloads, the
+    :func:`_load_guild_context`: REST, uploads and file downloads, the
     realtime sockets and the keepalive. The cross-guild aggregates, which pick
     their guilds themselves, ask the same question where they do it.
     """
@@ -1576,9 +1587,9 @@ def plugin_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     A route names it the way the type checker reads, as a module-level alias
     or inline::
 
-        DocumentsRead = Annotated[ActorContext, Depends(plugin_scope("documents:read"))]
+        FilesRead = Annotated[ActorContext, Depends(plugin_scope("files:read"))]
 
-        async def list_documents(actor: DocumentsRead, session: ActorSessionDep): ...
+        async def list_files(actor: FilesRead, session: ActorSessionDep): ...
     """
     parse_scope(scope)
 
@@ -2033,7 +2044,7 @@ async def _resolve_upload_user(
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
-    """Auth dependency for /uploads/* and authenticated document downloads.
+    """Auth dependency for /uploads/* and authenticated file downloads.
 
     Two trust tiers, by where the credential arrives:
 
