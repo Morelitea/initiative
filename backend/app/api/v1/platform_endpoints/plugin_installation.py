@@ -42,9 +42,10 @@ from app.api.deps import (
     SystemSessionDep,
 )
 from app.core import audit_context
+from app.core.body_limit import max_body
 from app.core.plugin_access_token import InstallAccessToken
 from app.core.identify import bearer_plugin_token
-from app.core.messages import AuthMessages
+from app.core.messages import AuthMessages, PluginChannelMessages
 from app.db.session import clear_rls_context
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.tenant.plugin_channel import (
@@ -64,6 +65,13 @@ from app.services.tenant.plugin_channels import PluginChannelError
 # Not part of the OpenAPI document: only plug-in containers call these, never the
 # SPA, so the generated frontend client carries none of them.
 router = APIRouter(prefix="/installation", include_in_schema=False)
+
+#: The most one installation call may carry. Every write here is a
+#: configuration report or an event, none larger than an event: its payload
+#: and its envelope. The handler's exact cap still applies after.
+MAX_REQUEST_BYTES = channels_service.MAX_EVENT_PAYLOAD_BYTES + 8 * 1024
+
+_bounded = max_body(lambda: MAX_REQUEST_BYTES, PluginChannelMessages.EVENT_TOO_LARGE)
 
 
 def _refuse() -> HTTPException:
@@ -198,6 +206,7 @@ async def list_installation_connections(
 @router.post(
     "/connections/{connection_ref}/token", response_model=PluginConnectionToken
 )
+@_bounded
 async def read_installation_connection_token(
     connection_ref: str,
     installation: InstallationDep,
@@ -225,6 +234,7 @@ async def read_installation_connection_token(
 
 
 @router.post("/config-status", response_model=PluginStatusRead)
+@_bounded
 async def report_installation_config_status(
     payload: PluginStatusReport,
     installation: InstallationDep,
@@ -247,6 +257,7 @@ async def report_installation_config_status(
 
 
 @router.post("/events", status_code=status.HTTP_202_ACCEPTED)
+@_bounded
 async def ingest_installation_event(
     payload: PluginInstallationEvent,
     installation: InstallationDep,

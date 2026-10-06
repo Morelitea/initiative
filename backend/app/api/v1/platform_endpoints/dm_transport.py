@@ -16,7 +16,6 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
-    Header,
     HTTPException,
     Path,
     Request,
@@ -25,6 +24,7 @@ from fastapi import (
 )
 
 from app.api.deps import UserSessionDep, CurrentUser
+from app.core import audit_context
 from app.core.auth_context import session_credential
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.rate_limit import limiter
@@ -101,7 +101,6 @@ async def register_device(
     body: DmDeviceRegistration,
     session: UserSessionDep,
     current_user: CurrentUser,
-    user_agent: Annotated[str | None, Header()] = None,
 ) -> DmDevicesResponse:
     """Publish this installed client's public keys.
 
@@ -117,7 +116,7 @@ async def register_device(
             signature=body.signature,
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
-            label=(user_agent or "")[:200] or None,
+            label=(audit_context.client_user_agent() or "")[:200] or None,
             session_id=_session_id(),
         )
     except service.DmTransportError as exc:

@@ -133,7 +133,6 @@ async def test_a_step_up_keeps_how_long_the_person_has_been_signed_in(
             "path": "/",
             "query_string": b"",
             "headers": [],
-            "client": ("203.0.113.5", 1234),
         }
     )
 

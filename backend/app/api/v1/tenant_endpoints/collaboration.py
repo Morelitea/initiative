@@ -32,6 +32,7 @@ from app.api.deps import (
     raise_for_guild_access,
 )
 from app.core.messages import FileMessages
+from app.core.body_limit import max_document_body
 from app.models.platform.user import User
 from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -378,6 +379,7 @@ def _mount(spec: CollaborativeResource) -> None:
     ):
         await _collaborate(websocket, guild_id, spec, resource_id)
 
+    @max_document_body
     async def hand_over(
         guild_id: CommunityIdPath,
         resource_id: resource_id_param,

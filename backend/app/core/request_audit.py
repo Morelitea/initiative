@@ -1,6 +1,6 @@
 """Naming each request, measuring it, and recording the privileged ones.
 
-Three jobs, all at the outermost seam so they see every request and its whole
+Four jobs, all at the outermost seam so they see every request and its whole
 life:
 
 * **Every request gets an id.** It goes on the response as ``X-Request-Id``
@@ -12,6 +12,9 @@ life:
 * **Every request is timed and counted** for ``/api/v1/metrics``, by the
   route it matched (the template, not the path typed) and the status it got;
   every open socket is counted while it is open. See :mod:`app.core.metrics`.
+* **Where it came from is read once.** The peer address and the user agent
+  go into the request's context, which is where everything else reads them
+  (:func:`app.core.audit_context.client_ip`).
 * **A request served through a grant is written down.** The guild-access gate
   records the grant on the request's context; when the response is finished
   this writes one ``pam.request`` line saying which grant, which route, and
@@ -29,34 +32,35 @@ this way it costs no extra task and streams pass straight through.
 
 from __future__ import annotations
 
+import ipaddress
+import logging
 import time
 from typing import Any, Awaitable, Callable
 
-from starlette.datastructures import MutableHeaders
+from starlette.datastructures import Headers, MutableHeaders
 
 from app.core import audit_context, metrics
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.services import audit as audit_service
 
+logger = logging.getLogger(__name__)
+
 #: The header a request is named by, in and out.
 REQUEST_ID_HEADER = "x-request-id"
+
+#: How often the configuration hint below repeats. It describes a setting, so
+#: it is worth saying while the setting is still that way, and worth saying no
+#: more often than somebody would act on it.
+_FORWARDED_HINT_INTERVAL_SECONDS = 3600
+_forwarded_hint_at: float | None = None
 
 Scope = dict[str, Any]
 Receive = Callable[[], Awaitable[dict[str, Any]]]
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
 
-def _header(scope: Scope, name: str) -> str | None:
-    """One header's value from a raw ASGI scope."""
-    wanted = name.encode("latin-1")
-    for key, value in scope.get("headers", ()):
-        if key == wanted:
-            return value.decode("latin-1", "replace")
-    return None
-
-
-def _incoming_request_id(scope: Scope) -> str | None:
+def _incoming_request_id(headers: Headers) -> str | None:
     """The id this request arrived with, where one is taken.
 
     Only read when the deployment says something it trusts sits in front of
@@ -66,7 +70,53 @@ def _incoming_request_id(scope: Scope) -> str | None:
     """
     if not settings.BEHIND_PROXY:
         return None
-    return audit_context.clean_request_id(_header(scope, REQUEST_ID_HEADER))
+    return audit_context.clean_request_id(headers.get(REQUEST_ID_HEADER))
+
+
+def _is_local_network_peer(address: str) -> bool:
+    """Whether the request arrived from this deployment's own network — a
+    container network, a private LAN, the host itself."""
+    parsed = ipaddress.ip_address(address)
+    return parsed.is_private or parsed.is_loopback or parsed.is_link_local
+
+
+def _note_ignored_forwarded_header(headers: Headers, resolved: str | None) -> None:
+    """Note, occasionally, that ``X-Forwarded-For`` is arriving and not being
+    read.
+
+    Uvicorn reads that header only from a peer named in
+    ``--forwarded-allow-ips`` (``127.0.0.1`` unless told otherwise, which is
+    what ``BEHIND_PROXY=true`` does), so a proxy anywhere else leaves every
+    visitor resolving to the proxy's address rather than their own. Nothing
+    else reports that, so this does. It is a hint about configuration: the
+    header decides nothing here, and this changes no behaviour.
+    """
+    global _forwarded_hint_at
+    if resolved is None:
+        return
+    now = time.monotonic()
+    if (
+        _forwarded_hint_at is not None
+        and now - _forwarded_hint_at < _FORWARDED_HINT_INTERVAL_SECONDS
+    ):
+        return
+    forwarded = headers.get("x-forwarded-for")
+    if not forwarded:
+        return
+    # A hop that was read leaves the resolved address somewhere in the chain the
+    # header names; one that was not leaves the peer itself, which is not.
+    if resolved in {hop.strip() for hop in forwarded.split(",")}:
+        return
+    if not _is_local_network_peer(resolved):
+        return
+    _forwarded_hint_at = now
+    logger.warning(
+        "Requests carry X-Forwarded-For but this peer is not configured as a "
+        "trusted proxy, so every client resolves to %s. Set BEHIND_PROXY=true "
+        "(and FORWARDED_ALLOW_IPS to the proxy's address) so rate limits and "
+        "recorded sign-in addresses are per-visitor.",
+        resolved,
+    )
 
 
 def _reached_ids(scope: Scope) -> dict[str, int]:
@@ -103,11 +153,13 @@ class RequestAuditMiddleware:
             await self.app(scope, receive, send)
             return
 
+        headers = Headers(scope=scope)
         context, token = audit_context.begin(
-            request_id=_incoming_request_id(scope) or audit_context.new_request_id(),
+            request_id=_incoming_request_id(headers) or audit_context.new_request_id(),
             source_ip=(scope.get("client") or (None,))[0],
-            user_agent=_header(scope, "user-agent"),
+            user_agent=headers.get("user-agent"),
         )
+        _note_ignored_forwarded_header(headers, context.source_ip)
         if kind == "websocket":
             # Named and carrying its grant for as long as it is open; what it
             # does with that is recorded by the socket itself, since there is

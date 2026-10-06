@@ -47,7 +47,8 @@ from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
-from app.core.rate_limit import MAIL_SENDS, get_real_client_ip, limiter
+from app.core import audit_context
+from app.core.rate_limit import MAIL_SENDS, limiter
 from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
@@ -164,7 +165,7 @@ async def send_sign_in_code(
     """
     await require_login_method(session, LoginMethod.email_otp)
     await captcha_service.verify_or_raise(
-        payload.captcha_token, remote_ip=get_real_client_ip(request)
+        payload.captcha_token, remote_ip=audit_context.client_ip()
     )
     if not await email_service.email_configured(system_session):
         raise HTTPException(

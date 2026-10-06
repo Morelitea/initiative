@@ -1,8 +1,9 @@
 """ASGI body-size enforcement for every HTTP request.
 
-A route named in ``_RULES`` gets its own bound; every other request gets
-:data:`DEFAULT_MAX_REQUEST_BYTES`, or :data:`MULTIPART_MAX_REQUEST_BYTES` when
-it is a multipart upload.
+A route marked with :func:`max_body` gets its own bound; every other request
+gets :data:`DEFAULT_MAX_REQUEST_BYTES`, or :data:`MULTIPART_MAX_REQUEST_BYTES`
+when it is a multipart upload. The route is the one the router will run
+(:mod:`app.core.routing`), so the bound follows the route as it is declared.
 
 A handler-level ``Content-Length`` check is too late: FastAPI resolves the
 request body (and parses JSON) before any handler code runs, and a chunked
@@ -12,118 +13,70 @@ a byte is read, and a chunked/lying stream is cut off the moment it exceeds
 the limit, so no more than ``limit`` bytes are ever buffered.
 
 Pure ASGI (not ``BaseHTTPMiddleware``): it must wrap ``receive`` itself.
-Limits are resolved per request from ``settings`` so test-time monkeypatches
-apply.
+Limits are read per request, so test-time monkeypatches apply.
 """
 
 from __future__ import annotations
 
 import json
-import re
-from typing import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, TypeVar
+
+from starlette.datastructures import Headers
 
 from app.core.messages import CommonMessages
-from app.core.tools import Tool
-from app.services.import_engine import limits as import_limits
-from app.services.tenant.collaborative_resources import registered_types, resource_for
+from app.core.routing import route_endpoint
 
-#: The most a request no rule names may carry. The largest ordinary body is a
-#: calendar import — two million characters of iCalendar text in JSON — and
+#: The most a request no route bounds may carry. The largest ordinary body is
+#: a calendar import — two million characters of iCalendar text in JSON — and
 #: this leaves it room to spare.
 DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
-#: The most a multipart upload no rule names may carry: the largest file any
-#: upload route takes (an uploaded file, 50 MiB) plus 1 MiB for framing. The
-#: handler's bounded read still enforces each route's own cap exactly.
-MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + 1_048_576
+#: Room a multipart body leaves for its framing around the file a route caps.
+#: The handler's bounded read still enforces that cap exactly.
+MULTIPART_SLACK_BYTES = 1_048_576
+
+#: The most a multipart upload no route bounds may carry: the largest file any
+#: upload route takes (an uploaded file, 50 MiB) and its framing.
+MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + MULTIPART_SLACK_BYTES
 
 #: The most a file's content may carry. A whiteboard keeps its pictures
 #: inline in the scene, so a board is far larger than any other JSON body.
 DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
 
-#: The most an installed plug-in's installation call may carry. Sized for the
-#: largest route on that surface — events — plus its envelope, and kept here
-#: rather than imported from the router so this module stays free of app-layer
-#: imports.
-PLUGIN_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
+_ATTRIBUTE = "max_request_body"
 
-#: The most one vendor webhook delivery may carry.
-PLUGIN_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
+Endpoint = TypeVar("Endpoint", bound=Callable[..., Any])
 
-#: The most an Atlassian request may carry. A connect is a site URL, an
-#: account's address and an API token; a start is a credential id, an
-#: initiative and at most 200 short project keys. Generous for either and
-#: still far too small to be worth anybody's while as a buffer.
-ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
 
-#: The route segments of every body several people can edit at once.
-_COLLABORATIVE = "|".join(
-    resource_for(kind).route_segment for kind in registered_types()
-)
+@dataclass(frozen=True)
+class BodyBound:
+    """A route's own body bound: its limit, read when a request arrives, and
+    the code a body past it is refused with."""
 
-# (path pattern, limit getter, machine-readable error code). Getters read
-# settings lazily — the limit is a property of request time, not boot time.
-_RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
-    (
-        re.compile(r"^/api/v1/c/\d+/imports/envelope$"),
-        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
-        "IMPORT_TOO_LARGE",
-    ),
-    (
-        # A foreign export travels as its own text in a JSON body — the same
-        # order of size as an envelope, and bounded the same way.
-        re.compile(r"^/api/v1/c/\d+/imports/foreign/[^/]+(/preview)?$"),
-        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
-        "IMPORT_TOO_LARGE",
-    ),
-    (
-        # A backup, a Confluence space's HTML export, or one tool's export
-        # zipped with its files. Multipart adds
-        # framing overhead around the zip; allow 1 MiB slack over the cap the
-        # handler's bounded read enforces exactly.
-        re.compile(
-            r"^/api/v1/c/\d+/imports/(backup|atlassian/export|envelope/archive)$"
-        ),
-        lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
-        "IMPORT_TOO_LARGE",
-    ),
-    (
-        # The Atlassian bodies are a handful of short strings. They have no
-        # business arriving as a megabyte, and both routes reach outward on
-        # what they are given, so the transport refuses an oversized one
-        # before a handler ever looks at it.
-        re.compile(r"^/api/v1/c/\d+/imports/atlassian/(connect|import)$"),
-        lambda: ATLASSIAN_MAX_REQUEST_BYTES,
-        "IMPORT_TOO_LARGE",
-    ),
-    (
-        # An installed plug-in's installation calls are configuration writes and
-        # events, none larger than an event. The transport refuses a body past
-        # that first, and the handler's exact cap still applies after.
-        re.compile(r"^/api/v1/plugin-platform/installation(/|$)"),
-        lambda: PLUGIN_INSTALLATION_MAX_REQUEST_BYTES,
-        "PLUGIN_CHANNEL_EVENT_TOO_LARGE",
-    ),
-    (
-        re.compile(r"^/api/v1/plugin-hooks/[^/]+$"),
-        lambda: PLUGIN_HOOK_MAX_REQUEST_BYTES,
-        CommonMessages.REQUEST_TOO_LARGE,
-    ),
-    (
-        # The routes that write a file's content: create, update, a wiki
-        # page, and the edits a closing tab hands over to a room.
-        re.compile(
-            r"^/api/v1/c/\d+/("
-            rf"{Tool.file.route_segment}"
-            rf"|{Tool.wiki.route_segment}/\d+/pages"
-            rf"|({_COLLABORATIVE})/\d+"
-            rf"|collaboration/({_COLLABORATIVE})/\d+/collaborate"
-            r")/?$"
-        ),
-        lambda: DOCUMENT_MAX_REQUEST_BYTES,
-        CommonMessages.REQUEST_TOO_LARGE,
-    ),
-)
+    limit: Callable[[], int]
+    code: str
+
+
+def max_body(
+    limit: Callable[[], int], code: str = CommonMessages.REQUEST_TOO_LARGE
+) -> Callable[[Endpoint], Endpoint]:
+    """Give the decorated endpoint its own body bound in place of the default.
+
+    ``limit`` is called per request, so the bound is whatever the setting it
+    reads holds at that moment. Applied beneath the route decorator.
+    """
+
+    def mark(endpoint: Endpoint) -> Endpoint:
+        setattr(endpoint, _ATTRIBUTE, BodyBound(limit=limit, code=code))
+        return endpoint
+
+    return mark
+
+
+#: The bound of every route that writes a file's content: create, update, a
+#: wiki page, and the edits a closing tab hands over to a room.
+max_document_body = max_body(lambda: DOCUMENT_MAX_REQUEST_BYTES)
 
 
 class _BodyTooLarge(Exception):
@@ -138,11 +91,12 @@ class BodySizeLimitMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        limit, code = _bound_for(scope)
+        headers = Headers(scope=scope)
+        limit, code = _bound_for(scope, headers)
 
         # Fast path: an honest Content-Length is rejected before ANY body
         # bytes are read.
-        declared = _content_length(scope)
+        declared = _content_length(headers)
         if declared is not None and declared > limit:
             await _send_413(send, code)
             return
@@ -191,33 +145,22 @@ class BodySizeLimitMiddleware:
                 await _send_413(send, code)
 
 
-def _bound_for(scope) -> tuple[int, str]:
-    """The limit and error code for this request: its route's rule if one
-    names it, otherwise the default for its kind of body."""
-    path = scope.get("path", "")
-    for pattern, limit_getter, code in _RULES:
-        if pattern.match(path):
-            return limit_getter(), code
-    if _header(scope, b"content-type").startswith(b"multipart/"):
+def _bound_for(scope, headers: Headers) -> tuple[int, str]:
+    """The limit and error code for this request: its route's own bound if
+    it declares one, otherwise the default for its kind of body."""
+    bound = getattr(route_endpoint(scope), _ATTRIBUTE, None)
+    if isinstance(bound, BodyBound):
+        return bound.limit(), bound.code
+    if headers.get("content-type", "").lower().startswith("multipart/"):
         return MULTIPART_MAX_REQUEST_BYTES, CommonMessages.REQUEST_TOO_LARGE
     return DEFAULT_MAX_REQUEST_BYTES, CommonMessages.REQUEST_TOO_LARGE
 
 
-def _header(scope, name: bytes) -> bytes:
-    for key, value in scope.get("headers", []):
-        if key == name:
-            return value.lower()
-    return b""
-
-
-def _content_length(scope) -> int | None:
-    for name, value in scope.get("headers", []):
-        if name == b"content-length":
-            try:
-                return int(value)
-            except ValueError:
-                return None
-    return None
+def _content_length(headers: Headers) -> int | None:
+    try:
+        return int(headers["content-length"])
+    except (KeyError, ValueError):
+        return None
 
 
 async def _send_413(send: Callable[..., Awaitable[None]], code: str) -> None:
