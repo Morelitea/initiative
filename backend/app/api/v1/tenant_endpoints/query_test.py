@@ -28,7 +28,7 @@ async def test_a_member_can_run_a_query(client, acting_user):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["columns"] == [{"name": "n", "type": "number"}]
+    assert body["columns"] == [{"name": "n", "type": "number", "grain": None}]
     assert body["truncated"] is False
 
 
@@ -41,8 +41,8 @@ async def test_the_rows_come_back_positionally(client, acting_user):
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "a", "type": "number"},
-        {"name": "b", "type": "number"},
+        {"name": "a", "type": "number", "grain": None},
+        {"name": "b", "type": "number", "grain": None},
     ]
 
 
@@ -90,10 +90,10 @@ async def test_describing_a_statement_names_its_columns_and_types(client, acting
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "name", "type": "text"},
-        {"name": "created_at", "type": "date"},
-        {"name": "archived_at", "type": "date"},
-        {"name": "id", "type": "number"},
+        {"name": "name", "type": "text", "grain": None},
+        {"name": "created_at", "type": "date", "grain": None},
+        {"name": "archived_at", "type": "date", "grain": None},
+        {"name": "id", "type": "number", "grain": None},
     ]
 
 
@@ -108,7 +108,9 @@ async def test_a_closed_vocabulary_describes_as_one(client, acting_user):
         headers=actor.headers,
     )
     assert response.status_code == 200
-    assert response.json()["columns"] == [{"name": "priority", "type": "enum"}]
+    assert response.json()["columns"] == [
+        {"name": "priority", "type": "enum", "grain": None}
+    ]
 
 
 async def test_a_field_that_names_a_row_describes_as_a_reference(client, acting_user):
@@ -122,8 +124,8 @@ async def test_a_field_that_names_a_row_describes_as_a_reference(client, acting_
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "project_id", "type": "reference"},
-        {"name": "title", "type": "text"},
+        {"name": "project_id", "type": "reference", "grain": None},
+        {"name": "title", "type": "text", "grain": None},
     ]
 
 
@@ -143,7 +145,9 @@ async def test_describing_runs_nothing(client, session, acting_user):
         headers=actor.headers,
     )
     assert described.status_code == 200
-    assert described.json()["columns"] == [{"name": "n", "type": "number"}]
+    assert described.json()["columns"] == [
+        {"name": "n", "type": "number", "grain": None}
+    ]
     assert ran.status_code == 400
 
 
@@ -214,8 +218,8 @@ async def test_a_built_query_answers_with_its_sql_and_its_shape(client, acting_u
     body = response.json()
     assert body["sql"].startswith("SELECT priority, count(*) AS tasks FROM tasks")
     assert body["columns"] == [
-        {"name": "priority", "type": "enum"},
-        {"name": "tasks", "type": "number"},
+        {"name": "priority", "type": "enum", "grain": None},
+        {"name": "tasks", "type": "number", "grain": None},
     ]
     assert body["relations"] == ["tasks"]
 
@@ -500,8 +504,8 @@ class TestGroupingByPerson:
         assert response.status_code == 200, response.json()
         body = response.json()
         assert body["columns"] == [
-            {"name": "person", "type": "text"},
-            {"name": "tasks", "type": "number"},
+            {"name": "person", "type": "text", "grain": None},
+            {"name": "tasks", "type": "number", "grain": None},
         ]
         # The unassigned task is not somebody's work, so it is not a row here.
         assert body["rows"] == [[body["rows"][0][0], 2]]

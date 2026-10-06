@@ -49,6 +49,7 @@ const community: DirectoryCommunityRead = {
   name: "Riverside Players",
   description: "Community theatre.",
   icon_url: null,
+  location: null,
   banner: buildBanner(),
   categories: ["art"],
   member_count: 12,

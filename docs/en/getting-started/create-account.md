@@ -40,7 +40,7 @@ Each path asks one or two things — a name for your space, what you're into, wh
 - **Your timezone.** Guessed from your browser, and usually right.
 - **Your date of birth**, on servers that ask for one. Communities anyone can find and join are for people 16 and over, so it's required if you picked **Join a community** and optional otherwise. It's only used to check your age, and it isn't shared with anyone.
 
-Picked **Join a community**? Choose as many interests as you like, and the directory opens on all of them.
+Picked **Join a community**? Say where you are, if you like, and the communities near you come first. Nobody else sees it, and nothing far away is hidden. Then choose as many interests as you like, and the directory opens on all of them.
 
 ## Step 4: Create your account
 

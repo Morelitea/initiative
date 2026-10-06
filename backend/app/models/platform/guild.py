@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 import json
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -271,6 +271,12 @@ class Guild(SQLModel, table=True):
             nullable=False,
             server_default=json.dumps(DEFAULT_BANNER),
         ),
+    )
+    # Where the community is (see ``GuildLocation`` in the guild schemas for the
+    # parts), or NULL for one that has not said — the default, and the answer
+    # for most guilds. One value, replaced whole, like the banner.
+    location: Optional[dict[str, Any]] = Field(
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

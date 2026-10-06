@@ -435,7 +435,7 @@ async def test_the_app_signing_up_keeps_its_session(
     await _permit(session)
     _catch_codes(monkeypatch)
     caught = _catch_sign_ups(monkeypatch)
-    app = {"Origin": "https://com.morelitea.initiative"}
+    app = {"Origin": "https://studio.beyonders.initiative"}
     ticket = await _sign_up_to_ticket(
         client, caught, "app-arrival@example.com", headers=app
     )

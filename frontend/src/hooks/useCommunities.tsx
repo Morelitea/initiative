@@ -111,6 +111,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Co
   name: grant.community_name ?? `Community #${grant.community_id}`,
   description: null,
   icon_url: null,
+  location: null,
   // A blank banner until the community's own payload arrives with the real one.
   banner: renderableBanner(),
   banner_card_url: null,

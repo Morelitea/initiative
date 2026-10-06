@@ -568,5 +568,42 @@
     "failed": "No se pudieron cargar los miembros de esta comunidad.",
     "searchPlaceholder": "Filtrar miembros"
   },
-  "unreadHere": "Actividad sin leer"
+  "unreadHere": "Actividad sin leer",
+  "location": {
+    "ariaLabel": "Ubicación: {{location}}",
+    "openMap": "Abrir en el mapa",
+    "title": "Ubicación",
+    "description": "Opcional. Indica dónde está tu comunidad, de forma tan general o exacta como quieras. Basta con un país. Aparece en la portada de tu comunidad y en su tarjeta.",
+    "loading": "Cargando…",
+    "noMatches": "No hay coincidencias.",
+    "countryLabel": "País",
+    "countryPlaceholder": "Elige un país",
+    "regionLabel": "Estado, provincia o región",
+    "regionNone": "Sin especificar",
+    "cityLabel": "Ciudad o localidad",
+    "cityPlaceholder": "Sin especificar",
+    "citySearch": "Busca o escribe un lugar…",
+    "cityEmpty": "No hay sugerencias. Escribe el nombre.",
+    "cityTyped": "Usar «{{value}}»",
+    "addressLabel": "Dirección",
+    "postalLabel": "Código postal",
+    "addressHint": "Opcional. Solo se muestra cuando alguien abre los detalles de la ubicación, nunca en la tarjeta.",
+    "labelLabel": "Nombre del lugar",
+    "labelPlaceholder": "Queen Anne Neighborhood",
+    "labelHint": "Se muestra antes del lugar, como «Queen Anne Neighborhood, Seattle, WA». Que sea breve: las tarjetas le dan una sola línea.",
+    "preview": "Cómo se verá",
+    "listedNote": "Tu comunidad figura en el directorio, así que cualquiera que lo explore puede ver esto, incluidos los detalles de la dirección.",
+    "save": "Guardar ubicación",
+    "saved": "Ubicación guardada.",
+    "remove": "Quitar ubicación",
+    "removed": "Ubicación quitada.",
+    "near": {
+      "label": "Cerca de {{place}}",
+      "add": "Cerca de mí",
+      "title": "¿Dónde estás?",
+      "hint": "Las comunidades cercanas van primero. No se oculta nada y se guarda en este dispositivo para la próxima vez.",
+      "apply": "Mostrar primero las cercanas",
+      "clear": "Dejar de ordenar por ubicación"
+    }
+  }
 }

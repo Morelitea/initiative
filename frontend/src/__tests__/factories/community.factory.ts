@@ -49,6 +49,7 @@ export function buildCommunity(overrides: Partial<CommunityRead> = {}): Communit
     name: `Community ${counter}`,
     description: `Description for community ${counter}`,
     icon_url: null,
+    location: null,
     banner_card_url: null,
     banner: buildBanner(),
     online_count: 0,

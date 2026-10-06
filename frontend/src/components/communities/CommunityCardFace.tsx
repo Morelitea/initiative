@@ -1,6 +1,6 @@
 /**
- * The face of a community card: its banner, avatar, name, who is there, what it
- * says about itself and its shelves. The community directory and the community
+ * The face of a community card: its banner, avatar, name, who is there, where
+ * it is if it said, what it says about itself and its shelves. The community directory and the community
  * rail's expanded view both show a community this way; what a card offers below
  * that (join, open, nothing at all) is the caller's.
  *
@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityLocationLine } from "@/components/communities/CommunityLocationLine";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { renderableBanner } from "@/lib/banner";
@@ -24,18 +25,24 @@ export const CommunityCardFace = ({
   avatar,
   aside,
   meta,
+  locationDetails = true,
   className,
   children,
 }: {
   community: Pick<
     CommunityRead,
-    "name" | "description" | "categories" | "member_count" | "online_count" | "banner"
+    "name" | "description" | "categories" | "member_count" | "online_count" | "banner" | "location"
   >;
   avatar: ReactNode;
   /** Sits at the end of the name line. */
   aside?: ReactNode;
   /** A further line under who is there. */
   meta?: ReactNode;
+  /**
+   * Whether the location row opens its details. Off for a card that is itself
+   * one button, where it is a plain line instead.
+   */
+  locationDetails?: boolean;
   className?: string;
   children?: ReactNode;
 }) => {
@@ -90,6 +97,15 @@ export const CommunityCardFace = ({
                 {t("communities:memberCount", { count: community.member_count })}
               </span>
             </p>
+            {/* Where it is, on a line of its own: the short reading, with
+                anything finer behind a hover or a tap. */}
+            {community.location ? (
+              <CommunityLocationLine
+                location={community.location}
+                interactive={locationDetails}
+                className="mt-0.5 text-muted-foreground"
+              />
+            ) : null}
             {meta}
           </div>
         </div>

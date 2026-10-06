@@ -1,4 +1,4 @@
-package com.morelitea.initiative;
+package studio.beyonders.initiative;
 
 import android.content.Context;
 import android.content.SharedPreferences;

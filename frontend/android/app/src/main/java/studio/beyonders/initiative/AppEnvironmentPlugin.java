@@ -1,4 +1,4 @@
-package com.morelitea.initiative;
+package studio.beyonders.initiative;
 
 import android.content.pm.PackageManager;
 import android.os.Build;

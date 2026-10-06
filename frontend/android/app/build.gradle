@@ -42,10 +42,10 @@ def appIdSuffix = findProperty('initiativeAppIdSuffix')?.toString()?.trim() ?: '
 def appLabel = findProperty('initiativeAppLabel')?.toString()?.trim() ?: 'Initiative'
 
 android {
-    namespace = "com.morelitea.initiative"
+    namespace = "studio.beyonders.initiative"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.morelitea.initiative" + appIdSuffix
+        applicationId "studio.beyonders.initiative" + appIdSuffix
         // Plain-HTTP servers only in a debug build, for testing against a server on the LAN.
         manifestPlaceholders = [appLabel: appLabel, usesCleartextTraffic: "false"]
         minSdkVersion rootProject.ext.minSdkVersion

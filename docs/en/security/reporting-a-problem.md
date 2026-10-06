@@ -28,7 +28,7 @@ If you've found a genuine security vulnerability in Initiative, please report it
 
 ### How to report
 
-Email **<security@morelitea.com>** with:
+Email **<security@beyonders.studio>** with:
 
 - A description of the vulnerability.
 - Steps to reproduce it.

@@ -56,7 +56,7 @@ async def _sign_in(
     by the origin it presents."""
     headers = {"user-agent": user_agent}
     if device:
-        headers["Origin"] = "https://com.morelitea.initiative"
+        headers["Origin"] = "https://studio.beyonders.initiative"
     return await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": PASSWORD},

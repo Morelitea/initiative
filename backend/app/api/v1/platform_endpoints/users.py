@@ -948,6 +948,7 @@ async def read_user_communities(
                 **guild.banner,
             ),
             categories=[CommunityCategory(value) for value in guild.categories],
+            location=guild.location,
             member_count=members.get(guild.id, 0),
             online_count=online.get(guild.id, 0),
             already_member=guild.id in mine,

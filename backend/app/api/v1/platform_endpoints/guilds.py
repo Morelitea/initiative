@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Annotated, List
 
 from fastapi import (
@@ -245,6 +246,7 @@ def _serialize_guild(
         is_community=guild.is_community,
         categories=[CommunityCategory(value) for value in guild.categories],
         has_adult_content=guild.has_adult_content,
+        location=guild.location,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
         # as a guild without any. The rest of the banner is stored, so it needs
@@ -268,6 +270,7 @@ _GUILD_PROFILE_FIELDS = (
     "is_community",
     "categories",
     "has_adult_content",
+    "location",
 )
 
 
@@ -345,7 +348,16 @@ async def list_directory_communities(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     search: str | None = Query(default=None, max_length=200),
+    # The countries ``search`` names, as ISO codes. Country names are the
+    # reader's language's business, so the client resolves them; a community
+    # in one of these matches the search as if its text had.
+    search_country: list[str] = Query(default=[], max_length=50),
     category: list[CommunityCategory] = Query(default=[]),
+    # Where the reader is, to put the communities nearest them first. Each is
+    # optional below the country; none of them narrows what is listed.
+    near_country: str | None = Query(default=None, pattern=r"^[A-Za-z]{2}$"),
+    near_region: str | None = Query(default=None, max_length=10),
+    near_city: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
 ) -> DirectoryCommunityPage:
@@ -370,7 +382,21 @@ async def list_directory_communities(
             session,
             user_id=current_user.id,
             query=search,
+            query_countries=[
+                code.upper()
+                for code in search_country
+                if re.fullmatch(r"[A-Za-z]{2}", code)
+            ],
             categories=[c.value for c in category],
+            near=(
+                guilds_service.NearPlace(
+                    country=near_country.upper(),
+                    region_code=(near_region or "").strip().upper() or None,
+                    city=(near_city or "").strip() or None,
+                )
+                if near_country
+                else None
+            ),
             page=page,
             page_size=page_size,
         )
@@ -401,6 +427,7 @@ async def list_directory_communities(
                         **guild.banner,
                     ),
                     categories=[CommunityCategory(value) for value in guild.categories],
+                    location=guild.location,
                     member_count=member_count,
                     online_count=online.get(guild.id, 0),
                     already_member=already_member,
@@ -706,6 +733,7 @@ async def update_community(
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_provided = "banner" in updates.model_fields_set
+    location_provided = "location" in updates.model_fields_set
     # The state this PATCH is measured against. Read before the write, since the
     # service edits the row in place.
     before_profile = audit_service.snapshot(
@@ -736,6 +764,10 @@ async def update_community(
             has_adult_content_provided=has_adult_content_provided,
             banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
             banner_provided=banner_provided,
+            location=(
+                updates.location.model_dump(mode="json") if updates.location else None
+            ),
+            location_provided=location_provided,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         # No directory on this deployment, so there is nothing to list in.

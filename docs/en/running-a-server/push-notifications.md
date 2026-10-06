@@ -40,7 +40,7 @@ Only if you'd rather Android pushes went straight through your own Firebase proj
 ### 2. Register an Android app
 
 1. In the Firebase console, add an **Android** app.
-2. Use the package name **`com.morelitea.initiative`** (it must match exactly).
+2. Use the package name **`studio.beyonders.initiative`** (it must match exactly).
 3. Register the app and download the generated `google-services.json` — you'll read a few values out of it, not commit it.
 
 ### 3. Generate a service-account key

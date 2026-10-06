@@ -62,6 +62,55 @@ class CommunityBannerWrite(SanitizedBaseModel):
     fade: BannerFade
 
 
+class CommunityLocation(SanitizedBaseModel):
+    """Where a community is, as precisely as its admin cares to say.
+
+    The country is the one required part: everything finer is optional, so a
+    community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+    address. The parts are generic rather than one country's address form —
+    ``region`` is whatever the country's first-level division is (a state, a
+    province, a prefecture, a county), and a country without one leaves it out.
+
+    ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+    which lets a card say "Seattle, WA" where the country writes its regions
+    that way. ``label`` is the admin's own name for the place
+    ("Queen Anne Neighborhood"), shown ahead of it.
+
+    The same shape is read and written: the whole location is one value, and a
+    PATCH replaces it.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: ISO 3166-1 alpha-2, upper case.
+    country: str = Field(pattern=r"^[A-Za-z]{2}$")
+    region: Optional[str] = Field(default=None, max_length=100)
+    region_code: Optional[str] = Field(default=None, max_length=10)
+    city: Optional[str] = Field(default=None, max_length=100)
+    #: The street part of an exact address. Shown only on request, never on a
+    #: card's own line.
+    address: Optional[str] = Field(default=None, max_length=200)
+    #: Kept with the address for whoever opens the details; never on a card.
+    postal_code: Optional[str] = Field(default=None, max_length=20)
+    #: The community's own name for the place. Short, because it shares one
+    #: line of a card with the place itself.
+    label: Optional[str] = Field(default=None, max_length=60)
+
+    @field_validator("country", mode="after")
+    @classmethod
+    def _upper_country(cls, value: str) -> str:
+        return value.upper()
+
+    @field_validator(
+        "region", "region_code", "city", "address", "postal_code", "label", mode="after"
+    )
+    @classmethod
+    def _blank_is_absent(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return " ".join(value.split()) or None
+
+
 class CommunityBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
@@ -196,6 +245,9 @@ class CommunityRead(CommunityBase):
     # The guild's banner, at full size. Never absent — every guild has one, so
     # nothing downstream renders a guild that has none.
     banner: CommunityBannerRead = CommunityBannerRead()
+    # Where the community is, or ``None`` for one that has not said. Identity,
+    # like the banner: every member sees it, and a listed community publishes it.
+    location: Optional[CommunityLocation] = None
     # How many of this guild's members have it open right now. A live reading
     # taken from the process answering the request rather than a stored
     # column — the same figure the directory card shows, and the same caveat: a
@@ -314,6 +366,9 @@ class CommunityUpdate(SanitizedBaseModel):
     # explicit null puts it back to the default rather than clearing it, since
     # a banner is never colourless and never without a layout.
     banner: Optional[CommunityBannerWrite] = None
+    # The whole location, replaced. Omit-to-skip; an explicit null clears it,
+    # since having no location is the default rather than a fallback.
+    location: Optional[CommunityLocation] = None
     # The 18+ declaration, and the one field here where null is an ANSWER
     # rather than a skip — it puts the guild back to undeclared. Omitting the
     # field is how you leave it alone, so this is read from
@@ -652,6 +707,8 @@ class DirectoryCommunityRead(SanitizedBaseModel):
     # stay out of the payload and are fetched (and then cached) per card. The
     # rest of it needs no fetch at all.
     banner: CommunityBannerRead = CommunityBannerRead()
+    # Where the community is, if it said. Published like the rest of the card.
+    location: Optional[CommunityLocation] = None
 
 
 class DirectoryCommunityPage(PageMeta):

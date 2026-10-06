@@ -2,13 +2,13 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.morelitea.initiative",
+  appId: "studio.beyonders.initiative",
   appName: "Initiative",
   webDir: "dist",
   server: {
     // Use HTTP scheme to avoid mixed content issues with self-hosted HTTP servers (LOCAL development and LAN testing)
     // androidScheme: "http",
-    hostname: "com.morelitea.initiative",
+    hostname: "studio.beyonders.initiative",
     iosScheme: "https",
   },
   android: {

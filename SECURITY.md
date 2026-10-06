@@ -103,7 +103,7 @@ If you discover a security vulnerability, please report it responsibly. **Do not
 
 ### How to Report
 
-Email **security@morelitea.com** with:
+Email **security@beyonders.studio** with:
 
 - A description of the vulnerability
 - Steps to reproduce

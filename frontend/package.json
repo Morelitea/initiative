@@ -109,6 +109,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "color": "^5.0.3",
+    "country-state-city": "^3.2.1",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "fast-formula-parser": "^1.0.19",
