@@ -1,11 +1,10 @@
-"""The single resource-grant (sharing) schema for projects and documents.
+"""The single resource-grant (sharing) schema for every tool.
 
 Everything is a row in ``resource_grants``, so there is **one** shape:
 ``ResourceGrantSchema``. A resource's sharing state is just a list of them — the
 identical shape both reports the grants (``grants`` on the read models) and
-replaces them (the ``PUT /{id}/grants`` body). Lives in its own module so both
-the ``project`` and ``document`` schemas can import it without a cycle
-(``project`` already imports ``document``).
+replaces them (the ``PUT /{id}/grants`` body). Lives in its own module so every
+tool's schema can import it without a cycle.
 """
 
 from __future__ import annotations

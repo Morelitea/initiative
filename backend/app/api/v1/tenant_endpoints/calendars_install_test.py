@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlmodel import select
 
-from app.core.messages import PluginMessages, CalendarMessages, RelationshipMessages
+from app.core.messages import PluginMessages, CalendarMessages
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar import Calendar
@@ -23,7 +23,6 @@ from app.services.marketplace import plugin_refs
 from app.testing import (
     guild_url,
     create_calendar,
-    create_document,
     create_resource_grant,
     create_calendar_event,
     create_guild_plugin,
@@ -37,7 +36,6 @@ from app.testing.plugin_clients import (
     install_plugin,
     install_headers,
     lift_person_and_guild_ids,
-    share_with_members,
 )
 
 
@@ -257,50 +255,6 @@ async def test_it_shares_nothing_and_makes_no_community_calendar(
     )
     assert community.status_code == 403, community.text
     assert community.json()["detail"] == CalendarMessages.PLUGIN_INITIATIVE_REQUIRED
-
-
-async def test_links_the_documents_open_to_it_in_the_calendars_initiative(
-    client, session, acting_user, role_session
-):
-    """An event it makes links documents by the rules a person's does, asked as
-    the install: one it can read in the calendar's initiative, and not one
-    from an initiative it was never placed in."""
-    scopes = ["calendars:write", "documents:read", "relationships:write"]
-    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
-    guild_id = installed.guild.id
-    await _switch_on(session, installed.placed)
-    headers = install_headers(installed, scopes)
-    calendar = await client.post(
-        guild_url(guild_id, "/calendars/"),
-        headers=headers,
-        json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
-    )
-    assert calendar.status_code == 201, calendar.text
-    document = await create_document(session, installed.placed, installed.seat.user)
-    await share_with_members(session, document, installed.placed.id)
-    elsewhere = await create_document(session, installed.unplaced, installed.seat.user)
-
-    def event_with(document_id: int) -> dict[str, Any]:
-        return {
-            "calendar_id": calendar.json()["id"],
-            "title": "Review",
-            "document_ids": [document_id],
-            **_window(),
-        }
-
-    url = guild_url(guild_id, "/calendar-events/")
-    linked = await client.post(url, headers=headers, json=event_with(document.id))
-    assert linked.status_code == 201, linked.text
-    assert [d["document_id"] for d in linked.json()["documents"]] == [document.id]
-
-    refused = await client.post(url, headers=headers, json=event_with(elsewhere.id))
-    assert refused.status_code == 404, refused.text
-    assert refused.json()["detail"] == RelationshipMessages.ENDPOINT_NOT_FOUND
-
-
-# ---------------------------------------------------------------------------
-# Attendees
-# ---------------------------------------------------------------------------
 
 
 async def test_invites_attendees_by_reference_in_its_own_name(

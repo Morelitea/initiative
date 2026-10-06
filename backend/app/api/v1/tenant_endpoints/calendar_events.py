@@ -1,4 +1,4 @@
-"""Calendar event endpoints — CRUD, attendees, tags, and documents.
+"""Calendar event endpoints — CRUD, attendees and tags.
 
 Events live inside a calendar and carry no grants of their own: read access is
 read on the parent calendar, and every write is write on the parent calendar —
@@ -19,11 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import recurrence
 from app.core.user_input_validators import resolve_zone
-from app.core.relationships import Related, RelationshipType
-from app.core.search import SearchEntityType
-from app.models.tenant.document import Document
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant import relationships
 from sqlmodel import select
 
 from app.api.actor_route import ActorRoute
@@ -48,7 +44,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
-from app.core.messages import PluginMessages, CalendarEventMessages
+from app.core.messages import CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventSummary,
     CalendarEventCreate,
@@ -663,24 +659,6 @@ async def query_guild_calendar_events(
     )
 
 
-async def _event_documents(
-    session: AsyncSession, event: CalendarEvent
-) -> list[Related]:
-    """The documents attached to one event.
-
-    Its own function so every response below goes through one place: the edges
-    moved out of the event's own row, and a fetch scattered across nine handlers
-    is how a page ends up doing nine of them.
-    """
-    return await relationships.related_for(
-        session,
-        relationships.Endpoint(SearchEntityType.calendar_event, event.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        model=Document,
-    )
-
-
 async def _serialized_event(
     session: AsyncSession,
     event: CalendarEvent,
@@ -694,7 +672,6 @@ async def _serialized_event(
         event,
         context=context,
         user_id=user_id,
-        documents=await _event_documents(session, event),
         answers=(
             await occurrences_service.answers_for(session, event.id, occurrence)
             if occurrence is not None
@@ -780,22 +757,6 @@ async def create_calendar_event(
             guild_id=guild_context.guild_id,
             entity_id=event.id,
             tag_ids=event_in.tag_ids,
-        )
-    if event_in.document_ids:
-        if not relationships.records_edges(session):
-            # Attaching a document is a relationship, which an installed plug-in
-            # writes under its relationships scope.
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=PluginMessages.SCOPE_REQUIRED,
-            )
-        await relationships.set_related(
-            session,
-            relationships.Endpoint(SearchEntityType.calendar_event, event.id),
-            relationship_type=RelationshipType.attached,
-            other_kind=SearchEntityType.document,
-            ids=event_in.document_ids,
-            user_id=guild_context.user_id,
         )
 
     invite_ids = [
@@ -970,7 +931,7 @@ async def _apply_update(
         )
         # And the move may not cross the guild/initiative line in either
         # direction: an event carries its attendees, property values and
-        # document links, all of which belong to one side of it.
+        # links, all of which belong to one side of it.
         if (destination.initiative_id is None) != (
             event.calendar.initiative_id is None
         ):

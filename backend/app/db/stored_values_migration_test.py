@@ -1,5 +1,6 @@
 """Migrations 20261003_0445 and 20261003_0448 rename the stored guild values to
-community and back, and 20261005_0457 respells the stored plug-in values. Loaded
+community and back, 20261005_0457 respells the stored plug-in values, and
+20261006_0460 names a notice's document as its entity and back. Loaded
 by path and run on rows an older release would have written, the way
 ``upload_initiative_backfill_test`` runs its revision."""
 
@@ -462,3 +463,77 @@ async def test_view_preferences_say_community_and_back(session) -> None:
     await session.run_sync(run(migration.BACKWARD))
     await session.commit()
     assert await _view_state(session, user.id) == old
+
+
+async def _notice_payloads(session) -> dict:
+    notification = await _scalar(session, text("SELECT data FROM public.notifications"))
+    outbox = (
+        await _sql(session, text("SELECT data, push_data FROM public.notice_outbox"))
+    ).one()
+    return {"line": notification, "queued": (outbox.data, outbox.push_data)}
+
+
+async def test_document_notices_name_their_entity_and_back(session) -> None:
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    reply = {"comment_id": 1, "task_id": None, "document_id": 5, "replier_id": 2}
+    task_mention = {
+        "comment_id": 1,
+        "mentioned_task_id": 7,
+        "context_task_id": None,
+        "context_document_id": 5,
+        "context_entity_type": None,
+        "context_entity_id": None,
+    }
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.comment_reply,
+        data=reply,
+    )
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(
+                user.id,
+                guild.id,
+                NotificationType.mention,
+                task_mention,
+                push_data={"mentioned_task_id": "7", "context_document_id": "5"},
+            )
+        ],
+    )
+    await session.commit()
+    migration = _load("20261006_0460_document_notices_name_their_entity.py")
+    old = await _notice_payloads(session)
+
+    def run(step):
+        return lambda sync_session: migration._unforced(
+            sync_session.connection(), lambda: step(sync_session.connection())
+        )
+
+    await session.run_sync(run(migration._forward))
+    await session.commit()
+    assert await _notice_payloads(session) == {
+        "line": {
+            "comment_id": 1,
+            "task_id": None,
+            "entity_type": "document",
+            "entity_id": 5,
+            "replier_id": 2,
+        },
+        "queued": (
+            {
+                "comment_id": 1,
+                "mentioned_task_id": 7,
+                "context_task_id": None,
+                "context_entity_type": "document",
+                "context_entity_id": 5,
+            },
+            {"mentioned_task_id": "7", "context_entity_id": "5"},
+        ),
+    }
+
+    await session.run_sync(run(migration._backward))
+    await session.commit()
+    assert await _notice_payloads(session) == old

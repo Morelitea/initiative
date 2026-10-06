@@ -61,7 +61,6 @@ const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
     document_type: "native",
     featured_image_url: null,
     is_template: false,
-    projects: [],
     properties: [],
     file_content_type: null,
     original_filename: null,

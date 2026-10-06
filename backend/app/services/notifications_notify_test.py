@@ -177,6 +177,10 @@ async def test_repeated_document_mentions_fold_into_one_line(
     lines = await _mentions(reader.id)
     assert len(lines) == 1
     assert lines[0].data["comment_count"] == 3
+    assert (lines[0].data["entity_type"], lines[0].data["entity_id"]) == (
+        "document",
+        document.id,
+    )
 
 
 async def test_read_notifications_are_kept_thirty_days_and_unread_forever(session):

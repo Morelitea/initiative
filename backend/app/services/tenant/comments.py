@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -119,11 +119,6 @@ _REGISTERED = (
     Wiki,
 )
 
-#: The one tool whose "no such thing" code is its own rather than the generic
-#: comment-target one. A document comment is the oldest surface here and its
-#: refusal is already mapped in every locale under that code.
-_OWN_NOT_FOUND_CODE = frozenset({Tool.document})
-
 # Every Tool is commentable, derived from the enum rather than listed — a new
 # tool carries a comment thread the day its model exists. comments_test asserts
 # this spans the enum, and that the columns here match the model and the RLS
@@ -132,9 +127,7 @@ TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
     tool: CommentTarget(
         tool,
         tool_models()[tool.plural],
-        tool.not_found_code
-        if tool in _OWN_NOT_FOUND_CODE
-        else CommentMessages.TARGET_NOT_FOUND,
+        CommentMessages.TARGET_NOT_FOUND,
         tool.feature_disabled_code,
     )
     for tool in Tool
@@ -273,7 +266,7 @@ class _ParentContext:
         return self.tool.value if self.tool is not None else None
 
 
-def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
+def _single_target(ids: Mapping[str, Optional[int]]) -> tuple[str, int]:
     provided = [(column, value) for column, value in ids.items() if value is not None]
     if len(provided) != 1:
         raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
@@ -708,21 +701,13 @@ async def create_comment(
     author: User | notifications.PluginAuthor,
     guild_id: int,
     content: str,
-    task_id: Optional[int] = None,
-    document_id: Optional[int] = None,
-    project_id: Optional[int] = None,
-    queue_id: Optional[int] = None,
-    counter_group_id: Optional[int] = None,
-    calendar_id: Optional[int] = None,
-    dashboard_id: Optional[int] = None,
-    post_id: Optional[int] = None,
-    gallery_id: Optional[int] = None,
-    wiki_id: Optional[int] = None,
-    wiki_page_id: Optional[int] = None,
+    targets: Mapping[str, Optional[int]],
     parent_comment_id: Optional[int] = None,
     audience: CommentAudience = CommentAudience.members,
 ) -> Comment:
     """Post one comment on one parent, and tell whoever it concerns.
+
+    ``targets`` maps comment-parent columns to ids; exactly one is set.
 
     ``author`` is the person posting, or the installed plug-in posting as itself:
     its comment names no author, and the notices name the plug-in.
@@ -738,21 +723,7 @@ async def create_comment(
         if not parent_comment:
             raise CommentNotFoundError(CommentMessages.PARENT_NOT_FOUND)
 
-    column, entity_id = _single_target(
-        {
-            "task_id": task_id,
-            "wiki_page_id": wiki_page_id,
-            "document_id": document_id,
-            "project_id": project_id,
-            "queue_id": queue_id,
-            "counter_group_id": counter_group_id,
-            "calendar_id": calendar_id,
-            "dashboard_id": dashboard_id,
-            "post_id": post_id,
-            "gallery_id": gallery_id,
-            "wiki_id": wiki_id,
-        }
-    )
+    column, entity_id = _single_target(targets)
     ctx = await _resolved_parent(
         session,
         column=column,
@@ -890,14 +861,10 @@ async def _process_comment_notifications(
         told.update(fresh)
         return fresh
 
-    # The thread's own fields, the way every comment notice has named it: a
-    # task and a document by their columns, any other parent as an entity.
-    where = {
-        "comment_id": comment.id,
-        "task_id": comment.task_id,
-        "document_id": comment.document_id,
-    }
-    if ctx.tool is not None and ctx.tool is not Tool.document:
+    # The thread's own fields: a task by its column, any other parent as an
+    # entity.
+    where = {"comment_id": comment.id, "task_id": comment.task_id}
+    if ctx.tool is not None:
         where |= {"entity_type": ctx.ref_type, "entity_id": ctx.entity_id}
 
     if parent_comment is not None:
@@ -946,7 +913,6 @@ async def _process_comment_notifications(
                 "comment_id": comment.id,
                 "mentioned_task_id": task_id,
                 "context_task_id": comment.task_id,
-                "context_document_id": comment.document_id,
                 "context_entity_type": where.get("entity_type"),
                 "context_entity_id": where.get("entity_id"),
                 "mentioned_by_name": name,
@@ -995,17 +961,7 @@ async def list_comments(
     *,
     user: Optional[User],
     guild_id: int,
-    task_id: Optional[int] = None,
-    document_id: Optional[int] = None,
-    project_id: Optional[int] = None,
-    queue_id: Optional[int] = None,
-    counter_group_id: Optional[int] = None,
-    calendar_id: Optional[int] = None,
-    dashboard_id: Optional[int] = None,
-    post_id: Optional[int] = None,
-    gallery_id: Optional[int] = None,
-    wiki_id: Optional[int] = None,
-    wiki_page_id: Optional[int] = None,
+    targets: Mapping[str, Optional[int]],
     limit: int,
     cursor: Optional[str] = None,
 ) -> tuple[Sequence[Comment], Optional[str]]:
@@ -1015,21 +971,7 @@ async def list_comments(
     with every reply under them, so a conversation is never split across
     pages. The rows come back in the order they were written.
     """
-    column, entity_id = _single_target(
-        {
-            "task_id": task_id,
-            "wiki_page_id": wiki_page_id,
-            "document_id": document_id,
-            "project_id": project_id,
-            "queue_id": queue_id,
-            "counter_group_id": counter_group_id,
-            "calendar_id": calendar_id,
-            "dashboard_id": dashboard_id,
-            "post_id": post_id,
-            "gallery_id": gallery_id,
-            "wiki_id": wiki_id,
-        }
-    )
+    column, entity_id = _single_target(targets)
     ctx = await _resolved_parent(
         session,
         column=column,
@@ -1342,8 +1284,6 @@ async def recent_activity(
             task = tasks_by_id.get(comment.task_id)
             project = projects_by_id.get(task.project_id) if task else None
             fields.update(
-                task_id=task.id if task else None,
-                task_title=task.title if task else None,
                 project_id=project.id if project else None,
                 project_name=project.name if project else None,
                 entity_type="task",
@@ -1385,16 +1325,6 @@ async def recent_activity(
                     entity_name=row.name if row else None,
                     initiative_id=row.initiative_id if row else None,
                 )
-                if tool is Tool.document:
-                    fields.update(
-                        document_id=value,
-                        document_name=row.name if row else None,
-                    )
-                elif tool is Tool.project:
-                    fields.update(
-                        project_id=value,
-                        project_name=row.name if row else None,
-                    )
                 break
         entries.append(RecentActivityEntry(**fields))
     return entries

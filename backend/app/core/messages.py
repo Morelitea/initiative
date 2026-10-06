@@ -459,7 +459,6 @@ class AttachmentMessages:
 
 class DocumentMessages:
     NAME_ALREADY_EXISTS = "DOCUMENT_NAME_ALREADY_EXISTS"
-    TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
     LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
     #: A write named a version of the content that is no longer current.
@@ -528,11 +527,7 @@ class ReactionMessages:
 class RelationshipMessages:
     """One vocabulary for links, whatever two kinds a link is between.
 
-    ``CROSS_INITIATIVE`` is the rule the per-tool attach endpoints stated as
-    ``PROJECT_DOCUMENT_WRONG_INITIATIVE``. It was never about documents or
-    projects — it is that a link made from a picker stays inside one
-    initiative — so it is named for the rule rather than for the first pair of
-    kinds it applied to.
+    ``CROSS_INITIATIVE``: a link made from a picker stays inside one initiative.
     """
 
     BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"

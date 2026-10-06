@@ -135,9 +135,6 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
-      if (typeof data.document_id === "number") {
-        return entityRefRoute("document", data.document_id);
-      }
       return entityRefFromData(data);
     case "post_published":
       if (typeof data.post_id === "number") {
@@ -289,9 +286,7 @@ export const notificationText = (
       }
       return t("notifications.mentionDocument", {
         mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
-        // Notifications stored before the rename still carry `document_title`.
-        documentTitle:
-          data.document_name ?? data.document_title ?? t("notifications.plain.document"),
+        documentTitle: data.entity_name ?? t("notifications.plain.document"),
       });
     case "comment_on_task": {
       const { name, others, count } = commentSummary(data);

@@ -1,7 +1,6 @@
 """Queue endpoints — CRUD, turn management, item management, and DAC permissions.
 
 Initiative-scoped queues for turn/priority tracking (e.g., TTRPG initiative order).
-Follows the document endpoint patterns for RLS, DAC, and initiative permission checks.
 """
 
 from datetime import datetime, timezone
@@ -19,9 +18,8 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.core.relationships import Related, RelationshipType
+from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.tenant.document import Document
 from app.models.tenant.task import Task
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
@@ -64,28 +62,6 @@ from app.services.content_sockets import sockets
 from app.api.content_socket import serve_tool_stream
 
 
-async def _queue_item_attachments(
-    session: AsyncSession, item: QueueItem
-) -> tuple[list[Related], list[Related]]:
-    """The documents and tasks pinned to one queue item."""
-    endpoint = relationships.Endpoint(SearchEntityType.queue_item, item.id)
-    documents = await relationships.related_for(
-        session,
-        endpoint,
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        model=Document,
-    )
-    tasks = await relationships.related_for(
-        session,
-        endpoint,
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.task,
-        model=Task,
-    )
-    return documents, tasks
-
-
 async def _serialized_queue(
     session: AsyncSession, queue: Queue, *, user_id: int | None
 ) -> QueueRead:
@@ -95,19 +71,11 @@ async def _serialized_queue(
     a queue read as a whole and every item came back with none — which is what
     a reader sees when they open a queue rather than one item of it.
 
-    Batched rather than per item: two queries for the documents on the whole
-    page and two for the tasks, however many items the queue holds.
+    Batched rather than per item: two queries for the tasks on the whole page,
+    however many items the queue holds.
     """
     items = getattr(queue, "items", None) or []
     item_ids = [item.id for item in items]
-    documents = await relationships.related_for_many(
-        session,
-        SearchEntityType.queue_item,
-        item_ids,
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        model=Document,
-    )
     tasks = await relationships.related_for_many(
         session,
         SearchEntityType.queue_item,
@@ -116,8 +84,7 @@ async def _serialized_queue(
         other_kind=SearchEntityType.task,
         model=Task,
     )
-    # Counted over every kind, not summed from the two above: an item may be
-    # pinned to any of the fourteen.
+    # Counted over every kind an item may be pinned to.
     counts = await relationships.counts_for_many(
         session,
         SearchEntityType.queue_item,
@@ -128,7 +95,6 @@ async def _serialized_queue(
         queue,
         context=require_actor_context(session),
         user_id=user_id,
-        documents=documents,
         tasks=tasks,
         attachment_counts=counts,
     )
@@ -137,7 +103,13 @@ async def _serialized_queue(
 async def _serialized_queue_item(
     session: AsyncSession, item: QueueItem
 ) -> QueueItemRead:
-    documents, tasks = await _queue_item_attachments(session, item)
+    tasks = await relationships.related_for(
+        session,
+        relationships.Endpoint(SearchEntityType.queue_item, item.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.task,
+        model=Task,
+    )
     counts = await relationships.counts_for_many(
         session,
         SearchEntityType.queue_item,
@@ -146,7 +118,6 @@ async def _serialized_queue_item(
     )
     return serialize_queue_item(
         item,
-        documents=documents,
         tasks=tasks,
         attachment_count=counts.get(item.id, 0),
     )
@@ -384,20 +355,15 @@ async def add_queue_item(
             tag_ids=item_in.tag_ids,
         )
 
-    # Set document and task links if provided
-    for other_kind, ids in (
-        (SearchEntityType.document, item_in.document_ids),
-        (SearchEntityType.task, item_in.task_ids),
-    ):
-        if ids:
-            await relationships.set_related(
-                session,
-                relationships.Endpoint(SearchEntityType.queue_item, item.id),
-                relationship_type=RelationshipType.attached,
-                other_kind=other_kind,
-                ids=ids,
-                user_id=current_user.id,
-            )
+    if item_in.task_ids:
+        await relationships.set_related(
+            session,
+            relationships.Endpoint(SearchEntityType.queue_item, item.id),
+            relationship_type=RelationshipType.attached,
+            other_kind=SearchEntityType.task,
+            ids=item_in.task_ids,
+            user_id=current_user.id,
+        )
 
     await attachments_service.claim_uploads(session, item)
     await properties_service.write_on_create(session, item, item_in.properties)
@@ -669,11 +635,6 @@ async def release_held_item(
     result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_released")
     return result
-
-
-# ---------------------------------------------------------------------------
-# Item Attachments (documents, tasks)
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
