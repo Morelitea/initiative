@@ -27,7 +27,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.wiki import Wiki, WikiPage
@@ -64,7 +64,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 class WikiImporter:
-    envelope_type = "initiative-wiki"
+    envelope_type = tool_envelope_type(Tool.wiki)
     permission = PermissionKey.create_wikis
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -541,7 +541,7 @@ async def _upload_document(
         resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
         session.add(
             tags_service.tag_edge(
-                tags_service.TAG_LINKS["document"], document.id, resolved.id
+                tags_service.TOOL_TAG_LINKS[Tool.document], document.id, resolved.id
             )
         )
     props = PropertyRestore(

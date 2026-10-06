@@ -23,7 +23,9 @@ import re
 from typing import Awaitable, Callable
 
 from app.core.messages import CommonMessages
+from app.core.tools import Tool
 from app.services.import_engine import limits as import_limits
+from app.services.tenant.collaborative_resources import registered_types, resource_for
 
 #: The most a request no rule names may carry. The largest ordinary body is a
 #: calendar import — two million characters of iCalendar text in JSON — and
@@ -53,6 +55,11 @@ PLUGIN_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
 #: initiative and at most 200 short project keys. Generous for either and
 #: still far too small to be worth anybody's while as a buffer.
 ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
+
+#: The route segments of every body several people can edit at once.
+_COLLABORATIVE = "|".join(
+    resource_for(kind).route_segment for kind in registered_types()
+)
 
 # (path pattern, limit getter, machine-readable error code). Getters read
 # settings lazily — the limit is a property of request time, not boot time.
@@ -107,10 +114,10 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # page, and the edits a closing tab hands over to a room.
         re.compile(
             r"^/api/v1/c/\d+/("
-            r"documents(/\d+)?"
-            r"|wikis/\d+/pages"
-            r"|wiki-pages/\d+"
-            r"|collaboration/(documents|wiki-pages)/\d+/collaborate"
+            rf"{Tool.document.route_segment}"
+            rf"|{Tool.wiki.route_segment}/\d+/pages"
+            rf"|({_COLLABORATIVE})/\d+"
+            rf"|collaboration/({_COLLABORATIVE})/\d+/collaborate"
             r")/?$"
         ),
         lambda: DOCUMENT_MAX_REQUEST_BYTES,

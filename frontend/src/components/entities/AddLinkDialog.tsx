@@ -32,11 +32,10 @@ import {
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useUploadDocument } from "@/hooks/useDocuments";
 import { type ToolRef, useRelate } from "@/hooks/useRelationships";
+import { documentIcon } from "@/lib/documentIcon";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
-  getDocumentIcon,
-  getDocumentIconColor,
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
@@ -214,7 +213,9 @@ export const AddLinkDialog = ({
     defaultValue: t("anchor.generic"),
   });
 
-  const FileIcon = file ? getDocumentIcon("file", file.type, file.name) : null;
+  const fileMark = file
+    ? documentIcon({ document_type: "file", mime_type: file.type, original_filename: file.name })
+    : null;
 
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
@@ -233,13 +234,11 @@ export const AddLinkDialog = ({
               it about. */}
           <div className="space-y-2">
             <Label>{t("dialog.entity")}</Label>
-            {file && FileIcon ? (
+            {file && fileMark ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <FileIcon
-                      className={cn("h-5 w-5", getDocumentIconColor("file", file.type, file.name))}
-                    />
+                    <fileMark.Icon className={cn("h-5 w-5", fileMark.colorClass)} />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-medium text-sm">{file.name}</p>

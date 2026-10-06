@@ -1279,16 +1279,12 @@ def recent_views_path() -> InitiativePath:
 # source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
 INITIATIVE_PATHS: dict[str, InitiativePath] = {
-    # Own initiative_id column
-    "projects": direct(),
-    "documents": direct(),
-    "queues": direct(),
-    "counter_groups": direct(),
-    "calendars": direct_or_guild(),
-    "dashboards": direct(),
-    "posts": direct(),
-    "galleries": direct(),
-    "wikis": direct(),
+    # Every tool's table: its own initiative_id column. A calendar may name no
+    # initiative, being made for the whole guild.
+    **{
+        tool.plural: direct_or_guild() if tool is Tool.calendar else direct()
+        for tool in Tool
+    },
     "property_definitions": direct(),
     # Sharing itself. It carries no sharing leg of its own: resource_access
     # reads this table, so a policy here that called it would not resolve.

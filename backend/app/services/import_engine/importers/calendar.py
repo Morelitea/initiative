@@ -20,7 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import recurrence
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
 
 
 class CalendarImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-calendar"
+    envelope_type = tool_envelope_type(Tool.calendar)
     permission = PermissionKey.create_calendars
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:

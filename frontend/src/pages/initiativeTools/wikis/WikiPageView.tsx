@@ -33,7 +33,7 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
-import { wikiPageRoute } from "@/lib/tools";
+import { toolRouteSegment, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /**
@@ -84,7 +84,7 @@ export const WikiPageView = () => {
   // Live co-editing, over the same room documents use — a page is just
   // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
-    socketPath: validIds ? `wiki-pages/${pageId}/collaborate` : null,
+    socketPath: validIds ? `${toolRouteSegment("wiki_page")}/${pageId}/collaborate` : null,
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,

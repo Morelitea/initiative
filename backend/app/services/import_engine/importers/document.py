@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -52,7 +52,7 @@ _IMPORTABLE_TYPES = {
 
 
 class DocumentImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-document"
+    envelope_type = tool_envelope_type(Tool.document)
     permission = PermissionKey.create_documents
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -140,7 +140,7 @@ class DocumentImporter(NamesPeopleInPassing):
                 tags_matched += 1
             session.add(
                 tags_service.tag_edge(
-                    tags_service.TAG_LINKS["document"],
+                    tags_service.TOOL_TAG_LINKS[Tool.document],
                     document.id,
                     resolved.id,
                 )

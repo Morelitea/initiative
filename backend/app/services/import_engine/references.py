@@ -42,6 +42,7 @@ from app.core.references import (
     reference_node_kind,
 )
 from app.core.search import SearchEntityType
+from app.core.tools import Tool, tool_envelope_type
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.services.import_engine.context import ImportContext
@@ -117,11 +118,14 @@ def detach_editor_references(content: Any) -> Any:
 def _editor_holders(data: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
     """Where a tool envelope keeps its editor-state bodies."""
     kind = data.get("type")
-    if kind == "initiative-document" and data.get("document_type") == "native":
+    if (
+        kind == tool_envelope_type(Tool.document)
+        and data.get("document_type") == "native"
+    ):
         return [(data, "content")]
-    if kind == "initiative-post":
+    if kind == tool_envelope_type(Tool.post):
         return [(data, "body")]
-    if kind == "initiative-wiki":
+    if kind == tool_envelope_type(Tool.wiki):
         return [
             *(
                 (page, "content")

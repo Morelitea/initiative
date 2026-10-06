@@ -53,20 +53,12 @@ from app.core.plugin_scopes import (
 from app.core.audit_events import AuditEventType
 from app.core.messages import UserMessages
 from app.core.tools import Tool
+import app.db.base  # noqa: F401 — registers every model, so each tool's is found by table
 from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.guild_plugin import GuildPlugin
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.counter import CounterGroup
-from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery
-from app.models.tenant.document import Document
-from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue
-from app.models.tenant.wiki import Wiki
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.ownership import OwnerPluginSummary
 from app.services import audit as audit_service
@@ -90,25 +82,9 @@ class OwnableSpec:
         return self.model.display_field()
 
 
-#: Every tool's model, imported so it is *registered*: a class has to have been
-#: imported before it can be found by table name. Naming them here is what makes
-#: the lookup below independent of whatever import order got us this far.
-_REGISTERED = (
-    Calendar,
-    CounterGroup,
-    Dashboard,
-    Document,
-    Gallery,
-    Post,
-    Project,
-    Queue,
-    Wiki,
-)
-
 #: Derived from the enum rather than listed: a tool's table is its plural, so the
-#: model is found by that name and the pairing cannot drift. A tool whose model
-#: is missing from ``_REGISTERED`` fails here at import, naming its table, rather
-#: than going quietly unowned.
+#: model is found by that name and the pairing cannot drift. A tool with no model
+#: fails here at import, naming its table, rather than going quietly unowned.
 OWNABLE: dict[Tool, OwnableSpec] = {
     tool: OwnableSpec(tool_models()[tool.plural]) for tool in Tool
 }

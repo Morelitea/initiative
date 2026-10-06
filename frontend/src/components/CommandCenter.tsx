@@ -17,10 +17,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
-import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { type SearchSuggestion, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { getOpenCreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CommandDialog,
@@ -438,12 +438,12 @@ export function CommandCenter() {
               <span>{t("actions.addTask")}</span>
             </CommandItem>
           )}
-          {globalCreate.document && (
+          {globalCreate.tool && (
             <CommandItem
               value="action-add-document"
               onSelect={() => {
                 setOpen(false);
-                getOpenCreateDocumentWizard()?.();
+                getOpenCreateToolWizard(Tool.document)?.();
               }}
             >
               <FilePlus className="text-muted-foreground" />

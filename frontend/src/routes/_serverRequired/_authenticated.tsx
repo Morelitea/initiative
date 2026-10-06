@@ -10,7 +10,7 @@ import { Loader2, LogOut, Settings, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AcceptTerms } from "@/components/AcceptTerms";
 import { AccountTimeOut } from "@/components/AccountTimeOut";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -19,7 +19,6 @@ import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnou
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
 import { CommunityAccessBanner } from "@/components/communities/CommunityAccessBanner";
-import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
@@ -30,6 +29,7 @@ import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { StartFlow } from "@/components/start/StartFlow";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { CreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Button } from "@/components/ui/button";
 import { DocumentOutlineScope } from "@/components/ui/editor/DocumentOutline";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -260,7 +260,7 @@ function AppLayout() {
     <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
-      <CreateDocumentWizard />
+      <CreateToolWizard tool={Tool.document} />
       {/* A real height rather than a minimum: `min-h-screen` leaves every
           descendant sizing to its own content, so a page cannot ask for the
           height of what it is in. Scrolling moves from the document into

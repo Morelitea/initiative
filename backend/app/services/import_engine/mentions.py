@@ -39,6 +39,7 @@ from app.core.identity_boundary import (
     without_mention_names,
 )
 from app.core.user_display import handle_of
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import UserStatus
 from app.models.platform.user_profile_view import GuildMember, MemberProfile
 
@@ -232,11 +233,14 @@ async def detach_envelope_mentions(session: AsyncSession, data: Any) -> None:
     if not isinstance(data, dict):
         return
     kind = data.get("type")
-    if kind == "initiative-document" and data.get("document_type") == "native":
+    if (
+        kind == tool_envelope_type(Tool.document)
+        and data.get("document_type") == "native"
+    ):
         holders = [(data, "content")]
-    elif kind == "initiative-post":
+    elif kind == tool_envelope_type(Tool.post):
         holders = [(data, "body")]
-    elif kind == "initiative-wiki":
+    elif kind == tool_envelope_type(Tool.wiki):
         holders = [
             (page, "content")
             for page in data.get("pages") or []

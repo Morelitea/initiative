@@ -1,3 +1,4 @@
+import type { FlatNamespace } from "i18next";
 import { Loader2, Zap } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,6 +13,7 @@ import {
 } from "@/hooks/useInitiativeAccess";
 import { useWizard } from "@/hooks/useWizard";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import type { TranslateFn } from "@/types/i18n";
 
 type Step = "select-community" | "select-initiative";
 
@@ -22,7 +24,7 @@ export interface Choice {
 
 interface Options<Next extends string> {
   /** The wizard's own namespace, which holds its `createWizard.*` strings. */
-  ns: "documents" | "tasks";
+  ns: FlatNamespace;
   open: boolean;
   /**
    * The tool the wizard creates: only communities it could be authored in are
@@ -57,7 +59,10 @@ export function useCommunityInitiativeSteps<Next extends string = never>({
   next,
   initiativeIcon,
 }: Options<Next>) {
-  const { t } = useTranslation(ns);
+  // A tool's wizard reads its tool's own namespace, so the loose translate
+  // signature rather than the statically-typed one.
+  const { t: translate } = useTranslation(ns);
+  const t = translate as TranslateFn;
   const { communities: allCommunities } = useCommunities();
   const communities = useMemo(
     () => allCommunities.filter(authors ? communityMayAuthorTools : communityMayWriteContent),
