@@ -34,6 +34,7 @@ from app.api.embed_csp import content_security_policy, plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
+from app.api.well_known import router as well_known_router
 from app.core.errors import CodedError
 from app.core.messages import (
     CommonMessages,
@@ -601,6 +602,7 @@ async def serve_upload_file(
 
 
 app.include_router(api_router, prefix=API_V1_STR)
+app.include_router(well_known_router)
 
 
 def _inject_query_schemas(openapi_schema: dict) -> None:

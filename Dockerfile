@@ -111,6 +111,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY MIN_DESKTOP_VERSION ./MIN_DESKTOP_VERSION
+# Which build this is. The dev build passes `dev`, and only a dev image names the
+# dev app in its passkey association files (app/core/native_apps.py).
+ARG IMAGE_CHANNEL=release
+RUN echo "$IMAGE_CHANNEL" > ./IMAGE_CHANNEL
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 COPY --from=frontend-build /frontend/dist-editor/editor.js ./editor/editor.js
