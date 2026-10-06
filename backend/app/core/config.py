@@ -203,8 +203,8 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
 #: Settings → Platform from then on, so the env var is read once and the row wins
 #: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
 #: the mechanism; the credential-bearing ones are encrypted at rest under a salt
-#: registered in ``app/db/secret_key_rotation.py``, so they rotate with
-#: SECRET_KEY.
+#: their column declares, so ``app/db/secret_key_rotation.py`` rotates them
+#: with SECRET_KEY.
 #:
 #: Declared here so the deployment contract can say so out loud: an operator
 #: does not need any of these to bring the app up, and a deployment tool does

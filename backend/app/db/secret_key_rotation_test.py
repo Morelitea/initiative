@@ -15,9 +15,11 @@ import secrets
 
 import pytest
 from sqlalchemy import text
+from sqlmodel import SQLModel
 
 from app.core import config, security
 from app.core.encryption import (
+    FERNET_SALT,
     SALT_AI_API_KEY,
     SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     SALT_EMAIL,
@@ -396,46 +398,18 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                 )
 
 
-async def test_every_encrypted_shared_column_is_registered_for_rotation(engine):
-    """A column added without an entry in the rotation list is the failure mode
-    this guards, and it is a quiet one: nothing breaks at the moment of the
-    rotation — the row keeps its old ciphertext and still looks healthy. It
-    breaks later, when the previous key is retired and the value can no longer
-    be decrypted by anything.
-
-    Read from the catalog rather than from a hand-kept list, so a new column
-    counts the day it lands.
-    """
-    from sqlalchemy import text
-
-    from app.db.secret_key_rotation import _PUBLIC_FERNET_COLUMNS
-    from app.db.tenancy import SHARED_TABLES
-
-    async with engine.begin() as conn:
-        rows = (
-            await conn.execute(
-                text(
-                    """
-                    SELECT table_name, column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND column_name LIKE '%_encrypted'
-                    """
-                )
-            )
-        ).all()
-
-    registered = {(table, column) for table, column, _salt in _PUBLIC_FERNET_COLUMNS}
-    # The address table moves its ciphertext with the email_hash HMAC beside it,
-    # so it is rotated by its own pass rather than by the column sweep.
-    registered.add(("user_emails", "email_encrypted"))
-
-    missing = sorted(
-        (table, column)
-        for table, column in rows
-        if table in SHARED_TABLES and (table, column) not in registered
+@pytest.mark.always
+def test_every_encrypted_column_declares_its_salt():
+    """A column named ``*_encrypted`` holds Fernet ciphertext, and the rotation
+    re-keys every column whose ``info`` declares the salt it is sealed under.
+    Each column the name marks as ciphertext, on every table, declares one."""
+    undeclared = sorted(
+        f"{table.name}.{column.name}"
+        for table in SQLModel.metadata.tables.values()
+        for column in table.columns
+        if column.name.endswith("_encrypted")
+        and not isinstance(column.info.get(FERNET_SALT), bytes)
     )
-    assert not missing, (
-        "encrypted columns on shared tables are not registered for key "
-        f"rotation: {missing}"
+    assert not undeclared, (
+        f"encrypted columns declare no FERNET_SALT in their info: {undeclared}"
     )

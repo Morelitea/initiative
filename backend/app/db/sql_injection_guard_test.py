@@ -97,18 +97,6 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/backfill_uploads_to_s3.py::_guild_upload_meta": (
         "admin backfill job; schema name is int-derived guild_<id>"
     ),
-    "app/db/secret_key_rotation.py::_rotate_fernet_column": (
-        "admin rotation job; table/column names validated against an "
-        "allow-list before interpolation"
-    ),
-    "app/db/secret_key_rotation.py::_rotate_user_emails": (
-        "same rotation job for the two address tables; the table name comes "
-        "from this module's own two call sites, never from request data"
-    ),
-    "app/db/secret_key_rotation.py::_rotate_fernet_json_map": (
-        "same rotation job for JSONB-held ciphertexts; schema is int-derived "
-        "via guild_schema_name, table/column come from a module constant"
-    ),
     "app/db/bootstrap.py::_revoke_former_set_config_holders": (
         "startup on the owner connection: role names read from pg_roles, "
         "quoted; the function signature is a module constant"

@@ -19,6 +19,8 @@ from sqlalchemy import Column, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_PLUGIN_CONFIG
+
 
 class GuildPluginSecret(SQLModel, table=True):
     __tablename__ = "guild_plugin_secrets"
@@ -34,5 +36,10 @@ class GuildPluginSecret(SQLModel, table=True):
     # ``{"admin_read": {"api_key": "<ciphertext>"}}``.
     secrets: dict[str, Any] = Field(
         default_factory=dict,
-        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        sa_column=Column(
+            JSONB,
+            nullable=False,
+            server_default="{}",
+            info={FERNET_SALT: SALT_PLUGIN_CONFIG},
+        ),
     )

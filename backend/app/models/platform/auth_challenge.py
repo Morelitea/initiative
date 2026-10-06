@@ -15,6 +15,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_EMAIL
+
 
 class AuthChallenge(SQLModel, table=True):
     """A sign-in that has proved one thing and is waiting on the next.
@@ -75,7 +77,8 @@ class AuthChallenge(SQLModel, table=True):
     #: the way ``user_emails`` keeps one, so an address waiting on a sign-up
     #: is stored no differently from one already held.
     email_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
+        default=None,
+        sa_column=Column(String(2000), nullable=True, info={FERNET_SALT: SALT_EMAIL}),
     )
 
     #: Which of the account's addresses the challenge went to, where it went

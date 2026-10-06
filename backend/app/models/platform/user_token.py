@@ -6,6 +6,8 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 
+from app.core.encryption import FERNET_PATHS, FERNET_SALT, SALT_EMAIL
+
 
 class UserTokenPurpose(str, Enum):
     email_verification = "email_verification"
@@ -51,9 +53,18 @@ class UserToken(SQLModel, table=True):
         ),
     )
     # What an account_change token may do, and the address it was sent to.
-    # NULL for every other token.
+    # NULL for every other token. The address a removal took (``undo.email``)
+    # and the one the link went to (``recipient``) are sealed under SALT_EMAIL.
     change: Optional[dict[str, Any]] = Field(
-        default=None, sa_column=Column(JSONB, nullable=True)
+        default=None,
+        sa_column=Column(
+            JSONB,
+            nullable=True,
+            info={
+                FERNET_SALT: SALT_EMAIL,
+                FERNET_PATHS: (("undo", "email"), ("recipient",)),
+            },
+        ),
     )
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),
