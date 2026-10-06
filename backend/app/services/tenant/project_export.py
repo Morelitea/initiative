@@ -377,37 +377,6 @@ async def _load_links(
     return by_task
 
 
-async def list_project_ids_for_export(
-    session,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every project the user may include in an aggregate export —
-    DAC-visible (a request that reaches the whole guild sees all), in
-    initiatives that have projects switched on. The aggregate export includes
-    read-accessible projects by design; the per-project seams still enforce
-    their own access level per entity."""
-    from sqlmodel import select
-
-    from app.models.tenant.initiative import Initiative
-    from app.models.tenant.project import Project
-
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Project.id)
-        .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(
-            Project.initiative_id.in_(initiative_ids),
-            Initiative.projects_enabled.is_(True),
-        )
-        .order_by(Project.id.asc())
-    )
-    return list(await session.exec(statement))
-
-
 async def _portable_carry(
     session: AsyncSession,
     carry: dict[str, Any] | None,

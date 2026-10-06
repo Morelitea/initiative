@@ -26,7 +26,9 @@ from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
 from app.models.platform.user import User
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.document import Document
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
@@ -224,8 +226,25 @@ class ToolExportAdapter:
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
     ) -> list[int]:
         """The ids of this tool's entities in one initiative that an initiative
-        or community export may include, in a stable order."""
-        raise NotImplementedError
+        or community export may include, in a stable order: those the session
+        reaches, while the initiative has the tool switched on."""
+        model = tool_models()[self.tool.plural]
+        statement = (
+            select(model.id)
+            .join(Initiative, Initiative.id == model.initiative_id)
+            .where(
+                model.initiative_id == initiative_id,
+                getattr(Initiative, self.tool.view_permission).is_(True),
+                *self.exported(),
+            )
+            .order_by(model.id.asc())
+        )
+        return list(await session.exec(statement))
+
+    def exported(self) -> tuple[Any, ...]:
+        """What else a row must be to go into an initiative or community
+        export, as clauses on the tool's model. Nothing, unless the tool says."""
+        return ()
 
     def title(self, entity: Any, /) -> str:
         """The entity's own name — what its archive entry is titled and its

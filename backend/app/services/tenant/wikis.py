@@ -37,7 +37,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import defer, selectinload, undefer
 
 from app.core.messages import WikiMessages
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.permissions import with_tool
@@ -551,31 +550,6 @@ def page_headings(content: Any) -> list[dict[str, Any]]:
         for node in content:
             walk(node)
     return found
-
-
-async def list_wiki_ids_for_export(
-    session: AsyncSession,
-    current_user: Any,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every wiki the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    statement = (
-        select(Wiki.id)
-        .join(Initiative, Initiative.id == Wiki.initiative_id)
-        .where(
-            Wiki.initiative_id.in_(initiative_ids),
-            Initiative.wikis_enabled == True,  # noqa: E712
-        )
-        .order_by(Wiki.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:

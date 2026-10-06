@@ -68,15 +68,6 @@ class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
     formats = ("json", "pdf", "csv", "xlsx", "md")
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.queues import list_queue_ids_for_export
-
-        return await list_queue_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
-
     def rows(self, queue: Queue, /) -> int:
         return len(queue.items)
 

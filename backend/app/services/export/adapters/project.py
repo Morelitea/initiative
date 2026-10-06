@@ -154,15 +154,6 @@ class ProjectAdapter(ToolExportAdapter):
             source_guild_id=guild_id,
         )
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.project_export import list_project_ids_for_export
-
-        return await list_project_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
-
     async def reach(
         self,
         session: AsyncSession,

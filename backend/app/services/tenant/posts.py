@@ -21,8 +21,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
+from app.models.tenant.post import Post, board_time, pin_is_live
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.resource_grant import ResourceGrant
@@ -376,33 +375,3 @@ async def get_post(
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
-
-
-async def list_post_ids_for_export(
-    session: AsyncSession,
-    current_user: Any,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every post the user may export in the given initiatives — published,
-    DAC-visible to the user, feature-flag respected. Deterministic order for
-    stable backup output."""
-    if not initiative_ids:
-        return []
-    conditions = [
-        Post.initiative_id.in_(initiative_ids),
-        Initiative.posts_enabled == True,  # noqa: E712
-        # An export is a record of what a board has said, and a draft has not
-        # been said yet — it is in no board, no count and no search result, so
-        # it is in no export either. A backup therefore does not carry drafts,
-        # which is the trade this one rule makes.
-        is_published_clause(),
-    ]
-    statement = (
-        select(Post.id)
-        .join(Initiative, Initiative.id == Post.initiative_id)
-        .where(*conditions)
-        .order_by(Post.id.asc())
-    )
-    return list(await session.exec(statement))
