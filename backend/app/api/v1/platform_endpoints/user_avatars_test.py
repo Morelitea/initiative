@@ -10,9 +10,9 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.public_rls import platform_tier, role_name
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User, UserRole
-from app.db.schema_provisioning import platform_role_name
 from app.models.platform.user_avatar import UserAvatar
 from app.services.platform import user_avatars as service
 from app.services.platform.user_avatars_test import jpeg, png
@@ -35,7 +35,7 @@ async def _assume(session, tier: str, user_id: int) -> None:
             "SELECT set_config('app.current_user_id', :uid, true), "
             "set_config('role', :role, true)"
         ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
+        params={"uid": str(user_id), "role": role_name(platform_tier(tier))},
     )
 
 

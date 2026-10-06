@@ -169,7 +169,7 @@ async def test_the_provisioner_shape_on_an_existing_role(
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy.pool import NullPool
 
-    from app.db.bootstrap import _ensure_role
+    from app.db.bootstrap import _ensure_role_steps, _run_steps
     from conftest import RUN_ID, TEST_DATABASE_URL
 
     # Roles are cluster-global; key the probe to this run so concurrent
@@ -183,7 +183,10 @@ async def test_the_provisioner_shape_on_an_existing_role(
             await conn.execute(text(f'CREATE ROLE "{name}" {created_with}'))
         try:
             async with engine.begin() as conn:
-                await _ensure_role(conn, LoginRole(name, None, provisioner.attributes))
+                await _run_steps(
+                    conn,
+                    _ensure_role_steps(LoginRole(name, None, provisioner.attributes)),
+                )
                 held = await conn.scalar(
                     text(f"SELECT {attribute} FROM pg_roles WHERE rolname = :n"),
                     {"n": name},

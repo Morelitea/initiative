@@ -9,8 +9,20 @@ from dataclasses import fields
 
 import pytest
 
-from app.db.public_rls import PLATFORM_TIER_ROLES, SHARED_TABLE_REGISTRY, Grants
-from app.db.system_grants import VALID_GRANT_VERBS, grant_sql, tier_table_grants
+from app.core.config import settings
+from app.db import system_grants
+from app.db.public_rls import (
+    PLATFORM_TIER_ROLES,
+    SHARED_TABLE_REGISTRY,
+    Grants,
+    role_name,
+)
+from app.db.system_grants import (
+    VALID_GRANT_VERBS,
+    grant_sql,
+    grant_statements,
+    tier_table_grants,
+)
 
 pytestmark = pytest.mark.always
 
@@ -36,6 +48,26 @@ def test_grant_sql_renders_canonical_order():
     assert grant_sql(frozenset({"SELECT"})) == "SELECT"
     assert grant_sql(None) is None
     assert grant_sql(frozenset()) is None
+
+
+def test_grant_statements_name_the_role_as_the_catalog_holds_it(monkeypatch):
+    """A login is named as its connection URL names it, quoted; a floor carries
+    the configured prefix. ``revoke`` takes each table's grants back first."""
+    monkeypatch.setattr(
+        settings, "DATABASE_URL_APP", "postgresql+asyncpg://req%22x:pw@h:5432/d"
+    )
+    monkeypatch.setitem(
+        system_grants.ROLE_GRANTS, "app_user", {"t": frozenset({"SELECT", "INSERT"})}
+    )
+    monkeypatch.setitem(system_grants.ROLE_GRANTS, "platform_base", {"t": None})
+
+    assert grant_statements("app_user", ["t"], sequences=["public.t_id_seq"]) == [
+        'GRANT SELECT, INSERT ON TABLE public.t TO "req""x"',
+        'GRANT SELECT, USAGE ON SEQUENCE public.t_id_seq TO "req""x"',
+    ]
+    assert grant_statements("platform_base", ["t"], revoke=True) == [
+        f'REVOKE ALL ON TABLE public.t FROM "{role_name("platform_base")}"'
+    ]
 
 
 def test_tier_grants_render_to_every_tier():

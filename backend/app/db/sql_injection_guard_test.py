@@ -94,15 +94,6 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "boot step; the schema comment is the STAMP_PREFIX constant plus a hex "
         "digest of the registry render"
     ),
-    "app/db/schema_provisioning.py::_effective_missing_grants": (
-        "table/verb/role names from the system_grants registry constants"
-    ),
-    "app/db/schema_provisioning.py::_reassert_shared_grants": (
-        "table/verb/role names from the system_grants registry constants"
-    ),
-    "app/db/schema_provisioning.py::_shared_grants_intact": (
-        "table/role names from the system_grants registry constants"
-    ),
     "app/db/backfill_uploads_to_s3.py::_guild_upload_meta": (
         "admin backfill job; schema name is int-derived guild_<id>"
     ),
@@ -124,10 +115,6 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     ),
     "app/services/storage_backfill.py::_persist": (
         "SET clause joined from literal 'col = :bind' fragments; all values bound"
-    ),
-    "app/services/storage_backfill.py::_ensure_table": (
-        "admin DDL job; GRANT verb list is a module constant from the "
-        "SHARED_TABLE_REGISTRY grants (fixed vocabulary), never request data"
     ),
 }
 

@@ -15,11 +15,11 @@ from functools import partial
 
 import pytest
 
+from app.db.public_rls import platform_tier, role_name
 from app.db.schema_provisioning import (
     GuildRoleKind,
     guild_role_name,
     guild_schema_name,
-    platform_role_name,
 )
 from app.db.request_context import Platform
 from app.db.session import set_rls_context
@@ -74,8 +74,8 @@ def test_guild_name_builders_emit_identifier_safe_names(builder):
 
 
 @pytest.mark.parametrize("tier", [role.value for role in UserRole])
-def test_platform_role_name_is_identifier_safe_for_valid_tiers(tier):
-    name = platform_role_name(tier)
+def test_platform_role_names_are_identifier_safe_for_valid_tiers(tier):
+    name = role_name(platform_tier(tier))
     assert re.fullmatch(rf"[A-Za-z0-9_]*platform_{tier}", name), name
 
 
