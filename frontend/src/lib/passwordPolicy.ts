@@ -17,22 +17,20 @@ export const PASSWORD_MIN_LENGTH = 12;
 /**
  * Loose ``t`` binding so this module doesn't carry the strict
  * literal-key type that ``react-i18next``'s ``useTranslation`` emits.
- * Same trick ``errorMessage.ts`` uses — the namespaces we look up
- * (``auth``) are eagerly loaded by every caller of this module
- * (Register / Reset / Settings pages already use the ``auth`` ns),
+ * Same trick ``errorMessage.ts`` uses — the ``auth`` namespace is loaded
+ * by every page that sets a password (they render ``NewPasswordFields``),
  * so a runtime miss isn't a risk worth paying the type-cost for.
  */
 const translate = i18n.t.bind(i18n) as (key: string) => string;
 
 /**
- * Return an i18n'd error message if `password` fails the local part of
- * the policy, or `null` if it passes. Returns `null` for the empty
- * string so we don't show an error before the user has typed
- * anything — surface the requirement as a helper hint instead.
+ * Return an i18n'd reason a new password cannot be sent yet, or `null` when
+ * it can: it matches its confirmation and meets the local part of the policy.
+ * Runs on submit, beside the `NewPasswordFields` that collect the pair.
  */
-export function validatePasswordLocal(password: string): string | null {
-  if (password.length === 0) {
-    return null;
+export function checkNewPassword(password: string, confirm: string): string | null {
+  if (password !== confirm) {
+    return translate("auth:passwordPolicy.mismatch");
   }
   if (password.length < PASSWORD_MIN_LENGTH) {
     return translate("auth:passwordPolicy.minLength");
