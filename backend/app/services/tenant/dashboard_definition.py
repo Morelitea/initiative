@@ -25,7 +25,7 @@ in two places. They are stored as given, bounded by the definition size cap, and
 checked where they are used: the filter DSL parser enforces its own limits, and
 every id is authorized against the viewer by RLS at fetch time.
 
-Normalization mirrors ``documents_spreadsheet``: unrecognized *structure* is
+Normalization mirrors ``files_spreadsheet``: unrecognized *structure* is
 dropped rather than preserved, so a stored definition always has canonical shape.
 """
 
@@ -317,7 +317,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
 
 #: What a binding may name. Three, and only the first is ours to write: a
 #: **query** is a statement over this guild's datasets, a **sheet_range** is a
-#: cell range in a spreadsheet document, and **plugin** is an installed listing's
+#: cell range in a spreadsheet file, and **plugin** is an installed listing's
 #: own endpoint. The first two both answer with columns and rows, so a widget
 #: draws them by the same path and never learns which it was given.
 QUERY_SOURCE = "query"

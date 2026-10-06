@@ -6,7 +6,7 @@ so the references in their envelopes resolve without rewriting.
 
 Every file is what the zip claims only once it has been read. Each is held to
 the rule for what it is meant to be — a picture a gallery can show, a file a
-document may hold, or either — and stored as the type its bytes turned out to
+file may hold, or either — and stored as the type its bytes turned out to
 be. One that is not is left out, and the import says so. A key already stored
 here is never written over. The community's storage quota is checked against
 the zip's own sizes before anything is written, and those sizes bound what is
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from app.services.storage import StorageBackend
 
 #: What a file is meant to be: a picture a gallery can show, a file a
-#: document may hold, or any upload — a picture, or else a file.
+#: file may hold, or any upload — a picture, or else a file.
 AssetKind = Literal["picture", "file", "upload"]
 
 #: How many keys one lookup of the ``uploads`` table names.
@@ -43,7 +43,7 @@ _LOOKUP_BATCH = 1000
 class ArchiveAsset:
     """One file to restore: the storage key it goes under, where it sits in
     the zip, what it is meant to be, and what the zip says about it — the
-    name and type the document rule reads as hints."""
+    name and type the file rule reads as hints."""
 
     key: str
     member: str
@@ -75,7 +75,7 @@ def _detect(asset: ArchiveAsset, data: bytes) -> tuple[str | None, str | None]:
     """The type ``data`` is stored as, or the warning that leaves it out."""
     from app.services.tenant.attachments import (
         detect_document_image_type,
-        validate_document_file,
+        validate_file,
     )
     from app.services.tenant.galleries import (
         EmptyImageError,
@@ -90,13 +90,13 @@ def _detect(asset: ArchiveAsset, data: bytes) -> tuple[str | None, str | None]:
             return None, f"not_a_picture:{asset.key}"
         return header.content_type, None
     if asset.kind == "upload":
-        # An upload is a document image or a file document, whichever its
+        # An upload is a document image or an uploaded file, whichever its
         # bytes say; an image takes the same rule it was uploaded under.
         image_type = detect_document_image_type(data)
         if image_type is not None:
             return image_type, None
     try:
-        content_type, _extension = validate_document_file(
+        content_type, _extension = validate_file(
             data, asset.original_filename, asset.content_type
         )
     except ValueError:

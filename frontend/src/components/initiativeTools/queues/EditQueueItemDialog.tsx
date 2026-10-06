@@ -294,7 +294,7 @@ export const EditQueueItemDialog = ({
               </div>
             </div>
 
-            {/* One list, any kind — in place of a documents-only picker beside a
+            {/* One list, any kind — in place of a files-only picker beside a
                 tasks-only one. */}
             <EntityLinkField
               label={t("relations:groups.attached.title")}

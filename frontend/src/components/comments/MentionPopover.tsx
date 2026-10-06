@@ -30,7 +30,7 @@ interface MentionPopoverProps {
   /** The mention being typed — who or what, and how much of it. */
   active: ActiveMention;
   initiativeId: number;
-  /** The thing this comment is on, as a reference (`document:12`). Never
+  /** The thing this comment is on, as a reference (`file:12`). Never
    *  offered: a remark about something does not point back at it. */
   subject?: string | null;
   /** Pixel anchor (relative to the field) so the popover sits under the word

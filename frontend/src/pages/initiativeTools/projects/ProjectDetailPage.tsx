@@ -73,9 +73,9 @@ export const ProjectDetailPage = () => {
   }, [viewedProjectId, recordViewMutation.mutate]);
 
   const project = projectQuery.data;
-  // Creating a document targets the project's initiative, so it follows that
+  // Creating a file targets the project's initiative, so it follows that
   // initiative's server-computed create flag.
-  const { canCreate: canCreateDocuments } = useToolCreateAccess(Tool.document, {
+  const { canCreate: canCreateFiles } = useToolCreateAccess(Tool.file, {
     initiativeId: project?.initiative_id,
   });
   // The path supplies the initiative while this loads, but the entity is the
@@ -133,7 +133,7 @@ export const ProjectDetailPage = () => {
           projectId={project.id}
           projectName={project.name}
           initiativeId={project.initiative_id}
-          canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
+          canCreate={Boolean(canCreateFiles && !projectIsArchived)}
           canAttach={canEdit}
         />
         <ProjectTasksSection

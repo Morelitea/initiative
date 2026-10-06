@@ -231,15 +231,15 @@ const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
 const favoriteProjects = (): Spec => ({ communityExact: ["/api/v1/projects/favorites"] });
 
-// ── Documents (community) ────────────────────────────────────────────────────────
+// ── Files (community) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
 const relationships = (): Spec => ({
   communityPrefix: ["/api/v1/relationships"],
 });
 
-const documentVersions = (documentId: number): Spec => ({
-  communityExact: [`/api/v1/documents/${documentId}/versions`],
+const fileVersions = (fileId: number): Spec => ({
+  communityExact: [`/api/v1/files/${fileId}/versions`],
 });
 
 // ── Comments (community) ─────────────────────────────────────────────────────────
@@ -555,8 +555,8 @@ const tool = (which: Tool, id: number): Spec => compose(toolEntity(which, id), t
 // The same two, by name, for the call sites that already know their tool.
 const allProjects = (): Spec => toolList(Tool.project);
 const project = (id: number): Spec => toolEntity(Tool.project, id);
-const allDocuments = (): Spec => toolList(Tool.document);
-const document = (id: number): Spec => toolEntity(Tool.document, id);
+const allFiles = (): Spec => toolList(Tool.file);
+const file = (id: number): Spec => toolEntity(Tool.file, id);
 const allQueues = (): Spec => toolList(Tool.queue);
 const queue = (id: number): Spec => toolEntity(Tool.queue, id);
 const allCounterGroups = (): Spec => toolList(Tool.counter_group);
@@ -608,7 +608,7 @@ export const q = {
   allComments,
   allCounterGroups,
   allDashboards,
-  allDocuments,
+  allFiles,
   allGalleries,
   allCommunities,
   allInitiatives,
@@ -646,8 +646,8 @@ export const q = {
   dashboard,
   directMessages,
   dmSettings,
-  document,
-  documentVersions,
+  file,
+  fileVersions,
   emailSettings,
   favoriteProjects,
   fcmConfig,

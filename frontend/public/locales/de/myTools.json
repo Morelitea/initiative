@@ -20,7 +20,7 @@
   },
   "noTools": {
     "title": "Noch nichts zum Durchsehen",
-    "description": "Sobald du an einem Projekt, einem Dokument oder etwas anderem beteiligt bist, erscheint es hier.",
+    "description": "Sobald du an einem Projekt, einer Datei oder etwas anderem beteiligt bist, erscheint es hier.",
     "descriptionMine": "Sobald du etwas erstellst, erscheint es hier."
   }
 }

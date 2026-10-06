@@ -1156,7 +1156,7 @@ async def create_imported_initiative(
         **{
             # A manifest that says nothing about a tool falls back to that
             # tool's own default rather than to off: a backup written before
-            # projects and documents had switches names no state for them, and
+            # projects and files had switches names no state for them, and
             # restoring it must not produce an initiative with neither.
             t.view_permission: bool(
                 tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)

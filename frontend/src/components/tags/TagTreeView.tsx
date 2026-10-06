@@ -6,12 +6,12 @@ import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getItem, setItem } from "@/lib/storage";
-import { buildTagTree, countDocumentsForNode, type TagTreeNode } from "@/lib/tagTree";
+import { buildTagTree, countFilesForNode, type TagTreeNode } from "@/lib/tagTree";
 import { cn } from "@/lib/utils";
 
 export const UNTAGGED_PATH = "__untagged__";
 
-const EXPANDED_STORAGE_KEY = "documents:tag-tree-expanded";
+const EXPANDED_STORAGE_KEY = "files:tag-tree-expanded";
 const MAX_INDENT = 3;
 
 function loadExpandedState(): Record<string, boolean> {
@@ -155,7 +155,7 @@ const TagTreeFilterNode = ({
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedState[node.fullPath] ?? false;
   const isSelected = selectedTagPaths.has(node.fullPath);
-  const docCount = countDocumentsForNode(node, docCountByTagId);
+  const docCount = countFilesForNode(node, docCountByTagId);
 
   const getNodeColor = (n: TagTreeNode): string | undefined => {
     if (n.tag?.color) return n.tag.color;

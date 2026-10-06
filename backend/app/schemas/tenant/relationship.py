@@ -81,24 +81,24 @@ class RelatedEnd(SanitizedBaseModel):
     #: colour. At most one is set, and most kinds set none — those draw as their
     #: kind's own icon. A picture URL has already fallen back from a thumbnail to
     #: the full image, so a caller renders what it is given.
-    #: Pictures to draw, newest first. A document has its featured image at
+    #: Pictures to draw, newest first. A file has its featured image at
     #: most; a gallery has the cover somebody chose, or the newest few when
     #: nobody did — which is what a gallery shows of itself everywhere else.
     image_urls: List[str] = Field(default_factory=list)
     icon: Optional[str] = None
     color: Optional[str] = None
     #: What sort of thing it is within its kind, for the kinds whose icon is not
-    #: fixed: a spreadsheet, a whiteboard and a PDF are all documents, and none
+    #: fixed: a spreadsheet, a whiteboard and a PDF are all files, and none
     #: of them should be drawn as a scroll. The same three facts a recent item
     #: carries, plus where a smart link points, so a client picks the icon with
-    #: the helper it already has. Only documents set any of these.
-    document_type: Optional[str] = None
+    #: the helper it already has. Only files set any of these.
+    file_type: Optional[str] = None
     mime_type: Optional[str] = None
     original_filename: Optional[str] = None
     smart_link_url: Optional[str] = None
     #: Whether the far end is still outstanding — whether, were this a
     #: ``depends_on`` edge, it would still be holding the anchor up. None for a
-    #: kind that has no notion of finishing, which is most of them: a document
+    #: kind that has no notion of finishing, which is most of them: a file
     #: is never "done". See :mod:`app.db.blocking`.
     is_open: Optional[bool] = None
 

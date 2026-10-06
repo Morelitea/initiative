@@ -16,8 +16,7 @@ import {
   $isSmartChipNode,
   SmartChipNode,
 } from "@/components/ui/editor/nodes/smart-chip-node";
-import { isSearchEntityType } from "@/lib/entityResolver";
-import { isSmartChipKind } from "@/lib/smartChips";
+import { isSmartChipKind, storedEntityType } from "@/lib/smartChips";
 
 /*
  * What a document points at, written into markdown so that it comes back.
@@ -69,8 +68,9 @@ export const REFERENCE: TextMatchTransformer = {
       textNode.replace($createSmartChipNode(chipKind, entityId, name));
       return;
     }
-    if (!isSearchEntityType(entityType)) return;
-    textNode.replace($createEntityMentionNode(entityType, entityId, name));
+    const kind = storedEntityType(entityType);
+    if (!kind) return;
+    textNode.replace($createEntityMentionNode(kind, entityId, name));
   },
 };
 

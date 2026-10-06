@@ -1,6 +1,6 @@
 /**
  * THE index page a tool's entities are browsed from — one initiative's shelf of
- * projects, documents, wikis, galleries, queues, counter groups or dashboards.
+ * projects, files, wikis, galleries, queues, counter groups or dashboards.
  *
  * Each of those pages carried its own copy of the same thing: the view toggle,
  * the filter panel, the create button and its dialog, the loading, error,
@@ -40,9 +40,9 @@ import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import type { BulkAccessItem } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
-import { DocumentCard } from "@/components/documents/DocumentCard";
-import { useDocumentColumns } from "@/components/documents/documentColumns";
+import { CreateFileDialog } from "@/components/files/CreateFileDialog";
+import { FileCard } from "@/components/files/FileCard";
+import { useFileColumns } from "@/components/files/fileColumns";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { DashboardCard } from "@/components/initiativeTools/dashboards/DashboardCard";
@@ -92,7 +92,7 @@ import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
+import { FILE_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import type { AppColumnDef } from "@/lib/table";
 import {
   isToolView,
@@ -321,23 +321,21 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
     reorder: { useReorder: useReorderProjects },
   },
 
-  [Tool.document]: {
-    useList: makeRows(TOOL_HOOKS[Tool.document].useList, (document) => (
-      <DocumentCard document={document} />
-    )),
+  [Tool.file]: {
+    useList: makeRows(TOOL_HOOKS[Tool.file].useList, (file) => <FileCard file={file} />),
     text: {
-      create: "newDocument",
-      noMatches: "filters.noMatchingDocuments",
-      emptyTitle: "noDocuments",
-      emptyBody: "noDocumentsDescription",
+      create: "newFile",
+      noMatches: "filters.noMatchingFiles",
+      emptyTitle: "noFiles",
+      emptyBody: "noFilesDescription",
     },
     defaultLayout: "tags",
     tiles: true,
     // Made from a type, an upload, a link or a template, not just a name.
-    CreateDialog: CreateDocumentDialog,
-    fileDrop: { accept: DOCUMENT_UPLOAD_ACCEPT, label: "dropToUpload" },
-    // The rows are documents, which is what these columns read.
-    table: { useColumns: useDocumentColumns as unknown as () => AppColumnDef<ToolIndexRow>[] },
+    CreateDialog: CreateFileDialog,
+    fileDrop: { accept: FILE_UPLOAD_ACCEPT, label: "dropToUpload" },
+    // The rows are files, which is what these columns read.
+    table: { useColumns: useFileColumns as unknown as () => AppColumnDef<ToolIndexRow>[] },
     untagged: true,
   },
 

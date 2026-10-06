@@ -441,7 +441,7 @@ export const ContentCardSkeleton = ({
   </Card>
 );
 
-/** The writing surface of a document or a task. */
+/** The writing surface of a file or a task. */
 export const EditorSkeleton = ({
   lines = 10,
   className,
@@ -510,8 +510,8 @@ export const ProjectDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   </SkeletonRegion>
 );
 
-/** A document's page: breadcrumb, toolbar, title, and the editor. */
-export const DocumentDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
+/** A file's page: breadcrumb, toolbar, title, and the editor. */
+export const FileDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label}>
     <DetailPageSkeleton actions={3} description={false}>
       <EditorSkeleton lines={14} />

@@ -25,7 +25,7 @@ from app.core.version import get_min_desktop_version, get_min_native_version
 from app.services import captcha as captcha_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
-from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
+from app.services.tenant.attachments import MAX_FILE_SIZE
 
 router = APIRouter()
 
@@ -166,7 +166,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         billing=billing,
         faro_collector_url=settings.FARO_COLLECTOR_URL,
         count_page_views=settings.METRICS_TOKEN is not None,
-        max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
+        max_upload_bytes=MAX_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,

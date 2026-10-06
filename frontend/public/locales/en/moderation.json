@@ -39,7 +39,7 @@
     "comment": "A comment",
     "post": "A post",
     "task": "A task",
-    "document": "A document",
+    "file": "A file",
     "project": "A project",
     "queue": "A queue",
     "queue_item": "A queue item",

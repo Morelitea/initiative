@@ -193,10 +193,10 @@ def test_every_context_branch_binds_every_parameter():
                 guild_id=3,
                 install_id=5,
                 client_id="tests.plugin-service",
-                token_scopes=frozenset({"documents:read"}),
+                token_scopes=frozenset({"files:read"}),
             ),
             token_client_id="tests.plugin-service",
-            token_scopes=frozenset({"documents:read"}),
+            token_scopes=frozenset({"files:read"}),
         ),
     }
     for name, shape in branches.items():

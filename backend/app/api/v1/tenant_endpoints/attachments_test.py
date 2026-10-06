@@ -266,8 +266,8 @@ async def test_a_picture_another_task_still_shows_stays(
 async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     client: AsyncClient, session, acting_user
 ):
-    """An image pasted from a document keeps its own name, so taking it out of
-    a description leaves the document's picture alone."""
+    """An image pasted from a file keeps its own name, so taking it out of
+    a description leaves the file's picture alone."""
     from app.testing import create_task
 
     a = await acting_user(
@@ -314,14 +314,14 @@ async def test_purging_a_task_deletes_its_pictures(
 
 
 def _lexical(*urls: str) -> dict:
-    """A document body showing these pictures."""
+    """A file body showing these pictures."""
     return {"root": {"children": [{"type": "image", "src": url} for url in urls]}}
 
 
-async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
+async def test_a_picture_taken_out_of_a_file_goes_when_nothing_shows_it(
     client: AsyncClient, session, acting_user
 ):
-    """Editing a document lets go of a picture it stopped showing, but only
+    """Editing a file lets go of a picture it stopped showing, but only
     once nothing else shows it, and only a file this community stores — a
     body naming another community's file leaves that file alone. A duplicate
     shows its own copy, stored at the same size, so it is not what keeps the
@@ -331,20 +331,20 @@ async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
     from sqlmodel import select
 
     from app.models.tenant.upload import Upload
-    from app.testing import create_document
+    from app.testing import create_file
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     url = await _paste(client, a)
     elsewhere = await _paste(client, b)
-    first = await create_document(session, a.initiative, a.user, content=_lexical(url))
-    second = await create_document(
+    first = await create_file(session, a.initiative, a.user, content=_lexical(url))
+    second = await create_file(
         session, a.initiative, a.user, content=_lexical(url, elsewhere)
     )
     await session.commit()
 
     duplicate = await client.post(
-        a.g(f"/documents/{first.id}/duplicate"), headers=a.headers, json={"name": "C"}
+        a.g(f"/files/{first.id}/duplicate"), headers=a.headers, json={"name": "C"}
     )
     assert duplicate.status_code == 201, duplicate.text
     copy = duplicate.json()["content"]["root"]["children"][0]["src"]
@@ -356,9 +356,9 @@ async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
     )
     assert set(sizes.all()) == {len(TINY_PNG)}
 
-    async def clear(document_id: int) -> None:
+    async def clear(file_id: int) -> None:
         response = await client.patch(
-            a.g(f"/documents/{document_id}"),
+            a.g(f"/files/{file_id}"),
             headers=a.headers,
             json={"content": _lexical()},
         )
@@ -659,22 +659,22 @@ async def test_a_saved_picture_reaches_its_initiative_and_nobody_else(
     assert await _status(client, outsider, url) == 404
 
 
-async def test_one_picture_in_a_document_and_a_task_stays_one_file(
+async def test_one_picture_in_a_file_and_a_task_stays_one_file(
     client: AsyncClient, session, acting_user
 ):
-    from app.testing import create_document, create_task
+    from app.testing import create_file, create_task
 
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     url = await _paste(client, a)
     task = await create_task(session, a.project)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     await session.commit()
 
     await _set_description(client, a, task.id, f"![shot]({url})")
     response = await client.patch(
-        a.g(f"/documents/{document.id}"),
+        a.g(f"/files/{file.id}"),
         headers=a.headers,
         json={"content": _lexical(url)},
     )
@@ -724,18 +724,18 @@ async def test_a_picture_pasted_from_another_initiative_is_copied(
     assert await _status(client, there, url) == 404
 
 
-async def test_a_picture_copied_into_a_document_reaches_its_live_state(
+async def test_a_picture_copied_into_a_file_reaches_its_live_state(
     client: AsyncClient, session, acting_user
 ):
-    """The copy's address is written into the document's stored Yjs state as
+    """The copy's address is written into the file's stored Yjs state as
     well as its content, so a live session merges it in rather than writing
     the original's back."""
     from sqlalchemy.orm import undefer
     from sqlmodel import select
 
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.services.tenant.body_states import LEXICAL
-    from app.testing import create_document, create_initiative, lexical_body
+    from app.testing import create_file, create_initiative, lexical_body
 
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     elsewhere = await create_initiative(session, a.guild, a.user)
@@ -744,8 +744,8 @@ async def test_a_picture_copied_into_a_document_reaches_its_live_state(
     body["root"]["children"][0]["children"].append(
         {"type": "image", "src": url, "altText": "shot", "version": 1}
     )
-    first = await create_document(session, a.initiative, a.user)
-    doc = await create_document(
+    first = await create_file(session, a.initiative, a.user)
+    doc = await create_file(
         session,
         elsewhere,
         a.user,
@@ -754,20 +754,20 @@ async def test_a_picture_copied_into_a_document_reaches_its_live_state(
     )
     await session.commit()
     kept = await client.patch(
-        a.g(f"/documents/{first.id}"), headers=a.headers, json={"content": body}
+        a.g(f"/files/{first.id}"), headers=a.headers, json={"content": body}
     )
     assert kept.status_code == 200, kept.text
 
     response = await client.patch(
-        a.g(f"/documents/{doc.id}"), headers=a.headers, json={"content": body}
+        a.g(f"/files/{doc.id}"), headers=a.headers, json={"content": body}
     )
 
     assert response.status_code == 200, response.text
     saved = (
         await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
+            select(File)
+            .where(File.id == doc.id)
+            .options(undefer(File.content), undefer(File.yjs_state))
             .execution_options(populate_existing=True)
         )
     ).one()
@@ -811,14 +811,14 @@ async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     client: AsyncClient, session, acting_user, role_session
 ):
     """An install placed in two initiatives copies a picture into the second
-    only when content it may read shows it: a document does here, and a task,
+    only when content it may read shows it: a file does here, and a task,
     under a scope it was not granted, does not."""
     from sqlmodel import select
 
     from app.models.tenant.plugin_placement import PluginPlacement
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.testing import (
-        create_document,
+        create_file,
         create_project,
         create_resource_grant,
         create_task,
@@ -827,15 +827,15 @@ async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     )
     from app.testing.plugin_clients import install_plugin, install_headers
 
-    scopes = ["documents:read", "documents:write"]
+    scopes = ["files:read", "files:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     seat = installed.seat
-    in_task, in_document = await _paste(client, seat), await _paste(client, seat)
+    in_task, in_file = await _paste(client, seat), await _paste(client, seat)
     task = await create_task(
         session, await create_project(session, installed.placed, seat.user)
     )
-    document = await create_document(session, installed.placed, seat.user)
-    await create_resource_grant(session, document, all_initiative_members=True)
+    file = await create_file(session, installed.placed, seat.user)
+    await create_resource_grant(session, file, all_initiative_members=True)
     await route_session_to_guild(session, installed.guild.id)
     session.add(
         PluginPlacement(
@@ -845,19 +845,19 @@ async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     await session.commit()
     await _set_description(client, seat, task.id, f"![shot]({in_task})")
     saved = await client.patch(
-        seat.g(f"/documents/{document.id}"),
+        seat.g(f"/files/{file.id}"),
         headers=seat.headers,
-        json={"content": _lexical(in_document)},
+        json={"content": _lexical(in_file)},
     )
     assert saved.status_code == 200, saved.text
 
     response = await client.post(
-        guild_url(installed.guild.id, "/documents/"),
+        guild_url(installed.guild.id, "/files/"),
         headers=install_headers(installed, scopes),
         json={
             "name": "Elsewhere",
             "initiative_id": installed.unplaced.id,
-            "content": _lexical(in_task, in_document),
+            "content": _lexical(in_task, in_file),
         },
     )
 
@@ -866,14 +866,14 @@ async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     # where it is kept.
     saved_body = (
         await session.exec(
-            select(Document.content)
-            .where(Document.id == response.json()["id"])
+            select(File.content)
+            .where(File.id == response.json()["id"])
             .execution_options(populate_existing=True)
         )
     ).one()
     shown = [c["src"] for c in saved_body["root"]["children"]]
     assert shown[0] == in_task
-    assert shown[1] != in_document
+    assert shown[1] != in_file
 
 
 async def test_a_plugin_moving_a_task_carries_its_picture(

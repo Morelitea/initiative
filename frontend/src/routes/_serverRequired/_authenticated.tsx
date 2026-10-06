@@ -18,6 +18,7 @@ import { AnnouncementCenter } from "@/components/announcements/AnnouncementCente
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
+import { ConfirmBirthdate } from "@/components/ConfirmBirthdate";
 import { CommunityAccessBanner } from "@/components/communities/CommunityAccessBanner";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -163,6 +164,13 @@ function AppLayout() {
     return <AcceptTerms />;
   }
 
+  // No date of birth on file. Asked once of every account — plug-ins can have a
+  // minimum age that differs by country — and never again once answered. An
+  // account already blocked as under age has nothing left to answer here.
+  if (!loading && user && !user.birthdate_on_file && !user.age_below_minimum_at) {
+    return <ConfirmBirthdate />;
+  }
+
   // Now we can have conditional returns
   // Show loading state while auth or community membership is being determined
   if (loading || communitiesLoading) {
@@ -260,7 +268,7 @@ function AppLayout() {
     <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
-      <CreateToolWizard tool={Tool.document} />
+      <CreateToolWizard tool={Tool.file} />
       {/* A real height rather than a minimum: `min-h-screen` leaves every
           descendant sizing to its own content, so a page cannot ask for the
           height of what it is in. Scrolling moves from the document into

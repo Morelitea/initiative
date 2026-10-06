@@ -17,7 +17,7 @@ export {
   buildIgnoredAccount,
   resetCounter as resetDmCounter,
 } from "./dm.factory";
-export { buildDocumentSummary, resetCounter as resetDocumentCounter } from "./document.factory";
+export { buildFileSummary, resetCounter as resetFileCounter } from "./file.factory";
 export {
   buildDefaultFilterPresets,
   buildFilterPreset,
@@ -67,7 +67,7 @@ export {
 } from "./queue.factory";
 export {
   buildRecentCounterGroupItem,
-  buildRecentDocumentItem,
+  buildRecentFileItem,
   buildRecentItem,
   buildRecentProjectItem,
   buildRecentQueueItem,
@@ -101,7 +101,7 @@ export { buildWiki, buildWikiPage } from "./wiki.factory";
 import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetCommunityCounter } from "./community.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
-import { resetCounter as resetDocumentCounter } from "./document.factory";
+import { resetCounter as resetFileCounter } from "./file.factory";
 import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
 import { resetCounter as resetGalleryCounter } from "./gallery.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
@@ -129,7 +129,7 @@ export function resetFactories(): void {
   resetProjectCounter();
   resetTaskCounter();
   resetTagCounter();
-  resetDocumentCounter();
+  resetFileCounter();
   resetCommentCounter();
   resetNotificationCounter();
   resetQueueCounter();

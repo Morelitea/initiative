@@ -596,7 +596,7 @@ class CommunityDeletionRequest(SanitizedBaseModel):
     """Body for ``DELETE /communities/{id}``.
 
     Deleting a guild cascades through every initiative, project, task,
-    document, membership, invite, and settings row it owns, so the
+    file, membership, invite, and settings row it owns, so the
     endpoint gates on two confirmations:
 
     - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole

@@ -64,7 +64,7 @@ describe("query-keys community scoping", () => {
   it("a property write reaches the row's own reads and the tool it sits in", async () => {
     const page = seed(["/api/v1/c/5/wiki-pages/9"]);
     const tree = seed(["/api/v1/c/5/wikis/3/pages"]);
-    const unrelated = seed(["/api/v1/c/5/documents/"]);
+    const unrelated = seed(["/api/v1/c/5/files/"]);
     const calendarEntries = seed(["/api/v1/c/5/calendar-entries/"]);
 
     setInvalidationCommunity(5);

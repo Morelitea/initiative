@@ -1,7 +1,7 @@
 """Queue service layer — business logic for queue CRUD, turn management, and DAC.
 
 This module handles:
-  - Discretionary Access Control (DAC) for queues (mirroring the project/document
+  - Discretionary Access Control (DAC) for queues (mirroring the project/file
     pattern in ``permissions.py``)
   - Queue and queue-item fetching with eager-loaded relationships
   - Turn management (advance, previous, start, stop, reset, set active item)

@@ -54,10 +54,10 @@
     "redactedItem": "Dir wurde eine Aufgabe zugewiesen"
   },
   "mention": {
-    "document": {
-      "subject": "Du wurdest in {{document}} erwähnt",
+    "file": {
+      "subject": "Du wurdest in {{file}} erwähnt",
       "title": "Du wurdest erwähnt",
-      "body": "<strong>{{actor}}</strong> hat dich in <strong>{{document}}</strong> erwähnt"
+      "body": "<strong>{{actor}}</strong> hat dich in <strong>{{file}}</strong> erwähnt"
     },
     "comment": {
       "subject": "Du wurdest in einem Kommentar erwähnt",

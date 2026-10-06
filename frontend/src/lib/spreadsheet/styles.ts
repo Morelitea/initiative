@@ -1,8 +1,8 @@
 /**
- * Pure formatting model for spreadsheet documents (schema v2).
+ * Pure formatting model for spreadsheet files (schema v2).
  *
  * Mirrors the backend normalizer in
- * ``backend/app/services/documents_spreadsheet.py`` — caps, enums, and
+ * ``backend/app/services/tenant/files_spreadsheet.py`` — caps, enums, and
  * the "drop bad entries, never throw" discipline are kept in sync so a
  * client never sends something the server would silently strip.
  *

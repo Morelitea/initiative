@@ -54,7 +54,7 @@ def is_device(request: Request) -> bool:
 
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
-# the Content-Security-Policy (pentest MED-001). These are the document
+# the Content-Security-Policy (pentest MED-001). These are the file
 # "smart link" providers available in the editor (always present).
 CSP_EMBED_FRAME_ORIGINS = [
     "https://www.youtube-nocookie.com",
@@ -610,7 +610,7 @@ class Settings(BaseSettings):
         injected markup can't execute. ``style-src`` does allow
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
-        Fonts, document embeds, and — when configured — the captcha provider and
+        Fonts, file embeds, and — when configured — the captcha provider and
         app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 
@@ -1078,6 +1078,14 @@ class Settings(BaseSettings):
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
+
+    # The request header a trusted proxy in front of the deployment writes the
+    # client's country into, as an ISO 3166-1 alpha-2 code — ``CF-IPCountry``
+    # behind Cloudflare. Read to apply a plug-in's minimum age for where
+    # somebody is; never stored. Unset (the default), or a value that is not a
+    # country, means "not known", and a plug-in's highest declared age applies.
+    # Only set it when every request reaches the app through that proxy.
+    CLIENT_COUNTRY_HEADER: str | None = None
 
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to
     # every route that lacks its own ``@limiter.limit(...)`` decorator. Uses the

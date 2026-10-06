@@ -31,7 +31,7 @@ from app.services.tenant.relationships import Endpoint
 from app.testing.factories import (
     create_calendar,
     create_calendar_event,
-    create_document,
+    create_file,
     create_initiative,
     create_relationship,
     create_tag,
@@ -91,12 +91,12 @@ async def test_symmetric_edge_is_stored_once_whichever_way_it_is_asked_for(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     await route_session_to_guild(session, a.guild.id)
 
     first = await relationships.create(
         session,
-        source=Endpoint(SearchEntityType.document, doc.id),
+        source=Endpoint(SearchEntityType.file, doc.id),
         relationship_type=RelationshipType.attached,
         target=Endpoint(SearchEntityType.project, a.project.id),
     )
@@ -105,7 +105,7 @@ async def test_symmetric_edge_is_stored_once_whichever_way_it_is_asked_for(
         session,
         source=Endpoint(SearchEntityType.project, a.project.id),
         relationship_type=RelationshipType.attached,
-        target=Endpoint(SearchEntityType.document, doc.id),
+        target=Endpoint(SearchEntityType.file, doc.id),
     )
     assert first is not None
     assert second is None
@@ -119,9 +119,9 @@ async def test_symmetric_edge_is_stored_once_whichever_way_it_is_asked_for(
     ).all()
     assert len(rows) == 1
     # Stored in node-id order, which is the constraint's rule and not the
-    # caller's: document (6) sorts below project (10).
+    # caller's: file (6) sorts below project (10).
     assert rows[0].source_node < rows[0].target_node
-    assert rows[0].source_type == SearchEntityType.document.value
+    assert rows[0].source_type == SearchEntityType.file.value
 
 
 async def test_a_part_may_belong_to_two_wholes(session: AsyncSession, acting_user):
@@ -221,12 +221,12 @@ async def test_a_manual_removal_is_remembered_and_the_pair_is_re_linkable(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     row = await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.project, a.project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         created_by=a.user.id,
     )
 
@@ -254,7 +254,7 @@ async def test_a_manual_removal_is_remembered_and_the_pair_is_re_linkable(
         session,
         a.guild,
         source=(SearchEntityType.project, a.project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
     )
     assert again.id != row.id
 
@@ -268,12 +268,12 @@ async def test_a_content_edge_is_deleted_rather_than_tombstoned(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     row = await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.project, a.project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         provenance=Provenance.content,
     )
     row_id = row.id
@@ -297,21 +297,21 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The hard isolation boundary, as it applies to a link: a member of one
-    initiative does not learn that a project of theirs is attached to a document
+    initiative does not learn that a project of theirs is attached to a file
     of another initiative they are not in."""
     owner = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    # A document in a DIFFERENT initiative of the same guild. The owner is in
+    # A file in a DIFFERENT initiative of the same guild. The owner is in
     # both; the reader below is in only one.
     elsewhere = await create_initiative(session, owner.guild, owner.user)
-    doc = await create_document(session, elsewhere, owner.user)
+    doc = await create_file(session, elsewhere, owner.user)
 
     await create_relationship(
         session,
         owner.guild,
         source=(SearchEntityType.project, owner.project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         created_by=owner.user.id,
     )
 
@@ -319,7 +319,7 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
     # it: what is being tested is the edge's FAR end, not this one.
     await create_resource_grant(session, owner.project, all_initiative_members=True)
 
-    # A guild member in the project's initiative but not the document's.
+    # A guild member in the project's initiative but not the file's.
     reader = await acting_user(
         guild_role=CommunityRole.member,
         guild=owner.guild,
@@ -367,12 +367,12 @@ async def test_purging_an_endpoint_takes_its_edges_including_tombstones(
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     live = await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.project, a.project.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
     )
     live_id = live.id
     second = await create_task(session, a.project)
@@ -380,20 +380,18 @@ async def test_purging_an_endpoint_takes_its_edges_including_tombstones(
         session,
         a.guild,
         source=(SearchEntityType.task, second.id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
         relationship_type=RelationshipType.related_to,
     )
     # Held now: each commit below expires these objects, and reading an
     # attribute off an expired one is IO in a place that cannot do it.
     edge_ids = [live_id, tombstoned.id]
-    document_id = doc.id
+    file_id = doc.id
 
     await relationships.remove(session, tombstoned, removed_by=a.user.id)
     await session.commit()
 
-    await relationships.purge_for_entities(
-        session, SearchEntityType.document, [document_id]
-    )
+    await relationships.purge_for_entities(session, SearchEntityType.file, [file_id])
     await session.commit()
 
     remaining = (
@@ -412,7 +410,7 @@ async def test_two_guilds_events_do_not_share_attachments(
     """Ids come from each guild's own sequence, so two guilds hold an event 5
     between them. A per-guild read must therefore be carried out paired with its
     event; merging these dicts across guilds is what this guards against."""
-    from app.services.tenant.ical_service import documents_for_events
+    from app.services.tenant.ical_service import files_for_events
 
     first = await acting_user(guild_role=CommunityRole.member, initiative=True)
     second = await acting_user(guild_role=CommunityRole.member, initiative=True)
@@ -421,12 +419,12 @@ async def test_two_guilds_events_do_not_share_attachments(
     for actor in (first, second):
         calendar = await create_calendar(session, actor.initiative, actor.user)
         event = await create_calendar_event(session, calendar, actor.user)
-        doc = await create_document(session, actor.initiative, actor.user)
+        doc = await create_file(session, actor.initiative, actor.user)
         await create_relationship(
             session,
             actor.guild,
             source=(SearchEntityType.calendar_event, event.id),
-            target=(SearchEntityType.document, doc.id),
+            target=(SearchEntityType.file, doc.id),
         )
         events.append((actor, event, doc))
 
@@ -434,7 +432,7 @@ async def test_two_guilds_events_do_not_share_attachments(
     paired: list[tuple[int, int, list]] = []
     for actor, event, _ in events:
         await route_session_to_guild(session, actor.guild.id)
-        found = await documents_for_events(session, [event])
+        found = await files_for_events(session, [event])
         paired.append((guild_of(event), event.id, found.get(event.id, [])))
 
     assert len(paired) == 2, "one guild's events displaced the other's"

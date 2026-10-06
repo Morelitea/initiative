@@ -41,7 +41,7 @@ class Post(
 
     ``name`` is the headline (the shared display column every tool spells the
     same) and ``body`` is a Lexical editor state, the same shape a native
-    document stores. That is what buys a post inline images and real smart
+    file stores. That is what buys a post inline images and real smart
     chips — a chip shows a fact ABOUT the thing it names (a task's column, a
     counter's reading) and keeps showing the current one, which the reference
     syntax comment text uses cannot do.

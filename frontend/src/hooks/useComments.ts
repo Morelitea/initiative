@@ -171,7 +171,7 @@ export const useCommentsCache = (params: CommentThreadParams) => {
 const COMMENT_TARGETS = [
   "task_id",
   "wiki_page_id",
-  "document_id",
+  "file_id",
   "project_id",
   "queue_id",
   "counter_group_id",

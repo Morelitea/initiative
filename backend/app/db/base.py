@@ -30,9 +30,9 @@ from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import (
-    Document,
-    DocumentFileVersion,
+from app.models.tenant.file import (
+    File,
+    FileVersion,
 )
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
@@ -104,6 +104,7 @@ from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
+from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
@@ -178,8 +179,8 @@ __all__ = [
     "ProjectOrder",
     "RecentView",
     "Comment",
-    "Document",
-    "DocumentFileVersion",
+    "File",
+    "FileVersion",
     "Notification",
     "OIDCClaimMapping",
     "Tag",
@@ -262,6 +263,7 @@ __all__ = [
     "GuildPluginUserConnection",
     "UserTotp",
     "UserTotpSecret",
+    "UserBirthdate",
     "MfaRecoveryCode",
     "AuthChallenge",
 ]

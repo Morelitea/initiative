@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
-    """Guild-scoped tag for categorizing tasks, projects, and documents.
+    """Guild-scoped tag for categorizing tasks, projects, and files.
 
     Supports nested tag naming via "/" convention (e.g., "books/fiction").
     The "/" is purely visual/organizational - no parent-child DB relationships.

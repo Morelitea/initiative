@@ -225,7 +225,7 @@ NAMES = {
     "task_assignee": (Tool.project, _assign),
     "event_attendee": (Tool.calendar, _invite),
     "queue_item": (Tool.queue, _queue_up),
-    "person_field": (Tool.document, _person_field),
+    "person_field": (Tool.file, _person_field),
 }
 
 

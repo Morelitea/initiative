@@ -38,7 +38,7 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
     ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings/`],
     ["/c/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
-    ["/c/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
+    ["/c/1/i/5/files/3", `${INITIATIVE}/files/$fileId/`],
     ["/c/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
     ["/c/1/i/5/counter-groups/6", `${INITIATIVE}/counter-groups/$counterGroupId/`],
     [
@@ -88,7 +88,7 @@ describe("initiative route resolution", () => {
     ],
     ["/c/1/i/5/queues/4/settings", `${INITIATIVE}/queues/$queueId/settings/`],
     ["/c/1/i/5/queues/4/settings/advanced", `${INITIATIVE}/queues/$queueId/settings/advanced`],
-    ["/c/1/i/5/documents/3/settings/access", `${INITIATIVE}/documents/$documentId/settings/access`],
+    ["/c/1/i/5/files/3/settings/access", `${INITIATIVE}/files/$fileId/settings/access`],
     [
       "/c/1/i/5/counter-groups/6/settings/advanced",
       `${INITIATIVE}/counter-groups/$counterGroupId/settings/advanced`,
@@ -131,13 +131,13 @@ describe("initiative route resolution", () => {
   });
 
   it("resolves the entity-reference resolver", () => {
-    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
+    expect(resolvedRouteId("/c/1/go/file/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
   });
 
   // Deleted on purpose — the community home is the cross-initiative browse now.
   it.each([
     "/c/1/projects",
-    "/c/1/documents",
+    "/c/1/files",
     "/c/1/queues",
     "/c/1/dashboards",
     "/c/1/counter-groups",

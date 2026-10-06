@@ -4,11 +4,11 @@ A backup is a zip of per-tool JSON envelopes (each independently versioned by
 its own ``type`` + ``schema_version``) plus optional upload blobs under
 ``assets/``. The manifest is what a future import wizard reads first: it
 inventories every entry by type so files dispatch to the right importer, maps
-assets back to the documents that reference them, and records what was
+assets back to the files that reference them, and records what was
 deliberately left out (``skipped``) so a backup never silently loses data.
 
 Privacy rule: ``skipped`` lists only items the exporter can SEE but policy
-excluded (e.g. file documents when uploads are excluded). Rows invisible to
+excluded (e.g. uploaded files when uploads are excluded). Rows invisible to
 the exporter under sharing rules are simply absent everywhere.
 """
 
@@ -26,7 +26,7 @@ MIN_SUPPORTED_IMPORT_VERSION = 1
 class ManifestAttachTo(SanitizedBaseModel):
     """Where an entry belongs once both ends of the archive exist.
 
-    A file document has one home — the initiative's document list — and this
+    An uploaded file has one home — the initiative's file list — and this
     says what it is *also* filed in, as the relation that is the second view
     of it. It names the far end by **manifest entry path**, not by id, for the
     reason every cross-entry reference does: an id means nothing until the
@@ -44,7 +44,7 @@ class ManifestEntry(SanitizedBaseModel):
     """One exported file inside the archive."""
 
     path: str
-    tool: str  # "project" | "document" | "queue" | "counter_group" |
+    tool: str  # "project" | "file" | "queue" | "counter_group" |
     #           "calendar" | "post"
     type: str  # envelope type, or "file"
     schema_version: Optional[int] = None  # None for foreign formats
@@ -57,7 +57,7 @@ class ManifestEntry(SanitizedBaseModel):
     # (file entries are raw blobs; envelopes carry their own tags/properties).
     tags: list[str] = []
     properties: list[dict] = []
-    # ``assets/{storage_key}`` for file documents (the blob IS the document).
+    # ``assets/{storage_key}`` for uploaded files (the blob IS the file).
     asset: Optional[str] = None
     # What this entry is filed in besides its own list, resolved after every
     # entry has been applied. Absent for everything that is only where it is.

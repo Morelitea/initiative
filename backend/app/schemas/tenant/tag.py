@@ -150,7 +150,7 @@ class TaggedTaskSummary(SanitizedBaseModel):
     project_name: Optional[str] = None
 
 
-class TaggedDocumentSummary(SanitizedBaseModel):
+class TaggedFileSummary(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )

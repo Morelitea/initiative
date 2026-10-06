@@ -45,13 +45,14 @@ from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
+    AgeViewerDep,
     RLSSessionDep,
     GuildContextDep,
     CurrentUser,
     SettingsAdminContextDep,
     SettingsRLSSessionDep,
 )
-from app.core.messages import PluginDataMessages
+from app.core.messages import GuildPluginMessages, PluginDataMessages
 from app.core.tools import Tool
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.sql_query import QueryColumnDescription
@@ -72,6 +73,7 @@ from app.schemas.tenant.plugin_data import (
 )
 from app.services.marketplace import plugin_data as plugin_data_service
 from app.services.marketplace.service_plugins import plugin_widget_type, is_admin_only
+from app.services.tenant import plugin_age
 
 
 def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -224,6 +226,7 @@ async def read_plugin_data(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
     dashboard_id: Annotated[
         int,
         Query(
@@ -269,6 +272,12 @@ async def read_plugin_data(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
+        )
+    # What a tile shows is the plug-in's, so a viewer too young for it reads none.
+    if not plugin_age.age_allows(plugin.definition, viewer):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildPluginMessages.AGE_RESTRICTED,
         )
     bound = _bound_bindings(
         dashboard.definition,
@@ -437,6 +446,7 @@ async def read_plugin_param_options(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
     param: Annotated[
         str,
         Query(description="Which of the endpoint's parameters to fill a menu for."),
@@ -476,6 +486,12 @@ async def read_plugin_param_options(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
+        )
+    # What a tile shows is the plug-in's, so a viewer too young for it reads none.
+    if not plugin_age.age_allows(plugin.definition, viewer):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildPluginMessages.AGE_RESTRICTED,
         )
 
     try:

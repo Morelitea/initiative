@@ -31,7 +31,7 @@ from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -42,7 +42,7 @@ from app.testing import (
     create_resource_grant,
     guild_url,
     create_comment,
-    create_document,
+    create_file,
     create_post,
     create_guild_calendar,
     create_project,
@@ -97,51 +97,49 @@ def _counting() -> Iterator[list[str]]:
 # ---------------------------------------------------------------------------
 
 
-async def test_reads_the_documents_open_to_its_initiative(
+async def test_reads_the_files_open_to_its_initiative(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    shared = await create_document(
+    shared = await create_file(
         session, installed.placed, installed.seat.user, name="Open in A"
     )
     await share_with_members(session, shared, installed.placed.id)
-    await create_document(
+    await create_file(
         session, installed.placed, installed.seat.user, name="Private in A"
     )
-    in_b = await create_document(
+    in_b = await create_file(
         session, installed.unplaced, installed.seat.user, name="Open in B"
     )
     await share_with_members(session, in_b, installed.unplaced.id)
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
 
-    listed = await client.get(
-        guild_url(installed.guild.id, "/documents/"), headers=headers
-    )
+    listed = await client.get(guild_url(installed.guild.id, "/files/"), headers=headers)
     assert listed.status_code == 200, listed.text
     assert [d["name"] for d in listed.json()["items"]] == ["Open in A"]
 
     # The plug-in API's document serves from /c/0: the token names the community.
-    advertised = await client.get(guild_url(0, "/documents/"), headers=headers)
+    advertised = await client.get(guild_url(0, "/files/"), headers=headers)
     assert advertised.status_code == 200, advertised.text
     assert advertised.json() == listed.json()
 
     read = await client.get(
-        guild_url(installed.guild.id, f"/documents/{shared.id}"), headers=headers
+        guild_url(installed.guild.id, f"/files/{shared.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == "Open in A"
     assert read.json()["can"]["edit"] is False
 
     other = await client.get(
-        guild_url(installed.guild.id, f"/documents/{in_b.id}"), headers=headers
+        guild_url(installed.guild.id, f"/files/{in_b.id}"), headers=headers
     )
     assert other.status_code == 404, other.text
 
 
 # ---------------------------------------------------------------------------
-# Authorship and the boundary (documents)
+# Authorship and the boundary (files)
 # ---------------------------------------------------------------------------
 
 
@@ -150,12 +148,12 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
 ):
     await lift_person_and_guild_ids(session)
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
-    headers = install_headers(installed, ["documents:write"])
+    headers = install_headers(installed, ["files:write"])
 
     created = await client.post(
-        guild_url(installed.guild.id, "/documents/"),
+        guild_url(installed.guild.id, "/files/"),
         headers=headers,
         json={"name": "Made by the plug-in", "initiative_id": installed.placed.id},
     )
@@ -170,7 +168,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     grants = (
         await session.exec(
             select(ResourceGrant).where(
-                ResourceGrant.resource_type == "document",
+                ResourceGrant.resource_type == "file",
                 ResourceGrant.resource_id == body["id"],
             )
         )
@@ -178,25 +176,25 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert [(g.level, g.plugin_install_id, g.user_id) for g in grants] == [
         (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
-    document = await session.get(Document, body["id"])
-    assert document is not None and document.created_by is None
+    file = await session.get(File, body["id"])
+    assert file is not None and file.created_by is None
 
 
-async def test_a_document_a_person_made_names_them_by_reference(
+async def test_a_file_a_person_made_names_them_by_reference(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    shared = await create_document(
+    shared = await create_file(
         session, installed.placed, installed.seat.user, name="Theirs"
     )
     await share_with_members(session, shared, installed.placed.id)
-    headers = install_headers(installed, ["documents:read"])
+    headers = install_headers(installed, ["files:read"])
 
     read = await client.get(
-        guild_url(installed.guild.id, f"/documents/{shared.id}"), headers=headers
+        guild_url(installed.guild.id, f"/files/{shared.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     body = read.json()
@@ -206,16 +204,14 @@ async def test_a_document_a_person_made_names_them_by_reference(
     assert body["grants"] == []
     assert_names_nobody(read.text, [installed.seat.user.id, installed.guild.id])
 
-    listed = await client.get(
-        guild_url(installed.guild.id, "/documents/"), headers=headers
-    )
+    listed = await client.get(guild_url(installed.guild.id, "/files/"), headers=headers)
     assert listed.status_code == 200, listed.text
     assert listed.json()["items"][0]["created_by"] == body["created_by"]
     assert_names_nobody(listed.text, [installed.seat.user.id, installed.guild.id])
 
-    # A person reading the same document is served row ids, as always.
+    # A person reading the same file is served row ids, as always.
     person = await client.get(
-        guild_url(installed.guild.id, f"/documents/{shared.id}"),
+        guild_url(installed.guild.id, f"/files/{shared.id}"),
         headers=installed.seat.headers,
     )
     assert person.status_code == 200, person.text
@@ -228,17 +224,17 @@ async def test_a_document_a_person_made_names_them_by_reference(
 # ---------------------------------------------------------------------------
 
 
-async def test_a_private_document_is_read_only_once_shared_with_the_plugin(
+async def test_a_private_file_is_read_only_once_shared_with_the_plugin(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    private = await create_document(
+    private = await create_file(
         session, installed.placed, installed.seat.user, name="Private in A"
     )
-    headers = install_headers(installed, ["documents:read"])
-    url = guild_url(installed.guild.id, f"/documents/{private.id}")
+    headers = install_headers(installed, ["files:read"])
+    url = guild_url(installed.guild.id, f"/files/{private.id}")
 
     assert (await client.get(url, headers=headers)).status_code == 404
 
@@ -257,23 +253,23 @@ async def test_it_cannot_write_even_what_is_shared_with_it_at_write(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    document = await create_document(
+    file = await create_file(
         session, installed.placed, installed.seat.user, name="Shared at write"
     )
     await create_resource_grant(
         session,
-        document,
+        file,
         plugin_install_id=installed.plugin.id,
         level=ResourceAccessLevel.write,
     )
-    url = guild_url(installed.guild.id, f"/documents/{document.id}")
+    url = guild_url(installed.guild.id, f"/files/{file.id}")
 
     # A token that asks for the read scope only.
     refused = await client.patch(
         url,
-        headers=install_headers(installed, ["documents:read"]),
+        headers=install_headers(installed, ["files:read"]),
         json={"name": "Renamed"},
     )
     assert refused.status_code == 403, refused.text
@@ -283,23 +279,23 @@ async def test_it_cannot_write_even_what_is_shared_with_it_at_write(
     # grant: the standing holds no write.
     claimed = await client.patch(
         url,
-        headers=install_headers(installed, ["documents:write"]),
+        headers=install_headers(installed, ["files:write"]),
         json={"name": "Renamed"},
     )
     assert claimed.status_code == 403, claimed.text
 
     await route_session_to_guild(session, installed.guild.id)
-    await session.refresh(document)
-    assert document.name == "Shared at write"
+    await session.refresh(file)
+    assert file.name == "Shared at write"
 
 
 async def test_it_cannot_create_a_project(client, session, acting_user, role_session):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     response = await client.post(
         guild_url(installed.guild.id, "/projects/"),
-        headers=install_headers(installed, ["documents:read"]),
+        headers=install_headers(installed, ["files:read"]),
         json={"name": "Nope", "initiative_id": installed.placed.id},
     )
     assert response.status_code == 403, response.text
@@ -310,7 +306,7 @@ async def test_the_role_refuses_guild_settings_outright(
     session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     s = await role_session("app_user")
     await route_as_install(
@@ -318,7 +314,7 @@ async def test_the_role_refuses_guild_settings_outright(
         guild_id=installed.guild.id,
         install_id=installed.plugin.id,
         client_id=CLIENT,
-        scopes=["documents:read"],
+        scopes=["files:read"],
     )
     with pytest.raises(DBAPIError, match="permission denied"):
         await s.exec(text("SELECT count(*) FROM guild_settings"))
@@ -336,7 +332,7 @@ async def test_a_narrowed_token_reads_only_its_initiative(
         session,
         acting_user,
         role_session,
-        granted=["documents:read", "calendars:read"],
+        granted=["files:read", "calendars:read"],
     )
     # Placed in B too, so only the narrowing keeps B out.
     await route_session_to_guild(session, installed.guild.id)
@@ -346,29 +342,29 @@ async def test_a_narrowed_token_reads_only_its_initiative(
         )
     )
     await session.commit()
-    in_a = await create_document(
+    in_a = await create_file(
         session, installed.placed, installed.seat.user, name="In A"
     )
     await share_with_members(session, in_a, installed.placed.id)
-    in_b = await create_document(
+    in_b = await create_file(
         session, installed.unplaced, installed.seat.user, name="In B"
     )
     await share_with_members(session, in_b, installed.unplaced.id)
     await create_guild_calendar(
         session, installed.guild, installed.seat.user, name="Community"
     )
-    scopes = ["documents:read", "calendars:read"]
+    scopes = ["files:read", "calendars:read"]
     wide = install_headers(installed, scopes)
     narrow = install_headers(installed, scopes, initiative_id=installed.placed.id)
     guild = installed.guild.id
 
-    everything = await client.get(guild_url(guild, "/documents/"), headers=wide)
+    everything = await client.get(guild_url(guild, "/files/"), headers=wide)
     assert sorted(d["name"] for d in everything.json()["items"]) == ["In A", "In B"]
 
-    only_a = await client.get(guild_url(guild, "/documents/"), headers=narrow)
+    only_a = await client.get(guild_url(guild, "/files/"), headers=narrow)
     assert [d["name"] for d in only_a.json()["items"]] == ["In A"]
     assert (
-        await client.get(guild_url(guild, f"/documents/{in_b.id}"), headers=narrow)
+        await client.get(guild_url(guild, f"/files/{in_b.id}"), headers=narrow)
     ).status_code == 404
 
     community = await client.get(guild_url(guild, "/calendars/"), headers=wide)
@@ -382,17 +378,17 @@ async def test_a_narrowed_token_reads_only_its_initiative(
 # ---------------------------------------------------------------------------
 
 
-async def _open_document(session: Any, installed: Any) -> Document:
-    document = await create_document(
+async def _open_file(session: Any, installed: Any) -> File:
+    file = await create_file(
         session, installed.placed, installed.seat.user, name="Open in A"
     )
-    await share_with_members(session, document, installed.placed.id)
-    return document
+    await share_with_members(session, file, installed.placed.id)
+    return file
 
 
 async def _names(client: Any, installed: Any, headers: dict[str, str]) -> Any:
     response = await client.get(
-        guild_url(installed.guild.id, "/documents/"), headers=headers
+        guild_url(installed.guild.id, "/files/"), headers=headers
     )
     if response.status_code != 200:
         return response.status_code
@@ -403,10 +399,10 @@ async def test_removing_the_placement_takes_effect_on_the_next_request(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    await _open_document(session, installed)
-    headers = install_headers(installed, ["documents:read"])
+    await _open_file(session, installed)
+    headers = install_headers(installed, ["files:read"])
     assert await _names(client, installed, headers) == ["Open in A"]
 
     await route_session_to_guild(session, installed.guild.id)
@@ -423,10 +419,10 @@ async def test_removing_the_scope_takes_effect_on_the_next_request(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    await _open_document(session, installed)
-    headers = install_headers(installed, ["documents:read"])
+    await _open_file(session, installed)
+    headers = install_headers(installed, ["files:read"])
     assert await _names(client, installed, headers) == ["Open in A"]
 
     s = await _seat_session(installed, role_session)
@@ -445,10 +441,10 @@ async def test_switching_off_takes_effect_on_the_next_request(
     client, session, acting_user, role_session, switch
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    await _open_document(session, installed)
-    headers = install_headers(installed, ["documents:read"])
+    await _open_file(session, installed)
+    headers = install_headers(installed, ["files:read"])
     assert await _names(client, installed, headers) == ["Open in A"]
 
     if switch == "registration":
@@ -484,11 +480,11 @@ async def test_an_unmarked_route_refuses_an_installation_token(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     response = await client.get(
-        guild_url(installed.guild.id, "/tools/document/counts"),
-        headers=install_headers(installed, ["documents:read"]),
+        guild_url(installed.guild.id, "/tools/file/counts"),
+        headers=install_headers(installed, ["files:read"]),
     )
     assert response.status_code == 401, response.text
 
@@ -530,14 +526,14 @@ async def test_a_list_costs_two_statements_before_its_handler(
     client, session, acting_user, role_session, monkeypatch
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    await _open_document(session, installed)
-    headers = install_headers(installed, ["documents:read"])
+    await _open_file(session, installed)
+    headers = install_headers(installed, ["files:read"])
 
     with _counting() as statements, _handler_start(monkeypatch, statements) as seen:
         response = await client.get(
-            guild_url(installed.guild.id, "/documents/"), headers=headers
+            guild_url(installed.guild.id, "/files/"), headers=headers
         )
     assert response.status_code == 200, response.text
     assert seen == [2], statements[:4]
@@ -547,11 +543,11 @@ async def test_a_response_naming_people_costs_one_statement_cold_and_none_warm(
     client, session, acting_user, role_session, monkeypatch
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
-    document = await _open_document(session, installed)
-    headers = install_headers(installed, ["documents:read"])
-    url = guild_url(installed.guild.id, f"/documents/{document.id}")
+    file = await _open_file(session, installed)
+    headers = install_headers(installed, ["files:read"])
+    url = guild_url(installed.guild.id, f"/files/{file.id}")
 
     # Mint the references once, then measure a warm read against a cold one.
     first = await client.get(url, headers=headers)
@@ -647,11 +643,11 @@ async def test_member_search_needs_members_read(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["documents:read"]
+        session, acting_user, role_session, granted=["files:read"]
     )
     response = await client.get(
         guild_url(installed.guild.id, "/users/search"),
-        headers=install_headers(installed, ["documents:read"]),
+        headers=install_headers(installed, ["files:read"]),
     )
     assert response.status_code == 403, response.text
 
@@ -843,7 +839,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     """Content written before names were left out still carries one, and it
     reaches no plug-in, nor does anything derived from the text."""
     await lift_person_and_guild_ids(session)
-    reads = ["projects:read", "comments:read", "documents:read", "posts:read"]
+    reads = ["projects:read", "comments:read", "files:read", "posts:read"]
     installed = await install_plugin(
         session, acting_user, role_session, granted=[*reads, "members:read"]
     )
@@ -864,7 +860,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
         session, project, assignees=[seat.user], description=mention
     )
     await create_comment(session, seat.user, task=task, content=mention)
-    document = await create_document(
+    file = await create_file(
         session,
         installed.placed,
         seat.user,
@@ -873,7 +869,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
             picture,
         ),
     )
-    await share_with_members(session, document, installed.placed.id)
+    await share_with_members(session, file, installed.placed.id)
     headers = install_headers(
         installed, [*reads, "members:read"] if reads_names else reads
     )
@@ -884,7 +880,7 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
         for path in (
             f"/tasks/{task.id}",
             f"/comments/?task_id={task.id}",
-            f"/documents/{document.id}",
+            f"/files/{file.id}",
             f"/posts/{post.id}",
             f"/tasks/?project_id={project.id}",
         )
@@ -908,14 +904,14 @@ async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     # The person's handle finds what mentions them only for a plug-in that may
     # read names.
     found = await client.get(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=headers,
         params={"search": seat.user.username},
     )
     assert found.status_code == 200, found.text
     assert len(found.json()["items"]) == int(reads_names)
     # A person reads the same with its paths.
-    for path in (f"/tasks/{task.id}", f"/documents/{document.id}", f"/posts/{post.id}"):
+    for path in (f"/tasks/{task.id}", f"/files/{file.id}", f"/posts/{post.id}"):
         as_person = await client.get(guild_url(guild_id, path), headers=seat.headers)
         assert as_person.status_code == 200, as_person.text
         assert picture in as_person.text
@@ -957,7 +953,7 @@ async def test_a_response_mentioning_three_people_costs_one_statement_cold(
 async def test_a_mention_it_writes_is_stored_by_row_id(
     client, session, acting_user, role_session
 ):
-    scopes = ["comments:write", "documents:write", "members:read"]
+    scopes = ["comments:write", "files:write", "members:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
         guild_role=CommunityRole.member,
@@ -965,7 +961,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
         initiative=installed.placed,
         initiative_role="member",
     )
-    document = await _open_document(session, installed)
+    file = await _open_file(session, installed)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
     members = await client.get(guild_url(guild_id, "/users/search"), headers=headers)
@@ -978,12 +974,12 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
     posted = await client.post(
         guild_url(guild_id, "/comments/"),
         headers=headers,
-        json={"content": f"Over to @[]({ref})", "document_id": document.id},
+        json={"content": f"Over to @[]({ref})", "file_id": file.id},
     )
     assert posted.status_code == 201, posted.text
     assert posted.json()["content"] == f"Over to @[]({ref})"
     created = await client.post(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=headers,
         json={
             "name": "Mentions Sam",
@@ -998,7 +994,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
     assert comment is not None
     assert comment.content == f"Over to @[]({member.user.id})"
     stored = await session.exec(
-        select(Document.content).where(Document.id == created.json()["id"])
+        select(File.content).where(File.id == created.json()["id"])
     )
     assert stored.one() == lexical_body("Over to ", mentioning=member.user.id)
 
@@ -1018,7 +1014,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
         refused = await client.post(
             guild_url(guild_id, "/comments/"),
             headers=headers,
-            json={"content": content, "document_id": document.id},
+            json={"content": content, "file_id": file.id},
         )
         assert refused.status_code == 422, refused.text
         assert PluginMessages.REFERENCE_UNKNOWN in refused.text
@@ -1083,20 +1079,20 @@ async def test_suggest_leaves_out_the_kinds_it_holds_no_scope_for(
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(session, project, title="lantern task")
-    document = await create_document(
+    file = await create_file(
         session, installed.placed, installed.seat.user, name="lantern doc"
     )
-    await share_with_members(session, document, installed.placed.id)
+    await share_with_members(session, file, installed.placed.id)
     headers = install_headers(installed, ["projects:read"])
 
     both = await _suggest(
-        client, installed, headers, search="lantern", types=["task", "document"]
+        client, installed, headers, search="lantern", types=["task", "file"]
     )
     assert both.status_code == 200, both.text
     assert [r["entity_id"] for r in both.json()] == [task.id]
 
     refused = await _suggest(
-        client, installed, headers, search="lantern", types=["document"]
+        client, installed, headers, search="lantern", types=["file"]
     )
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED

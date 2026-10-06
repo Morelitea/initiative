@@ -24,7 +24,7 @@ const page = () =>
 /** Every tool list answers the same envelope; the tabs only need it to be empty. */
 const VIEWABLE = [
   Tool.project,
-  Tool.document,
+  Tool.file,
   Tool.queue,
   Tool.dashboard,
   Tool.calendar,
@@ -54,7 +54,7 @@ function stubEverything(hidden: Tool[] = []) {
       )
     ),
     communityHttp.get("/projects/", page),
-    communityHttp.get("/documents/", page),
+    communityHttp.get("/files/", page),
     communityHttp.get("/queues/", page),
     communityHttp.get("/counter-groups/", page),
     communityHttp.get("/calendars/", page),
@@ -114,7 +114,7 @@ describe("InitiativeDetailPage", () => {
 
   it("links each tab at its own URL rather than swapping state", async () => {
     stubEverything();
-    renderAt(Tool.document);
+    renderAt(Tool.file);
 
     const projectsTab = await screen.findByRole("tab", { name: "Projects" });
     expect(projectsTab).toHaveAttribute("href", `/c/1/i/${INITIATIVE_ID}/projects`);

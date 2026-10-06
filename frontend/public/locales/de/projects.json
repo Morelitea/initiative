@@ -188,8 +188,8 @@
     "presetMoveUp": "Voreinstellung nach oben",
     "presetMoveDown": "Voreinstellung nach unten"
   },
-  "documents": {
-    "newDocument": "Neues Dokument"
+  "files": {
+    "newFile": "Neue Datei"
   },
   "tasks": {
     "projectTasks": "Projektaufgaben",

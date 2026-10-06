@@ -171,7 +171,7 @@ describe("InitiativeSettingsDetailsPage", () => {
 
       renderDetails();
 
-      // Scoped to the Posts row: projects and documents are switched on too
+      // Scoped to the Posts row: projects and files are switched on too
       // now, so the page says "Visible to Member" in several places and only
       // this one is the answer under test.
       const postsRow = (await screen.findByRole("switch", { name: /Posts/ })).closest(

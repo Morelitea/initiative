@@ -70,20 +70,16 @@ describe("AgeConfirmationDialog", () => {
     expect(offered[0]).toBe(String(thisYear - 120));
   });
 
-  it("says the date is not shared, beside the field asking for it", async () => {
+  it("says what is done with the date, beside the field asking for it", async () => {
     renderDialog();
 
-    expect(await screen.findByText("We don't share this with anyone.")).toBeInTheDocument();
+    expect(await screen.findByText(/We don't sell your data\./)).toBeInTheDocument();
   });
 
-  it("says the question is only asked by the communities anyone can find", async () => {
-    // The scope is the whole point of asking here rather than at the door: an
-    // invited community is not this question's business.
+  it("says why it is asked, and that it is asked once", async () => {
     renderDialog();
 
-    expect(
-      await screen.findByText(/communities you were invited to never do/i)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/so we ask once/i)).toBeInTheDocument();
   });
 
   it("sends the date and nothing else", async () => {

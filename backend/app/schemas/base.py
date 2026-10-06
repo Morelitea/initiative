@@ -45,7 +45,7 @@ plug-in (``app.core.identity_boundary.Mentions``)."""
 RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
 """Rich text that may mention people, translated as :data:`MentionStr` is."""
 
-#: A Lexical editor state: a document's, a post's or a wiki page's body.
+#: A Lexical editor state: a file's, a post's or a wiki page's body.
 LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 
 

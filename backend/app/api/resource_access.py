@@ -59,7 +59,7 @@ from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import wikis as wikis_service
@@ -89,7 +89,7 @@ class ResourceAccessConfig:
     #: the row it authorized: the eager loads a read response reads off it.
     #: ``None`` where ``loader`` already carries them. A tool whose response
     #: reads more than the decision does — its tags, properties, comment
-    #: count, a project's statuses, a document's body — has one, so a gate
+    #: count, a project's statuses, a file's body — has one, so a gate
     #: check does not cost every caller the queries none of them reads.
     hydrated_loader: Optional[Callable[..., Awaitable[Any]]] = None
     #: A path parameter that differs from ``<tool>_id``.
@@ -129,10 +129,10 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         project_grants.get_project,
         hydrated_loader=project_grants.get_project_hydrated,
     ),
-    Tool.document: ResourceAccessConfig(
-        Tool.document,
-        documents_service.get_document_for_grants,
-        hydrated_loader=documents_service.get_document_hydrated,
+    Tool.file: ResourceAccessConfig(
+        Tool.file,
+        files_service.get_file_for_grants,
+        hydrated_loader=files_service.get_file_hydrated,
     ),
     Tool.queue: ResourceAccessConfig(
         Tool.queue,

@@ -284,9 +284,9 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `communities`, `imports`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `communityHome`, `calendars`, `properties`, `queues`, `trash`, `search`, `comments`, `announcements`, `myTools`, `editor`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `files`, `initiatives`, `settings`, `tags`, `communities`, `imports`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `communityHome`, `calendars`, `properties`, `queues`, `trash`, `search`, `comments`, `announcements`, `myTools`, `editor`
 
-Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `communityHome` is the community front page, which is not a tool. `comments` is the cross-tool comment surface (composer, thread, mention help); it is not owned by `documents`, which is where it used to live. `editor` is the shared rich-text editor (toolbar, smart chips, embeds, references, outline) that documents, wikis and posts all use; it is not owned by `documents` either.
+Each tool owns the namespace named after its camel plural (`projects`, `files`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `communityHome` is the community front page, which is not a tool. `comments` is the cross-tool comment surface (composer, thread, mention help); it is not owned by `files`, which is where it used to live. `editor` is the shared rich-text editor (toolbar, smart chips, embeds, references, outline) that files, wikis and posts all use; it is not owned by `files` either.
 
 **Rules:**
 
@@ -546,7 +546,7 @@ Available factories:
 - `buildProjectTaskStatus(overrides?)` / `buildDefaultTaskStatuses(projectId?)` — task status objects (the latter returns all four default statuses)
 - `buildTask(overrides?)` / `buildTaskListResponse(items?)` / `buildTaskAssignee(overrides?)` — task objects
 - `buildTag(overrides?)` / `buildTagSummary(overrides?)` — tag objects
-- `buildDocumentSummary(overrides?)` — document objects
+- `buildFileSummary(overrides?)` — file objects
 - `buildComment(overrides?)` — comment objects
 - `buildNotification(overrides?)` — notification objects
 - `resetFactories()` — resets all ID counters (called automatically in test setup)

@@ -172,7 +172,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
    * What is inside an initiative you're in: one stat per tool that initiative
    * actually offers you, in registry order, drawn from the same `Tool` map the
    * rest of the app uses — a new tool earns its number here without a line of
-   * its own. Zeros are kept: "no documents" is information too.
+   * its own. Zeros are kept: "no files" is information too.
    *
    * On screen it is an icon and a number; a screen reader and a hover title get
    * the tool's name with it.

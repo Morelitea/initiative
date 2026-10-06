@@ -2368,7 +2368,7 @@ async def test_changing_what_an_initiative_allows_rechecks_its_members(
     switched = await client.patch(
         manager.g(f"/initiatives/{initiative_id}"),
         headers=manager.headers,
-        json={"documents_enabled": False},
+        json={"files_enabled": False},
     )
     assert switched.status_code == 200, switched.text
     assert rechecked.pop() == {manager.user.id, member.user.id}
@@ -2385,11 +2385,11 @@ async def test_changing_what_an_initiative_allows_rechecks_its_members(
         manager.g(f"/initiatives/{initiative_id}/roles"), headers=manager.headers
     )
     (current,) = [r for r in roles.json() if r["id"] == member_role.id]
-    flipped = not current["permissions"]["create_documents"]
+    flipped = not current["permissions"]["create_files"]
     changed = await client.patch(
         manager.g(f"/initiatives/{initiative_id}/roles/{member_role.id}"),
         headers=manager.headers,
-        json={"permissions": {"create_documents": flipped}},
+        json={"permissions": {"create_files": flipped}},
     )
     assert changed.status_code == 200, changed.text
     assert rechecked.pop() == {member.user.id}

@@ -1,7 +1,7 @@
 """Post source adapter: the importable backup envelope (json).
 
 A post's body is a Lexical editor state, so the envelope carries it whole and
-an import rebuilds the notice exactly — the same thing the document envelope
+an import rebuilds the notice exactly — the same thing the file envelope
 does with ``content``. Rendered formats (md/pdf/docx) go through the Lexical
 converter and are not offered yet; a notice exports as the thing it is.
 

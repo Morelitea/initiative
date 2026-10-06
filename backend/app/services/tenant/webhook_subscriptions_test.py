@@ -187,10 +187,10 @@ def _install_context(**overrides):
         guild_id=1,
         install_id=4,
         client_id="tests.plugin",
-        token_scopes=frozenset({"documents:read"}),
+        token_scopes=frozenset({"files:read"}),
         live=True,
         member_initiatives=(11, 12),
-        install_read=("documents",),
+        install_read=("files",),
     )
     defaults.update(overrides)
     return InstallContext(**defaults)
@@ -199,14 +199,12 @@ def _install_context(**overrides):
 @pytest.mark.parametrize(
     ("overrides", "event_types", "initiative_id"),
     [
-        pytest.param({}, ["documents.created"], None, id="community-wide"),
-        pytest.param({}, ["documents.updated"], 12, id="a-placed-initiative"),
+        pytest.param({}, ["files.created"], None, id="community-wide"),
+        pytest.param({}, ["files.updated"], 12, id="a-placed-initiative"),
+        pytest.param({"scope_initiative_id": 11}, ["files.deleted"], 11, id="narrowed"),
         pytest.param(
-            {"scope_initiative_id": 11}, ["documents.deleted"], 11, id="narrowed"
-        ),
-        pytest.param(
-            {"install_read": ("documents", "projects")},
-            ["documents.created", "tasks.created"],
+            {"install_read": ("files", "projects")},
+            ["files.created", "tasks.created"],
             None,
             id="every-tool-held",
         ),
@@ -236,22 +234,22 @@ def test_an_install_may_subscribe_within_its_standing(
     [
         pytest.param({}, ["tasks.created"], None, id="tool-scope-missing"),
         pytest.param(
-            {}, ["documents.created", "tasks.created"], None, id="one-type-uncovered"
+            {}, ["files.created", "tasks.created"], None, id="one-type-uncovered"
         ),
         pytest.param({}, ["plugins.created"], None, id="no-scope-reaches-it"),
         pytest.param(
             {"scope_initiative_id": 11},
-            ["documents.created"],
+            ["files.created"],
             None,
             id="narrowed-community-wide",
         ),
         pytest.param(
             {"scope_initiative_id": 11},
-            ["documents.created"],
+            ["files.created"],
             12,
             id="narrowed-other-initiative",
         ),
-        pytest.param({}, ["documents.created"], 13, id="not-placed"),
+        pytest.param({}, ["files.created"], 13, id="not-placed"),
         pytest.param({}, [_GH_EVENT], None, id="plugins-scope-missing"),
     ],
 )
@@ -278,18 +276,18 @@ _HOOK = "https://app.example.test/hook"
 
 
 async def _install_subscribes(role_session, install, *, initiative_id=None):
-    """The install registers a subscription to documents as its community."""
+    """The install registers a subscription to files as its community."""
     from app.db.install_standing_test import _route
     from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
     from app.services.tenant.webhook_subscriptions import create_install_subscription
 
-    s, context = await _route(role_session, install, ["documents:write"])
+    s, context = await _route(role_session, install, ["files:write"])
     row, _secret = await create_install_subscription(
         s,
         context=context,
         payload=WebhookSubscriptionCreate(
             target_url=_HOOK,
-            event_types=["documents.created"],
+            event_types=["files.created"],
             initiative_id=initiative_id,
         ),
     )
@@ -302,7 +300,7 @@ async def test_an_install_registers_a_subscription_naming_no_person(
     from app.db.install_standing_test import _install
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
     row = await _install_subscribes(role_session, install)
     assert row.plugin_install_id == install.plugin.id
@@ -319,24 +317,22 @@ async def test_a_narrowed_install_cannot_write_a_community_subscription(
 
     from app.db.install_standing_test import _install, _route
 
-    install = await _install(
-        session, acting_user, role_session, granted=["documents:read"]
-    )
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
     s, _ = await _route(
-        role_session, install, ["documents:read"], initiative_id=install.a.id
+        role_session, install, ["files:read"], initiative_id=install.a.id
     )
     insert = text(
         "INSERT INTO webhook_subscriptions (initiative_id, plugin_install_id,"
         " target_url, hmac_secret, event_types, created_at, updated_at)"
         " VALUES (:i, :a, 'https://app.example.test/hook', 's3cret',"
-        " ARRAY['documents.created'], now(), now())"
+        " ARRAY['files.created'], now(), now())"
     )
     with pytest.raises(DBAPIError, match="row-level security"):
         await s.exec(insert.bindparams(i=None, a=install.plugin.id))
     await s.rollback()
 
     s, _ = await _route(
-        role_session, install, ["documents:read"], initiative_id=install.a.id
+        role_session, install, ["files:read"], initiative_id=install.a.id
     )
     await s.exec(insert.bindparams(i=install.a.id, a=install.plugin.id))
     await s.rollback()
@@ -405,31 +401,31 @@ async def _withdraw(session, role_session, install, what: str) -> None:
 async def test_an_install_hears_what_it_writes_and_is_named_for_it(
     session: AsyncSession, role_session, acting_user, monkeypatch
 ):
-    """An install's subscription carries the documents of the initiative it
+    """An install's subscription carries the files of the initiative it
     is placed in, and names the plug-in when the plug-in wrote the change."""
     from app.db.install_standing_test import CLIENT, _install, _route
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.services.tenant import outbox_poller as poller
-    from app.testing import create_document
+    from app.testing import create_file
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"], placed="a"
+        session, acting_user, role_session, granted=["files:write"], placed="a"
     )
     await _install_subscribes(role_session, install)
     sent = _collector(monkeypatch, poller)
     system = await role_session("app_admin")
 
     session.expunge_all()
-    in_a = await create_document(session, install.a, install.seat.user)
+    in_a = await create_file(session, install.a, install.seat.user)
     session.expunge_all()
-    await create_document(session, install.b, install.seat.user)
+    await create_file(session, install.b, install.seat.user)
     session.expunge_all()
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    made = Document(
+    s, _ = await _route(role_session, install, ["files:write"])
+    made = File(
         initiative_id=install.a.id,
         name="By the plug-in",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
     )
     s.add(made)
     await s.commit()
@@ -442,7 +438,7 @@ async def test_an_install_hears_what_it_writes_and_is_named_for_it(
         for envelope in sent
         for change in envelope["changes"]
     }
-    # B is not a placed initiative, so its document is not heard.
+    # B is not a placed initiative, so its file is not heard.
     assert set(changes) == {in_a.id, made_id}
     assert changes[made_id]["actor_plugin"] == CLIENT
     assert changes[made_id]["actor_ref"] is None
@@ -455,23 +451,23 @@ async def test_an_install_hears_nothing_once_its_reach_is_withdrawn(
 ):
     from app.db.install_standing_test import _install
     from app.services.tenant import outbox_poller as poller
-    from app.testing import create_document
+    from app.testing import create_file
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:read"], placed="a"
+        session, acting_user, role_session, granted=["files:read"], placed="a"
     )
     await _install_subscribes(role_session, install, initiative_id=install.a.id)
     sent = _collector(monkeypatch, poller)
     system = await role_session("app_admin")
 
     session.expunge_all()
-    before = await create_document(session, install.a, install.seat.user)
+    before = await create_file(session, install.a, install.seat.user)
     session.expunge_all()
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]
 
     await _withdraw(session, role_session, install, what)
-    await create_document(session, install.a, install.seat.user)
+    await create_file(session, install.a, install.seat.user)
     session.expunge_all()
     system.expunge_all()
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))

@@ -57,7 +57,7 @@ _TEMPLATE_DESCRIPTION = (
     "``false`` only real content (a picker choosing where content goes)."
 )
 _SUBJECT_DESCRIPTION = (
-    "The thing being written in, as a reference (``document:12``). It is left "
+    "The thing being written in, as a reference (``file:12``). It is left "
     "out of the answer: a thing does not point at itself. A reference that "
     "names nothing narrows nothing."
 )

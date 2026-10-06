@@ -9,7 +9,7 @@ import {
 import fixture from "@/lib/spreadsheet/sheet-schema.fixture.json";
 
 describe("parseSpreadsheetContent — upcast", () => {
-  it("reads a v1 document as the workbook's single sheet", () => {
+  it("reads a v1 file as the workbook's single sheet", () => {
     const out = parseSpreadsheetContent({
       schema_version: 1,
       kind: "spreadsheet",
@@ -22,7 +22,7 @@ describe("parseSpreadsheetContent — upcast", () => {
     expect(out.sheets[0].cells).toEqual({ "0:0": "kept" });
   });
 
-  it("carries a v2 document's formatting onto that sheet", () => {
+  it("carries a v2 file's formatting onto that sheet", () => {
     const out = parseSpreadsheetContent({
       schema_version: 2,
       kind: "spreadsheet",
