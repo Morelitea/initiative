@@ -44,8 +44,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
+    GuildContextDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    get_current_active_user,
     plugin_scope,
 )
 from app.core.messages import (
@@ -91,6 +93,7 @@ router = APIRouter(route_class=ActorRoute)
 #: The routes an installed plug-in may call, under the galleries scopes.
 GalleriesRead = Annotated[ActorContext, Depends(plugin_scope("galleries:read"))]
 GalleriesWrite = Annotated[ActorContext, Depends(plugin_scope("galleries:write"))]
+CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
 # ---------------------------------------------------------------------------
@@ -636,9 +639,9 @@ async def update_gallery_image(
 async def delete_gallery_image(
     gallery_id: int,
     image_id: int,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: GalleriesWrite,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
 ) -> None:
     """Send a picture to the trash. Requires write access on the gallery —
     removing a picture is editing the gallery, and it can be restored."""
@@ -667,9 +670,9 @@ async def delete_gallery_image(
 async def bulk_delete_gallery_images(
     gallery_id: int,
     payload: GalleryImageBulkDelete,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: GalleriesWrite,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
 ) -> GalleryImageBulkDeleteResponse:
     """Send a selection of pictures to the trash in one transaction. Requires
     write access on the gallery — the same gate removing one asks — and

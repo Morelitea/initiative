@@ -686,9 +686,9 @@ async def move_wiki_page(
 @pages_router.delete("/wiki-pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wiki_page(
     page_id: int,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: WikisWrite,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""

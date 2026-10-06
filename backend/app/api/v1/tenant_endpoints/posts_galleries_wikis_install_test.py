@@ -435,10 +435,6 @@ async def test_writes_the_pages_of_a_wiki_it_may_write(
     for response in (created, updated, moved):
         assert_names_nobody(response.text, [seat.user.id, guild_id])
 
-    deleted = await client.delete(page_path, headers=headers)
-    assert deleted.status_code == 204, deleted.text
-    assert (await client.get(page_path, headers=headers)).status_code == 404
-
 
 async def test_adds_pictures_to_a_gallery_it_may_write(
     client, session, acting_user, role_session
@@ -485,10 +481,6 @@ async def test_adds_pictures_to_a_gallery_it_may_write(
     for response in (uploaded, version, updated):
         assert "/uploads/" not in response.text
         assert_names_nobody(response.text, [seat.user.id, guild_id])
-
-    deleted = await client.delete(image_path, headers=headers)
-    assert deleted.status_code == 204, deleted.text
-    assert (await client.get(image_path, headers=headers)).status_code == 404
 
 
 async def test_pins_the_posts_it_may_write(client, session, acting_user, role_session):

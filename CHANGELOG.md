@@ -101,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A wiki's "Show when a page was last updated" setting is saved**, and editing a wiki or one of its pages dates it.
 - **A new, copied or moved wiki page shows its tags and properties straight away.**
 - **Exporting a wiki keeps its settings**: page order, contents depth, connections, last-updated, reading width, accent colour and template page come back when it is imported.
-- **Plug-ins with a wiki's or gallery's write access can add, edit, move and remove its pages and pictures**, and upload new versions of a picture.
+- **Plug-ins with a wiki's or gallery's write access can add, edit and move its pages and pictures**, and upload new versions of a picture. Removing them stays with people.
 - **Community locations.** A community can say where it is, from just a country down to a street address, with its own name for the place ("Queen Anne Neighborhood, Seattle, WA"). It shows on the community's front page and its card; street and postcode stay behind a hover or tap. The directory's search finds communities by place too, country names included, and **Near me** puts the closest ones first. Sign-up asks where you are when you're looking for a community.
 
 ## [0.74.0] - 2026-10-01
