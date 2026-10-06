@@ -705,7 +705,6 @@
   "PASSKEY_NOT_FOUND": "That passkey isn't one of this account's.",
   "PASSKEY_SITE_UNSUPPORTED": "Passkeys need this site to have a proper domain name and https. It doesn't yet, so they can't be added here.",
   "PASSKEY_SIGN_IN_INVALID": "That passkey didn't work. Try again, or sign in another way.",
-  "PASSKEY_NOT_PERMITTED": "This site doesn't offer passkeys.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — a password, single sign-on, a passkey or an emailed code. An authenticator code goes alongside one of those, not instead of one.",
   "COMMUNITY_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
   "COMMUNITY_AUTH_PASSKEY_REQUIRED": "This community asks for a passkey. Present one to carry on.",

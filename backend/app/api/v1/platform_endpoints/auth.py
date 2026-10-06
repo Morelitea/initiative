@@ -80,6 +80,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     prove_password,
     prove_second_factor,
     require_login_method,
+    require_passkeys_allowed,
     second_factor_outstanding,
     set_password,
     upgrade_session,
@@ -120,7 +121,6 @@ from app.schemas.platform.passkey import (
 from app.schemas.platform.guild import NewCommunity
 from app.schemas.platform.user import UserCreate, UserRead
 from app.services import audit as audit_service
-import webauthn
 from webauthn.helpers import bytes_to_base64url
 
 from app.services.auth import account_changes, addresses
@@ -618,21 +618,6 @@ async def _register_account(
 _SIGN_UP_PURPOSES = (challenge_service.ChallengePurpose.passkey_sign_up,)
 
 
-async def _passkey_sign_up_allowed(session: AsyncSession) -> None:
-    """Refuse the door before it is opened.
-
-    Two things: the deployment permits passkeys at all, and its address can
-    carry one — a plain-http or IP-literal address cannot, and saying so is
-    better than a ceremony the browser will refuse.
-    """
-    await require_login_method(session, LoginMethod.passkey)
-    if passkey_service.site_refusal() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
-        )
-
-
 @router.post("/register/passkey/begin", response_model=PasskeyRegistrationOptions)
 async def begin_passkey_sign_up(
     request: Request,
@@ -651,7 +636,7 @@ async def begin_passkey_sign_up(
     own id — and it is what the authenticator files this deployment's entry
     under.
     """
-    await _passkey_sign_up_allowed(session)
+    await require_passkeys_allowed(session)
     _refuse_impossible_birthdate(payload.birthdate)
     await _registration_gate(
         request,
@@ -699,41 +684,16 @@ async def finish_passkey_sign_up(
     back with it: there is no password to reset, so the codes are how this
     account gets one later, and they are shown once.
     """
-    await _passkey_sign_up_allowed(session)
+    await require_passkeys_allowed(session)
 
-    value = passkey_service.challenge_in(payload.credential)
-    if value is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        )
-    challenge = await challenge_service.claim_attempt(
-        session, value=value, purposes=_SIGN_UP_PURPOSES
+    registered = await passkey_service.register_against_challenge(
+        session,
+        user_id=None,
+        credential=payload.credential,
+        purposes=_SIGN_UP_PURPOSES,
     )
-    if challenge is None or challenge.user_id is not None:
-        # The attempt is counted whether or not the answer was any good, so
-        # the commit comes before the refusal.
-        await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        )
-    try:
-        registered = passkey_service.finish_registration(
-            credential=payload.credential,
-            expected_challenge=webauthn.base64url_to_bytes(value),
-        )
-    except Exception as exc:
-        await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        ) from exc
-
-    if not await challenge_service.consume(session, challenge):
-        # Spent between the claim and here, so the account it would buy is not
-        # this request's to make a second time.
-        await session.rollback()
+    if isinstance(registered, passkey_service.PresentationRefused):
+        await registered.settle(session)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,

@@ -314,12 +314,12 @@ async def test_the_options_name_this_deployment(
     assert options["challenge"]
 
 
-async def test_a_deployment_on_plain_http_cannot_begin_one(
+async def test_a_deployment_on_plain_http_cannot_begin_one_or_sign_in(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """A credential is bound to a named host reached over https, so a
     deployment addressed otherwise says so instead of sending options the
-    browser will not answer."""
+    browser will not answer — for a sign-in as for a registration."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "APP_URL", "http://intranet.local")
@@ -332,6 +332,10 @@ async def test_a_deployment_on_plain_http_cannot_begin_one(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
+
+    signed_in = await client.post(SIGN_IN_BEGIN, json={})
+    assert signed_in.status_code == 400
+    assert signed_in.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
 
 
 async def test_an_account_at_the_limit_cannot_begin_another(
@@ -1139,7 +1143,7 @@ async def test_a_withdrawn_method_stops_new_registrations(
         headers=get_auth_headers(user),
     )
     assert began.status_code == 403
-    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert began.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     listed = await client.get("/api/v1/auth/passkeys", headers=get_auth_headers(user))
     assert listed.status_code == 200, listed.text
@@ -1419,7 +1423,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
 
     began = await client.post(STEP_UP_BEGIN, headers=headers)
     assert began.status_code == 403
-    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert began.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     finished = await client.post(
         STEP_UP_FINISH,
@@ -1427,7 +1431,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
         headers=headers,
     )
     assert finished.status_code == 403
-    assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert finished.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
 
 # ---------------------------------------------------------------------------
