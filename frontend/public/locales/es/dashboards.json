@@ -7,7 +7,6 @@
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
   "filters": {
-    "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchDashboards": "Buscar paneles...",
     "noMatchingDashboards": "Ningún panel coincide con tus filtros."

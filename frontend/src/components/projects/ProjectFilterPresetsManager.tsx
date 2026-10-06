@@ -223,7 +223,7 @@ const PresetRow = ({
       <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
         {count === 0
           ? t("projects:settings.presetNoFilters")
-          : t("projects:filters.heading") + ` · ${count}`}
+          : t("common:toolbar.filters") + ` · ${count}`}
       </span>
       <Button
         type="button"

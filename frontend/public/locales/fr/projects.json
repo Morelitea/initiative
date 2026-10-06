@@ -8,7 +8,6 @@
   "createFirst": "Créer votre premier projet",
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
   "filters": {
-    "heading": "Filtres",
     "searchLabel": "Nom ou description",
     "searchProjects": "Rechercher des projets",
     "selectedInitiative": "Initiative sélectionnée",
@@ -198,7 +197,6 @@
     "viewTable": "Tableau",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendrier",
-    "filtersHeading": "Filtres",
     "archiveDoneTasks": "Archiver les tâches terminées",
     "archiveDialogTitle": "Archiver les tâches",
     "archiveDialogDescription": "Ceci archivera {{count}} tâche. Les tâches archivées sont masquées par défaut mais peuvent être affichées via le filtre.",

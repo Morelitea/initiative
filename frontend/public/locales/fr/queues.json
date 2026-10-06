@@ -69,7 +69,6 @@
   "viewList": "Vue en liste",
   "viewOnDeck": "En attente",
   "filters": {
-    "heading": "Filtres",
     "searchQueues": "Rechercher des files...",
     "searchLabel": "Nom ou description",
     "status": "Statut",

@@ -7,7 +7,6 @@
   "initiative": "Initiative",
   "selectInitiative": "Select initiative",
   "filters": {
-    "heading": "Filters",
     "searchLabel": "Name or description",
     "searchDashboards": "Search dashboards...",
     "noMatchingDashboards": "No dashboards match your filters."

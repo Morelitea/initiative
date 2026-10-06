@@ -48,7 +48,6 @@ export const PostsFilterBar = ({
     <ToolFilterPanel
       open={filtersOpen}
       onOpenChange={onFiltersOpenChange}
-      title={t("common:toolbar.filters")}
       onClear={onClear}
       activeCount={activeCount}
     >

@@ -1154,7 +1154,6 @@ export const ProjectTasksSection = ({
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
-          title={t("tasks.filtersHeading")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
           leading={

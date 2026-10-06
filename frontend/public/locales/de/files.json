@@ -357,7 +357,6 @@
   "noFiles": "Noch keine Dateien",
   "noFilesDescription": "Erstelle deine erste Initiative-Datei, um Briefings, Entscheidungen oder Anleitungen zu teilen.",
   "filters": {
-    "heading": "Filter",
     "searchLabel": "Suchen",
     "searchFiles": "Dateien suchen",
     "noMatchingFiles": "Keine Dateien entsprechen deinen Filtern.",

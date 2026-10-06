@@ -61,7 +61,6 @@
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
   "filters": {
-    "heading": "Filter",
     "searchGroups": "Zählergruppen suchen...",
     "searchLabel": "Name oder Beschreibung",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."

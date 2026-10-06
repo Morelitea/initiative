@@ -85,7 +85,7 @@ export const useDuplicateQueueItem = (
     {
       mutationFn: (communityId, itemId) => duplicateQueueItem(communityId, itemId),
       invalidate: () => invalidate(q.tool(Tool.queue, queueId)),
-      errorKey: "common:error",
+      errorKey: "queues:error",
     },
     options
   );

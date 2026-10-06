@@ -8,7 +8,6 @@
   "createFirst": "Erstelle dein erstes Projekt",
   "noMatchingProjects": "Keine Projekte entsprechen deinen Filtern.",
   "filters": {
-    "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
     "searchProjects": "Projekte suchen",
     "selectedInitiative": "Ausgewählte Initiative",
@@ -198,7 +197,6 @@
     "viewTable": "Tabelle",
     "viewKanban": "Kanban",
     "viewCalendar": "Kalender",
-    "filtersHeading": "Filter",
     "archiveDoneTasks": "Erledigte Aufgaben archivieren",
     "archiveDialogTitle": "Aufgaben archivieren",
     "archiveDialogDescription": "Dadurch wird {{count}} Aufgabe archiviert. Archivierte Aufgaben sind standardmäßig ausgeblendet, können aber über den Filter angezeigt werden.",

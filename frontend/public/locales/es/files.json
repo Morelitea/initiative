@@ -357,7 +357,6 @@
   "noFiles": "Aún no hay archivos",
   "noFilesDescription": "Crea tu primer archivo de iniciativa para compartir resúmenes, decisiones o guías.",
   "filters": {
-    "heading": "Filtros",
     "searchLabel": "Buscar",
     "searchFiles": "Buscar archivos",
     "noMatchingFiles": "Ningún archivo coincide con tus filtros.",

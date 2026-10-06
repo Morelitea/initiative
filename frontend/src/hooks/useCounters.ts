@@ -103,7 +103,7 @@ export const useDuplicateCounter = (groupId: number, options?: MutationOpts<Coun
     {
       mutationFn: (communityId, counterId) => duplicateCounter(communityId, counterId),
       invalidate: () => invalidate(q.tool(Tool.counter_group, groupId)),
-      errorKey: "common:error",
+      errorKey: "counterGroups:error",
     },
     options
   );

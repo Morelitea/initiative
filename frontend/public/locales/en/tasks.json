@@ -12,7 +12,6 @@
     "urgent": "Urgent"
   },
   "filters": {
-    "heading": "Filters",
     "statusCategory": "Status category",
     "filterByStatusCategory": "Filter by status category",
     "allStatusCategories": "All status categories",

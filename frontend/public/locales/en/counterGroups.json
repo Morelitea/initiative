@@ -61,7 +61,6 @@
   },
   "createFirst": "Create Your First Counter Group",
   "filters": {
-    "heading": "Filters",
     "searchGroups": "Search counter groups...",
     "searchLabel": "Name or description",
     "noMatchingGroups": "No counter groups match your filters."
