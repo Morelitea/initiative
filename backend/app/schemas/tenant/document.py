@@ -25,7 +25,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
-from app.schemas.tenant.ownership import OwnerAppSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -81,18 +81,18 @@ class DocumentUpdate(SanitizedBaseModel):
 
 class DocumentSummary(DocumentBase, ToolSummaryBase):
     # ``validate_by_name`` so ``derived_fields`` can set ``owner`` and
-    # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading
+    # ``owner_plugin`` by name; their aliases keep ``from_attributes`` from reading
     # an ORM relationship.
     model_config = ConfigDict(validate_by_name=True)
 
     initiative: Optional[InitiativeSummary] = None
     #: The person holding the document's owner grant, or None when it is
-    #: unowned or an app owns it.
+    #: unowned or a plug-in owns it.
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the document or nobody does. At most one of ``owner`` and this is set.
-    owner_app: Optional[OwnerAppSummary] = Field(
-        default=None, validation_alias="owner_app_source"
+    owner_plugin: Optional[OwnerPluginSummary] = Field(
+        default=None, validation_alias="owner_plugin_source"
     )
     #: ``DocumentBase``'s, marked here: a request takes it as it is.
     featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
@@ -114,12 +114,12 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     def derived_fields(
         cls, row: Any, *, context: ActorContext, user_id: Optional[int]
     ) -> dict[str, Any]:
-        from app.services.tenant.ownership import owner_app_of
+        from app.services.tenant.ownership import owner_plugin_of
 
         version = row.current_version
         return {
             "owner": _document_owner(row),
-            "owner_app": owner_app_of(row),
+            "owner_plugin": owner_plugin_of(row),
             "smart_link_url": smart_link_url(row),
             **{name: getattr(version, name, None) for name in _FILE_FIELDS},
         }

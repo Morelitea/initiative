@@ -315,10 +315,10 @@ export function useRecentCommunity<
  * Takes the same ``types`` as the search itself, so the palette and the
  * results page can be narrowed to the same slice of the guild.
  *
- * An installed app is answered the kinds among ``types`` (the default scope
+ * An installed plug-in is answered the kinds among ``types`` (the default scope
  * when omitted) whose read scope it holds, in the initiatives it is placed
  * in, and only what it could read through the tools themselves. Asking only
- * for kinds it holds no read scope for is 403 (``APP_SCOPE_REQUIRED``).
+ * for kinds it holds no read scope for is 403 (``PLUGIN_SCOPE_REQUIRED``).
  * @summary Suggest Community
  */
 export const suggestCommunity = (

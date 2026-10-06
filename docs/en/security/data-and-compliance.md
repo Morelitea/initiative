@@ -128,7 +128,7 @@ Actions that change who can reach what, how the deployment is configured, or whe
 
 - **Privileged access.** When a platform operator or owner uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a document or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
 - **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.
-- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, app services and installed apps.
+- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, plug-in services and installed plug-ins.
 - **Accounts and data.** Accounts created, deactivated, anonymized or deleted; communities created, deleted or exported; member lists exported; permanent deletion from the trash; API keys and webhooks; and each time content is sent to an AI provider.
 
 ### Age, and what we ask for

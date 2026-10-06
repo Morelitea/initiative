@@ -29,11 +29,11 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope_by,
+    plugin_scope_by,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import ARCHIVE_TARGETS, KINDS, Tool, plural_of
 from app.models.platform.user import User
@@ -52,16 +52,16 @@ def _governing(entity_type: str) -> Tool:
     return KINDS[entity_type].parent or Tool(entity_type)
 
 
-#: What an installed app needs to archive each kind: the write scope of the tool
+#: What an installed plug-in needs to archive each kind: the write scope of the tool
 #: whose sharing governs it. An initiative is the guild admins' to archive, so
-#: no app may ask for one.
+#: no plug-in may ask for one.
 _ARCHIVE_SCOPES: dict[str, str] = {
-    target: scope_name(tool_resource(_governing(target)), AppScopeAccess.write)
+    target: scope_name(tool_resource(_governing(target)), PluginScopeAccess.write)
     for target in ARCHIVE_TARGETS
     if target != "initiative"
 }
 ArchiveWrite = Annotated[
-    ActorContext, Depends(app_scope_by("entity_type", _ARCHIVE_SCOPES))
+    ActorContext, Depends(plugin_scope_by("entity_type", _ARCHIVE_SCOPES))
 ]
 
 #: Wire name -> the model it addresses. Derived from the mixin: the archivable

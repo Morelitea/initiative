@@ -65,7 +65,7 @@ class Dashboard(
     definition can be pointed at this initiative's actual counters/documents.
 
     Dashboards are initiative-scoped: there is no guild-wide (NULL initiative)
-    form — a guild-level surface is an app, which is a separate concept.
+    form — a guild-level surface is a plug-in, which is a separate concept.
     """
 
     __tablename__ = "dashboards"

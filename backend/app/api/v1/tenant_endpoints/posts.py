@@ -42,7 +42,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -76,7 +76,7 @@ from app.schemas.tenant.post_poll import (
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import notifications as notifications_service
 from app.services import rls as rls_service
-from app.services.notifications import AppAuthor
+from app.services.notifications import PluginAuthor
 from app.core.search import SearchEntityType
 from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
@@ -101,10 +101,10 @@ MAX_BOARD_PAGE_SIZE = 50
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the posts scopes. Pinning is an
+#: The routes an installed plug-in may call, under the posts scopes. Pinning is an
 #: edit of the board, so it asks the write scope.
-PostsRead = Annotated[ActorContext, Depends(app_scope("posts:read"))]
-PostsWrite = Annotated[ActorContext, Depends(app_scope("posts:write"))]
+PostsRead = Annotated[ActorContext, Depends(plugin_scope("posts:read"))]
+PostsWrite = Annotated[ActorContext, Depends(plugin_scope("posts:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ def _poll_of(post: Post) -> PostPoll:
 async def _announce(
     session: RLSSessionDep,
     post: Post,
-    author: User | AppAuthor,
+    author: User | PluginAuthor,
     guild_context: ActorContext,
 ) -> None:
     """Tell the notice's audience it is up.
@@ -199,7 +199,7 @@ async def annotate_post_rows(
     ``own_read_state`` stamps whether this reader has read each one; a write's
     answer leaves it out.
 
-    An installed app (``user_id`` ``None``) keeps no read markers or ballots
+    An installed plug-in (``user_id`` ``None``) keeps no read markers or ballots
     and reacts to nothing, so a post it reads carries only the comment count;
     the rest stay at their empty defaults.
     """
@@ -252,7 +252,7 @@ def board_conditions(
     applies those itself (``properties_service.property_filter_clauses``), and
     the timeline applies the same.
 
-    An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
+    An installed plug-in (``user_id`` ``None``) keeps no read markers, so ``unread``
     narrows nothing for it.
     """
     conditions = tool_listing.base_conditions(
@@ -361,7 +361,7 @@ async def create_post(
 ) -> PostRead:
     """Post a notice to an initiative's board. Requires create_posts permission
     on the initiative (or guild admin); the author gets the owner grant."""
-    resource_access.refuse_app_sharing(guild_context, post_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, post_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.post, post_in.initiative_id, current_user, guild_context
     )
@@ -542,7 +542,7 @@ async def set_post_pin(
     the pin keeps its original time and author. A pin that has lapsed is a new
     pin, so that one re-stamps.
 
-    An installed app manages no initiative, so it pins the notices it may
+    An installed plug-in manages no initiative, so it pins the notices it may
     write: its own, and the ones shared with it at write.
     """
     post = await resource_access.load_authorized(

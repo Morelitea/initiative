@@ -1132,8 +1132,8 @@ export const useReorderProjects = <TError = ErrorType<HTTPValidationError>, TCon
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
  *
- * Anyone the new grants drop below write access is unassigned from the project's
- * tasks (you can't be assigned to tasks you can't edit).
+ * Anyone the new sharing no longer lets open the project is taken off
+ * whatever in it names them.
  * @summary Set Project Grants
  */
 export const setProjectGrants = (
@@ -1227,7 +1227,7 @@ export const useSetProjectGrants = <TError = ErrorType<HTTPValidationError>, TCo
   return useMutation(getSetProjectGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Project
  */
 export const duplicateProject = (

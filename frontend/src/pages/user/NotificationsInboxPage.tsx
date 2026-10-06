@@ -95,8 +95,8 @@ export const NotificationsInboxPage = () => {
   const open = (notification: NotificationRead) => {
     if (!notification.read_at) markRead.mutate(notification.id);
     const target = notificationLink(notification);
-    // A target carrying a query string (an app's consent screen opens from
-    // `?app=`) goes as an href, so the query stays search rather than path.
+    // A target carrying a query string (a plug-in's consent screen opens from
+    // `?plugin=`) goes as an href, so the query stays search rather than path.
     if (target) router.navigate(target.includes("?") ? { href: target } : { to: target });
   };
 

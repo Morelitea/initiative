@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import security
 from app.core.config import settings as app_config
 from app.core.encryption import (
-    SALT_APP_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     SALT_CAPTCHA_SECRET_KEY,
     SALT_FCM_SERVICE_ACCOUNT,
     SALT_SMTP_PASSWORD,
@@ -28,7 +28,7 @@ from app.services.platform.app_settings import (
     get_app_setting_secrets,
     get_app_settings,
     get_or_create_guild_settings,
-    load_app_platform_signing_key,
+    load_plugin_platform_signing_key,
     seed_app_settings,
 )
 from app.testing import create_guild, route_session_to_guild
@@ -200,20 +200,22 @@ async def test_first_boot_stores_every_env_credential(
     )
 
 
-# --- The app platform's signing key ---------------------------------------
+# --- The plug-in platform's signing key ---------------------------------------
 
 
 def _without_a_platform_key(monkeypatch) -> None:
-    monkeypatch.setattr(app_config, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
-    monkeypatch.setattr(app_config, "APP_PLATFORM_SIGNING_KEY_ID", None)
-    monkeypatch.setattr(security, "_stored_app_platform_key", None)
+    monkeypatch.setattr(app_config, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
+    monkeypatch.setattr(app_config, "PLUGIN_PLATFORM_SIGNING_KEY_ID", None)
+    monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
     monkeypatch.setattr(context_jwt, "_jwks_cache", None)
 
 
 async def _stored_platform_key(session: AsyncSession) -> str | None:
     return (
         await session.exec(
-            text("SELECT app_platform_signing_key_encrypted FROM app_setting_secrets")
+            text(
+                "SELECT plugin_platform_signing_key_encrypted FROM app_setting_secrets"
+            )
         )
     ).one()[0]
 
@@ -224,12 +226,12 @@ async def test_a_deployment_with_no_platform_key_generates_one_and_keeps_it(
     """The first start stores a key, and a later start loads that same key."""
     _without_a_platform_key(monkeypatch)
     await seed_app_settings(session)
-    assert not security.app_platform_signing_enabled()
+    assert not security.plugin_platform_signing_enabled()
 
-    await load_app_platform_signing_key(session)
-    pem, algorithm, kid = security.resolve_app_platform_signing_material()
+    await load_plugin_platform_signing_key(session)
+    pem, algorithm, kid = security.resolve_plugin_platform_signing_material()
     stored = await _stored_platform_key(session)
-    assert decrypt_field(stored, SALT_APP_PLATFORM_SIGNING_KEY) == pem
+    assert decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY) == pem
     assert algorithm == "RS256"
 
     # The published key carries the same kid: its RFC 7638 thumbprint.
@@ -241,23 +243,25 @@ async def test_a_deployment_with_no_platform_key_generates_one_and_keeps_it(
     assert kid == entry["kid"] == thumbprint.rstrip(b"=").decode()
 
     # Another process starting afterwards signs with the stored key.
-    monkeypatch.setattr(security, "_stored_app_platform_key", None)
-    await load_app_platform_signing_key(session)
-    assert security.resolve_app_platform_signing_material() == (pem, "RS256", kid)
+    monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
+    await load_plugin_platform_signing_key(session)
+    assert security.resolve_plugin_platform_signing_material() == (pem, "RS256", kid)
     assert await _stored_platform_key(session) == stored
 
 
 async def test_the_env_platform_key_wins(session: AsyncSession, monkeypatch):
     """A key in env is used as given, and none is generated beside it."""
     _without_a_platform_key(monkeypatch)
-    monkeypatch.setattr(app_config, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "env-pem")
-    monkeypatch.setattr(app_config, "APP_PLATFORM_SIGNING_KEY_ID", "env-kid")
+    monkeypatch.setattr(
+        app_config, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "env-pem"
+    )
+    monkeypatch.setattr(app_config, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "env-kid")
     await seed_app_settings(session)
 
-    await load_app_platform_signing_key(session)
+    await load_plugin_platform_signing_key(session)
 
     assert await _stored_platform_key(session) is None
-    assert security.resolve_app_platform_signing_material() == (
+    assert security.resolve_plugin_platform_signing_material() == (
         "env-pem",
         "RS256",
         "env-kid",

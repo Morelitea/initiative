@@ -66,7 +66,7 @@ async def list_calendar_entries(
     exactly it rather than everything and filtering client-side.
 
     ``scope=community`` is the same question asked by kind rather than by name: every
-    guild calendar, however many there are. The calendar app shows all of them
+    guild calendar, however many there are. The calendar plug-in shows all of them
     at once, and a list of ids it had to assemble first would be a page of them.
     """
     events_out = []

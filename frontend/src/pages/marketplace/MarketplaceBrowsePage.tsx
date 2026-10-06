@@ -4,10 +4,10 @@
  * A searchable card grid rather than a menu: listings are products with artwork,
  * an author, and a description, and picking one is a decision worth a page.
  *
- * The shelf is community-addressed: a dashboard an app ships with itself appears
- * only where the app is installed, so the catalog is asked on this community's
+ * The shelf is community-addressed: a dashboard a plug-in ships with itself appears
+ * only where the plug-in is installed, so the catalog is asked on this community's
  * behalf. What is already installed here is a second question, answered by the
- * community's own dashboards and apps lists and matched up client-side.
+ * community's own dashboards and plug-ins lists and matched up client-side.
  */
 
 import { useSearch } from "@tanstack/react-router";
@@ -20,7 +20,7 @@ import { MarketplaceCard } from "@/components/marketplace/MarketplaceCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
@@ -32,7 +32,7 @@ const PAGE_SIZE = 24;
  *  without a line of its own does not compile. */
 const SUBTITLE_KEYS = {
   [ListingKind.dashboard]: "subtitle",
-  [ListingKind.app]: "subtitleApps",
+  [ListingKind.plugin]: "subtitlePlugins",
   [ListingKind.auto]: "subtitleAuto",
 } as const satisfies Record<CommunityShelf, string>;
 /** Stable keys for the loading placeholders — they never reorder, and an index
@@ -41,13 +41,13 @@ const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function MarketplaceBrowsePage() {
   const { t } = useTranslation("marketplace");
-  // Which shelf: dashboards, or the apps a community admin adds.
+  // Which shelf: dashboards, or the plug-ins a community admin adds.
   //
   // Normalized here through the same parser the route validates with, not left
   // to the route. `useSearch({ strict: false })` reads the params as they are —
   // it does not run the route's `validateSearch` — so relying on that would
   // mean the filter silently disappears anywhere the page is mounted another
-  // way, and the grid would mix apps into the dashboards.
+  // way, and the grid would mix plug-ins into the dashboards.
   const search_ = useSearch({ strict: false });
   const kind = parseCommunityShelf(search_.kind);
   const [query, setQuery] = useState("");
@@ -62,27 +62,27 @@ export function MarketplaceBrowsePage() {
   });
 
   // Which of these this community already has. Each shelf has to ask its own tool:
-  // the dashboards aggregate knows nothing about apps, so using it on the apps
-  // shelf would report every app as not installed.
+  // the dashboards aggregate knows nothing about plug-ins, so using it on the plug-ins
+  // shelf would report every plug-in as not installed.
   //
   // Left undefined when the request failed, rather than defaulted to an empty
   // map: "we do not know" and "you have none of these" look identical on a card,
   // and only one of them is true. The notice below says which.
   const dashboardInstalls = useInstalledListings({ enabled: kind === ListingKind.dashboard });
-  const appInstalls = useCommunityApps({ enabled: kind === ListingKind.app });
-  const installedQuery = kind === ListingKind.app ? appInstalls : dashboardInstalls;
+  const pluginInstalls = useCommunityPlugins({ enabled: kind === ListingKind.plugin });
+  const installedQuery = kind === ListingKind.plugin ? pluginInstalls : dashboardInstalls;
 
   const installedByUid = useMemo(() => {
     if (installedQuery.isError) return undefined;
-    if (kind === ListingKind.app) {
+    if (kind === ListingKind.plugin) {
       // One install per listing per community, so this is a presence map that
       // happens to be shaped like the dashboards' counts.
       const counts: Record<string, number> = {};
-      for (const app of appInstalls.data?.items ?? []) counts[app.listing_uid] = 1;
+      for (const plugin of pluginInstalls.data?.items ?? []) counts[plugin.listing_uid] = 1;
       return counts;
     }
     return dashboardInstalls.data?.counts;
-  }, [kind, installedQuery.isError, appInstalls.data, dashboardInstalls.data]);
+  }, [kind, installedQuery.isError, pluginInstalls.data, dashboardInstalls.data]);
 
   const listings = listingsQuery.data?.items ?? [];
 

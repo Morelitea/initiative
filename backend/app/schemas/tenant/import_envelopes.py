@@ -292,7 +292,7 @@ class DashboardEnvelope(_EnvelopeBase):
     type: Literal["initiative-dashboard"]
     name: str
     description: Optional[str] = None
-    # Present only for a dashboard built on a built-in app. Dropped on import
+    # Present only for a dashboard built on a built-in plug-in. Dropped on import
     # when the destination has no such listing, so the dashboard arrives as an
     # ordinary one rather than pointing at nothing.
     listing_uid: Optional[str] = None

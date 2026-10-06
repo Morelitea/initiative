@@ -146,7 +146,7 @@ async def get_document_hydrated(
 ) -> Document | None:
     """Load a document with everything a serialized ``DocumentRead`` or an
     export reads: the list loader's eager loads and the body, plus the tags,
-    comment count and owning app a response carries.
+    comment count and owning plug-in a response carries.
     :func:`get_document_for_grants` carries only what the access decision
     needs. Uniform ``(session, id)`` shape, the one ``resource_access``
     registers a loader by.
@@ -165,7 +165,7 @@ async def get_document_hydrated(
         await tags_service.annotate_tags(session, [document])
         await properties_service.annotate_properties(session, [document])
         await annotate_comment_counts(session, [document])
-        await ownership_service.annotate_owner_apps(session, [document])
+        await ownership_service.annotate_owner_plugins(session, [document])
     return document
 
 
@@ -239,7 +239,7 @@ async def copy_contents(
     copy.content = attachments_service.replace_upload_urls(content, copies)
     copy.featured_image_url = copied(copy.featured_image_url)
     if current is not None:
-        # An app is never an author: its copy names the file's uploader.
+        # A plug-in is never an author: its copy names the file's uploader.
         file_versions.copy_version(
             session,
             current,

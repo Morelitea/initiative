@@ -760,7 +760,7 @@ export const useDeletePost = <TError = ErrorType<HTTPValidationError>, TContext 
  * the pin keeps its original time and author. A pin that has lapsed is a new
  * pin, so that one re-stamps.
  *
- * An installed app manages no initiative, so it pins the notices it may
+ * An installed plug-in manages no initiative, so it pins the notices it may
  * write: its own, and the ones shared with it at write.
  * @summary Set Post Pin
  */
@@ -1808,6 +1808,9 @@ export function useListPostPollVoters<
  * Replace the post's entire sharing state in one call — the body is the
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the post is taken off
+ * whatever in it names them.
  * @summary Set Post Grants
  */
 export const setPostGrants = (
@@ -1899,7 +1902,7 @@ export const useSetPostGrants = <TError = ErrorType<HTTPValidationError>, TConte
   return useMutation(getSetPostGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Post
  */
 export const duplicatePost = (

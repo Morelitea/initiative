@@ -51,11 +51,11 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
@@ -157,7 +157,7 @@ class ListRequest:
     """
 
     session: AsyncSession
-    #: The person asking; ``None`` when an installed app is.
+    #: The person asking; ``None`` when an installed plug-in is.
     user: Optional[User]
     guild_context: ActorContext
     values: dict[str, Any]
@@ -168,7 +168,7 @@ class ListRequest:
 
     @property
     def user_id(self) -> Optional[int]:
-        """The person asking, by id; ``None`` for an installed app."""
+        """The person asking, by id; ``None`` for an installed plug-in."""
         return self.guild_context.user_id
 
 
@@ -402,8 +402,8 @@ class ToolListSpec:
     #: tool's own re-read-and-serialize, which the shared sharing route
     #: (``tool_grants.py``) answers with.
     read_row: Callable[..., Awaitable[Any]]
-    #: The sharing route's published description, per tool.
-    grants_doc: Optional[str] = None
+    #: What the sharing route's published description adds for this tool.
+    grants_note: Optional[str] = None
     #: async (spec, req) -> the whole WHERE. Defaults to the shared set.
     conditions: Optional[Callable[..., Awaitable[list]]] = None
     #: Rows belonging to the guild rather than to an initiative (guild calendars).
@@ -424,8 +424,8 @@ class ToolListSpec:
     list_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
-    #: Whether an installed app may list this tool, under its read scope.
-    serves_apps: bool = True
+    #: Whether an installed plug-in may list this tool, under its read scope.
+    serves_plugins: bool = True
 
     def __post_init__(self) -> None:
         # The switch column is spelled out in the table for readability; this
@@ -573,7 +573,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
     """Join each reader's own manual positions, which the default order reads.
 
-    An installed app keeps no positions of its own, so its list is left as it
+    An installed plug-in keeps no positions of its own, so its list is left as it
     is and ordered by id (:func:`_project_order`)."""
     if req.user_id is None:
         return lambda statement: statement
@@ -587,7 +587,7 @@ def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
 
 
 def _project_order(req: ListRequest) -> list:
-    """The reader's own manual order, then id; by id alone for an app."""
+    """The reader's own manual order, then id; by id alone for a plug-in."""
     if req.user_id is None:
         return [Project.id.asc()]
     return [ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()]
@@ -695,7 +695,7 @@ def _post_order(req: ListRequest) -> list:
 async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     # One grouped query each for the page, so a board of twenty asks a handful
     # of times rather than forty.
-    # An installed app's page carries no reactions, read state or ballots.
+    # An installed plug-in's page carries no reactions, read state or ballots.
     await posts_endpoints.annotate_post_rows(req.session, rows, user_id=req.user_id)
     return [
         serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
@@ -738,14 +738,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.project,
         read_model=ProjectRead,
         read_row=projects_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the project's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
-            "Anyone the new grants drop below write access is unassigned from the project's\n"
-            "tasks (you can't be assigned to tasks you can't edit)."
-        ),
         model=Project,
         enabled_column=Initiative.projects_enabled,
         response_model=ProjectListResponse,
@@ -807,11 +799,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.document,
         read_model=DocumentRead,
         read_row=documents_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the document's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Document,
         enabled_column=Initiative.documents_enabled,
         response_model=DocumentListResponse,
@@ -879,11 +866,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.queue,
         read_model=QueueRead,
         read_row=queues_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the queue's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Queue,
         enabled_column=Initiative.queues_enabled,
         response_model=QueueListResponse,
@@ -927,11 +909,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.counter_group,
         read_model=CounterGroupRead,
         read_row=counters_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the counter group's entire sharing state in one call — the body\n"
-            "is the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=CounterGroup,
         enabled_column=Initiative.counter_groups_enabled,
         response_model=CounterGroupListResponse,
@@ -963,11 +940,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.calendar,
         read_model=CalendarRead,
         read_row=calendars_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the calendar's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Calendar,
         enabled_column=Initiative.calendars_enabled,
         response_model=CalendarListResponse,
@@ -976,7 +948,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_summaries(CalendarSummary),
         conditions=_calendar_conditions,
         # A calendar may belong to the guild rather than to an initiative: the
-        # app holds it, and no initiative's switch has anything to say about it.
+        # plug-in holds it, and no initiative's switch has anything to say about it.
         guild_level_rows=True,
         params=(
             _initiative_id(),
@@ -996,7 +968,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "\n"
             "``scope=community`` narrows to the guild's own calendars — the ones the "
             "calendar\n"
-            "app holds, belonging to no initiative. That is the opposite of the\n"
+            "plug-in holds, belonging to no initiative. That is the opposite of the\n"
             "unfiltered list, which is everything in scope, so it is asked for by "
             "name\n"
             "rather than inferred from an absent ``initiative_id``."
@@ -1004,15 +976,11 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
     ),
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
-        # Not among what an installed app reads today.
-        serves_apps=False,
+        # Not among what an installed plug-in reads today.
+        serves_plugins=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the dashboard's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
+        grants_note=(
             "This shares the canvas, not its data: each widget still resolves against\n"
             "the viewer's own access to the sources it binds."
         ),
@@ -1040,11 +1008,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.post,
         read_model=PostRead,
         read_row=posts_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the post's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Post,
         enabled_column=Initiative.posts_enabled,
         response_model=PostListResponse,
@@ -1116,11 +1079,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.gallery,
         read_model=GalleryRead,
         read_row=galleries_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the gallery's entire sharing state in one call — the body is\n"
-            "the full list of grants. Every non-owner grant is rebuilt from it; the\n"
-            "owner is always preserved."
-        ),
         model=Gallery,
         enabled_column=Initiative.galleries_enabled,
         response_model=GalleryListResponse,
@@ -1193,14 +1151,14 @@ _CONTEXT_PARAMS: tuple[tuple[str, Any], ...] = (
 
 
 def _actor_params(tool: Tool) -> tuple[tuple[str, Any], ...]:
-    """The same three, for a list an installed app may call under the tool's
+    """The same three, for a list an installed plug-in may call under the tool's
     read scope: a person arrives exactly as above, and an install through its
     token."""
-    scope = scope_name(tool_resource(tool), AppScopeAccess.read)
+    scope = scope_name(tool_resource(tool), PluginScopeAccess.read)
     return (
         ("session", ActorSessionDep),
         ("current_user", ActorUserDep),
-        ("guild_context", Annotated[ActorContext, Depends(app_scope(scope))]),
+        ("guild_context", Annotated[ActorContext, Depends(plugin_scope(scope))]),
     )
 
 
@@ -1260,7 +1218,7 @@ def _mount_list(spec: ToolListSpec) -> None:
 
     list_rows.__signature__ = _signature(
         spec.params,
-        _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
+        _actor_params(spec.tool) if spec.serves_plugins else _CONTEXT_PARAMS,
     )
     router.add_api_route(
         f"/{spec.tool.route_segment}/",

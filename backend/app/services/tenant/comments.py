@@ -514,7 +514,7 @@ async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
 
     rows = [c for c in comments if c.id is not None]
     if not rows or install_context(session) is not None:
-        # An installed app reads no reactions: each is one person's gesture.
+        # An installed plug-in reads no reactions: each is one person's gesture.
         return
     grouped = await reactions_service.load_reactions(
         session,
@@ -553,7 +553,7 @@ async def _resolved_parent(
 ) -> _ParentContext:
     """Load + authorize one comment parent, raising the comment-shaped errors.
 
-    ``user`` is ``None`` for an installed app, which is in no initiative as a
+    ``user`` is ``None`` for an installed plug-in, which is in no initiative as a
     member: a parent its policies hid is simply not found.
     """
     ctx = await _load_parent(
@@ -579,7 +579,7 @@ def removes_others_comments(
     ``initiative_id``: a community admin, or a manager of that initiative.
 
     Read off the standing the seam computed, so it costs no query and answers
-    exactly what the delete route checks. An installed app and granted access
+    exactly what the delete route checks. An installed plug-in and granted access
     take down nobody's words but their own.
     """
     context = guild_context(session)
@@ -705,7 +705,7 @@ async def _ensure_said_to_a_filer(
 async def create_comment(
     session: AsyncSession,
     *,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     guild_id: int,
     content: str,
     task_id: Optional[int] = None,
@@ -724,8 +724,8 @@ async def create_comment(
 ) -> Comment:
     """Post one comment on one parent, and tell whoever it concerns.
 
-    ``author`` is the person posting, or the installed app posting as itself:
-    its comment names no author, and the notices name the app.
+    ``author`` is the person posting, or the installed plug-in posting as itself:
+    its comment names no author, and the notices name the plug-in.
 
     ``audience`` is ``filer`` for a reply to whoever filed an operations case:
     only a person posts one, only on a case task that has a filer, and only
@@ -817,7 +817,7 @@ async def notify_task_assignees(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     task: Task,
     thread: notifications.Subject | None = None,
     recipients: Sequence[int] | None = None,
@@ -862,7 +862,7 @@ async def _process_comment_notifications(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     ctx: _ParentContext,
     parent_comment: Comment | None,
 ) -> None:

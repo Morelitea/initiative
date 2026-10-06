@@ -19,7 +19,7 @@ from sqlalchemy import text
 from app.core import config, security
 from app.core.encryption import (
     SALT_AI_API_KEY,
-    SALT_APP_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     SALT_EMAIL,
     decrypt_field,
     encrypt_field,
@@ -37,7 +37,7 @@ from app.db.secret_key_rotation import (
     rotate_secret_key,
 )
 from app.services.platform.app_settings import (
-    load_app_platform_signing_key,
+    load_plugin_platform_signing_key,
     seed_app_settings,
 )
 
@@ -296,24 +296,30 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
                 )
 
 
-async def test_rotate_reencrypts_the_generated_app_platform_key(session, monkeypatch):
-    """The key a deployment generated for its apps moves to the new key with
+async def test_rotate_reencrypts_the_generated_plugin_platform_key(
+    session, monkeypatch
+):
+    """The key a deployment generated for its plug-ins moves to the new key with
     the other stored credentials, and still reads back as the same key."""
     monkeypatch.setattr(config.settings, "SECRET_KEY", OLD)
-    monkeypatch.setattr(config.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
-    monkeypatch.setattr(security, "_stored_app_platform_key", None)
+    monkeypatch.setattr(
+        config.settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None
+    )
+    monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
     await seed_app_settings(session)
-    await load_app_platform_signing_key(session)
-    pem, _, _ = security.resolve_app_platform_signing_material()
+    await load_plugin_platform_signing_key(session)
+    pem, _, _ = security.resolve_plugin_platform_signing_material()
     await session.commit()
 
     _use_keys(monkeypatch, old=OLD, new=NEW)
     await rotate_secret_key()
 
     stored = await session.scalar(
-        text("SELECT app_platform_signing_key_encrypted FROM app_setting_secrets")
+        text("SELECT plugin_platform_signing_key_encrypted FROM app_setting_secrets")
     )
-    assert decrypt_field(stored, SALT_APP_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
+    assert (
+        decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
+    )
 
 
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):

@@ -375,7 +375,7 @@ async def test_the_status_control_cannot_delete_a_community(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``deleted`` is reached by deleting and left by restoring, never by the
-    dropdown — which would skip revoking the community's app grants."""
+    dropdown — which would skip revoking the community's plug-in grants."""
     operator = await acting_user("owner")
     guild = await create_guild(session, creator=await create_user(session))
 

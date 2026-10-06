@@ -68,7 +68,7 @@ nav = [
       "en/guides/galleries.md",
       "en/guides/wikis.md",
     ] },
-    "en/guides/apps-and-marketplace.md",
+    "en/guides/plugins-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
     "en/guides/messages.md",

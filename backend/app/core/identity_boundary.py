@@ -1,6 +1,6 @@
 """What a person and a community are called at the edge of a request.
 
-Inside, a person is a row id and so is a community. An installed app is never
+Inside, a person is a row id and so is a community. An installed plug-in is never
 handed either: it knows each person by a reference minted for its own install,
 and its community by one more. A request and a response carry the
 two in fields typed :data:`PersonId` and :data:`GuildId`, and those two types
@@ -17,7 +17,7 @@ install's standing is in:
   either type accepts only a reference, looked up in what the standing
   statement resolved for this request (:attr:`InstallBoundary.named`). A row
   id, or a reference that names nobody in this install's sector, is a 422
-  (``APP_REFERENCE_UNKNOWN``).
+  (``PLUGIN_REFERENCE_UNKNOWN``).
 - **handler**: the route's own code runs. Both types behave as ``int``, so a
   model built from rows and a payload stored as JSON hold row ids.
 - **response**: the route's return value is serialized. A :data:`GuildId`
@@ -68,7 +68,7 @@ from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
 from app.core.config import settings
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.models.platform.identity_ref import IdentityEntity
 
 __all__ = [
@@ -104,16 +104,18 @@ class BoundaryPhase(str, Enum):
 
 
 #: The pydantic error type a reference that names nobody raises under.
-UNKNOWN_REFERENCE_ERROR = "app_reference_unknown"
+UNKNOWN_REFERENCE_ERROR = "plugin_reference_unknown"
 
 
 def _unknown() -> PydanticCustomError:
-    return PydanticCustomError(UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+    return PydanticCustomError(
+        UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN
+    )
 
 
 @dataclass
 class InstallBoundary:
-    """One installed app's request, as the identity types see it.
+    """One installed plug-in's request, as the identity types see it.
 
     Built by the scope dependency from the install's completed standing:
     ``guild_id`` and ``install_id`` are the routed community and install,
@@ -198,11 +200,11 @@ def boundary_scope() -> Iterator[_Slot]:
 
 def admit_install(boundary: InstallBoundary) -> None:
     """Record ``boundary`` as the request's. Refuses outside an open slot: a
-    route that admits an installed app is served by ``ActorRoute``."""
+    route that admits an installed plug-in is served by ``ActorRoute``."""
     slot = _SLOT.get()
     if slot is None:
         raise RuntimeError(
-            "an installed app's request is served by ActorRoute; this route's "
+            "an installed plug-in's request is served by ActorRoute; this route's "
             "router does not use it"
         )
     slot.boundary = boundary
@@ -222,14 +224,14 @@ def _boundary_in(phase: BoundaryPhase) -> Optional[InstallBoundary]:
 
 
 def responding_to_install() -> bool:
-    """Whether a value being serialized now goes out in an installed app's
+    """Whether a value being serialized now goes out in an installed plug-in's
     response. For a field whose value names a person some other way than by
     a :data:`PersonId` field, and is left out for an install."""
     return _boundary_in(BoundaryPhase.response) is not None
 
 
 def names_withheld() -> bool:
-    """Whether a value being serialized now goes out to an installed app that
+    """Whether a value being serialized now goes out to an installed plug-in that
     does not hold ``members:read``, which knows people only by its references."""
     boundary = _boundary_in(BoundaryPhase.response)
     return boundary is not None and not boundary.reads_names
@@ -265,13 +267,13 @@ def _serializer(entity: IdentityEntity):
 
 
 #: The schema each type publishes, in both modes: an integer, which is what a
-#: person sends and receives, marked with what it names so the app API's
-#: document (``app.api.app_openapi``) can publish it as an install's reference.
+#: person sends and receives, marked with what it names so the plug-in API's
+#: document (``app.api.plugin_openapi``) can publish it as an install's reference.
 _PERSON_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "person"})
 _GUILD_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "community"})
 
 #: A person's id in a request or response schema. ``int`` for a person; the
-#: install's reference for an installed app.
+#: install's reference for an installed plug-in.
 PersonId = Annotated[
     int,
     WrapValidator(_validator(IdentityEntity.user)),
@@ -280,7 +282,7 @@ PersonId = Annotated[
 ]
 
 #: A community's id in a request or response schema. ``int`` for a person; the
-#: install's community reference for an installed app.
+#: install's community reference for an installed plug-in.
 GuildId = Annotated[
     int,
     WrapValidator(_validator(IdentityEntity.guild)),
@@ -415,7 +417,7 @@ class Mentions:
     (:func:`without_mention_names`). For an install it names a reference, and
     a mention in the response names the install's reference; a stored file the
     value shows comes without its path. The field's schema carries
-    ``x-mentions``, which the app API's document describes.
+    ``x-mentions``, which the plug-in API's document describes.
     """
 
     form: MentionForm
@@ -496,7 +498,7 @@ class UploadPath:
     For a person the value passes through as it is. In an install's response a
     stored file's path, the whole value, is ``""``; an outside URL is as it is,
     and ``None`` stays ``None``. The field's schema carries ``x-upload``, which
-    the app API's document describes.
+    the plug-in API's document describes.
     """
 
     def __get_pydantic_core_schema__(

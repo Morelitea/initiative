@@ -2,7 +2,7 @@
 
 A bundled service is named by an operator rather than installed from the
 marketplace, and this authenticates the one channel it holds here. Everything
-else it does with this deployment it does as an installed app, on its own
+else it does with this deployment it does as an installed plug-in, on its own
 tokens.
 
 The envelope is the one its own inbound surfaces use, so the two directions are
@@ -10,7 +10,7 @@ the same shape: an HMAC over ``METHOD\\nPATH\\nTIMESTAMP\\nsha256(body)``,
 which binds a signature to the exact request it was minted for rather than to a
 body that could be replayed at another route.
 
-Its own secret, separate from the app-platform registration's. The two channels
+Its own secret, separate from the plugin-platform registration's. The two channels
 prove different things and do not share key material.
 """
 
@@ -30,7 +30,7 @@ __all__ = [
     "verify_bundled_envelope",
 ]
 
-#: How far a caller's clock may be out. The same window the app channel allows.
+#: How far a caller's clock may be out. The same window the plug-in channel allows.
 SKEW_SECONDS = 300
 
 

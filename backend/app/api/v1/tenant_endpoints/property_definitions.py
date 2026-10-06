@@ -14,7 +14,7 @@ from app.api.deps import (
     ActorSessionDep,
     GuildContext,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -36,10 +36,10 @@ from app.services.tenant.names import ensure_name_free
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. Property definitions are part of how
+#: The routes an installed plug-in may call. Property definitions are part of how
 #: an initiative is set up, so they answer to the initiatives scope.
 PropertyDefinitionsRead = Annotated[
-    ActorContext, Depends(app_scope("initiatives:read"))
+    ActorContext, Depends(plugin_scope("initiatives:read"))
 ]
 
 

@@ -47,7 +47,7 @@ from app.api.deps import (
     GuildContext,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -92,9 +92,9 @@ MAX_IMAGE_PAGE_SIZE = 200
 router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
-#: The routes an installed app may call, under the galleries scopes.
-GalleriesRead = Annotated[ActorContext, Depends(app_scope("galleries:read"))]
-GalleriesWrite = Annotated[ActorContext, Depends(app_scope("galleries:write"))]
+#: The routes an installed plug-in may call, under the galleries scopes.
+GalleriesRead = Annotated[ActorContext, Depends(plugin_scope("galleries:read"))]
+GalleriesWrite = Annotated[ActorContext, Depends(plugin_scope("galleries:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +320,7 @@ async def create_gallery(
 ) -> GalleryRead:
     """Create a gallery. Requires create_galleries permission on the
     initiative (or guild admin); the creator gets the owner grant."""
-    resource_access.refuse_app_sharing(guild_context, gallery_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, gallery_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.gallery, gallery_in.initiative_id, current_user, guild_context
     )

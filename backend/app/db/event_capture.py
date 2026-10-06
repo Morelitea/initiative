@@ -537,7 +537,7 @@ BEGIN
         v_parents := COALESCE(v_parents, '[]'::jsonb);
     END IF;
 
-    -- Who wrote it: the person, the installed app, or both when an app acts
+    -- Who wrote it: the person, the installed plug-in, or both when a plug-in acts
     -- for a member. Each is read on its own from the request context, and an
     -- anonymous table names neither.
     IF TG_ARGV[9] <> 'anonymous' THEN

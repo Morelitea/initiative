@@ -97,7 +97,7 @@ describe("RecentTabsBar", () => {
     );
   });
 
-  // Only calendars can be community-level (an app installs one). Those keep a
+  // Only calendars can be community-level (a plug-in installs one). Those keep a
   // community address rather than being wedged under an initiative they lack.
   it("links a community-level calendar at its community route", () => {
     renderWithProviders(
@@ -106,7 +106,7 @@ describe("RecentTabsBar", () => {
           buildRecentItem({
             entity_type: "calendar",
             entity_id: 12,
-            name: "AppCal",
+            name: "PluginCal",
             initiative_id: null,
           }),
         ]}
@@ -116,7 +116,7 @@ describe("RecentTabsBar", () => {
       />
     );
 
-    expect(screen.getByRole("link", { name: /AppCal/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /PluginCal/ })).toHaveAttribute(
       "href",
       "/c/1/calendars/12"
     );

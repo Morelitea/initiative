@@ -45,8 +45,8 @@ import json
 from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-from app.core.app_scopes import (
-    APP_SCOPE_PREFIX,
+from app.core.plugin_scopes import (
+    PLUGIN_SCOPE_PREFIX,
     LEVEL_SCOPES,
     STANDING_SCOPES,
     InstallLevel,
@@ -55,7 +55,7 @@ from app.core.tools import Tool
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.models.platform.app_service_registration import (
+from app.models.platform.plugin_service_registration import (
     RegistrationKind,
     registration_live_sql,
 )
@@ -73,7 +73,7 @@ from app.models.platform.identity_ref import (
     ref_prefix,
 )
 from app.models.platform.user import UserStatus
-from app.models.tenant.app_member_consent import ConsentAccess
+from app.models.tenant.plugin_member_consent import ConsentAccess
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -248,10 +248,10 @@ SELECT
 """
 
 
-# --- An installed app's standing ---------------------------------------------
-#: The ``apps:`` scope family names another app rather than a resource of the
+# --- An installed plug-in's standing -----------------------------------------
+#: The ``plugins:`` scope family names another plug-in rather than a resource of the
 #: community's, so it adds nothing to what the install reads or writes.
-_APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
+_PLUGIN_SCOPE_FAMILY = PLUGIN_SCOPE_PREFIX.rstrip(":")
 #: The standings, as a SQL list: they name no resource.
 _STANDING_SCOPES_SQL = ", ".join(f"'{scope}'" for scope in sorted(STANDING_SCOPES))
 _MODERATE_SCOPE = LEVEL_SCOPES[InstallLevel.moderator]
@@ -260,12 +260,12 @@ _GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.community_admin]
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
 
-#: A reference row in this install's own sector: the app purpose, the routed
-#: community and the routed install. The same predicate the ``identity_refs``
-#: policies for the install floor hold every read and insert to
-#: (``app.db.public_rls``).
+#: A reference row in this install's own sector: the ``plugin`` purpose, the
+#: routed community and the routed install. The same predicate the
+#: ``identity_refs`` policies for the install floor hold every read and insert
+#: to (``app.db.public_rls``).
 _IN_INSTALL_SECTOR = (
-    f"r.purpose = '{IdentityPurpose.app.value}'"
+    f"r.purpose = '{IdentityPurpose.plugin.value}'"
     f" AND r.sector_guild_id = {gucs.GUILD_ID}"
     f" AND r.sector_id = {gucs.INSTALL_ID}"
 )
@@ -302,11 +302,11 @@ def _permission_default_values() -> str:
     )
 
 
-#: The scopes an install's tokens may carry, as ``text[]`` over ``guild_apps
+#: The scopes an install's tokens may carry, as ``text[]`` over ``guild_plugins
 #: a``: those the seat granted that the pinned version still requests. The
 #: grant itself is left as the seat set it, so a scope a later version stops
 #: requesting stops being carried by every token at once. Read by token
-#: issuance, the install standing and the app hub alike.
+#: issuance, the install standing and the plug-in hub alike.
 ISSUABLE_SCOPES_SQL = (
     "ARRAY(SELECT s FROM unnest(a.granted_scopes) AS s "
     "WHERE a.definition -> 'service' -> 'scopes' @> jsonb_build_array(s))"
@@ -379,8 +379,8 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
     ), 'false')""",
 }
 
-#: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
-#: after the install routing. The community, the install, the client the token
+#: An installed plug-in's standing, in one statement. Runs as
+#: ``guild_<id>_plugin`` after the install routing. The community, the install, the client the token
 #: was issued to, the token's scopes, the narrowed initiative and, for a member
 #: token, the member and the purpose are read back from that routing; the one
 #: bind, ``:named_refs``, is the references the request names (below).
@@ -422,7 +422,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: sign-in rules, so that value too is what ``live`` says.
 #:
 #: Two more columns carry what the install calls things, both read only in its
-#: own sector (``purpose = 'app'``, the routed community and the routed
+#: own sector (``purpose = 'plugin'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
 #: ``named_refs``, the references in ``:named_refs`` that name somebody there,
 #: as ``{ref: [entity_type, entity_id, member]}``, where ``member`` says
@@ -435,7 +435,7 @@ INSTALL_STANDING_SQL = f"""
 WITH consent AS (
   SELECT c.initiative_id,
          c.granted_access = '{ConsentAccess.read_write.value}' AS writes
-  FROM app_member_consents c
+  FROM plugin_member_consents c
   WHERE {gucs.USER_ID} IS NOT NULL
     AND c.install_id = {gucs.INSTALL_ID}
     AND c.user_id = {gucs.USER_ID}
@@ -447,14 +447,14 @@ WITH consent AS (
 install AS (
   SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
          g.status = '{CommunityStatus.read_only.value}' AS read_only
-  FROM guild_apps a
+  FROM guild_plugins a
   JOIN public.guilds g ON g.id = {gucs.GUILD_ID}
   WHERE a.id = {gucs.INSTALL_ID}
     AND a.enabled
     AND g.status IN ({_LIVE_STATUSES_SQL})
     AND EXISTS (
       SELECT 1
-      FROM public.app_service_registrations r
+      FROM public.plugin_service_registrations r
       JOIN public.publishers p ON p.id = r.publisher_id
       WHERE r.listing_uid = a.listing_uid
         AND r.public_id = {gucs.TOKEN_CLIENT_ID}
@@ -480,7 +480,7 @@ granted_scope AS (
          bool_or(split_part(s.scope, ':', 2) = 'write') AS writes
   FROM install i
   CROSS JOIN LATERAL unnest(i.granted_scopes) AS s(scope)
-  WHERE split_part(s.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+  WHERE split_part(s.scope, ':', 1) <> '{_PLUGIN_SCOPE_FAMILY}'
     AND s.scope NOT IN ({_STANDING_SCOPES_SQL})
   GROUP BY 1
 ),
@@ -488,7 +488,7 @@ token_scope AS (
   SELECT split_part(t.scope, ':', 1) AS resource,
          bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
   FROM unnest({gucs.TOKEN_SCOPES}) AS t(scope)
-  WHERE split_part(t.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+  WHERE split_part(t.scope, ':', 1) <> '{_PLUGIN_SCOPE_FAMILY}'
     AND t.scope NOT IN ({_STANDING_SCOPES_SQL})
   GROUP BY 1
 ),
@@ -521,7 +521,7 @@ member_role AS (
 ),
 placed AS (
   SELECT DISTINCT p.initiative_id
-  FROM app_placements p
+  FROM plugin_placements p
   JOIN install i ON i.id = p.install_id
   WHERE ({gucs.SCOPE_INITIATIVE_ID} IS NULL OR p.initiative_id = {gucs.SCOPE_INITIATIVE_ID})
     AND ({gucs.USER_ID} IS NULL OR (
@@ -841,7 +841,7 @@ class GuildContext:
 
 @dataclass(frozen=True)
 class InstallContext:
-    """An installed app's standing in its community, for one request.
+    """An installed plug-in's standing in its community, for one request.
 
     Built only by the establishment seam (``app.api.deps``) from a verified
     install: the routing names the community, the install, the client and the
@@ -983,8 +983,8 @@ class InstallContext:
         )
 
 
-#: Who a request that names an app scope is serving: a person's standing in the
-#: community, or an installed app's.
+#: Who a request that names a plug-in scope is serving: a person's standing in
+#: the community, or an installed plug-in's.
 ActorContext = GuildContext | InstallContext
 
 
@@ -1043,11 +1043,11 @@ async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
 
 def named_ref_candidates(values: Sequence[str]) -> list[str]:
     """The strings among ``values`` shaped like a reference an install holds,
-    once each: its ``app`` prefix for a person or a community, and no longer
-    than a reference can be. What the install standing statement is asked to
-    look up."""
+    once each: the ``plugin`` purpose's prefix for a person or a community,
+    and no longer than a reference can be. What the install standing statement
+    is asked to look up."""
     prefixes = tuple(
-        f"{ref_prefix(entity, IdentityPurpose.app)}_" for entity in IdentityEntity
+        f"{ref_prefix(entity, IdentityPurpose.plugin)}_" for entity in IdentityEntity
     )
     return sorted(
         {

@@ -69,7 +69,7 @@ export type CreateToolDialogProps = DialogProps & {
   /** If provided, pre-selects this initiative (but the user can change it). */
   defaultInitiativeId?: number;
   /** Create one belonging to the community rather than to any initiative, the way
-   * the calendar app's own calendars do. There is no initiative to pick. */
+   * the calendar plug-in's own calendars do. There is no initiative to pick. */
   communityScope?: boolean;
   /** Fields only this tool asks for, shown under the description, and what
    * they add to what is sent. */

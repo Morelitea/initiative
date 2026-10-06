@@ -275,7 +275,7 @@ export const CalendarListPanel = ({
           </ul>
         )}
         {/* Named rather than a bare "+" in the heading: adding a calendar is
-            what this panel is for on the app's own surface, and an icon in a
+            what this panel is for on the plug-in's own surface, and an icon in a
             corner read as decoration. */}
         {canCreate && (
           <Button

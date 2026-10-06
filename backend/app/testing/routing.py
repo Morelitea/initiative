@@ -87,7 +87,7 @@ async def route_as_install(
     user_id: Optional[int] = None,
     purpose: Optional[str] = None,
 ):
-    """Route ``session`` as an installed app, through the install seam.
+    """Route ``session`` as an installed plug-in, through the install seam.
 
     What the token path will hand the seam once it verifies a token, built
     here from the values a test chose; ``user_id`` makes it a member token.

@@ -138,13 +138,13 @@ type CalendarsViewProps = {
    * visible so the deep link always shows its events. */
   focusCalendarId?: number;
   /** A community calendar rendered as its own whole surface — a deep link to one
-   * of them. Community apps show community-level content only, so this mode shows
+   * of them. Community plug-ins show community-level content only, so this mode shows
    * exactly this calendar's events: no tasks, no projects, no other calendars,
    * no initiative-flavored filters. */
   soloCalendar?: CalendarSummary;
-  /** The calendar app's own surface: every community calendar this reader may see,
+  /** The calendar plug-in's own surface: every community calendar this reader may see,
    * overlaid. Community-level content only, like {@link soloCalendar} — but the
-   * app holds many calendars, so this one keeps the calendar list panel and
+   * plug-in holds many calendars, so this one keeps the calendar list panel and
    * the create seam. */
   communityScope?: boolean;
 };
@@ -313,7 +313,7 @@ export const CalendarsView = ({
   const entriesParams = useMemo((): ListCalendarEntriesParams => {
     const span = entriesWindow ?? visibleRange;
     // A community surface: community-level events, and nothing task- or
-    // initiative-shaped at all. The app asks by scope rather than by naming its
+    // initiative-shaped at all. The plug-in asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event
     // on one that fell off the end would simply not be drawn.
     if (communityOnly) {
@@ -917,7 +917,7 @@ export const CalendarsView = ({
 };
 
 /**
- * The /calendars route — the calendar app's own surface.
+ * The /calendars route — the calendar plug-in's own surface.
  *
  * Every community calendar this reader may see, overlaid in one view: the community's
  * own events and nothing else. Which calendars are showing is the reader's to
@@ -947,7 +947,7 @@ export function CalendarFocusPage() {
   }, [viewedCalendarId, recordViewMutation.mutate]);
 
   // Which kind of calendar decides which surface renders, so nothing renders
-  // until the read resolves: a community calendar (the app) must never flash the
+  // until the read resolves: a community calendar (the plug-in) must never flash the
   // community-wide view, whose fetches reach into initiative content.
   if (!calendar) {
     return <CalendarPageSkeleton />;

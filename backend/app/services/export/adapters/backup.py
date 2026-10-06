@@ -834,7 +834,7 @@ class _ScopeBuilder:
     # -- section hooks: dashboards ---------------------------------------------
 
     async def _record_foreign_dashboards(self, initiative, exported: list[int]) -> None:
-        """Dashboards built on an app this build does not ship.
+        """Dashboards built on a plug-in this build does not ship.
 
         The dashboard listing applies the provenance filter, so the ones it
         left out are recovered here separately in order to record them: an

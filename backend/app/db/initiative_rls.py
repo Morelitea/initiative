@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.db import gucs
-from app.core.app_scopes import tool_resource
+from app.core.plugin_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
     ENDPOINT_KINDS,
@@ -38,7 +38,13 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
-from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
+from app.db.authorization import (
+    IN_POLICY,
+    STANDING,
+    plugin_narrowed,
+    plugin_scope,
+    in_body,
+)
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
@@ -212,14 +218,14 @@ def _tool_gate(
     the tool's create right, where every other command asks to view it, and it
     asks gate 4 nothing.
 
-    An installed app is asked two more things first: that it holds the tool's
+    An installed plug-in is asked two more things first: that it holds the tool's
     scope, read for SELECT and write for every other command, and, where its
     token is narrowed to one initiative, that the row belongs to an initiative
     at all.
     """
     legs: list[str] = [
-        app_scope(tool_resource(tool), command != "SELECT", _P),
-        app_narrowed(initiative, _P),
+        plugin_scope(tool_resource(tool), command != "SELECT", _P),
+        plugin_narrowed(initiative, _P),
     ]
 
     # Every tool carries a switch on the initiative. A community admin or a PAM
@@ -373,7 +379,7 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: :mod:`app.db.authorization`.
 _GUILD_ADMIN = _P.system_or_admin
 
-#: An installed app acting in this community on a token that is not narrowed
+#: An installed plug-in acting in this community on a token that is not narrowed
 #: to one initiative.
 _UNNARROWED_INSTALL = _P.unnarrowed_install
 
@@ -444,7 +450,7 @@ def direct_or_guild() -> InitiativePath:
     A row naming an initiative is gated like any :func:`direct` row. A row
     naming none belongs to the guild, where the initiative gate has nothing to
     decide: every member reads it as its sharing allows, and writing it is the
-    guild admin's (or a live write grant's), or the installed app's on a token
+    guild admin's (or a live write grant's), or the installed plug-in's on a token
     not narrowed to one initiative. Sharing still applies on top, which is how
     the admin decides who writes what the row holds. ``resource_actions``
     asks the same writer for ``edit``.
@@ -1151,10 +1157,10 @@ def webhook_subscription_path() -> InitiativePath:
     ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
     nothing to decide", which admits any member. A guild-wide subscription
     reports across every initiative, so reaching it is guild-admin authority —
-    the one role that already spans them — or an installed app's whose token is
-    not narrowed to one initiative. An app sees and changes only the
-    subscriptions it registered (the ``app_scope_*`` policies), and what one
-    delivers is capped by where the app is placed and the scopes it holds.
+    the one role that already spans them — or an installed plug-in's whose token is
+    not narrowed to one initiative. A plug-in sees and changes only the
+    subscriptions it registered (the ``plugin_scope_*`` policies), and what one
+    delivers is capped by where the plug-in is placed and the scopes it holds.
     """
     return InitiativePath(
         predicate=lambda t, w: (
@@ -1297,10 +1303,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # through the REST path, where sharing decides. The initiative gate is
     # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
-    # The events installed apps emit, scoped by the initiative an event names
+    # The events installed plug-ins emit, scoped by the initiative an event names
     # like the change log beside it. Written by the system engine alone
     # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
-    "app_event_outbox": direct(),
+    "plugin_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
@@ -1799,7 +1805,7 @@ class Emit:
 EVENT_SOURCES: dict[str, Emit | Silent] = {
     # -- Silent ------------------------------------------------------------
     "event_outbox": Silent("the log cannot log itself"),
-    "app_event_outbox": Silent("delivered by the poller as events of its own"),
+    "plugin_event_outbox": Silent("delivered by the poller as events of its own"),
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
@@ -1859,13 +1865,13 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # ``published_at`` is the fact, where ``scheduled_for`` is only the
     # intention — the same column ``is_published_clause`` reads.
     "posts": Emit(quiet_when=lambda r: f"{r}.published_at IS NULL"),
-    # Installed apps, same reasoning: the install row is guild-wide knowledge
+    # Installed plug-ins, same reasoning: the install row is guild-wide knowledge
     # (every member's sidebar lists it), so its lifecycle emits guild-wide too.
     # A subscriber hears an install appear, change (``config_state`` moving is
-    # the moment an app becomes usable), or go away, and re-reads current state
-    # through the API like any other event. Published as ``apps`` because that
-    # is the segment the install's detail route lives at (``/apps/{id}``).
-    "guild_apps": Emit(guild_wide=True, resource_type="apps"),
+    # the moment a plug-in becomes usable), or go away, and re-reads current state
+    # through the API like any other event. Published as ``plugins`` because that
+    # is the segment the install's detail route lives at (``/plugins/{id}``).
+    "guild_plugins": Emit(guild_wide=True, resource_type="plugins"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
     # A property definition is read in its initiative's list, not at an

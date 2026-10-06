@@ -154,7 +154,7 @@ class FieldContext:
     """
 
     guild_id: int
-    #: The person asking; ``None`` for an installed app, which is nobody.
+    #: The person asking; ``None`` for an installed plug-in, which is nobody.
     user_id: Optional[int]
     #: Custom property definitions by id, for the fields that dispatch on one.
     property_definitions: Mapping[int, Any] = dataclass_field(default_factory=dict)

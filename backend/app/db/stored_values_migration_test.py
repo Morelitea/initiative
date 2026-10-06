@@ -1,7 +1,7 @@
-"""Migrations 20261003_0445, 20261003_0446 and 20261003_0448 rename the stored
-guild values to community and back. Loaded by path and run on rows an older
-release would have written, the way ``upload_initiative_backfill_test`` runs its
-revision."""
+"""Migrations 20261003_0445 and 20261003_0448 rename the stored guild values to
+community and back, and 20261005_0457 respells the stored plug-in values. Loaded
+by path and run on rows an older release would have written, the way
+``upload_initiative_backfill_test`` runs its revision."""
 
 from __future__ import annotations
 
@@ -15,10 +15,12 @@ from sqlalchemy import text
 from app.models.platform.notification import NotificationType
 from app.services.platform import notice_outbox, user_notifications
 from app.testing import (
-    create_app_service_registration,
+    create_plugin_service_registration,
     create_export_job,
     create_guild,
-    create_guild_app,
+    create_dashboard,
+    create_guild_plugin,
+    create_initiative,
     create_marketplace_listing,
     create_user,
 )
@@ -148,128 +150,217 @@ async def test_stored_values_say_community_and_back(session) -> None:
     assert await _stored(session, schema, job.id) == old
 
 
+_ENDPOINT = "app.tests.plugin-service.summary"
 _OLD_DEFINITION = {
     "app_kind": "service",
     "service": {
-        "public_id": "tests.app-service",
+        "public_id": "tests.plugin-service",
         "protocol": 1,
-        "scopes": ["documents:read", "guild:admin"],
+        "scopes": ["documents:read", "apps:tests.other"],
     },
-    "embeds": [
-        {"id": "board", "path": "/b", "scopes": ["guild", "initiative"]},
-        {"id": "inside", "path": "/i", "scopes": ["initiative"]},
-        {"id": "legacy", "path": "/l"},
-    ],
-    "guild_summary": "app.tests.app-service.summary",
+    "endpoints": [{"id": _ENDPOINT, "direction": "read"}],
+    "events": ["app.tests.plugin-service.opened"],
+    "community_summary": _ENDPOINT,
+    "hosts": ["app.example.com"],
+}
+_NEW_DEFINITION = {
+    "plugin_kind": "service",
+    "service": {
+        "public_id": "tests.plugin-service",
+        "protocol": 1,
+        "scopes": ["documents:read", "plugins:tests.other"],
+    },
+    "endpoints": [{"id": "plugin.tests.plugin-service.summary", "direction": "read"}],
+    "events": ["plugin.tests.plugin-service.opened"],
+    "community_summary": "plugin.tests.plugin-service.summary",
+    "hosts": ["app.example.com"],
+}
+_OLD_WIDGET = {
+    "type": "app:SHPAPP00000001:summary",
+    "binding": {"source": "app", "app_uid": "SHPAPP00000001", "endpoint_id": _ENDPOINT},
+    "sample_data": {_ENDPOINT: {"rows": []}},
+}
+_NEW_WIDGET = {
+    "type": "plugin:SHPAPP00000001:summary",
+    "binding": {
+        "source": "plugin",
+        "plugin_uid": "SHPAPP00000001",
+        "endpoint_id": "plugin.tests.plugin-service.summary",
+    },
+    "sample_data": {"plugin.tests.plugin-service.summary": {"rows": []}},
 }
 
 
-async def _app_contract(session, schema: str, listing_id: int, registration_id: int):
-    install = (
-        await _sql(
-            session,
-            text(f'SELECT definition, granted_scopes FROM "{schema}".guild_apps'),
-        )
-    ).one()
-    listed = await _scalar(
-        session,
-        text(
-            "SELECT definition FROM public.marketplace_listing_versions "
-            "WHERE listing_id = :id"
-        ),
-        {"id": listing_id},
+async def _plug_in_values(session, schema: str, ids: dict[str, int]) -> dict:
+    async def one(sql: str, **params):
+        return (await _sql(session, text(sql), params)).one()
+
+    install = await one(
+        f'SELECT definition, granted_scopes FROM "{schema}".guild_plugins'
     )
-    ceiling = await _scalar(
-        session,
-        text(
-            "SELECT scope_ceiling FROM public.app_service_registrations WHERE id = :id"
-        ),
-        {"id": registration_id},
+    dashboard = await one(
+        f'SELECT definition FROM "{schema}".dashboards WHERE id = :id',
+        id=ids["dashboard"],
     )
+    hook = await one(f'SELECT event_types FROM "{schema}".webhook_subscriptions')
+    listing = await one(
+        "SELECT l.kind, v.definition FROM public.marketplace_listings l "
+        "JOIN public.marketplace_listing_versions v ON v.listing_id = l.id "
+        "WHERE l.id = :id",
+        id=ids["listing"],
+    )
+    ceiling = await one(
+        "SELECT scope_ceiling FROM public.plugin_service_registrations WHERE id = :id",
+        id=ids["registration"],
+    )
+    ref = await one(
+        "SELECT purpose, ref FROM public.identity_refs WHERE entity_id = :id "
+        "AND entity_type = 'user' AND sector_id = :sector",
+        id=ids["user"],
+        sector=ids["install"],
+    )
+    notification = await one("SELECT type, data FROM public.notifications")
     return {
         "installed": install.definition,
         "granted": install.granted_scopes,
-        "listed": listed,
-        "ceiling": ceiling,
+        "widgets": dashboard.definition["widgets"],
+        "events": hook.event_types,
+        "listing": (listing.kind, listing.definition),
+        "ceiling": ceiling.scope_ceiling,
+        "ref": (ref.purpose, ref.ref),
+        "notification": (notification.type, notification.data),
     }
 
 
-async def test_app_contract_says_community_and_back(session) -> None:
+async def test_plug_in_values_are_respelled(session) -> None:
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     schema = f"guild_{guild.id}"
-    await create_guild_app(session, guild, user, definition=_OLD_DEFINITION)
-    listing = await create_marketplace_listing(session)
-    registration = await create_app_service_registration(
-        session, scope_ceiling=["documents:read", "guild:admin"]
+    install = await create_guild_plugin(
+        session, guild, user, definition=_OLD_DEFINITION
     )
-    migration = _load("20261003_0446_app_contract_says_community.py")
-
-    def route(bind) -> None:
-        bind.execute(
-            text("SELECT set_config('search_path', :sp, true)"),
-            {"sp": f"{schema}, public"},
-        )
+    initiative = await create_initiative(session, guild, user)
+    dashboard = await create_dashboard(
+        session, initiative, user, definition={"widgets": [_OLD_WIDGET]}
+    )
+    listing = await create_marketplace_listing(session)
+    registration = await create_plugin_service_registration(
+        session, scope_ceiling=["documents:read", "apps:tests.other"]
+    )
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.plugin_consent_requested,
+        data={},
+    )
+    await session.commit()
+    migration = _load("20261005_0457_apps_are_plug_ins.py")
 
     def seed(sync_session) -> None:
         bind = sync_session.connection()
-        bind.execute(
-            text(
-                "UPDATE public.marketplace_listing_versions "
-                "SET definition = CAST(:d AS jsonb) WHERE listing_id = :id"
+
+        def install_rows() -> None:
+            bind.execute(
+                text(
+                    f'UPDATE "{schema}".guild_plugins '
+                    "SET definition = CAST(:d AS jsonb), granted_scopes = :g"
+                ),
+                {"d": json.dumps(_OLD_DEFINITION), "g": ["apps:tests.other"]},
+            )
+            bind.execute(
+                text(
+                    f'INSERT INTO "{schema}".webhook_subscriptions '
+                    "(plugin_install_id, target_url, hmac_secret, event_types, active, "
+                    "created_at, updated_at) VALUES (:i, 'https://hooks.test/x', 's', "
+                    ":e, true, now(), now())"
+                ),
+                {
+                    "i": install.id,
+                    "e": [
+                        "apps.created",
+                        "app.tests.plugin-service.opened",
+                        "tasks.created",
+                    ],
+                },
+            )
+
+        migration._with_rows_writable(
+            bind,
+            schema,
+            "webhook_subscriptions",
+            lambda: migration._with_rows_writable(
+                bind, schema, "guild_plugins", install_rows
             ),
+        )
+
+        def write(table: str, sql: str, params: dict) -> None:
+            migration._with_rows_writable(
+                bind, "public", table, lambda: bind.execute(text(sql), params)
+            )
+
+        write(
+            "marketplace_listings",
+            "UPDATE public.marketplace_listings SET kind = 'app' WHERE id = :id",
+            {"id": listing.id},
+        )
+        write(
+            "marketplace_listing_versions",
+            "UPDATE public.marketplace_listing_versions "
+            "SET definition = CAST(:d AS jsonb) WHERE listing_id = :id",
             {"d": json.dumps(_OLD_DEFINITION), "id": listing.id},
         )
-        route(bind)
-        migration._unforced(
-            bind,
-            ("guild_apps",),
-            lambda: bind.execute(
-                text("UPDATE guild_apps SET granted_scopes = :g"),
-                {"g": ["documents:read", "guild:admin"]},
-            ),
+        write(
+            "identity_refs",
+            "INSERT INTO public.identity_refs (ref, entity_type, entity_id, purpose, "
+            "sector_guild_id, sector_id, created_at) "
+            "VALUES ('uapp_abc', 'user', :u, 'app', :g, :i, now())",
+            {"u": user.id, "g": guild.id, "i": install.id},
+        )
+        write(
+            "notifications",
+            "UPDATE public.notifications SET type = 'app_consent_requested', "
+            "data = CAST(:d AS json)",
+            {
+                "d": json.dumps(
+                    {"app_id": install.id, "target_path": f"/?app={install.id}"}
+                )
+            },
         )
 
     await session.run_sync(seed)
     await session.commit()
-    old = await _app_contract(session, schema, listing.id, registration.id)
-    assert old["granted"] == ["documents:read", "guild:admin"]
 
-    def run(names):
-        def apply(sync_session) -> None:
-            bind = sync_session.connection()
-            migration._public(bind, names)
-            route(bind)
-            migration._guild(bind, names)
+    def respell(sync_session) -> None:
+        bind = sync_session.connection()
+        migration._respell_public_values(bind)
+        migration._respell_guild_values(bind, schema)
 
-        return apply
-
-    await session.run_sync(run(migration.FORWARD))
+    await session.run_sync(respell)
     await session.commit()
-    definition = {
-        "app_kind": "service",
-        "service": {
-            "public_id": "tests.app-service",
-            "protocol": 1,
-            "scopes": ["documents:read", "community:admin"],
-        },
-        "embeds": [
-            {"id": "board", "path": "/b", "scopes": ["community", "initiative"]},
-            {"id": "inside", "path": "/i", "scopes": ["initiative"]},
-            {"id": "legacy", "path": "/l"},
+    ids = {
+        "dashboard": dashboard.id,
+        "listing": listing.id,
+        "registration": registration.id,
+        "user": user.id,
+        "install": install.id,
+    }
+    assert await _plug_in_values(session, schema, ids) == {
+        "installed": _NEW_DEFINITION,
+        "granted": ["plugins:tests.other"],
+        "widgets": [_NEW_WIDGET],
+        "events": [
+            "plugins.created",
+            "plugin.tests.plugin-service.opened",
+            "tasks.created",
         ],
-        "community_summary": "app.tests.app-service.summary",
+        "listing": ("plugin", _NEW_DEFINITION),
+        "ceiling": ["documents:read", "plugins:tests.other"],
+        "ref": ("plugin", "uplu_abc"),
+        "notification": (
+            "plugin_consent_requested",
+            {"plugin_id": install.id, "target_path": f"/?plugin={install.id}"},
+        ),
     }
-    assert await _app_contract(session, schema, listing.id, registration.id) == {
-        "installed": definition,
-        "granted": ["documents:read", "community:admin"],
-        "listed": definition,
-        "ceiling": ["documents:read", "community:admin"],
-    }
-
-    await session.run_sync(run(migration.BACKWARD))
-    await session.commit()
-    assert await _app_contract(session, schema, listing.id, registration.id) == old
 
 
 _PREFERENCES = {

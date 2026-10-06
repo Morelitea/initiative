@@ -4,7 +4,7 @@ What is forbidden here is forbidden rather than reviewed, so there is no
 allow-list to add a site to.
 
 * **What the seam builds is built only in ``app/api/deps.py``**, in anything
-  that runs: a person's standing (``GuildContext``) or an installed app's
+  that runs: a person's standing (``GuildContext``) or an installed plug-in's
   (``InstallContext``), the routing shapes that carry one (``Member``,
   ``ContentGrantee``, ``SettingsGrantee``, ``Install``, ``Filer``), and the credential
   those record (``SignIn``), which is where work on somebody's behalf is

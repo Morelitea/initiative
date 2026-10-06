@@ -1,15 +1,15 @@
-"""A vendor and an app, answering the calls a connection's flow makes.
+"""A vendor and a plug-in, answering the calls a connection's flow makes.
 
 Every outbound call the flow module makes goes through one transport
-(``app_connection_flows.http_transport``) after the pinned egress helper has
+(``plugin_connection_flows.http_transport``) after the pinned egress helper has
 resolved its host. :meth:`FakeVendor.install` points both at this object: the
 host resolves to a fixed public address, and the request is answered here by
 the host it names.
 
 The vendor side is an OAuth 2.0 authorization server with PKCE, refresh,
 revocation and a GitHub-style installation token exchange, and signs the
-webhooks it sends. Its API at ``api_host`` answers a declarative app's calls
-from recorded answers, in order. The app side answers the hooks.
+webhooks it sends. Its API at ``api_host`` answers a declarative plug-in's calls
+from recorded answers, in order. The plug-in side answers the hooks.
 """
 
 from __future__ import annotations
@@ -30,18 +30,18 @@ import httpx
 from app.services import safe_http
 from app.services.webhook_target_url import ValidatedTarget
 
-__all__ = ["FakeVendor", "declarative_app", "declarative_github"]
+__all__ = ["FakeVendor", "declarative_plugin", "declarative_github"]
 
 VENDOR_HOST = "github.test"
 API_HOST = "api.github.test"
 
 
-def declarative_app(public_id: str) -> dict[str, Any]:
-    """A declarative app calling this vendor's API on a community connection:
+def declarative_plugin(public_id: str) -> dict[str, Any]:
+    """A declarative plug-in calling this vendor's API on a community connection:
     a read of a repository's issues and a write that labels one."""
     api = f'"https://{API_HOST}/repos/" & params.repo'
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "features": ["endpoints"],
         "hosts": [API_HOST],
         "vendor": {
@@ -70,7 +70,7 @@ def declarative_app(public_id: str) -> dict[str, Any]:
         ],
         "endpoints": [
             {
-                "id": f"app.{public_id}.issues",
+                "id": f"plugin.{public_id}.issues",
                 "direction": "read",
                 "public": True,
                 "actors": ["installation"],
@@ -91,7 +91,7 @@ def declarative_app(public_id: str) -> dict[str, Any]:
                 "map": '{"titles": response.body.title[], "total": $count(response.body)}',
             },
             {
-                "id": f"app.{public_id}.label",
+                "id": f"plugin.{public_id}.label",
                 "direction": "write",
                 "public": True,
                 "actors": ["installation"],
@@ -121,13 +121,13 @@ def declarative_app(public_id: str) -> dict[str, Any]:
 
 
 def declarative_github(public_id: str) -> dict[str, Any]:
-    """:func:`declarative_app` as GitHub's is: its community connection is an
+    """:func:`declarative_plugin` as GitHub's is: its community connection is an
     installation, found among the person's own by ``after_connect`` and
     checked by ``health``, and the vendor's deliveries become its
     ``issue-opened`` event and the installation's state."""
-    app = declarative_app(public_id)
-    issue_opened = f"app.{public_id}.issue-opened"
-    app["vendor"] = {
+    plugin = declarative_plugin(public_id)
+    issue_opened = f"plugin.{public_id}.issue-opened"
+    plugin["vendor"] = {
         "fields": [
             {"key": key, "type": "string", "required": True, "label": {"en": key}}
             for key in (
@@ -140,7 +140,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
             )
         ]
     }
-    app["connections"] = [
+    plugin["connections"] = [
         {
             "id": "workspace",
             "scope": "static",
@@ -204,7 +204,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
             },
         }
     ]
-    app["endpoints"].append(
+    plugin["endpoints"].append(
         {
             "id": issue_opened,
             "direction": "emit",
@@ -217,7 +217,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
         }
     )
     installation = 'headers."x-github-event" = "installation" and payload.action = '
-    app["webhooks"] = {
+    plugin["webhooks"] = {
         "verify": {
             "scheme": "hmac_sha256",
             "header": "X-Hub-Signature-256",
@@ -262,7 +262,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
             },
         ],
     }
-    return app
+    return plugin
 
 
 def _challenge(verifier: str) -> str:
@@ -278,14 +278,14 @@ class FakeVendor:
     expires_in: int = 28800
     #: The vendor refuses every refresh.
     refuse_refresh: bool = False
-    #: What the app's after_connect hook answers.
+    #: What the plug-in's after_connect hook answers.
     after_connect_answer: Any = field(
         default_factory=lambda: {
             "values": {"login": "alice"},
             "account_label": "@alice",
         }
     )
-    #: The status the app's hooks answer with.
+    #: The status the plug-in's hooks answer with.
     hook_status: int = 200
     #: The status the vendor's revocation endpoint answers with.
     revoke_status: int = 200
@@ -316,7 +316,7 @@ class FakeVendor:
 
     def install(self, monkeypatch: Any) -> None:
         """Answer every outbound call of the flow module from here."""
-        from app.services.tenant import app_connection_flows
+        from app.services.tenant import plugin_connection_flows
 
         async def resolve(url: str, *, allow_private: bool = False) -> ValidatedTarget:
             host = httpx.URL(url).host
@@ -326,7 +326,7 @@ class FakeVendor:
 
         monkeypatch.setattr(safe_http, "resolve_validated_target_async", resolve)
         monkeypatch.setattr(
-            app_connection_flows, "http_transport", httpx.MockTransport(self.handle)
+            plugin_connection_flows, "http_transport", httpx.MockTransport(self.handle)
         )
 
     def authorize(self, challenge: Optional[str]) -> str:
@@ -352,7 +352,7 @@ class FakeVendor:
             "X-Hub-Signature-256": f"sha256={digest}",
         }
 
-    # --- the vendor's and the app's side --------------------------------
+    # --- the vendor's and the plug-in's side --------------------------------
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         host = request.headers.get("host", "")

@@ -1377,6 +1377,9 @@ export const useReleaseHeldItem = <TError = ErrorType<HTTPValidationError>, TCon
  * Replace the queue's entire sharing state in one call — the body is the
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the queue is taken off
+ * whatever in it names them.
  * @summary Set Queue Grants
  */
 export const setQueueGrants = (
@@ -1468,7 +1471,7 @@ export const useSetQueueGrants = <TError = ErrorType<HTTPValidationError>, TCont
   return useMutation(getSetQueueGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Queue
  */
 export const duplicateQueue = (

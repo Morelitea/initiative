@@ -374,8 +374,8 @@ async def _gallery_contents(
             select(GalleryImage).where(GalleryImage.gallery_id == source.id)
         )
     ).all()
-    # Each picture starts again at version 1, authored by whoever copied it; an
-    # app is never an author, so its copy keeps the picture's uploader.
+    # Each picture starts again at version 1, authored by whoever copied it; a
+    # plug-in is never an author, so its copy keeps the picture's uploader.
     pairs = await _copy_children(
         session,
         images,

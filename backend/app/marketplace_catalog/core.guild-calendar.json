@@ -1,7 +1,7 @@
 {
   "uid": "H4TC7RN2WQ5JXB",
   "public_id": "core.guild-calendar",
-  "kind": "app",
+  "kind": "plugin",
   "name": "Community calendar",
   "publisher": "Initiative",
   "description": "Calendars your whole community shares — holidays, meetups, and one for each of you.",
@@ -11,7 +11,7 @@
   "version": "1.0.1",
   "release_notes": "Brings installs that had the first copy up to the calendar as it ships now.",
   "definition": {
-    "app_kind": "tool_instance",
+    "plugin_kind": "tool_instance",
     "tool": "calendar",
     "default_name": "Community calendar"
   }

@@ -36,7 +36,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     SessionDep,
     UploadUserDep,
     establish_guild_access,
@@ -122,9 +122,9 @@ async def attached_projects(
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the documents scopes.
-DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
-DocumentsWrite = Annotated[ActorContext, Depends(app_scope("documents:write"))]
+#: The routes an installed plug-in may call, under the documents scopes.
+DocumentsRead = Annotated[ActorContext, Depends(plugin_scope("documents:read"))]
+DocumentsWrite = Annotated[ActorContext, Depends(plugin_scope("documents:write"))]
 
 # Upper bound on the ``ids`` filter, matching the page_size ceiling: the
 # filter hydrates one page worth of known documents.
@@ -253,7 +253,7 @@ async def serialize_document_page(
     await tags_service.annotate_tags(session, documents)
     await properties_service.annotate_properties(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
-    await ownership_service.annotate_owner_apps(session, documents)
+    await ownership_service.annotate_owner_plugins(session, documents)
     attached = await attached_projects(session, documents)
     context = require_actor_context(session)
     return [
@@ -274,7 +274,7 @@ async def create_document(
     current_user: ActorUserDep,
     guild_context: DocumentsWrite,
 ) -> DocumentRead:
-    resource_access.refuse_app_sharing(guild_context, document_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, document_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.document, document_in.initiative_id, current_user, guild_context
     )
@@ -772,7 +772,7 @@ async def update_document(
             )
         await attachments_service.claim_uploads(session, document)
         # What the edit took out goes once nothing else shows it. An installed
-        # app does not manage the community's uploads; what its edit let go of
+        # plug-in does not manage the community's uploads; what its edit let go of
         # stays for a person to clear.
         await session.commit()
         if current_user is not None and removed_upload_urls:

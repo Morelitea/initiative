@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
 - **Dashboard queries read a file's type, size and name through `current_version`** (`current_version.file_size` on `documents` and `gallery_images`), the version the file shows. The new `document_versions` and `gallery_image_versions` datasets hold every version.
 - **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
 - **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
@@ -65,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Someone who loses access to a calendar, queue or other tool is taken off what is in it.** Event attendees, people on queue items and person fields now let go of them when sharing changes, as task assignees already did.
 - **Files restored from a backup or brought in with a wiki or gallery import keep a version history and a type**, as uploaded ones do; a file whose type isn't one the tool shows is skipped and reported.
 - **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
 - **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**

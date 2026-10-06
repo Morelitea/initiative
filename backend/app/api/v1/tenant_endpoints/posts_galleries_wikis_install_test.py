@@ -1,6 +1,6 @@
-"""Posts, galleries and wikis as an installed app calls them.
+"""Posts, galleries and wikis as an installed plug-in calls them.
 
-Each test installs an app the way a community does (``install_app``: placed in
+Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the routes of these three tools that name a scope: the
 list, read, create and update, a post's pin, a wiki's pages and a gallery's
@@ -15,8 +15,8 @@ from typing import Any, Awaitable, Callable
 import pytest
 from sqlmodel import select
 
-from app.core.messages import AppMessages
-from app.main import app_openapi
+from app.core.messages import PluginMessages
+from app.main import plugin_openapi
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
@@ -32,9 +32,9 @@ from app.testing import (
     lexical_body,
     route_session_to_guild,
 )
-from app.testing.app_clients import (
+from app.testing.plugin_clients import (
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
 )
@@ -83,7 +83,7 @@ async def test_reads_what_is_open_to_its_initiative(
     tool, client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=[f"{tool.plural}:read"]
     )
     seat = installed.seat
@@ -131,9 +131,9 @@ async def test_a_post_it_reads_carries_no_one_s_own_state(
     client, session, acting_user, role_session
 ):
     """Reactions, read markers and ballots are people's own rows, so a post an
-    installed app reads carries the empty form of each."""
+    installed plug-in reads carries the empty form of each."""
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["posts:read"]
     )
     seat = installed.seat
@@ -160,7 +160,7 @@ async def test_lists_a_wiki_s_pages_with_the_read_scope(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["wikis:read"]
     )
     seat = installed.seat
@@ -181,14 +181,14 @@ async def test_lists_a_wiki_s_pages_with_the_read_scope(
         path, headers=install_headers(installed, ["galleries:read"])
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_reads_a_wiki_page_with_the_read_scope(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["wikis:read"]
     )
     seat = installed.seat
@@ -227,14 +227,14 @@ async def test_reads_a_wiki_page_with_the_read_scope(
         path, headers=install_headers(installed, ["galleries:read"])
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["galleries:read"]
     )
     seat = installed.seat
@@ -284,18 +284,18 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
 
     refused = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
-def test_the_app_document_lists_wiki_pages_and_gallery_pictures():
+def test_the_plugin_document_lists_wiki_pages_and_gallery_pictures():
     operations = {
         operation["operationId"]: operation
-        for item in app_openapi()["paths"].values()
+        for item in plugin_openapi()["paths"].values()
         for operation in item.values()
     }
-    assert operations["list_wiki_pages"]["x-app-scope"] == "wikis:read"
-    assert operations["read_wiki_page"]["x-app-scope"] == "wikis:read"
-    assert operations["list_gallery_images"]["x-app-scope"] == "galleries:read"
+    assert operations["list_wiki_pages"]["x-plugin-scope"] == "wikis:read"
+    assert operations["read_wiki_page"]["x-plugin-scope"] == "wikis:read"
+    assert operations["list_gallery_images"]["x-plugin-scope"] == "galleries:read"
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +307,7 @@ def test_the_app_document_lists_wiki_pages_and_gallery_pictures():
 async def test_changing_anything_needs_the_write_scope(
     tool, client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=[f"{tool.plural}:read"]
     )
     seat = installed.seat
@@ -331,7 +331,7 @@ async def test_changing_anything_needs_the_write_scope(
             method, guild_url(guild_id, path), headers=headers, json=payload
         )
         assert response.status_code == 403, (method, path, response.text)
-        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+        assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 @pytest.mark.parametrize("tool", TOOLS, ids=[t.plural for t in TOOLS])
@@ -339,14 +339,14 @@ async def test_what_it_creates_is_its_own(
     tool, client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=[f"{tool.plural}:write"]
     )
     seat = installed.seat
     guild_id = installed.guild.id
     await _switch_on(session, tool, installed.placed)
     headers = install_headers(installed, [f"{tool.plural}:write"])
-    create = {"name": "Made by the app", "initiative_id": installed.placed.id}
+    create = {"name": "Made by the plug-in", "initiative_id": installed.placed.id}
 
     # It shares nothing: an explicit grant list is refused.
     shared = await client.post(
@@ -355,7 +355,7 @@ async def test_what_it_creates_is_its_own(
         json={**create, "grants": [{"all_initiative_members": True, "level": "read"}]},
     )
     assert shared.status_code == 403, shared.text
-    assert shared.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
+    assert shared.json()["detail"] == PluginMessages.SHARING_NOT_AVAILABLE
 
     created = await client.post(
         guild_url(guild_id, f"/{tool.plural}/"), headers=headers, json=create
@@ -376,8 +376,8 @@ async def test_what_it_creates_is_its_own(
             )
         )
     ).all()
-    assert [(g.level, g.app_install_id, g.user_id) for g in grants] == [
-        (ResourceAccessLevel.owner, installed.app.id, None)
+    assert [(g.level, g.plugin_install_id, g.user_id) for g in grants] == [
+        (ResourceAccessLevel.owner, installed.plugin.id, None)
     ]
 
     updated = await client.patch(
@@ -392,7 +392,7 @@ async def test_what_it_creates_is_its_own(
 
 async def test_pins_the_posts_it_may_write(client, session, acting_user, role_session):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["posts:write"]
     )
     seat = installed.seat
@@ -428,11 +428,11 @@ async def test_pins_the_posts_it_may_write(client, session, acting_user, role_se
     )
     assert refused.status_code == 403, refused.text
 
-    # Shared with the app at write, it does.
+    # Shared with the plug-in at write, it does.
     await create_resource_grant(
         session,
         theirs,
-        app_install_id=installed.app.id,
+        plugin_install_id=installed.plugin.id,
         level=ResourceAccessLevel.write,
     )
     allowed = await client.put(

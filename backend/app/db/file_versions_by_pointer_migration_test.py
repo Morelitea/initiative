@@ -1,4 +1,4 @@
-"""Migration 20261005_0457 points file documents and pictures at the version
+"""Migration 20261005_0459 points file documents and pictures at the version
 they show. Loaded by path and run on a guild the test builds, the way
 ``upload_initiative_backfill_test`` runs its revision: down to the old shape,
 rows written as an older release wrote them, and up again."""
@@ -27,7 +27,7 @@ _MIGRATION = (
     Path(__file__).resolve().parents[2]
     / "alembic"
     / "versions"
-    / "20261005_0457_file_versions_by_pointer.py"
+    / "20261005_0459_file_versions_by_pointer.py"
 )
 
 

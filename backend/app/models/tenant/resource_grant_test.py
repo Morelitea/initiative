@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.project import Project
 from app.core.messages import SharingMessages
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -13,14 +13,17 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.testing import (
     create_guild,
-    create_guild_app,
+    create_guild_plugin,
     create_initiative,
     create_project,
     create_user,
     route_session_to_guild,
 )
 
-_SERVICE_DEFINITION = {"app_kind": "service", "service": {"public_id": "tests.app"}}
+_SERVICE_DEFINITION = {
+    "plugin_kind": "service",
+    "service": {"public_id": "tests.plugin"},
+}
 
 
 async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
@@ -70,28 +73,30 @@ async def _project_and_install(session: AsyncSession):
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
     project = await create_project(session, initiative, user)
-    install = await create_guild_app(
+    install = await create_guild_plugin(
         session, guild, user, definition=_SERVICE_DEFINITION
     )
     await route_session_to_guild(session, guild.id)
     return user, guild, initiative, project, install
 
 
-def _install_grant(project: Project, install: GuildApp, **overrides) -> ResourceGrant:
+def _install_grant(
+    project: Project, install: GuildPlugin, **overrides
+) -> ResourceGrant:
     return ResourceGrant(
         **{
             "initiative_id": project.initiative_id,
             "resource_type": "project",
             "resource_id": project.id,
-            "app_install_id": install.id,
+            "plugin_install_id": install.id,
             "level": ResourceAccessLevel.write,
             **overrides,
         }
     )
 
 
-async def test_a_grant_may_name_an_app_install_alone(session: AsyncSession):
-    """An installed app is a grantee kind of its own: a row naming it and
+async def test_a_grant_may_name_a_plugin_install_alone(session: AsyncSession):
+    """An installed plug-in is a grantee kind of its own: a row naming it and
     nothing else satisfies the one-grantee check."""
     _, _, _, project, install = await _project_and_install(session)
 
@@ -100,7 +105,7 @@ async def test_a_grant_may_name_an_app_install_alone(session: AsyncSession):
 
     stored = (
         await session.exec(
-            select(ResourceGrant).where(ResourceGrant.app_install_id == install.id)
+            select(ResourceGrant).where(ResourceGrant.plugin_install_id == install.id)
         )
     ).one()
     assert stored.user_id is None
@@ -139,7 +144,9 @@ async def test_uninstalling_removes_the_installs_grants(session: AsyncSession):
     await session.commit()
 
     await route_session_to_guild(session, guild.id)
-    row = (await session.exec(select(GuildApp).where(GuildApp.id == install.id))).one()
+    row = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == install.id))
+    ).one()
     await session.delete(row)
     await session.commit()
 
@@ -152,7 +159,7 @@ async def test_uninstalling_removes_the_installs_grants(session: AsyncSession):
             )
         )
     ).all()
-    assert all(g.app_install_id is None for g in remaining)
+    assert all(g.plugin_install_id is None for g in remaining)
     # The owner grant the factory made is still there.
     assert any(
         g.user_id == user.id and g.level == ResourceAccessLevel.owner for g in remaining
@@ -190,7 +197,9 @@ async def test_saving_the_sharing_panel_keeps_an_installs_grant(
         )
     ).one()
     reported = permissions_service.serialize_grants(loaded, context=None)
-    assert any(g.app_install_id == install.id and g.level == "write" for g in reported)
+    assert any(
+        g.plugin_install_id == install.id and g.level == "write" for g in reported
+    )
     assert any(g.all_initiative_members for g in reported)
 
 
@@ -205,13 +214,13 @@ async def test_the_sharing_panel_cannot_grant_an_install(session: AsyncSession):
             guild_id=guild.id,
             initiative_id=initiative.id,
             owner_id=user.id,
-            grants=[ResourceGrantSchema(app_install_id=install.id, level="write")],
+            grants=[ResourceGrantSchema(plugin_install_id=install.id, level="write")],
         )
     assert excinfo.value.status_code == 422
-    assert excinfo.value.detail == SharingMessages.APP_INSTALL_GRANT_NOT_SET_HERE
+    assert excinfo.value.detail == SharingMessages.PLUGIN_INSTALL_GRANT_NOT_SET_HERE
 
 
 def test_the_grant_shape_counts_an_install_as_a_grantee():
-    assert ResourceGrantSchema(app_install_id=3, level="read").app_install_id == 3
+    assert ResourceGrantSchema(plugin_install_id=3, level="read").plugin_install_id == 3
     with pytest.raises(ValueError):
-        ResourceGrantSchema(app_install_id=3, user_id=4, level="read")
+        ResourceGrantSchema(plugin_install_id=3, user_id=4, level="read")

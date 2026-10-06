@@ -128,7 +128,7 @@ class ManifestCommunitySection(SanitizedBaseModel):
     reporting in a plan ("42 members, 17 tags").
     """
 
-    key: str  # "settings" | "tags" | "members" | "apps"
+    key: str  # "settings" | "tags" | "members" | "plugins"
     path: str
     count: int = 0
 

@@ -210,28 +210,28 @@ class TestDefinitions:
         assert version.definition["definition"]["kind"] == "dashboard"
         assert version.definition["definition"]["layout"] == {"columns": 12}
 
-    async def test_an_app_listing_must_name_a_mountable_tool(self, session):
-        """An app definition is narrow on purpose: a kind, and which of this
+    async def test_a_plugin_listing_must_name_a_mountable_tool(self, session):
+        """A plug-in definition is narrow on purpose: a kind, and which of this
         build's tools it mounts. It cannot name one we do not mount at guild
         scope."""
         with pytest.raises(CatalogError, match="cannot be mounted"):
             await service.upsert_listing(
                 session,
                 _manifest(
-                    kind="app",
-                    definition={"app_kind": "tool_instance", "tool": "dashboard"},
+                    kind="plugin",
+                    definition={"plugin_kind": "tool_instance", "tool": "dashboard"},
                 ),
                 source="builtin",
             )
 
-    async def test_a_listing_without_artwork_gets_the_app_mark(self, session):
+    async def test_a_listing_without_artwork_gets_the_plugin_mark(self, session):
         """Artwork is optional. A listing that ships none is published with
         Initiative's own mark rather than refused over a picture — and the
         default is same-origin like everything else the catalog stores."""
         manifest = _manifest(
-            kind="app",
+            kind="plugin",
             definition={
-                "app_kind": "tool_instance",
+                "plugin_kind": "tool_instance",
                 "tool": "calendar",
                 "default_name": "Community calendar",
             },
@@ -246,9 +246,9 @@ class TestDefinitions:
     async def test_supplied_artwork_still_has_to_be_same_origin(self, session):
         """The default is not a way in for a remote URL."""
         manifest = _manifest(
-            kind="app",
+            kind="plugin",
             definition={
-                "app_kind": "tool_instance",
+                "plugin_kind": "tool_instance",
                 "tool": "calendar",
                 "default_name": "Community calendar",
             },
@@ -258,13 +258,13 @@ class TestDefinitions:
         with pytest.raises(CatalogError, match="same-origin"):
             await service.upsert_listing(session, manifest, source="builtin")
 
-    async def test_a_valid_app_listing_is_stored_canonically(self, session):
+    async def test_a_valid_plugin_listing_is_stored_canonically(self, session):
         listing = await service.upsert_listing(
             session,
             _manifest(
-                kind="app",
+                kind="plugin",
                 definition={
-                    "app_kind": "tool_instance",
+                    "plugin_kind": "tool_instance",
                     "tool": "calendar",
                     "default_name": "Community calendar",
                     "unexpected": "dropped",
@@ -274,22 +274,22 @@ class TestDefinitions:
         )
         version = await service.get_listing_version(session, listing.latest_version_id)
         assert version.definition == {
-            "app_kind": "tool_instance",
+            "plugin_kind": "tool_instance",
             "tool": "calendar",
             "default_name": "Community calendar",
         }
 
-    async def test_a_service_app_reaches_the_catalog_as_data(self, session):
+    async def test_a_service_plugin_reaches_the_catalog_as_data(self, session):
         """The widest thing a publisher can send, through the ordinary path:
         what lands is the canonical document, with the keys this build has no
         use for gone — including anything that looks like an address, since
-        where an app lives is the deployment's statement, not the listing's."""
+        where a plug-in lives is the deployment's statement, not the listing's."""
         listing = await service.upsert_listing(
             session,
             _manifest(
-                kind="app",
+                kind="plugin",
                 definition={
-                    "app_kind": "service",
+                    "plugin_kind": "service",
                     "service": {
                         "public_id": "tests.widget-co",
                         "default_url": "https://widget.test",
@@ -303,7 +303,7 @@ class TestDefinitions:
             source="builtin",
         )
         version = await service.get_listing_version(session, listing.latest_version_id)
-        assert version.definition["app_kind"] == "service"
+        assert version.definition["plugin_kind"] == "service"
         assert version.definition["service"] == {
             "public_id": "tests.widget-co",
             "protocol": 1,
@@ -393,7 +393,7 @@ class TestVersions:
                 source="builtin",
             )
 
-    async def test_a_published_version_cannot_move_its_app_floor(self, session):
+    async def test_a_published_version_cannot_move_its_plugin_floor(self, session):
         # Changing min_app_version would change who can install that exact
         # version, after the fact.
         await service.upsert_listing(session, _manifest(), source="builtin")
@@ -441,7 +441,7 @@ class TestVersions:
         assert latest is not None and latest.version == "1.1.0"
         assert len(await service.listing_versions(session, listing.id)) == 2
 
-    async def test_a_version_needing_a_newer_app_is_not_installable(self, session):
+    async def test_a_version_needing_a_newer_plugin_is_not_installable(self, session):
         listing = await create_marketplace_listing(
             session,
             uid="FTRE0000000001",
@@ -512,7 +512,7 @@ class TestSearch:
         )
         found, _ = await service.list_listings(session, kind="dashboard")
         assert "tests.kind" in [listing.public_id for listing in found]
-        found, _ = await service.list_listings(session, kind="app")
+        found, _ = await service.list_listings(session, kind="plugin")
         assert found == []
 
 

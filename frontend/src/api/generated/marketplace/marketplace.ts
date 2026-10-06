@@ -1412,8 +1412,8 @@ export const useUploadListingPicture = <
  * A page of listings this guild can install, searchable by name,
  * description, or publisher.
  *
- * A guild with none of an app installed sees the same catalog as before —
- * the apps themselves, and the dashboards that stand alone.
+ * A guild with none of a plug-in installed sees the same catalog as before —
+ * the plug-ins themselves, and the dashboards that stand alone.
  * @summary List Marketplace Listings
  */
 export const listMarketplaceListings = (
@@ -1563,7 +1563,7 @@ export function useListMarketplaceListings<
  * This is what an installed instance uses to find where it came from: the
  * instance stores the uid, and the catalog answers with the listing and the
  * version it currently publishes. A listing this guild can no longer take —
- * a bundled dashboard whose app it removed — answers 404, which is what
+ * a bundled dashboard whose plug-in it removed — answers 404, which is what
  * stops an update being offered that the install would refuse.
  * @summary Resolve Marketplace Listing
  */
@@ -1857,7 +1857,7 @@ export function useReadMarketplaceListing<
  * permission and nothing more. The copy is the member's: it records the
  * listing and version it came from, and nothing links it back.
  *
- * Apps and profile packs install elsewhere; a uid naming one reads as not
+ * Plug-ins and profile packs install elsewhere; a uid naming one reads as not
  * found here, as it would from any installer that cannot install it.
  * @summary Install Marketplace Listing
  */
