@@ -56,6 +56,16 @@ const Probe = () => {
 };
 
 /** The provider reads its list through React Query, so each test gets a client. */
+/** One page of `/access-grants/`, the whole list. */
+const grantPage = (items: object[]) => ({
+  items,
+  total_count: items.length,
+  page: 1,
+  page_size: 200,
+  has_next: false,
+  has_prev: false,
+});
+
 const withQueryClient = () => {
   const client = createTestQueryClient();
   return ({ children }: { children: ReactNode }) => (
@@ -73,7 +83,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Granted Community",
@@ -92,7 +102,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -110,6 +120,49 @@ describe("settings grants in the community switcher", () => {
     );
   });
 
+  it("reads every page of live grants", async () => {
+    get.mockImplementation((path: string, config?: { params?: { page?: number } }) => {
+      if (path === "/communities/") return Promise.resolve({ data: [] });
+      if (path === "/access-grants/" && config?.params?.page === 1) {
+        return Promise.resolve({ data: { ...grantPage([]), has_next: true } });
+      }
+      if (path === "/access-grants/" && config?.params?.page === 2) {
+        return Promise.resolve({
+          data: {
+            ...grantPage([
+              {
+                community_id: 8,
+                community_name: "Granted Community",
+                purpose: "content",
+                access_level: "read",
+                is_live: true,
+                requested_at: "2026-09-17T20:00:00Z",
+                expires_at: "2026-09-17T21:00:00Z",
+              },
+            ]),
+            page: 2,
+            has_prev: true,
+          },
+        });
+      }
+      throw new Error(`Unexpected read: ${path}`);
+    });
+
+    render(
+      <CommunityProvider>
+        <Probe />
+      </CommunityProvider>,
+      { wrapper: withQueryClient() }
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('{"content":"read","settings":null}')).toBeVisible()
+    );
+    expect(get).toHaveBeenCalledWith("/access-grants/", {
+      params: { live: true, page: 2, page_size: 200 },
+    });
+  });
+
   it("keeps a settings grant alongside an ordinary membership", async () => {
     get.mockImplementation((path: string) => {
       if (path === "/communities/") {
@@ -117,7 +170,7 @@ describe("settings grants in the community switcher", () => {
       }
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Member Community",
@@ -127,7 +180,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -148,7 +201,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Granted Community",
@@ -158,7 +211,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       if (path === "/communities/8") {
