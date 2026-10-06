@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
 - **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
 - **Image captions in documents and wiki pages are saved.**
 - **`RATE_LIMIT_STORAGE_URI` accepts a `redis://` URL.**
