@@ -440,10 +440,11 @@ async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     response = await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 204, response.text
 
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     rows = {
-        row["title"]: (row["kind"], row["headings"]) for row in response.json()["items"]
+        row["title"]: (row["kind"], row["headings"]) for row in listed.json()["items"]
     }
     assert rows == {
         "Written here": (
@@ -601,14 +602,9 @@ async def test_a_document_can_be_moved_among_the_pages(
         json={"position": 0},
     )
 
-    assert moved.status_code == 200, moved.text
-    assert [row["title"] for row in moved.json()["items"]] == [
-        "Borrowed",
-        "First",
-        "Second",
-    ]
+    assert moved.status_code == 204, moved.text
 
-    # And it stays there, because the order is the wiki's own record of it.
+    # It stays there, because the order is the wiki's own record of it.
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [row["title"] for row in listed.json()["items"]] == [
         "Borrowed",
@@ -641,8 +637,9 @@ async def test_a_document_can_be_filed_under_a_page(
         headers=a.headers,
         json={"parent_page_id": rules.id, "position": 1},
     )
-    assert moved.status_code == 200, moved.text
-    rows = moved.json()["items"]
+    assert moved.status_code == 204, moved.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = listed.json()["items"]
     assert [row["title"] for row in rows] == [
         "Rules",
         "Combat",
@@ -673,7 +670,9 @@ async def test_a_document_can_be_filed_under_a_page(
         headers=a.headers,
         json={"position": 0},
     )
-    rows = unfiled.json()["items"]
+    assert unfiled.status_code == 204, unfiled.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = listed.json()["items"]
     assert rows[0]["title"] == "Borrowed" and rows[0]["parent_page_id"] is None
 
 
@@ -748,10 +747,11 @@ async def test_a_document_row_says_what_kind_of_document_it_is(
         document_type=DocumentType.spreadsheet,
     )
 
-    response = await client.put(
+    await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
-    rows = {row["title"]: row for row in response.json()["items"]}
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = {row["title"]: row for row in listed.json()["items"]}
     assert rows["Budget"]["document_type"] == "spreadsheet"
     assert rows["Written here"]["document_type"] is None
 
@@ -808,10 +808,11 @@ async def test_a_document_taken_out_gives_up_its_place(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
     assert removed.status_code == 204, removed.text
-    again = await client.put(
+    await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
 
+    again = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [row["title"] for row in again.json()["items"]] == ["First", "Borrowed"]
 
 
@@ -827,8 +828,9 @@ async def test_a_document_in_a_wiki_is_never_a_draft(
     response = await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
-    assert response.status_code == 200, response.text
-    row = next(r for r in response.json()["items"] if r["kind"] == "document")
+    assert response.status_code == 204, response.text
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    row = next(r for r in listed.json()["items"] if r["kind"] == "document")
     assert row["is_draft"] is False
 
 

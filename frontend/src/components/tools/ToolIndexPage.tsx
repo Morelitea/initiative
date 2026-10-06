@@ -331,6 +331,7 @@ const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
     ...filters.sort,
     page: filters.page,
     page_size: filters.pageSize,
+    include_preview: true,
   });
 
   const rows = useMemo(
