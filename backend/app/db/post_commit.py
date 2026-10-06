@@ -49,7 +49,10 @@ def after_commit(session: Any, step: StepT, key: Hashable | None = None) -> Step
 
     With ``key``, one step per key per savepoint or transaction: the step
     already registered under ``key`` in the innermost one open is kept and
-    returned, so a caller can add to it. Returns the step that will run.
+    returned, so a caller can add to it. A released savepoint's steps join the
+    transaction around it, where one already under the same key is kept — and,
+    as a mapping, takes the entries it lacks from the savepoint's. Returns the
+    step that will run.
 
     ``session`` is an ``AsyncSession`` or a sync ``Session``. A session with no
     transaction open begins one here, so a rollback before its first statement
@@ -111,7 +114,9 @@ def _hold(work: Awaitable[object], name: str, *also: set[asyncio.Task[None]]) ->
 
 def _start_steps(session: SyncSession) -> None:
     # A savepoint's release is also a commit; the steps wait for the outer one.
-    if session.in_nested_transaction():
+    released = session.get_nested_transaction()
+    if released is not None:
+        _fold_steps(session, released)
         return
     steps: dict[Any, Step] | None = session.info.pop(_STEPS_KEY, None)
     if not steps:
@@ -126,6 +131,23 @@ def _start_steps(session: SyncSession) -> None:
             continue
         if inspect.isawaitable(work):
             _hold(work, name, started)
+
+
+def _fold_steps(session: SyncSession, released: SessionTransaction) -> None:
+    steps: dict[tuple[SessionTransaction, Hashable], Step] | None = session.info.get(
+        _STEPS_KEY
+    )
+    if not steps or released.parent is None:
+        return
+    folded: dict[tuple[SessionTransaction, Hashable], Step] = {}
+    for (txn, key), step in steps.items():
+        held = folded.setdefault(
+            (released.parent if txn is released else txn, key), step
+        )
+        if held is not step and isinstance(held, dict) and isinstance(step, dict):
+            for entry, value in step.items():
+                held.setdefault(entry, value)
+    session.info[_STEPS_KEY] = folded
 
 
 def _within(txn: SessionTransaction | None, ended: SessionTransaction) -> bool:

@@ -118,12 +118,14 @@ async def test_one_transaction_is_one_notice_per_kind_of_frame(
 
 async def test_a_savepoint_takes_only_its_own_frames(session, notices) -> None:
     """A rolled-back savepoint drops the frames queued inside it and keeps the
-    transaction's others; a released one keeps its frames for the commit."""
+    transaction's others; a released one keeps its frames for the commit, in
+    the transaction's one notice per kind of frame."""
     user_stream.queue_frame(session, 1, _frame())
     savepoint = await session.begin_nested()
     user_stream.queue_frame(session, 2, _frame())
     await savepoint.rollback()
     savepoint = await session.begin_nested()
+    user_stream.queue_frame(session, 1, _frame())
     user_stream.queue_frame(session, 3, _frame())
     await savepoint.commit()
     await settle()
@@ -132,10 +134,7 @@ async def test_a_savepoint_takes_only_its_own_frames(session, notices) -> None:
     await session.commit()
     await post_commit.settle(session)
 
-    assert sorted(user_id for notice in notices for user_id in notice["user_ids"]) == [
-        1,
-        3,
-    ]
+    assert [sorted(notice["user_ids"]) for notice in notices] == [[1, 3]]
 
 
 async def test_a_large_audience_is_split_across_notices(
