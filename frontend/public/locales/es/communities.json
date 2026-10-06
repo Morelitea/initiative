@@ -57,6 +57,7 @@
   "invite": {
     "title": "Unirse a {{communityName}}",
     "titleDefault": "Invitación a la comunidad",
+    "thisCommunity": "esta comunidad",
     "checking": "Verificando detalles de la invitación…",
     "acceptDescription": "Acepta para unirte a esta comunidad.",
     "couldNotValidate": "No se pudo validar esta invitación.",

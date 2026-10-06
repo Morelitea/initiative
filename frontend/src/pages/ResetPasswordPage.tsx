@@ -2,7 +2,7 @@ import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { resetPassword } from "@/api/generated/auth/auth";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,7 @@ export const ResetPasswordPage = () => {
     setStatus("submitting");
     setError(null);
     try {
-      await apiClient.post("/auth/password/reset", { token, password });
+      await resetPassword({ token, password });
       setStatus("success");
     } catch (err) {
       console.error(err);

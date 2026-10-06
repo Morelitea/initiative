@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { useCommunityLoginProviders } from "@/hooks/useCommunityAuthPolicy";
 import { useServer } from "@/hooks/useServer";
+import { providerSignInHref } from "@/lib/returnPath";
 
 /**
  * A community's sign-in page — the URL its admins share with members.
@@ -42,8 +43,7 @@ export const CommunityLoginPage = () => {
   const communityName = providersQuery.data?.community_name ?? null;
 
   const signIn = (entry: LoginProviderEntry) => {
-    const next = `/c/${communityId}`;
-    window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
+    window.location.href = providerSignInHref(entry.login_url, `/c/${communityId}`);
   };
 
   return (

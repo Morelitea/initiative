@@ -19,12 +19,11 @@ import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const get = vi.fn();
 
-vi.mock("@/api/client", () => ({
-  apiClient: {
-    get: (...args: unknown[]) => get(...args),
-    post: vi.fn(),
-    put: vi.fn(),
-    defaults: { baseURL: "" },
+// Generated calls arrive here, answered by path through `get`.
+vi.mock("@/api/mutator", () => ({
+  apiMutator: ({ url, params }: { url: string; params?: unknown }) => {
+    const path = url.replace(/^\/api\/v1/, "");
+    return (params ? get(path, { params }) : get(path)).then((r: { data: unknown }) => r.data);
   },
 }));
 

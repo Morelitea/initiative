@@ -36,6 +36,16 @@ vi.mock("@/api/client", () => ({
   forgetSessionActivity: vi.fn(),
 }));
 
+// Generated calls arrive here: the account read answers from `get`, every POST
+// is recorded on `post`, and nothing else answers.
+vi.mock("@/api/mutator", () => ({
+  apiMutator: async ({ method, url, data }: { method: string; url: string; data?: unknown }) => {
+    if (url === "/api/v1/me") return (await get(url)).data;
+    if (method === "POST") return (await post(url, data)).data;
+    throw new Error(`No answer for ${url}`);
+  },
+}));
+
 const getItem = vi.fn((_key: string): string | null => null);
 // Hoisted: i18n writes its language through storage while the setup file loads.
 const setItem = vi.hoisted(() => vi.fn());
@@ -252,7 +262,7 @@ describe("useAuth identity ordering", () => {
       await auth.logout();
     });
 
-    expect(post).toHaveBeenCalledWith("/auth/logout", { refresh_token: "rt-this-device" });
+    expect(post).toHaveBeenCalledWith("/api/v1/auth/logout", { refresh_token: "rt-this-device" });
   });
 
   it.each([
@@ -277,7 +287,7 @@ describe("useAuth identity ordering", () => {
       });
 
       await waitFor(() => expect(auth.user).toBeNull());
-      expect(post).not.toHaveBeenCalledWith("/auth/logout");
+      expect(post).not.toHaveBeenCalledWith("/api/v1/auth/logout");
       // A browser may be shared, so its messages go. A device keeps them for its
       // owner's next sign-in.
       expect(forgetMessages).toHaveBeenCalledTimes(forgets ? 1 : 0);
@@ -361,7 +371,7 @@ describe("useAuth second factor", () => {
       await auth.completeSecondFactor({ challenge: "c", code: "123456" });
     });
 
-    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+    expect(post).toHaveBeenCalledWith("/api/v1/auth/token/totp", {
       challenge: "c",
       code: "123456",
       recovery_code: null,
@@ -379,7 +389,7 @@ describe("useAuth second factor", () => {
       await auth.completeSecondFactor({ challenge: "c", recoveryCode: "abcde-fghij" });
     });
 
-    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+    expect(post).toHaveBeenCalledWith("/api/v1/auth/token/totp", {
       challenge: "c",
       code: null,
       recovery_code: "abcde-fghij",
@@ -408,7 +418,7 @@ describe("useAuth password sign-in on native", () => {
     });
 
     const [url, form] = post.mock.calls[0] as [string, URLSearchParams];
-    expect(url).toBe("/auth/token");
+    expect(url).toBe("/api/v1/auth/token");
     expect(form.get("username")).toBe("a@example.com");
     expect(form.get("device_name")).toBe("Pixel");
     expect(setItem).toHaveBeenCalledWith(CREDENTIAL_KEYS.refreshToken, "rt");

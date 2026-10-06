@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 
-import { apiClient } from "@/api/client";
+import { issueUploadToken } from "@/api/generated/auth/auth";
 
 /**
  * Native-only scoped upload-token cache.
@@ -49,10 +49,7 @@ export const refreshUploadToken = async (): Promise<string | null> => {
   const requestGeneration = generation;
   inFlight = (async () => {
     try {
-      const { data } = await apiClient.post<{
-        upload_token: string;
-        expires_in: number;
-      }>("/auth/upload-token");
+      const data = await issueUploadToken();
       if (generation !== requestGeneration) {
         // clearUploadToken ran while this request was in flight (logout):
         // drop the result instead of reviving the cleared cache.
