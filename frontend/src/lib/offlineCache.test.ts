@@ -62,7 +62,7 @@ describe("isPersistablePath", () => {
       "/api/v1/c/3/settings/ai",
       "/api/v1/c/3/members",
       "/api/v1/c/3/webhooks/subscriptions",
-      "/api/v1/c/3/apps",
+      "/api/v1/c/3/plugins",
       "/api/v1/operator/users",
       "/api/v1/access-grants/",
       "/api/v1/ai-settings",
@@ -137,7 +137,7 @@ describe("shouldPersistQuery", () => {
   it("drops hand-written keys, which are not request paths", () => {
     expect(shouldPersistQuery(query(["dm", "unread"], "success"))).toBe(false);
     expect(shouldPersistQuery(query(["contacts", "community", 3, ""], "success"))).toBe(false);
-    expect(shouldPersistQuery(query([{ scope: "community-app" }], "success"))).toBe(false);
+    expect(shouldPersistQuery(query([{ scope: "community-plugin" }], "success"))).toBe(false);
   });
 });
 
@@ -150,7 +150,7 @@ describe("shardOfQueryKey", () => {
   it("files everything else under the platform shard", () => {
     expect(shardOfQueryKey(["/api/v1/me"])).toBe("platform");
     expect(shardOfQueryKey(["/api/v1/me/tasks", { page: 1 }])).toBe("platform");
-    expect(shardOfQueryKey([{ scope: "community-app" }])).toBe("platform");
+    expect(shardOfQueryKey([{ scope: "community-plugin" }])).toBe("platform");
   });
 });
 

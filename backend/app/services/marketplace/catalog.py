@@ -7,8 +7,8 @@ Two audiences, and the split between them is the security shape of this module:
   or a guild role), and touch nothing but the two catalog tables.
 * **The writer** — ``upsert_listing``, called only from the system-engine path
   (boot seeding, the operator's catalog, uploads, and the registry refresh). No
-  user request reaches it. An app's ``registration`` block, from any of them,
-  goes to the one writer of a registration's app facts
+  user request reaches it. A plug-in's ``registration`` block, from any of them,
+  goes to the one writer of a registration's plug-in facts
   (:mod:`app.services.marketplace.registrations`).
 
 Everything a publisher supplies is validated before it lands: the uid's shape,
@@ -43,7 +43,7 @@ from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
-    app_widget_type,
+    plugin_widget_type,
     normalize_publisher,
     normalize_listing_definition,
     normalize_listing_example,
@@ -77,7 +77,7 @@ __all__ = [
 #: Characters a version string may use. Deliberately an explicit set rather than
 #: a semver pattern — the catalog stores what the publisher published and only
 #: needs it to be a safe, short, comparable token. From the vendored contract,
-#: which is what the app-kit checks a listing against before it is published.
+#: which is what the plugin-kit checks a listing against before it is published.
 _VERSION_CHARS = contract.charset("version")
 _MAX_VERSION = contract.cap("versionLength")
 
@@ -106,7 +106,7 @@ def _check_uid(uid: str) -> str:
 
 def _check_public_id(public_id: str) -> str:
     # One rule for the shape of a `<publisher>.<slug>` id, wherever it appears —
-    # a listing's own, or the one a service app names itself by.
+    # a listing's own, or the one a service plug-in names itself by.
     try:
         return check_public_id(public_id, what="public_id")
     except ListingDefinitionError as exc:
@@ -178,15 +178,15 @@ def version_is_compatible(min_app_version: Optional[str]) -> bool:
 # --- reads ------------------------------------------------------------------
 
 
-async def _unoffered_app() -> Exists:
-    """Matches an app listing this deployment does not run the service for.
+async def _unoffered_plugin() -> Exists:
+    """Matches a plug-in listing this deployment does not run the service for.
 
     Read from the registration snapshot rather than joined from the table:
     nothing on the request path holds a grant on it, so it is loaded on the
     system engine instead.
 
     A listing with no published version and one whose definition names no
-    service — an app that mounts one of this build's own tools — match nothing
+    service — a plug-in that mounts one of this build's own tools — match nothing
     here and stay on the shelf.
     """
     latest = MarketplaceListingVersion
@@ -195,8 +195,8 @@ async def _unoffered_app() -> Exists:
         select(latest.id)
         .where(
             latest.id == MarketplaceListing.latest_version_id,
-            latest.definition["app_kind"].astext == "service",
-            # A declarative app has no service block and is its listing's
+            latest.definition["plugin_kind"].astext == "service",
+            # A declarative plug-in has no service block and is its listing's
             # public id.
             func.coalesce(
                 latest.definition["service"]["public_id"].astext,
@@ -219,16 +219,16 @@ async def list_listings(
 ) -> tuple[Sequence[MarketplaceListing], int]:
     """A page of listings, newest first, with the total that matched.
 
-    ``bundled_with`` names the app uids the caller is entitled to see bundled
-    dashboards for — the apps a guild has installed. Left unset, a dashboard
-    that ships with an app is not offered at all, which is the right answer for
+    ``bundled_with`` names the plug-in uids the caller is entitled to see bundled
+    dashboards for — the plug-ins a guild has installed. Left unset, a dashboard
+    that ships with a plug-in is not offered at all, which is the right answer for
     a caller that has no guild to answer it for: such a dashboard draws that
-    app's widgets, so offering it where the app cannot be is offering a canvas
+    plug-in's widgets, so offering it where the plug-in cannot be is offering a canvas
     of tiles with nothing behind them.
 
-    An app whose service this deployment has not wired up is not offered
+    A plug-in whose service this deployment has not wired up is not offered
     either, for the same reason: a catalog is published to every deployment,
-    and a registration is how one says it runs that app. The rule is read here
+    and a registration is how one says it runs that plug-in. The rule is read here
     rather than passed in, so browsing, reading a listing and installing one
     cannot end up disagreeing about what this deployment carries.
     """
@@ -249,8 +249,8 @@ async def list_listings(
         )
     else:
         filters.append(MarketplaceListing.bundled_with_uid.is_(None))
-    unoffered_app = await _unoffered_app()
-    filters.append(~unoffered_app)
+    unoffered_plugin = await _unoffered_plugin()
+    filters.append(~unoffered_plugin)
     if query:
         # Case-insensitive across the three fields someone would actually type.
         needle = f"%{query.strip()}%"
@@ -378,9 +378,9 @@ async def upsert_listing(
     and vice versa, so a uid keeps meaning the listing it was first published
     for.
 
-    ``bundled_with`` names the app this listing is published as part of, and is
+    ``bundled_with`` names the plug-in this listing is published as part of, and is
     a third thing that cannot be reassigned. It is set only by
-    :func:`_publish_bundled_dashboards`, which is the app's own publish; every
+    :func:`_publish_bundled_dashboards`, which is the plug-in's own publish; every
     other caller leaves it ``None`` and is publishing something that stands on
     its own. A publish whose ownership disagrees with the stored row is refused
     rather than applied, in either direction.
@@ -391,7 +391,7 @@ async def upsert_listing(
     it is :func:`approve_version`. ``submitted_by`` records the member who
     shared a new listing; it is never changed afterwards.
 
-    An app's ``registration`` block is read before anything is written and
+    A plug-in's ``registration`` block is read before anything is written and
     applied once its version is offered. ``root_is_builtin`` is whether a
     registry listing verified under the root this image ships.
     """
@@ -426,8 +426,8 @@ async def upsert_listing(
 
     registration: Optional[registrations_service.ListingRegistration] = None
     if manifest.get("registration") is not None:
-        if kind != "app":
-            raise CatalogError(f"{public_id}: only an app carries a registration")
+        if kind != "plugin":
+            raise CatalogError(f"{public_id}: only a plug-in carries a registration")
         try:
             registration = await registrations_service.read_listing_registration(
                 session,
@@ -482,8 +482,8 @@ async def upsert_listing(
         # Both identities matching is what an *update* looks like, so this is
         # the one path that reaches an existing row rather than being refused
         # above — and who owns a listing is not something a later publish may
-        # change. An app bundling a uid somebody else published would otherwise
-        # rewrite that listing and attach its withdrawal to a different app.
+        # change. A plug-in bundling a uid somebody else published would otherwise
+        # rewrite that listing and attach its withdrawal to a different plug-in.
         held = (
             f"as part of {existing.bundled_with_uid}"
             if existing.bundled_with_uid
@@ -577,7 +577,7 @@ async def upsert_listing(
         listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
-    if not version.awaiting_review and kind == "app":
+    if not version.awaiting_review and kind == "plugin":
         # What the latest version requires of the operator is part of whether
         # a registration speaking for this listing is live.
         await vendor_values_service.sync_required_for_listing(
@@ -588,10 +588,10 @@ async def upsert_listing(
                 session, registration
             )
 
-    if kind == "app":
+    if kind == "plugin":
         await _publish_bundled_dashboards(
             session,
-            app=listing,
+            plugin=listing,
             definition=definition,
             version=version_str,
             source=source,
@@ -629,7 +629,7 @@ def published_uids(manifest: dict[str, Any]) -> set[str]:
     """Every uid publishing one manifest creates a listing for: its own, plus
     the dashboards it bundles.
 
-    A bundled dashboard's uid is written only inside its app's manifest, so the
+    A bundled dashboard's uid is written only inside its plug-in's manifest, so the
     manifest is the only place a caller can learn it. Both catalog sources —
     the shipped build and the operator's directory — sweep what they no longer
     publish by comparing the rows against the uids their files name, and a
@@ -659,26 +659,26 @@ def published_uids(manifest: dict[str, Any]) -> set[str]:
 async def _publish_bundled_dashboards(
     session: AsyncSession,
     *,
-    app: MarketplaceListing,
+    plugin: MarketplaceListing,
     definition: dict[str, Any],
     version: str,
     source: str,
 ) -> None:
-    """Publish one dashboard listing per entry in an app's ``dashboards`` block.
+    """Publish one dashboard listing per entry in a plug-in's ``dashboards`` block.
 
     This is the whole reason a publisher declares these inside the manifest
     rather than beside it: the operator adds one file, and the dashboards that
-    ship with the app are published, versioned and withdrawn with it.
+    ship with the plug-in are published, versioned and withdrawn with it.
 
     Each one is an ordinary listing. It carries the publisher's own uid — which
     is what makes it a real catalog identity rather than something invented here
-    — and inherits the app's publisher, source and version, because it *is* the
-    app's publish. ``bundled_with_uid`` is what marks it, and is how the browse
-    path knows to offer it only where the app is installed.
+    — and inherits the plug-in's publisher, source and version, because it *is* the
+    plug-in's publish. ``bundled_with_uid`` is what marks it, and is how the browse
+    path knows to offer it only where the plug-in is installed.
 
     Widget types are resolved to their namespaced form here. A manifest carries
     no uid inside it, so a publisher writes the bare widget id and this stamps
-    the app's own uid on — the same value :func:`app_widget_type` puts on the
+    the plug-in's own uid on — the same value :func:`plugin_widget_type` puts on the
     palette. What gets stored is therefore the shape the dashboard tool already
     renders, and nothing downstream needs to know the row was derived.
     """
@@ -688,10 +688,14 @@ async def _publish_bundled_dashboards(
         widgets = [
             {
                 "id": widget["id"],
-                "type": app_widget_type(app.uid, widget["type"]),
+                "type": plugin_widget_type(plugin.uid, widget["type"]),
                 **({"title": widget["title"]} if "title" in widget else {}),
                 **({"grid": widget["grid"]} if "grid" in widget else {}),
-                "binding": {"source": "app", "app_uid": app.uid, **widget["binding"]},
+                "binding": {
+                    "source": "plugin",
+                    "plugin_uid": plugin.uid,
+                    **widget["binding"],
+                },
             }
             for widget in entry["widgets"]
         ]
@@ -700,12 +704,12 @@ async def _publish_bundled_dashboards(
             "public_id": entry["public_id"],
             "kind": "dashboard",
             "name": entry["name"],
-            "publisher": app.publisher,
-            "description": entry.get("description") or app.description,
+            "publisher": plugin.publisher,
+            "description": entry.get("description") or plugin.description,
             "version": version,
             # No artwork of its own, deliberately: a dashboard previews by
             # rendering its actual widgets against the sample data those widgets
-            # declare, which cannot go stale against the app the way a picture
+            # declare, which cannot go stale against the plug-in the way a picture
             # would.
             "avatar_url": DEFAULT_AVATAR_URL,
             "images": [],
@@ -719,13 +723,13 @@ async def _publish_bundled_dashboards(
         # Ownership goes in as part of the publish rather than being stamped on
         # afterwards, so the same call that refuses to reassign a uid refuses to
         # take a listing away from whoever already published it.
-        await upsert_listing(session, manifest, source=source, bundled_with=app.uid)
+        await upsert_listing(session, manifest, source=source, bundled_with=plugin.uid)
         published.add(entry["uid"])
 
     # A dashboard dropped from the manifest is withdrawn rather than left
-    # offered: the app that supplied its widgets no longer ships it. Withdrawn,
+    # offered: the plug-in that supplied its widgets no longer ships it. Withdrawn,
     # not deleted — a guild that already installed it keeps what it has.
-    for stale in await _bundled_dashboards_of(session, app.uid):
+    for stale in await _bundled_dashboards_of(session, plugin.uid):
         if stale.uid not in published and stale.available:
             stale.available = False
             stale.updated_at = datetime.now(timezone.utc)
@@ -735,13 +739,13 @@ async def _publish_bundled_dashboards(
 
 
 async def _bundled_dashboards_of(
-    session: AsyncSession, app_uid: str
+    session: AsyncSession, plugin_uid: str
 ) -> Sequence[MarketplaceListing]:
-    """Every dashboard listing published as part of one app."""
+    """Every dashboard listing published as part of one plug-in."""
     return (
         await session.exec(
             select(MarketplaceListing).where(
-                MarketplaceListing.bundled_with_uid == app_uid
+                MarketplaceListing.bundled_with_uid == plugin_uid
             )
         )
     ).all()
@@ -751,16 +755,16 @@ async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
     """Take a listing out of the catalog, keeping the row. Returns whether one
     was there to withdraw.
 
-    Withdrawn is not deleted: a guild that already installed it keeps its app,
+    Withdrawn is not deleted: a guild that already installed it keeps its plug-in,
     its pinned definition and its provenance. It simply stops being offered and
     cannot be installed again. Used when a deployment stops being able to serve
-    something it previously seeded — an operator removing the configuration an
-    app depends on — and later by the registry for a listing its publisher pulls.
+    something it previously seeded — an operator removing the configuration a
+    plug-in depends on — and later by the registry for a listing its publisher pulls.
 
-    Withdrawing an app withdraws the dashboards it bundles. They were published
+    Withdrawing a plug-in withdraws the dashboards it bundles. They were published
     by its manifest and have no existence apart from it, so leaving them offered
     would mean offering an arrangement of widgets a guild can no longer install
-    the app for.
+    the plug-in for.
     """
     listing = await get_listing_by_uid(session, uid)
     if listing is None or not listing.available:
@@ -770,7 +774,7 @@ async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
     listing.updated_at = now
     session.add(listing)
 
-    if listing.kind == "app":
+    if listing.kind == "plugin":
         for bundled in await _bundled_dashboards_of(session, listing.uid):
             if bundled.available:
                 bundled.available = False

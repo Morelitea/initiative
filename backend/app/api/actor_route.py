@@ -1,11 +1,11 @@
-"""The route class for routes an installed app may call.
+"""The route class for routes an installed plug-in may call.
 
 ``ActorRoute`` serves a person exactly as ``APIRoute`` does. For an installed
-app it carries the request through the three phases of
+plug-in it carries the request through the three phases of
 :mod:`app.core.identity_boundary`:
 
 1. It opens the request's boundary slot before anything else runs. The route's
-   scope dependency (``app.api.deps.app_scope``) fills it once the install's
+   scope dependency (``app.api.deps.plugin_scope``) fills it once the install's
    standing is in, which is before FastAPI validates the path, query and body,
    so :data:`PersonId` and :data:`GuildId` fields there read references.
 2. It wraps the endpoint, so the boundary is in its handler phase while the
@@ -14,10 +14,10 @@ app it carries the request through the three phases of
 3. After FastAPI has rendered the response, it resolves the markers the
    serialization left: from this process's cache, and what the cache does not
    hold in one statement on the request's own session
-   (``app_refs.install_refs``), which mints what the install has never been
+   (``plugin_refs.install_refs``), which mints what the install has never been
    told. The references are written into the body in place of the markers.
 
-A route that admits an installed app returns its payload for FastAPI to
+A route that admits an installed plug-in returns its payload for FastAPI to
 serialize. One that hands back a JSON response of its own is refused for an
 install, since the translation has already run by then.
 """
@@ -41,7 +41,7 @@ from app.core.identity_boundary import (
     current_install_boundary,
 )
 from app.models.platform.identity_ref import IdentityEntity
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 
 __all__ = ["ActorRoute"]
 
@@ -64,7 +64,7 @@ def _check_returned(boundary: InstallBoundary | None, result: Any) -> Any:
         and "json" in (result.media_type or result.headers.get("content-type", ""))
     ):
         raise RuntimeError(
-            "a route serving an installed app returns its payload for the "
+            "a route serving an installed plug-in returns its payload for the "
             "route to serialize, not a JSON response of its own"
         )
     return result
@@ -109,7 +109,7 @@ async def _translate(boundary: InstallBoundary, response: Response) -> Response:
     if not isinstance(body, (bytes, bytearray)):
         raise RuntimeError("a response naming people to an install has a body")
 
-    refs, minted = await app_refs.install_refs(
+    refs, minted = await plugin_refs.install_refs(
         boundary.session,
         guild_id=boundary.guild_id,
         install_id=boundary.install_id,
@@ -136,7 +136,7 @@ async def _translate(boundary: InstallBoundary, response: Response) -> Response:
 
 class ActorRoute(APIRoute):
     """``APIRoute`` for the tenant routers: unchanged for a person; for an
-    installed app, translates person and community ids at the boundary."""
+    installed plug-in, translates person and community ids at the boundary."""
 
     def __init__(self, path: str, endpoint: Callable[..., Any], **kwargs: Any):
         super().__init__(path, _phased(endpoint), **kwargs)

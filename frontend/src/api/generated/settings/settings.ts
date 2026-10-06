@@ -2808,7 +2808,7 @@ export const useAgreeCommunityNarrowing = <
  * guild holds none. Both are re-checked in the service rather than trusted
  * from the payload. Where billing sets plans, the status is the one billing
  * last wrote or ``suspended`` (``restore_status_choices``); the trigger of
- * migration 0364 holds the database to the same rule. What does *not* come back is the guild's app
+ * migration 0364 holds the database to the same rule. What does *not* come back is the guild's plug-in
  * connections: those were revoked when it was deleted, and the community's
  * superadmin reconnects them.
  *

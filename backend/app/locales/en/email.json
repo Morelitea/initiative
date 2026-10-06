@@ -427,7 +427,7 @@
   "communityTrialEnding": {
     "subject": "{{community}}'s trial ends on {{date}}",
     "title": "{{community}}'s trial ends on {{date}}",
-    "body": "<strong>{{community}}</strong>'s trial ends on <strong>{{date}}</strong>. Subscribe in the billing portal before then to keep editing — after that the community becomes read-only until a plan is chosen.",
+    "body": "<strong>{{community}}</strong>'s trial ends on <strong>{{date}}</strong>. After that its plan continues and is billed to the payment method on file. Check your billing details, or cancel before then if you don't want to continue.",
     "buttonLabel": "Open the billing portal"
   },
   "communityTrialEnded": {

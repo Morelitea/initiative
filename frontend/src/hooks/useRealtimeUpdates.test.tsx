@@ -350,27 +350,27 @@ describe("realtime resource frames", () => {
     expect(properties(), "properties").toBe(true);
   });
 
-  it("refreshes the app list and an install's own reads", () => {
+  it("refreshes the plug-in list and an install's own reads", () => {
     // Community-wide and parentless: nothing else on the client covers it.
-    const list = seed([`/api/v1/c/${COMMUNITY}/apps/`]);
-    const detail = seed(["community-app", COMMUNITY, ENTITY_ID]);
-    const members = seed(["community-app-members", COMMUNITY, ENTITY_ID]);
+    const list = seed([`/api/v1/c/${COMMUNITY}/plugins/`]);
+    const detail = seed(["community-plugin", COMMUNITY, ENTITY_ID]);
+    const members = seed(["community-plugin-members", COMMUNITY, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }],
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "updated" }],
       COMMUNITY
     );
 
-    expect(list(), "app list").toBe(true);
-    expect(detail(), "app detail").toBe(true);
-    expect(members(), "app members").toBe(true);
+    expect(list(), "plug-in list").toBe(true);
+    expect(detail(), "plug-in detail").toBe(true);
+    expect(members(), "plug-in members").toBe(true);
   });
 
   it("leaves another community's install reads alone", () => {
-    const other = seed(["community-app", COMMUNITY + 1, ENTITY_ID]);
+    const other = seed(["community-plugin", COMMUNITY + 1, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }],
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "created" }],
       COMMUNITY
     );
 

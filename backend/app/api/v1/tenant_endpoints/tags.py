@@ -15,12 +15,12 @@ from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import tool_resource
-from app.core.messages import AppMessages, TagMessages
+from app.core.plugin_scopes import tool_resource
+from app.core.messages import PluginMessages, TagMessages
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
@@ -48,9 +48,9 @@ from app.schemas.tenant.tag import (
 # ``test_any_guild_member_can_manage_the_tag_dictionary``.
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the tags scopes.
-TagsRead = Annotated[ActorContext, Depends(app_scope("tags:read"))]
-TagsWrite = Annotated[ActorContext, Depends(app_scope("tags:write"))]
+#: The routes an installed plug-in may call, under the tags scopes.
+TagsRead = Annotated[ActorContext, Depends(plugin_scope("tags:read"))]
+TagsWrite = Annotated[ActorContext, Depends(plugin_scope("tags:write"))]
 
 
 def _governing(
@@ -66,7 +66,7 @@ def _governing(
 
 
 def _require_install_tagging_scopes(actor: ActorContext, target: str) -> None:
-    """Raise 403 unless an installed app's standing also holds what tagging
+    """Raise 403 unless an installed plug-in's standing also holds what tagging
     ``target`` writes beside the tag: the write scope of the tool that governs
     the tagged thing, and ``relationships:write`` for the assignment itself,
     which is stored as a relationship. A person passes."""
@@ -77,7 +77,7 @@ def _require_install_tagging_scopes(actor: ActorContext, target: str) -> None:
     if not all(actor.holds(scope) for scope in needed):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SCOPE_REQUIRED,
+            detail=PluginMessages.SCOPE_REQUIRED,
         )
 
 

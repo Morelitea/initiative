@@ -34,7 +34,7 @@ export const ToolSettingsAccessPage = () => {
           initiativeId={entity.initiative_id ?? 0}
           grants={entity.grants}
           ownerId={ownerId}
-          ownerApp={entity.owner_app ?? null}
+          ownerPlugin={entity.owner_plugin ?? null}
           onChange={(grants) =>
             setGrants.mutate(grants, {
               onSuccess: () => toast.success(t("common:toolSettings.permissionsUpdated")),

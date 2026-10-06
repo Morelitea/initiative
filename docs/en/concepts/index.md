@@ -46,7 +46,7 @@ Communities don't mix. Nothing in one is visible from another — not to other p
 
 The one thing that spans them is **you**. The Initiative logo above the rail opens [your space](../guides/your-space.md), which gathers your own tasks, events and messages out of every community at once — because you belong to all of them. It shows you nothing you couldn't already reach. It just saves you opening four communities to find out what you agreed to.
 
-Inside a community there are three levels of person: **member** (is in the place), **admin** (runs the place), and **superadmin** (runs it, and also holds the keys: sign-in, AI and apps). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
+Inside a community there are three levels of person: **member** (is in the place), **admin** (runs the place), and **superadmin** (runs it, and also holds the keys: sign-in, AI and plug-ins). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
 
 !!! example "A running example"
     *Riverside Players* is a community theatre group. They make one community for everything they do together. Inside it, one initiative per production.
@@ -95,13 +95,13 @@ Use none of these and nothing is missing. They aren't sitting there judging you.
 !!! info "Nine today"
     The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Wikis is the most recent. When a tenth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
 
-## Apps — what other groups already built
+## Plug-ins — what other groups already built
 
 Some of what a group needs isn't in that list, and doesn't have to be.
 
-The **marketplace** has ready-made **dashboards** and **apps** built by people who had the same problem first. Adding one is a couple of clicks: pick it, choose where it goes, name it.
+The **marketplace** has ready-made **dashboards** and **plug-ins** built by people who had the same problem first. Adding one is a couple of clicks: pick it, choose where it goes, name it.
 
-Dashboards land in an initiative like any other tool. Apps get added community-wide by an admin, because they add something everybody shares. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+Dashboards land in an initiative like any other tool. Plug-ins get added community-wide by an admin, because they add something everybody shares. See [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md).
 
 ## The other half: who can see what
 
@@ -127,5 +127,5 @@ The friendly version is [Sharing & access](../sharing/index.md). The one with th
 
 - Want to actually *do* things? [The how-to guides](../guides/index.md).
 - Worried about who can see what? [Sharing & access](../sharing/index.md).
-- Need something the built-in tools don't do? [Apps & the marketplace](../guides/apps-and-marketplace.md).
+- Need something the built-in tools don't do? [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md).
 - Hit a word you don't recognise? [The glossary](../reference/glossary.md), or just search for it.

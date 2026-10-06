@@ -11,7 +11,7 @@ checked before it is stored.
 they run in different places on different inputs — one on a sandbox return
 value, one on catalog content — and neither can call the other. That much is
 irreducible. The limits they trim by are not: both read them from the vendored
-app-kit contract, so there is nothing here to keep in step with the mirror and
+plugin-kit contract, so there is nothing here to keep in step with the mirror and
 no way for a widget to be accepted by the catalog and then re-trimmed
 differently in the browser.
 
@@ -130,7 +130,7 @@ def validate_widget_meta(raw: Any) -> dict[str, Any] | None:
     Returns ``None`` when there is no usable name — a widget without meta is not
     an error in the browser, which falls back to the type id, so this never
     raises. A *listing* holds its widgets to a higher bar (see
-    ``service_apps.py``): one that cannot name itself is refused at publish,
+    ``service_plugins.py``): one that cannot name itself is refused at publish,
     because a marketplace widget with no name is a tile nobody can identify.
     """
     if not isinstance(raw, dict):

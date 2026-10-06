@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Takes part in what they're added to.",
       "admin": "Runs the community — members, invites, initiatives, settings.",
-      "superadmin": "All that, plus how people get in: sign-in, AI and apps. Only a superadmin can appoint another."
+      "superadmin": "All that, plus how people get in: sign-in, AI and plug-ins. Only a superadmin can appoint another."
     },
     "loadingSettings": "Loading settings…",
     "unableToLoadSettings": "Unable to load settings.",
@@ -307,13 +307,13 @@
     "accountSuspendedWithReason": "Your account has been suspended: {{reason}}",
     "accountUnsuspended": "Your account is no longer suspended.",
     "communityOnHold": "{{community}} is on hold. Contact whoever runs this server to sort it out.",
-    "appConsentRequested": "{{app}} asks to act as you: “{{label}}”",
-    "appUpdatePending": "{{app}} version {{version}} asks for more access",
+    "pluginConsentRequested": "{{plugin}} asks to act as you: “{{label}}”",
+    "pluginUpdatePending": "{{plugin}} version {{version}} asks for more access",
     "communityOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
     "communityOnHoldDeleting": "{{community}} is on hold and will be deleted on {{date}}. Contact whoever runs this server to sort it out.",
     "communityOnHoldDeletingWithContact": "{{community}} is on hold and will be deleted on {{date}}. Contact {{contact}} to sort it out.",
-    "communityTrialEnding": "{{community}}'s trial ends on {{date}}. Subscribe in the billing portal before then to keep editing.",
-    "communityTrialEndingInApp": "{{community}}'s trial ends on {{date}}. After that it becomes read-only.",
+    "communityTrialEnding": "{{community}}'s trial ends on {{date}}. After that its plan continues and is billed to the payment method on file. Check your billing details, or cancel before then if you don't want to continue.",
+    "communityTrialEndingInApp": "{{community}}'s trial ends on {{date}}. After that its plan continues and is billed to the payment method on file.",
     "communityTrialEnded": "{{community}}'s trial has ended and it is now read-only. Choose a plan in the billing portal to keep editing.",
     "communityTrialEndedInApp": "{{community}}'s trial has ended and it is now read-only.",
     "communityWelcome": "{{community}} is ready. Set up its plan to get started.",
@@ -453,8 +453,7 @@
       "endsDetail": "Your plan ends on {{date}}. After that the community is read-only for 30 days, then put on hold.",
       "pauses": "Pauses {{date}}",
       "resumes": "Resumes {{date}}",
-      "trialDetail": "Trial ends {{date}}. Subscribe before then to keep editing.",
-      "trialDetailInApp": "Trial ends {{date}}. After that the community is read-only.",
+      "trialDetail": "Trial ends on {{date}}; billing starts then.",
       "renews": "Renews {{date}}",
       "renewsWithAmount": "Renews {{date}} · {{amount}}"
     }
@@ -468,8 +467,8 @@
     "recipientLabel": "New owner",
     "recipientPlaceholder": "Choose an admin",
     "adminsOnly": "Only community admins can be given ownership.",
-    "appHint": "App",
-    "adminsOrApps": "Community admins can be given ownership, and so can an app that is switched on, placed wherever this content lives, and allowed to change it.",
+    "pluginHint": "Plug-in",
+    "adminsOrPlugins": "Community admins can be given ownership, and so can a plug-in that is switched on, placed wherever this content lives, and allowed to change it.",
     "confirm": "Transfer",
     "transferring": "Transferring…",
     "nothingOwned": "They own nothing in this community.",

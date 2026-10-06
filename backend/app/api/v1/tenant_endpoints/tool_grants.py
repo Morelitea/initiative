@@ -22,7 +22,7 @@ Each route keeps the path, method, tag, name, summary, description and
 parameters its tool already had, so the published surface and the generated
 client are unchanged.
 
-An installed app reaches the route for each tool that serves apps, under
+An installed plug-in reaches the route for each tool that serves plug-ins, under
 ``sharing:write``. What it may change is decided as for a person, by its rung
 on the resource, with the tool's write scope beside the sharing scope
 (``resource_access.require_install_may_share``).
@@ -44,7 +44,7 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -58,7 +58,7 @@ router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 SharingWrite = Annotated[
-    ActorContext, Depends(app_scope(resource_access.SHARING_WRITE))
+    ActorContext, Depends(plugin_scope(resource_access.SHARING_WRITE))
 ]
 
 
@@ -94,7 +94,7 @@ def _mount(
         sockets.signal(guild_context.guild_id, tool, entity_id, "permissions_changed")
         return result
 
-    if spec.serves_apps:
+    if spec.serves_plugins:
 
         async def set_grants(
             entity_id: entity_id_param,

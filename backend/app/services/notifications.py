@@ -68,7 +68,7 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.reaction_digest import ReactionDigestItem
@@ -99,8 +99,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class AppAuthor:
-    """An installed app, as a notification names what it did.
+class PluginAuthor:
+    """An installed plug-in, as a notification names what it did.
 
     By its name in the community, and by no account: ``id`` is ``None``, so a
     recipient is never mistaken for the one who acted, and the ``*_id`` a
@@ -111,28 +111,30 @@ class AppAuthor:
     id: None = None
 
 
-def actor_name(actor: "User | AppAuthor") -> str:
+def actor_name(actor: "User | PluginAuthor") -> str:
     """What a notification calls whoever caused it: a person's handle, or an
-    installed app's name."""
-    if isinstance(actor, AppAuthor):
+    installed plug-in's name."""
+    if isinstance(actor, PluginAuthor):
         return actor.name
     return handle_of(actor)
 
 
 async def author_of(
     session: AsyncSession, actor: ActorContext, user: User | None
-) -> "User | AppAuthor":
+) -> "User | PluginAuthor":
     """Who a request's notifications say acted: the person, or — for an
-    installed app — the install's name in its community, read from its own
+    installed plug-in — the install's name in its community, read from its own
     row on the request's session."""
     if user is not None:
         return user
     if not isinstance(actor, InstallContext):
-        raise RuntimeError("a request with no person is an installed app's")
+        raise RuntimeError("a request with no person is an installed plug-in's")
     name = (
-        await session.exec(select(GuildApp.name).where(GuildApp.id == actor.install_id))
+        await session.exec(
+            select(GuildPlugin.name).where(GuildPlugin.id == actor.install_id)
+        )
     ).scalar_one()
-    return AppAuthor(name=name)
+    return PluginAuthor(name=name)
 
 
 # My Tasks is the app root: the cross-guild list of everything assigned to you.
@@ -324,7 +326,7 @@ async def notify(
     key: str,
     values: Mapping[str, str | Callable[[User], str]] | None = None,
     data: Mapping[str, Any] | None = None,
-    actor: "User | AppAuthor | None" = None,
+    actor: "User | PluginAuthor | None" = None,
     rollup_key: str | None = None,
     email: Callable[[User], email_service.EmailPieces] | None = None,
     email_names_line: bool = True,
@@ -547,8 +549,8 @@ async def deliver_notices(
     return push
 
 
-def actor_id(actor: "User | AppAuthor | None") -> int | None:
-    """The account behind whoever acted, or ``None`` for an installed app."""
+def actor_id(actor: "User | PluginAuthor | None") -> int | None:
+    """The account behind whoever acted, or ``None`` for an installed plug-in."""
     return actor.id if actor is not None else None
 
 
@@ -662,7 +664,7 @@ def _same_commenter(
     entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
 ) -> bool:
     """Whether a roster entry is this commenter: a person by id, an installed
-    app (no id) by its name."""
+    plug-in (no id) by its name."""
     if commenter_id is None:
         return entry.get("id") is None and entry.get("name") == commenter_name
     return entry.get("id") == commenter_id
@@ -677,7 +679,7 @@ def _rolled_up_comment(
     """Fold one more comment into a line's payload.
 
     The roster of distinct commenters is what the sentence names, and the count
-    is every comment the line stands for. An installed app is on it by name,
+    is every comment the line stands for. An installed plug-in is on it by name,
     with no id. ``opened_at`` is when the line's first comment arrived and does
     not move as it rolls: every comment since then is one it stands for.
     """
@@ -827,7 +829,7 @@ async def notify_assigned(
     task: Task,
     assignee_ids: Iterable[int | None],
     *,
-    assigned_by: "User | AppAuthor",
+    assigned_by: "User | PluginAuthor",
     project_name: str,
 ) -> None:
     """Tell the people just assigned to ``task``, among those who can open it.

@@ -9,7 +9,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -26,9 +26,9 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 
 router = APIRouter(route_class=ActorRoute)
-#: The routes an installed app may call, under the comments scopes.
-CommentsRead = Annotated[ActorContext, Depends(app_scope("comments:read"))]
-CommentsWrite = Annotated[ActorContext, Depends(app_scope("comments:write"))]
+#: The routes an installed plug-in may call, under the comments scopes.
+CommentsRead = Annotated[ActorContext, Depends(plugin_scope("comments:read"))]
+CommentsWrite = Annotated[ActorContext, Depends(plugin_scope("comments:write"))]
 
 
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
@@ -38,8 +38,8 @@ async def create_comment(
     current_user: ActorUserDep,
     guild_context: CommentsWrite,
 ) -> CommentRead:
-    # An installed app posts as itself: the comment names no author, and the
-    # notices it sends name the app.
+    # An installed plug-in posts as itself: the comment names no author, and the
+    # notices it sends name the plug-in.
     author = await notifications_service.author_of(session, guild_context, current_user)
     try:
         comment = await comments_service.create_comment(

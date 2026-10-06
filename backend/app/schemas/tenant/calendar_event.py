@@ -28,7 +28,7 @@ from app.schemas.tenant.property import (
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import from_row
-from app.schemas.platform.user import AppPerson, PersonShape, UserPublic
+from app.schemas.platform.user import PluginPerson, PersonShape, UserPublic
 from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -158,8 +158,8 @@ class CalendarEventAttendeePreview(PersonShape):
     user_id: PersonId
     name: str
     avatar_url: Optional[str] = None
-    #: The person ``name`` was drawn from, for an installed app's response.
-    _person: Optional[AppPerson] = PrivateAttr(default=None)
+    #: The person ``name`` was drawn from, for an installed plug-in's response.
+    _person: Optional[PluginPerson] = PrivateAttr(default=None)
 
     @classmethod
     def of(cls, user: Any) -> "CalendarEventAttendeePreview":
@@ -167,11 +167,11 @@ class CalendarEventAttendeePreview(PersonShape):
         preview = cls(
             user_id=user.id, name=display_name(user), avatar_url=user.avatar_url
         )
-        preview._person = AppPerson.model_validate(user, from_attributes=True)
+        preview._person = PluginPerson.model_validate(user, from_attributes=True)
         return preview
 
-    def app_person(self) -> AppPerson:
-        return self._person or AppPerson(id=self.user_id)
+    def plugin_person(self) -> PluginPerson:
+        return self._person or PluginPerson(id=self.user_id)
 
 
 class CalendarEventSummary(CalendarEventBase):
@@ -211,7 +211,7 @@ class CalendarEventSummary(CalendarEventBase):
 
     @field_serializer("attendee_names")
     def _attendee_names_out(self, names: List[str]) -> List[str]:
-        """An installed app reads people's names under ``members:read`` only."""
+        """An installed plug-in reads people's names under ``members:read`` only."""
         return [] if names_withheld() else names
 
 
@@ -279,7 +279,7 @@ def serialize_calendar_event_summary(
     from app.services.permissions import Action, allows
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
-    # eager-loaded with its level. An installed app has no user id and is
+    # eager-loaded with its level. An installed plug-in has no user id and is
     # answered its own level, as ``client_access`` answers it on a calendar.
     calendar = event.calendar
     reader = user_id is not None or isinstance(context, InstallContext)

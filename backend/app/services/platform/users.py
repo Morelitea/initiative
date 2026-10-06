@@ -157,22 +157,22 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
-async def _end_app_access(
+async def _end_plugin_access(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
-    """End everything this account let an app do, in one guild.
+    """End everything this account let a plug-in do, in one guild.
 
-    Every app credential they connected, and every answer they gave an app
+    Every plug-in credential they connected, and every answer they gave a plug-in
     asking to act as them. Losing the account has to end the vendor access it
     opened, and consent to carry somebody's name has nothing left to mean once
     the account it named is gone.
 
     ``session`` is a system session routed into ``guild_id``.
     """
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_member_consents as consents_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_member_consents as consents_service
 
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="account_closed"
     )
     await consents_service.delete_member_consents(session, user_id=user_id)
@@ -183,7 +183,7 @@ async def _in_each_guild(
     work: Callable[[AsyncSession, int], Awaitable[None]],
 ) -> None:
     """Run ``work`` in each guild in turn, on a system session from the guild's
-    cohort routed into it, committing each and telling apps of the credentials
+    cohort routed into it, committing each and telling plug-ins of the credentials
     it ended. Stops at the first failure, so the caller's shared half never
     runs ahead of a guild's."""
     for guild_id in guild_ids:
@@ -206,7 +206,7 @@ async def _member_guild_ids(session: AsyncSession, user_id: int) -> list[int]:
     )
 
 
-async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
+async def _end_plugin_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
     """The same, across every community the account belongs to.
 
     For the paths that keep the roster: a deleted account holds its memberships
@@ -214,10 +214,10 @@ async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> 
     the guilds have to be enumerated for it.
     """
 
-    async def end_app_access(guild_session: AsyncSession, guild_id: int) -> None:
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+    async def end_plugin_access(guild_session: AsyncSession, guild_id: int) -> None:
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
-    await _in_each_guild(await _member_guild_ids(session, user_id), end_app_access)
+    await _in_each_guild(await _member_guild_ids(session, user_id), end_plugin_access)
 
 
 async def _drop_user_memberships(
@@ -232,7 +232,7 @@ async def _drop_user_memberships(
     ``actor_user_id`` is who closed the account — the person themselves, or an
     operator doing it for them — and is what each departure record names.
 
-    Each guild's half — initiative memberships, owned content, app access —
+    Each guild's half — initiative memberships, owned content, plug-in access —
     is done and committed first, guild by guild, and the shared membership
     rows are deleted in the caller's transaction after. A guild that fails
     stops the closure before any membership goes, and running it again
@@ -251,7 +251,7 @@ async def _drop_user_memberships(
         await initiatives_service.remove_user_from_guild_initiatives(
             guild_session, guild_id=guild_id, user_id=user_id
         )
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
     await _in_each_guild(guild_ids, leave)
 
@@ -335,11 +335,11 @@ async def request_account_deletion(
     user = await session.get(User, user_id)
     if user is None:
         raise ValueError(AuthMessages.USER_NOT_FOUND)
-    # The account has withdrawn what it let apps do, so they are told now
+    # The account has withdrawn what it let plug-ins do, so they are told now
     # rather than in a month's time — the same call the community deletion
-    # makes, for the same reason. A restored account comes back with its app
+    # makes, for the same reason. A restored account comes back with its plug-in
     # connections gone, and reconnects them.
-    await _end_app_access_everywhere(session, user_id=user_id)
+    await _end_plugin_access_everywhere(session, user_id=user_id)
     user.status = UserStatus.deleted
     user.status_changed_at = datetime.now(timezone.utc)
     # Every session this account holds ends here. Getting back in is what calls
@@ -673,22 +673,22 @@ async def soft_delete_user(
         session, recipients=receipt_recipients, locale=receipt_locale
     )
     # Last, because the revocations sent from each guild above name this
-    # person to each app by the very references this removes.
+    # person to each plug-in by the very references this removes.
     await identity_refs.forget_user(user_id=user_id)
 
 
 async def _dispatch_queued_revocations(session: AsyncSession) -> None:
-    """Tell each app that this person's credentials are finished.
+    """Tell each plug-in that this person's credentials are finished.
 
-    After the commit, always: an app told to let go of a credential the database
+    After the commit, always: a plug-in told to let go of a credential the database
     then kept would be the one disagreement worth avoiding. Delivery is
     best-effort — the account is closed either way, and our own delete is the
     authoritative half.
     """
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
+    await plugin_revocation_service.dispatch_revocations(
+        plugin_revocation_service.drain_revocations(session)
     )
 
 

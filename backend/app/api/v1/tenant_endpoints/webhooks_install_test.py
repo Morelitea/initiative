@@ -1,4 +1,4 @@
-"""The webhook subscription routes an installed app calls.
+"""The webhook subscription routes an installed plug-in calls.
 
 An install registers subscriptions as its community, naming no person. Each
 event type it names needs the read scope of its tool, a token narrowed to one
@@ -18,14 +18,14 @@ from unittest.mock import patch
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
-from app.core.messages import AppMessages, WebhookSubscriptionMessages
+from app.core.messages import PluginMessages, WebhookSubscriptionMessages
 from app.models.tenant.webhook_subscription import WebhookSubscription
-from app.services.marketplace import app_refs
-from app.testing import create_guild_app, emitted, route_session_to_guild
-from app.testing.app_clients import (
+from app.services.marketplace import plugin_refs
+from app.testing import create_guild_plugin, emitted, route_session_to_guild
+from app.testing.plugin_clients import (
     CLIENT,
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
 )
@@ -89,7 +89,7 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
     client, session, acting_user, role_session, capfd
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     headers = install_headers(installed, ["documents:read"])
@@ -110,26 +110,26 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
     assert body["hmac_secret"]
     assert_names_nobody(response.text, [installed.seat.user.id, installed.guild.id])
     # The same name every other response to this install gives its community.
-    assert body["community_ref"] == await app_refs.ensure_app_guild_ref(
-        guild_id=installed.guild.id, app_install_id=installed.app.id
+    assert body["community_ref"] == await plugin_refs.ensure_plugin_guild_ref(
+        guild_id=installed.guild.id, plugin_install_id=installed.plugin.id
     )
 
     row = await _row(session, installed.guild.id, body["id"])
-    assert row.app_install_id == installed.app.id
+    assert row.plugin_install_id == installed.plugin.id
     assert row.created_by is None
     assert row.initiative_id == installed.placed.id
 
     (line,) = emitted(capfd, AuditEventType.WEBHOOK_CREATED)
     assert line["actor_user_id"] is None
-    assert line["detail"]["app_install_id"] == installed.app.id
-    assert line["context"]["app"] == CLIENT
-    assert line["context"]["install_id"] == installed.app.id
+    assert line["detail"]["plugin_install_id"] == installed.plugin.id
+    assert line["context"]["plugin"] == CLIENT
+    assert line["context"]["install_id"] == installed.plugin.id
 
 
 async def test_an_install_is_refused_events_its_scopes_do_not_read(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     # The token asks for more than the seat granted; the grant is what holds.
@@ -144,7 +144,7 @@ async def test_an_install_is_refused_events_its_scopes_do_not_read(
             event_types=event_types,
         )
         assert response.status_code == 403, (event_types, response.text)
-        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+        assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
     await route_session_to_guild(session, installed.guild.id)
     assert (await session.exec(select(WebhookSubscription))).all() == []
@@ -153,7 +153,7 @@ async def test_an_install_is_refused_events_its_scopes_do_not_read(
 async def test_a_token_hears_only_the_scopes_it_carries(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session,
         acting_user,
         role_session,
@@ -182,7 +182,7 @@ async def test_a_token_hears_only_the_scopes_it_carries(
 async def test_an_install_subscribes_only_where_it_is_placed(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await _subscribe(
@@ -192,13 +192,13 @@ async def test_an_install_subscribes_only_where_it_is_placed(
         initiative_id=installed.unplaced.id,
     )
     assert response.status_code == 403, response.text
-    assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_a_narrowed_token_subscribes_to_its_initiative_only(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     narrowed = install_headers(
@@ -207,7 +207,7 @@ async def test_a_narrowed_token_subscribes_to_its_initiative_only(
 
     community_wide = await _subscribe(client, installed, narrowed)
     assert community_wide.status_code == 403, community_wide.text
-    assert community_wide.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert community_wide.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
     own = await _subscribe(
         client, installed, narrowed, initiative_id=installed.placed.id
@@ -225,7 +225,7 @@ async def test_a_narrowed_token_subscribes_to_its_initiative_only(
 async def test_an_unknown_event_type_is_still_a_400(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await _subscribe(
@@ -242,7 +242,7 @@ async def test_an_unknown_event_type_is_still_a_400(
 async def test_listing_and_rewriting_stay_with_people(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     headers = install_headers(installed, ["documents:read"])
@@ -269,7 +269,7 @@ async def test_listing_and_rewriting_stay_with_people(
 async def test_an_install_removes_its_own_subscription(
     client, session, acting_user, role_session, capfd
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     headers = install_headers(installed, ["documents:read"])
@@ -288,15 +288,15 @@ async def test_an_install_removes_its_own_subscription(
     assert await _row(session, installed.guild.id, subscription_id) is None
     (line,) = emitted(capfd, AuditEventType.WEBHOOK_DELETED)
     assert line["actor_user_id"] is None
-    assert line["detail"]["app_install_id"] == installed.app.id
-    assert line["context"]["app"] == CLIENT
-    assert line["context"]["install_id"] == installed.app.id
+    assert line["detail"]["plugin_install_id"] == installed.plugin.id
+    assert line["context"]["plugin"] == CLIENT
+    assert line["context"]["install_id"] == installed.plugin.id
 
 
 async def test_an_install_cannot_remove_what_it_did_not_register(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     guild_id = installed.guild.id
@@ -312,12 +312,12 @@ async def test_an_install_cannot_remove_what_it_did_not_register(
     assert person.json()["created_by_ref"] is not None
 
     # Another install's, in the same initiative.
-    other = await create_guild_app(
+    other = await create_guild_plugin(
         session,
         installed.guild,
         installed.seat.user,
         definition={
-            "app_kind": "service",
+            "plugin_kind": "service",
             "service": {"public_id": "tests.token-client-two", "protocol": 1},
         },
         listing_uid="TOKENCLIENT002",
@@ -326,7 +326,7 @@ async def test_an_install_cannot_remove_what_it_did_not_register(
     theirs = WebhookSubscription(
         initiative_id=installed.placed.id,
         created_by=None,
-        app_install_id=other.id,
+        plugin_install_id=other.id,
         target_url=f"https://{_WEBHOOK_HOST}/other",
         hmac_secret="x" * 64,
         event_types=["documents.created"],
@@ -353,7 +353,7 @@ async def test_an_install_removes_its_subscription_after_losing_the_scope(
 ):
     """Removing asks no scope of the install: it reaches only its own rows, and
     taking one away narrows what it hears."""
-    installed = await install_app(
+    installed = await install_plugin(
         session,
         acting_user,
         role_session,

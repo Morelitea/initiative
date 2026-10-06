@@ -18,8 +18,8 @@ from functools import lru_cache
 
 from sqlmodel import SQLModel
 
-from app.core.app_scopes import AppScopeAccess, AppScopeResource, scope_name
-from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
+from app.core.plugin_scopes import PluginScopeAccess, PluginScopeResource, scope_name
+from app.db.plugin_rls import PLUGIN_TABLE_ACCESS, PluginTableKind
 from app.db.event_capture import (
     HOUSEKEEPING_COLUMNS,
     HOUSEKEEPING_SUFFIXES,
@@ -98,41 +98,41 @@ def unknown_fields(candidates: list[str], event_types_named: list[str]) -> list[
 
 
 @lru_cache(maxsize=1)
-def _read_scopes() -> dict[str, AppScopeResource | None]:
-    """Resource -> the scope resource an app must read to hear its events.
+def _read_scopes() -> dict[str, PluginScopeResource | None]:
+    """Resource -> the scope resource a plug-in must read to hear its events.
 
     A resource's events describe the rows of the table it is named after, so
-    they answer to that table's scope in ``APP_TABLE_ACCESS``: ``tasks`` to
+    they answer to that table's scope in ``PLUGIN_TABLE_ACCESS``: ``tasks`` to
     ``projects``, ``calendar_events`` to ``calendars``. A resource whose table
-    no scope names maps to ``None``, and no app hears it.
+    no scope names maps to ``None``, and no plug-in hears it.
     """
     tables: dict[str, str] = {}
     for spec in build_specs():
         if spec.facet is None:
             tables.setdefault(spec.static_resource_type, spec.table)
-    scopes: dict[str, AppScopeResource | None] = {}
+    scopes: dict[str, PluginScopeResource | None] = {}
     for resource in _vocabulary():
-        access = APP_TABLE_ACCESS.get(tables.get(resource, resource))
+        access = PLUGIN_TABLE_ACCESS.get(tables.get(resource, resource))
         scopes[resource] = (
             access.resource
-            if access is not None and access.kind is AppTableKind.scoped
+            if access is not None and access.kind is PluginTableKind.scoped
             else None
         )
     return scopes
 
 
-def read_scope_for(event_type: str) -> AppScopeResource | None:
-    """The scope resource whose read an app holds to hear ``event_type``, or
+def read_scope_for(event_type: str) -> PluginScopeResource | None:
+    """The scope resource whose read a plug-in holds to hear ``event_type``, or
     ``None`` when no scope reaches it (or it is not an event type at all)."""
     resource, _, _action = event_type.rpartition(".")
     return _read_scopes().get(resource)
 
 
 def event_read_scopes() -> frozenset[str]:
-    """Every scope an app may need to hear some event type: the read scope of
-    each resource whose events an app can hear."""
+    """Every scope a plug-in may need to hear some event type: the read scope of
+    each resource whose events a plug-in can hear."""
     return frozenset(
-        scope_name(resource, AppScopeAccess.read)
+        scope_name(resource, PluginScopeAccess.read)
         for resource in _read_scopes().values()
         if resource is not None
     )

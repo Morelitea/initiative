@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Participa en aquello a lo que se le añade.",
       "admin": "Dirige la comunidad: miembros, invitaciones, iniciativas, ajustes.",
-      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y aplicaciones. Solo un superadministrador puede nombrar a otro."
+      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y complementos. Solo un superadministrador puede nombrar a otro."
     },
     "loadingSettings": "Cargando configuración…",
     "unableToLoadSettings": "No se pudo cargar la configuración.",
@@ -307,13 +307,13 @@
     "accountSuspendedWithReason": "Tu cuenta ha sido suspendida: {{reason}}",
     "accountUnsuspended": "Tu cuenta ya no está suspendida.",
     "communityOnHold": "{{community}} está en pausa. Ponte en contacto con quien gestiona este servidor para resolverlo.",
-    "appConsentRequested": "{{app}} pide actuar en tu nombre: «{{label}}»",
-    "appUpdatePending": "{{app}}, versión {{version}}, pide más acceso",
+    "pluginConsentRequested": "{{plugin}} pide actuar en tu nombre: «{{label}}»",
+    "pluginUpdatePending": "{{plugin}}, versión {{version}}, pide más acceso",
     "communityOnHoldWithContact": "{{community}} está en pausa. Ponte en contacto con {{contact}} para resolverlo.",
     "communityOnHoldDeleting": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con quien gestiona este servidor para resolverlo.",
     "communityOnHoldDeletingWithContact": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con {{contact}} para resolverlo.",
-    "communityTrialEnding": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando.",
-    "communityTrialEndingInApp": "La prueba de {{community}} termina el {{date}}. Después pasará a ser de solo lectura.",
+    "communityTrialEnding": "La prueba de {{community}} termina el {{date}}. Después, su plan continúa y se cobra al método de pago registrado. Revisa tus datos de facturación o cancela antes de esa fecha si no quieres continuar.",
+    "communityTrialEndingInApp": "La prueba de {{community}} termina el {{date}}. Después, su plan continúa y se cobra al método de pago registrado.",
     "communityTrialEnded": "La prueba de {{community}} ha terminado y ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando.",
     "communityTrialEndedInApp": "La prueba de {{community}} ha terminado y ahora es de solo lectura.",
     "communityWelcome": "{{community}} está lista. Configura su plan para empezar.",
@@ -453,8 +453,7 @@
       "endsDetail": "Tu plan termina el {{date}}. Después, la comunidad será de solo lectura durante 30 días y luego quedará en pausa.",
       "pauses": "Se pausa el {{date}}",
       "resumes": "Se reanuda el {{date}}",
-      "trialDetail": "La prueba termina el {{date}}. Suscríbete antes para seguir editando.",
-      "trialDetailInApp": "La prueba termina el {{date}}. Después, la comunidad será de solo lectura.",
+      "trialDetail": "La prueba termina el {{date}}; entonces empieza la facturación.",
       "renews": "Se renueva el {{date}}",
       "renewsWithAmount": "Se renueva el {{date}} · {{amount}}"
     }
@@ -468,8 +467,8 @@
     "recipientLabel": "Nuevo propietario",
     "recipientPlaceholder": "Elige un administrador",
     "adminsOnly": "Solo los administradores de la comunidad pueden recibir la propiedad.",
-    "appHint": "Aplicación",
-    "adminsOrApps": "La propiedad puede darse a quienes administran la comunidad, y también a una aplicación activada, ubicada allí donde está este contenido y autorizada para modificarlo.",
+    "pluginHint": "Complemento",
+    "adminsOrPlugins": "La propiedad puede darse a quienes administran la comunidad, y también a un complemento activado, ubicado allí donde está este contenido y autorizado para modificarlo.",
     "confirm": "Transferir",
     "transferring": "Transfiriendo…",
     "nothingOwned": "No posee nada en esta comunidad.",

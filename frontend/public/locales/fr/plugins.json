@@ -1,0 +1,303 @@
+{
+  "title": "Plug-ins",
+  "add": "Ajouter un plug-in",
+  "none": "Aucun plug-in pour l'instant.",
+  "error": "Un problème est survenu avec ce plug-in.",
+  "manage": {
+    "title": "Plug-ins",
+    "description": "Les plug-ins ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut en ajouter ou en retirer.",
+    "empty": "Aucun plug-in installé pour l'instant.",
+    "browse": "Parcourir les plug-ins",
+    "installed": "Ajouté le {{date}}",
+    "disabled": "Désactivé",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "rename": "Renommer",
+    "remove": "Retirer",
+    "removeTitle": "Retirer {{name}} ?",
+    "removeBody": "Ce qu'il a créé part à la corbeille, d'où cela peut encore être restauré. Tous les identifiants qu'il détenait — ceux de la communauté et ceux de chaque membre — sont supprimés, et le plug-in est prié de cesser de s'en servir.",
+    "removed": "{{name}} retiré.",
+    "saved": "Enregistré.",
+    "needsConfig": "Configuration à faire",
+    "configInvalid": "Problème de configuration",
+    "provided": "Fourni avec Initiative",
+    "unavailable": "Non configuré sur ce serveur",
+    "configure": "Ouvrir les paramètres",
+    "version": "Version {{version}}",
+    "autoUpdate": "Mettre à jour automatiquement",
+    "autoUpdateHelp": "Les nouvelles versions de l'éditeur sont appliquées d'elles-mêmes. Désactivez cette option pour lire chacune d'elles avant de mettre à jour manuellement.",
+    "autoUpdateOn": "Les mises à jour seront appliquées automatiquement.",
+    "autoUpdateOff": "Les mises à jour sont désormais appliquées manuellement.",
+    "upgradeTo": "Mettre à jour vers {{version}}",
+    "upToDate": "À jour",
+    "upgraded": "Mise à jour vers {{version}}."
+  },
+  "updates": {
+    "wants": "La version {{version}} souhaite :",
+    "newSurface": "Afficher « {{name}} » dans les initiatives",
+    "accept": "Accepter et mettre à jour",
+    "decline": "Refuser",
+    "declined": "Vous avez refusé la version {{version}}. Le plug-in reste sur sa version actuelle.",
+    "declinedDone": "Version {{version}} refusée.",
+    "moved": "Une autre version est maintenant disponible. Vérifiez ce qu'elle demande."
+  },
+  "install": {
+    "title": "Ajouter {{name}}",
+    "description": "Cela ajoute quelque chose pour toute la communauté. Vous pourrez le renommer maintenant ou plus tard.",
+    "name": "Nom",
+    "action": "Ajouter à la communauté",
+    "done": "{{name}} ajouté.",
+    "adminOnly": "Demandez au superadmin de votre communauté d'ajouter ce plug-in.",
+    "unknownState": "Impossible de vérifier si ce plug-in est déjà ajouté.",
+    "reachTitle": "Ce à quoi il a accès",
+    "whereTitle": "Où il travaille",
+    "whereDescription": "Il affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "whereDescriptionNoPage": "Il lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
+    "whoTitle": "Qui peut l'y ouvrir",
+    "roles": {
+      "moderator": "Modérateurs",
+      "project_manager": "Chefs de projet",
+      "member": "Membres"
+    }
+  },
+  "connections": {
+    "none": "Ce plug-in ne demande aucune configuration.",
+    "communityScope": "Identifiant de la communauté",
+    "personalScope": "Votre compte",
+    "set": "Renseigné",
+    "notSet": "Non renseigné",
+    "accessHint": "Utilise {{api}} — {{scopes}}",
+    "noScopes": "aucune permission indiquée",
+    "secretSet": "Déjà renseigné — saisissez pour le remplacer",
+    "empty": "Non renseigné",
+    "choose": "Choisissez",
+    "saved": "Enregistré.",
+    "clear": "Effacer",
+    "cleared": "Identifiant effacé.",
+    "memberSet": "Une administratrice ou un administrateur de la communauté l'a configuré.",
+    "memberNotSet": "Une administratrice ou un administrateur de la communauté doit encore le configurer.",
+    "communityFlowExplainer": "Celle-ci s'accorde chez le fournisseur plutôt qu'en la saisissant. Se connecter ouvre sa page d'installation, où vous choisissez le compte et ce que ce plug-in peut voir.",
+    "personalExplainer": "Celle-ci vous identifie en tant que vous, donc chaque membre connecte son propre compte. Personne d'autre ne voit le vôtre.",
+    "connect": "Connecter",
+    "reconnect": "Reconnecter",
+    "disconnect": "Déconnecter",
+    "disconnected": "Déconnecté.",
+    "connectOpened": "Terminez la connexion dans l'onglet qui vient de s'ouvrir.",
+    "connectUnavailable": "Ce plug-in n'est pas encore configuré sur ce serveur : il n'y a nulle part où se connecter.",
+    "connectedAs": "Connecté en tant que {{account}}",
+    "blocked": "L'administration de la communauté vous a interdit cette connexion.",
+    "status": {
+      "pending": "En attente de finalisation",
+      "connected": "Connecté",
+      "blocked": "Bloqué",
+      "expired": "Expirée"
+    },
+    "expired": "Cette connexion a expiré. Connectez-vous à nouveau pour continuer à l'utiliser."
+  },
+  "members": {
+    "title": "Membres",
+    "noPersonal": "Ce plug-in n'a rien à quoi les membres se connectent individuellement.",
+    "nobodyYet": "Personne ne s'est encore connecté.",
+    "connectedCount": "{{connected}} membres connectés sur {{total}}",
+    "blockedCount_one": "{{count}} bloqué",
+    "blockedCount_other": "{{count}} bloqués",
+    "member": "Membre",
+    "account": "Compte",
+    "since": "Connecté",
+    "unknownMember": "Membre n° {{id}}",
+    "blocked": "Bloqué",
+    "revoke": "Révoquer",
+    "revoked": "Accès révoqué.",
+    "block": "Bloquer",
+    "blockedDone": "Bloqué pour toute nouvelle connexion.",
+    "unblock": "Débloquer",
+    "unblocked": "Blocage levé.",
+    "revokeAll": "Tout révoquer",
+    "revokeAllTitle": "Révoquer la connexion de tous les membres ?",
+    "revokeAllBody": "L'identifiant enregistré de chaque membre est supprimé et le plug-in est prié de cesser de s'en servir. Le plug-in reste installé et conserve les réglages de la communauté. Les membres peuvent se reconnecter ensuite.",
+    "revokedAll": "Toutes les connexions révoquées."
+  },
+  "showMore": "{{count}} de plus",
+  "showFewer": "Afficher moins",
+  "consent": {
+    "title": "Ce qu'il demande à faire en votre nom",
+    "description": "{{name}} demande chaque usage séparément. N'autorisez que ce que vous acceptez qu'il fasse en votre nom. Vous pouvez changer votre réponse à tout moment.",
+    "inTheirWords": "{{name}} : « {{label}} »",
+    "pluginWide": "Tout ce qu'il fait",
+    "anywhere": "Partout où il est placé",
+    "inInitiative": "Uniquement dans {{initiative}}",
+    "inOneInitiative": "Uniquement dans une initiative",
+    "askedRead": "Demande à lire",
+    "askedReadWrite": "Demande à lire et à modifier",
+    "statusPending": "En attente de votre réponse",
+    "statusRead": "Peut lire en votre nom",
+    "statusReadWrite": "Peut lire et modifier en votre nom",
+    "statusDeclined": "Refusé",
+    "statusRevoked": "Arrêté",
+    "allowRead": "Le laisser lire en mon nom",
+    "allowReadWrite": "Le laisser lire et modifier en mon nom",
+    "readOnly": "Le laisser seulement lire",
+    "decline": "Refuser",
+    "withdraw": "Arrêter",
+    "allowed": "Enregistré. {{name}} peut faire cela en votre nom.",
+    "declinedToast": "Refusé. {{name}} ne fera pas cela en votre nom.",
+    "withdrawnToast": "{{name}} a cessé de faire cela en votre nom.",
+    "failed": "Impossible d'enregistrer votre réponse.",
+    "membersTitle": "Agir au nom des membres",
+    "allowedCount_one": "{{count}} membre l'autorise",
+    "allowedCount_other": "{{count}} membres l'autorisent",
+    "requestsColumn": "Demandes",
+    "memberRevoked": "Le plug-in n'agit plus au nom de ce membre.",
+    "revokeAll": "Ne plus agir au nom de personne",
+    "revokeAllTitle": "Empêcher ce plug-in d'agir au nom de tous ?",
+    "revokeAllBody": "Le plug-in cesse immédiatement de faire des requêtes au nom de tout membre. Il reste installé et conserve ses réglages, et les membres peuvent l'autoriser à nouveau eux-mêmes.",
+    "revokedAll": "Le plug-in n'agit plus au nom de personne."
+  },
+  "settings": {
+    "description": "Configurez la connexion de ce plug-in.",
+    "open": "Paramètres de {{name}}",
+    "adminTitle": "Paramètres de la communauté",
+    "adminDescription": "Ce que la communauté gère pour ce plug-in. Visible uniquement par le superadmin."
+  },
+  "embed": {
+    "connecting": "Connexion…",
+    "handoffFailed": "Impossible d'ouvrir ce plug-in. Réessayez dans un instant.",
+    "failed": "Impossible d'ouvrir ce plug-in",
+    "notFound": "Plug-in introuvable",
+    "disabled": "{{name}} est désactivé",
+    "unavailable": "{{name}} n'est pas configuré sur ce serveur",
+    "unavailableDescription": "La personne qui gère ce serveur doit connecter le service de ce plug-in avant qu'il puisse être ouvert.",
+    "noSurface": "{{name}} n'a pas de page dédiée"
+  },
+  "browse": "Parcourir le catalogue",
+  "placement": {
+    "title": "Où ce plug-in travaille",
+    "description": "Ce plug-in affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "descriptionNoPage": "Ce plug-in lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
+    "all": "Toutes les initiatives actuelles",
+    "some": "Uniquement les initiatives que je choisis",
+    "none": "Aucune initiative choisie : ce plug-in n'atteint rien à l'intérieur des initiatives.",
+    "roles": {
+      "open": "Qui peut l'ouvrir dans {{name}}",
+      "title": "Qui peut l'ouvrir ici",
+      "adminsAlways": "Les administrateurs de la communauté peuvent toujours l'ouvrir.",
+      "adminsOnly": "Administrateurs de la communauté uniquement",
+      "count_one": "{{count}} rôle",
+      "count_other": "{{count}} rôles"
+    }
+  },
+  "connected": {
+    "connected": {
+      "title": "Connecté",
+      "body": "Votre compte est lié. Initiative l'a enregistré, les tuiles du plug-in vont commencer à vous répondre."
+    },
+    "refused": {
+      "title": "Non connecté",
+      "body": "L'autre service n'a pas terminé la connexion. Rien n'a changé ici — réessayez depuis les réglages du plug-in."
+    },
+    "expired": {
+      "title": "Ce lien a expiré",
+      "body": "Les liens de connexion sont de courte durée. Recommencez depuis les réglages du plug-in."
+    },
+    "not_recorded": {
+      "title": "Presque",
+      "body": "L'autre service vous a identifié, mais Initiative ne l'a pas enregistré. Reconnectez-vous depuis les réglages du plug-in — rien n'a été perdu."
+    },
+    "awaiting_approval": {
+      "title": "En attente d'une approbation",
+      "body": "L'autre service a demandé à une personne propriétaire de cette organisation d'approuver ce plug-in. Rien n'a échoué et rien n'est encore configuré : une fois approuvé, reconnectez-vous depuis les réglages du plug-in."
+    },
+    "sign_in_required": {
+      "title": "Connectez-vous pour terminer",
+      "body": "Terminez la connexion dans le navigateur où vous êtes connecté à Initiative, en tant que la personne qui l'a commencée."
+    },
+    "closeTab": "Vous pouvez fermer cet onglet."
+  },
+  "scopes": {
+    "title": "Ce à quoi ce plug-in a accès",
+    "description": "Choisissez ce que ce plug-in peut lire et modifier dans cette communauté.",
+    "read": "Lire",
+    "write": "Lire et modifier",
+    "notAllowed": "Ce serveur ne l'autorise pas",
+    "usePlugin": "Utiliser {{name}} dans cette communauté",
+    "saved": "Accès enregistré",
+    "error": "Impossible d'enregistrer les accès de ce plug-in.",
+    "resources": {
+      "comments": "Commentaires",
+      "relationships": "Liens",
+      "tags": "Étiquettes",
+      "sharing": "Partage",
+      "members": "Membres",
+      "initiatives": "Initiatives",
+      "community": "Communauté"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Lire les projets",
+        "write": "Lire et modifier les projets"
+      },
+      "documents": {
+        "read": "Lire les documents",
+        "write": "Lire et modifier les documents"
+      },
+      "queues": {
+        "read": "Lire les files",
+        "write": "Lire et modifier les files"
+      },
+      "counter_groups": {
+        "read": "Lire les compteurs",
+        "write": "Lire et modifier les compteurs"
+      },
+      "calendars": {
+        "read": "Lire les calendriers",
+        "write": "Lire et modifier les calendriers"
+      },
+      "dashboards": {
+        "read": "Lire les tableaux de bord",
+        "write": "Lire et modifier les tableaux de bord"
+      },
+      "posts": {
+        "read": "Lire les publications",
+        "write": "Lire et modifier les publications"
+      },
+      "galleries": {
+        "read": "Lire les galeries",
+        "write": "Lire et modifier les galeries"
+      },
+      "wikis": {
+        "read": "Lire les wikis",
+        "write": "Lire et modifier les wikis"
+      },
+      "comments": {
+        "read": "Lire les commentaires",
+        "write": "Lire et écrire des commentaires"
+      },
+      "relationships": {
+        "read": "Lire les liens entre les éléments",
+        "write": "Lire et modifier les liens entre les éléments"
+      },
+      "tags": {
+        "read": "Lire les étiquettes",
+        "write": "Lire et modifier les étiquettes"
+      },
+      "sharing": {
+        "read": "Voir qui a accès à quoi",
+        "write": "Voir et modifier qui a accès à quoi"
+      },
+      "members": {
+        "read": "Voir qui fait partie de votre communauté, avec leurs noms"
+      },
+      "initiatives": {
+        "read": "Voir les initiatives de votre communauté",
+        "moderate": "Agir en tant que modérateur dans les initiatives où il est placé"
+      },
+      "community": {
+        "admin": "Agir en tant qu'administrateur dans toute votre communauté"
+      },
+      "fallback": {
+        "read": "Lire : {{resource}}",
+        "write": "Lire et modifier : {{resource}}"
+      }
+    }
+  }
+}

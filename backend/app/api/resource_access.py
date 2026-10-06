@@ -24,9 +24,9 @@ from app.api.deps import (
     ActorContext,
     get_current_active_user,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import (
-    AppMessages,
+    PluginMessages,
     CalendarEventMessages,
     CounterMessages,
     GalleryMessages,
@@ -261,26 +261,26 @@ def duplicate_sharing(source: Any, *, initiative_id: int) -> list[ResourceGrantS
     return [
         ResourceGrantSchema.model_validate(grant)
         for grant in source.grants
-        if grant.level != ResourceAccessLevel.owner and grant.app_install_id is None
+        if grant.level != ResourceAccessLevel.owner and grant.plugin_install_id is None
     ]
 
 
-#: The scope an installed app holds to change a resource's sharing.
+#: The scope an installed plug-in holds to change a resource's sharing.
 SHARING_WRITE = "sharing:write"
 
-#: What else an installed app's sharing change reads: the initiative's roster,
+#: What else an installed plug-in's sharing change reads: the initiative's roster,
 #: and the roles on it, which validate the grantees and settle who keeps
 #: write access afterwards.
 _SHARING_READS = ("members:read", "initiatives:read")
 
 
-def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
-    """Raise 403 when an installed app's create sets any of ``fields`` — its
+def refuse_plugin_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
+    """Raise 403 when an installed plug-in's create sets any of ``fields`` — its
     initial sharing — without ``sharing:write``.
 
-    What an app creates is owned by its install, whose owner row the tool
+    What a plug-in creates is owned by its install, whose owner row the tool
     table's trigger writes. With the scope, the initial sharing is applied as
-    a later share would be (:func:`apply_app_initial_sharing`). A field left at
+    a later share would be (:func:`apply_plugin_initial_sharing`). A field left at
     its default is not a request to share, so only the ones the payload sets
     are refused.
     """
@@ -292,7 +292,7 @@ def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
 
 
 def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None:
-    """Raise 403 unless an installed app's standing lets it change sharing:
+    """Raise 403 unless an installed plug-in's standing lets it change sharing:
     ``sharing:write``, the tool's write scope when ``kind`` is named, and the
     roster reads a sharing change makes. A person passes; their rung on the
     resource is asked by :func:`authorize`, as the install's is too.
@@ -302,32 +302,32 @@ def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None
     if not actor.holds(SHARING_WRITE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
     needed = list(_SHARING_READS)
     if kind is not None:
-        needed.append(scope_name(tool_resource(kind), AppScopeAccess.write))
+        needed.append(scope_name(tool_resource(kind), PluginScopeAccess.write))
     if not all(actor.holds(scope) for scope in needed):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SCOPE_REQUIRED,
+            detail=PluginMessages.SCOPE_REQUIRED,
         )
 
 
 def refuse_install_community_share(
     actor: ActorContext, initiative_id: Optional[int]
 ) -> None:
-    """Raise 403 when an installed app would share a resource that belongs to
+    """Raise 403 when an installed plug-in would share a resource that belongs to
     no initiative. Such a resource is shared with the community's members,
-    whom an app does not read."""
+    whom a plug-in does not read."""
     if isinstance(actor, InstallContext) and initiative_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
 
 
-async def apply_app_initial_sharing(
+async def apply_plugin_initial_sharing(
     session: Any,
     actor: ActorContext,
     kind: Tool,
@@ -337,9 +337,9 @@ async def apply_app_initial_sharing(
     payload: Any,
     grants: list[ResourceGrantSchema],
 ) -> None:
-    """Apply the initial sharing an installed app's create asked for.
+    """Apply the initial sharing an installed plug-in's create asked for.
 
-    Only when the payload set ``grants``: an app's content is otherwise shared
+    Only when the payload set ``grants``: a plug-in's content is otherwise shared
     with nobody beyond its owner row until it shares it. The install's own
     owner row went in with the resource, so its rung there is the owner's, and
     the database asks the same of each grant row it writes. Caller flushes.
@@ -376,12 +376,12 @@ async def grant_initial_sharing(
 ) -> None:
     """Share a resource that has just been made: its maker owns it — the
     table's own trigger wrote that row as the resource went in — and ``grants``
-    says who else may reach it. An installed app applies only the sharing its
-    create asked for (:func:`apply_app_initial_sharing`). The row is flushed
+    says who else may reach it. An installed plug-in applies only the sharing its
+    create asked for (:func:`apply_plugin_initial_sharing`). The row is flushed
     first; the caller commits.
     """
     if actor.user_id is None or user is None:
-        await apply_app_initial_sharing(
+        await apply_plugin_initial_sharing(
             session,
             actor,
             kind,
@@ -624,7 +624,7 @@ async def set_resource_grants(
     trashed). The single source of truth behind the per-resource grant
     endpoints and the bulk endpoint.
 
-    An installed app changes sharing where a person with its rung could, and
+    An installed plug-in changes sharing where a person with its rung could, and
     only with ``sharing:write`` and the tool's write scope
     (:func:`require_install_may_share`)."""
     require_install_may_share(guild_context, kind)

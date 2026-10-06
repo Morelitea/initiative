@@ -95,7 +95,7 @@ jobs:
             if [[ -z "$CHANGED" ]]; then
               # Nothing in backend/, but the always-run core also holds the
               # backend's checks on files elsewhere (the locale catalogues, the
-              # app-kit contract, the Android channels), so any change but
+              # plugin-kit contract, the Android channels), so any change but
               # documentation runs it.
               if [[ -n "$(changed . ':!docs/' ':!*.md' ':!zensical.toml')" ]]; then
                 out backend true; out alembic false; out backend_mode core

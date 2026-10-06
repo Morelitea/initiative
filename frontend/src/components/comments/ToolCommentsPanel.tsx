@@ -49,7 +49,7 @@ export const ToolCommentsPanel = ({
   const targetType: CommentEntity = target?.type ?? tool;
   const entityId = target?.id ?? entity.id;
   const enabled = entity.comments_enabled ?? true;
-  // A community-level entity (an app-installed calendar) belongs to no initiative;
+  // A community-level entity (an plugin-installed calendar) belongs to no initiative;
   // 0 is what the mention lookups read as "no initiative to search".
   const initiativeId = entity.initiative_id ?? 0;
 

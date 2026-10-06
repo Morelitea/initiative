@@ -201,7 +201,7 @@ SCOPE_INITIATIVE_ID = Guc("app.scope_initiative_id", Kind.INT)
 #: The statement is reader-written, on the query surface.
 QUERY = Guc("app.query", Kind.BOOL, read_once=True)
 
-# --- An installed app ---------------------------------------------------------
+# --- An installed plug-in -----------------------------------------------------
 INSTALL_ID = Guc("app.current_install_id", Kind.INT)
 TOKEN_CLIENT_ID = Guc("app.token_client_id", Kind.TEXT)
 TOKEN_SCOPES = Guc("app.token_scopes", Kind.NAMES)
@@ -236,7 +236,7 @@ ENABLED_TOOLS = Guc("app.enabled_tools", Kind.NAMES, standing=True)
 OVERRIDE_INITIATIVES = Guc("app.override_initiatives", Kind.IDS, standing=True)
 #: The community's sign-in policy is satisfied by this session.
 GUILD_AUTH_OK = Guc("app.guild_auth_ok", Kind.BOOL, standing=True)
-#: The resources an installed app's scopes let it read, and write.
+#: The resources an installed plug-in's scopes let it read, and write.
 INSTALL_READ = Guc("app.install_read", Kind.NAMES, standing=True)
 INSTALL_WRITE = Guc("app.install_write", Kind.NAMES, standing=True)
 #: The community's content is on hold (``read_only``) for this reader.

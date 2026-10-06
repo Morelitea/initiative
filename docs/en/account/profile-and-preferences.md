@@ -46,7 +46,7 @@ Banners and frames move. Trophies hold still, because six wiggling things in a r
 
 Not every frame is a ring, either. Several stand *in front* of your picture, so you end up sitting in the teacup, in one bay of the Colosseum, or wearing the headphones. Yes, really. We had a lot of fun with these.
 
-You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
+You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
 
 Picking the thing you're already wearing takes it off again, so there's no separate "none" to hunt for. Press **Save look** when you're happy with yourself.
 
@@ -180,7 +180,7 @@ You also get an email confirming it happened, to every address you'd confirmed. 
 
 ## Related
 
-- [Apps & the marketplace](../guides/apps-and-marketplace.md) — where decoration packs come from.
+- [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md) — where decoration packs come from.
 - [Messages](../guides/messages.md) — the Privacy tab in full.
 - [Notifications](../guides/notifications.md) — what you're told about, and where.
 - [API keys & integrations](api-keys-and-integrations.md) — the Security tab's access keys.

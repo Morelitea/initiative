@@ -1,5 +1,5 @@
 # General
-# Key material — the app platform and handoff signing both take a PEM,
+# Key material — the plug-in platform and handoff signing both take a PEM,
 # and openssl writes one wherever it is run. Nothing here is tracked.
 *.pem
 *.key

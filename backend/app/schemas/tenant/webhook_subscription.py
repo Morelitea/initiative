@@ -36,7 +36,7 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     secret from the create response or rotate the subscription.
 
     The guild and the creator are named by reference, because this view is read
-    by whoever registered the subscription — which may be an app. ``id`` and
+    by whoever registered the subscription — which may be a plug-in. ``id`` and
     ``initiative_id`` are per-guild-schema and say nothing without the guild.
     """
 
@@ -51,7 +51,7 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     community_ref: str
     initiative_id: int | None
     #: Who registered it, named in the same sector as the guild. ``None`` when
-    #: an app registered it rather than a person.
+    #: a plug-in registered it rather than a person.
     created_by_ref: str | None = None
     target_url: str
     event_types: list[str]

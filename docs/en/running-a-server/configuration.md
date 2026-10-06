@@ -124,7 +124,7 @@ Deleting an account or a community hides it immediately and erases it later. How
 
 Leave any of them blank and **nothing happens on a timer** — the right answer for a deployment required to keep records rather than shed them. Each is counted from the moment each thing was deleted or put on hold, so changing the number moves the date for things already in the queue.
 
-A restored community reconnects its installed apps itself. It authorised those connections in the first place, so it authorises them again.
+A restored community reconnects its installed plug-ins itself. It authorised those connections in the first place, so it authorises them again.
 
 ## Running behind a reverse proxy
 
@@ -188,7 +188,7 @@ Leave it off unless you want that surface. See [API keys & integrations](../acco
 
 ## The Initiative registry
 
-Your server follows the **Initiative registry**, a signed online catalog of apps and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
+Your server follows the **Initiative registry**, a signed online catalog of plug-ins and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
 
 Its panel is in **Settings → Platform → Integrations**, under **Marketplace registry**:
 
@@ -203,17 +203,17 @@ The panel also says when it last updated, how many listings came from it, and wh
 | Variable | What it does | Default |
 |---|---|---|
 | `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
-| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
+| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and plug-ins arrive as usual. | The key built into Initiative |
 | `MARKETPLACE_REGISTRY_TOKEN` | A token for a registry that asks for one. It is sent only to the registry's own address. | None |
 | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
-| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for apps whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
+| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for plug-ins whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
 
-### Apps from the registry
+### Plug-ins from the registry
 
-An app from the registry lands in **Settings → Platform → Integrations**, under **App services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
+A plug-in from the registry lands in **Settings → Platform → Integrations**, under **Plug-in services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
 
 - **Switch it on or off.** Off, every community that added it stops reaching it at once. Nothing is deleted.
-- **Give it an address.** An app that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
+- **Give it an address.** A plug-in that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
 
 ## Your own marketplace listings
 

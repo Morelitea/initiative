@@ -111,7 +111,7 @@ const PERSIST_DENYLIST = [
   "/api/v1/c/{g}/settings",
   "/api/v1/c/{g}/members",
   "/api/v1/c/{g}/webhooks",
-  "/api/v1/c/{g}/apps",
+  "/api/v1/c/{g}/plugins",
   "/api/v1/operator",
   "/api/v1/access-grants",
   "/api/v1/ai-settings",

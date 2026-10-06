@@ -82,11 +82,11 @@ const planStatus = (
   const days = trialDaysLeft(summary);
   const trialEndsOn = formatDay(summary.trial_ends_on);
   if (days != null && trialEndsOn) {
+    // The same words in the phone app: Paddle bills the plan when its trial
+    // ends, which is a fact to state rather than anything to buy.
     return {
       variant: "secondary",
-      detail: canSell
-        ? t("billingPanel.status.trialDetail", { date: trialEndsOn })
-        : t("billingPanel.status.trialDetailInApp", { date: trialEndsOn }),
+      detail: t("billingPanel.status.trialDetail", { date: trialEndsOn }),
     };
   }
 

@@ -24,7 +24,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -66,10 +66,14 @@ router = APIRouter(route_class=ActorRoute)
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
-#: The routes an installed app may call, under the counter groups scopes. A
+#: The routes an installed plug-in may call, under the counter groups scopes. A
 #: group's counters and their commands answer to the group's own scopes.
-CounterGroupsRead = Annotated[ActorContext, Depends(app_scope("counter_groups:read"))]
-CounterGroupsWrite = Annotated[ActorContext, Depends(app_scope("counter_groups:write"))]
+CounterGroupsRead = Annotated[
+    ActorContext, Depends(plugin_scope("counter_groups:read"))
+]
+CounterGroupsWrite = Annotated[
+    ActorContext, Depends(plugin_scope("counter_groups:write"))
+]
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +124,7 @@ async def create_counter_group(
     current_user: ActorUserDep,
     guild_context: CounterGroupsWrite,
 ) -> CounterGroupRead:
-    resource_access.refuse_app_sharing(guild_context, group_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, group_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.counter_group, group_in.initiative_id, current_user, guild_context
     )

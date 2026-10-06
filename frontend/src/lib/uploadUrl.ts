@@ -143,7 +143,7 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
 
 /**
  * Resolve a catalog artwork path — a marketplace listing's icon or screenshot,
- * and the artwork an installed app carries — to something a native WebView can
+ * and the artwork an installed plug-in carries — to something a native WebView can
  * load.
  *
  * Two kinds of same-origin path arrive here. Artwork this build ships

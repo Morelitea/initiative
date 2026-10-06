@@ -1,4 +1,4 @@
-"""The two identity types, with and without an installed app's boundary.
+"""The two identity types, with and without an installed plug-in's boundary.
 
 For a person both are ``int``, schema and all, the schema marked with what
 each names. Under an install's boundary they read references in its input
@@ -28,7 +28,7 @@ from app.core.identity_boundary import (
     boundary_scope,
     current_install_boundary,
 )
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.db.guild_standing import named_ref_candidates
 from app.models.platform.identity_ref import IdentityEntity
 from app.schemas.platform.user import UserPublic
@@ -36,9 +36,9 @@ from app.schemas.platform.user import UserPublic
 
 _GUILD = 7
 _INSTALL = 3
-_PERSON_REF = "uapp_person-one"
-_OTHER_REF = "uapp_person-two"
-_GUILD_REF = "gapp_the-community"
+_PERSON_REF = "uplu_person-one"
+_OTHER_REF = "uplu_person-two"
+_GUILD_REF = "gplu_the-community"
 
 
 class _Payload(BaseModel):
@@ -150,7 +150,7 @@ def test_references_resolve_to_the_rows_they_name():
     [
         ("owner", 11),
         ("owner", "11"),
-        ("owner", "uapp_nobody-here"),
+        ("owner", "uplu_nobody-here"),
         ("owner", _GUILD_REF),
         ("guild_id", _GUILD),
         ("guild_id", _PERSON_REF),
@@ -164,7 +164,7 @@ def test_anything_but_a_resolved_reference_is_refused(field, value):
         with pytest.raises(ValidationError) as caught:
             _Payload.model_validate(body)
     assert _errors(caught.value) == [
-        (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+        (UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN)
     ]
 
 
@@ -354,7 +354,7 @@ def test_an_install_reads_a_stored_file_as_an_empty_string(own_origin):
     assert dumped == shown | {"picture": "", "file": ""}
 
 
-@pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
+@pytest.mark.parametrize("named", ["11", "uplu_nobody-here", _GUILD_REF, _OTHER_REF])
 def test_a_mention_of_nobody_named_here_is_refused(named):
     with boundary_scope():
         admit_install(_boundary(members=frozenset({11})))
@@ -365,7 +365,7 @@ def test_a_mention_of_nobody_named_here_is_refused(named):
             with pytest.raises(ValidationError) as caught:
                 _Body.model_validate(body)
             assert _errors(caught.value) == [
-                (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+                (UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN)
             ]
 
 
@@ -374,7 +374,7 @@ def test_a_mention_of_nobody_named_here_is_refused(named):
 # ---------------------------------------------------------------------------
 
 
-def test_only_app_references_are_candidates():
+def test_only_plugin_references_are_candidates():
     assert named_ref_candidates(
         [
             _PERSON_REF,
@@ -382,7 +382,7 @@ def test_only_app_references_are_candidates():
             _GUILD_REF,
             "ubil_billing-person",
             "ucli_session-subject",
-            "uapp_" + "x" * 80,
+            "uplu_" + "x" * 80,
             "plain text",
             "42",
         ]

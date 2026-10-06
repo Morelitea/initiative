@@ -1227,7 +1227,7 @@ export const useSetProjectGrants = <TError = ErrorType<HTTPValidationError>, TCo
   return useMutation(getSetProjectGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Project
  */
 export const duplicateProject = (

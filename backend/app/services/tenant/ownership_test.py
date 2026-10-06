@@ -117,7 +117,7 @@ def test_a_grantee_holds_one_grant_per_resource():
         "resource_id",
         "user_id",
         "role_id",
-        "app_install_id",
+        "plugin_install_id",
     ]
 
 

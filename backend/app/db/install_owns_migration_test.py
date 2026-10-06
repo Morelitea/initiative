@@ -2,7 +2,7 @@
 
 ``public.fn_install_owns_what_it_creates`` lives in ``public`` and is set by
 migrations alone, so its source of truth is
-``app.db.app_rls.INSTALL_OWNS_WHAT_IT_CREATES``. The revision that last sets
+``app.db.plugin_rls.INSTALL_OWNS_WHAT_IT_CREATES``. The revision that last sets
 it restates it in full and keeps the body it replaces for its downgrade; these
 hold both to what they name.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 
-from app.db.app_rls import INSTALL_OWNS_WHAT_IT_CREATES
+from app.db.plugin_rls import INSTALL_OWNS_WHAT_IT_CREATES
 
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"

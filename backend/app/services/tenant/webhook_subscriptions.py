@@ -12,12 +12,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
-from app.core.app_scopes import app_scope
+from app.core.plugin_scopes import plugin_scope
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.core.audit_events import AuditEventType
 from app.db.guild_standing import InstallContext
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
@@ -30,7 +30,7 @@ from app.services.marketplace.registration_lookup import (
     load_registrations,
     service_public_id,
 )
-from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
+from app.services.marketplace.service_plugins import ENDPOINT_ID_PREFIX
 from app.db.request_context import SystemGuild
 
 #: The fields a rewrite reports as moved. ``fields`` is a list of names, so
@@ -59,17 +59,17 @@ class WebhookSubscriptionVocabularyError(Exception):
         self.code = code
 
 
-async def app_event_emitters(
+async def plugin_event_emitters(
     guild_id: int, event_types: Sequence[str]
 ) -> dict[str, str]:
-    """The installed app that emits each ``app.<public_id>.<event>`` type
+    """The installed plug-in that emits each ``plugin.<public_id>.<event>`` type
     named, by its ``public_id``: an install in this community whose pinned
     definition declares the event as ``emit``. A type no install declares is
-    absent. A declarative app is named by its listing, as the registration
+    absent. A declarative plug-in is named by its listing, as the registration
     that listing applied names it.
 
-    Read on a system session from the community's cohort, routed into it: an installed app's
-    own request does not reach ``guild_apps``.
+    Read on a system session from the community's cohort, routed into it: an installed plug-in's
+    own request does not reach ``guild_plugins``.
     """
     wanted = {name for name in event_types if name.startswith(ENDPOINT_ID_PREFIX)}
     if not wanted:
@@ -78,8 +78,8 @@ async def app_event_emitters(
         await set_rls_context(session, SystemGuild(guild_id, read_only=True))
         installs = (
             await session.exec(
-                select(GuildApp.definition, GuildApp.listing_uid).where(
-                    GuildApp.app_kind == "service"
+                select(GuildPlugin.definition, GuildPlugin.listing_uid).where(
+                    GuildPlugin.plugin_kind == "service"
                 )
             )
         ).all()
@@ -111,15 +111,15 @@ async def assert_vocabulary(
     """Reject event types and field names that could never fire.
 
     Callers pass the values the row will END UP with. The change vocabulary
-    derives from the capture registry; an app event is one an app installed
+    derives from the capture registry; a plug-in event is one a plug-in installed
     here declares it emits. This is what turns a typo into a 400 rather than a
-    subscription that looks healthy and never delivers. Returns the app events
-    named, each with the app that emits it (:func:`app_event_emitters`).
+    subscription that looks healthy and never delivers. Returns the plug-in events
+    named, each with the plug-in that emits it (:func:`plugin_event_emitters`).
     """
     from app.core.messages import WebhookSubscriptionMessages
 
     named = list(event_types or [])
-    emitters = await app_event_emitters(guild_id, named)
+    emitters = await plugin_event_emitters(guild_id, named)
     changes = [name for name in named if name not in emitters]
     if changes and webhook_events.unknown_event_types(changes):
         raise WebhookSubscriptionVocabularyError(
@@ -133,7 +133,7 @@ async def assert_vocabulary(
 
 
 class WebhookSubscriptionScopeError(Exception):
-    """An installed app asked for a subscription its standing does not cover.
+    """An installed plug-in asked for a subscription its standing does not cover.
 
     Carries the message code the endpoint answers with, like
     :class:`WebhookSubscriptionVocabularyError`.
@@ -151,13 +151,13 @@ def assert_install_may_subscribe(
     initiative_id: int | None,
     emitters: Mapping[str, str],
 ) -> None:
-    """Refuse a subscription an installed app's standing does not cover.
+    """Refuse a subscription an installed plug-in's standing does not cover.
 
     - Every change event type needs the read scope of the resource it reports
       on (``webhook_events.read_scope_for``), held now: the seat's grant and
       the token's scopes together, as the standing computed them. An event
-      type no scope reaches (an app's own install changing) is never an app's.
-    - Every app event needs ``apps:<public_id>`` of the app that emits it
+      type no scope reaches (a plug-in's own install changing) is never a plug-in's.
+    - Every plug-in event needs ``plugins:<public_id>`` of the plug-in that emits it
       (``emitters``), among the token's scopes.
     - A token narrowed to one initiative subscribes to that initiative only.
     - A community-wide subscription needs a token that is not narrowed.
@@ -167,14 +167,14 @@ def assert_install_may_subscribe(
     grant and placements as they are then, so this is what turns a request
     that could never deliver into a clear refusal.
     """
-    from app.core.messages import AppMessages
+    from app.core.messages import PluginMessages
 
-    refused = WebhookSubscriptionScopeError(AppMessages.SCOPE_REQUIRED)
+    refused = WebhookSubscriptionScopeError(PluginMessages.SCOPE_REQUIRED)
     readable = set(context.install_read)
     for event_type in event_types:
         emitter = emitters.get(event_type)
         if emitter is not None:
-            if app_scope(emitter) not in context.token_scopes:
+            if plugin_scope(emitter) not in context.token_scopes:
                 raise refused
             continue
         resource = webhook_events.read_scope_for(event_type)
@@ -276,7 +276,7 @@ async def create_subscription(
     payload: WebhookSubscriptionCreate,
     created_by: int | None,
     guild_id: int,
-    app_install_id: int | None = None,
+    plugin_install_id: int | None = None,
 ) -> tuple[WebhookSubscription, str]:
     """Persist a fresh subscription and return ``(row, plaintext_secret)``.
 
@@ -285,13 +285,13 @@ async def create_subscription(
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
 
-    ``app_install_id`` is the install that registered this, when an app did. It
-    decides how a delivery names the guild and the actor: an app already holds
+    ``plugin_install_id`` is the install that registered this, when a plug-in did. It
+    decides how a delivery names the guild and the actor: a plug-in already holds
     references for both at its install, and an envelope should arrive under
     those (``webhook_refs``).
 
     ``created_by`` is the account this runs as, so it is also who the audit
-    record names. ``None`` for an installed app acting as its community, which
+    record names. ``None`` for an installed plug-in acting as its community, which
     names no person (:func:`create_install_subscription`).
     """
     await assert_vocabulary(
@@ -304,7 +304,7 @@ async def create_subscription(
     subscription = WebhookSubscription(
         initiative_id=payload.initiative_id,
         created_by=created_by,
-        app_install_id=app_install_id,
+        plugin_install_id=plugin_install_id,
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),
@@ -327,7 +327,7 @@ async def create_subscription(
         detail={
             "target_host": _target_host(subscription.target_url),
             "event_types": list(subscription.event_types),
-            "app_install_id": app_install_id,
+            "plugin_install_id": plugin_install_id,
         },
     )
     guild_work.wake(session, guild_work.WEBHOOKS, guild_id)
@@ -342,7 +342,7 @@ async def create_install_subscription(
     context: InstallContext,
     payload: WebhookSubscriptionCreate,
 ) -> tuple[WebhookSubscription, str]:
-    """An installed app registering a subscription as its community.
+    """An installed plug-in registering a subscription as its community.
 
     Checked against the install's standing first
     (:func:`assert_install_may_subscribe`), then written like any other, naming
@@ -362,7 +362,7 @@ async def create_install_subscription(
         payload=payload,
         created_by=None,
         guild_id=context.guild_id,
-        app_install_id=context.install_id,
+        plugin_install_id=context.install_id,
     )
 
 
@@ -440,12 +440,12 @@ async def deactivate_for_install(
     session: AsyncSession,
     *,
     guild_id: int,
-    app_install_id: int,
+    plugin_install_id: int,
 ) -> int:
     """Switch off the subscriptions one install registered. Returns the count.
 
-    An install is what makes an app present in a guild, so removing it ends
-    what that app receives. Deactivated rather than deleted: the row is the
+    An install is what makes a plug-in present in a guild, so removing it ends
+    what that plug-in receives. Deactivated rather than deleted: the row is the
     record of what was being sent where, and a reinstall registers afresh.
 
     Called from the uninstall path, which runs as a guild admin — the authority
@@ -459,7 +459,7 @@ async def deactivate_for_install(
     rows = (
         await session.exec(
             select(WebhookSubscription).where(
-                WebhookSubscription.app_install_id == app_install_id,
+                WebhookSubscription.plugin_install_id == plugin_install_id,
                 WebhookSubscription.active.is_(True),
             )
         )
@@ -484,13 +484,13 @@ async def delete_subscription(
     content it watches.
 
     ``actor_user_id`` is the account the caller's session runs as; ``None``
-    writes no audit record, unless ``by_install`` says an installed app is
+    writes no audit record, unless ``by_install`` says an installed plug-in is
     deleting it as its community. That record names no person, and the
-    request's context names the app."""
+    request's context names the plug-in."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
     )
-    app_install_id = subscription.app_install_id
+    plugin_install_id = subscription.plugin_install_id
     target_host = _target_host(subscription.target_url)
     await session.delete(subscription)
     # Read off the row while it is still here, and staged before the commit that
@@ -505,7 +505,7 @@ async def delete_subscription(
             target_id=subscription_id,
             detail={
                 "target_host": target_host,
-                "app_install_id": app_install_id,
+                "plugin_install_id": plugin_install_id,
             },
         )
     guild_work.wake(session, guild_work.WEBHOOKS, guild_id)
