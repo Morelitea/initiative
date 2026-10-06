@@ -143,10 +143,12 @@ async def test_a_redacting_community_writes_down_no_more_than_it_will_say(
 async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
     """A digest or a hold summary is a push and nothing else: the bell already
     holds what it counts. It goes under the switches of the communities it
-    gathers from as they stand when it is sent."""
+    gathers from as they stand when it is sent: while one of them still sends
+    push it goes, saying only the kind of thing once another has stopped."""
     pushed, _answer = fcm
     recipient = await create_user(session)
     guild = await create_guild(session, creator=recipient)
+    sending = await create_guild(session, creator=recipient)
     await create_push_token(session, recipient)
     await notice_outbox.enqueue(
         session,
@@ -159,12 +161,12 @@ async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
                 guild_id=None,
                 push=("2 tasks overdue", "Q3 budget and 1 more"),
                 push_data={"target_path": "/"},
-                communities={guild.id},
+                communities={guild.id, sending.id},
                 kind="push",
             )
         ],
     )
-    guild.redact_notification_content = True
+    guild.allow_push_notifications = False
     session.add(guild)
     await session.commit()
 

@@ -114,12 +114,25 @@ def _policy_of(
     guild_id: int | None,
     data: Mapping[str, Any],
 ) -> notification_policy.NotificationPolicy:
-    """The answer a row is sent under: its community's, and the stricter of
-    every community a push of its own gathers from."""
+    """The answer a row is sent under: its community's, joined with every
+    community a push of its own gathers from.
+
+    Such a push goes while any of them still sends push. Once one of them has
+    stopped, or any redacts, it says only the kind of thing that happened.
+    """
     policy = policies[guild_id]
-    for gid in data.get("communities", ()):
-        policy = policy.stricter_than(policies[gid])
-    return policy
+    gathered = [policies[gid] for gid in data.get("communities", ())]
+    if not gathered:
+        return policy
+    sending = [answer for answer in gathered if answer.push]
+    return policy.stricter_than(
+        notification_policy.NotificationPolicy(
+            push=bool(sending),
+            email=all(answer.email for answer in gathered),
+            redact=len(sending) < len(gathered)
+            or any(answer.redact for answer in gathered),
+        )
+    )
 
 
 async def notice(
