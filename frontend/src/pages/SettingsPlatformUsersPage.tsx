@@ -419,15 +419,19 @@ export const SettingsPlatformUsersPage = () => {
                   {t("platformUsers.clearSecondFactor")}
                 </DropdownMenuItem>
               )}
-            {reachable && canUnblockAge && platformUser.age_below_minimum_at && (
-              <DropdownMenuItem
-                onSelect={() => clearAgeBlock.mutate(platformUser.id)}
-                disabled={clearAgeBlock.isPending}
-              >
-                <CalendarClock className="h-4 w-4" />
-                {t("platformUsers.clearAgeBlock")}
-              </DropdownMenuItem>
-            )}
+            {/* Under age, or a date on file that may be a typo: either way it
+                is put right by answering again. */}
+            {reachable &&
+              canUnblockAge &&
+              (platformUser.age_below_minimum_at || platformUser.birthdate_on_file) && (
+                <DropdownMenuItem
+                  onSelect={() => clearAgeBlock.mutate(platformUser.id)}
+                  disabled={clearAgeBlock.isPending}
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  {t("platformUsers.clearAgeBlock")}
+                </DropdownMenuItem>
+              )}
             <DropdownMenuItem onSelect={() => exportUserCsv(platformUser)}>
               <Download className="h-4 w-4" />
               {t("platformUsers.exportUser")}

@@ -18,6 +18,7 @@ import { AnnouncementCenter } from "@/components/announcements/AnnouncementCente
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
+import { ConfirmBirthdate } from "@/components/ConfirmBirthdate";
 import { CommunityAccessBanner } from "@/components/communities/CommunityAccessBanner";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -161,6 +162,13 @@ function AppLayout() {
   // provisioned on first sign-in.
   if (!loading && user && user.legal_acceptance_required) {
     return <AcceptTerms />;
+  }
+
+  // No date of birth on file. Asked once of every account — plug-ins can have a
+  // minimum age that differs by country — and never again once answered. An
+  // account already blocked as under age has nothing left to answer here.
+  if (!loading && user && !user.birthdate_on_file && !user.age_below_minimum_at) {
+    return <ConfirmBirthdate />;
   }
 
   // Now we can have conditional returns

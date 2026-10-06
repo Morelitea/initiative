@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Plug-ins can have a minimum age**, which may differ by country. Someone younger than a plug-in's minimum where they are can't open or use it; their community can still install it. **Server operators:** set `CLIENT_COUNTRY_HEADER` (`CF-IPCountry` behind Cloudflare) so the limits apply by country; unset, a plug-in's highest minimum applies to everyone.
 - **Billing insights** for operators and owners, under **Operator dashboard → Billing** on servers connected to a billing service: revenue, subscribers and cancellations across every community, without opening any one of them. The new `billing.insights` capability gates it.
 - **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.
 - **Some sign-in changes wait two days** when made from somewhere your account is new to, with **Cancel the change** in every email and in your settings. Signing in with a passkey skips the wait.
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
 - **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do. The API drops what nothing read: document list `projects`, `yjs_updated_at`, `sort_by`/`sort_dir` and the `ids` filter, and the attached-document fields on queue items and calendar events (link them as relationships).
 - **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
 - **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.

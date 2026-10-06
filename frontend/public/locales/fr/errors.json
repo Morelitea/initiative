@@ -465,6 +465,7 @@
   "COMMUNITY_PLUGIN_SURFACE_NOT_FOUND": "Ce plug-in n'a pas d'écran portant ce nom.",
   "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY": "Seule l'administration de la communauté peut ouvrir cette partie du plug-in.",
   "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED": "Votre rôle dans cette initiative ne permet pas d'ouvrir cette partie du plug-in.",
+  "COMMUNITY_PLUGIN_AGE_RESTRICTED": "Vous n'avez pas encore l'âge requis pour utiliser ce plug-in là où vous êtes.",
   "PLUGIN_CHANNEL_INSTALL_NOT_FOUND": "Ce plug-in n'est pas installé dans cette communauté.",
   "PLUGIN_CHANNEL_INSTALL_DISABLED": "Cette communauté a désactivé ce plug-in.",
   "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY": "Cette communauté est gelée : rien ne peut y être écrit pour le moment.",

@@ -465,6 +465,7 @@
   "COMMUNITY_PLUGIN_SURFACE_NOT_FOUND": "This plug-in doesn't have a screen by that name.",
   "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY": "Only community admins can open this part of the plug-in.",
   "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED": "Your role in this initiative can't open this part of the plug-in.",
+  "COMMUNITY_PLUGIN_AGE_RESTRICTED": "You're not old enough to use this plug-in where you are.",
   "PLUGIN_CHANNEL_INSTALL_NOT_FOUND": "That plug-in isn't installed in that community.",
   "PLUGIN_CHANNEL_INSTALL_DISABLED": "That community has turned this plug-in off.",
   "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY": "That community is frozen, so nothing can be written to it right now.",

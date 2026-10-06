@@ -39,7 +39,7 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. Every account is asked its date of birth once, and it is kept encrypted at rest so a plug-in's minimum age — which can differ by country — can be checked against it. Set `CLIENT_COUNTRY_HEADER` to the header your proxy writes the visitor's country into (`CF-IPCountry` behind Cloudflare) so those limits apply by country; unset, a plug-in's highest minimum age applies to everyone. Only set it when every request reaches the server through that proxy. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
 **The rule belongs to the community, not to the way in.** Every route into a listed community is covered: the directory, an invite, and the group rules your identity provider drives. A community that hasn't listed itself asks nobody, whoever brings them in, and an unanswered question never costs somebody a membership they already have or holds up the rest of Initiative.
 

@@ -465,6 +465,7 @@
   "COMMUNITY_PLUGIN_SURFACE_NOT_FOUND": "Dieses Plug-in hat keinen Bereich mit diesem Namen.",
   "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY": "Nur die Community-Administration kann diesen Teil des Plug-ins öffnen.",
   "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED": "Mit deiner Rolle in dieser Initiative kannst du diesen Teil des Plug-ins nicht öffnen.",
+  "COMMUNITY_PLUGIN_AGE_RESTRICTED": "Dort, wo du bist, bist du noch nicht alt genug für dieses Plug-in.",
   "PLUGIN_CHANNEL_INSTALL_NOT_FOUND": "Dieses Plug-in ist in dieser Community nicht installiert.",
   "PLUGIN_CHANNEL_INSTALL_DISABLED": "Diese Community hat das Plug-in ausgeschaltet.",
   "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY": "Diese Community ist eingefroren, derzeit kann nichts hineingeschrieben werden.",
