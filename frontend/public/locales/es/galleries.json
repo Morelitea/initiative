@@ -120,24 +120,5 @@
     "deleteTitle_one": "¿Quitar {{count}} imagen?",
     "deleteTitle_other": "¿Quitar {{count}} imágenes?",
     "deleteDescription": "Van a la papelera con todas sus versiones y pueden restaurarse antes de que termine el periodo de retención."
-  },
-  "bulkTags": {
-    "title": "Editar etiquetas",
-    "descriptionAdd_one": "Agregar etiquetas a {{count}} imagen seleccionada.",
-    "descriptionAdd_other": "Agregar etiquetas a {{count}} imágenes seleccionadas.",
-    "descriptionRemove_one": "Eliminar etiquetas de {{count}} imagen seleccionada.",
-    "descriptionRemove_other": "Eliminar etiquetas de {{count}} imágenes seleccionadas.",
-    "tabAdd": "Agregar",
-    "tabRemove": "Eliminar",
-    "addPlaceholder": "Seleccionar etiquetas para agregar...",
-    "removePlaceholder": "Seleccionar etiquetas para eliminar...",
-    "noTags": "No hay etiquetas en las imágenes seleccionadas.",
-    "applying": "Aplicando…",
-    "apply": "Aplicar",
-    "tagsAdded_one": "Etiquetas agregadas a {{count}} imagen",
-    "tagsAdded_other": "Etiquetas agregadas a {{count}} imágenes",
-    "tagsRemoved_one": "Etiquetas eliminadas de {{count}} imagen",
-    "tagsRemoved_other": "Etiquetas eliminadas de {{count}} imágenes",
-    "updateError": "No se pudieron actualizar las etiquetas en este momento."
   }
 }

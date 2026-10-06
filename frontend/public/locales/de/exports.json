@@ -8,6 +8,7 @@
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
     "ownerRequired": "Exportieren kann nur, wer all diese Einträge auch löschen darf.",
+    "noCommonFormat": "Für diese Einträge gibt es kein gemeinsames Exportformat.",
     "headingBackup": "Sicherung",
     "headingReport": "Bericht",
     "formatPdf": "PDF-Dokument",

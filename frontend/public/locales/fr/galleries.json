@@ -120,24 +120,5 @@
     "deleteTitle_one": "Retirer {{count}} image ?",
     "deleteTitle_other": "Retirer {{count}} images ?",
     "deleteDescription": "Elles partent à la corbeille avec toutes leurs versions et peuvent être restaurées avant la fin de la période de conservation."
-  },
-  "bulkTags": {
-    "title": "Modifier les étiquettes",
-    "descriptionAdd_one": "Ajouter des étiquettes à {{count}} image sélectionnée.",
-    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} images sélectionnées.",
-    "descriptionRemove_one": "Supprimer des étiquettes de {{count}} image sélectionnée.",
-    "descriptionRemove_other": "Supprimer des étiquettes de {{count}} images sélectionnées.",
-    "tabAdd": "Ajouter",
-    "tabRemove": "Supprimer",
-    "addPlaceholder": "Sélectionner des étiquettes à ajouter...",
-    "removePlaceholder": "Sélectionner des étiquettes à supprimer...",
-    "noTags": "Aucune étiquette sur les images sélectionnées.",
-    "applying": "Application en cours…",
-    "apply": "Appliquer",
-    "tagsAdded_one": "Étiquettes ajoutées à {{count}} image",
-    "tagsAdded_other": "Étiquettes ajoutées à {{count}} images",
-    "tagsRemoved_one": "Étiquettes supprimées de {{count}} image",
-    "tagsRemoved_other": "Étiquettes supprimées de {{count}} images",
-    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
   }
 }

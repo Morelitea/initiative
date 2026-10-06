@@ -189,25 +189,6 @@
     "moving": "Moving…",
     "moveTask": "Move task"
   },
-  "bulkEditTags": {
-    "title": "Edit Tags",
-    "descriptionAdd": "Add tags to {{count}} selected task.",
-    "descriptionAdd_other": "Add tags to {{count}} selected tasks.",
-    "descriptionRemove": "Remove tags from {{count}} selected task.",
-    "descriptionRemove_other": "Remove tags from {{count}} selected tasks.",
-    "tabAdd": "Add",
-    "tabRemove": "Remove",
-    "addPlaceholder": "Select tags to add...",
-    "removePlaceholder": "Select tags to remove...",
-    "noTags": "No tags on the selected tasks.",
-    "applying": "Applying…",
-    "apply": "Apply",
-    "tagsAdded": "Tags added to {{count}} task",
-    "tagsAdded_other": "Tags added to {{count}} tasks",
-    "tagsRemoved": "Tags removed from {{count}} task",
-    "tagsRemoved_other": "Tags removed from {{count}} tasks",
-    "updateError": "Unable to update tags right now."
-  },
   "createWizard": {
     "title": "Add Task",
     "lastUsed": "Last used",

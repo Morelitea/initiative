@@ -23,8 +23,7 @@ import type {
   ListQueuesParams,
   ListWikisParams,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar";
+import { DocumentType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import { Input } from "@/components/ui/input";
@@ -186,6 +185,58 @@ const QueueFilterFields = ({
             {QUEUE_STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {t(s.label)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {children}
+    </SearchTagFields>
+  );
+};
+
+/** "All" is a sentinel: the underlying filter is absent, not a value. */
+const ALL_DOCUMENT_TYPES = "all";
+
+/** A documents list is also narrowed to one type of document. */
+const DocumentFilterFields = ({
+  value,
+  onChange,
+  initiativeId,
+  children,
+}: ToolFilterFieldsProps<typeof Tool.document>) => {
+  const { t } = useTranslation("documents");
+  const id = useId();
+
+  return (
+    <SearchTagFields
+      tool={Tool.document}
+      placeholder="filters.searchDocuments"
+      value={value}
+      onChange={onChange}
+      initiativeId={initiativeId}
+    >
+      <div className="w-full space-y-2 sm:w-48">
+        <Label htmlFor={`${id}-type`} className="block font-medium text-muted-foreground text-xs">
+          {t("filters.type")}
+        </Label>
+        <Select
+          value={value.document_type ?? ALL_DOCUMENT_TYPES}
+          onValueChange={(next) =>
+            onChange({
+              ...value,
+              document_type: next === ALL_DOCUMENT_TYPES ? undefined : (next as DocumentType),
+            })
+          }
+        >
+          <SelectTrigger id={`${id}-type`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_DOCUMENT_TYPES}>{t("filters.allTypes")}</SelectItem>
+            {Object.values(DocumentType).map((type) => (
+              <SelectItem key={type} value={type}>
+                {t(`filters.types.${type}`)}
               </SelectItem>
             ))}
           </SelectContent>

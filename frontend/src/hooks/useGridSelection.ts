@@ -56,6 +56,19 @@ export function useGridSelection<T extends { id: number }>(items: readonly T[] =
     });
   }, []);
 
+  /** Select or drop every one of `items` at once — a table's header checkbox. */
+  const setMany = useCallback((many: readonly T[], selected: boolean) => {
+    anchorRef.current = null;
+    setSelectedMap((prev) => {
+      const next = new Map(prev);
+      for (const item of many) {
+        if (selected) next.set(item.id, item);
+        else next.delete(item.id);
+      }
+      return next;
+    });
+  }, []);
+
   const clear = useCallback(() => {
     anchorRef.current = null;
     setSelectedMap(new Map());
@@ -68,5 +81,5 @@ export function useGridSelection<T extends { id: number }>(items: readonly T[] =
     setSelectedMap(new Map());
   }, []);
 
-  return { active, selectedIds, selectedItems, toggle, clear, enter, exit };
+  return { active, selectedIds, selectedItems, toggle, setMany, clear, enter, exit };
 }

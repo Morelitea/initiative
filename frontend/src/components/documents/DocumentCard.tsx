@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { type DocumentSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { LazyImage } from "@/components/shared/LazyImage";
@@ -10,7 +9,6 @@ import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { documentIcon } from "@/lib/documentIcon";
 import { getFileTypeLabel } from "@/lib/fileUtils";
@@ -28,7 +26,6 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const { t } = useTranslation("documents");
   const relativeUpdatedAt = useRelativeTime(document.updated_at);
   const gp = useCommunityPath();
-  const unread = useUnreadTree();
   // A document with comments off shows no thread anywhere, so it shows no count.
   const commentCount = document.comments_enabled ? (document.comment_count ?? 0) : null;
   const isFileDocument = document.document_type === "file";
@@ -97,23 +94,19 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
       </div>
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <h3 className="line-clamp-1 font-semibold text-card-foreground text-lg leading-tight">
-                    {document.name}
-                  </h3>
-                </TooltipTrigger>
-                <TooltipContent side="top" align="start">
-                  <p>{document.name}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {unread.hasResource(document.community_id, Tool.document, document.id) ? (
-              <UnreadDot className="mt-2" />
-            ) : null}
-          </div>
+          {/* The unread mark is the list's to draw, on the card's corner. */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h3 className="line-clamp-1 font-semibold text-card-foreground text-lg leading-tight">
+                  {document.name}
+                </h3>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="start">
+                <p>{document.name}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <p className="text-muted-foreground text-xs">
             {t("card.updated", { date: relativeUpdatedAt })}
           </p>
