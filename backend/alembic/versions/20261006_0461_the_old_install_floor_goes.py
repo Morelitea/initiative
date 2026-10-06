@@ -6,7 +6,9 @@ the row-security policies the app renders at boot still name the old floor
 when that migration runs, so the drop was skipped and the role stayed behind
 after the next start rendered them anew. This points any policy still naming
 ``app_install_base`` at ``plugin_install_base``, then drops the old role if no
-other database in the cluster holds anything through it.
+other database in the cluster holds anything through it. The old floor's
+``EXECUTE`` on ``set_config``, which only the function's owner can take back,
+is taken by the start before the migrations run.
 
 Nothing to undo: the policies are rendered again at the next start, and the
 old role carried nothing ``plugin_install_base`` does not.
