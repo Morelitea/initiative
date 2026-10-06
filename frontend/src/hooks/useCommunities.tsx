@@ -14,6 +14,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import type {
+  AccessGrantListResponse,
   AccessGrantRead,
   CommunityRead,
   NewCommunity,
@@ -273,8 +274,15 @@ const fetchCommunityList = async (
     { content?: AccessGrantRead; settings?: AccessGrantRead }
   >();
   try {
-    const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/");
-    for (const grant of grants.data) {
+    const grants: AccessGrantRead[] = [];
+    for (let page = 1; ; page++) {
+      const { data } = await apiClient.get<AccessGrantListResponse>("/access-grants/", {
+        params: { live: true, page, page_size: 200 },
+      });
+      grants.push(...data.items);
+      if (!data.has_next) break;
+    }
+    for (const grant of grants) {
       if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
         continue;
       }

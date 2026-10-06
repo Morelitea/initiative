@@ -56,6 +56,16 @@ const Probe = () => {
 };
 
 /** The provider reads its list through React Query, so each test gets a client. */
+/** One page of `/access-grants/`, the whole list. */
+const grantPage = (items: object[]) => ({
+  items,
+  total_count: items.length,
+  page: 1,
+  page_size: 200,
+  has_next: false,
+  has_prev: false,
+});
+
 const withQueryClient = () => {
   const client = createTestQueryClient();
   return ({ children }: { children: ReactNode }) => (
@@ -73,7 +83,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Granted Community",
@@ -92,7 +102,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -117,7 +127,7 @@ describe("settings grants in the community switcher", () => {
       }
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Member Community",
@@ -127,7 +137,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -148,7 +158,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: [
+          data: grantPage([
             {
               community_id: 8,
               community_name: "Granted Community",
@@ -158,7 +168,7 @@ describe("settings grants in the community switcher", () => {
               requested_at: "2026-09-17T20:00:00Z",
               expires_at: "2026-09-17T22:00:00Z",
             },
-          ],
+          ]),
         });
       }
       if (path === "/communities/8") {
