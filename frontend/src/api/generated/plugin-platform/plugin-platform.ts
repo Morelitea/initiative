@@ -21,15 +21,15 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AppAccessTokenResponse,
-  AppConsentRequestCreate,
-  AppConsentRequestRead,
-  AppInstallationRead,
-  AppOAuthErrorResponse,
   HTTPValidationError,
-  IssueAppAccessTokenBody,
-  ListAppInstallationsParams,
-  ReadAppPlatformJwks200,
+  IssuePluginAccessTokenBody,
+  ListPluginInstallationsParams,
+  PluginAccessTokenResponse,
+  PluginConsentRequestCreate,
+  PluginConsentRequestRead,
+  PluginInstallationRead,
+  PluginOAuthErrorResponse,
+  ReadPluginPlatformJwks200,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -53,69 +53,71 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * The public half of the app-platform signing key, as a JWKS document.
+ * The public half of the plugin-platform signing key, as a JWKS document.
  *
  * A deployment with no keypair configured answers **503** rather than an empty
  * key set. The two are very different statements: an empty ``keys`` array says
- * "this platform has published no keys", which an app would reasonably cache
+ * "this platform has published no keys", which a plug-in would reasonably cache
  * and then refuse every later token against. A 503 says the platform is not
- * configured for app traffic yet, which is what is actually true, and it is
- * the same answer registering and verifying an app service already give.
- * @summary Read App Platform Jwks
+ * configured for plug-in traffic yet, which is what is actually true, and it is
+ * the same answer registering and verifying a plug-in service already give.
+ * @summary Read Plugin Platform Jwks
  */
-export const readAppPlatformJwks = (
+export const readPluginPlatformJwks = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ReadAppPlatformJwks200>(
-    { url: `/api/v1/app-platform/jwks.json`, method: "GET", signal },
+  return apiMutator<ReadPluginPlatformJwks200>(
+    { url: `/api/v1/plugin-platform/jwks.json`, method: "GET", signal },
     options
   );
 };
 
-export const getReadAppPlatformJwksQueryKey = () => {
-  return [`/api/v1/app-platform/jwks.json`] as const;
+export const getReadPluginPlatformJwksQueryKey = () => {
+  return [`/api/v1/plugin-platform/jwks.json`] as const;
 };
 
-export const getReadAppPlatformJwksQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
+export const getReadPluginPlatformJwksQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPluginPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>>;
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof readPluginPlatformJwks>>, TError, TData>
+  >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getReadAppPlatformJwksQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getReadPluginPlatformJwksQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppPlatformJwks>>> = ({ signal }) =>
-    readAppPlatformJwks(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPluginPlatformJwks>>> = ({ signal }) =>
+    readPluginPlatformJwks(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readAppPlatformJwks>>,
+    Awaited<ReturnType<typeof readPluginPlatformJwks>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadAppPlatformJwksQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppPlatformJwks>>
+export type ReadPluginPlatformJwksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readPluginPlatformJwks>>
 >;
-export type ReadAppPlatformJwksQueryError = ErrorType<unknown>;
+export type ReadPluginPlatformJwksQueryError = ErrorType<unknown>;
 
-export function useReadAppPlatformJwks<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
+export function useReadPluginPlatformJwks<
+  TData = Awaited<ReturnType<typeof readPluginPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginPlatformJwks>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppPlatformJwks>>,
+          Awaited<ReturnType<typeof readPluginPlatformJwks>>,
           TError,
-          Awaited<ReturnType<typeof readAppPlatformJwks>>
+          Awaited<ReturnType<typeof readPluginPlatformJwks>>
         >,
         "initialData"
       >;
@@ -123,19 +125,19 @@ export function useReadAppPlatformJwks<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppPlatformJwks<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
+export function useReadPluginPlatformJwks<
+  TData = Awaited<ReturnType<typeof readPluginPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginPlatformJwks>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppPlatformJwks>>,
+          Awaited<ReturnType<typeof readPluginPlatformJwks>>,
           TError,
-          Awaited<ReturnType<typeof readAppPlatformJwks>>
+          Awaited<ReturnType<typeof readPluginPlatformJwks>>
         >,
         "initialData"
       >;
@@ -143,35 +145,35 @@ export function useReadAppPlatformJwks<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppPlatformJwks<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
+export function useReadPluginPlatformJwks<
+  TData = Awaited<ReturnType<typeof readPluginPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginPlatformJwks>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read App Platform Jwks
+ * @summary Read Plugin Platform Jwks
  */
 
-export function useReadAppPlatformJwks<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
+export function useReadPluginPlatformJwks<
+  TData = Awaited<ReturnType<typeof readPluginPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginPlatformJwks>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppPlatformJwksQueryOptions(options);
+  const queryOptions = getReadPluginPlatformJwksQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -181,46 +183,49 @@ export function useReadAppPlatformJwks<
 }
 
 /**
- * Issue an app token, an installation token for one of the app's
+ * Issue a plug-in token, an installation token for one of the plug-in's
  * installs, or a member token for a member who consented. See the module
  * docstring for the parameters.
- * @summary Issue App Access Token
+ * @summary Issue Plugin Access Token
  */
-export const issueAppAccessToken = (
-  issueAppAccessTokenBody: BodyType<IssueAppAccessTokenBody>,
+export const issuePluginAccessToken = (
+  issuePluginAccessTokenBody: BodyType<IssuePluginAccessTokenBody>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formUrlEncoded = new URLSearchParams();
-  formUrlEncoded.append(`grant_type`, issueAppAccessTokenBody.grant_type);
-  if (issueAppAccessTokenBody.client_assertion_type !== undefined) {
-    formUrlEncoded.append(`client_assertion_type`, issueAppAccessTokenBody.client_assertion_type);
+  formUrlEncoded.append(`grant_type`, issuePluginAccessTokenBody.grant_type);
+  if (issuePluginAccessTokenBody.client_assertion_type !== undefined) {
+    formUrlEncoded.append(
+      `client_assertion_type`,
+      issuePluginAccessTokenBody.client_assertion_type
+    );
   }
-  if (issueAppAccessTokenBody.client_assertion !== undefined) {
-    formUrlEncoded.append(`client_assertion`, issueAppAccessTokenBody.client_assertion);
+  if (issuePluginAccessTokenBody.client_assertion !== undefined) {
+    formUrlEncoded.append(`client_assertion`, issuePluginAccessTokenBody.client_assertion);
   }
-  if (issueAppAccessTokenBody.client_id !== undefined) {
-    formUrlEncoded.append(`client_id`, issueAppAccessTokenBody.client_id);
+  if (issuePluginAccessTokenBody.client_id !== undefined) {
+    formUrlEncoded.append(`client_id`, issuePluginAccessTokenBody.client_id);
   }
-  if (issueAppAccessTokenBody.installation !== undefined) {
-    formUrlEncoded.append(`installation`, issueAppAccessTokenBody.installation);
+  if (issuePluginAccessTokenBody.installation !== undefined) {
+    formUrlEncoded.append(`installation`, issuePluginAccessTokenBody.installation);
   }
-  if (issueAppAccessTokenBody.scope !== undefined) {
-    formUrlEncoded.append(`scope`, issueAppAccessTokenBody.scope);
+  if (issuePluginAccessTokenBody.scope !== undefined) {
+    formUrlEncoded.append(`scope`, issuePluginAccessTokenBody.scope);
   }
-  if (issueAppAccessTokenBody.resource !== undefined) {
-    formUrlEncoded.append(`resource`, issueAppAccessTokenBody.resource);
+  if (issuePluginAccessTokenBody.resource !== undefined) {
+    formUrlEncoded.append(`resource`, issuePluginAccessTokenBody.resource);
   }
-  if (issueAppAccessTokenBody.level !== undefined) {
-    formUrlEncoded.append(`level`, issueAppAccessTokenBody.level);
+  if (issuePluginAccessTokenBody.level !== undefined) {
+    formUrlEncoded.append(`level`, issuePluginAccessTokenBody.level);
   }
-  if (issueAppAccessTokenBody.assertion !== undefined) {
-    formUrlEncoded.append(`assertion`, issueAppAccessTokenBody.assertion);
+  if (issuePluginAccessTokenBody.assertion !== undefined) {
+    formUrlEncoded.append(`assertion`, issuePluginAccessTokenBody.assertion);
   }
 
-  return apiMutator<AppAccessTokenResponse>(
+  return apiMutator<PluginAccessTokenResponse>(
     {
-      url: `/api/v1/app-platform/oauth/token`,
+      url: `/api/v1/plugin-platform/oauth/token`,
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: formUrlEncoded,
@@ -230,26 +235,26 @@ export const issueAppAccessToken = (
   );
 };
 
-export const getIssueAppAccessTokenMutationKey = () => ["issueAppAccessToken"] as const;
+export const getIssuePluginAccessTokenMutationKey = () => ["issuePluginAccessToken"] as const;
 
-export const getIssueAppAccessTokenMutationOptions = <
-  TError = ErrorType<AppOAuthErrorResponse>,
+export const getIssuePluginAccessTokenMutationOptions = <
+  TError = ErrorType<PluginOAuthErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof issueAppAccessToken>>,
+    Awaited<ReturnType<typeof issuePluginAccessToken>>,
     TError,
-    IssueAppAccessTokenMutationVariables,
+    IssuePluginAccessTokenMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof issueAppAccessToken>>,
+  Awaited<ReturnType<typeof issuePluginAccessToken>>,
   TError,
-  IssueAppAccessTokenMutationVariables,
+  IssuePluginAccessTokenMutationVariables,
   TContext
 > => {
-  const mutationKey = getIssueAppAccessTokenMutationKey();
+  const mutationKey = getIssuePluginAccessTokenMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -257,116 +262,119 @@ export const getIssueAppAccessTokenMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof issueAppAccessToken>>,
-    IssueAppAccessTokenMutationVariables
+    Awaited<ReturnType<typeof issuePluginAccessToken>>,
+    IssuePluginAccessTokenMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return issueAppAccessToken(data, requestOptions);
+    return issuePluginAccessToken(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type IssueAppAccessTokenMutationResult = NonNullable<
-  Awaited<ReturnType<typeof issueAppAccessToken>>
+export type IssuePluginAccessTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issuePluginAccessToken>>
 >;
-export type IssueAppAccessTokenMutationBody = BodyType<IssueAppAccessTokenBody>;
-export type IssueAppAccessTokenMutationError = ErrorType<AppOAuthErrorResponse>;
-export type IssueAppAccessTokenMutationVariables = { data: BodyType<IssueAppAccessTokenBody> };
+export type IssuePluginAccessTokenMutationBody = BodyType<IssuePluginAccessTokenBody>;
+export type IssuePluginAccessTokenMutationError = ErrorType<PluginOAuthErrorResponse>;
+export type IssuePluginAccessTokenMutationVariables = {
+  data: BodyType<IssuePluginAccessTokenBody>;
+};
 
 /**
- * @summary Issue App Access Token
+ * @summary Issue Plugin Access Token
  */
-export const useIssueAppAccessToken = <
-  TError = ErrorType<AppOAuthErrorResponse>,
+export const useIssuePluginAccessToken = <
+  TError = ErrorType<PluginOAuthErrorResponse>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof issueAppAccessToken>>,
+      Awaited<ReturnType<typeof issuePluginAccessToken>>,
       TError,
-      IssueAppAccessTokenMutationVariables,
+      IssuePluginAccessTokenMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof issueAppAccessToken>>,
+  Awaited<ReturnType<typeof issuePluginAccessToken>>,
   TError,
-  IssueAppAccessTokenMutationVariables,
+  IssuePluginAccessTokenMutationVariables,
   TContext
 > => {
-  return useMutation(getIssueAppAccessTokenMutationOptions(options), queryClient);
+  return useMutation(getIssuePluginAccessTokenMutationOptions(options), queryClient);
 };
 /**
- * The calling app's installs, a page at a time. Takes an app token.
+ * The calling plug-in's installs, a page at a time. Takes a plug-in token.
  *
  * The next page, when there is one, is named in a ``Link`` header
  * (RFC 8288, ``rel="next"``) carrying the ``cursor`` to ask with.
- * @summary List App Installations
+ * @summary List Plugin Installations
  */
-export const listAppInstallations = (
-  params?: ListAppInstallationsParams,
+export const listPluginInstallations = (
+  params?: ListPluginInstallationsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppInstallationRead[]>(
-    { url: `/api/v1/app-platform/installations`, method: "GET", params, signal },
+  return apiMutator<PluginInstallationRead[]>(
+    { url: `/api/v1/plugin-platform/installations`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListAppInstallationsQueryKey = (params?: ListAppInstallationsParams) => {
-  return [`/api/v1/app-platform/installations`, ...(params ? [params] : [])] as const;
+export const getListPluginInstallationsQueryKey = (params?: ListPluginInstallationsParams) => {
+  return [`/api/v1/plugin-platform/installations`, ...(params ? [params] : [])] as const;
 };
 
-export const getListAppInstallationsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAppInstallations>>,
+export const getListPluginInstallationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPluginInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsParams,
+  params?: ListPluginInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListAppInstallationsQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListPluginInstallationsQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppInstallations>>> = ({ signal }) =>
-    listAppInstallations(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPluginInstallations>>> = ({
+    signal,
+  }) => listPluginInstallations(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAppInstallations>>,
+    Awaited<ReturnType<typeof listPluginInstallations>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAppInstallationsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAppInstallations>>
+export type ListPluginInstallationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPluginInstallations>>
 >;
-export type ListAppInstallationsQueryError = ErrorType<HTTPValidationError>;
+export type ListPluginInstallationsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAppInstallations<
-  TData = Awaited<ReturnType<typeof listAppInstallations>>,
+export function useListPluginInstallations<
+  TData = Awaited<ReturnType<typeof listPluginInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListAppInstallationsParams,
+  params: undefined | ListPluginInstallationsParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginInstallations>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppInstallations>>,
+          Awaited<ReturnType<typeof listPluginInstallations>>,
           TError,
-          Awaited<ReturnType<typeof listAppInstallations>>
+          Awaited<ReturnType<typeof listPluginInstallations>>
         >,
         "initialData"
       >;
@@ -374,20 +382,20 @@ export function useListAppInstallations<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppInstallations<
-  TData = Awaited<ReturnType<typeof listAppInstallations>>,
+export function useListPluginInstallations<
+  TData = Awaited<ReturnType<typeof listPluginInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsParams,
+  params?: ListPluginInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginInstallations>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppInstallations>>,
+          Awaited<ReturnType<typeof listPluginInstallations>>,
           TError,
-          Awaited<ReturnType<typeof listAppInstallations>>
+          Awaited<ReturnType<typeof listPluginInstallations>>
         >,
         "initialData"
       >;
@@ -395,37 +403,37 @@ export function useListAppInstallations<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppInstallations<
-  TData = Awaited<ReturnType<typeof listAppInstallations>>,
+export function useListPluginInstallations<
+  TData = Awaited<ReturnType<typeof listPluginInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsParams,
+  params?: ListPluginInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List App Installations
+ * @summary List Plugin Installations
  */
 
-export function useListAppInstallations<
-  TData = Awaited<ReturnType<typeof listAppInstallations>>,
+export function useListPluginInstallations<
+  TData = Awaited<ReturnType<typeof listPluginInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsParams,
+  params?: ListPluginInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAppInstallationsQueryOptions(params, options);
+  const queryOptions = getListPluginInstallationsQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -435,7 +443,7 @@ export function useListAppInstallations<
 }
 
 /**
- * Ask a member to let this app act as them, for one purpose.
+ * Ask a member to let this plug-in act as them, for one purpose.
  *
  * Takes an installation token. ``200`` returns a request already made for
  * that member and purpose, as it stands; ``201`` a new one, and the member is
@@ -447,16 +455,16 @@ export function useListAppInstallations<
  * @summary Request Member Consent
  */
 export const requestMemberConsent = (
-  appConsentRequestCreate: BodyType<AppConsentRequestCreate>,
+  pluginConsentRequestCreate: BodyType<PluginConsentRequestCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppConsentRequestRead>(
+  return apiMutator<PluginConsentRequestRead>(
     {
-      url: `/api/v1/app-platform/consent-requests`,
+      url: `/api/v1/plugin-platform/consent-requests`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: appConsentRequestCreate,
+      data: pluginConsentRequestCreate,
       signal,
     },
     options
@@ -504,9 +512,9 @@ export const getRequestMemberConsentMutationOptions = <
 export type RequestMemberConsentMutationResult = NonNullable<
   Awaited<ReturnType<typeof requestMemberConsent>>
 >;
-export type RequestMemberConsentMutationBody = BodyType<AppConsentRequestCreate>;
+export type RequestMemberConsentMutationBody = BodyType<PluginConsentRequestCreate>;
 export type RequestMemberConsentMutationError = ErrorType<HTTPValidationError>;
-export type RequestMemberConsentMutationVariables = { data: BodyType<AppConsentRequestCreate> };
+export type RequestMemberConsentMutationVariables = { data: BodyType<PluginConsentRequestCreate> };
 
 /**
  * @summary Request Member Consent

@@ -31,7 +31,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * sub-tool sits in (a task's project, an event's calendar). Each value's
  * definition must belong to the same initiative, so a row that belongs to no
  * initiative carries none. Values are validated against each definition's
- * type and options. An installed app names the person a person-valued
+ * type and options. An installed plug-in names the person a person-valued
  * property holds by its reference for them. An empty list clears them all.
  * @summary Set Properties
  */

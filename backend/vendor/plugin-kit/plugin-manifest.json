@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://initiative.morels.me/schemas/plugin-manifest-v1.json",
-  "title": "Initiative app manifest (the 'definition' body)",
-  "description": "What an app declares it can do. An app is a container, which names its `service` and answers Initiative's calls, or declarative, which names its `hosts` and no service, and whose endpoints, connection checks and webhook events Initiative runs itself from the requests and JSONata expressions written here; one app is never both. This is the 'definition' field of the document served at /.well-known/initiative-plugin.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, whether every expression parses, what a declarative request and its steps name, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here.",
+  "title": "Initiative plug-in manifest (the 'definition' body)",
+  "description": "What a plug-in declares it can do. A plug-in is a container, which names its `service` and answers Initiative's calls, or declarative, which names its `hosts` and no service, and whose endpoints, connection checks and webhook events Initiative runs itself from the requests and JSONata expressions written here; one plug-in is never both. This is the 'definition' field of the document served at /.well-known/initiative-plugin.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, whether every expression parses, what a declarative request and its steps name, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here.",
   "type": "object",
   "required": [
     "plugin_kind",
@@ -11,7 +11,7 @@
   "properties": {
     "plugin_kind": {
       "const": "service",
-      "description": "The kind every app manifest has, container or declarative: a declarative app is one with no 'service' block."
+      "description": "The kind every plug-in manifest has, container or declarative: a declarative plug-in is one with no 'service' block."
     },
     "service": {
       "type": "object",
@@ -23,7 +23,7 @@
           "type": "string",
           "maxLength": 120,
           "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*\\.[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*$",
-          "description": "'<publisher>.<slug>'. The name the deployment's registration is matched by, and the namespace this app's events are emitted under."
+          "description": "'<publisher>.<slug>'. The name the deployment's registration is matched by, and the namespace this plug-in's events are emitted under."
         },
         "protocol": {
           "enum": [
@@ -76,10 +76,10 @@
               }
             ]
           },
-          "description": "The scopes this app asks a community to grant: what its installation and member tokens act with. The fixed scopes, and 'apps:<public_id>' for each app this one calls (at most 24 of those). The community grants some or all of them when it installs the app, and a token never carries more than was granted. Writing implies reading. Absent means none."
+          "description": "The scopes this plug-in asks a community to grant: what its installation and member tokens act with. The fixed scopes, and 'plugins:<public_id>' for each plug-in this one calls (at most 24 of those). The community grants some or all of them when it installs the plug-in, and a token never carries more than was granted. Writing implies reading. Absent means none."
         }
       },
-      "description": "A container app's service, which Initiative calls. Absent for a declarative app, whose public id is its listing's."
+      "description": "A container plug-in's service, which Initiative calls. Absent for a declarative plug-in, whose public id is its listing's."
     },
     "features": {
       "type": "array",
@@ -92,7 +92,7 @@
           "widgets"
         ]
       },
-      "description": "What this app contributes. Cross-checked against the blocks present in both directions: a feature with no block, or a block with no feature, is refused."
+      "description": "What this plug-in contributes. Cross-checked against the blocks present in both directions: a feature with no block, or a block with no feature, is refused."
     },
     "default_name": {
       "type": "string",
@@ -106,11 +106,11 @@
       "items": {
         "$ref": "#/$defs/host"
       },
-      "description": "Declarative apps, which must name at least one: every host their requests, paging and links may reach. A container app names none."
+      "description": "Declarative plug-ins, which must name at least one: every host their requests, paging and links may reach. A container plug-in names none."
     },
     "auth": {
       "$ref": "#/$defs/vendorAuth",
-      "description": "Declarative apps only."
+      "description": "Declarative plug-ins only."
     },
     "vendor": {
       "$ref": "#/$defs/vendor"
@@ -131,7 +131,7 @@
       "items": {
         "$ref": "#/$defs/schedule"
       },
-      "description": "What Initiative calls the app's schedule hook for, and how often. At most 8."
+      "description": "What Initiative calls the plug-in's schedule hook for, and how often. At most 8."
     },
     "endpoints": {
       "type": "array",
@@ -142,7 +142,7 @@
     },
     "community_summary": {
       "$ref": "#/$defs/namespacedId",
-      "description": "A read endpoint whose declared returns describe this community's standing with your service — what it has used, what it is allowed. A deployment may render them on the community's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
+      "description": "A read endpoint whose declared returns describe this community's standing with your service — what it has used, what it is allowed. A deployment may render them on the community's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: a plug-in the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
     },
     "widgets": {
       "type": "array",
@@ -164,7 +164,7 @@
       "items": {
         "$ref": "#/$defs/bundledDashboard"
       },
-      "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to communities that install the app."
+      "description": "Ready-made arrangements of this plug-in's own widgets. Publishing the plug-in publishes one ordinary dashboard listing per entry, offered to communities that install the plug-in."
     }
   },
   "$defs": {
@@ -179,7 +179,7 @@
       "minLength": 1,
       "maxLength": 200,
       "pattern": "^(?!.*(?://|\\.\\.))/[\\-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz]*$",
-      "description": "A route on the app's own service, never an address. The deployment joins it to the base URL its registration supplies."
+      "description": "A route on the plug-in's own service, never an address. The deployment joins it to the base URL its registration supplies."
     },
     "localizedText": {
       "type": "object",
@@ -280,7 +280,7 @@
         "managed": {
           "type": "boolean",
           "default": false,
-          "description": "Returned by the app's after_connect hook when a flow finishes; it is not typed into the settings form."
+          "description": "Returned by the plug-in's after_connect hook when a flow finishes; it is not typed into the settings form."
         }
       },
       "if": {
@@ -347,7 +347,7 @@
         "required": {
           "type": "boolean",
           "default": false,
-          "description": "The app is not live on a deployment until every required value is set."
+          "description": "The plug-in is not live on a deployment until every required value is set."
         },
         "label": {
           "$ref": "#/$defs/localizedText"
@@ -379,7 +379,7 @@
         },
         "values": {
           "type": "object",
-          "description": "Which vendor value each of GitHub's answers is written to: one of this app's vendor field keys to one field of GitHub's manifest-conversion response. Every key must be a field of the vendor block, each response field is written at most once, and 'client_secret', 'pem' and 'webhook_secret' are written only to a 'secret' field.",
+          "description": "Which vendor value each of GitHub's answers is written to: one of this plug-in's vendor field keys to one field of GitHub's manifest-conversion response. Every key must be a field of the vendor block, each response field is written at most once, and 'client_secret', 'pem' and 'webhook_secret' are written only to a 'secret' field.",
           "minProperties": 1,
           "maxProperties": 6,
           "propertyNames": {
@@ -400,7 +400,7 @@
     },
     "githubAppManifest": {
       "type": "object",
-      "description": "What GitHub is asked to create: the parts of a GitHub App manifest an app decides.",
+      "description": "What GitHub is asked to create: the parts of a GitHub App manifest a plug-in decides.",
       "required": [
         "name",
         "url"
@@ -489,11 +489,11 @@
         },
         "options_from": {
           "type": "object",
-          "description": "Where this parameter's values come from when only the app can know them. Names a read endpoint in THIS manifest and which of its returns holds the values; a consumer building a form asks the deployment to resolve it rather than showing a text box. For everything a manifest cannot list because the answer differs per install and changes after it — a repository, a channel, a board, a project. `options` is the other case: a set that is the same on every deployment forever. Declaring values, not a control: what to draw is still the consumer's. Resolution is server-side, inherits the source endpoint's `requires` and `cache_ttl_seconds`, and a source that cannot be resolved leaves the parameter enterable rather than unusable.",
+          "description": "Where this parameter's values come from when only the plug-in can know them. Names a read endpoint in THIS manifest and which of its returns holds the values; a consumer building a form asks the deployment to resolve it rather than showing a text box. For everything a manifest cannot list because the answer differs per install and changes after it — a repository, a channel, a board, a project. `options` is the other case: a set that is the same on every deployment forever. Declaring values, not a control: what to draw is still the consumer's. Resolution is server-side, inherits the source endpoint's `requires` and `cache_ttl_seconds`, and a source that cannot be resolved leaves the parameter enterable rather than unusable.",
           "properties": {
             "endpoint": {
               "$ref": "#/$defs/namespacedId",
-              "description": "A read endpoint this same manifest declares. Not another app's: reading across apps has no consent story, and an id from elsewhere is refused on publish."
+              "description": "A read endpoint this same manifest declares. Not another plug-in's: reading across plug-ins has no consent story, and an id from elsewhere is refused on publish."
             },
             "key": {
               "$ref": "#/$defs/identifier",
@@ -523,7 +523,7 @@
         "list": {
           "type": "boolean",
           "default": false,
-          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
+          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, a plug-in wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
         }
       },
       "if": {
@@ -599,11 +599,11 @@
           "items": {
             "$ref": "#/$defs/connectionField"
           },
-          "description": "Without a 'flow', what an admin types. With one, only the values the app's after_connect hook returns, and every field is 'managed'. The tokens a flow obtains are held apart from these, under reserved keys the app never declares."
+          "description": "Without a 'flow', what an admin types. With one, only the values the plug-in's after_connect hook returns, and every field is 'managed'. The tokens a flow obtains are held apart from these, under reserved keys the plug-in never declares."
         },
         "flow": {
           "$ref": "#/$defs/connectionFlow",
-          "description": "How the connection is established. Initiative runs it: the redirect, the code exchange, refreshing and revoking. The app never holds the vendor client's secret or a refresh token."
+          "description": "How the connection is established. Initiative runs it: the redirect, the code exchange, refreshing and revoking. The plug-in never holds the vendor client's secret or a refresh token."
         },
         "token": {
           "$ref": "#/$defs/connectionToken",
@@ -685,7 +685,7 @@
         "install_url": {
           "type": "string",
           "maxLength": 300,
-          "description": "Static connections only. The vendor's install page, for a connection an organization installs: the person installs first, the vendor returns to the setup address with the installation's id, and one authorization trip follows so the app can check who installed it. Requires 'after_connect'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+          "description": "Static connections only. The vendor's install page, for a connection an organization installs: the person installs first, the vendor returns to the setup address with the installation's id, and one authorization trip follows so the plug-in can check who installed it. Requires 'after_connect'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
         },
         "after_connect": {
           "anyOf": [
@@ -697,7 +697,7 @@
             }
           ],
           "default": false,
-          "description": "What runs once the code is exchanged, with the fresh access token, to learn the connection's managed values and an account label, or to refuse it. A container app sets true, and Initiative calls its after_connect hook; a declarative app gives the call and its mapping."
+          "description": "What runs once the code is exchanged, with the fresh access token, to learn the connection's managed values and an account label, or to refuse it. A container plug-in sets true, and Initiative calls its after_connect hook; a declarative plug-in gives the call and its mapping."
         },
         "revoke": {
           "enum": [
@@ -705,7 +705,7 @@
             "hook",
             "rfc7009"
           ],
-          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials; 'github_grant' sends DELETE to 'revoke_url' (GitHub's 'Delete an app authorization') with the client's credentials as HTTP Basic auth and the access token in the JSON body as 'access_token'; 'hook' calls the app's revoke hook with the tokens, so a container app's only. Absent: the tokens are deleted and nothing is sent."
+          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials; 'github_grant' sends DELETE to 'revoke_url' (GitHub's 'Delete an app authorization') with the client's credentials as HTTP Basic auth and the access token in the JSON body as 'access_token'; 'hook' calls the plug-in's revoke hook with the tokens, so a container plug-in's only. Absent: the tokens are deleted and nothing is sent."
         },
         "revoke_url": {
           "type": "string",
@@ -765,7 +765,7 @@
     },
     "webhooks": {
       "type": "object",
-      "description": "The vendor's webhooks, received by Initiative at one address per app on the deployment, '/api/v1/plugin-hooks/<public_id>'. Initiative checks each delivery's signature, drops one it has already delivered, finds the communities it belongs to by a value in its body, and forwards it to the app's webhook hook once for each. A container app's hook receives each delivery; a declarative app maps it with 'events' and 'status' instead.",
+      "description": "The vendor's webhooks, received by Initiative at one address per plug-in on the deployment, '/api/v1/plugin-hooks/<public_id>'. Initiative checks each delivery's signature, drops one it has already delivered, finds the communities it belongs to by a value in its body, and forwards it to the plug-in's webhook hook once for each. A container plug-in's hook receives each delivery; a declarative plug-in maps it with 'events' and 'status' instead.",
       "required": [
         "verify",
         "dedup",
@@ -792,7 +792,7 @@
           "items": {
             "$ref": "#/$defs/webhookEvent"
           },
-          "description": "Declarative apps: how a delivery becomes one of this app's events. The first row whose 'when' holds emits; a delivery no row matches is dropped."
+          "description": "Declarative plug-ins: how a delivery becomes one of this plug-in's events. The first row whose 'when' holds emits; a delivery no row matches is dropped."
         },
         "status": {
           "type": "array",
@@ -801,7 +801,7 @@
           "items": {
             "$ref": "#/$defs/webhookStatus"
           },
-          "description": "Declarative apps: deliveries that say what state a connection is in at the vendor. The first row whose 'when' holds sets it."
+          "description": "Declarative plug-ins: deliveries that say what state a connection is in at the vendor. The first row whose 'when' holds sets it."
         }
       }
     },
@@ -872,7 +872,7 @@
         },
         "connection": {
           "$ref": "#/$defs/identifier",
-          "description": "A static connection this app declares."
+          "description": "A static connection this plug-in declares."
         },
         "field": {
           "$ref": "#/$defs/identifier",
@@ -882,7 +882,7 @@
     },
     "schedule": {
       "type": "object",
-      "description": "An interval at which Initiative calls the app's schedule hook, once for each community that installed it, with when the call last succeeded there.",
+      "description": "An interval at which Initiative calls the plug-in's schedule hook, once for each community that installed it, with when the call last succeeded there.",
       "required": [
         "id",
         "every"
@@ -904,12 +904,12 @@
       "type": "string",
       "maxLength": 200,
       "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-      "description": "Namespaced under the app's own service id — 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+      "description": "Namespaced under the plug-in's own service id — 'plugin.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
     },
     "pluginScope": {
       "type": "string",
-      "pattern": "^apps:[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*\\.[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*$",
-      "description": "'apps:<public_id>': permission to call another app's public endpoints through the deployment, as this community or as one of its members. Not one of the fixed scopes: the family is open, one per app, and the public id after the prefix is the app being called. The deployment never lets an app address another directly; the call goes through it, and the app called is handed its own references for whoever the call is for."
+      "pattern": "^plugins:[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*\\.[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*$",
+      "description": "'plugins:<public_id>': permission to call another plug-in's public endpoints through the deployment, as this community or as one of its members. Not one of the fixed scopes: the family is open, one per plug-in, and the public id after the prefix is the plug-in being called. The deployment never lets a plug-in address another directly; the call goes through it, and the plug-in called is handed its own references for whoever the call is for."
     },
     "endpoint": {
       "type": "object",
@@ -939,7 +939,7 @@
         },
         "group": {
           "$ref": "#/$defs/identifier",
-          "description": "Where a consumer that groups an app's endpoints should file this one. Opaque here: the grouping is the consumer's, and an endpoint that says nothing sits in the flat list."
+          "description": "Where a consumer that groups a plug-in's endpoints should file this one. Opaque here: the grouping is the consumer's, and an endpoint that says nothing sits in the flat list."
         },
         "needs_subject": {
           "$ref": "#/$defs/identifier",
@@ -951,7 +951,7 @@
             "read",
             "write"
           ],
-          "description": "'read' and 'write' are called through the deployment and answer in place; 'emit' travels the other way — the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+          "description": "'read' and 'write' are called through the deployment and answer in place; 'emit' travels the other way — the plug-in posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
         },
         "params": {
           "type": "array",
@@ -971,7 +971,7 @@
               "member"
             ]
           },
-          "description": "Whose credential the call runs on, best first. Read and write only. An endpoint offering only 'member' refuses when that member has connected nothing, rather than quietly acting as the app instead."
+          "description": "Whose credential the call runs on, best first. Read and write only. An endpoint offering only 'member' refuses when that member has connected nothing, rather than quietly acting as the plug-in instead."
         },
         "admin_only": {
           "type": "boolean",
@@ -981,7 +981,7 @@
         "public": {
           "type": "boolean",
           "default": false,
-          "description": "Read and write only. Other apps may call this endpoint through the deployment, when the community has let them use this app ('apps:<your public id>'). A caller acts as the community or as one of its members, and `actors` says which of the two this endpoint takes: one that names neither is not callable this way. A write endpoint is reachable only like this; a widget binds reads alone. Absent means only the deployment's own surfaces reach it."
+          "description": "Read and write only. Other plug-ins may call this endpoint through the deployment, when the community has let them use this plug-in ('plugins:<your public id>'). A caller acts as the community or as one of its members, and `actors` says which of the two this endpoint takes: one that names neither is not callable this way. A write endpoint is reachable only like this; a widget binds reads alone. Absent means only the deployment's own surfaces reach it."
         },
         "requires": {
           "$ref": "#/$defs/requires"
@@ -1006,7 +1006,7 @@
         },
         "request": {
           "$ref": "#/$defs/vendorRequest",
-          "description": "Declarative apps: the one call that answers this endpoint. Not beside 'steps'."
+          "description": "Declarative plug-ins: the one call that answers this endpoint. Not beside 'steps'."
         },
         "steps": {
           "type": "array",
@@ -1015,11 +1015,11 @@
           "items": {
             "$ref": "#/$defs/requestStep"
           },
-          "description": "Declarative apps: up to 3 calls made in order, each able to read the answers of the ones before it. Not beside 'request'."
+          "description": "Declarative plug-ins: up to 3 calls made in order, each able to read the answers of the ones before it. Not beside 'request'."
         },
         "map": {
           "$ref": "#/$defs/expression",
-          "description": "Declarative apps: the endpoint's answer, from 'response' (the last call's answer) and 'steps': an object of its declared returns, or {\"unavailable\": \"<code>\"} naming one of its codes."
+          "description": "Declarative plug-ins: the endpoint's answer, from 'response' (the last call's answer) and 'steps': an object of its declared returns, or {\"unavailable\": \"<code>\"} naming one of its codes."
         },
         "errors": {
           "type": "array",
@@ -1027,7 +1027,7 @@
           "items": {
             "$ref": "#/$defs/errorRule"
           },
-          "description": "Declarative apps: vendor answers this endpoint gives its own meaning, tried on every answer before the defaults. The defaults: 401 and 403 are not-authorized, 404 not-found, 400, 422 and any other 4xx invalid, and 429, 3xx and 5xx transient."
+          "description": "Declarative plug-ins: vendor answers this endpoint gives its own meaning, tried on every answer before the defaults. The defaults: 401 and 403 are not-authorized, 404 not-found, 400, 422 and any other 4xx invalid, and 429, 3xx and 5xx transient."
         }
       },
       "additionalProperties": false
@@ -1140,14 +1140,14 @@
           "minLength": 14,
           "maxLength": 14,
           "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]+$",
-          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the plug-in's."
         },
         "public_id": {
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
           "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-          "description": "'<publisher>.<slug>', and not the app's own — a bundled dashboard is a separate listing."
+          "description": "'<publisher>.<slug>', and not the plug-in's own — a bundled dashboard is a separate listing."
         },
         "name": {
           "type": "string",
@@ -1190,7 +1190,7 @@
         },
         "type": {
           "$ref": "#/$defs/identifier",
-          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the plug-in's uid on when it publishes, so the two can never disagree."
         },
         "title": {
           "type": "string",
@@ -1247,7 +1247,7 @@
     },
     "endpointIdentity": {
       "type": "object",
-      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
+      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for a plug-in there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
       "required": [
         "kind",
         "key"
@@ -1255,7 +1255,7 @@
       "properties": {
         "kind": {
           "$ref": "#/$defs/identifier",
-          "description": "Your own word for what sort of thing this is ('issue'). Namespaced by your public id downstream, because two apps declaring the same kind mean two different things."
+          "description": "Your own word for what sort of thing this is ('issue'). Namespaced by your public id downstream, because two plug-ins declaring the same kind mean two different things."
         },
         "key": {
           "type": "array",
@@ -1280,7 +1280,7 @@
       "minLength": 1,
       "maxLength": 253,
       "pattern": "^(\\*\\.)?[a-z0-9-]+(\\.[a-z0-9-]+)+$",
-      "description": "A host a declarative app calls, in lowercase: exact ('api.github.com'), or with one leading '*.' that stands for exactly one label ('*.myshopify.com'). No scheme, port or path: every call is https on port 443, and goes only to a public address."
+      "description": "A host a declarative plug-in calls, in lowercase: exact ('api.github.com'), or with one leading '*.' that stands for exactly one label ('*.myshopify.com'). No scheme, port or path: every call is https on port 443, and goes only to a public address."
     },
     "headerName": {
       "type": "string",
@@ -1296,7 +1296,7 @@
     },
     "vendorAuth": {
       "type": "object",
-      "description": "How Initiative puts a connection's credential on a declarative app's requests: one header, holding the prefix and the token joined by a space. Absent: 'Authorization: Bearer <token>'.",
+      "description": "How Initiative puts a connection's credential on a declarative plug-in's requests: one header, holding the prefix and the token joined by a space. Absent: 'Authorization: Bearer <token>'.",
       "properties": {
         "header": {
           "$ref": "#/$defs/headerName",
@@ -1313,7 +1313,7 @@
     },
     "vendorRequest": {
       "type": "object",
-      "description": "One call Initiative makes to the vendor for a declarative app, rendered from expressions. Initiative adds the credential itself, as 'auth' says, and follows no redirect.",
+      "description": "One call Initiative makes to the vendor for a declarative plug-in, rendered from expressions. Initiative adds the credential itself, as 'auth' says, and follows no redirect.",
       "required": [
         "method",
         "url"
@@ -1330,7 +1330,7 @@
         },
         "url": {
           "$ref": "#/$defs/expression",
-          "description": "The address, as an expression answering a string: https, on one of the app's hosts. Query parameters may be written into it or given in 'query'."
+          "description": "The address, as an expression answering a string: https, on one of the plug-in's hosts. Query parameters may be written into it or given in 'query'."
         },
         "query": {
           "type": "object",
@@ -1466,7 +1466,7 @@
     },
     "linkHeaderPaging": {
       "type": "object",
-      "description": "The address in the Link header's rel=\"next\", followed until there is none. It must be https on one of the app's hosts.",
+      "description": "The address in the Link header's rel=\"next\", followed until there is none. It must be https on one of the plug-in's hosts.",
       "required": [
         "kind",
         "max_pages",
@@ -1590,7 +1590,7 @@
     },
     "afterConnect": {
       "type": "object",
-      "description": "A declarative app's after_connect: a request, or up to 3 steps, made with the access token just obtained, and the answers mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
+      "description": "A declarative plug-in's after_connect: a request, or up to 3 steps, made with the access token just obtained, and the answers mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
       "required": [
         "map"
       ],
@@ -1637,7 +1637,7 @@
     },
     "connectionHealth": {
       "type": "object",
-      "description": "Declarative apps: a request Initiative makes on an interval, with this connection's credential, to learn whether the connection still works. A state other than 'ok' is reported once two answers in a row give it.",
+      "description": "Declarative plug-ins: a request Initiative makes on an interval, with this connection's credential, to learn whether the connection still works. A state other than 'ok' is reported once two answers in a row give it.",
       "required": [
         "request",
         "every",
@@ -1729,7 +1729,7 @@
         },
         "connection": {
           "$ref": "#/$defs/identifier",
-          "description": "A connection this app declares."
+          "description": "A connection this plug-in declares."
         },
         "state": {
           "enum": [

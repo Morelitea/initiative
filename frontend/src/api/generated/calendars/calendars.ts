@@ -56,7 +56,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * List calendars visible to the current user (guild admins see all).
  *
  * ``scope=community`` narrows to the guild's own calendars — the ones the calendar
- * app holds, belonging to no initiative. That is the opposite of the
+ * plug-in holds, belonging to no initiative. That is the opposite of the
  * unfiltered list, which is everything in scope, so it is asked for by name
  * rather than inferred from an absent ``initiative_id``.
  * @summary List Calendars
@@ -193,10 +193,10 @@ export function useListCalendars<
  * admin), and its creator gets the owner grant. A **guild** calendar —
  * ``initiative_id`` omitted — belongs to no initiative, so neither has
  * anything to say about it: it is the guild admin's to make. It needs the
- * calendar app, whose install owns it and whose removal takes it along.
+ * calendar plug-in, whose install owns it and whose removal takes it along.
  *
- * An installed app creates initiative calendars only: a guild calendar is
- * owned by the calendar app's install, which is community configuration.
+ * An installed plug-in creates initiative calendars only: a guild calendar is
+ * owned by the calendar plug-in's install, which is community configuration.
  * What it creates is owned by its install, whose owner row the table's
  * trigger writes; it sets no initial sharing.
  * @summary Create Calendar
@@ -702,7 +702,7 @@ export const useSetCalendarGrants = <TError = ErrorType<HTTPValidationError>, TC
   return useMutation(getSetCalendarGrantsMutationOptions(options), queryClient);
 };
 /**
- * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed plug-in's copy carries them only when it holds the scope to tag.
  * @summary Duplicate Calendar
  */
 export const duplicateCalendar = (

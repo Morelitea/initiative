@@ -21,29 +21,29 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AppDataResponse,
-  AppParamOptionsResponse,
-  AppPlacementRead,
-  AppPlacementUpdate,
-  AppWidgetCatalogResponse,
-  CommunityAppConfigUpdate,
-  CommunityAppConnectStart,
-  CommunityAppConsentAnswer,
-  CommunityAppConsentRead,
-  CommunityAppDecline,
-  CommunityAppDetail,
-  CommunityAppHandoff,
-  CommunityAppInstall,
-  CommunityAppListResponse,
-  CommunityAppMembersResponse,
-  CommunityAppRead,
-  CommunityAppScopesUpdate,
-  CommunityAppUpdate,
-  CommunityAppUpgrade,
+  CommunityPluginConfigUpdate,
+  CommunityPluginConnectStart,
+  CommunityPluginConsentAnswer,
+  CommunityPluginConsentRead,
+  CommunityPluginDecline,
+  CommunityPluginDetail,
+  CommunityPluginHandoff,
+  CommunityPluginInstall,
+  CommunityPluginListResponse,
+  CommunityPluginMembersResponse,
+  CommunityPluginRead,
+  CommunityPluginScopesUpdate,
+  CommunityPluginUpdate,
+  CommunityPluginUpgrade,
   HTTPValidationError,
-  ListCommunityAppMembersParams,
-  ReadAppDataParams,
-  ReadAppParamOptionsParams,
+  ListCommunityPluginMembersParams,
+  PluginDataResponse,
+  PluginParamOptionsResponse,
+  PluginPlacementRead,
+  PluginPlacementUpdate,
+  PluginWidgetCatalogResponse,
+  ReadPluginDataParams,
+  ReadPluginParamOptionsParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -67,80 +67,81 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * Which widgets this guild's installed apps contribute.
+ * Which widgets this guild's installed plug-ins contribute.
  *
- * Every member may read it: an app's existence is guild-wide knowledge and the
+ * Every member may read it: a plug-in's existence is guild-wide knowledge and the
  * palette carries no guild data — declarations, module source, and sample
  * rows, all from the pinned definition. An endpoint declared for guild admins
  * is still listed, and still refused at fetch time to anyone else.
  *
  * Disabled installs are left out entirely: their widgets have nothing to draw,
  * so offering them would be offering a binding that cannot resolve.
- * @summary Read App Widget Catalog
+ * @summary Read Plugin Widget Catalog
  */
-export const readAppWidgetCatalog = (
+export const readPluginWidgetCatalog = (
   communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppWidgetCatalogResponse>(
-    { url: `/api/v1/c/${communityId}/apps/widget-catalog`, method: "GET", signal },
+  return apiMutator<PluginWidgetCatalogResponse>(
+    { url: `/api/v1/c/${communityId}/plugins/widget-catalog`, method: "GET", signal },
     options
   );
 };
 
-export const getReadAppWidgetCatalogQueryKey = (communityId: number) => {
-  return [`/api/v1/c/${communityId}/apps/widget-catalog`] as const;
+export const getReadPluginWidgetCatalogQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/plugins/widget-catalog`] as const;
 };
 
-export const getReadAppWidgetCatalogQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+export const getReadPluginWidgetCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getReadAppWidgetCatalogQueryKey(communityId);
+  const queryKey = queryOptions?.queryKey ?? getReadPluginWidgetCatalogQueryKey(communityId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppWidgetCatalog>>> = ({ signal }) =>
-    readAppWidgetCatalog(communityId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPluginWidgetCatalog>>> = ({
+    signal,
+  }) => readPluginWidgetCatalog(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type ReadAppWidgetCatalogQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppWidgetCatalog>>
+export type ReadPluginWidgetCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readPluginWidgetCatalog>>
 >;
-export type ReadAppWidgetCatalogQueryError = ErrorType<HTTPValidationError>;
+export type ReadPluginWidgetCatalogQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAppWidgetCatalog<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+export function useReadPluginWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+          Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readAppWidgetCatalog>>
+          Awaited<ReturnType<typeof readPluginWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -148,20 +149,20 @@ export function useReadAppWidgetCatalog<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppWidgetCatalog<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+export function useReadPluginWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+          Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readAppWidgetCatalog>>
+          Awaited<ReturnType<typeof readPluginWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -169,37 +170,37 @@ export function useReadAppWidgetCatalog<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppWidgetCatalog<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+export function useReadPluginWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read App Widget Catalog
+ * @summary Read Plugin Widget Catalog
  */
 
-export function useReadAppWidgetCatalog<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
+export function useReadPluginWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readPluginWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppWidgetCatalogQueryOptions(communityId, options);
+  const queryOptions = getReadPluginWidgetCatalogQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -209,25 +210,25 @@ export function useReadAppWidgetCatalog<
 }
 
 /**
- * One of an app's read endpoints, resolved for this viewer.
+ * One of a plug-in's read endpoints, resolved for this viewer.
  *
- * Returns the app's rows verbatim with the time they were obtained. An app
+ * Returns the plug-in's rows verbatim with the time they were obtained. A plug-in
  * that is unreachable, slow, oversized, or answering in a shape this build
  * does not accept comes back as a named message code, so the canvas draws one
  * error tile instead of the request becoming a server fault.
- * @summary Read App Data
+ * @summary Read Plugin Data
  */
-export const readAppData = (
+export const readPluginData = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppDataResponse>(
+  return apiMutator<PluginDataResponse>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/endpoints/${endpointId}`,
       method: "GET",
       params,
       signal,
@@ -236,38 +237,38 @@ export const readAppData = (
   );
 };
 
-export const getReadAppDataQueryKey = (
+export const getReadPluginDataQueryKey = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params?: ReadAppDataParams
+  params?: ReadPluginDataParams
 ) => {
   return [
-    `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}`,
+    `/api/v1/c/${communityId}/plugins/${pluginId}/endpoints/${endpointId}`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getReadAppDataQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppData>>,
+export const getReadPluginDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPluginData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadAppDataQueryKey(communityId, appId, endpointId, params);
+    queryOptions?.queryKey ?? getReadPluginDataQueryKey(communityId, pluginId, endpointId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppData>>> = ({ signal }) =>
-    readAppData(communityId, appId, endpointId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPluginData>>> = ({ signal }) =>
+    readPluginData(communityId, pluginId, endpointId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -275,34 +276,34 @@ export const getReadAppDataQueryOptions = <
     enabled:
       communityId !== null &&
       communityId !== undefined &&
-      appId !== null &&
-      appId !== undefined &&
+      pluginId !== null &&
+      pluginId !== undefined &&
       endpointId !== null &&
       endpointId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type ReadAppDataQueryResult = NonNullable<Awaited<ReturnType<typeof readAppData>>>;
-export type ReadAppDataQueryError = ErrorType<HTTPValidationError>;
+export type ReadPluginDataQueryResult = NonNullable<Awaited<ReturnType<typeof readPluginData>>>;
+export type ReadPluginDataQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAppData<
-  TData = Awaited<ReturnType<typeof readAppData>>,
+export function useReadPluginData<
+  TData = Awaited<ReturnType<typeof readPluginData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>> &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppData>>,
+          Awaited<ReturnType<typeof readPluginData>>,
           TError,
-          Awaited<ReturnType<typeof readAppData>>
+          Awaited<ReturnType<typeof readPluginData>>
         >,
         "initialData"
       >;
@@ -310,21 +311,21 @@ export function useReadAppData<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppData<
-  TData = Awaited<ReturnType<typeof readAppData>>,
+export function useReadPluginData<
+  TData = Awaited<ReturnType<typeof readPluginData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>> &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppData>>,
+          Awaited<ReturnType<typeof readPluginData>>,
           TError,
-          Awaited<ReturnType<typeof readAppData>>
+          Awaited<ReturnType<typeof readPluginData>>
         >,
         "initialData"
       >;
@@ -332,39 +333,45 @@ export function useReadAppData<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppData<
-  TData = Awaited<ReturnType<typeof readAppData>>,
+export function useReadPluginData<
+  TData = Awaited<ReturnType<typeof readPluginData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read App Data
+ * @summary Read Plugin Data
  */
 
-export function useReadAppData<
-  TData = Awaited<ReturnType<typeof readAppData>>,
+export function useReadPluginData<
+  TData = Awaited<ReturnType<typeof readPluginData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppDataParams,
+  params: ReadPluginDataParams,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppDataQueryOptions(communityId, appId, endpointId, params, options);
+  const queryOptions = getReadPluginDataQueryOptions(
+    communityId,
+    pluginId,
+    endpointId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -382,7 +389,7 @@ export function useReadAppData<
  * row whose gates could decide it.
  *
  * What decides it instead is that the caller never names what is called. The
- * source is read out of the app's own pinned declaration — the
+ * source is read out of the plug-in's own pinned declaration — the
  * ``options_from`` of the parameter being filled in — so the reachable set is
  * exactly the reads a publisher marked as menu sources, and the arguments are
  * the ones that source's ``needs`` names, mapped from answers this same form
@@ -391,19 +398,19 @@ export function useReadAppData<
  *
  * A source that will not resolve is not an error: it comes back as
  * ``unavailable`` with no options, and the parameter stays typeable.
- * @summary Read App Param Options
+ * @summary Read Plugin Param Options
  */
-export const readAppParamOptions = (
+export const readPluginParamOptions = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppParamOptionsResponse>(
+  return apiMutator<PluginParamOptionsResponse>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}/options`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/endpoints/${endpointId}/options`,
       method: "GET",
       params,
       signal,
@@ -412,29 +419,29 @@ export const readAppParamOptions = (
   );
 };
 
-export const getReadAppParamOptionsQueryKey = (
+export const getReadPluginParamOptionsQueryKey = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params?: ReadAppParamOptionsParams
+  params?: ReadPluginParamOptionsParams
 ) => {
   return [
-    `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}/options`,
+    `/api/v1/c/${communityId}/plugins/${pluginId}/endpoints/${endpointId}/options`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getReadAppParamOptionsQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+export const getReadPluginParamOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPluginParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -443,10 +450,10 @@ export const getReadAppParamOptionsQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadAppParamOptionsQueryKey(communityId, appId, endpointId, params);
+    getReadPluginParamOptionsQueryKey(communityId, pluginId, endpointId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppParamOptions>>> = ({ signal }) =>
-    readAppParamOptions(communityId, appId, endpointId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPluginParamOptions>>> = ({ signal }) =>
+    readPluginParamOptions(communityId, pluginId, endpointId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -454,38 +461,38 @@ export const getReadAppParamOptionsQueryOptions = <
     enabled:
       communityId !== null &&
       communityId !== undefined &&
-      appId !== null &&
-      appId !== undefined &&
+      pluginId !== null &&
+      pluginId !== undefined &&
       endpointId !== null &&
       endpointId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type ReadAppParamOptionsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppParamOptions>>
+export type ReadPluginParamOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readPluginParamOptions>>
 >;
-export type ReadAppParamOptionsQueryError = ErrorType<HTTPValidationError>;
+export type ReadPluginParamOptionsQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAppParamOptions<
-  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+export function useReadPluginParamOptions<
+  TData = Awaited<ReturnType<typeof readPluginParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppParamOptions>>,
+          Awaited<ReturnType<typeof readPluginParamOptions>>,
           TError,
-          Awaited<ReturnType<typeof readAppParamOptions>>
+          Awaited<ReturnType<typeof readPluginParamOptions>>
         >,
         "initialData"
       >;
@@ -493,23 +500,23 @@ export function useReadAppParamOptions<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppParamOptions<
-  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+export function useReadPluginParamOptions<
+  TData = Awaited<ReturnType<typeof readPluginParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppParamOptions>>,
+          Awaited<ReturnType<typeof readPluginParamOptions>>,
           TError,
-          Awaited<ReturnType<typeof readAppParamOptions>>
+          Awaited<ReturnType<typeof readPluginParamOptions>>
         >,
         "initialData"
       >;
@@ -517,45 +524,45 @@ export function useReadAppParamOptions<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppParamOptions<
-  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+export function useReadPluginParamOptions<
+  TData = Awaited<ReturnType<typeof readPluginParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read App Param Options
+ * @summary Read Plugin Param Options
  */
 
-export function useReadAppParamOptions<
-  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+export function useReadPluginParamOptions<
+  TData = Awaited<ReturnType<typeof readPluginParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   endpointId: string,
-  params: ReadAppParamOptionsParams,
+  params: ReadPluginParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof readPluginParamOptions>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppParamOptionsQueryOptions(
+  const queryOptions = getReadPluginParamOptionsQueryOptions(
     communityId,
-    appId,
+    pluginId,
     endpointId,
     params,
     options
@@ -569,74 +576,78 @@ export function useReadAppParamOptions<
 }
 
 /**
- * Every app installed in this guild, enabled or not.
+ * Every plug-in installed in this guild, enabled or not.
  *
  * Disabled ones are included so an admin can find and re-enable them; the
- * sidebar filters to enabled. A service app whose registration is gone or
+ * sidebar filters to enabled. A service plug-in whose registration is gone or
  * switched off comes back too, marked unavailable — an install that quietly
  * vanished would leave an admin with nothing to look at and nothing to
  * remove.
- * @summary List Community Apps
+ * @summary List Community Plugins
  */
-export const listCommunityApps = (
+export const listCommunityPlugins = (
   communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppListResponse>(
-    { url: `/api/v1/c/${communityId}/apps/`, method: "GET", signal },
+  return apiMutator<CommunityPluginListResponse>(
+    { url: `/api/v1/c/${communityId}/plugins/`, method: "GET", signal },
     options
   );
 };
 
-export const getListCommunityAppsQueryKey = (communityId: number) => {
-  return [`/api/v1/c/${communityId}/apps/`] as const;
+export const getListCommunityPluginsQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/plugins/`] as const;
 };
 
-export const getListCommunityAppsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCommunityApps>>,
+export const getListCommunityPluginsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityPlugins>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData>
+    >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListCommunityAppsQueryKey(communityId);
+  const queryKey = queryOptions?.queryKey ?? getListCommunityPluginsQueryKey(communityId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityApps>>> = ({ signal }) =>
-    listCommunityApps(communityId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityPlugins>>> = ({ signal }) =>
+    listCommunityPlugins(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type ListCommunityAppsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCommunityApps>>
+export type ListCommunityPluginsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityPlugins>>
 >;
-export type ListCommunityAppsQueryError = ErrorType<HTTPValidationError>;
+export type ListCommunityPluginsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListCommunityApps<
-  TData = Awaited<ReturnType<typeof listCommunityApps>>,
+export function useListCommunityPlugins<
+  TData = Awaited<ReturnType<typeof listCommunityPlugins>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>> &
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData>
+    > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommunityApps>>,
+          Awaited<ReturnType<typeof listCommunityPlugins>>,
           TError,
-          Awaited<ReturnType<typeof listCommunityApps>>
+          Awaited<ReturnType<typeof listCommunityPlugins>>
         >,
         "initialData"
       >;
@@ -644,18 +655,20 @@ export function useListCommunityApps<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommunityApps<
-  TData = Awaited<ReturnType<typeof listCommunityApps>>,
+export function useListCommunityPlugins<
+  TData = Awaited<ReturnType<typeof listCommunityPlugins>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>> &
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData>
+    > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommunityApps>>,
+          Awaited<ReturnType<typeof listCommunityPlugins>>,
           TError,
-          Awaited<ReturnType<typeof listCommunityApps>>
+          Awaited<ReturnType<typeof listCommunityPlugins>>
         >,
         "initialData"
       >;
@@ -663,33 +676,37 @@ export function useListCommunityApps<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommunityApps<
-  TData = Awaited<ReturnType<typeof listCommunityApps>>,
+export function useListCommunityPlugins<
+  TData = Awaited<ReturnType<typeof listCommunityPlugins>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData>
+    >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Community Apps
+ * @summary List Community Plugins
  */
 
-export function useListCommunityApps<
-  TData = Awaited<ReturnType<typeof listCommunityApps>>,
+export function useListCommunityPlugins<
+  TData = Awaited<ReturnType<typeof listCommunityPlugins>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPlugins>>, TError, TData>
+    >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCommunityAppsQueryOptions(communityId, options);
+  const queryOptions = getListCommunityPluginsQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -699,62 +716,62 @@ export function useListCommunityApps<
 }
 
 /**
- * Install a listing as a guild app.
+ * Install a listing as a guild plug-in.
  *
  * The request names a listing; everything stored comes from the catalog row
- * and from what the install creates here. One install per listing: an app
+ * and from what the install creates here. One install per listing: a plug-in
  * mounts a single guild-wide surface, so a second copy would have nothing to
  * be — rename or re-share the one that exists instead.
  *
- * Nothing about connections gates this. An app whose credentials are all
+ * Nothing about connections gates this. A plug-in whose credentials are all
  * supplied per member installs with none present, and members connect their
  * own accounts afterwards if they want what those unlock.
  *
  * The install dialog is the seat's consent, and it lands with the install in
  * one transaction: the scopes granted (checked as ``PUT …/scopes`` checks
- * them), the initiatives the app is placed in (``"all"`` is every initiative
+ * them), the initiatives the plug-in is placed in (``"all"`` is every initiative
  * that exists now), and the built-in roles that open it in each. Anything
  * refused is refused before the install exists.
- * @summary Install Community App
+ * @summary Install Community Plugin
  */
-export const installCommunityApp = (
+export const installCommunityPlugin = (
   communityId: number,
-  communityAppInstall: BodyType<CommunityAppInstall>,
+  communityPluginInstall: BodyType<CommunityPluginInstall>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppRead>(
+  return apiMutator<CommunityPluginRead>(
     {
-      url: `/api/v1/c/${communityId}/apps/`,
+      url: `/api/v1/c/${communityId}/plugins/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: communityAppInstall,
+      data: communityPluginInstall,
       signal,
     },
     options
   );
 };
 
-export const getInstallCommunityAppMutationKey = () => ["installCommunityApp"] as const;
+export const getInstallCommunityPluginMutationKey = () => ["installCommunityPlugin"] as const;
 
-export const getInstallCommunityAppMutationOptions = <
+export const getInstallCommunityPluginMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof installCommunityApp>>,
+    Awaited<ReturnType<typeof installCommunityPlugin>>,
     TError,
-    InstallCommunityAppMutationVariables,
+    InstallCommunityPluginMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof installCommunityApp>>,
+  Awaited<ReturnType<typeof installCommunityPlugin>>,
   TError,
-  InstallCommunityAppMutationVariables,
+  InstallCommunityPluginMutationVariables,
   TContext
 > => {
-  const mutationKey = getInstallCommunityAppMutationKey();
+  const mutationKey = getInstallCommunityPluginMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -762,48 +779,51 @@ export const getInstallCommunityAppMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof installCommunityApp>>,
-    InstallCommunityAppMutationVariables
+    Awaited<ReturnType<typeof installCommunityPlugin>>,
+    InstallCommunityPluginMutationVariables
   > = (props) => {
     const { communityId, data } = props ?? {};
 
-    return installCommunityApp(communityId, data, requestOptions);
+    return installCommunityPlugin(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type InstallCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof installCommunityApp>>
+export type InstallCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installCommunityPlugin>>
 >;
-export type InstallCommunityAppMutationBody = BodyType<CommunityAppInstall>;
-export type InstallCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type InstallCommunityAppMutationVariables = {
+export type InstallCommunityPluginMutationBody = BodyType<CommunityPluginInstall>;
+export type InstallCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type InstallCommunityPluginMutationVariables = {
   communityId: number;
-  data: BodyType<CommunityAppInstall>;
+  data: BodyType<CommunityPluginInstall>;
 };
 
 /**
- * @summary Install Community App
+ * @summary Install Community Plugin
  */
-export const useInstallCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useInstallCommunityPlugin = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof installCommunityApp>>,
+      Awaited<ReturnType<typeof installCommunityPlugin>>,
       TError,
-      InstallCommunityAppMutationVariables,
+      InstallCommunityPluginMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof installCommunityApp>>,
+  Awaited<ReturnType<typeof installCommunityPlugin>>,
   TError,
-  InstallCommunityAppMutationVariables,
+  InstallCommunityPluginMutationVariables,
   TContext
 > => {
-  return useMutation(getInstallCommunityAppMutationOptions(options), queryClient);
+  return useMutation(getInstallCommunityPluginMutationOptions(options), queryClient);
 };
 /**
  * One install with its connections, from the caller's own perspective.
@@ -812,69 +832,74 @@ export const useInstallCommunityApp = <TError = ErrorType<HTTPValidationError>, 
  * caller's own state, and a guild-scoped one reports presence rather than
  * values to everybody but the seat that sets them, so there is nothing here
  * that belongs to somebody else.
- * @summary Get Community App
+ * @summary Get Community Plugin
  */
-export const getCommunityApp = (
+export const getCommunityPlugin = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppDetail>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}`, method: "GET", signal },
+  return apiMutator<CommunityPluginDetail>(
+    { url: `/api/v1/c/${communityId}/plugins/${pluginId}`, method: "GET", signal },
     options
   );
 };
 
-export const getGetCommunityAppQueryKey = (communityId: number, appId: number) => {
-  return [`/api/v1/c/${communityId}/apps/${appId}`] as const;
+export const getGetCommunityPluginQueryKey = (communityId: number, pluginId: number) => {
+  return [`/api/v1/c/${communityId}/plugins/${pluginId}`] as const;
 };
 
-export const getGetCommunityAppQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCommunityApp>>,
+export const getGetCommunityPluginQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityPlugin>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCommunityAppQueryKey(communityId, appId);
+  const queryKey = queryOptions?.queryKey ?? getGetCommunityPluginQueryKey(communityId, pluginId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityApp>>> = ({ signal }) =>
-    getCommunityApp(communityId, appId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityPlugin>>> = ({ signal }) =>
+    getCommunityPlugin(communityId, pluginId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled:
-      communityId !== null && communityId !== undefined && appId !== null && appId !== undefined,
+      communityId !== null &&
+      communityId !== undefined &&
+      pluginId !== null &&
+      pluginId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type GetCommunityAppQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityApp>>>;
-export type GetCommunityAppQueryError = ErrorType<HTTPValidationError>;
+export type GetCommunityPluginQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityPlugin>>
+>;
+export type GetCommunityPluginQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetCommunityApp<
-  TData = Awaited<ReturnType<typeof getCommunityApp>>,
+export function useGetCommunityPlugin<
+  TData = Awaited<ReturnType<typeof getCommunityPlugin>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>> &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCommunityApp>>,
+          Awaited<ReturnType<typeof getCommunityPlugin>>,
           TError,
-          Awaited<ReturnType<typeof getCommunityApp>>
+          Awaited<ReturnType<typeof getCommunityPlugin>>
         >,
         "initialData"
       >;
@@ -882,19 +907,21 @@ export function useGetCommunityApp<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCommunityApp<
-  TData = Awaited<ReturnType<typeof getCommunityApp>>,
+export function useGetCommunityPlugin<
+  TData = Awaited<ReturnType<typeof getCommunityPlugin>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>> &
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData>
+    > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCommunityApp>>,
+          Awaited<ReturnType<typeof getCommunityPlugin>>,
           TError,
-          Awaited<ReturnType<typeof getCommunityApp>>
+          Awaited<ReturnType<typeof getCommunityPlugin>>
         >,
         "initialData"
       >;
@@ -902,35 +929,35 @@ export function useGetCommunityApp<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCommunityApp<
-  TData = Awaited<ReturnType<typeof getCommunityApp>>,
+export function useGetCommunityPlugin<
+  TData = Awaited<ReturnType<typeof getCommunityPlugin>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get Community App
+ * @summary Get Community Plugin
  */
 
-export function useGetCommunityApp<
-  TData = Awaited<ReturnType<typeof getCommunityApp>>,
+export function useGetCommunityPlugin<
+  TData = Awaited<ReturnType<typeof getCommunityPlugin>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityPlugin>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetCommunityAppQueryOptions(communityId, appId, options);
+  const queryOptions = getGetCommunityPluginQueryOptions(communityId, pluginId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -940,65 +967,65 @@ export function useGetCommunityApp<
 }
 
 /**
- * Rename an app, place it, choose how it updates, or turn it off.
+ * Rename a plug-in, place it, choose how it updates, or turn it off.
  *
- * Renaming is always allowed — a guild may call an app whatever it likes.
- * Turning one off is a different matter for an app the deployment provides:
+ * Renaming is always allowed — a guild may call a plug-in whatever it likes.
+ * Turning one off is a different matter for a plug-in the deployment provides:
  * that switch belongs to the operator, so it is refused by name here.
  *
  * ``auto_update`` is the guild's own cadence, and it is on until an admin says
- * otherwise. Turning it off does not freeze the app — it moves the decision to
+ * otherwise. Turning it off does not freeze the plug-in — it moves the decision to
  * this page, where the Update button applies exactly what the sweep would
  * have. It is offered on every install, provided ones included: the operator
- * decides whether an app exists, and the guild decides when it changes under
+ * decides whether a plug-in exists, and the guild decides when it changes under
  * them.
  *
- * ``placed_initiative_ids`` is the whole set of initiatives an app's
+ * ``placed_initiative_ids`` is the whole set of initiatives a plug-in's
  * initiative-scoped surfaces appear in. An initiative that stays placed keeps
  * the roles it had, a new one starts with its moderator role, and one left out
- * is removed. It is the community's own answer to where an app belongs rather
+ * is removed. It is the community's own answer to where a plug-in belongs rather
  * than a permission, so it reads the same for everyone, admins included.
- * @summary Update Community App
+ * @summary Update Community Plugin
  */
-export const updateCommunityApp = (
+export const updateCommunityPlugin = (
   communityId: number,
-  appId: number,
-  communityAppUpdate: BodyType<CommunityAppUpdate>,
+  pluginId: number,
+  communityPluginUpdate: BodyType<CommunityPluginUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppRead>(
+  return apiMutator<CommunityPluginRead>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: communityAppUpdate,
+      data: communityPluginUpdate,
       signal,
     },
     options
   );
 };
 
-export const getUpdateCommunityAppMutationKey = () => ["updateCommunityApp"] as const;
+export const getUpdateCommunityPluginMutationKey = () => ["updateCommunityPlugin"] as const;
 
-export const getUpdateCommunityAppMutationOptions = <
+export const getUpdateCommunityPluginMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCommunityApp>>,
+    Awaited<ReturnType<typeof updateCommunityPlugin>>,
     TError,
-    UpdateCommunityAppMutationVariables,
+    UpdateCommunityPluginMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCommunityApp>>,
+  Awaited<ReturnType<typeof updateCommunityPlugin>>,
   TError,
-  UpdateCommunityAppMutationVariables,
+  UpdateCommunityPluginMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCommunityAppMutationKey();
+  const mutationKey = getUpdateCommunityPluginMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1006,146 +1033,149 @@ export const getUpdateCommunityAppMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCommunityApp>>,
-    UpdateCommunityAppMutationVariables
+    Awaited<ReturnType<typeof updateCommunityPlugin>>,
+    UpdateCommunityPluginMutationVariables
   > = (props) => {
-    const { communityId, appId, data } = props ?? {};
+    const { communityId, pluginId, data } = props ?? {};
 
-    return updateCommunityApp(communityId, appId, data, requestOptions);
+    return updateCommunityPlugin(communityId, pluginId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCommunityApp>>
+export type UpdateCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunityPlugin>>
 >;
-export type UpdateCommunityAppMutationBody = BodyType<CommunityAppUpdate>;
-export type UpdateCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type UpdateCommunityAppMutationVariables = {
+export type UpdateCommunityPluginMutationBody = BodyType<CommunityPluginUpdate>;
+export type UpdateCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommunityPluginMutationVariables = {
   communityId: number;
-  appId: number;
-  data: BodyType<CommunityAppUpdate>;
+  pluginId: number;
+  data: BodyType<CommunityPluginUpdate>;
 };
 
 /**
- * @summary Update Community App
+ * @summary Update Community Plugin
  */
-export const useUpdateCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCommunityApp>>,
-      TError,
-      UpdateCommunityAppMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateCommunityApp>>,
-  TError,
-  UpdateCommunityAppMutationVariables,
-  TContext
-> => {
-  return useMutation(getUpdateCommunityAppMutationOptions(options), queryClient);
-};
-/**
- * Remove an app, ending its access and trashing what it created
- * (:func:`~app.services.tenant.guild_apps.uninstall_app`).
- *
- * An app the deployment provides to every guild is not removable here (§7.7):
- * the operator's registration decides whether it exists at all.
- * @summary Uninstall Community App
- */
-export const uninstallCommunityApp = (
-  communityId: number,
-  appId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getUninstallCommunityAppMutationKey = () => ["uninstallCommunityApp"] as const;
-
-export const getUninstallCommunityAppMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uninstallCommunityApp>>,
-    TError,
-    UninstallCommunityAppMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof uninstallCommunityApp>>,
-  TError,
-  UninstallCommunityAppMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUninstallCommunityAppMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uninstallCommunityApp>>,
-    UninstallCommunityAppMutationVariables
-  > = (props) => {
-    const { communityId, appId } = props ?? {};
-
-    return uninstallCommunityApp(communityId, appId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UninstallCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uninstallCommunityApp>>
->;
-
-export type UninstallCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type UninstallCommunityAppMutationVariables = { communityId: number; appId: number };
-
-/**
- * @summary Uninstall Community App
- */
-export const useUninstallCommunityApp = <
+export const useUpdateCommunityPlugin = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uninstallCommunityApp>>,
+      Awaited<ReturnType<typeof updateCommunityPlugin>>,
       TError,
-      UninstallCommunityAppMutationVariables,
+      UpdateCommunityPluginMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uninstallCommunityApp>>,
+  Awaited<ReturnType<typeof updateCommunityPlugin>>,
   TError,
-  UninstallCommunityAppMutationVariables,
+  UpdateCommunityPluginMutationVariables,
   TContext
 > => {
-  return useMutation(getUninstallCommunityAppMutationOptions(options), queryClient);
+  return useMutation(getUpdateCommunityPluginMutationOptions(options), queryClient);
 };
 /**
- * Re-pin an installed app to its listing's current version, now.
+ * Remove a plug-in, ending its access and trashing what it created
+ * (:func:`~app.services.tenant.guild_plugins.uninstall_plugin`).
+ *
+ * A plug-in the deployment provides to every guild is not removable here (§7.7):
+ * the operator's registration decides whether it exists at all.
+ * @summary Uninstall Community Plugin
+ */
+export const uninstallCommunityPlugin = (
+  communityId: number,
+  pluginId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/c/${communityId}/plugins/${pluginId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getUninstallCommunityPluginMutationKey = () => ["uninstallCommunityPlugin"] as const;
+
+export const getUninstallCommunityPluginMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uninstallCommunityPlugin>>,
+    TError,
+    UninstallCommunityPluginMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uninstallCommunityPlugin>>,
+  TError,
+  UninstallCommunityPluginMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUninstallCommunityPluginMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uninstallCommunityPlugin>>,
+    UninstallCommunityPluginMutationVariables
+  > = (props) => {
+    const { communityId, pluginId } = props ?? {};
+
+    return uninstallCommunityPlugin(communityId, pluginId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UninstallCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uninstallCommunityPlugin>>
+>;
+
+export type UninstallCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type UninstallCommunityPluginMutationVariables = { communityId: number; pluginId: number };
+
+/**
+ * @summary Uninstall Community Plugin
+ */
+export const useUninstallCommunityPlugin = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uninstallCommunityPlugin>>,
+      TError,
+      UninstallCommunityPluginMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uninstallCommunityPlugin>>,
+  TError,
+  UninstallCommunityPluginMutationVariables,
+  TContext
+> => {
+  return useMutation(getUninstallCommunityPluginMutationOptions(options), queryClient);
+};
+/**
+ * Re-pin an installed plug-in to its listing's current version, now.
  *
  * The button an admin presses when their guild has turned automatic updates
  * off — and the shortcut past the sweep for one that has not. Either way it is
- * the same re-pin ``services.tenant.app_updates`` performs on its own
+ * the same re-pin ``services.tenant.plugin_updates`` performs on its own
  * schedule, so an install cannot end up in a state only one of the two routes
  * can produce.
  *
@@ -1159,47 +1189,47 @@ export const useUninstallCommunityApp = <
  * ``payload`` names the version the seat was shown and the scopes it grants
  * with it. Without it the answer is 409, carrying what the version asks
  * for; so is a consent naming a version the catalog no longer offers.
- * @summary Upgrade Community App
+ * @summary Upgrade Community Plugin
  */
-export const upgradeCommunityApp = (
+export const upgradeCommunityPlugin = (
   communityId: number,
-  appId: number,
-  communityAppUpgradeNull?: BodyType<CommunityAppUpgrade | null> | null,
+  pluginId: number,
+  communityPluginUpgradeNull?: BodyType<CommunityPluginUpgrade | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppDetail>(
+  return apiMutator<CommunityPluginDetail>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/upgrade`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/upgrade`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: communityAppUpgradeNull,
+      data: communityPluginUpgradeNull,
       signal,
     },
     options
   );
 };
 
-export const getUpgradeCommunityAppMutationKey = () => ["upgradeCommunityApp"] as const;
+export const getUpgradeCommunityPluginMutationKey = () => ["upgradeCommunityPlugin"] as const;
 
-export const getUpgradeCommunityAppMutationOptions = <
+export const getUpgradeCommunityPluginMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof upgradeCommunityApp>>,
+    Awaited<ReturnType<typeof upgradeCommunityPlugin>>,
     TError,
-    UpgradeCommunityAppMutationVariables,
+    UpgradeCommunityPluginMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof upgradeCommunityApp>>,
+  Awaited<ReturnType<typeof upgradeCommunityPlugin>>,
   TError,
-  UpgradeCommunityAppMutationVariables,
+  UpgradeCommunityPluginMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpgradeCommunityAppMutationKey();
+  const mutationKey = getUpgradeCommunityPluginMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1207,49 +1237,54 @@ export const getUpgradeCommunityAppMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof upgradeCommunityApp>>,
-    UpgradeCommunityAppMutationVariables
+    Awaited<ReturnType<typeof upgradeCommunityPlugin>>,
+    UpgradeCommunityPluginMutationVariables
   > = (props) => {
-    const { communityId, appId, data } = props ?? {};
+    const { communityId, pluginId, data } = props ?? {};
 
-    return upgradeCommunityApp(communityId, appId, data, requestOptions);
+    return upgradeCommunityPlugin(communityId, pluginId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpgradeCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof upgradeCommunityApp>>
+export type UpgradeCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeCommunityPlugin>>
 >;
-export type UpgradeCommunityAppMutationBody = BodyType<CommunityAppUpgrade | null> | undefined;
-export type UpgradeCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type UpgradeCommunityAppMutationVariables = {
+export type UpgradeCommunityPluginMutationBody =
+  | BodyType<CommunityPluginUpgrade | null>
+  | undefined;
+export type UpgradeCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type UpgradeCommunityPluginMutationVariables = {
   communityId: number;
-  appId: number;
-  data?: BodyType<CommunityAppUpgrade | null>;
+  pluginId: number;
+  data?: BodyType<CommunityPluginUpgrade | null>;
 };
 
 /**
- * @summary Upgrade Community App
+ * @summary Upgrade Community Plugin
  */
-export const useUpgradeCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useUpgradeCommunityPlugin = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof upgradeCommunityApp>>,
+      Awaited<ReturnType<typeof upgradeCommunityPlugin>>,
       TError,
-      UpgradeCommunityAppMutationVariables,
+      UpgradeCommunityPluginMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof upgradeCommunityApp>>,
+  Awaited<ReturnType<typeof upgradeCommunityPlugin>>,
   TError,
-  UpgradeCommunityAppMutationVariables,
+  UpgradeCommunityPluginMutationVariables,
   TContext
 > => {
-  return useMutation(getUpgradeCommunityAppMutationOptions(options), queryClient);
+  return useMutation(getUpgradeCommunityPluginMutationOptions(options), queryClient);
 };
 /**
  * Keep the pinned version, and stop being asked about this one.
@@ -1257,48 +1292,48 @@ export const useUpgradeCommunityApp = <TError = ErrorType<HTTPValidationError>, 
  * The install goes on running the version it has, with the grant it has.
  * The sweep does not ask about the declined version again; a newer one is
  * asked about afresh. Accepting it later is still the Update button.
- * @summary Decline Community App Upgrade
+ * @summary Decline Community Plugin Upgrade
  */
-export const declineCommunityAppUpgrade = (
+export const declineCommunityPluginUpgrade = (
   communityId: number,
-  appId: number,
-  communityAppDecline: BodyType<CommunityAppDecline>,
+  pluginId: number,
+  communityPluginDecline: BodyType<CommunityPluginDecline>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppDetail>(
+  return apiMutator<CommunityPluginDetail>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/upgrade/decline`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/upgrade/decline`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: communityAppDecline,
+      data: communityPluginDecline,
       signal,
     },
     options
   );
 };
 
-export const getDeclineCommunityAppUpgradeMutationKey = () =>
-  ["declineCommunityAppUpgrade"] as const;
+export const getDeclineCommunityPluginUpgradeMutationKey = () =>
+  ["declineCommunityPluginUpgrade"] as const;
 
-export const getDeclineCommunityAppUpgradeMutationOptions = <
+export const getDeclineCommunityPluginUpgradeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
+    Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>,
     TError,
-    DeclineCommunityAppUpgradeMutationVariables,
+    DeclineCommunityPluginUpgradeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
+  Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>,
   TError,
-  DeclineCommunityAppUpgradeMutationVariables,
+  DeclineCommunityPluginUpgradeMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeclineCommunityAppUpgradeMutationKey();
+  const mutationKey = getDeclineCommunityPluginUpgradeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1306,55 +1341,55 @@ export const getDeclineCommunityAppUpgradeMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
-    DeclineCommunityAppUpgradeMutationVariables
+    Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>,
+    DeclineCommunityPluginUpgradeMutationVariables
   > = (props) => {
-    const { communityId, appId, data } = props ?? {};
+    const { communityId, pluginId, data } = props ?? {};
 
-    return declineCommunityAppUpgrade(communityId, appId, data, requestOptions);
+    return declineCommunityPluginUpgrade(communityId, pluginId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeclineCommunityAppUpgradeMutationResult = NonNullable<
-  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>
+export type DeclineCommunityPluginUpgradeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>
 >;
-export type DeclineCommunityAppUpgradeMutationBody = BodyType<CommunityAppDecline>;
-export type DeclineCommunityAppUpgradeMutationError = ErrorType<HTTPValidationError>;
-export type DeclineCommunityAppUpgradeMutationVariables = {
+export type DeclineCommunityPluginUpgradeMutationBody = BodyType<CommunityPluginDecline>;
+export type DeclineCommunityPluginUpgradeMutationError = ErrorType<HTTPValidationError>;
+export type DeclineCommunityPluginUpgradeMutationVariables = {
   communityId: number;
-  appId: number;
-  data: BodyType<CommunityAppDecline>;
+  pluginId: number;
+  data: BodyType<CommunityPluginDecline>;
 };
 
 /**
- * @summary Decline Community App Upgrade
+ * @summary Decline Community Plugin Upgrade
  */
-export const useDeclineCommunityAppUpgrade = <
+export const useDeclineCommunityPluginUpgrade = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
+      Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>,
       TError,
-      DeclineCommunityAppUpgradeMutationVariables,
+      DeclineCommunityPluginUpgradeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
+  Awaited<ReturnType<typeof declineCommunityPluginUpgrade>>,
   TError,
-  DeclineCommunityAppUpgradeMutationVariables,
+  DeclineCommunityPluginUpgradeMutationVariables,
   TContext
 > => {
-  return useMutation(getDeclineCommunityAppUpgradeMutationOptions(options), queryClient);
+  return useMutation(getDeclineCommunityPluginUpgradeMutationOptions(options), queryClient);
 };
 /**
- * Set the guild-wide values an app's connections ask for.
+ * Set the guild-wide values a plug-in's connections ask for.
  *
  * Validated against the *pinned* definition, so what an install accepts is the
  * form it was configured against rather than whatever the catalog says today.
@@ -1362,49 +1397,50 @@ export const useDeclineCommunityAppUpgrade = <
  * response reports which fields hold a value.
  *
  * Only guild-scoped connections are settable here. A per-member one is that
- * member's to make, and the fields an app marks ``managed`` come from its
+ * member's to make, and the fields a plug-in marks ``managed`` come from its
  * ``after_connect`` hook when a flow completes rather than through a form.
- * @summary Update Community App Config
+ * @summary Update Community Plugin Config
  */
-export const updateCommunityAppConfig = (
+export const updateCommunityPluginConfig = (
   communityId: number,
-  appId: number,
-  communityAppConfigUpdate: BodyType<CommunityAppConfigUpdate>,
+  pluginId: number,
+  communityPluginConfigUpdate: BodyType<CommunityPluginConfigUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppDetail>(
+  return apiMutator<CommunityPluginDetail>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/config`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/config`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: communityAppConfigUpdate,
+      data: communityPluginConfigUpdate,
       signal,
     },
     options
   );
 };
 
-export const getUpdateCommunityAppConfigMutationKey = () => ["updateCommunityAppConfig"] as const;
+export const getUpdateCommunityPluginConfigMutationKey = () =>
+  ["updateCommunityPluginConfig"] as const;
 
-export const getUpdateCommunityAppConfigMutationOptions = <
+export const getUpdateCommunityPluginConfigMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCommunityAppConfig>>,
+    Awaited<ReturnType<typeof updateCommunityPluginConfig>>,
     TError,
-    UpdateCommunityAppConfigMutationVariables,
+    UpdateCommunityPluginConfigMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCommunityAppConfig>>,
+  Awaited<ReturnType<typeof updateCommunityPluginConfig>>,
   TError,
-  UpdateCommunityAppConfigMutationVariables,
+  UpdateCommunityPluginConfigMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCommunityAppConfigMutationKey();
+  const mutationKey = getUpdateCommunityPluginConfigMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1412,100 +1448,101 @@ export const getUpdateCommunityAppConfigMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCommunityAppConfig>>,
-    UpdateCommunityAppConfigMutationVariables
+    Awaited<ReturnType<typeof updateCommunityPluginConfig>>,
+    UpdateCommunityPluginConfigMutationVariables
   > = (props) => {
-    const { communityId, appId, data } = props ?? {};
+    const { communityId, pluginId, data } = props ?? {};
 
-    return updateCommunityAppConfig(communityId, appId, data, requestOptions);
+    return updateCommunityPluginConfig(communityId, pluginId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCommunityAppConfigMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCommunityAppConfig>>
+export type UpdateCommunityPluginConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunityPluginConfig>>
 >;
-export type UpdateCommunityAppConfigMutationBody = BodyType<CommunityAppConfigUpdate>;
-export type UpdateCommunityAppConfigMutationError = ErrorType<HTTPValidationError>;
-export type UpdateCommunityAppConfigMutationVariables = {
+export type UpdateCommunityPluginConfigMutationBody = BodyType<CommunityPluginConfigUpdate>;
+export type UpdateCommunityPluginConfigMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommunityPluginConfigMutationVariables = {
   communityId: number;
-  appId: number;
-  data: BodyType<CommunityAppConfigUpdate>;
+  pluginId: number;
+  data: BodyType<CommunityPluginConfigUpdate>;
 };
 
 /**
- * @summary Update Community App Config
+ * @summary Update Community Plugin Config
  */
-export const useUpdateCommunityAppConfig = <
+export const useUpdateCommunityPluginConfig = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCommunityAppConfig>>,
+      Awaited<ReturnType<typeof updateCommunityPluginConfig>>,
       TError,
-      UpdateCommunityAppConfigMutationVariables,
+      UpdateCommunityPluginConfigMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCommunityAppConfig>>,
+  Awaited<ReturnType<typeof updateCommunityPluginConfig>>,
   TError,
-  UpdateCommunityAppConfigMutationVariables,
+  UpdateCommunityPluginConfigMutationVariables,
   TContext
 > => {
-  return useMutation(getUpdateCommunityAppConfigMutationOptions(options), queryClient);
+  return useMutation(getUpdateCommunityPluginConfigMutationOptions(options), queryClient);
 };
 /**
- * Place the app in one initiative with exactly these roles.
+ * Place the plug-in in one initiative with exactly these roles.
  *
  * Creates the placement or replaces its roles. Every role must be one of that
- * initiative's; guild admins open the app there whatever the roles say.
- * @summary Put Community App Placement
+ * initiative's; guild admins open the plug-in there whatever the roles say.
+ * @summary Put Community Plugin Placement
  */
-export const putCommunityAppPlacement = (
+export const putCommunityPluginPlacement = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   initiativeId: number,
-  appPlacementUpdate: BodyType<AppPlacementUpdate>,
+  pluginPlacementUpdate: BodyType<PluginPlacementUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppPlacementRead>(
+  return apiMutator<PluginPlacementRead>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/placements/${initiativeId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/placements/${initiativeId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: appPlacementUpdate,
+      data: pluginPlacementUpdate,
       signal,
     },
     options
   );
 };
 
-export const getPutCommunityAppPlacementMutationKey = () => ["putCommunityAppPlacement"] as const;
+export const getPutCommunityPluginPlacementMutationKey = () =>
+  ["putCommunityPluginPlacement"] as const;
 
-export const getPutCommunityAppPlacementMutationOptions = <
+export const getPutCommunityPluginPlacementMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+    Awaited<ReturnType<typeof putCommunityPluginPlacement>>,
     TError,
-    PutCommunityAppPlacementMutationVariables,
+    PutCommunityPluginPlacementMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+  Awaited<ReturnType<typeof putCommunityPluginPlacement>>,
   TError,
-  PutCommunityAppPlacementMutationVariables,
+  PutCommunityPluginPlacementMutationVariables,
   TContext
 > => {
-  const mutationKey = getPutCommunityAppPlacementMutationKey();
+  const mutationKey = getPutCommunityPluginPlacementMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1513,101 +1550,101 @@ export const getPutCommunityAppPlacementMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof putCommunityAppPlacement>>,
-    PutCommunityAppPlacementMutationVariables
+    Awaited<ReturnType<typeof putCommunityPluginPlacement>>,
+    PutCommunityPluginPlacementMutationVariables
   > = (props) => {
-    const { communityId, appId, initiativeId, data } = props ?? {};
+    const { communityId, pluginId, initiativeId, data } = props ?? {};
 
-    return putCommunityAppPlacement(communityId, appId, initiativeId, data, requestOptions);
+    return putCommunityPluginPlacement(communityId, pluginId, initiativeId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type PutCommunityAppPlacementMutationResult = NonNullable<
-  Awaited<ReturnType<typeof putCommunityAppPlacement>>
+export type PutCommunityPluginPlacementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putCommunityPluginPlacement>>
 >;
-export type PutCommunityAppPlacementMutationBody = BodyType<AppPlacementUpdate>;
-export type PutCommunityAppPlacementMutationError = ErrorType<HTTPValidationError>;
-export type PutCommunityAppPlacementMutationVariables = {
+export type PutCommunityPluginPlacementMutationBody = BodyType<PluginPlacementUpdate>;
+export type PutCommunityPluginPlacementMutationError = ErrorType<HTTPValidationError>;
+export type PutCommunityPluginPlacementMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   initiativeId: number;
-  data: BodyType<AppPlacementUpdate>;
+  data: BodyType<PluginPlacementUpdate>;
 };
 
 /**
- * @summary Put Community App Placement
+ * @summary Put Community Plugin Placement
  */
-export const usePutCommunityAppPlacement = <
+export const usePutCommunityPluginPlacement = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+      Awaited<ReturnType<typeof putCommunityPluginPlacement>>,
       TError,
-      PutCommunityAppPlacementMutationVariables,
+      PutCommunityPluginPlacementMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+  Awaited<ReturnType<typeof putCommunityPluginPlacement>>,
   TError,
-  PutCommunityAppPlacementMutationVariables,
+  PutCommunityPluginPlacementMutationVariables,
   TContext
 > => {
-  return useMutation(getPutCommunityAppPlacementMutationOptions(options), queryClient);
+  return useMutation(getPutCommunityPluginPlacementMutationOptions(options), queryClient);
 };
 /**
  * Grant the install exactly these scopes.
  *
- * Each must be one the app's manifest requests and one the deployment's
- * registration allows the app (its ceiling). The whole set is replaced: a
+ * Each must be one the plug-in's manifest requests and one the deployment's
+ * registration allows the plug-in (its ceiling). The whole set is replaced: a
  * scope left out is withdrawn.
- * @summary Put Community App Scopes
+ * @summary Put Community Plugin Scopes
  */
-export const putCommunityAppScopes = (
+export const putCommunityPluginScopes = (
   communityId: number,
-  appId: number,
-  communityAppScopesUpdate: BodyType<CommunityAppScopesUpdate>,
+  pluginId: number,
+  communityPluginScopesUpdate: BodyType<CommunityPluginScopesUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppRead>(
+  return apiMutator<CommunityPluginRead>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/scopes`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/scopes`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: communityAppScopesUpdate,
+      data: communityPluginScopesUpdate,
       signal,
     },
     options
   );
 };
 
-export const getPutCommunityAppScopesMutationKey = () => ["putCommunityAppScopes"] as const;
+export const getPutCommunityPluginScopesMutationKey = () => ["putCommunityPluginScopes"] as const;
 
-export const getPutCommunityAppScopesMutationOptions = <
+export const getPutCommunityPluginScopesMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof putCommunityAppScopes>>,
+    Awaited<ReturnType<typeof putCommunityPluginScopes>>,
     TError,
-    PutCommunityAppScopesMutationVariables,
+    PutCommunityPluginScopesMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof putCommunityAppScopes>>,
+  Awaited<ReturnType<typeof putCommunityPluginScopes>>,
   TError,
-  PutCommunityAppScopesMutationVariables,
+  PutCommunityPluginScopesMutationVariables,
   TContext
 > => {
-  const mutationKey = getPutCommunityAppScopesMutationKey();
+  const mutationKey = getPutCommunityPluginScopesMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1615,98 +1652,103 @@ export const getPutCommunityAppScopesMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof putCommunityAppScopes>>,
-    PutCommunityAppScopesMutationVariables
+    Awaited<ReturnType<typeof putCommunityPluginScopes>>,
+    PutCommunityPluginScopesMutationVariables
   > = (props) => {
-    const { communityId, appId, data } = props ?? {};
+    const { communityId, pluginId, data } = props ?? {};
 
-    return putCommunityAppScopes(communityId, appId, data, requestOptions);
+    return putCommunityPluginScopes(communityId, pluginId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type PutCommunityAppScopesMutationResult = NonNullable<
-  Awaited<ReturnType<typeof putCommunityAppScopes>>
+export type PutCommunityPluginScopesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putCommunityPluginScopes>>
 >;
-export type PutCommunityAppScopesMutationBody = BodyType<CommunityAppScopesUpdate>;
-export type PutCommunityAppScopesMutationError = ErrorType<HTTPValidationError>;
-export type PutCommunityAppScopesMutationVariables = {
+export type PutCommunityPluginScopesMutationBody = BodyType<CommunityPluginScopesUpdate>;
+export type PutCommunityPluginScopesMutationError = ErrorType<HTTPValidationError>;
+export type PutCommunityPluginScopesMutationVariables = {
   communityId: number;
-  appId: number;
-  data: BodyType<CommunityAppScopesUpdate>;
+  pluginId: number;
+  data: BodyType<CommunityPluginScopesUpdate>;
 };
 
 /**
- * @summary Put Community App Scopes
+ * @summary Put Community Plugin Scopes
  */
-export const usePutCommunityAppScopes = <
+export const usePutCommunityPluginScopes = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof putCommunityAppScopes>>,
+      Awaited<ReturnType<typeof putCommunityPluginScopes>>,
       TError,
-      PutCommunityAppScopesMutationVariables,
+      PutCommunityPluginScopesMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof putCommunityAppScopes>>,
+  Awaited<ReturnType<typeof putCommunityPluginScopes>>,
   TError,
-  PutCommunityAppScopesMutationVariables,
+  PutCommunityPluginScopesMutationVariables,
   TContext
 > => {
-  return useMutation(getPutCommunityAppScopesMutationOptions(options), queryClient);
+  return useMutation(getPutCommunityPluginScopesMutationOptions(options), queryClient);
 };
 /**
- * Mint the short-lived credential for one of this app's embedded surfaces.
+ * Mint the short-lived credential for one of this plug-in's embedded surfaces.
  *
  * Whether the surface may be opened is decided here, under the caller's real
- * session, so the app never makes that call and never sees a request from
+ * session, so the plug-in never makes that call and never sees a request from
  * somebody who failed it. At the community level only the guild's admins open
  * a surface.
  *
  * The token goes to the iframe by ``postMessage`` — never a query string —
  * and expires in a minute.
- * @summary Create Community App Handoff
+ * @summary Create Community Plugin Handoff
  */
-export const createCommunityAppHandoff = (
+export const createCommunityPluginHandoff = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   surfaceId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppHandoff>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}/handoff/${surfaceId}`, method: "POST", signal },
+  return apiMutator<CommunityPluginHandoff>(
+    {
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/handoff/${surfaceId}`,
+      method: "POST",
+      signal,
+    },
     options
   );
 };
 
-export const getCreateCommunityAppHandoffMutationKey = () => ["createCommunityAppHandoff"] as const;
+export const getCreateCommunityPluginHandoffMutationKey = () =>
+  ["createCommunityPluginHandoff"] as const;
 
-export const getCreateCommunityAppHandoffMutationOptions = <
+export const getCreateCommunityPluginHandoffMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCommunityAppHandoff>>,
+    Awaited<ReturnType<typeof createCommunityPluginHandoff>>,
     TError,
-    CreateCommunityAppHandoffMutationVariables,
+    CreateCommunityPluginHandoffMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createCommunityAppHandoff>>,
+  Awaited<ReturnType<typeof createCommunityPluginHandoff>>,
   TError,
-  CreateCommunityAppHandoffMutationVariables,
+  CreateCommunityPluginHandoffMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateCommunityAppHandoffMutationKey();
+  const mutationKey = getCreateCommunityPluginHandoffMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1714,52 +1756,52 @@ export const getCreateCommunityAppHandoffMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createCommunityAppHandoff>>,
-    CreateCommunityAppHandoffMutationVariables
+    Awaited<ReturnType<typeof createCommunityPluginHandoff>>,
+    CreateCommunityPluginHandoffMutationVariables
   > = (props) => {
-    const { communityId, appId, surfaceId } = props ?? {};
+    const { communityId, pluginId, surfaceId } = props ?? {};
 
-    return createCommunityAppHandoff(communityId, appId, surfaceId, requestOptions);
+    return createCommunityPluginHandoff(communityId, pluginId, surfaceId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateCommunityAppHandoffMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createCommunityAppHandoff>>
+export type CreateCommunityPluginHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommunityPluginHandoff>>
 >;
 
-export type CreateCommunityAppHandoffMutationError = ErrorType<HTTPValidationError>;
-export type CreateCommunityAppHandoffMutationVariables = {
+export type CreateCommunityPluginHandoffMutationError = ErrorType<HTTPValidationError>;
+export type CreateCommunityPluginHandoffMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   surfaceId: string;
 };
 
 /**
- * @summary Create Community App Handoff
+ * @summary Create Community Plugin Handoff
  */
-export const useCreateCommunityAppHandoff = <
+export const useCreateCommunityPluginHandoff = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createCommunityAppHandoff>>,
+      Awaited<ReturnType<typeof createCommunityPluginHandoff>>,
       TError,
-      CreateCommunityAppHandoffMutationVariables,
+      CreateCommunityPluginHandoffMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createCommunityAppHandoff>>,
+  Awaited<ReturnType<typeof createCommunityPluginHandoff>>,
   TError,
-  CreateCommunityAppHandoffMutationVariables,
+  CreateCommunityPluginHandoffMutationVariables,
   TContext
 > => {
-  return useMutation(getCreateCommunityAppHandoffMutationOptions(options), queryClient);
+  return useMutation(getCreateCommunityPluginHandoffMutationOptions(options), queryClient);
 };
 /**
  * Start the vendor flow behind one connection.
@@ -1777,18 +1819,18 @@ export const useCreateCommunityAppHandoff = <
  * authorization page, or its install page for a connection an organization
  * installs), and the vendor returns the person to Initiative's callback.
  * Nothing is stored until it does.
- * @summary Connect Community App
+ * @summary Connect Community Plugin
  */
-export const connectCommunityApp = (
+export const connectCommunityPlugin = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppConnectStart>(
+  return apiMutator<CommunityPluginConnectStart>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/connections/${connectionId}/connect`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/connections/${connectionId}/connect`,
       method: "POST",
       signal,
     },
@@ -1796,26 +1838,26 @@ export const connectCommunityApp = (
   );
 };
 
-export const getConnectCommunityAppMutationKey = () => ["connectCommunityApp"] as const;
+export const getConnectCommunityPluginMutationKey = () => ["connectCommunityPlugin"] as const;
 
-export const getConnectCommunityAppMutationOptions = <
+export const getConnectCommunityPluginMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof connectCommunityApp>>,
+    Awaited<ReturnType<typeof connectCommunityPlugin>>,
     TError,
-    ConnectCommunityAppMutationVariables,
+    ConnectCommunityPluginMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof connectCommunityApp>>,
+  Awaited<ReturnType<typeof connectCommunityPlugin>>,
   TError,
-  ConnectCommunityAppMutationVariables,
+  ConnectCommunityPluginMutationVariables,
   TContext
 > => {
-  const mutationKey = getConnectCommunityAppMutationKey();
+  const mutationKey = getConnectCommunityPluginMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1823,49 +1865,52 @@ export const getConnectCommunityAppMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof connectCommunityApp>>,
-    ConnectCommunityAppMutationVariables
+    Awaited<ReturnType<typeof connectCommunityPlugin>>,
+    ConnectCommunityPluginMutationVariables
   > = (props) => {
-    const { communityId, appId, connectionId } = props ?? {};
+    const { communityId, pluginId, connectionId } = props ?? {};
 
-    return connectCommunityApp(communityId, appId, connectionId, requestOptions);
+    return connectCommunityPlugin(communityId, pluginId, connectionId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConnectCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof connectCommunityApp>>
+export type ConnectCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectCommunityPlugin>>
 >;
 
-export type ConnectCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type ConnectCommunityAppMutationVariables = {
+export type ConnectCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type ConnectCommunityPluginMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   connectionId: string;
 };
 
 /**
- * @summary Connect Community App
+ * @summary Connect Community Plugin
  */
-export const useConnectCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useConnectCommunityPlugin = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof connectCommunityApp>>,
+      Awaited<ReturnType<typeof connectCommunityPlugin>>,
       TError,
-      ConnectCommunityAppMutationVariables,
+      ConnectCommunityPluginMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof connectCommunityApp>>,
+  Awaited<ReturnType<typeof connectCommunityPlugin>>,
   TError,
-  ConnectCommunityAppMutationVariables,
+  ConnectCommunityPluginMutationVariables,
   TContext
 > => {
-  return useMutation(getConnectCommunityAppMutationOptions(options), queryClient);
+  return useMutation(getConnectCommunityPluginMutationOptions(options), queryClient);
 };
 /**
  * Disconnect: a member's own account, or a guild-wide credential.
@@ -1874,18 +1919,18 @@ export const useConnectCommunityApp = <TError = ErrorType<HTTPValidationError>, 
  * per-member connection is always the caller's own — an admin ending somebody
  * else's uses the Members endpoints, which record who acted. Clearing a
  * guild-wide credential is an admin action, since it is the guild's.
- * @summary Disconnect Community App
+ * @summary Disconnect Community Plugin
  */
-export const disconnectCommunityApp = (
+export const disconnectCommunityPlugin = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/connections/${connectionId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/connections/${connectionId}`,
       method: "DELETE",
       signal,
     },
@@ -1893,26 +1938,26 @@ export const disconnectCommunityApp = (
   );
 };
 
-export const getDisconnectCommunityAppMutationKey = () => ["disconnectCommunityApp"] as const;
+export const getDisconnectCommunityPluginMutationKey = () => ["disconnectCommunityPlugin"] as const;
 
-export const getDisconnectCommunityAppMutationOptions = <
+export const getDisconnectCommunityPluginMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof disconnectCommunityApp>>,
+    Awaited<ReturnType<typeof disconnectCommunityPlugin>>,
     TError,
-    DisconnectCommunityAppMutationVariables,
+    DisconnectCommunityPluginMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof disconnectCommunityApp>>,
+  Awaited<ReturnType<typeof disconnectCommunityPlugin>>,
   TError,
-  DisconnectCommunityAppMutationVariables,
+  DisconnectCommunityPluginMutationVariables,
   TContext
 > => {
-  const mutationKey = getDisconnectCommunityAppMutationKey();
+  const mutationKey = getDisconnectCommunityPluginMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1920,75 +1965,75 @@ export const getDisconnectCommunityAppMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof disconnectCommunityApp>>,
-    DisconnectCommunityAppMutationVariables
+    Awaited<ReturnType<typeof disconnectCommunityPlugin>>,
+    DisconnectCommunityPluginMutationVariables
   > = (props) => {
-    const { communityId, appId, connectionId } = props ?? {};
+    const { communityId, pluginId, connectionId } = props ?? {};
 
-    return disconnectCommunityApp(communityId, appId, connectionId, requestOptions);
+    return disconnectCommunityPlugin(communityId, pluginId, connectionId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DisconnectCommunityAppMutationResult = NonNullable<
-  Awaited<ReturnType<typeof disconnectCommunityApp>>
+export type DisconnectCommunityPluginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disconnectCommunityPlugin>>
 >;
 
-export type DisconnectCommunityAppMutationError = ErrorType<HTTPValidationError>;
-export type DisconnectCommunityAppMutationVariables = {
+export type DisconnectCommunityPluginMutationError = ErrorType<HTTPValidationError>;
+export type DisconnectCommunityPluginMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   connectionId: string;
 };
 
 /**
- * @summary Disconnect Community App
+ * @summary Disconnect Community Plugin
  */
-export const useDisconnectCommunityApp = <
+export const useDisconnectCommunityPlugin = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof disconnectCommunityApp>>,
+      Awaited<ReturnType<typeof disconnectCommunityPlugin>>,
       TError,
-      DisconnectCommunityAppMutationVariables,
+      DisconnectCommunityPluginMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof disconnectCommunityApp>>,
+  Awaited<ReturnType<typeof disconnectCommunityPlugin>>,
   TError,
-  DisconnectCommunityAppMutationVariables,
+  DisconnectCommunityPluginMutationVariables,
   TContext
 > => {
-  return useMutation(getDisconnectCommunityAppMutationOptions(options), queryClient);
+  return useMutation(getDisconnectCommunityPluginMutationOptions(options), queryClient);
 };
 /**
- * Allow this app to act as you for one of its requests, at ``access``.
+ * Allow this plug-in to act as you for one of its requests, at ``access``.
  *
- * Never more than the app asked for. Acts on the caller alone and takes no
+ * Never more than the plug-in asked for. Acts on the caller alone and takes no
  * user id. Signed-in only (``require_first_party_session``), and the way you
  * signed in is recorded with the answer.
  * @summary Grant My Consent
  */
 export const grantMyConsent = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   consentId: number,
-  communityAppConsentAnswer: BodyType<CommunityAppConsentAnswer>,
+  communityPluginConsentAnswer: BodyType<CommunityPluginConsentAnswer>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppConsentRead>(
+  return apiMutator<CommunityPluginConsentRead>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/consents/${consentId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/consents/${consentId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: communityAppConsentAnswer,
+      data: communityPluginConsentAnswer,
       signal,
     },
     options
@@ -2025,22 +2070,22 @@ export const getGrantMyConsentMutationOptions = <
     Awaited<ReturnType<typeof grantMyConsent>>,
     GrantMyConsentMutationVariables
   > = (props) => {
-    const { communityId, appId, consentId, data } = props ?? {};
+    const { communityId, pluginId, consentId, data } = props ?? {};
 
-    return grantMyConsent(communityId, appId, consentId, data, requestOptions);
+    return grantMyConsent(communityId, pluginId, consentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
 export type GrantMyConsentMutationResult = NonNullable<Awaited<ReturnType<typeof grantMyConsent>>>;
-export type GrantMyConsentMutationBody = BodyType<CommunityAppConsentAnswer>;
+export type GrantMyConsentMutationBody = BodyType<CommunityPluginConsentAnswer>;
 export type GrantMyConsentMutationError = ErrorType<HTTPValidationError>;
 export type GrantMyConsentMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   consentId: number;
-  data: BodyType<CommunityAppConsentAnswer>;
+  data: BodyType<CommunityPluginConsentAnswer>;
 };
 
 /**
@@ -2066,20 +2111,20 @@ export const useGrantMyConsent = <TError = ErrorType<HTTPValidationError>, TCont
   return useMutation(getGrantMyConsentMutationOptions(options), queryClient);
 };
 /**
- * Decline one of this app's requests, or withdraw what you allowed. The
- * app stops acting as you for it on its next request.
+ * Decline one of this plug-in's requests, or withdraw what you allowed. The
+ * plug-in stops acting as you for it on its next request.
  * @summary Revoke My Consent
  */
 export const revokeMyConsent = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   consentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/consents/${consentId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/consents/${consentId}`,
       method: "DELETE",
       signal,
     },
@@ -2117,9 +2162,9 @@ export const getRevokeMyConsentMutationOptions = <
     Awaited<ReturnType<typeof revokeMyConsent>>,
     RevokeMyConsentMutationVariables
   > = (props) => {
-    const { communityId, appId, consentId } = props ?? {};
+    const { communityId, pluginId, consentId } = props ?? {};
 
-    return revokeMyConsent(communityId, appId, consentId, requestOptions);
+    return revokeMyConsent(communityId, pluginId, consentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2132,7 +2177,7 @@ export type RevokeMyConsentMutationResult = NonNullable<
 export type RevokeMyConsentMutationError = ErrorType<HTTPValidationError>;
 export type RevokeMyConsentMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   consentId: number;
 };
 
@@ -2159,45 +2204,48 @@ export const useRevokeMyConsent = <TError = ErrorType<HTTPValidationError>, TCon
   return useMutation(getRevokeMyConsentMutationOptions(options), queryClient);
 };
 /**
- * Who has connected which of this app's per-member connections, and who
+ * Who has connected which of this plug-in's per-member connections, and who
  * answered its requests to act as them — a page of members at a time.
  *
  * Guild admins only, and never secret values: what this supports is governance
  * — seeing which vendor account somebody connected as, and ending it — rather
  * than looking at credentials.
- * @summary List Community App Members
+ * @summary List Community Plugin Members
  */
-export const listCommunityAppMembers = (
+export const listCommunityPluginMembers = (
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams,
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppMembersResponse>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}/members`, method: "GET", params, signal },
+  return apiMutator<CommunityPluginMembersResponse>(
+    { url: `/api/v1/c/${communityId}/plugins/${pluginId}/members`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListCommunityAppMembersQueryKey = (
+export const getListCommunityPluginMembersQueryKey = (
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams
 ) => {
-  return [`/api/v1/c/${communityId}/apps/${appId}/members`, ...(params ? [params] : [])] as const;
+  return [
+    `/api/v1/c/${communityId}/plugins/${pluginId}/members`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
-export const getListCommunityAppMembersQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
+export const getListCommunityPluginMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityPluginMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams,
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -2205,44 +2253,47 @@ export const getListCommunityAppMembersQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListCommunityAppMembersQueryKey(communityId, appId, params);
+    queryOptions?.queryKey ?? getListCommunityPluginMembersQueryKey(communityId, pluginId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityAppMembers>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityPluginMembers>>> = ({
     signal,
-  }) => listCommunityAppMembers(communityId, appId, params, requestOptions, signal);
+  }) => listCommunityPluginMembers(communityId, pluginId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled:
-      communityId !== null && communityId !== undefined && appId !== null && appId !== undefined,
+      communityId !== null &&
+      communityId !== undefined &&
+      pluginId !== null &&
+      pluginId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData> & {
+  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>;
   };
 };
 
-export type ListCommunityAppMembersQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCommunityAppMembers>>
+export type ListCommunityPluginMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityPluginMembers>>
 >;
-export type ListCommunityAppMembersQueryError = ErrorType<HTTPValidationError>;
+export type ListCommunityPluginMembersQueryError = ErrorType<HTTPValidationError>;
 
-export function useListCommunityAppMembers<
-  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
+export function useListCommunityPluginMembers<
+  TData = Awaited<ReturnType<typeof listCommunityPluginMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
-  params: undefined | ListCommunityAppMembersParams,
+  pluginId: number,
+  params: undefined | ListCommunityPluginMembersParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommunityAppMembers>>,
+          Awaited<ReturnType<typeof listCommunityPluginMembers>>,
           TError,
-          Awaited<ReturnType<typeof listCommunityAppMembers>>
+          Awaited<ReturnType<typeof listCommunityPluginMembers>>
         >,
         "initialData"
       >;
@@ -2250,22 +2301,22 @@ export function useListCommunityAppMembers<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommunityAppMembers<
-  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
+export function useListCommunityPluginMembers<
+  TData = Awaited<ReturnType<typeof listCommunityPluginMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams,
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommunityAppMembers>>,
+          Awaited<ReturnType<typeof listCommunityPluginMembers>>,
           TError,
-          Awaited<ReturnType<typeof listCommunityAppMembers>>
+          Awaited<ReturnType<typeof listCommunityPluginMembers>>
         >,
         "initialData"
       >;
@@ -2273,41 +2324,46 @@ export function useListCommunityAppMembers<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommunityAppMembers<
-  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
+export function useListCommunityPluginMembers<
+  TData = Awaited<ReturnType<typeof listCommunityPluginMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams,
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Community App Members
+ * @summary List Community Plugin Members
  */
 
-export function useListCommunityAppMembers<
-  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
+export function useListCommunityPluginMembers<
+  TData = Awaited<ReturnType<typeof listCommunityPluginMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   communityId: number,
-  appId: number,
-  params?: ListCommunityAppMembersParams,
+  pluginId: number,
+  params?: ListCommunityPluginMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityPluginMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCommunityAppMembersQueryOptions(communityId, appId, params, options);
+  const queryOptions = getListCommunityPluginMembersQueryOptions(
+    communityId,
+    pluginId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2322,7 +2378,7 @@ export function useListCommunityAppMembers<
  */
 export const revokeMemberConnection = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   userId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -2330,7 +2386,7 @@ export const revokeMemberConnection = (
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/members/${userId}/connections/${connectionId}`,
       method: "DELETE",
       signal,
     },
@@ -2368,9 +2424,9 @@ export const getRevokeMemberConnectionMutationOptions = <
     Awaited<ReturnType<typeof revokeMemberConnection>>,
     RevokeMemberConnectionMutationVariables
   > = (props) => {
-    const { communityId, appId, userId, connectionId } = props ?? {};
+    const { communityId, pluginId, userId, connectionId } = props ?? {};
 
-    return revokeMemberConnection(communityId, appId, userId, connectionId, requestOptions);
+    return revokeMemberConnection(communityId, pluginId, userId, connectionId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2383,7 +2439,7 @@ export type RevokeMemberConnectionMutationResult = NonNullable<
 export type RevokeMemberConnectionMutationError = ErrorType<HTTPValidationError>;
 export type RevokeMemberConnectionMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   userId: number;
   connectionId: string;
 };
@@ -2417,12 +2473,12 @@ export const useRevokeMemberConnection = <
  * Revoke a member's connection and refuse the next one.
  *
  * The lever for "this person should no longer reach that system through us"
- * that does not mean uninstalling the app for everyone.
+ * that does not mean uninstalling the plug-in for everyone.
  * @summary Block Member Connection
  */
 export const blockMemberConnection = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   userId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -2430,7 +2486,7 @@ export const blockMemberConnection = (
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/members/${userId}/connections/${connectionId}/block`,
       method: "POST",
       signal,
     },
@@ -2468,9 +2524,9 @@ export const getBlockMemberConnectionMutationOptions = <
     Awaited<ReturnType<typeof blockMemberConnection>>,
     BlockMemberConnectionMutationVariables
   > = (props) => {
-    const { communityId, appId, userId, connectionId } = props ?? {};
+    const { communityId, pluginId, userId, connectionId } = props ?? {};
 
-    return blockMemberConnection(communityId, appId, userId, connectionId, requestOptions);
+    return blockMemberConnection(communityId, pluginId, userId, connectionId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2483,7 +2539,7 @@ export type BlockMemberConnectionMutationResult = NonNullable<
 export type BlockMemberConnectionMutationError = ErrorType<HTTPValidationError>;
 export type BlockMemberConnectionMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   userId: number;
   connectionId: string;
 };
@@ -2519,7 +2575,7 @@ export const useBlockMemberConnection = <
  */
 export const unblockMemberConnection = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   userId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -2527,7 +2583,7 @@ export const unblockMemberConnection = (
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/members/${userId}/connections/${connectionId}/block`,
       method: "DELETE",
       signal,
     },
@@ -2565,9 +2621,9 @@ export const getUnblockMemberConnectionMutationOptions = <
     Awaited<ReturnType<typeof unblockMemberConnection>>,
     UnblockMemberConnectionMutationVariables
   > = (props) => {
-    const { communityId, appId, userId, connectionId } = props ?? {};
+    const { communityId, pluginId, userId, connectionId } = props ?? {};
 
-    return unblockMemberConnection(communityId, appId, userId, connectionId, requestOptions);
+    return unblockMemberConnection(communityId, pluginId, userId, connectionId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2580,7 +2636,7 @@ export type UnblockMemberConnectionMutationResult = NonNullable<
 export type UnblockMemberConnectionMutationError = ErrorType<HTTPValidationError>;
 export type UnblockMemberConnectionMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   userId: number;
   connectionId: string;
 };
@@ -2611,24 +2667,24 @@ export const useUnblockMemberConnection = <
   return useMutation(getUnblockMemberConnectionMutationOptions(options), queryClient);
 };
 /**
- * End every answer one member gave this app's requests to act as them,
+ * End every answer one member gave this plug-in's requests to act as them,
  * pending requests included.
  *
  * An admin ends an answer and cannot give one: the member allows a request
  * again themselves, or nobody does. Governance runs one way here, which is
- * what keeps "the app acts as me" something its subject actually decided.
+ * what keeps "the plug-in acts as me" something its subject actually decided.
  * @summary Revoke Member Consents
  */
 export const revokeMemberConsents = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/consents`,
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/members/${userId}/consents`,
       method: "DELETE",
       signal,
     },
@@ -2666,9 +2722,9 @@ export const getRevokeMemberConsentsMutationOptions = <
     Awaited<ReturnType<typeof revokeMemberConsents>>,
     RevokeMemberConsentsMutationVariables
   > = (props) => {
-    const { communityId, appId, userId } = props ?? {};
+    const { communityId, pluginId, userId } = props ?? {};
 
-    return revokeMemberConsents(communityId, appId, userId, requestOptions);
+    return revokeMemberConsents(communityId, pluginId, userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2681,7 +2737,7 @@ export type RevokeMemberConsentsMutationResult = NonNullable<
 export type RevokeMemberConsentsMutationError = ErrorType<HTTPValidationError>;
 export type RevokeMemberConsentsMutationVariables = {
   communityId: number;
-  appId: number;
+  pluginId: number;
   userId: number;
 };
 
@@ -2711,23 +2767,27 @@ export const useRevokeMemberConsents = <
   return useMutation(getRevokeMemberConsentsMutationOptions(options), queryClient);
 };
 /**
- * Stop this app acting as anybody, without uninstalling it.
+ * Stop this plug-in acting as anybody, without uninstalling it.
  *
- * Ends every member's answer to the app's requests to act as them, pending
+ * Ends every member's answer to the plug-in's requests to act as them, pending
  * ones included. The companion to ``revoke-all`` for connections: for a
- * suspected app compromise, reacting fast should not cost the guild its
+ * suspected plug-in compromise, reacting fast should not cost the guild its
  * configuration. Members may allow requests again once the guild is
  * satisfied.
  * @summary Revoke All Member Consents
  */
 export const revokeAllMemberConsents = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}/consents/revoke-all`, method: "POST", signal },
+    {
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/consents/revoke-all`,
+      method: "POST",
+      signal,
+    },
     options
   );
 };
@@ -2762,9 +2822,9 @@ export const getRevokeAllMemberConsentsMutationOptions = <
     Awaited<ReturnType<typeof revokeAllMemberConsents>>,
     RevokeAllMemberConsentsMutationVariables
   > = (props) => {
-    const { communityId, appId } = props ?? {};
+    const { communityId, pluginId } = props ?? {};
 
-    return revokeAllMemberConsents(communityId, appId, requestOptions);
+    return revokeAllMemberConsents(communityId, pluginId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2775,7 +2835,7 @@ export type RevokeAllMemberConsentsMutationResult = NonNullable<
 >;
 
 export type RevokeAllMemberConsentsMutationError = ErrorType<HTTPValidationError>;
-export type RevokeAllMemberConsentsMutationVariables = { communityId: number; appId: number };
+export type RevokeAllMemberConsentsMutationVariables = { communityId: number; pluginId: number };
 
 /**
  * @summary Revoke All Member Consents
@@ -2805,18 +2865,18 @@ export const useRevokeAllMemberConsents = <
 /**
  * End every member's connection at once, leaving the install standing.
  *
- * For a suspected app or vendor compromise: reacting fast should not cost the
+ * For a suspected plug-in or vendor compromise: reacting fast should not cost the
  * guild its configuration.
  * @summary Revoke All Member Connections
  */
 export const revokeAllMemberConnections = (
   communityId: number,
-  appId: number,
+  pluginId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${communityId}/apps/${appId}/revoke-all`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/plugins/${pluginId}/revoke-all`, method: "POST", signal },
     options
   );
 };
@@ -2852,9 +2912,9 @@ export const getRevokeAllMemberConnectionsMutationOptions = <
     Awaited<ReturnType<typeof revokeAllMemberConnections>>,
     RevokeAllMemberConnectionsMutationVariables
   > = (props) => {
-    const { communityId, appId } = props ?? {};
+    const { communityId, pluginId } = props ?? {};
 
-    return revokeAllMemberConnections(communityId, appId, requestOptions);
+    return revokeAllMemberConnections(communityId, pluginId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2865,7 +2925,7 @@ export type RevokeAllMemberConnectionsMutationResult = NonNullable<
 >;
 
 export type RevokeAllMemberConnectionsMutationError = ErrorType<HTTPValidationError>;
-export type RevokeAllMemberConnectionsMutationVariables = { communityId: number; appId: number };
+export type RevokeAllMemberConnectionsMutationVariables = { communityId: number; pluginId: number };
 
 /**
  * @summary Revoke All Member Connections
@@ -2900,26 +2960,26 @@ export const useRevokeAllMemberConnections = <
  *
  * Three gates, outermost first. The initiative must be one this caller can
  * reach. The manifest must declare the surface for this scope, and the seat
- * must have placed the app here. And the caller must hold one of the roles
+ * must have placed the plug-in here. And the caller must hold one of the roles
  * that placement allows — or be a guild admin, as everywhere in their own
  * guild. A surface marked ``admin_only`` is for the admins alone.
  *
  * The initiative in the minted token is this route's, never the caller's to
- * supply, so an app can scope what it shows without asking a second question
+ * supply, so a plug-in can scope what it shows without asking a second question
  * or trusting a parameter.
- * @summary Create Initiative App Handoff
+ * @summary Create Initiative Plugin Handoff
  */
-export const createInitiativeAppHandoff = (
+export const createInitiativePluginHandoff = (
   communityId: number,
   initiativeId: number,
-  appId: number,
+  pluginId: number,
   surfaceId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityAppHandoff>(
+  return apiMutator<CommunityPluginHandoff>(
     {
-      url: `/api/v1/c/${communityId}/initiatives/${initiativeId}/apps/${appId}/handoff/${surfaceId}`,
+      url: `/api/v1/c/${communityId}/initiatives/${initiativeId}/plugins/${pluginId}/handoff/${surfaceId}`,
       method: "POST",
       signal,
     },
@@ -2927,27 +2987,27 @@ export const createInitiativeAppHandoff = (
   );
 };
 
-export const getCreateInitiativeAppHandoffMutationKey = () =>
-  ["createInitiativeAppHandoff"] as const;
+export const getCreateInitiativePluginHandoffMutationKey = () =>
+  ["createInitiativePluginHandoff"] as const;
 
-export const getCreateInitiativeAppHandoffMutationOptions = <
+export const getCreateInitiativePluginHandoffMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+    Awaited<ReturnType<typeof createInitiativePluginHandoff>>,
     TError,
-    CreateInitiativeAppHandoffMutationVariables,
+    CreateInitiativePluginHandoffMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+  Awaited<ReturnType<typeof createInitiativePluginHandoff>>,
   TError,
-  CreateInitiativeAppHandoffMutationVariables,
+  CreateInitiativePluginHandoffMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateInitiativeAppHandoffMutationKey();
+  const mutationKey = getCreateInitiativePluginHandoffMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2955,51 +3015,57 @@ export const getCreateInitiativeAppHandoffMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
-    CreateInitiativeAppHandoffMutationVariables
+    Awaited<ReturnType<typeof createInitiativePluginHandoff>>,
+    CreateInitiativePluginHandoffMutationVariables
   > = (props) => {
-    const { communityId, initiativeId, appId, surfaceId } = props ?? {};
+    const { communityId, initiativeId, pluginId, surfaceId } = props ?? {};
 
-    return createInitiativeAppHandoff(communityId, initiativeId, appId, surfaceId, requestOptions);
+    return createInitiativePluginHandoff(
+      communityId,
+      initiativeId,
+      pluginId,
+      surfaceId,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateInitiativeAppHandoffMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createInitiativeAppHandoff>>
+export type CreateInitiativePluginHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInitiativePluginHandoff>>
 >;
 
-export type CreateInitiativeAppHandoffMutationError = ErrorType<HTTPValidationError>;
-export type CreateInitiativeAppHandoffMutationVariables = {
+export type CreateInitiativePluginHandoffMutationError = ErrorType<HTTPValidationError>;
+export type CreateInitiativePluginHandoffMutationVariables = {
   communityId: number;
   initiativeId: number;
-  appId: number;
+  pluginId: number;
   surfaceId: string;
 };
 
 /**
- * @summary Create Initiative App Handoff
+ * @summary Create Initiative Plugin Handoff
  */
-export const useCreateInitiativeAppHandoff = <
+export const useCreateInitiativePluginHandoff = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+      Awaited<ReturnType<typeof createInitiativePluginHandoff>>,
       TError,
-      CreateInitiativeAppHandoffMutationVariables,
+      CreateInitiativePluginHandoffMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+  Awaited<ReturnType<typeof createInitiativePluginHandoff>>,
   TError,
-  CreateInitiativeAppHandoffMutationVariables,
+  CreateInitiativePluginHandoffMutationVariables,
   TContext
 > => {
-  return useMutation(getCreateInitiativeAppHandoffMutationOptions(options), queryClient);
+  return useMutation(getCreateInitiativePluginHandoffMutationOptions(options), queryClient);
 };
