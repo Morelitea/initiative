@@ -44,13 +44,12 @@ export const BillingForwardPage = () => {
       .then(async (url) => {
         if (!url) return;
         const platform = Capacitor.getPlatform();
-        if (platform === "web") {
+        if (platform !== "ios" && platform !== "android") {
           window.location.replace(url);
           return;
         }
-        // The apps open the portal outside themselves and stay here.
-        if (platform === "ios" || platform === "android") await Browser.open({ url });
-        else window.open(url, "_blank", "noopener,noreferrer");
+        // The phone apps open the portal in the browser sheet and stay here.
+        await Browser.open({ url });
         setOpened(true);
       })
       .catch((err: unknown) => setError(getErrorMessage(err, "communities:billingForward.error")));
