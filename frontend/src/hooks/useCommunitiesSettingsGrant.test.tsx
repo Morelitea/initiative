@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCommunity, buildUser, communityCan } from "@/__tests__/factories";
+import { buildCommunity, buildPage, buildUser, communityCan } from "@/__tests__/factories";
 import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const get = vi.fn();
@@ -56,16 +56,6 @@ const Probe = () => {
 };
 
 /** The provider reads its list through React Query, so each test gets a client. */
-/** One page of `/access-grants/`, the whole list. */
-const grantPage = (items: object[]) => ({
-  items,
-  total_count: items.length,
-  page: 1,
-  page_size: 200,
-  has_next: false,
-  has_prev: false,
-});
-
 const withQueryClient = () => {
   const client = createTestQueryClient();
   return ({ children }: { children: ReactNode }) => (
@@ -83,7 +73,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: grantPage([
+          data: buildPage([
             {
               community_id: 8,
               community_name: "Granted Community",
@@ -124,12 +114,12 @@ describe("settings grants in the community switcher", () => {
     get.mockImplementation((path: string, config?: { params?: { page?: number } }) => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/" && config?.params?.page === 1) {
-        return Promise.resolve({ data: { ...grantPage([]), has_next: true } });
+        return Promise.resolve({ data: buildPage([], { has_next: true }) });
       }
       if (path === "/access-grants/" && config?.params?.page === 2) {
         return Promise.resolve({
-          data: {
-            ...grantPage([
+          data: buildPage(
+            [
               {
                 community_id: 8,
                 community_name: "Granted Community",
@@ -139,10 +129,9 @@ describe("settings grants in the community switcher", () => {
                 requested_at: "2026-09-17T20:00:00Z",
                 expires_at: "2026-09-17T21:00:00Z",
               },
-            ]),
-            page: 2,
-            has_prev: true,
-          },
+            ],
+            { page: 2, has_prev: true }
+          ),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -170,7 +159,7 @@ describe("settings grants in the community switcher", () => {
       }
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: grantPage([
+          data: buildPage([
             {
               community_id: 8,
               community_name: "Member Community",
@@ -201,7 +190,7 @@ describe("settings grants in the community switcher", () => {
       if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
-          data: grantPage([
+          data: buildPage([
             {
               community_id: 8,
               community_name: "Granted Community",
