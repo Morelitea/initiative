@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,6 +25,7 @@ from app.core.intake import Conversation, IntakeStream, meta
 from app.core.tools import Tool
 from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
 from app.db import cohorts, filer_access
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import routed_guild_id, set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, CommunityStatus
@@ -285,10 +285,8 @@ async def _ensure_isolation(
     every binding write in this community takes, so two streams bound into
     one initiative at once see each other rather than both passing.
     """
-    await session.exec(
-        text(
-            "SELECT pg_advisory_xact_lock(:guild, hashtext('intake_bindings'))"
-        ).bindparams(guild=routed_guild_id(session))
+    await advisory_lock(
+        session, LockNamespace.INTAKE_BINDINGS, routed_guild_id(session)
     )
     if await _isolation_conflicts(session, stream=stream, initiative_id=initiative_id):
         raise HTTPException(

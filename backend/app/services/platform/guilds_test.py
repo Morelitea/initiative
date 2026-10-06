@@ -17,6 +17,7 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.guild import GuildInvite, CommunityRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
@@ -1050,13 +1051,7 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
 
 async def _try_lock(probe, guild_id: int) -> bool:
     """Whether a second connection can still take one guild's seat lock."""
-    row = (
-        await probe.exec(
-            text("SELECT pg_try_advisory_xact_lock(:ns, :gid) AS taken"),
-            params={"ns": guild_service.SEAT_LOCK_NAMESPACE, "gid": guild_id},
-        )
-    ).one()
-    return bool(row.taken if hasattr(row, "taken") else row)
+    return await advisory_lock(probe, LockNamespace.GUILD_SEATS, guild_id, wait=False)
 
 
 async def test_the_seat_lock_excludes_another_connection(session, role_session):

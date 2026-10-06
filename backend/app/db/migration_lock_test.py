@@ -3,12 +3,12 @@
 import asyncio
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import app.db.init_db as init_db
 from app.core.config import settings
-from app.db.session import MIGRATION_LOCK_KEY, migration_lock
+from app.db.advisory_locks import LockNamespace, advisory_lock
+from app.db.session import migration_lock
 from conftest import TEST_DATABASE_URL
 
 
@@ -27,12 +27,7 @@ async def _key_is_free(engine: AsyncEngine) -> bool:
     question and is released when this connection's transaction ends.
     """
     async with engine.connect() as conn:
-        return bool(
-            await conn.scalar(
-                text("SELECT pg_try_advisory_xact_lock(:key)"),
-                {"key": MIGRATION_LOCK_KEY},
-            )
-        )
+        return await advisory_lock(conn, LockNamespace.MIGRATION, wait=False)
 
 
 async def test_lock_is_held_for_the_block_and_released_after(engine):

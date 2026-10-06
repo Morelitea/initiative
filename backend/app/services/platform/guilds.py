@@ -20,6 +20,7 @@ from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.query import apply_pagination
 from app.models.platform.guild import (
@@ -476,12 +477,6 @@ def align_admin_initiative_roles(
     cohorts.after_commit(session, align_guild_admin_membership_roles)
 
 
-# Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
-# tag ("USER") so the two-int key (namespace, guild_id) can't collide with the
-# storage-quota ("STOR") or (user_id, guild_id) advisory locks used elsewhere.
-_MEMBER_CAP_LOCK_NAMESPACE = 0x55534552  # 1431193938
-
-
 async def _assert_member_capacity(
     session: AsyncSession, *, guild_id: int, claiming_seat: bool = True
 ) -> None:
@@ -509,10 +504,7 @@ async def _assert_member_capacity(
     if administration.max_users is None:
         return
     if claiming_seat:
-        await session.exec(
-            text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-            params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
-        )
+        await advisory_lock(session, LockNamespace.MEMBER_CAP, guild_id)
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
         raise GuildCapacityError(GuildMessages.COMMUNITY_USER_LIMIT_REACHED)
 
@@ -778,9 +770,6 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
-_GUILD_CREATION_LOCK_NAMESPACE = 0x47435245  # 1195594309
-
-
 async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
     """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
     communities in the last day?
@@ -793,10 +782,7 @@ async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bo
     limit = settings.GUILD_CREATION_DAILY_LIMIT
     if not limit:
         return True
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _GUILD_CREATION_LOCK_NAMESPACE, "uid": int(user_id)},
-    )
+    await advisory_lock(session, LockNamespace.GUILD_CREATION, user_id)
     since = datetime.now(timezone.utc) - timedelta(days=1)
     created = await session.scalar(
         select(func.count())
@@ -2441,11 +2427,6 @@ async def describe_invite_code(
     return invite, guild, False, reason
 
 
-#: Namespace for the per-guild advisory lock below, so the key cannot collide
-#: with another feature's advisory lock on the same guild id.
-SEAT_LOCK_NAMESPACE = 8471
-
-
 async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     """Order the changes that could leave a guild's sign-in rule unliftable.
 
@@ -2460,10 +2441,7 @@ async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     this first, so they order rather than interleave. Held to the end of the
     transaction; the caller does not release it.
     """
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-        params={"ns": SEAT_LOCK_NAMESPACE, "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.GUILD_SEATS, guild_id)
 
 
 def _sole_seats(user_id: int):
