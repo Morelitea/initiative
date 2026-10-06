@@ -333,6 +333,16 @@ def _role_oid(bind: Connection, name: str) -> int | None:
     ).scalar()
 
 
+#: ``pg_default_acl.defaclobjtype`` -> what ``ALTER DEFAULT PRIVILEGES`` calls it.
+_DEFAULT_ACL_OBJECTS = {
+    "r": "TABLES",
+    "S": "SEQUENCES",
+    "f": "FUNCTIONS",
+    "T": "TYPES",
+    "n": "SCHEMAS",
+}
+
+
 def _move_privileges(
     bind: Connection, old: str, new: str, members: list[str] | None = None
 ) -> None:
@@ -340,6 +350,10 @@ def _move_privileges(
 
     ``members`` limits the memberships moved to this database's own roles; a
     role another database's guild holds keeps its membership of ``old``.
+
+    Each privilege is revoked from ``old`` as it is granted to ``new``: the
+    migration's login granted them and may take them back, where ``DROP OWNED
+    BY`` would need the privileges of ``old`` itself, which it does not hold.
     """
     old_oid = _role_oid(bind, old)
     o, n = _ident(old), _ident(new)
@@ -353,7 +367,9 @@ def _move_privileges(
     ).all()
     for sch, rel, kind, priv in relations:
         what = "SEQUENCE" if kind == "S" else "TABLE"
-        op.execute(f"GRANT {priv} ON {what} {_ident(sch)}.{_ident(rel)} TO {n}")
+        target = f"{what} {_ident(sch)}.{_ident(rel)}"
+        op.execute(f"GRANT {priv} ON {target} TO {n}")
+        op.execute(f"REVOKE {priv} ON {target} FROM {o}")
     columns = bind.execute(
         text(
             "SELECT nsp.nspname, c.relname, att.attname, a.privilege_type "
@@ -364,9 +380,9 @@ def _move_privileges(
         {"o": old_oid},
     ).all()
     for sch, rel, col, priv in columns:
-        op.execute(
-            f"GRANT {priv} ({_ident(col)}) ON {_ident(sch)}.{_ident(rel)} TO {n}"
-        )
+        target = f"({_ident(col)}) ON {_ident(sch)}.{_ident(rel)}"
+        op.execute(f"GRANT {priv} {target} TO {n}")
+        op.execute(f"REVOKE {priv} {target} FROM {o}")
     functions = bind.execute(
         text(
             "SELECT p.oid::regprocedure::text FROM pg_proc p, aclexplode(p.proacl) a "
@@ -376,6 +392,7 @@ def _move_privileges(
     ).scalars()
     for signature in list(functions):
         op.execute(f"GRANT EXECUTE ON FUNCTION {signature} TO {n}")
+        op.execute(f"REVOKE EXECUTE ON FUNCTION {signature} FROM {o}")
     schemas = bind.execute(
         text(
             "SELECT nsp.nspname, a.privilege_type FROM pg_namespace nsp, "
@@ -385,6 +402,23 @@ def _move_privileges(
     ).all()
     for sch, priv in schemas:
         op.execute(f"GRANT {priv} ON SCHEMA {_ident(sch)} TO {n}")
+        op.execute(f"REVOKE {priv} ON SCHEMA {_ident(sch)} FROM {o}")
+    defaults = bind.execute(
+        text(
+            "SELECT nsp.nspname, d.defaclobjtype, a.privilege_type "
+            "FROM pg_default_acl d "
+            "LEFT JOIN pg_namespace nsp ON nsp.oid = d.defaclnamespace, "
+            "aclexplode(d.defaclacl) a "
+            "WHERE a.grantee = :o AND d.defaclrole = "
+            "(SELECT oid FROM pg_roles WHERE rolname = current_user)"
+        ),
+        {"o": old_oid},
+    ).all()
+    for sch, objtype, priv in defaults:
+        scope = f" IN SCHEMA {_ident(sch)}" if sch else ""
+        on = _DEFAULT_ACL_OBJECTS[objtype]
+        op.execute(f"ALTER DEFAULT PRIVILEGES{scope} GRANT {priv} ON {on} TO {n}")
+        op.execute(f"ALTER DEFAULT PRIVILEGES{scope} REVOKE {priv} ON {on} FROM {o}")
     held = list(
         bind.execute(
             text(
@@ -398,7 +432,6 @@ def _move_privileges(
         op.execute(f"GRANT {n} TO {_ident(member)}")
         if members is not None:
             op.execute(f"REVOKE {o} FROM {_ident(member)}")
-    op.execute(f"DROP OWNED BY {o}")
 
 
 def _drop_role_if_unheld(name: str) -> None:
