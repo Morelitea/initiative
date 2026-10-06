@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
 - **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.
 - **A new wiki page opens ready to write in**, rather than as a blank page to read.
 - **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.

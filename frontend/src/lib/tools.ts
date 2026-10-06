@@ -33,6 +33,7 @@ import type { ParseKeys } from "i18next";
 import {
   BookText,
   CalendarDays,
+  Files,
   GalleryHorizontalEnd,
   Gauge,
   Images,
@@ -40,7 +41,6 @@ import {
   ListTodo,
   type LucideIcon,
   Megaphone,
-  ScrollText,
 } from "lucide-react";
 
 import type { InitiativeRead, PermissionKey } from "@/api/generated/initiativeAPI.schemas";
@@ -52,7 +52,7 @@ import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
  */
 export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.project]: ListTodo,
-  [Tool.file]: ScrollText,
+  [Tool.file]: Files,
   [Tool.queue]: GalleryHorizontalEnd,
   [Tool.counter_group]: Gauge,
   [Tool.calendar]: CalendarDays,
