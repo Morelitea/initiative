@@ -32,7 +32,7 @@ from app.models.platform.app_setting_secret import AppSettingSecret
 logger = logging.getLogger(__name__)
 
 #: The relay's public address.
-PUSH_RELAY_URL = "https://push-relay.morelitea.com"
+PUSH_RELAY_URL = "https://push-relay.beyonders.studio"
 
 #: How long after a failed registration this process waits before trying
 #: again. The relay allows a few registrations a day per address.

@@ -15,7 +15,7 @@ from app.services.platform import push_config, push_relay
 URL = "/api/v1/settings/fcm-config"
 
 _RELAY_ANDROID = push_relay.AndroidConfig(
-    project_id="morelitea-app",
+    project_id="beyonders-studio-app",
     application_id="1:2:android:3",
     api_key="relay-api-key",
     sender_id="42",
@@ -85,7 +85,7 @@ async def test_no_service_account_serves_the_relays_settings(
 
     assert response.json() == {
         "enabled": True,
-        "project_id": "morelitea-app",
+        "project_id": "beyonders-studio-app",
         "application_id": "1:2:android:3",
         "api_key": "relay-api-key",
         "sender_id": "42",
