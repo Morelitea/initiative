@@ -2,7 +2,10 @@ import { Blocks, ChevronDown, Loader2, Lock, Users, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OwnerPluginSummary, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  OwnerPluginSummary,
+  ResourceGrantSchema,
+} from "@/api/generated/initiativeAPI.schemas";
 import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,9 +52,9 @@ export interface ShareControlProps {
   onChange: (grants: ResourceGrantSchema[]) => void;
   /** When given, a fixed, non-editable "Owner" row is shown. Omit in create. */
   ownerId?: number | null;
-  /** The installed app that owns the resource, as its read model names it.
-   *  An app owner's row is shown whenever the grants hold one; this supplies
-   *  its name and picture without looking the app up. */
+  /** The installed plug-in that owns the resource, as its read model names it.
+   *  A plug-in owner's row is shown whenever the grants hold one; this supplies
+   *  its name and picture without looking the plug-in up. */
   ownerPlugin?: OwnerPluginSummary | null;
   /** Viewer can't manage, or a save is in flight. */
   disabled?: boolean;
@@ -61,7 +64,7 @@ type ShareLevel = "read" | "write";
 
 const COMMUNITY_SCOPE: MemberSearchScope = { type: "community" };
 
-/** An app's picture, small, or the generic app mark when it has none. */
+/** A plug-in's picture, small, or the generic plug-in mark when it has none. */
 const PluginMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
   avatarUrl ? (
     <img
@@ -94,8 +97,8 @@ const PluginMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
  * all-members grant reads as every member of the community, which is how a community
  * calendar arrives shared with the community.
  *
- * An installed app may be the owner, or a grantee the community's seat named.
- * Both are shown by the app's name and never edited here: an app's grant is
+ * An installed plug-in may be the owner, or a grantee the community's seat named.
+ * Both are shown by the plug-in's name and never edited here: a plug-in's grant is
  * the seat's decision, and the server keeps it whatever this list sends.
  */
 export const ShareControl = ({
@@ -181,7 +184,7 @@ export const ShareControl = ({
     [seenMembers]
   );
 
-  // ── Apps: the owning install, and the ones the seat granted ──────────────
+  // ── Plug-ins: the owning install, and the ones the seat granted ──────────────
 
   const ownerPluginId = useMemo(
     () => grants.find((g) => g.level === "owner" && g.plugin_install_id != null)?.plugin_install_id,
@@ -191,22 +194,25 @@ export const ShareControl = ({
     () => grants.filter((g) => g.plugin_install_id != null && g.level !== "owner"),
     [grants]
   );
-  // The apps list is only read when a grant names an app the read model did
+  // The plug-ins list is only read when a grant names a plug-in the read model did
   // not already describe.
-  const needsPluginNames = pluginGrants.length > 0 || (ownerPluginId != null && ownerPlugin?.id !== ownerPluginId);
+  const needsPluginNames =
+    pluginGrants.length > 0 || (ownerPluginId != null && ownerPlugin?.id !== ownerPluginId);
   const { data: communityPlugins } = useCommunityPlugins({ enabled: needsPluginNames });
 
   const pluginSummary = useCallback(
     (pluginId: number): { name: string; avatarUrl: string | null } => {
-      if (ownerPlugin?.id === pluginId) return { name: ownerPlugin.name, avatarUrl: ownerPlugin.avatar_url };
-      const app = communityPlugins?.items.find((one) => one.id === pluginId);
-      return app
-        ? { name: app.name, avatarUrl: app.avatar_url }
+      if (ownerPlugin?.id === pluginId)
+        return { name: ownerPlugin.name, avatarUrl: ownerPlugin.avatar_url };
+      const plugin = communityPlugins?.items.find((one) => one.id === pluginId);
+      return plugin
+        ? { name: plugin.name, avatarUrl: plugin.avatar_url }
         : { name: t("share.pluginFallback", { id: pluginId }), avatarUrl: null };
     },
     [ownerPlugin, communityPlugins, t]
   );
-  const owningPlugin = ownerId == null && ownerPluginId != null ? pluginSummary(ownerPluginId) : null;
+  const owningPlugin =
+    ownerId == null && ownerPluginId != null ? pluginSummary(ownerPluginId) : null;
 
   // ── Lookup helpers ───────────────────────────────────────────────────────
 
@@ -664,22 +670,22 @@ export const ShareControl = ({
         </>
       )}
 
-      {/* ── Apps the community granted: shown, never edited here ──────── */}
+      {/* ── Plug-ins the community granted: shown, never edited here ──────── */}
       {pluginGrants.length > 0 && (
         <div className="space-y-2">
           <Label className="font-medium text-sm">{t("share.plugins")}</Label>
           <div className="space-y-1">
             {pluginGrants.map((grant) => {
               const pluginId = grant.plugin_install_id as number;
-              const app = pluginSummary(pluginId);
+              const plugin = pluginSummary(pluginId);
               return (
                 <div
                   key={`plugin-${pluginId}`}
                   className="flex items-center gap-2 rounded-md border px-3 py-2"
                   title={t("share.pluginGrantHint")}
                 >
-                  <PluginMark avatarUrl={app.avatarUrl} />
-                  <span className="min-w-0 flex-1 truncate text-sm">{app.name}</span>
+                  <PluginMark avatarUrl={plugin.avatarUrl} />
+                  <span className="min-w-0 flex-1 truncate text-sm">{plugin.name}</span>
                   <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
                     {grant.level === "write" ? t("share.editor") : t("share.viewer")}
                   </span>

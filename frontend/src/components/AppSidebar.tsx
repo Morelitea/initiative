@@ -18,10 +18,10 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CommunitySidebar } from "@/components/communities/CommunitySidebar";
 import { DIRECTORY_SECTION_ID } from "@/components/communityHome/InitiativeDirectory";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
-import { PluginsSection } from "@/components/sidebar/PluginsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
+import { PluginsSection } from "@/components/sidebar/PluginsSection";
 import { SidebarSearchButton } from "@/components/sidebar/SidebarSearchButton";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
@@ -192,14 +192,14 @@ export const AppSidebar = () => {
     [initiativesQuery.data]
   );
 
-  // The same install list the Apps section reads, handed to each initiative so
-  // an app declaring a surface in one gets a row there too. Filtered to what is
-  // actually reachable, on the same terms the Apps section uses.
+  // The same install list the Plug-ins section reads, handed to each initiative so
+  // a plug-in declaring a surface in one gets a row there too. Filtered to what is
+  // actually reachable, on the same terms the Plug-ins section uses.
   const communityPluginsQuery = useCommunityPlugins({ enabled: communityTreeEnabled });
   const initiativePlugins = useMemo(
     () =>
       (communityPluginsQuery.data?.items ?? []).filter(
-        (app) => app.enabled && app.available !== false
+        (plugin) => plugin.enabled && plugin.available !== false
       ),
     [communityPluginsQuery.data]
   );
@@ -213,8 +213,10 @@ export const AppSidebar = () => {
   // Collapse/expand all for initiatives
   const [initiativeCollapseKey, setInitiativeCollapseKey] = useState(0);
   // Remembered like the other sections; open by default so a newly installed
-  // app is visible without hunting for it.
-  const [pluginsOpen, setPluginsOpenState] = useState(() => getItem("plugins-section-open") !== "false");
+  // plug-in is visible without hunting for it.
+  const [pluginsOpen, setPluginsOpenState] = useState(
+    () => getItem("plugins-section-open") !== "false"
+  );
   const setPluginsOpen = (open: boolean) => {
     setPluginsOpenState(open);
     setItem("plugins-section-open", String(open));
@@ -401,7 +403,7 @@ export const AppSidebar = () => {
                           </>
                         )}
 
-                        {/* Apps: community-wide surfaces, so they sit above the
+                        {/* Plug-ins: community-wide surfaces, so they sit above the
                             initiatives rather than inside any of them. */}
                         {activeCommunity && (
                           <>
@@ -471,7 +473,7 @@ export const AppSidebar = () => {
                                       initiative={initiative}
                                       projects={projects}
                                       activeProjectId={activeProjectId}
-                                      apps={initiativePlugins}
+                                      plugins={initiativePlugins}
                                       counts={countsFor(initiative.id, projects.length)}
                                       activeCommunityId={activeCommunityId}
                                       collapseKey={initiativeCollapseKey}

@@ -13,8 +13,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$communi
   /** `q`, `sort` and `dir` are the table's search box and its order. They ride
    *  in the address so a narrowed, re-ordered table is a link; the page
    *  resolves an unknown `sort` back to its default rather than refusing it. */
-  /** `app` opens that installed app's settings — the deep link a request from
-   *  the app to act as the reader points at, answered there. */
+  /** `plugin` opens that installed plug-in's settings — the deep link a request from
+   *  the plug-in to act as the reader points at, answered there. */
   validateSearch: (
     search: Record<string, unknown>
   ): {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$communi
     q?: string;
     sort?: string;
     dir?: string;
-    app?: number;
+    plugin?: number;
   } => ({
     tool: typeof search.tool === "string" ? search.tool : undefined,
     page: validatePage(search.page),
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$communi
     q: typeof search.q === "string" && search.q ? search.q : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     dir: search.dir === "asc" || search.dir === "desc" ? search.dir : undefined,
-    app: pluginIdOf(search.app),
+    plugin: pluginIdOf(search.plugin),
   }),
   component: CommunityHome,
 });

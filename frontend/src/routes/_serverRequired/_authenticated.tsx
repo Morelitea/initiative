@@ -388,7 +388,7 @@ function AppLayout() {
                       `height: auto`, and a percentage height resolves against
                       the parent's *height* — so `h-full` on a page would
                       silently become `auto`. Three pages depend on that chain
-                      (My Messages, a document, an app surface): each pins
+                      (My Messages, a document, a plug-in surface): each pins
                       something to an edge and needs a real height to do it.
 
                       A grid row is definite either way. It is at least the

@@ -20,8 +20,8 @@ import { useTranslation } from "react-i18next";
 
 import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
-import { InstallPluginDialog } from "@/components/marketplace/InstallPluginDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
+import { InstallPluginDialog } from "@/components/marketplace/InstallPluginDialog";
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
@@ -178,7 +178,9 @@ export function MarketplaceListingPage() {
               isPlugin &&
               !holdsTheSeat &&
               isInstalled === false && (
-                <span className="text-muted-foreground text-xs">{t("plugins:install.adminOnly")}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("plugins:install.adminOnly")}
+                </span>
               )
             )}
           </div>

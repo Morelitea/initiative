@@ -28,9 +28,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSetPluginPlacementRoles, useUpdateCommunityPlugin } from "@/hooks/useCommunityPlugins";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { declaredEmbeds } from "@/lib/pluginSurfaces";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { declaredEmbeds } from "@/lib/pluginSurfaces";
 
 export interface PluginPlacementPanelProps {
   plugin: CommunityPluginDetail;
@@ -234,7 +234,9 @@ function PlacementRoles({ pluginId, initiativeId, initiativeName, roleIds }: Pla
       <PopoverContent align="end" className="w-64 space-y-3">
         <div className="space-y-1">
           <h4 className="font-medium text-sm">{t("plugins:placement.roles.title")}</h4>
-          <p className="text-muted-foreground text-xs">{t("plugins:placement.roles.adminsAlways")}</p>
+          <p className="text-muted-foreground text-xs">
+            {t("plugins:placement.roles.adminsAlways")}
+          </p>
         </div>
         {/* Mounted only while open, so the roles load for this one initiative. */}
         {open && (

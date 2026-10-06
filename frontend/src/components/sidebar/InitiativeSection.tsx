@@ -22,8 +22,8 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { initiativePluginPath } from "@/lib/pluginSurfaces";
 import { communityPath } from "@/lib/communityUrl";
+import { initiativePluginPath } from "@/lib/pluginSurfaces";
 import { getItem, setItem } from "@/lib/storage";
 import {
   initiativeRoute,
@@ -45,9 +45,9 @@ export interface InitiativeSectionProps {
   /** One count per tool. Required keys, not `Partial`: a tool left out of
    *  this map renders a permanent 0 with nothing to catch it. */
   counts: Record<Tool, number>;
-  /** The community's installed apps. Those declaring a surface for this reader
+  /** The community's installed plug-ins. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
-  apps: CommunityPluginRead[];
+  plugins: CommunityPluginRead[];
   activeCommunityId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -59,7 +59,7 @@ export const InitiativeSection = memo(
     projects,
     activeProjectId,
     counts,
-    apps,
+    plugins,
     activeCommunityId,
     collapseKey,
   }: InitiativeSectionProps) => {
@@ -76,11 +76,11 @@ export const InitiativeSection = memo(
     /** Whether to surface a create affordance for a tool. */
     const canCreateTool = (tool: Tool): boolean => initiative.can.create.includes(tool);
 
-    // Apps offering this reader a surface inside *this* initiative, as the
+    // Plug-ins offering this reader a surface inside *this* initiative, as the
     // server computed it for them.
-    const pluginRows = apps
-      .map((app) => ({ app, path: initiativePluginPath(app, initiative.id) }))
-      .filter((row): row is { app: CommunityPluginRead; path: string } => row.path !== null);
+    const pluginRows = plugins
+      .map((plugin) => ({ plugin, path: initiativePluginPath(plugin, initiative.id) }))
+      .filter((row): row is { plugin: CommunityPluginRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -233,16 +233,16 @@ export const InitiativeSection = memo(
                 </SidebarMenuItem>
               )}
 
-              {/* Apps first, above the tools, the same way the community's apps sit
+              {/* Plug-ins first, above the tools, the same way the community's plug-ins sit
                   above its initiatives — and because the tool rows end with
                   projects, whose list has to expand directly beneath them. */}
-              {pluginRows.map(({ app, path }) => (
-                <SidebarMenuItem key={`plugin-${app.id}`}>
+              {pluginRows.map(({ plugin, path }) => (
+                <SidebarMenuItem key={`plugin-${plugin.id}`}>
                   <SidebarMenuButton asChild size="sm" className="min-w-0">
                     <Link to={gp(path)} className="flex min-w-0 items-center gap-2">
-                      {app.avatar_url ? (
+                      {plugin.avatar_url ? (
                         <img
-                          src={resolveArtworkUrl(app.avatar_url) ?? undefined}
+                          src={resolveArtworkUrl(plugin.avatar_url) ?? undefined}
                           alt=""
                           aria-hidden
                           className="h-4 w-4 shrink-0 rounded-sm object-cover"
@@ -251,7 +251,7 @@ export const InitiativeSection = memo(
                       ) : (
                         <Blocks className="h-4 w-4 shrink-0" />
                       )}
-                      <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{plugin.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

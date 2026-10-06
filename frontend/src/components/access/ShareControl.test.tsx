@@ -62,7 +62,7 @@ vi.mock("@/hooks/useUsers", () => ({
   },
 }));
 
-// The community's installed apps, which name an app grantee.
+// The community's installed plug-ins, which name a plug-in grantee.
 vi.mock("@/hooks/useCommunityPlugins", () => ({
   useCommunityPlugins: () => ({
     data: {
@@ -234,8 +234,8 @@ describe("ShareControl in its community view", () => {
   });
 });
 
-describe("ShareControl with an app", () => {
-  it("shows the owning app by name and picture in the Owner row", () => {
+describe("ShareControl with a plug-in", () => {
+  it("shows the owning plug-in by name and picture in the Owner row", () => {
     const grants: ResourceGrantSchema[] = [{ plugin_install_id: 302, level: "owner" }];
 
     renderWithProviders(
@@ -250,13 +250,13 @@ describe("ShareControl with an app", () => {
 
     const row = screen.getByText("Storefront").closest("div") as HTMLElement;
     expect(within(row).getByText("Owner")).toBeInTheDocument();
-    expect(within(row).getByText("App")).toBeInTheDocument();
+    expect(within(row).getByText("Plug-in")).toBeInTheDocument();
     expect(row.querySelector("img")).not.toBeNull();
     // It is not offered as a person to add, and not editable.
     expect(within(row).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("names an owning app from the community's apps when the read model does not", () => {
+  it("names an owning plug-in from the community's plug-ins when the read model does not", () => {
     const grants: ResourceGrantSchema[] = [{ plugin_install_id: 301, level: "owner" }];
 
     renderWithProviders(
@@ -267,7 +267,7 @@ describe("ShareControl with an app", () => {
     expect(within(row).getByText("Owner")).toBeInTheDocument();
   });
 
-  it("lists an app grantee by name, read-only, and never sends it back", async () => {
+  it("lists a plug-in grantee by name, read-only, and never sends it back", async () => {
     const onChange = vi.fn();
     const grants: ResourceGrantSchema[] = [
       { plugin_install_id: 301, level: "write" },
@@ -276,7 +276,7 @@ describe("ShareControl with an app", () => {
 
     renderWithProviders(<ShareControl initiativeId={1} grants={grants} onChange={onChange} />);
 
-    expect(screen.getByText("Apps")).toBeInTheDocument();
+    expect(screen.getByText("Plug-ins")).toBeInTheDocument();
     const row = screen.getByText("Automations").closest("div") as HTMLElement;
     expect(within(row).getByText("Editor")).toBeInTheDocument();
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();

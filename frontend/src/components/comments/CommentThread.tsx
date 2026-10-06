@@ -99,7 +99,7 @@ export const CommentThread = ({
   // wrote the row rather than whoever said this.
   const importedAuthorName = comment.imported_author_name?.trim() || null;
   const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
-  // A comment an app wrote as its community names no account, and neither
+  // A comment a plug-in wrote as its community names no account, and neither
   // does a note the platform wrote on an operations case; the platform's
   // notes say what wrote them.
   const displayName =

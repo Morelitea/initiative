@@ -64,7 +64,7 @@ describe("PluginsSection", () => {
     // pointing at rather than hiding.
     render(false);
     expect(await screen.findByText("Plug-ins")).toBeInTheDocument();
-    expect(screen.getByText("Browse the plug-in store")).toBeInTheDocument();
+    expect(screen.getByText("Browse the marketplace")).toBeInTheDocument();
     expect(screen.queryByText("Add a plug-in")).toBeNull();
   });
 
@@ -72,7 +72,7 @@ describe("PluginsSection", () => {
     render(true);
     expect(await screen.findByText("Plug-ins")).toBeInTheDocument();
     expect(screen.getByText("Add a plug-in")).toBeInTheDocument();
-    expect(screen.queryByText("Browse the plug-in store")).toBeNull();
+    expect(screen.queryByText("Browse the marketplace")).toBeNull();
   });
 
   it("lists installed plug-ins for a member", async () => {
@@ -81,7 +81,7 @@ describe("PluginsSection", () => {
     expect(await screen.findByText("Community calendar")).toBeInTheDocument();
     // No add affordance: installing is a community-admin action.
     expect(screen.queryByText("Add a plug-in")).toBeNull();
-    expect(screen.getByText("Browse the plug-in store")).toBeInTheDocument();
+    expect(screen.getByText("Browse the marketplace")).toBeInTheDocument();
   });
 
   it("links a plug-in to what it mounted", async () => {
@@ -115,7 +115,7 @@ describe("PluginsSection", () => {
   it("still offers the store to a member when every plug-in is disabled", async () => {
     plugins = [plugin({ enabled: false })];
     render(false);
-    expect(await screen.findByText("Browse the plug-in store")).toBeInTheDocument();
+    expect(await screen.findByText("Browse the marketplace")).toBeInTheDocument();
     expect(screen.queryByText("Community calendar")).toBeNull();
   });
 

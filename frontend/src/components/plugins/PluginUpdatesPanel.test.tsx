@@ -168,7 +168,9 @@ describe("PluginUpdatesPanel", () => {
     ));
 
     expect(
-      await screen.findByText("You declined version 1.2.0. The plug-in stays on its current version.")
+      await screen.findByText(
+        "You declined version 1.2.0. The plug-in stays on its current version."
+      )
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept and update" })).toBeInTheDocument();

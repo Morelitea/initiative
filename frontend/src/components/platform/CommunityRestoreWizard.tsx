@@ -14,7 +14,7 @@
  *   one suspended for nonpayment and then deleted should not come back
  *   trading.
  *
- * What does not come back is its app connections. Those were revoked when it
+ * What does not come back is its plug-in connections. Those were revoked when it
  * was deleted — the community had withdrawn their authorization — and its
  * admins reconnect them.
  */

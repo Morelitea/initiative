@@ -65,7 +65,7 @@ describe("DashboardWidget", () => {
   it("reads no initiative and no dashboard at all in sample mode", () => {
     // The hook still runs — hooks are unconditional — but without an
     // initiative it fail-closes and issues no request. The dashboard goes the
-    // same way: an app source has nothing to address itself to, so a preview
+    // same way: a plug-in source has nothing to address itself to, so a preview
     // cannot reach one either. This is what keeps an uninstalled listing's
     // preview from touching the community's data.
     render(true);

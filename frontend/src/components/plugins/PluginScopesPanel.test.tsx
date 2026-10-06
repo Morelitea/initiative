@@ -108,7 +108,9 @@ describe("PluginScopesPanel", () => {
 
   it("shows a scope the server does not allow, disabled, with the reason", async () => {
     renderPage(() => (
-      <PluginScopesPanel plugin={plugin({ grantable_scopes: ["projects:read", "comments:read"] })} />
+      <PluginScopesPanel
+        plugin={plugin({ grantable_scopes: ["projects:read", "comments:read"] })}
+      />
     ));
 
     const projects = await row("Projects");

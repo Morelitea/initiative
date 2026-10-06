@@ -23,12 +23,12 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  type PluginDataResponse,
-  type PluginParamOptionsResponse,
-  type PluginWidgetCatalogResponse,
   getPluginData,
   getPluginParamOptions,
   getPluginWidgetCatalog,
+  type PluginDataResponse,
+  type PluginParamOptionsResponse,
+  type PluginWidgetCatalogResponse,
 } from "@/api/pluginData";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 

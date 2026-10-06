@@ -4,10 +4,10 @@
  * Three, and they are not variations on a theme. A **query** is a statement
  * over this community's datasets. A **sheet_range** is a cell range in a
  * spreadsheet document; it answers with the same columns and rows a statement
- * does, and becomes a statement itself once documents are queryable. An **app**
+ * does, and becomes a statement itself once documents are queryable. A **plug-in**
  * is an installed listing's own endpoint, whose parameters are declared in its
  * manifest and checked at fetch time — the two slots here are the ones a
- * *definition* fills: which app, and which of its sources.
+ * *definition* fills: which plug-in, and which of its sources.
  *
  * The backend deliberately does not declare binding parameters: they belong to
  * the fetcher that consumes them, and mirroring them server-side would mean

@@ -281,7 +281,7 @@ describe("CalendarsView calendar-entries query", () => {
 });
 
 describe("CalendarsView on a community calendar", () => {
-  /** The calendar the app mounts: community-level, so it belongs to no initiative. */
+  /** The calendar the plug-in mounts: community-level, so it belongs to no initiative. */
   const communityCalendar = {
     id: 42,
     name: "Community calendar",
@@ -358,7 +358,7 @@ describe("CalendarsView on a community calendar", () => {
   });
 });
 
-describe("CalendarsView on the calendar app's own surface", () => {
+describe("CalendarsView on the calendar plug-in's own surface", () => {
   const communityCalendar = (id: number, name: string) => ({
     id,
     name,

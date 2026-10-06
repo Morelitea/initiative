@@ -2,7 +2,6 @@ import "i18next";
 
 import type access from "../../public/locales/en/access.json";
 import type announcements from "../../public/locales/en/announcements.json";
-import type plugins from "../../public/locales/en/plugins.json";
 import type auth from "../../public/locales/en/auth.json";
 import type calendars from "../../public/locales/en/calendars.json";
 import type command from "../../public/locales/en/command.json";
@@ -28,6 +27,7 @@ import type messages from "../../public/locales/en/messages.json";
 import type moderation from "../../public/locales/en/moderation.json";
 import type myTools from "../../public/locales/en/myTools.json";
 import type nav from "../../public/locales/en/nav.json";
+import type plugins from "../../public/locales/en/plugins.json";
 import type posts from "../../public/locales/en/posts.json";
 import type profiles from "../../public/locales/en/profiles.json";
 import type projects from "../../public/locales/en/projects.json";

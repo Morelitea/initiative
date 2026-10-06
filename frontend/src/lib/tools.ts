@@ -86,7 +86,7 @@ export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, T
 export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   // Empty, and that is the point: every tool has an export source. What used
   // to sit here (Tool.dashboard) is now handled where it belongs — an entity
-  // built on an app this build does not ship is filtered by provenance on the
+  // built on a plug-in this build does not ship is filtered by provenance on the
   // server, which is a property of the ROW, not of the tool.
 ]);
 
@@ -100,8 +100,8 @@ export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t
  * catalog can hold its content — and as a map rather than a set so a browse
  * link addresses that tool's own shelf instead of the default one.
  *
- * The kinds mirror backend `LISTING_KINDS`. Not every kind belongs here: `app`
- * installs at community scope (the sidebar's apps section and community settings own
+ * The kinds mirror backend `LISTING_KINDS`. Not every kind belongs here: `plugin`
+ * installs at community scope (the sidebar's plug-ins section and community settings own
  * that link), and `auto` names a vocabulary entry nothing installs yet.
  */
 export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {

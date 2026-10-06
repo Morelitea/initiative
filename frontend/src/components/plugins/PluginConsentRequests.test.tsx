@@ -34,7 +34,9 @@ vi.mock("@/hooks/useInitiatives", async (importOriginal) => ({
   useInitiatives: () => ({ data: [{ id: 9, name: "Launch" }] }),
 }));
 
-const consent = (overrides: Partial<CommunityPluginConsentRead> = {}): CommunityPluginConsentRead => ({
+const consent = (
+  overrides: Partial<CommunityPluginConsentRead> = {}
+): CommunityPluginConsentRead => ({
   id: 41,
   purpose: "node-1",
   label: "Comment on the linked issue",

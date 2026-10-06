@@ -57,8 +57,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
-import { pluginHasConnections, communityPluginPath } from "@/lib/pluginSurfaces";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { communityPluginPath, pluginHasConnections } from "@/lib/pluginSurfaces";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -129,11 +129,19 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
             {plugins.length ? (
               <SidebarMenu>
                 {actionable.map((plugin) => (
-                  <PluginEntry key={plugin.id} plugin={plugin} isCommunityAdmin={isCommunityAdmin} />
+                  <PluginEntry
+                    key={plugin.id}
+                    plugin={plugin}
+                    isCommunityAdmin={isCommunityAdmin}
+                  />
                 ))}
                 {showInert &&
                   inert.map((plugin) => (
-                    <PluginEntry key={plugin.id} plugin={plugin} isCommunityAdmin={isCommunityAdmin} />
+                    <PluginEntry
+                      key={plugin.id}
+                      plugin={plugin}
+                      isCommunityAdmin={isCommunityAdmin}
+                    />
                   ))}
                 {inert.length > 0 && (
                   <SidebarMenuItem>
@@ -184,7 +192,13 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
   );
 }
 
-function PluginEntry({ plugin, isCommunityAdmin }: { plugin: CommunityPluginRead; isCommunityAdmin: boolean }) {
+function PluginEntry({
+  plugin,
+  isCommunityAdmin,
+}: {
+  plugin: CommunityPluginRead;
+  isCommunityAdmin: boolean;
+}) {
   const { t } = useTranslation(["plugins"]);
   const gp = useCommunityPath();
   const [settingsOpen, setSettingsOpen] = useState(false);

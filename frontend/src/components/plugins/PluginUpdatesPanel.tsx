@@ -34,9 +34,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDeclinePluginUpgrade, useUpgradePlugin } from "@/hooks/useCommunityPluginDetail";
 import { useUpdateCommunityPlugin } from "@/hooks/useCommunityPlugins";
-import { type PluginNames, scopeSentence } from "@/lib/pluginScopes";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { type PluginNames, scopeSentence } from "@/lib/pluginScopes";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 export function PluginUpdatesPanel({ plugin }: { plugin: CommunityPluginDetail }) {

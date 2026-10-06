@@ -617,7 +617,7 @@ describe("CommunityHomePage", () => {
     );
   });
 
-  it("opens an app's settings from the address, where the reader answers what it asked", async () => {
+  it("opens a plug-in's settings from the address, where the reader answers what it asked", async () => {
     stubInitiatives();
     stubTools();
     server.use(
@@ -646,7 +646,7 @@ describe("CommunityHomePage", () => {
       )
     );
 
-    renderHomeAsMember({ app: 3 });
+    renderHomeAsMember({ plugin: 3 });
 
     expect(await screen.findByText("Auto: “Comment on the linked issue”")).toBeInTheDocument();
     expect(screen.getByText("Waiting for you")).toBeInTheDocument();

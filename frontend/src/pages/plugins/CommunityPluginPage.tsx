@@ -20,8 +20,11 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createCommunityPluginHandoff, createInitiativePluginHandoff } from "@/api/generated/plugins/plugins";
 import type { CommunityPluginHandoff } from "@/api/generated/initiativeAPI.schemas";
+import {
+  createCommunityPluginHandoff,
+  createInitiativePluginHandoff,
+} from "@/api/generated/plugins/plugins";
 import {
   EditorSkeleton,
   SkeletonPillRow,
@@ -33,7 +36,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useCommunityPluginDetail } from "@/hooks/useCommunityPluginDetail";
 import { useTheme } from "@/hooks/useTheme";
-import { pluginEmbeds, embedAllow } from "@/lib/pluginSurfaces";
+import { embedAllow, pluginEmbeds } from "@/lib/pluginSurfaces";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";

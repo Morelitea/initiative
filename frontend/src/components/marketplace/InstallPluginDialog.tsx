@@ -43,11 +43,11 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useInstallCommunityPlugin } from "@/hooks/useCommunityPlugins";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/pluginScopes";
-import { communityPluginPath } from "@/lib/pluginSurfaces";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/pluginScopes";
+import { communityPluginPath } from "@/lib/pluginSurfaces";
 import type { DialogProps } from "@/types/dialog";
 
 export interface InstallPluginDialogProps extends DialogProps {
@@ -177,7 +177,9 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
               </h3>
               <p className="text-muted-foreground text-xs">
                 {t(
-                  hasPage ? "plugins:install.whereDescription" : "plugins:install.whereDescriptionNoPage"
+                  hasPage
+                    ? "plugins:install.whereDescription"
+                    : "plugins:install.whereDescriptionNoPage"
                 )}
               </p>
             </div>

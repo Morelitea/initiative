@@ -112,8 +112,8 @@ export const NotificationBell = () => {
     }
     const target = notificationLink(notification);
     if (target) {
-      // A target carrying a query string (an app's consent screen opens from
-      // `?app=`) goes as an href, so the query stays search rather than path.
+      // A target carrying a query string (a plug-in's consent screen opens from
+      // `?plugin=`) goes as an href, so the query stays search rather than path.
       router.navigate(target.includes("?") ? { href: target } : { to: target });
       setOpen(false);
     }

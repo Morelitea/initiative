@@ -20,8 +20,8 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { pluginWidgetSample, pluginWidgetSource } from "@/api/pluginData";
 import type { DashboardWidgetData } from "@/api/generated/initiativeAPI.schemas";
+import { pluginWidgetSample, pluginWidgetSource } from "@/api/pluginData";
 import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useBindingLabels } from "@/hooks/useBindingLabels";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
+import { usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
@@ -90,7 +90,9 @@ export function DashboardWidget({
   // listing rather than a stand-in. It still issues no data request — no
   // initiative, no dashboard, nothing to fetch.
   const pluginCatalogQuery = usePluginWidgetCatalog(isPluginWidget);
-  const moduleSource = isPluginWidget ? pluginWidgetSource(pluginCatalogQuery.data, widget.type) : undefined;
+  const moduleSource = isPluginWidget
+    ? pluginWidgetSource(pluginCatalogQuery.data, widget.type)
+    : undefined;
 
   // Named from its own module, like every widget: a plug-in names its widgets in
   // the manifest, so a marketplace tile has a real title without a locale edit
@@ -113,7 +115,11 @@ export function DashboardWidget({
   const labels = useBindingLabels(binding, initiativeId, !sampleData);
   const [view, setView] = useState<"scene" | "table">("scene");
 
-  const pluginSample = pluginWidgetSample(pluginCatalogQuery.data, widget.type, binding.endpoint_id);
+  const pluginSample = pluginWidgetSample(
+    pluginCatalogQuery.data,
+    widget.type,
+    binding.endpoint_id
+  );
   const answered = answer?.result
     ? normalizeQueryRows(answer.result.columns, answer.result.rows)
     : undefined;

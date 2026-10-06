@@ -1,7 +1,7 @@
 /**
- * A configured value in the type its app declared for it.
+ * A configured value in the type its plug-in declared for it.
  *
- * Every control that fills an app endpoint's parameter reads a **string** — a
+ * Every control that fills a plug-in endpoint's parameter reads a **string** — a
  * `<Select>` hands back its option's value, a text field hands back its text,
  * a multi-select hands back an array of option values. The declaration those
  * options came from may say the parameter is an `int`, and the proxy holds a

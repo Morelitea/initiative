@@ -12,8 +12,8 @@ import { communityPath } from "@/lib/communityUrl";
 import {
   entityRefTypeFor,
   isSearchEntityType,
-  normalizePluginTarget,
   normalizeLegacyTarget,
+  normalizePluginTarget,
 } from "@/lib/entityResolver";
 import { formatDate } from "@/lib/formatDate";
 import { entityRefRoute } from "@/lib/tools";
@@ -456,14 +456,14 @@ export const notificationText = (
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
     case "plugin_consent_requested":
-      // The label is the app's own words, quoted as such by the string.
+      // The label is the plug-in's own words, quoted as such by the string.
       return t("notifications.pluginConsentRequested", {
-        app: typeof data.plugin_name === "string" ? data.plugin_name : "",
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         label: typeof data.label === "string" ? data.label : "",
       });
     case "plugin_update_pending":
       return t("notifications.pluginUpdatePending", {
-        app: typeof data.plugin_name === "string" ? data.plugin_name : "",
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         version: typeof data.version === "string" ? data.version : "",
       });
     case "community_on_hold": {

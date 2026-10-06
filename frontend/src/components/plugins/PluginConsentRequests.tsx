@@ -32,7 +32,11 @@ export interface PluginConsentRequestsProps {
   consents: CommunityPluginConsentRead[];
 }
 
-export function PluginConsentRequests({ pluginId, pluginName, consents }: PluginConsentRequestsProps) {
+export function PluginConsentRequests({
+  pluginId,
+  pluginName,
+  consents,
+}: PluginConsentRequestsProps) {
   const { t } = useTranslation(["plugins", "common"]);
   const grant = useGrantPluginConsent(pluginId);
   const revoke = useRevokePluginConsent(pluginId);

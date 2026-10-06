@@ -155,7 +155,7 @@ export const DocumentsListView = ({
         id: "owner",
         header: t("documents:columns.owner"),
         cell: ({ row }) => {
-          // An installed app owns what it made; its name is the owner's name.
+          // An installed plug-in owns what it made; its name is the owner's name.
           if (row.original.owner_plugin) {
             return <span>{row.original.owner_plugin.name}</span>;
           }

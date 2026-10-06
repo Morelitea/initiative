@@ -97,7 +97,9 @@ describe("SettingsPluginServicesPage", () => {
         auth: { user: buildUser({ role: "owner", capabilities: [] }) },
       });
 
-      expect(screen.getByText("Only platform owners can manage plug-in services.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Only platform owners can manage plug-in services.")
+      ).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add plug-in service" })).toBeNull();
       expect(screen.queryByText("core.github")).toBeNull();
     });
@@ -550,7 +552,7 @@ describe("SettingsPluginServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Pin these keys" }));
 
       expect(
-        await screen.findByText(/The plugin's keys changed after you checked them/)
+        await screen.findByText(/The plug-in's keys changed after you checked them/)
       ).toBeInTheDocument();
       expect(screen.queryByRole("region", { name: "Keys the plug-in serves" })).toBeNull();
     });

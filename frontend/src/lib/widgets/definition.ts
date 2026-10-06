@@ -93,13 +93,13 @@ export const effectiveBinding = (
 });
 
 /**
- * The prefix an installed app's widget types carry.
+ * The prefix an installed plug-in's widget types carry.
  *
  * Mirrors `PLUGIN_WIDGET_TYPE_PREFIX` in the backend's `service_plugins.py`. A type is
  * `plugin:<listing_uid>:<widget_id>`, and `:` is outside the identifier character
  * set both halves use, so the three parts stay unambiguous. The namespacing is
- * what stops an app's widget resolving to a built-in renderer, or a built-in
- * resolving to an app's module.
+ * what stops a plug-in's widget resolving to a built-in renderer, or a built-in
+ * resolving to a plug-in's module.
  */
 export const PLUGIN_WIDGET_TYPE_PREFIX = "plugin:";
 

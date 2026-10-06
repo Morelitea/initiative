@@ -50,10 +50,10 @@ import {
   useUninstallCommunityPlugin,
   useUpdateCommunityPlugin,
 } from "@/hooks/useCommunityPlugins";
-import { declaredEmbeds } from "@/lib/pluginSurfaces";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { declaredEmbeds } from "@/lib/pluginSurfaces";
 import { cn } from "@/lib/utils";
 
 export function SettingsCommunityPluginsPage() {
@@ -78,7 +78,9 @@ export function SettingsCommunityPluginsPage() {
         {pluginsQuery.isLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : plugins.length ? (
-          plugins.map((plugin) => <PluginRow key={plugin.id} plugin={plugin} canManage={Boolean(holdsTheSeat)} />)
+          plugins.map((plugin) => (
+            <PluginRow key={plugin.id} plugin={plugin} canManage={Boolean(holdsTheSeat)} />
+          ))
         ) : (
           <div className="space-y-3 rounded-lg border border-dashed p-6 text-center">
             <p className="text-muted-foreground text-sm">{t("plugins:manage.empty")}</p>
@@ -184,7 +186,9 @@ function PluginRow({ plugin, canManage }: { plugin: PluginListItem; canManage: b
             {t("plugins:manage.provided")}
           </Badge>
         )}
-        {plugin.available === false && <Badge variant="outline">{t("plugins:manage.unavailable")}</Badge>}
+        {plugin.available === false && (
+          <Badge variant="outline">{t("plugins:manage.unavailable")}</Badge>
+        )}
         {!plugin.enabled && <Badge variant="outline">{t("plugins:manage.disabled")}</Badge>}
 
         <div className="flex shrink-0 items-center gap-2">
@@ -264,7 +268,9 @@ function PluginDetailPanels({ pluginId, canManage }: { pluginId: number; canMana
             <PluginPlacementPanel plugin={detail.data} />
           )}
 
-          {(detail.data.requested_scopes ?? []).length > 0 && <PluginScopesPanel plugin={detail.data} />}
+          {(detail.data.requested_scopes ?? []).length > 0 && (
+            <PluginScopesPanel plugin={detail.data} />
+          )}
 
           <section className="space-y-2">
             <h3 className="font-medium text-sm">{t("plugins:members.title")}</h3>

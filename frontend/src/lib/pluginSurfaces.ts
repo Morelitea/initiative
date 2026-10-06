@@ -131,7 +131,9 @@ export const pluginHasConnections = (definition?: Record<string, unknown> | null
  * service plug-in with surfaces this reader can open gets a page. Anything else has
  * no route, and the caller decides what to do with the row.
  */
-export const communityPluginPath = (plugin: PluginSurfaceSource & { id: number }): string | null => {
+export const communityPluginPath = (
+  plugin: PluginSurfaceSource & { id: number }
+): string | null => {
   if (plugin.tool === "calendar") {
     // No `/i/` prefix on purpose: a plug-in is installed per community, and the
     // calendars it holds belong to no initiative — the community route is their

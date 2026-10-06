@@ -54,14 +54,14 @@ const useToolCounts = (counts: Record<string, number> | undefined) => {
   );
 };
 
-/** A recipient in the picker: an admin (`user:<id>`) or an app (`plugin:<id>`). */
+/** A recipient in the picker: an admin (`user:<id>`) or a plug-in (`plugin:<id>`). */
 const personRecipient = (id: number) => `user:${id}`;
 const pluginRecipient = (id: number) => `plugin:${id}`;
 
 /** The request body a picked recipient becomes. */
 const transferBody = (recipient: string): OwnershipTransferRequest => {
   const [kind, id] = recipient.split(":");
-  return kind === "app" ? { new_owner_plugin_id: Number(id) } : { new_owner_id: Number(id) };
+  return kind === "plugin" ? { new_owner_plugin_id: Number(id) } : { new_owner_id: Number(id) };
 };
 
 interface TransferContentOwnershipDialogProps {
@@ -76,9 +76,9 @@ interface TransferContentOwnershipDialogProps {
 
 /**
  * Moves everything a member owns in this community to a community admin, and the only
- * place in the app that does. Recipients are community admins, who already reach
+ * place in the plug-in that does. Recipients are community admins, who already reach
  * every part of the community, so a transfer can never widen anyone's access — or
- * an installed app the server lists as able to own all of it
+ * an installed plug-in the server lists as able to own all of it
  * (`eligible_plugins`): one placed where all of it lives and allowed to change
  * it, which is the reach it already has.
  *
@@ -141,7 +141,7 @@ export const TransferContentOwnershipDialog = ({
   const eligiblePlugins = content?.eligible_plugins ?? [];
 
   // Admins are found by name on the server rather than read from the whole
-  // roster: the closest matches, of which the admins are offered. The few apps
+  // roster: the closest matches, of which the admins are offered. The few plug-ins
   // the server listed are matched here.
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -157,10 +157,10 @@ export const TransferContentOwnershipDialog = ({
         .filter((user) => isAdminRole(user.community_role) && user.status !== "anonymized")
         .map((admin) => ({ value: personRecipient(admin.id), label: getUserDisplayName(admin) })),
       ...(content?.eligible_plugins ?? [])
-        .filter((app) => app.name.toLowerCase().includes(term))
-        .map((app) => ({
-          value: pluginRecipient(app.id),
-          label: app.name,
+        .filter((plugin) => plugin.name.toLowerCase().includes(term))
+        .map((plugin) => ({
+          value: pluginRecipient(plugin.id),
+          label: plugin.name,
           icon: Blocks,
           hint: t("transferOwnership.pluginHint"),
         })),

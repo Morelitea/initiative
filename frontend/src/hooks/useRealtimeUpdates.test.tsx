@@ -350,7 +350,7 @@ describe("realtime resource frames", () => {
     expect(properties(), "properties").toBe(true);
   });
 
-  it("refreshes the app list and an install's own reads", () => {
+  it("refreshes the plug-in list and an install's own reads", () => {
     // Community-wide and parentless: nothing else on the client covers it.
     const list = seed([`/api/v1/c/${COMMUNITY}/plugins/`]);
     const detail = seed(["community-plugin", COMMUNITY, ENTITY_ID]);
@@ -361,9 +361,9 @@ describe("realtime resource frames", () => {
       COMMUNITY
     );
 
-    expect(list(), "app list").toBe(true);
-    expect(detail(), "app detail").toBe(true);
-    expect(members(), "app members").toBe(true);
+    expect(list(), "plug-in list").toBe(true);
+    expect(detail(), "plug-in detail").toBe(true);
+    expect(members(), "plug-in members").toBe(true);
   });
 
   it("leaves another community's install reads alone", () => {

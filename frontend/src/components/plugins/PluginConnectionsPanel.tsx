@@ -43,7 +43,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useConnectPlugin, useDisconnectPlugin, useUpdatePluginConfig } from "@/hooks/useCommunityPluginDetail";
+import {
+  useConnectPlugin,
+  useDisconnectPlugin,
+  useUpdatePluginConfig,
+} from "@/hooks/useCommunityPluginDetail";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -71,7 +75,11 @@ export interface PluginConnectionsPanelProps {
   canManage: boolean;
 }
 
-export function PluginConnectionsPanel({ pluginId, connections, canManage }: PluginConnectionsPanelProps) {
+export function PluginConnectionsPanel({
+  pluginId,
+  connections,
+  canManage,
+}: PluginConnectionsPanelProps) {
   const { t } = useTranslation(["plugins"]);
 
   if (!connections.length) {
@@ -131,7 +139,9 @@ function ConnectionShell({
         <p className="text-muted-foreground text-xs">
           {t("plugins:connections.accessHint", {
             api: hint.api ?? "—",
-            scopes: hint.scopes?.length ? hint.scopes.join(", ") : t("plugins:connections.noScopes"),
+            scopes: hint.scopes?.length
+              ? hint.scopes.join(", ")
+              : t("plugins:connections.noScopes"),
           })}
         </p>
       ) : null}
@@ -444,7 +454,9 @@ function PersonalConnection({
 
           <Button size="sm" onClick={start} disabled={connect.isPending}>
             {connect.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            {connection.status ? t("plugins:connections.reconnect") : t("plugins:connections.connect")}
+            {connection.status
+              ? t("plugins:connections.reconnect")
+              : t("plugins:connections.connect")}
           </Button>
 
           {connection.status && (

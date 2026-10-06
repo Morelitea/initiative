@@ -8,11 +8,11 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
 /**
- * Where an app vendor's own setup sends the operator back.
+ * Where a plug-in vendor's own setup sends the operator back.
  *
  * The vendor returns with a code and the state the setup began with; this page
  * hands both to the server, which exchanges the code and writes the vendor
- * values, and then returns to the app services list.
+ * values, and then returns to the plug-in services list.
  */
 export const SettingsVendorSetupPage = () => {
   const { t } = useTranslation("settings");
@@ -39,7 +39,8 @@ export const SettingsVendorSetupPage = () => {
           toast.success(t("pluginServices.vendorSetupDone"));
           void navigate({ to: "/settings/platform/integrations", replace: true });
         },
-        onError: (err) => setError(getErrorMessage(err, "settings:pluginServices.vendorSetupFailed")),
+        onError: (err) =>
+          setError(getErrorMessage(err, "settings:pluginServices.vendorSetupFailed")),
       }
     );
   }, [code, state, registrationId, complete, navigate, t]);

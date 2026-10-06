@@ -124,7 +124,7 @@ describe("initiative route resolution", () => {
     );
   });
 
-  // The calendar app's own surface — the community's calendars, not a roll-up of
+  // The calendar plug-in's own surface — the community's calendars, not a roll-up of
   // its initiatives'. That is why this one address survives the list below.
   it("resolves the community's calendars", () => {
     expect(resolvedRouteId("/c/1/calendars")).toBe(`${COMMUNITY}/calendars/`);

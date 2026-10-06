@@ -9,6 +9,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import type {
+  CommunityPluginInstall,
+  CommunityPluginListResponse,
+  CommunityPluginRead,
+  CommunityPluginUpdate,
+  PluginPlacementRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   getListCommunityPluginsQueryKey,
   installCommunityPlugin,
@@ -18,13 +25,6 @@ import {
   uninstallCommunityPlugin,
   updateCommunityPlugin,
 } from "@/api/generated/plugins/plugins";
-import type {
-  PluginPlacementRead,
-  CommunityPluginInstall,
-  CommunityPluginListResponse,
-  CommunityPluginRead,
-  CommunityPluginUpdate,
-} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
@@ -108,7 +108,8 @@ export const useSetPluginScopes = (
 ) => {
   return useCommunityMutation<CommunityPluginRead, string[]>(
     {
-      mutationFn: (communityId, granted) => putCommunityPluginScopes(communityId, pluginId, { granted }),
+      mutationFn: (communityId, granted) =>
+        putCommunityPluginScopes(communityId, pluginId, { granted }),
       invalidate: () => invalidate(q.plugins()),
       errorKey: "plugins:scopes.error",
     },

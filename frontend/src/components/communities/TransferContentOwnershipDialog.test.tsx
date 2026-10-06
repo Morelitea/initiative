@@ -1,6 +1,6 @@
 /**
  * The transfer dialog offers the community's admins, and beside them the
- * installed apps the server says may own everything that moves.
+ * installed plug-ins the server says may own everything that moves.
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -57,7 +57,7 @@ describe("TransferContentOwnershipDialog", () => {
     api.claim.mockResolvedValue({ counts: { project: 1 }, total: 1 });
   });
 
-  it("offers an app the server lists and hands the content to it", async () => {
+  it("offers a plug-in the server lists and hands the content to it", async () => {
     api.listOwned.mockResolvedValue(
       content({ eligible_plugins: [{ id: 301, name: "Automations", avatar_url: null }] })
     );
@@ -77,7 +77,7 @@ describe("TransferContentOwnershipDialog", () => {
     );
   });
 
-  it("offers only admins when no app may own it, and names a person by id", async () => {
+  it("offers only admins when no plug-in may own it, and names a person by id", async () => {
     api.listUnowned.mockResolvedValue(content());
 
     renderWithProviders(
@@ -91,7 +91,7 @@ describe("TransferContentOwnershipDialog", () => {
 
     await userEvent.click(await screen.findByRole("combobox", { name: "New owner" }));
     expect(await screen.findByRole("option", { name: "Ada Admin" })).toBeInTheDocument();
-    expect(screen.queryByText("App")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plug-in")).not.toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
 

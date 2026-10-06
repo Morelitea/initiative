@@ -84,7 +84,7 @@ export function extractSubPath(path: string): string {
  * Three shapes, because the initiative segment may need replacing, removing, or
  * inserting: a path already under `/i/{other}`, a community-level path for an
  * entity that does belong to an initiative, and the reverse — an initiative
- * path for an entity that belongs to none (an app's calendar).
+ * path for an entity that belongs to none (a plug-in's calendar).
  *
  * Returns the path unchanged when it isn't community-scoped, so a caller can
  * compare the result to decide whether anything needs correcting.

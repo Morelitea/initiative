@@ -20,13 +20,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  usePluginServiceKeys,
   useConnectPluginService,
+  usePluginServiceKeys,
   useStartVendorSetup,
 } from "@/hooks/usePluginServices";
-import { parseAllowedOrigins, postToVendor } from "@/lib/pluginServices";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { parseAllowedOrigins, postToVendor } from "@/lib/pluginServices";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** What the operator stated, before it is shaped into a create or a patch. */
@@ -277,7 +277,9 @@ export const PluginServiceFormDialog = ({
               {editing?.compose_service && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="plugin-service-compose">{t("pluginServices.composeLabel")}</Label>
+                    <Label htmlFor="plugin-service-compose">
+                      {t("pluginServices.composeLabel")}
+                    </Label>
                     <CopyButton
                       value={editing.compose_service}
                       label={t("pluginServices.composeCopy")}
@@ -325,11 +327,15 @@ export const PluginServiceFormDialog = ({
                   placeholder={t("pluginServices.embedOriginPlaceholder")}
                   maxLength={1000}
                 />
-                <p className="text-muted-foreground text-xs">{t("pluginServices.embedOriginHelp")}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("pluginServices.embedOriginHelp")}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="plugin-service-origins">{t("pluginServices.allowedOriginsLabel")}</Label>
+                <Label htmlFor="plugin-service-origins">
+                  {t("pluginServices.allowedOriginsLabel")}
+                </Label>
                 <Textarea
                   id="plugin-service-origins"
                   value={form.allowedOrigins}
@@ -382,7 +388,9 @@ export const PluginServiceFormDialog = ({
                           className="space-y-2 rounded-md border p-3"
                           aria-label={t("pluginServices.connectKeysTitle")}
                         >
-                          <p className="font-medium text-sm">{t("pluginServices.connectKeysTitle")}</p>
+                          <p className="font-medium text-sm">
+                            {t("pluginServices.connectKeysTitle")}
+                          </p>
                           <p className="text-muted-foreground text-xs">
                             {t("pluginServices.connectKeysHelp")}
                           </p>
@@ -440,7 +448,9 @@ export const PluginServiceFormDialog = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="plugin-service-jwks-uri">{t("pluginServices.jwksUriLabel")}</Label>
+                    <Label htmlFor="plugin-service-jwks-uri">
+                      {t("pluginServices.jwksUriLabel")}
+                    </Label>
                     <Input
                       id="plugin-service-jwks-uri"
                       value={form.jwksUri}
@@ -451,7 +461,9 @@ export const PluginServiceFormDialog = ({
                       maxLength={1000}
                       autoComplete="off"
                     />
-                    <p className="text-muted-foreground text-xs">{t("pluginServices.jwksUriHelp")}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t("pluginServices.jwksUriHelp")}
+                    </p>
                   </div>
                 </div>
               </fieldset>
@@ -535,7 +547,9 @@ export const PluginServiceFormDialog = ({
                           rows={3}
                           className="font-mono text-xs"
                           placeholder={
-                            isSet ? t("pluginServices.vendorSecretSet") : t("pluginServices.vendorEmpty")
+                            isSet
+                              ? t("pluginServices.vendorSecretSet")
+                              : t("pluginServices.vendorEmpty")
                           }
                           autoComplete="off"
                           spellCheck={false}
@@ -565,7 +579,9 @@ export const PluginServiceFormDialog = ({
 
                 <div className="space-y-2">
                   <p className="font-medium text-sm">{t("pluginServices.redirectTitle")}</p>
-                  <p className="text-muted-foreground text-xs">{t("pluginServices.redirectHelp")}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("pluginServices.redirectHelp")}
+                  </p>
                   <Label htmlFor="plugin-service-callback-url">
                     {t("pluginServices.callbackUrlLabel")}
                   </Label>
@@ -576,7 +592,9 @@ export const PluginServiceFormDialog = ({
                     className="font-mono text-xs"
                     onFocus={(event) => event.target.select()}
                   />
-                  <Label htmlFor="plugin-service-setup-url">{t("pluginServices.setupUrlLabel")}</Label>
+                  <Label htmlFor="plugin-service-setup-url">
+                    {t("pluginServices.setupUrlLabel")}
+                  </Label>
                   <Input
                     id="plugin-service-setup-url"
                     value={editing.connection_setup_url}

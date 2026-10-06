@@ -1,5 +1,5 @@
 /**
- * A configured value has to be the type its app declared.
+ * A configured value has to be the type its plug-in declared.
  *
  * The failure this exists to stop is quiet and late: every control reads a
  * string, the binding stores that string, the dashboard saves — and the tile
@@ -58,7 +58,7 @@ describe("asDeclaredList", () => {
     expect(asDeclaredList(text, ["bug", "regression"])).toEqual(["bug", "regression"]);
   });
 
-  it("keeps the order the app answered in", () => {
+  it("keeps the order the plug-in answered in", () => {
     expect(asDeclaredList(text, ["south", "north"])).toEqual(["south", "north"]);
   });
 

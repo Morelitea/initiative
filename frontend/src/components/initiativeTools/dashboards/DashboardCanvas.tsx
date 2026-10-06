@@ -69,7 +69,7 @@ export interface DashboardCanvasProps {
   catalog: WidgetCatalog | undefined;
   /** The dashboard's own initiative. Every widget reads within it. */
   initiativeId: number | undefined;
-  /** The dashboard row. Only `app` widgets need it — their data is community-level,
+  /** The dashboard row. Only `plugin` widgets need it — their data is community-level,
    *  so the proxy is told which initiative-scoped surface is asking. A preview
    *  has none, which is one of the reasons it fetches nothing. */
   dashboardId?: number;

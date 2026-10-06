@@ -9,7 +9,7 @@
  *
  * **There are two envelopes, not nine.** A statement and a spreadsheet range
  * both answer with columns and rows, so both arrive as {@link TabularData} and
- * a widget never learns which it was given. An installed app's data is its own
+ * a widget never learns which it was given. An installed plug-in's data is its own
  * shape, declared in its own manifest, and its widget ships alongside — that is
  * {@link PluginRows}, and no built-in widget reads it.
  *
@@ -62,7 +62,7 @@ export interface TabularData {
 }
 
 /**
- * An installed app's data source, in the two shapes its manifest declared.
+ * An installed plug-in's data source, in the two shapes its manifest declared.
  *
  * The one source whose *keys* this build does not describe, and deliberately
  * so: they are the endpoint's own `returns`, and the widget that draws them
@@ -74,7 +74,7 @@ export interface TabularData {
  *
  * They are still *data*. The sandbox receives values, and the SceneSpec it has
  * to return has no `html` mark, no raw-string passthrough and no way to name a
- * URL, so an app cannot turn its own rows into rendering.
+ * URL, so a plug-in cannot turn its own rows into rendering.
  */
 export interface PluginRows {
   source: "plugin";

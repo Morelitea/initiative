@@ -12,12 +12,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  pluginEmbeds,
   communityPluginPath,
   declaredEmbeds,
   embedAllow,
   initiativePluginPath,
   placedIn,
+  pluginEmbeds,
   type SurfaceAccess,
 } from "./pluginSurfaces";
 

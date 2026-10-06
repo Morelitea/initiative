@@ -10,6 +10,15 @@
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 
+import type {
+  CommunityPluginConfigUpdateValues,
+  CommunityPluginConnectStart,
+  CommunityPluginConsentRead,
+  CommunityPluginDetail,
+  CommunityPluginMembersResponse,
+  CommunityPluginUpgrade,
+  ConsentAccess,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   blockMemberConnection,
   connectCommunityPlugin,
@@ -27,15 +36,6 @@ import {
   updateCommunityPluginConfig,
   upgradeCommunityPlugin,
 } from "@/api/generated/plugins/plugins";
-import type {
-  CommunityPluginConfigUpdateValues,
-  CommunityPluginConnectStart,
-  CommunityPluginConsentRead,
-  CommunityPluginDetail,
-  CommunityPluginMembersResponse,
-  CommunityPluginUpgrade,
-  ConsentAccess,
-} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 
