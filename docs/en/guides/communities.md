@@ -149,7 +149,7 @@ Open **Community settings** from the sidebar or the rail:
 
 | Tab | What's in it |
 |---|---|
-| **Usage** | Storage and members against the community's limits. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
+| **Usage** | Storage and members against the community's limits, and anything an installed plug-in counts for you. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
 | **Community** | Name, description, [location](#saying-where-your-community-is-admins), icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
@@ -247,6 +247,8 @@ The people who look see what you wrote. The thing you reported isn't touched unt
 The lifebuoy at the foot of the sidebar is **Ask for help**. Where your server takes help requests from this community, it opens a short form — what it's about, what happened — and it goes to the people who run the server, not to the community's own admins.
 
 Where the server takes no requests from here but has said who to write to, the button gives you that address instead. Where there's neither, the button isn't there, and **Documentation**, the question mark beside it, is where to look.
+
+Every request you send lands in **My Tickets**, in the sidebar: where each one stands (**Received**, **In progress**, **Waiting on you**, **Closed**), what the team said, and your replies. You get a notification when it moves, so there's no need to keep checking. A report is listed there too, though the team looks into reports without replying to them.
 
 Whoever runs the server decides which communities take help requests. See [Platform roles](../running-a-server/platform-roles.md#what-you-decide-per-community).
 

@@ -4,9 +4,15 @@ icon: lucide/package-plus
 
 # Publishing your own listings
 
-Initiative's marketplace ships with a set of ready-made dashboards and plug-ins. It's also **yours to add to**: point Initiative at a directory, drop a listing file in it, and that listing appears in your marketplace beside the built-in ones — ready for anyone in your communities to install.
+Initiative's marketplace ships with a set of ready-made dashboards, projects and plug-ins. It's also **yours to add to**, and there are two ways in:
 
-Nothing about this needs a fork, a code change, or a new build of Initiative. If you've designed a dashboard your group keeps rebuilding by hand, or someone has published a listing file you'd like to run, this is how it gets in.
+| | **Your own directory** | **The Initiative registry** |
+|---|---|---|
+| Who sees it | Your server | Every server that follows the registry |
+| How | Drop a listing file in a folder | A pull request |
+| Who decides | You | The registry's reviewers |
+
+Neither needs a fork, a code change, or a new build of Initiative. If you've built a project your group sets up from scratch every spring, or someone has published a listing file you'd like to run, this is how it gets in. Most of this page is the directory; [the registry](#publishing-to-the-initiative-registry) is at the end, and takes the same file.
 
 !!! info "Where the trust comes from"
     You control the directory, so a file being in it *is* your decision to publish it. Every listing is shown with the publisher named in its own file, wherever it appears — on the card, on its page, and in the dialog where someone adds it — so the question of who made it is answered at the moment of the decision. Listings that ship with Initiative are credited to Initiative, and a listing you add can't claim that credit (see [Reserved names](#names-you-cant-use)).
@@ -38,11 +44,7 @@ One file per listing. Here's a complete dashboard listing:
   "public_id": "acme.standup",
   "kind": "dashboard",
   "name": "Standup board",
-  "author": {
-    "name": "Acme Engineering",
-    "url": "https://example.com/acme",
-    "contact": "tools@example.com"
-  },
+  "publisher": "Acme Engineering",
   "description": "What everyone is on today.",
   "long_description": "A single screen for the morning standup: what's in flight, what's blocked, and how the week is tracking.",
   "avatar_url": "/marketplace/acme-standup.svg",
@@ -77,29 +79,63 @@ One file per listing. Here's a complete dashboard listing:
 |---|---|---|
 | `uid` | ✅ | The listing's product code — see [Choosing a uid](#choosing-a-uid). |
 | `public_id` | ✅ | A readable id, `<publisher>.<slug>`. Lowercase letters, digits, `.`, `-` and `_`. |
-| `kind` | ✅ | `dashboard` or `plugin`. |
+| `kind` | ✅ | `dashboard`, `project` or `plugin`. |
 | `name` | ✅ | What the card is called. |
-| `author` | ✅ | Who wrote it: `name` is required, `url` and `contact` are optional. |
+| `publisher` | ✅ | Who publishes it, as one name: a person, a team, an organization. |
 | `description` | ✅ | The one-line blurb on the browse card. |
 | `long_description` | | The longer text on the detail page. |
-| `avatar_url` | ✅ | The listing's artwork — see [Artwork](#artwork). |
+| `avatar_url` | | The listing's artwork — see [Artwork](#artwork). Left out, it gets a plain default. |
 | `images` | | Screenshots for the detail page, same rules as `avatar_url`. |
 | `version` | ✅ | The version this file publishes, e.g. `1.2.0`. |
 | `release_notes` | | What changed, shown beside the version. |
 | `min_app_version` | | The oldest Initiative this version runs on. Newer-than-you versions are shown as needing an update rather than hidden. |
-| `definition` | ✅ | The body — what installing actually produces. |
+| `definition` | ✅ | The body — what installing actually produces. For a project, see [A project listing](#a-project-listing). |
+| `example` | | A project listing's filled-in example. |
+| `registration` | | A plug-in listing's facts — see [A plug-in listing](#a-plug-in-listing). |
 
 Everything is checked before it's published, by the same validation the built-in listings go through. A file that doesn't pass is skipped with the reason recorded, and the listings around it publish normally.
 
 ### Attribution is required
 
-**A listing states who wrote it, or it isn't published.** `author.name` is not optional, on any route into the catalog. People decide whether to install something based on who it's from, so the question is answered on the card, the detail page, and the install dialog — always next to where the listing came from, so a name never stands in for provenance.
+**A listing states who publishes it, or it isn't published.** `publisher` is not optional, on any route into the catalog. People decide whether to install something based on who it's from, so the question is answered on the card, the detail page, and the install dialog — always next to where the listing came from, so a name never stands in for provenance.
 
 ### Names you can't use
 
 `core.*` belongs to the listings Initiative ships. A file in your directory claiming a `core.` public id is refused, and named in the scan result, so an id can never imply an origin the listing doesn't have. Publish under your own prefix instead: an organization name, a domain, a team.
 
 A uid or public id already published by another source — a built-in, or a registry your deployment follows — is also refused rather than quietly taken over. Two listings claiming the same identity is a mistake worth seeing.
+
+## A project listing
+
+A project listing's `definition` is the file you get from **Export** in a project's **Settings → Advanced** — the same file that imports back in. So the quickest way to write one is to build the project in Initiative, export it, and paste the file in.
+
+What installs is a new project of the installer's own, called whatever the listing is called. Three things in the file don't travel:
+
+- **People.** Assignees, attendees and person fields are left out, since the people in your community aren't the people in theirs.
+- **Links and uploads** pointing at things in your community.
+- **Dates, as dates.** They're kept as distances from each other, and the installer picks a **Start date** that the earliest one lands on. A launch plan with a deadline six weeks in stays six weeks in.
+
+`example` is optional, and is a second export of the same project with some work filled in: a few tasks moving through the board, so the shape makes sense at a glance. The listing's page then shows **Blank** and **Example** side by side, and the installer chooses which to start from.
+
+## A plug-in listing
+
+A plug-in's `definition` is its manifest, as the [plug-in SDK](https://github.com/beyonders-studio/initiative-plugin-sdk) builds it. Its `registration` says how it runs and the most it may ever be granted:
+
+```json
+"registration": {
+  "kind": "container",
+  "image": "ghcr.io/acme/tracker@sha256:…",
+  "scope_ceiling": ["projects:read", "comments:write"]
+}
+```
+
+| Field | What it is |
+|---|---|
+| `kind` | `container` for one that runs as its own program, `declarative` for one Initiative runs itself. |
+| `image` | A container's image, pinned by digest. |
+| `scope_ceiling` | Everything it may ever be granted. Its manifest may ask for less, never more. A ceiling in your own directory is your approval of it. |
+
+Where it runs and the keys it signs with aren't in the listing: those belong to each server that runs it. Once the listing is published, the plug-in shows up under **Plug-in services** for you to finish. See [Running plug-ins](plugins.md).
 
 ## Choosing a uid
 
@@ -174,12 +210,25 @@ Work down this list — the scan result above answers most of it directly.
 | "reserved" in the reason | The `public_id` starts with `core.` — publish under your own prefix. |
 | "already published by the builtin catalog" | The `uid` or `public_id` belongs to another listing. Pick a new uid. |
 | A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a community already has it. |
-| A plug-in listing never appears on the Plug-ins shelf | A plug-in is served by a program you run, and this server offers one only where that plug-in service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
+| A plug-in listing never appears on the Plug-ins shelf | Communities are offered a plug-in only once it's live. Its row under **Plug-in services** says what it's waiting for — see [Running plug-ins](plugins.md). Dashboards and projects need nothing of the sort. |
 | Artwork is a broken image | The file isn't under the static `marketplace/` directory, or the path in the manifest doesn't match its name. |
+
+## Publishing to the Initiative registry
+
+The registry is a catalog every Initiative server follows unless its owner switched it off, so a listing there reaches people you'll never meet. Getting one in is a pull request to [initiative-developer](https://github.com/beyonders-studio/initiative-developer), and the review of that pull request is the listing's review.
+
+1. **Add your listing** under `registry/sources/<publisher>/<uid>/`: a `listing.json`, and its artwork and screenshots beside it in `assets/`. The registry's [README](https://github.com/beyonders-studio/initiative-developer/tree/main/registry) has the format, which is this page's with images as files rather than paths on a server, and a complete example to copy.
+2. **A new publisher needs a record** in `registry/publishers/` too, and the registry's maintainers sign it before anything under that name publishes. Your prefix is then yours alone: nobody else can publish under it.
+3. **Open the pull request.** The checks build and verify the whole catalog with your listing in it, so a mistake shows up there rather than on somebody's server.
+
+Merged is published. Servers pick it up at their next check, within fifteen minutes, and show it with your publisher's name.
+
+An update is another pull request that adds a version. The rules are the ones above: a published version never changes, and nothing is pushed into a community that already installed it.
 
 ## Related
 
 - [Configuration](configuration.md) — every setting, including `MARKETPLACE_EXTRA_CATALOG_DIR`.
+- [Running plug-ins](plugins.md) — finishing a plug-in once its listing is published.
 - [Platform roles](platform-roles.md) — who may trigger a rescan.
 - [Plug-ins & the marketplace](../guides/plugins-and-marketplace.md) — how your listings look to the people installing them.
 - [Tools](../guides/tools.md) — what a dashboard is, from a member's side.

@@ -105,6 +105,7 @@ nav = [
     "en/running-a-server/email.md",
     "en/running-a-server/push-notifications.md",
     "en/running-a-server/object-storage.md",
+    "en/running-a-server/plugins.md",
     "en/running-a-server/publishing-listings.md",
     "en/running-a-server/platform-roles.md",
     "en/running-a-server/announcements.md",

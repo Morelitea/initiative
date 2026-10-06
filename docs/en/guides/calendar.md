@@ -60,6 +60,8 @@ Pending isn't a rude answer, incidentally. It's the default, and it nearly alway
 
 On a repeating event, each date gets its own answer. Accepting one Tuesday is not accepting every Tuesday until the end of time.
 
+Anyone who can see an event can RSVP to it, and answering adds them to the attendees. For a guest list rather than an open door, turn off **Anyone who can see it may RSVP** under the event's **Settings → Attendees**: then only the people you added can answer. A repeating event's dates all follow the series.
+
 ## Reminders
 
 Each person sets their **own** reminder on an event: at the start, or a chosen number of minutes, hours or days beforehand.

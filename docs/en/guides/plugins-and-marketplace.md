@@ -6,7 +6,7 @@ icon: lucide/store
 
 Whatever your group needs, some other group has needed exactly the same thing, built it, got fed up rebuilding it every year, and shared it.
 
-The **marketplace** is where those live: ready-made dashboards and plug-ins you add in a couple of clicks. No developer. No custom build. No waiting for us to get round to shipping it.
+The **marketplace** is where those live: ready-made dashboards, projects and plug-ins you add in a couple of clicks. No developer. No custom build. No waiting for us to get round to shipping it.
 
 Your marketplace holds the listings that ship with Initiative plus whatever the person running your server has added and approved. Nothing turns up on it by accident — everything there is there because a human put it there.
 
@@ -16,21 +16,21 @@ There are two, and the difference is who gets what you take.
 
 | | **Your community's** | **Yours** |
 |---|---|---|
-| What's on it | Dashboards and plug-ins | Decoration packs |
+| What's on it | Dashboards, projects and plug-ins | Decoration packs |
 | Who it's for | Everyone in that community | You, in every community you're in |
-| Where to open it | **Browse the marketplace** in your dashboards list's **More actions** menu (beside the create button, while the list is empty), or at the foot of the **Plug-ins** section of the sidebar | **Browse the marketplace** on **My Settings → Profile** |
+| Where to open it | **Browse the marketplace** in a dashboards or projects list's **More actions** menu (beside the create button, while the list is empty), or at the foot of the **Plug-ins** section of the sidebar | **Browse the marketplace** on **My Settings → Profile** |
 
 ![Browsing the marketplace](../images/marketplace/browse.png)
 
 ## Your community's marketplace
 
-| | **Dashboards** | **Plug-ins** |
-|---|---|---|
-| What it adds | A screen of charts, numbers and timelines | Something the whole community shares |
-| Where it goes | Into one initiative | Into the community |
-| Who can add it | Anyone who can create dashboards in that initiative | Your community's [superadmin](communities.md#why-superadmin-is-separate) |
+| | **Dashboards** | **Projects** | **Plug-ins** |
+|---|---|---|---|
+| What it adds | A screen of charts, numbers and timelines | A board that's already set up: columns, fields and a first round of tasks | Something the whole community shares |
+| Where it goes | Into one initiative | Into one initiative | Into the community |
+| Who can add it | Anyone who can create dashboards there | Anyone who can create projects there | Your community's [superadmin](communities.md#why-superadmin-is-separate) |
 
-Both browse the same way: search, open a listing to read what it does, add it.
+All three browse the same way: search, open a listing to read what it does, add it.
 
 ### Adding a dashboard
 
@@ -46,6 +46,17 @@ It appears under that initiative's **Dashboards**, exactly like one you built. R
 A listing's page can show a **preview** drawn with sample data, so you can see the shape of it before committing. Yours will show your group's real numbers.
 
 When the publisher ships a newer version, the dashboard shows **Version X available**. Updating is your choice; nothing changes underneath you. If a listing needs a newer Initiative than your server runs, it says so rather than half-working.
+
+### Adding a project
+
+Somebody has already worked out what a hiring pipeline needs as columns. A few listings ship with Initiative: a sales pipeline, a hiring pipeline, a bug tracker, a content calendar, a grant tracker, a product launch and facility maintenance.
+
+1. Open the listing. **Blank** and **Example** show it both ways: the empty board you'd get, and the same board with some made-up work moving through it.
+2. Choose **Add to an initiative**, and pick the initiative and a name.
+3. Choose **What to start from**: **Start blank**, or **Start from the example**.
+4. Pick a **Start date**. The project's dates move so the earliest lands on that day, and the rest keep their distance from it. A launch with a deadline six weeks in is still six weeks in.
+
+What lands is an ordinary project of your own. Rename the columns, delete the example tasks, take it apart entirely; nothing you do reaches the listing or anybody else's copy.
 
 ### Adding a plug-in
 
@@ -66,11 +77,16 @@ Adding a plug-in asks up to three things, and every answer can be changed later 
 
 | | What it means |
 |---|---|
-| **What it can reach** | The kinds of thing it may read, or read and change: projects, files, comments, tags, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. Two lines start unticked: acting as a moderator, and acting as an admin (see below). |
+| **What it can reach** | The kinds of thing it may read, or read and change: projects, files, comments, tags, custom properties, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. Two lines start unticked: acting as a moderator, and acting as an admin (see below). |
 | **Where it works** | Every current initiative, or only the ones you pick. A plug-in reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
 | **Who can open it there** | Only for a plug-in with a page inside initiatives: which roles see that page. Community admins always can. |
 
 A plug-in asking for nothing gets asked nothing. It just gets a name.
+
+A plug-in allowed to change something, such as a task, can fill in that thing's [custom properties](initiatives.md#initiative-settings) as well. **Properties** on its own is for making new ones: it lets the plug-in read an initiative's property definitions, and with write, add to them.
+
+!!! info "Some plug-ins have a minimum age"
+    A listing that has one says so: **Ages 16+**, for the country your browser is set to. It can differ by country. The community can still add it; somebody under the age where they are just can't open or use it.
 
 However you answer, **it never reaches past what you allowed.** A plug-in that may read projects in the Garden initiative reads projects in the Garden initiative. Not files, not the Kitchen.
 
@@ -153,7 +169,7 @@ Giving one back is the same click in reverse — open the pack's card and remove
 Every listing in your marketplace arrived one of three ways:
 
 - It **ships with Initiative** — part of the built-in catalog, credited to Initiative. That credit can't be claimed by anything else.
-- It came from **the Initiative registry** — a signed online catalog your server follows unless its platform owner has switched it off. Every file from it is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
+- It came from **the Initiative registry** — a signed online catalog your server follows unless its platform owner has switched it off. Anyone can propose a listing for it; it's published once it's been reviewed. Every file from it is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
 - Your **platform owner added it** — they chose that listing and published it to your deployment. If you run Initiative yourself, that's you.
 
 That's the lot. Anyone can write a listing; reaching *your* marketplace takes that signed registry or a decision by your platform owner. See [Publishing your own listings](../running-a-server/publishing-listings.md).
