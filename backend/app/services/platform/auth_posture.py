@@ -51,7 +51,7 @@ from app.core.login_methods import (
 )
 from app.core.guild_auth_options import CommunityAuthOption
 from app.core.messages import AuthMessages, GuildMessages, SettingsMessages
-from app.core.security import AUTH_POLICY_UNMET_HEADER
+from app.core.security import AUTH_POLICY_UNMET_HEADER, has_usable_password
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import Guild
@@ -95,6 +95,19 @@ async def resolve_login_methods(session: AsyncSession) -> frozenset[LoginMethod]
 async def login_method_allowed(session: AsyncSession, method: LoginMethod) -> bool:
     """Whether one method may be used to open a session right now."""
     return method in await resolve_login_methods(session)
+
+
+async def password_confirms(session: AsyncSession, user: User) -> bool:
+    """Whether a confirmation asks this account for its password.
+
+    It holds one, and this deployment signs people in with passwords. Where it
+    does not, the password is not a way in, and a recent sign-in answers
+    instead. What the settings surfaces read to decide whether to show the
+    field.
+    """
+    return has_usable_password(user.hashed_password) and await login_method_allowed(
+        session, LoginMethod.password
+    )
 
 
 def requirement_from_row(row: AppSetting) -> SecondFactorRequirement:

@@ -38,7 +38,6 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
-    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
@@ -56,10 +55,7 @@ from app.db import cohorts
 from app.db.guild_standing import InstallContext
 from app.core import usernames
 from app.core.rate_limit import limiter
-from app.core.security import (
-    read_handle_offer,
-    has_usable_password,
-)
+from app.core.security import read_handle_offer
 from app.core.user_input_validators import (
     normalize_reminder_minutes,
     normalize_timezone,
@@ -138,7 +134,6 @@ from app.services.auth import addresses, held_changes
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
-from app.services.auth.identity import has_federated_identity
 from app.core.tools import Tool
 from app.api import resource_access
 from app.services.tenant import plugin_revocation as plugin_revocation_service
@@ -168,6 +163,7 @@ from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.auth import VerificationSendResponse
 from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import auth_posture
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 from app.db.query import (
@@ -237,14 +233,7 @@ async def read_me(
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/c/{community_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    payload = await users_service.to_self_read(current_user)
-    # Own-row read on the platform-tier session: whether any external identity
-    # is linked (drives the "SSO account" affordances in the profile UI).
-    payload.has_federated_identity = await has_federated_identity(
-        session, user_id=current_user.id
-    )
-    payload.has_password = has_usable_password(current_user.hashed_password)
-    payload.password_required = await password_confirms(session, current_user)
+    payload = await users_service.to_self_read(session, current_user)
     # The hosted deployment's terms. Short-circuits on the deployment switch
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
@@ -307,19 +296,15 @@ async def list_users(
     Ordered like ``/search``: nearest first while searching, otherwise by name
     where the guild shows names, then by handle.
     """
-    base = (
+    base = users_service.guild_members(
         select(
             MemberProfile,
             GuildMembership.role,
             GuildMembership.oidc_provider_id,
             GuildMembership.display_name,
             GuildMembership.api_keys_allowed,
-        )
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
-        )
+        ),
+        guild_id=guild_context.guild_id,
     )
     closest = None
     if search and (term := search.strip()):
@@ -497,13 +482,8 @@ async def search_users(
             page=page,
             page_size=page_size,
         )
-    base = (
-        select(MemberProfile)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
-        )
+    base = users_service.guild_members(
+        select(MemberProfile), guild_id=guild_context.guild_id
     )
     if initiative_id is not None:
         base = base.where(_in_initiative(initiative_id))
@@ -606,17 +586,15 @@ async def list_roster(
     offline_rank = ROSTER_PRESENCE_ORDER.index(Presence.offline)
     group = case(*ranked, else_=offline_rank) if ranked else literal(offline_rank)
 
-    where = [
-        GuildMembership.guild_id == guild_context.guild_id,
-        users_service.visible_to_other_people(),
-    ]
+    where = []
     if await app_settings_service.direct_messages_enabled(session):
         where.append(MemberProfile.id.in_(select(func.public.roster_listed_members())))
 
     groups = (
-        select(group.label("presence_rank"))
-        .select_from(MemberProfile)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+        users_service.guild_members(
+            select(group.label("presence_rank")).select_from(MemberProfile),
+            guild_id=guild_context.guild_id,
+        )
         .where(*where)
         .subquery()
     )
@@ -637,8 +615,10 @@ async def list_roster(
     rows = (
         await session.exec(
             apply_pagination(
-                select(MemberProfile, GuildMembership.role)
-                .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+                users_service.guild_members(
+                    select(MemberProfile, GuildMembership.role),
+                    guild_id=guild_context.guild_id,
+                )
                 .where(*where)
                 .order_by(
                     group,
@@ -974,15 +954,10 @@ async def export_users_csv(
     """Export guild members as a CSV file. Pass `user_id` one or more times to
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
-    stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(MemberProfile.status),
-        )
-        .order_by(MemberProfile.created_at.asc())
-    )
+    stmt = users_service.guild_members(
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id),
+        guild_id=guild_context.guild_id,
+    ).order_by(MemberProfile.created_at.asc())
     if user_id:
         stmt = stmt.where(MemberProfile.id.in_(user_id))
     result = await session.exec(stmt)
@@ -1076,7 +1051,7 @@ async def claim_my_username(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
 @me_router.post("/age-confirmation", response_model=UserRead)
@@ -1163,7 +1138,7 @@ async def confirm_my_age(
         )
     await session.refresh(current_user)
 
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
 def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | None:
@@ -1225,7 +1200,7 @@ async def accept_legal_documents(
     if await legal_service.acceptance_outstanding(session, user=current_user):
         await legal_service.record_acceptance(session, user_id=current_user.id)
         await session.commit()
-    payload = await users_service.to_self_read(current_user)
+    payload = await users_service.to_self_read(session, current_user)
     payload.legal_acceptance_required = False
     return payload
 
@@ -1256,7 +1231,9 @@ async def list_my_addresses(
     rows = await addresses.list_for_user(system_session, user_id=current_user.id)
     return UserEmailListResponse(
         items=[_address_read(row) for row in rows],
-        password_required=await password_confirms(system_session, current_user),
+        password_required=await auth_posture.password_confirms(
+            system_session, current_user
+        ),
     )
 
 
@@ -1415,10 +1392,6 @@ async def update_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     update_data = user_in.model_dump(exclude_unset=True)
-    # Fetched once: feeds both the password-gate exemption and the response
-    # payload (identities can't change within this request). The caller's own
-    # links, read on their platform tier.
-    is_sso_account = await has_federated_identity(session, user_id=current_user.id)
     password = update_data.get("password")
     if password:
         # Re-authenticate with the current password before changing it. An
@@ -1445,11 +1418,7 @@ async def update_me(
         await session.refresh(current_user)
 
     if password or not update_data:
-        payload = await users_service.to_self_read(current_user)
-        payload.has_federated_identity = is_sso_account
-        payload.has_password = has_usable_password(current_user.hashed_password)
-        payload.password_required = await password_confirms(session, current_user)
-        return payload
+        return await users_service.to_self_read(session, current_user)
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1548,13 +1517,7 @@ async def update_me(
         # is shown on the strength of a write that did not land.
         presence.online.chose(current_user.id, current_user.presence)
     # Platform path — no initiative_roles enrichment (see read_me).
-    # The SPA replaces its auth state with this response, so carry the same
-    # linked-identity signal /me serves.
-    payload = await users_service.to_self_read(current_user)
-    payload.has_federated_identity = is_sso_account
-    payload.has_password = has_usable_password(current_user.hashed_password)
-    payload.password_required = await password_confirms(session, current_user)
-    return payload
+    return await users_service.to_self_read(session, current_user)
 
 
 @me_router.get("/deletion-eligibility", response_model=DeletionEligibilityResponse)
@@ -1760,12 +1723,11 @@ async def _require_receiving_admin(
     """
     recipient = (
         await session.exec(
-            select(MemberProfile.id)
-            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-            .where(
+            users_service.guild_members(
+                select(MemberProfile.id), guild_id=guild_id
+            ).where(
                 MemberProfile.id == new_owner_id,
                 MemberProfile.status == UserStatus.active,
-                GuildMembership.guild_id == guild_id,
                 GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
         )
@@ -2091,7 +2053,7 @@ async def upload_my_avatar(
     )
     await session.commit()
     await session.refresh(current_user)
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
 @me_router.delete("/avatar", status_code=status.HTTP_204_NO_CONTENT)

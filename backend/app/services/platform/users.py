@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, TypeVar
 
 
-from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
+from sqlalchemy import ColumnElement, Select, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
+from app.core.security import has_usable_password
 from app.core.encryption import (
     SALT_BIRTHDATE,
     decrypt_field,
@@ -62,6 +63,8 @@ from app.models.platform.user_token import UserToken
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.request_context import SystemGuild, SystemMaintenance
+
+_S = TypeVar("_S", bound=Select)
 
 
 class SeatWouldBeEmptied(CodedError):
@@ -1071,6 +1074,19 @@ def visible_to_other_people(status_column=None):
     return column.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value))
 
 
+def guild_members(statement: _S, *, guild_id: int) -> _S:
+    """``statement`` narrowed to the people listed as members of one community.
+
+    ``MemberProfile`` joined to each person's membership row there, so a caller
+    may select its columns beside the profile, and the people
+    :func:`visible_to_other_people` leaves out left out here too. A statement
+    that selects no profile column names ``MemberProfile`` in ``select_from``.
+    """
+    return statement.join(
+        GuildMembership, GuildMembership.user_id == MemberProfile.id
+    ).where(GuildMembership.guild_id == guild_id, visible_to_other_people())
+
+
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
     """Each account's address and whether it has proved one.
 
@@ -1117,7 +1133,7 @@ async def _credential_state(
         )
 
 
-async def to_self_read(user: User) -> "UserRead":
+async def to_self_read(session: AsyncSession, user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
@@ -1125,16 +1141,25 @@ async def to_self_read(user: User) -> "UserRead":
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
-    are put back together, for the endpoints that hand somebody their own
-    account.
+    are put back together, with how the account confirms a change (a linked
+    identity, a usable password, whether a confirmation asks for it), for
+    every endpoint that hands somebody their own account. ``session`` is the
+    request's: the identity link is the caller's own row, and the deployment's
+    sign-in methods are read from its settings.
     """
     from app.schemas.platform.user import UserRead
+    from app.services.platform import auth_posture
 
     primary, proven = await _reach([user.id])
     payload = UserRead.model_validate(user)
     payload.email = primary.get(user.id)
     payload.email_verified = user.id in proven
     payload.birthdate_on_file = await _birthdate_on_file(user.id)
+    payload.has_federated_identity = await identity_service.has_federated_identity(
+        session, user_id=user.id
+    )
+    payload.has_password = has_usable_password(user.hashed_password)
+    payload.password_required = await auth_posture.password_confirms(session, user)
     return payload
 
 

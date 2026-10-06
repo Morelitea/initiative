@@ -274,7 +274,7 @@ async def register_user(
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
     )
-    return await users_service.to_self_read(registered.user)
+    return await users_service.to_self_read(session, registered.user)
 
 
 def _refuse_impossible_birthdate(birthdate: date | None) -> None:

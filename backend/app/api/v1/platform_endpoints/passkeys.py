@@ -38,7 +38,6 @@ from app.api.v1.platform_endpoints.held_changes import (
     hold_change,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
-    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
@@ -138,7 +137,9 @@ async def list_passkeys(
     rows = await passkey_service.list_for_user(system_session, user_id=current_user.id)
     return PasskeyList(
         passkeys=[_read(row) for row in rows],
-        password_required=await password_confirms(system_session, current_user),
+        password_required=await auth_posture.password_confirms(
+            system_session, current_user
+        ),
         limit=passkey_service.MAX_PASSKEYS_PER_USER,
         site_supported=passkey_service.site_refusal() is None,
         offered=await auth_posture.login_method_allowed(session, LoginMethod.passkey),

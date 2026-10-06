@@ -725,18 +725,18 @@ class UserRead(UserBase):
     locale: str = "en"
     # True when the account has a linked external identity (SSO). Consumed by
     # the profile/deletion UI to hide the password confirmation, since SSO-only
-    # accounts have no usable password to type in. Populated by the self
-    # endpoints (/me and PATCH /me); defaults False elsewhere.
+    # accounts have no usable password to type in. Populated wherever an
+    # account is handed its own record (``users.to_self_read``); defaults False
+    # elsewhere.
     has_federated_identity: bool = False
     # True when the account holds a password it can be asked for. Read from
     # the stored hash rather than from the identity link above: an account can
-    # hold both, and one that gave its password up holds neither. Populated by
-    # the self endpoints; defaults False elsewhere.
+    # hold both, and one that gave its password up holds neither. Populated
+    # with the field above.
     has_password: bool = False
     # True when confirming a change asks this account for its password: it
     # holds one and the deployment signs people in with passwords. Otherwise a
-    # recent sign-in answers. Populated by the self endpoints; defaults False
-    # elsewhere.
+    # recent sign-in answers. Populated with the fields above.
     password_required: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
