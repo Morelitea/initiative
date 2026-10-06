@@ -466,17 +466,21 @@ async def test_view_preferences_say_community_and_back(session) -> None:
 
 
 async def _notice_payloads(session) -> dict:
-    notification = await _scalar(session, text("SELECT data FROM public.notifications"))
+    lines = (
+        await _sql(session, text("SELECT data FROM public.notifications ORDER BY id"))
+    ).scalars()
     outbox = (
         await _sql(session, text("SELECT data, push_data FROM public.notice_outbox"))
     ).one()
-    return {"line": notification, "queued": (outbox.data, outbox.push_data)}
+    return {"lines": list(lines), "queued": (outbox.data, outbox.push_data)}
 
 
 async def test_document_notices_name_their_entity_and_back(session) -> None:
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     reply = {"comment_id": 1, "task_id": None, "document_id": 5, "replier_id": 2}
+    # A task's reply carried the document key empty; it names no document.
+    task_reply = {"comment_id": 2, "task_id": 9, "document_id": None, "replier_id": 2}
     task_mention = {
         "comment_id": 1,
         "mentioned_task_id": 7,
@@ -485,12 +489,13 @@ async def test_document_notices_name_their_entity_and_back(session) -> None:
         "context_entity_type": None,
         "context_entity_id": None,
     }
-    await user_notifications.create_notification(
-        session,
-        user_id=user.id,
-        notification_type=NotificationType.comment_reply,
-        data=reply,
-    )
+    for data in (reply, task_reply):
+        await user_notifications.create_notification(
+            session,
+            user_id=user.id,
+            notification_type=NotificationType.comment_reply,
+            data=data,
+        )
     await notice_outbox.enqueue(
         session,
         [
@@ -515,13 +520,16 @@ async def test_document_notices_name_their_entity_and_back(session) -> None:
     await session.run_sync(run(migration._forward))
     await session.commit()
     assert await _notice_payloads(session) == {
-        "line": {
-            "comment_id": 1,
-            "task_id": None,
-            "entity_type": "document",
-            "entity_id": 5,
-            "replier_id": 2,
-        },
+        "lines": [
+            {
+                "comment_id": 1,
+                "task_id": None,
+                "entity_type": "document",
+                "entity_id": 5,
+                "replier_id": 2,
+            },
+            task_reply,
+        ],
         "queued": (
             {
                 "comment_id": 1,

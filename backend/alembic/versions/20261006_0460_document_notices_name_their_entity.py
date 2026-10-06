@@ -71,15 +71,16 @@ def _forward(bind) -> None:
                 f"WHERE {TYPES} AND push_data ? '{old}'"
             )
         )
+        # Only notices that name a document: a task's notice carried the key
+        # empty, and nothing reads it now, so those rows are left unwritten.
         for table, column, cast in PAYLOADS:
             doc = f"{column}::jsonb"
             bind.execute(
                 sa.text(
-                    f"UPDATE {table} SET {column} = (({doc} - '{old}') || CASE "
-                    f"WHEN jsonb_typeof({doc} -> '{old}') = 'null' THEN '{{}}'::jsonb "
-                    f"ELSE jsonb_build_object('{type_key}', 'document', "
-                    f"'{id_key}', {doc} -> '{old}') END){cast} "
-                    f"WHERE {TYPES} AND {doc} ? '{old}'"
+                    f"UPDATE {table} SET {column} = (({doc} - '{old}') || "
+                    f"jsonb_build_object('{type_key}', 'document', "
+                    f"'{id_key}', {doc} -> '{old}')){cast} "
+                    f"WHERE {TYPES} AND jsonb_typeof({doc} -> '{old}') <> 'null'"
                 )
             )
 
