@@ -19,7 +19,12 @@ from app.core import recurrence
 from app.core.relationships import Related
 from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
-from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
+from app.schemas.tenant.ical import (
+    ICalEventPreview,
+    ICalImportError,
+    ICalImportProblem,
+    ICalParseResult,
+)
 from app.services.export.property_values import exported_properties
 from app.services.tenant import calendar_occurrences
 from app.core.user_display import display_name
@@ -356,7 +361,7 @@ def build_calendar_events(
     guild_id: int,
     created_by: int,
     tz: Optional[str] = None,
-) -> Tuple[List[CalendarEvent], List[str], int]:
+) -> Tuple[List[CalendarEvent], List[ICalImportError], int]:
     """Parse .ics content and build CalendarEvent model instances attached to
     the target calendar.
 
@@ -365,7 +370,7 @@ def build_calendar_events(
     zone = resolve_zone(tz)
     cal = icalendar.Calendar.from_ical(content)
     events: List[CalendarEvent] = []
-    errors: List[str] = []
+    errors: List[ICalImportError] = []
     skipped = 0
     # A repeating event by its UID, for the occurrences the file changed
     # (a VEVENT with its UID and a RECURRENCE-ID), which follow it.
@@ -376,10 +381,13 @@ def build_calendar_events(
     # Each series before the occurrences that point at it.
     components.sort(key=lambda c: c.get("recurrence-id") is not None)
     for component in components:
+        title = str(component.get("summary") or "") or None
         try:
             data = _extract_vevent(component, zone)
             if not data:
-                errors.append("Skipped event with no start date")
+                errors.append(
+                    ICalImportError(problem=ICalImportProblem.no_start, title=title)
+                )
                 skipped += 1
                 continue
 
@@ -402,9 +410,10 @@ def build_calendar_events(
                 series[uid] = event
             events.append(event)
         except Exception:
-            summary = str(component.get("summary", "Unknown"))
-            logger.exception("iCal import could not read event %r", summary)
-            errors.append(f"Failed to import '{summary}'")
+            logger.exception("iCal import could not read event %r", title)
+            errors.append(
+                ICalImportError(problem=ICalImportProblem.unreadable, title=title)
+            )
             skipped += 1
 
     for event, uid, original in changed:

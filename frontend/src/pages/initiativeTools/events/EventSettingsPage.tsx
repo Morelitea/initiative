@@ -20,6 +20,7 @@ import {
   FormSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagPicker } from "@/components/tags";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCalendarEvent,
@@ -59,7 +61,8 @@ export function EventSettingsPage() {
   const occurrence =
     occurrenceParam && !Number.isNaN(Date.parse(occurrenceParam)) ? occurrenceParam : undefined;
 
-  const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  const eventQuery = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  const event = eventQuery.data;
   // The path supplies the initiative while this loads; the event is the
   // authority once it arrives, and null is a community-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
@@ -153,6 +156,9 @@ export function EventSettingsPage() {
   // Its own instance of the update, so a tag change saves without the
   // details toast.
   const saveTags = useUpdateCalendarEvent(eventId);
+  const saveRsvpOpen = useUpdateCalendarEvent(eventId, {
+    onSuccess: () => toast.success(t("detailsUpdated")),
+  });
 
   // Tags persist immediately on change (like tasks/files), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
@@ -210,8 +216,9 @@ export function EventSettingsPage() {
     updateEvent.mutate(
       {
         title: sent.title.trim() || undefined,
-        description: sent.description.trim() || undefined,
-        location: sent.location.trim() || undefined,
+        // Emptied, they are cleared.
+        description: sent.description.trim() || null,
+        location: sent.location.trim() || null,
         ...range,
         all_day: sent.allDay,
         ...target,
@@ -269,7 +276,7 @@ export function EventSettingsPage() {
   });
   const [extraDate, setExtraDate] = useState("");
 
-  if (isLoading) {
+  if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
         <DetailPageSkeleton actions={0} description={false}>
@@ -279,14 +286,18 @@ export function EventSettingsPage() {
     );
   }
 
-  if (!event) {
+  if (eventQuery.isError || !event) {
     return (
-      <div className="py-8 text-center">
-        <p className="text-muted-foreground">{t("notFound")}</p>
-        <Button variant="link" asChild className="mt-2">
-          <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
-        </Button>
-      </div>
+      <ToolAccessStatus
+        error={eventQuery.error}
+        keys="calendars:"
+        backTo={gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        )}
+        backLabel={t("backToEvents")}
+      />
     );
   }
 
@@ -459,6 +470,24 @@ export function EventSettingsPage() {
             placeholder={t("addAttendee")}
             emptyMessage={t("noAttendees")}
           />
+
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Label htmlFor="event-rsvp-open" className="text-sm">
+                {t("rsvpOpen")}
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {event.series_id != null ? t("occurrence.followsSeries") : t("rsvpOpenHint")}
+              </p>
+            </div>
+            <Switch
+              id="event-rsvp-open"
+              checked={event.rsvp_open}
+              disabled={!event.can.edit || event.series_id != null || saveRsvpOpen.isPending}
+              onCheckedChange={(next) => saveRsvpOpen.mutate({ rsvp_open: next })}
+              className="mt-0.5 shrink-0"
+            />
+          </div>
 
           <Button onClick={() => void handleSaveAttendees()} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (

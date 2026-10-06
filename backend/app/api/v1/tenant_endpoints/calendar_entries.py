@@ -68,6 +68,10 @@ async def list_calendar_entries(
     ``scope=community`` is the same question asked by kind rather than by name: every
     guild calendar, however many there are. The calendar plug-in shows all of them
     at once, and a list of ids it had to assemble first would be a page of them.
+
+    ``initiative_id`` and ``scope`` bound both legs: an initiative's tasks are
+    those of its projects, and the community as a whole holds none, since
+    every project is an initiative's.
     """
     events_out = []
     if include_events:
@@ -99,7 +103,7 @@ async def list_calendar_entries(
         )
 
     tasks_out, task_occurrences = [], []
-    if include_tasks:
+    if include_tasks and scope != "community":
         tasks_out, task_occurrences = task_queries.projected_occurrences(
             await task_queries.query_guild_tasks(
                 session,
@@ -109,6 +113,7 @@ async def list_calendar_entries(
                 tz=tz,
                 start_after=window.start_after,
                 start_before=window.start_before,
+                initiative_id=initiative_id,
             ),
             window.start_after,
             window.start_before,

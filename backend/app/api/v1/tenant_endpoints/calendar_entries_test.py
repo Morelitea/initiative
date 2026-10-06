@@ -60,6 +60,14 @@ async def test_guild_entries_unions_events_and_task_markers(
     task = await create_task(
         session, a.project, title="Ship it", due_date=NOW, assignees=[a.user]
     )
+    # Another initiative's task, which the reader also sees, is not this one's.
+    elsewhere = await create_initiative(session, a.guild, a.user, name="Elsewhere")
+    await create_task(
+        session,
+        await create_project(session, elsewhere, a.user),
+        due_date=NOW,
+        assignees=[a.user],
+    )
 
     response = await client.get(
         a.g("/calendar-entries/"),
@@ -326,11 +334,13 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
     """``scope=community`` asks by kind, so the answer does not depend on the caller
     first assembling a list of calendar ids — a list which would be one page of
     them, with everything after it silently undrawn."""
-    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     initiative_calendar = await _enable_events(session, a.initiative, a.user)
     await create_calendar_event(
         session, initiative_calendar, a.user, title="Standup", start_at=NOW
     )
+    # Every task is in an initiative's project, so none is the community's.
+    await create_task(session, a.project, due_date=NOW, assignees=[a.user])
 
     titles = []
     for index in range(3):
@@ -350,11 +360,11 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
             "scope": "community",
             "start_after": WINDOW_START,
             "start_before": WINDOW_END,
-            "include_tasks": "false",
         },
     )
     assert response.status_code == 200, response.text
     assert sorted(e["title"] for e in response.json()["events"]) == sorted(titles)
+    assert response.json()["tasks"] == []
 
 
 async def test_me_entries_aggregate_across_guilds(

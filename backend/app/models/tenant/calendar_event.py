@@ -56,6 +56,12 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # Whether anyone who can read the event may answer it and so join it, or
+    # only those already on its list. An occurrence follows its series.
+    rsvp_open: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     # RFC 5545 recurrence lines as picked (``app.core.recurrence``).
     recurrence: Optional[str] = Field(
         default=None,

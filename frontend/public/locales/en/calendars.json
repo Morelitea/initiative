@@ -27,6 +27,8 @@
   "rsvpDeclined": "Declined",
   "rsvpTentative": "Tentative",
   "rsvpUpdated": "RSVP updated",
+  "rsvpOpen": "Anyone who can see it may RSVP",
+  "rsvpOpenHint": "On, answering adds a person to the attendees. Off, only the attendees you add can answer.",
   "recurrence": "Recurrence",
   "daily": "Daily",
   "weekly": "Weekly",
@@ -85,6 +87,12 @@
     "eventsFailed_other": "{{count}} events failed",
     "importSuccess": "Import complete!",
     "importError": "Import failed",
+    "problems": {
+      "no_start": "Skipped “{{title}}”: it has no start date",
+      "unreadable": "Couldn't read “{{title}}”",
+      "not_saved": "Couldn't save “{{title}}”",
+      "untitled": "Untitled"
+    },
     "selectCalendar": "Select calendar"
   },
   "calendar": "Calendar",

@@ -36,7 +36,7 @@ export function CalendarSettingsPage() {
         calendar ? (
           <CalendarColorCard
             calendarId={calendar.id}
-            initialColor={calendar.color}
+            color={calendar.color}
             disabled={!calendar.can.edit}
           />
         ) : null

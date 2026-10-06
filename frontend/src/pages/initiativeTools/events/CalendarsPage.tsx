@@ -56,6 +56,7 @@ import {
   CardGridSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -75,6 +76,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useExportJob } from "@/hooks/useExportJob";
@@ -91,7 +93,13 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
-import { eventRoute, taskRoute, toolSettingsRoute, toolViewParams } from "@/lib/tools";
+import {
+  eventRoute,
+  taskRoute,
+  toolListRoute,
+  toolSettingsRoute,
+  toolViewParams,
+} from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
@@ -263,11 +271,6 @@ export const CalendarsView = ({
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
 
-    // If initiativeId is specified, filter by that initiative; otherwise show all community tasks
-    if (initiativeId) {
-      conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
-    }
-
     // Only add filters if explicitly selected by user
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
@@ -288,7 +291,7 @@ export const CalendarsView = ({
       });
     }
     return conditions;
-  }, [initiativeId, statusFilters, priorityFilters, propertyFilters]);
+  }, [statusFilters, priorityFilters, propertyFilters]);
 
   // The real calendars backing the list panel, colors, and the create seams.
   // Asked for before the entries, because on a community surface they are what
@@ -935,6 +938,9 @@ export function CalendarFocusPage() {
   const calendarId = Number(calendarIdParam);
   const calendarQuery = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
   const calendar = calendarQuery.data;
+  const { t } = useTranslation("calendars");
+  const gp = useCommunityPath();
+  const initiativeId = useCanonicalInitiativeId(calendar?.initiative_id);
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
@@ -949,8 +955,18 @@ export function CalendarFocusPage() {
   // Which kind of calendar decides which surface renders, so nothing renders
   // until the read resolves: a community calendar (the plug-in) must never flash the
   // community-wide view, whose fetches reach into initiative content.
-  if (!calendar) {
+  if (calendarQuery.isLoading) {
     return <CalendarPageSkeleton />;
+  }
+  if (calendarQuery.isError || !calendar) {
+    return (
+      <ToolAccessStatus
+        error={calendarQuery.error}
+        keys="calendars:"
+        backTo={gp(toolListRoute(Tool.calendar, initiativeId))}
+        backLabel={t("backToEvents")}
+      />
+    );
   }
 
   const isCommunityCalendar = calendar.initiative_id == null;

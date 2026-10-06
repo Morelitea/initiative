@@ -223,6 +223,14 @@ async def test_update_calendar_requires_write(
     assert renamed.json()["name"] == "After"
     assert renamed.json()["color"] == "#16a34a"
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("name", "color"):
+        response = await client.patch(
+            a.g(f"/calendars/{calendar.id}"), headers=a.headers, json={field: None}
+        )
+        assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
+
 
 async def test_delete_calendar_owner_only_and_cascades(
     client: AsyncClient, acting_user, session

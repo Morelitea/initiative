@@ -941,6 +941,8 @@ class CalendarEventMessages:
     # A calendar read's window holds more repeating occurrences than one read
     # expands (``app.core.recurrence.MAX_EXPANDED``).
     WINDOW_TOO_FULL = "CALENDAR_WINDOW_TOO_FULL"
+    # An answer to an event whose RSVP is closed, from someone not on its list.
+    RSVP_CLOSED = "CALENDAR_EVENT_RSVP_CLOSED"
 
 
 class DashboardMessages:

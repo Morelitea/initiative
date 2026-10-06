@@ -605,6 +605,16 @@ async def test_create_event_rejects_end_before_start(
     assert response.status_code == 400
     assert response.json()["detail"] == CalendarEventMessages.ENDS_BEFORE_START
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("title", "start_at", "end_at", "all_day", "rsvp_open"):
+        response = await client.patch(
+            organizer.g(f"/calendar-events/{event.id}"),
+            headers=organizer.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
+
 
 async def test_create_event_requires_calendar_write(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -930,6 +940,59 @@ async def test_rsvp_notifies_organizer(
     )
     assert len(rsvps) == 1
     assert rsvps[0].data["rsvp_status"] == "accepted"
+
+    async def reader():
+        return await acting_user(
+            guild_role=CommunityRole.member,
+            guild=guild,
+            initiative=initiative,
+            initiative_role="member",
+        )
+
+    def answers(response) -> dict:
+        return {a["user_id"]: a["rsvp_status"] for a in response.json()["attendees"]}
+
+    # Open, a reader who was never invited answers and so joins.
+    joiner = await reader()
+    joined = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "tentative"},
+    )
+    assert joined.status_code == 200, joined.text
+    assert answers(joined)[joiner.user.id] == "tentative"
+
+    # Closed, those on the list still answer and anyone else is refused; an
+    # editor still adds people.
+    closed = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}"),
+        headers=organizer.headers,
+        json={"rsvp_open": False},
+    )
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["rsvp_open"] is False
+    newcomer = await reader()
+    refused = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=newcomer.headers,
+        json={"rsvp_status": "accepted"},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.RSVP_CLOSED
+    answered = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "declined"},
+    )
+    assert answered.status_code == 200, answered.text
+    assert answers(answered)[joiner.user.id] == "declined"
+    added = await client.put(
+        organizer.g(f"/calendar-events/{event.id}/attendees"),
+        headers=organizer.headers,
+        json=[attendee.user.id, joiner.user.id, newcomer.user.id],
+    )
+    assert added.status_code == 200, added.text
+    assert answers(added)[newcomer.user.id] == "pending"
 
 
 async def test_guild_entries_filter_events_without_calendar_grant(

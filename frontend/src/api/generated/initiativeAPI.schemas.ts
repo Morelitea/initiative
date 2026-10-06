@@ -1226,6 +1226,7 @@ export interface CalendarEventSummary {
   start_at: string;
   end_at: string;
   all_day: boolean;
+  rsvp_open: boolean;
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
@@ -1414,6 +1415,7 @@ export interface CalendarEventCreate {
   start_at: string;
   end_at: string;
   all_day?: boolean;
+  rsvp_open?: boolean;
   recurrence?: string | null;
   calendar_id: number;
   tz?: string | null;
@@ -1437,6 +1439,7 @@ export interface CalendarEventRead {
   start_at: string;
   end_at: string;
   all_day: boolean;
+  rsvp_open: boolean;
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
@@ -1478,6 +1481,7 @@ export interface CalendarEventUpdate {
   start_at?: string | null;
   end_at?: string | null;
   all_day?: boolean | null;
+  rsvp_open?: boolean | null;
   recurrence?: string | null;
   tz?: string | null;
   calendar_id?: number | null;
@@ -4972,6 +4976,22 @@ export interface ICalEventPreview {
   has_recurrence: boolean;
 }
 
+/**
+ * Why one event in the file was not imported.
+ */
+export type ICalImportProblem = (typeof ICalImportProblem)[keyof typeof ICalImportProblem];
+
+export const ICalImportProblem = {
+  no_start: "no_start",
+  unreadable: "unreadable",
+  not_saved: "not_saved",
+} as const;
+
+export interface ICalImportError {
+  problem: ICalImportProblem;
+  title?: string | null;
+}
+
 export interface ICalImportRequest {
   calendar_id: number;
   /** @maxLength 2000000 */
@@ -4982,7 +5002,7 @@ export interface ICalImportRequest {
 export interface ICalImportResult {
   events_created?: number;
   events_failed?: number;
-  errors?: string[];
+  errors?: ICalImportError[];
 }
 
 export interface ICalParseRequest {

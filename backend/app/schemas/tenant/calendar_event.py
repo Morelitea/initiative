@@ -14,7 +14,7 @@ from pydantic import (
 
 from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId, names_withheld
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
@@ -76,6 +76,10 @@ class CalendarEventBase(SanitizedBaseModel):
     start_at: datetime
     end_at: datetime
     all_day: bool = False
+    #: Whether anyone who can read the event may answer it and so join it.
+    #: Closed, only those already on its list answer, and only someone who
+    #: may edit it adds people. An occurrence follows its series.
+    rsvp_open: bool = True
     recurrence: Optional[str] = None
 
     @model_validator(mode="after")
@@ -104,6 +108,7 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None
+    rsvp_open: Optional[bool] = None
     recurrence: Optional[EventRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
     #: is taken from it; an all-day event's days are UTC dates already.
@@ -120,6 +125,10 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     #: The occurrence, by its start in the series. Its new times for "all"
     #: move every occurrence by as much.
     occurrence: Optional[datetime] = None
+
+    _required = reject_null(
+        "title", "start_at", "end_at", "all_day", "rsvp_open", "calendar_id"
+    )
 
 
 class CalendarEventAttendeePreview(PersonShape):

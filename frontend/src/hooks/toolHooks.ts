@@ -634,7 +634,7 @@ export const TOOL_HOOKS = {
   [Tool.file]: fileHooks,
   [Tool.queue]: makeToolHooks(queueEndpoints),
   [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),
-  [Tool.calendar]: makeToolHooks(calendarEndpoints),
+  [Tool.calendar]: makeToolHooks(calendarEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.dashboard]: makeToolHooks(dashboardEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.post]: makeToolHooks(postEndpoints, {
     seedsDetailOnUpdate: true,
