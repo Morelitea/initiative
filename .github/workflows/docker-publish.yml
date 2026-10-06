@@ -207,6 +207,7 @@ jobs:
             exit 1
           fi
           echo "APK certificate matches the staged release key."
+          scripts/ci/apk-listed "$apk" ANDROID_FINGERPRINTS
 
       # Which artifact ships follows from how the job was configured, not from
       # which file happens to be on disk.
