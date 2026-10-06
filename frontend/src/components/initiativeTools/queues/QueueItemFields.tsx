@@ -70,7 +70,6 @@ export const QueueItemFields = ({
           type="number"
           value={form.position}
           onChange={(e) => form.setPosition(e.target.value)}
-          placeholder="0"
           disabled={readOnly}
         />
         <p className="text-muted-foreground text-xs">{t("positionHelp")}</p>

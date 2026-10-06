@@ -47,6 +47,7 @@ import { useToolRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
+import { getItem } from "@/lib/storage";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
@@ -74,8 +75,12 @@ export function QueueDetailPage() {
     recordViewMutation.mutate(viewedQueueId);
   }, [viewedQueueId, recordViewMutation.mutate]);
 
-  // Per-queue view preference (list vs. on-deck).
-  const [storedView, setView] = useViewPreference<QueueView>(`queue-${parsedId}-view`, "on-deck");
+  // Per-queue view preference (list vs. on-deck). Falls back to the choice
+  // this device stored before the preference moved to the account.
+  const [storedView, setView] = useViewPreference<QueueView>(
+    `queue-${parsedId}-view`,
+    getItem(`queues.view.${parsedId}`) === "list" ? "list" : "on-deck"
+  );
   const view: QueueView = storedView === "list" ? "list" : "on-deck";
 
   // Turn controls just fire the mutation. The optimistic cache write happens

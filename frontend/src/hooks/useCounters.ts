@@ -51,7 +51,7 @@ const patchCounter = (
 /**
  * One write to a group's counters: applied to the cached group at once, then
  * replaced by what the server answers with — the counter, or the whole group.
- * Only the lists are refetched, for their previews.
+ * The lists are refetched for their previews, and the group with them.
  */
 const useCounterWrite = <TData extends CounterRead | CounterGroupRead, TVariables = void>(
   groupId: number,

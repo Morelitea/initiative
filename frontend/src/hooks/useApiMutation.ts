@@ -117,7 +117,7 @@ interface OptimisticMutationConfig<TCached, TData, TVariables>
 /**
  * {@link useCommunityMutation} that shows its result before the server does:
  * `apply` writes the cached read at once, a failure puts the previous copy
- * back, and the answer is written over it with `seed`.
+ * back and refetches it, and the answer is written over it with `seed`.
  */
 export function useOptimisticMutation<TCached, TData, TVariables = void>(
   { queryKey, apply, seed, ...config }: OptimisticMutationConfig<TCached, TData, TVariables>,
@@ -152,6 +152,8 @@ export function useOptimisticMutation<TCached, TData, TVariables = void>(
       },
       onError: (error, variables, context, mutationContext) => {
         if (context?.previous !== undefined) client.setQueryData(key, context.previous);
+        // The copy put back predates any change that landed meanwhile.
+        void client.invalidateQueries({ queryKey: key });
         onError?.(error, variables, context, mutationContext);
       },
     }

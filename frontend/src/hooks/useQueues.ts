@@ -315,7 +315,7 @@ export const releaseHeldState = (
 
 /**
  * One turn change: applied to the cached queue at once, then replaced by the
- * queue the server answers with. Only the lists are refetched.
+ * queue the server answers with. The lists are refetched, and the queue with them.
  */
 const useTurn = <TVariables = void>(
   queueId: number,
