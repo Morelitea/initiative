@@ -2,10 +2,15 @@ import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ProjectDetailsFields } from "@/components/projects/settings/ProjectDetailsFields";
 import { ProjectSettingsAdvancedTab } from "@/components/projects/settings/ProjectSettingsAdvancedTab";
-import { ProjectSettingsDetailsTab } from "@/components/projects/settings/ProjectSettingsDetailsTab";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
-import { useDeleteProject, useProject, useSetProjectGrants } from "@/hooks/useProjects";
+import {
+  useDeleteProject,
+  useProject,
+  useSetProjectGrants,
+  useUpdateProject,
+} from "@/hooks/useProjects";
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
@@ -14,6 +19,7 @@ export const ProjectSettingsPage = () => {
   const { t } = useTranslation("projects");
 
   const projectQuery = useProject(isValidId ? parsedId : null);
+  const update = useUpdateProject(parsedId);
   const setGrants = useSetProjectGrants(parsedId);
   const remove = useDeleteProject();
 
@@ -26,17 +32,10 @@ export const ProjectSettingsPage = () => {
       entity={project}
       isLoading={isValidId && projectQuery.isLoading}
       isError={!isValidId || projectQuery.isError}
+      update={update}
       setGrants={setGrants}
       remove={remove}
-      detailsExtra={
-        project ? (
-          <ProjectSettingsDetailsTab
-            project={project}
-            projectId={parsedId}
-            canWriteProject={canWrite}
-          />
-        ) : null
-      }
+      detailsInline={project ? <ProjectDetailsFields project={project} /> : null}
       // Two settings too large for a card. Each is served by its own route
       // beside the shared sections, so the value doubles as the URL segment.
       extraTabs={[

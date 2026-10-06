@@ -1,9 +1,7 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { unarchiveEntity } from "@/api/generated/archive/archive";
 import type {
   ListMyProjectsParams,
-  ListProjectsParams,
   ProjectListResponse,
   ProjectRead,
   TaskStatusCreate,
@@ -41,46 +39,25 @@ import { toolViewParams } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── The standard five ───────────────────────────────────────────────────────
+// ── The standard six ────────────────────────────────────────────────────────
 // Built in `toolHooks.ts` from the generated client; see there for the keys
-// each one reads and the invalidation each one fires. A project's list hook and
-// update are its own, and are written out below — the list's query still comes
-// from the table, so the key is named in one place.
+// each one reads and the invalidation each one fires.
 
 const projects = TOOL_HOOKS[Tool.project];
+export const useProjects = projects.useList;
 export const useProject = projects.useDetail;
+export const useUpdateProject = projects.useUpdate;
 export const useCreateProject = projects.useCreate;
 export const useDeleteProject = projects.useDelete;
 export const useSetProjectGrants = projects.useSetGrants;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/**
- * One page of the community's projects. The rows stay on screen while a changed
- * page, search or order is in flight, like every other tool's list.
- */
-export const useProjects = (
-  params?: ListProjectsParams,
-  options?: QueryOpts<ProjectListResponse>
-) => {
-  const communityId = useActiveCommunityId();
-  return useQuery<ProjectListResponse>({
-    ...projects.listQuery(communityId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-/** Templates in one initiative, or across every one the caller can see — the
- *  create dialog's "start from a template" picker. The projects list reads its
- *  own templates through `useProjects`, since the status filter picks which of
- *  the three states the same query returns. */
-export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({
-    is_template: true,
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-  });
-};
+/** Templates across every initiative the caller can see — the create dialog's
+ *  "start from a template" picker. The projects list reads its own templates
+ *  through `useProjects`, since the status filter picks which of the three
+ *  states the same query returns. */
+export const useTemplateProjects = () => useProjects({ is_template: true });
 
 /** Every live project the reader may edit — where a task can be moved to; a
  *  template takes no tasks moved into it. Walks the list's windows, so no
@@ -100,10 +77,6 @@ export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) =>
     ...options,
   });
 };
-
-// ``useRecentProjects`` was removed when the projects-only ``/projects/recent``
-// endpoint was retired. Use ``useRecents`` from ``@/hooks/useRecents`` for the
-// mixed-type bar instead.
 
 export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
   const communityId = useActiveCommunityId();
@@ -143,21 +116,6 @@ export const useGlobalProjects = (
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type ProjectPatch = Parameters<typeof updateProject>[2];
-
-export const useUpdateProject = (
-  projectId: number,
-  options?: MutationOpts<ProjectRead, ProjectPatch>
-) =>
-  useCommunityMutation<ProjectRead, ProjectPatch>(
-    {
-      mutationFn: (communityId, data) => updateProject(communityId, projectId, data),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:settings.details.updateError",
-    },
-    options
-  );
-
 /**
  * Row-level template removal from the projects list, where the id varies per
  * row so the curried {@link useUpdateProject} doesn't fit.
@@ -170,18 +128,7 @@ export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, num
           is_template: false,
         }),
       invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:settings.details.updateError",
-    },
-    options
-  );
-
-export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
-  useCommunityMutation<void, number>(
-    {
-      mutationFn: async (communityId, projectId) => {
-        await unarchiveEntity(communityId, "project", projectId);
-      },
-      invalidate: () => invalidate(q.allProjects()),
+      errorKey: "projects:error",
     },
     options
   );
@@ -203,10 +150,6 @@ export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
     },
   });
 };
-
-// ``useRecordProjectView`` / ``useClearProjectView`` were replaced by the
-// polymorphic ``useRecordRecentView`` / ``useClearRecentView`` in
-// ``@/hooks/useRecents``.
 
 // ── Favorite / Pin Mutations ────────────────────────────────────────────────
 
@@ -262,7 +205,7 @@ export const useToggleProjectFavorite = (
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectRead>(
-        getReadProjectQueryKey(communityId, data.project_id) as unknown as string[],
+        getReadProjectQueryKey(communityId, data.project_id),
         (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );
       void invalidate(q.favoriteProjects());
@@ -308,21 +251,13 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
         { queryKey: getListProjectsQueryKey(communityId) },
         (prev) => replaceProjectInList(prev, data)
       );
-      qc.setQueryData<ProjectRead>(
-        getReadProjectQueryKey(communityId, data.id) as unknown as string[],
-        () => data
-      );
+      qc.setQueryData<ProjectRead>(getReadProjectQueryKey(communityId, data.id), () => data);
       onSuccess?.(...args);
     },
     onError,
     onSettled,
   });
 };
-
-// ── Project Document Mutations ──────────────────────────────────────────────
-
-const _invalidateProjectAndDocuments = (projectId: number) =>
-  invalidate(q.project(projectId), q.allDocuments());
 
 // ── Task Status Mutations ───────────────────────────────────────────────────
 
