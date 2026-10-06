@@ -757,7 +757,8 @@ async def prove_at_sign_in(
     from app.services import audit as audit_service
     from app.services import content_sockets
     from app.services.auth import totp as totp_service
-    from app.services.platform import user_stream, user_tokens
+    from app.db import post_commit
+    from app.services.platform import user_tokens
 
     result = await session.exec(
         update(UserEmail)
@@ -783,9 +784,9 @@ async def prove_at_sign_in(
         detail={"reason": "address_first_proved"},
     )
     user_id = user.id
-    user_stream.after_commit(
+    post_commit.after_commit(
         session,
-        ("content_sockets", "recheck_user", user_id),
         lambda: content_sockets.sockets.revoke_user_everywhere(user_id),
+        key=("content_sockets", "recheck_user", user_id),
     )
     return True
