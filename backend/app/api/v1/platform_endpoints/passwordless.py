@@ -26,6 +26,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
 )
 from app.api.v1.platform_endpoints.session_opening import (
     prove_second_factor,
+    refuse_if_locked,
     replace_session,
     require_login_method,
 )
@@ -255,6 +256,7 @@ async def recover_with_code(
     if user is None:
         await SIGN_IN_FAILURES.take(address)
         raise _recovery_code_invalid()
+    await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
         await SIGN_IN_FAILURES.take(address)
         await _record_recovery_refusal(system_session, user_id=user.id)

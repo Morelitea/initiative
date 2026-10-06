@@ -484,18 +484,25 @@ async def test_an_account_holding_a_password_recovers_by_mail_instead(
     client: AsyncClient, session: AsyncSession
 ):
     user = await _account(session, "pl-haspw@example.com")
+    user_id = user.id
     codes = await _issue_codes(session, user)
+    body = {
+        "email": "pl-haspw@example.com",
+        "recovery_code": codes[0],
+        "password": NEW_PASSWORD,
+    }
 
-    response = await client.post(
-        RECOVER,
-        json={
-            "email": "pl-haspw@example.com",
-            "recovery_code": codes[0],
-            "password": NEW_PASSWORD,
-        },
-    )
+    response = await client.post(RECOVER, json=body)
     assert response.status_code == 400
     assert response.json()["detail"] == "RECOVERY_CODE_INVALID"
+
+    # A locked account answers with the lock first.
+    for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+        await sign_in_locks.record_failure(session, user_id)
+    await session.commit()
+    response = await client.post(RECOVER, json=body)
+    assert response.status_code == 429
+    assert response.json()["detail"] == "SIGN_IN_LOCKED"
 
 
 async def test_an_address_nobody_holds_gets_the_same_answer(client: AsyncClient):
