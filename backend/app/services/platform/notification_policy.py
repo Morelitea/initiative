@@ -259,3 +259,20 @@ def apply(
         return pieces
     title, body = redacted_line(category, locale)
     return replace(pieces, subject=title, headline=title, body=body, link_label=None)
+
+
+#: What a redacted push's data keeps: where tapping it opens.
+_ROUTING_KEYS = frozenset({"type", "community_id", "target_path"})
+
+
+def push_data(
+    policy: NotificationPolicy, data: Mapping[str, object] | None
+) -> dict[str, object]:
+    """What a push's data payload may carry under ``policy``: all of it, or
+    where it is redacted, only where tapping it opens, as an email keeps its
+    link."""
+    return {
+        name: value
+        for name, value in (data or {}).items()
+        if not policy.redact or name in _ROUTING_KEYS
+    }

@@ -185,7 +185,7 @@ async def notice(
         data,
         push_title=push[0] if push else None,
         push_body=push[1] if push else None,
-        push_data=dict(push_data or {}) if push else None,
+        push_data=notification_policy.push_data(policy, push_data) if push else None,
         email_subject=email.subject if email else None,
         email_headline=email.headline if email else None,
         email_body=email.body if email else None,
@@ -409,8 +409,9 @@ async def _push(
     pushes: list[push_notifications.Push] = []
     for row in rows:
         notification_type = NotificationType(row.type)
+        policy = _policy_of(policies, row.guild_id, row.data)
         shown = notification_policy.apply(
-            _policy_of(policies, row.guild_id, row.data),
+            policy,
             (row.push_title or "", row.push_body or ""),
             category=category_of(notification_type),
             locale=getattr(accounts.get(row.user_id), "locale", None) or "en",
@@ -424,7 +425,7 @@ async def _push(
                 notification_type=notification_type,
                 title=shown[0],
                 body=shown[1],
-                data=dict(row.push_data or {}),
+                data=notification_policy.push_data(policy, row.push_data),
             )
         )
     again = await push_notifications.send_pushes(session, pushes)

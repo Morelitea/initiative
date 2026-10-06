@@ -337,7 +337,8 @@ async def send_push_to_user(
     The deployment's and the community's switches are applied as it sends
     (:func:`notification_policy.apply`): one of them declining sends nothing,
     and either of them asking for a redacted notification replaces the wording
-    with the kind of thing that happened.
+    with the kind of thing that happened and keeps of ``data`` only where
+    tapping it opens.
 
     The recipient's device rows are read and written on the system engine
     rather than on ``session``, which is the caller's and often routed into a
@@ -367,8 +368,9 @@ async def send_push_to_user(
     if not (await push_config.ensure_push_config_fresh()).enabled:
         return 0
 
+    policy = await notification_policy.for_send(session, guild_id)
     shown = notification_policy.apply(
-        await notification_policy.for_send(session, guild_id),
+        policy,
         (title, body),
         category=category_of(notification_type),
         locale=locale or await _recipient_locale(user_id),
@@ -391,7 +393,7 @@ async def send_push_to_user(
             tokens,
             title=title,
             body=body,
-            data=data,
+            data=notification_policy.push_data(policy, data),
             channel_id=channel_for(notification_type),
         )
 

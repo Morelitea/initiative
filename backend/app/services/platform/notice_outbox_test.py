@@ -32,14 +32,16 @@ from app.testing.sockets import settle
 
 @pytest.fixture
 def fcm(monkeypatch):
-    """FCM, answering however the test says, and what was put on the wire."""
+    """FCM, answering however the test says, and what was put on the wire:
+    each title, and each data payload under ``answer["data"]``."""
     calls: list[str] = []
-    answer = {"now": (True, False)}
+    answer: dict = {"now": (True, False), "data": []}
 
     async def _send(
         client, push_token, title, body, data=None, channel_id=None, platform=None
     ):
         calls.append(title)
+        answer["data"].append(data)
         return answer["now"]
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
@@ -144,8 +146,9 @@ async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
     """A digest or a hold summary is a push and nothing else: the bell already
     holds what it counts. It goes under the switches of the communities it
     gathers from as they stand when it is sent: while one of them still sends
-    push it goes, saying only the kind of thing once another has stopped."""
-    pushed, _answer = fcm
+    push it goes, saying only the kind of thing once another has stopped, and
+    carrying no more data than where tapping it opens."""
+    pushed, answer = fcm
     recipient = await create_user(session)
     guild = await create_guild(session, creator=recipient)
     sending = await create_guild(session, creator=recipient)
@@ -160,7 +163,7 @@ async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
                 {},
                 guild_id=None,
                 push=("2 tasks overdue", "Q3 budget and 1 more"),
-                push_data={"target_path": "/"},
+                push_data={"target_path": "/", "count": "2"},
                 communities={guild.id, sending.id},
                 kind="push",
             )
@@ -176,6 +179,7 @@ async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
         category_of(NotificationType.overdue_tasks), "en"
     )
     assert pushed == [title]
+    assert answer["data"] == [{"target_path": "/"}]
     assert await _lines(session, recipient.id) == []
     assert await _waiting(session) == []
 
