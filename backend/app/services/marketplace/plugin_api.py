@@ -31,7 +31,7 @@ __all__ = [
 PLUGIN_API_VERSION = contract.KIT_VERSION
 
 #: The shape of ``min_plugin_api``, as the SDK's manifest schema states it.
-_MIN_PLUGIN_API = re.compile(r"[0-9]+\.[0-9]+")
+_MIN_PLUGIN_API = r"[0-9]+\.[0-9]+"
 
 #: The longest ``min_plugin_api`` stored; the column holds as much.
 MAX_MIN_PLUGIN_API = 32
@@ -45,7 +45,7 @@ def check_min_plugin_api(value: Any) -> Optional[str]:
     if (
         not isinstance(value, str)
         or len(value) > MAX_MIN_PLUGIN_API
-        or not _MIN_PLUGIN_API.fullmatch(value)
+        or not re.fullmatch(_MIN_PLUGIN_API, value)
     ):
         raise ValueError(
             f"min_plugin_api must be MAJOR.MINOR, such as '4.1' (got {value!r})"
