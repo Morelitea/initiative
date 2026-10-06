@@ -249,7 +249,7 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
         write_blob=False,
         thumbnail_url=f"/uploads/{guild_id}/harbour-thumb.webp",
     )
-    file_url = picture.file_url
+    file_url = picture.current_version.file_url
     gallery.cover_image_id = picture.id
     session.add(gallery)
     await session.commit()

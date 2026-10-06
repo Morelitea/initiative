@@ -132,16 +132,12 @@ class Gallery(
 class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
     """One picture in a gallery.
 
-    The file columns mirror the picture's *current* version — the highest
-    ``version_number`` in :class:`GalleryImageVersion` — the same arrangement a
-    file document keeps, so the gallery can be drawn from this table alone and
-    the history is there when somebody asks for it.
-
-    ``width`` and ``height`` are read from the file's header at upload, and
-    they are what lets a masonry layout reserve the right space for a picture
-    before its bytes arrive. ``thumbnail_url`` is a smaller rendition made at
-    upload for the grid; ``NULL`` where none could be made, and the grid then
-    shows the picture itself.
+    ``current_version_id`` names the version the picture shows — its file,
+    thumbnail and size live on :class:`GalleryImageVersion` — the same
+    arrangement a file document keeps, and the rest of the versions are the
+    history. The two tables point at each other, so the key is added once both
+    exist (``use_alter``) and the pointer is written after the version row
+    (``post_update``).
 
     ``title`` is optional — most pictures are named by what they show — and
     surfaces fall back to the original filename, which is at least what the
@@ -167,21 +163,19 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None, sa_column=Column(String(length=255), nullable=True)
     )
     caption: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
-    thumbnail_url: Optional[str] = Field(
-        default=None, sa_column=Column(String(length=512), nullable=True)
+    current_version_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey(
+                "gallery_image_versions.id",
+                use_alter=True,
+                name="gallery_images_current_version_id_fkey",
+            ),
+            nullable=True,
+            index=True,
+        ),
     )
-    file_content_type: Optional[str] = Field(
-        default=None, sa_column=Column(String(length=128), nullable=True)
-    )
-    file_size: Optional[int] = Field(
-        default=None, sa_column=Column(BigInteger, nullable=True)
-    )
-    original_filename: Optional[str] = Field(
-        default=None, sa_column=Column(String(length=255), nullable=True)
-    )
-    width: Optional[int] = Field(default=None, nullable=True)
-    height: Optional[int] = Field(default=None, nullable=True)
     created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -207,7 +201,17 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "order_by": "GalleryImageVersion.version_number",
+            "foreign_keys": "GalleryImageVersion.gallery_image_id",
         },
+    )
+    #: Loaded with the row wherever a picture is, so a page of them reads its
+    #: files in one more query.
+    current_version: Optional["GalleryImageVersion"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "GalleryImage.current_version_id",
+            "post_update": True,
+            "lazy": "selectin",
+        }
     )
 
 
@@ -215,9 +219,15 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     """One uploaded rendition of a picture.
 
     Every picture has at least one row here, and the ``gallery_images`` row
-    mirrors the newest. The same shape a file document's versions take, for the
-    same reason: a design round replaces a canvas rather than adding one, and
-    the earlier rounds are the story of how it got there.
+    names the one it shows. The same shape a file document's versions take,
+    for the same reason: a design round replaces a canvas rather than adding
+    one, and the earlier rounds are the story of how it got there.
+
+    ``width`` and ``height`` are read from the file's header at upload, and
+    they are what lets a masonry layout reserve the right space for a picture
+    before its bytes arrive. ``thumbnail_url`` is a smaller rendition made at
+    upload for the grid; ``NULL`` where none could be made, and the grid then
+    shows the picture itself.
     """
 
     __tablename__ = "gallery_image_versions"
@@ -241,9 +251,9 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     thumbnail_url: Optional[str] = Field(
         default=None, sa_column=Column(String(length=512), nullable=True)
     )
-    file_content_type: Optional[str] = Field(
-        default=None, sa_column=Column(String(length=128), nullable=True)
-    )
+    #: One of ``galleries.PICTURE_EXTENSIONS``: it decides how the picture is
+    #: shown.
+    file_content_type: str = Field(sa_column=Column(String(length=128), nullable=False))
     file_size: Optional[int] = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )
@@ -258,7 +268,10 @@ class GalleryImageVersion(CreatedByMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    image: Optional[GalleryImage] = Relationship(back_populates="versions")
+    image: Optional[GalleryImage] = Relationship(
+        back_populates="versions",
+        sa_relationship_kwargs={"foreign_keys": "GalleryImageVersion.gallery_image_id"},
+    )
 
 
 attach_actions(Gallery, Tool.gallery)

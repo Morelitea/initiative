@@ -49,7 +49,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_plugin import GuildPlugin
@@ -65,6 +65,7 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import plugin_installs
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant import file_versions
 from app.services.tenant import plugin_schedules
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
@@ -1714,9 +1715,9 @@ async def create_gallery_image(
     **overrides: Any,
 ) -> GalleryImage:
     """Create a test picture in a gallery, with its first version and its
-    ``uploads`` row.
+    ``uploads`` row. File overrides (``thumbnail_url``, …) go on the version.
 
-    ``write_blob`` puts a real PNG in the guild's storage under the row's
+    ``write_blob`` puts a real PNG in the guild's storage under the version's
     ``file_url``, so a test that serves or purges the picture finds bytes
     there; a test about the rows alone can skip it.
     """
@@ -1740,34 +1741,20 @@ async def create_gallery_image(
         )
     )
 
-    defaults = {
-        "gallery_id": gallery.id,
-        "created_by": uploader.id,
-        "title": title,
+    picture = {
         "file_url": file_url,
         "file_content_type": "image/png",
         "file_size": len(data),
         "original_filename": f"{title or 'picture'}.png",
         "width": width,
         "height": height,
+        **_file_overrides(overrides),
     }
+    defaults = {"gallery_id": gallery.id, "created_by": uploader.id, "title": title}
     image = GalleryImage(**{**defaults, **overrides})
     session.add(image)
     await session.flush()
-    session.add(
-        GalleryImageVersion(
-            gallery_image_id=image.id,
-            version_number=1,
-            file_url=image.file_url,
-            thumbnail_url=image.thumbnail_url,
-            file_content_type=image.file_content_type,
-            file_size=image.file_size,
-            original_filename=image.original_filename,
-            width=image.width,
-            height=image.height,
-            created_by=uploader.id,
-        )
-    )
+    await file_versions.add_version(session, image, created_by=uploader.id, **picture)
 
     if commit:
         await session.commit()
@@ -1836,9 +1823,12 @@ async def create_document(
 
     Defaults to a ``native`` (editor) document with empty content and an
     owner grant for ``creator``, mirroring the create endpoint's DAC setup.
+    File overrides (``file_url``, …) make its first version, as an upload does,
+    typed ``application/pdf`` unless one is given.
     """
     await route_session_to_guild(session, guild_of(initiative))
 
+    stored = _file_overrides(overrides)
     defaults = {
         "initiative_id": initiative.id,
         "name": name or f"Test Document {datetime.now(timezone.utc).timestamp()}",
@@ -1858,8 +1848,30 @@ async def create_document(
     await create_resource_grant(
         session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )
+    if stored:
+        stored.setdefault("file_content_type", "application/pdf")
+        await file_versions.add_version(
+            session, document, created_by=creator.id, **stored
+        )
+        await (session.commit() if commit else session.flush())
 
     return document
+
+
+def _file_overrides(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Take a factory's file overrides out of ``overrides``: they describe the
+    version it makes, not the row."""
+    return {
+        key: overrides.pop(key)
+        for key in (
+            "file_url",
+            "thumbnail_url",
+            "file_content_type",
+            "file_size",
+            "original_filename",
+        )
+        if key in overrides
+    }
 
 
 async def create_comment(

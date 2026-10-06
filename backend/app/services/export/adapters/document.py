@@ -121,7 +121,7 @@ def _document_count(document: Document) -> int:
             len(sheet.get("cells") or {}) for sheet in sheets_of(document.content or {})
         )
     if doc_type == DocumentType.file.value:
-        return int(document.file_size or 0) // _FILE_SIZE_ROW_BYTES
+        return int(document.current_version.file_size or 0) // _FILE_SIZE_ROW_BYTES
     return 1
 
 
@@ -182,11 +182,12 @@ def build_document_item(
         else:
             data = {"title": document.name, "grid": document.content or {}}
     elif doc_type == DocumentType.file.value:
-        storage_key = (document.file_url or "").split("/")[-1]
+        version = document.current_version
+        storage_key = version.file_url.split("/")[-1]
         data = {
             "storage_key": storage_key,
-            "filename": document.original_filename or storage_key,
-            "content_type": document.file_content_type,
+            "filename": version.original_filename or storage_key,
+            "content_type": version.file_content_type,
         }
     else:  # smart_link
         if format == "json":

@@ -171,10 +171,6 @@ def test_every_person_in_the_plugin_document_is_a_plugin_person():
     assert not [name for name, schema in schemas.items() if schema.get("x-person")]
 
 
-#: Columns somebody writes in that mention nobody: an upload's own file name.
-_MENTION_FREE_COLUMNS = {"original_filename"}
-
-
 def _mention_forms(field: Any, schemas: dict[str, Any]) -> set[str]:
     """How ``field`` mentions people: its own mark, or its items' fields'."""
     nodes = list(_nodes(field))
@@ -190,9 +186,7 @@ def test_every_field_holding_written_text_carries_its_mentions():
     erasure scrubs mentions (``mention_parser.anonymize_user_mentions``). Each
     field of the plug-in's document named for one says how it mentions people:
     an editor state as Lexical, text as markdown. Its schema describes it."""
-    columns = {
-        column for written in written_columns().values() for column in written
-    } - _MENTION_FREE_COLUMNS
+    columns = {column for written in written_columns().values() for column in written}
     schemas = plugin_openapi()["components"]["schemas"]
     found: dict[tuple[str, str], set[str]] = {}
     expected: dict[tuple[str, str], set[str]] = {}

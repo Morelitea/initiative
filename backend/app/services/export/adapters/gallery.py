@@ -108,7 +108,8 @@ class GalleryAdapter(ToolExportAdapter):
         # each picture counts for its megabytes, and at least one.
         _gallery, images = loaded
         return 1 + sum(
-            max(1, int(image.file_size or 0) // _IMAGE_ROW_BYTES) for image in images
+            max(1, int(image.current_version.file_size or 0) // _IMAGE_ROW_BYTES)
+            for image in images
         )
 
     def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
@@ -123,7 +124,8 @@ class GalleryAdapter(ToolExportAdapter):
         storage = get_guild_storage(ctx.guild_id)
         pictures = []
         for image in images:
-            key = storage_key_of(image.file_url)
+            version = image.current_version
+            key = storage_key_of(version.file_url)
             if not key or not storage.exists(key):
                 continue
             pictures.append(
@@ -131,7 +133,7 @@ class GalleryAdapter(ToolExportAdapter):
                     key=key,
                     data={
                         "storage_key": key,
-                        "content_type": image.file_content_type,
+                        "content_type": version.file_content_type,
                     },
                     filename=f"assets/{key}",
                     format="file",
@@ -169,7 +171,11 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
         # The cover crosses as a storage key for the reason a wiki's home page
         # crosses as a slug: an id means nothing in the guild this restores
         # into, and the key is what both sides call the same picture.
-        "cover": storage_key_of(cover.file_url) if cover is not None else None,
+        "cover": (
+            storage_key_of(cover.current_version.file_url)
+            if cover is not None
+            else None
+        ),
         "tags": sorted(tag.name for tag in getattr(gallery, "tags", None) or []),
         "properties": exported_properties(gallery),
         "images": [_image_envelope(image) for image in images],
@@ -177,15 +183,16 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
 
 
 def _image_envelope(image: GalleryImage) -> dict[str, Any]:
+    version = image.current_version
     return {
         "title": image.title,
         "caption": image.caption,
-        "storage_key": storage_key_of(image.file_url),
-        "content_type": image.file_content_type,
-        "size_bytes": image.file_size,
-        "original_filename": image.original_filename,
-        "width": image.width,
-        "height": image.height,
+        "storage_key": storage_key_of(version.file_url),
+        "content_type": version.file_content_type,
+        "size_bytes": version.file_size,
+        "original_filename": version.original_filename,
+        "width": version.width,
+        "height": version.height,
         "tags": sorted(tag.name for tag in getattr(image, "tags", None) or []),
         "properties": exported_properties(image),
         # What a reference to this picture points at across one import.

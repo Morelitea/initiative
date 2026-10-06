@@ -644,7 +644,7 @@ async def test_a_picture_brings_its_thumbnail_and_falls_back_to_itself(
     )
 
     assert (await _attach(client, a, "gallery_image", small.id))["image_urls"] == [
-        small.file_url
+        small.current_version.file_url
     ]
     assert (await _attach(client, a, "gallery_image", large.id))["image_urls"] == [
         "/uploads/3/thumb.webp"

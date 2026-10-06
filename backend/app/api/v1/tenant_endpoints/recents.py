@@ -65,12 +65,13 @@ class RecentToolSpec:
 
 
 def _document_extra(document: Document) -> Dict[str, Any]:
+    version = document.current_version
     return {
         "document_type": (
             document.document_type.value if document.document_type is not None else None
         ),
-        "mime_type": document.file_content_type,
-        "original_filename": document.original_filename,
+        "mime_type": getattr(version, "file_content_type", None),
+        "original_filename": getattr(version, "original_filename", None),
     }
 
 
