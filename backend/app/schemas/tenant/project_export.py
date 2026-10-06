@@ -9,7 +9,7 @@ cross-database move.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import AliasChoices, Field
 
@@ -18,14 +18,7 @@ from app.schemas.base import SanitizedBaseModel
 from app.core.relationships import RelationshipType
 from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
-from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
-
-
-SCHEMA_VERSION = 1
-"""Bump on breaking changes to the envelope shape. Independent of app VERSION."""
-
-MIN_SUPPORTED_IMPORT_VERSION = 1
-"""Imports below this version are rejected. Future migrations may bridge older versions."""
+from app.schemas.tenant.import_envelopes import EnvelopePropertyValue, _EnvelopeBase
 
 
 #: Where a row's property values are read from. ``property_values`` is what
@@ -153,15 +146,12 @@ class ProjectExportTask(SanitizedBaseModel):
     # backup's own ``"task:41"``. It is the name ``links`` point at, and it is
     # never written to a column: it lives for the length of one job.
     external_ref: Optional[str] = None
-    # Lists are required (no default_factory): pydantic 2.x splits the
-    # OpenAPI schema into ``-Input``/``-Output`` whenever a field has a
-    # different presence in validation vs serialization, and
-    # default_factory=list is the canonical trigger. The exporter always
-    # emits these, so the field is always present anyway.
-    tags: List[ProjectExportTag]
-    assignee_handles: List[str]
-    checklist: List[ProjectExportChecklistItem]
-    properties: List[EnvelopePropertyValue] = Field(validation_alias=_PROPERTIES)
+    tags: List[ProjectExportTag] = []
+    assignee_handles: List[str] = []
+    checklist: List[ProjectExportChecklistItem] = []
+    properties: List[EnvelopePropertyValue] = Field(
+        default=[], validation_alias=_PROPERTIES
+    )
     # Both default to empty: an envelope written before they existed is a
     # task with nothing said on it and nothing pointing anywhere, which is
     # exactly what an absent field means here.
@@ -171,50 +161,22 @@ class ProjectExportTask(SanitizedBaseModel):
     mention_handles: List[str] = []
 
 
-class ProjectExportEnvelope(SanitizedBaseModel):
-    """Top-level export document. Versioned so the importer can refuse
-    or migrate older / unknown formats.
+class ProjectExportEnvelope(_EnvelopeBase):
+    """A project with its statuses, tags, property definitions and tasks.
 
-    All list fields are required (no ``default_factory``) so Pydantic
-    doesn't split the OpenAPI schema into ``-Input``/``-Output`` shapes
-    when this model is used as both a response (GET /export) and a
-    nested request body (POST /import). The exporter always writes
-    every list, so requiring them costs nothing at runtime.
+    The project's own fields sit under ``project`` rather than at the top
+    level as other envelopes' do; exported files and published listings
+    already carry this shape.
     """
 
-    # File-type discriminator, matching the other tool envelopes — a future
-    # import dispatches on it. Defaulted so files exported before the field
-    # existed still validate.
-    type: str = "initiative-project"
-    schema_version: int = SCHEMA_VERSION
+    # Defaulted so files exported before the field existed still validate.
+    type: Literal["initiative-project"] = "initiative-project"
     app_version: str
     exported_at: datetime
     exported_by_handle: Optional[str] = None
-    source_instance_url: Optional[str] = None
-    # The community it was taken from. With the server above, it says whether
-    # a reference to something the envelope does not carry still names the
-    # same thing where it is imported.
-    source_guild_id: Optional[int] = None
 
     project: ProjectExportProject
-    tags: List[ProjectExportTag]
-    task_statuses: List[ProjectExportTaskStatus]
-    property_definitions: List[ProjectExportPropertyDefinition]
-    tasks: List[ProjectExportTask]
-
-
-class ProjectImportResult(SanitizedBaseModel):
-    """Summary of what happened during an import. Surfaced in the UI so
-    the user can see how many references were dropped or remapped."""
-
-    project_id: int
-    project_name: str
-    task_count: int
-    tag_create_count: int = 0
-    tag_match_count: int = 0
-    property_create_count: int = 0
-    property_match_count: int = 0
-    property_rename_count: int = 0
-    assignee_match_count: int = 0
-    assignee_unmatched_handles: List[str] = Field(default_factory=list)
-    comment_count: int = 0
+    tags: List[ProjectExportTag] = []
+    task_statuses: List[ProjectExportTaskStatus] = []
+    property_definitions: List[ProjectExportPropertyDefinition] = []
+    tasks: List[ProjectExportTask] = []

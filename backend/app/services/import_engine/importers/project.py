@@ -1,54 +1,32 @@
-"""``initiative-project`` importer — a thin adapter over the proven
-``project_import.import_project`` service (one apply implementation shared
-with the legacy ``POST /projects/import`` endpoint)."""
+"""``initiative-project`` importer — a thin adapter over
+``project_import.import_project``, which intake setup also calls directly."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.backup_export import ManifestPerson
 from app.schemas.tenant.project_export import ProjectExportEnvelope
-from app.services.import_engine.contract import (
-    EnvelopeImportResult,
-    ImportEngineError,
-)
+from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.common import handle_key
 from app.services.import_engine.context import ImportContext
-from app.services.import_engine.people import user_reference_handles
+from app.services.import_engine.importers._base import (
+    NamesPeopleInPassing,
+    parse_envelope,
+)
 
 
-class ProjectImporter:
+class ProjectImporter(NamesPeopleInPassing):
     envelope_type = "initiative-project"
     permission = PermissionKey.create_projects
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
-        try:
-            validated = ProjectExportEnvelope.model_validate(envelope)
-        except ValidationError as exc:
-            raise ImportEngineError(
-                ImportEngineMessages.IMPORT_INVALID_ENVELOPE
-            ) from exc
-        # import_project applies its own version gate, but count() runs first
-        # and must not trust an unsupported shape — gate here too.
-        from app.schemas.tenant.project_export import (
-            MIN_SUPPORTED_IMPORT_VERSION,
-            SCHEMA_VERSION,
-        )
-
-        if not (
-            MIN_SUPPORTED_IMPORT_VERSION <= validated.schema_version <= SCHEMA_VERSION
-        ):
-            raise ImportEngineError(
-                ImportEngineMessages.IMPORT_SCHEMA_VERSION_UNSUPPORTED
-            )
-        return validated
+        return parse_envelope(ProjectExportEnvelope, envelope)
 
     def count(self, validated: BaseModel) -> int:
         envelope: ProjectExportEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
@@ -108,14 +86,11 @@ class ProjectImporter:
         for task in envelope.tasks:
             for comment in task.comments:
                 note(comment.author_handle, comment.author_name, 1)
-                for handle in comment.mention_handles:
-                    note(handle, None, 0)
-            for handle in (*task.assignee_handles, *task.mention_handles):
+            for handle in task.assignee_handles:
                 note(handle, None, 0)
-        # A user-type property — a Reporter, a Reviewer — is placed through
-        # the same answer an assignee is, so it is asked about the same way.
-        for handle in user_reference_handles(envelope.model_dump(mode="json")):
-            note(handle, None, 0)
+        # Mentions and user-type property values, read as every envelope's are.
+        for person in super().people(validated):
+            note(person.handle, None, 0)
         return sorted(seen.values(), key=lambda p: (-p.comment_count, p.handle.lower()))
 
     async def apply(
@@ -129,33 +104,10 @@ class ProjectImporter:
     ) -> EnvelopeImportResult:
         from app.services.tenant.project_import import import_project
 
-        try:
-            result = await import_project(
-                session,
-                envelope=envelope,
-                target_initiative=target_initiative,
-                importer=importer,
-                context=context,
-            )
-        except HTTPException as exc:
-            # The service speaks HTTP; the engine speaks ImportEngineError so
-            # the worker can persist the code without a transport dependency.
-            raise ImportEngineError(str(exc.detail), exc.status_code) from exc
-        return EnvelopeImportResult(
-            entity_id=result.project_id,
-            entity_title=result.project_name,
-            created={
-                "projects": 1,
-                "tasks": result.task_count,
-                "tags": result.tag_create_count,
-                "properties": result.property_create_count,
-                "comments": result.comment_count,
-            },
-            matched={
-                "tags": result.tag_match_count,
-                "properties": result.property_match_count,
-                "assignees": result.assignee_match_count,
-            },
-            renamed_property_count=result.property_rename_count,
-            unmatched_handles=result.assignee_unmatched_handles,
+        return await import_project(
+            session,
+            envelope=envelope,
+            target_initiative=target_initiative,
+            importer=importer,
+            context=context,
         )

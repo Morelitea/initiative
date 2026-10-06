@@ -148,7 +148,7 @@ class ProjectAdapter(ToolExportAdapter):
         )
         return await build_project_export(
             session,
-            project_id=project.id,
+            project,
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
             source_guild_id=guild_id,
@@ -160,7 +160,7 @@ class ProjectAdapter(ToolExportAdapter):
         from app.services.tenant.project_export import list_project_ids_for_export
 
         return await list_project_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
+            session, initiative_ids=[initiative_id]
         )
 
     async def reach(

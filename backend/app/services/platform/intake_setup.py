@@ -536,14 +536,14 @@ async def provision_from_blueprint(
             target_initiative=initiative,
             importer=importer,
         )
-        project, _ = await _resolve_project(routed, result.project_id)
+        project, _ = await _resolve_project(routed, result.entity_id)
         binding = await _write_binding(
             routed,
             stream=stream,
             project=project,
-            project_id=result.project_id,
+            project_id=result.entity_id,
             default_status_id=None,
-            **await _blueprint_status_roles(routed, stream, result.project_id),
+            **await _blueprint_status_roles(routed, stream, result.entity_id),
             enabled=True,
         )
         await routed.commit()
