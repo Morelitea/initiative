@@ -35,7 +35,6 @@ import { appRunsPasskeys, PasskeyNeedsBrowserError, stepUpWithPasskey } from "./
 
 beforeEach(() => {
   mocks.platform = "android";
-  localStorage.clear();
   setStoredServerUrl("https://one.example.com/api/v1");
 });
 
