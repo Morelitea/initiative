@@ -54,7 +54,7 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_secret import GuildPluginSecret
-from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
