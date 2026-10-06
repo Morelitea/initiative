@@ -7,13 +7,10 @@ the account is told afterwards, and what a session opened by an assertion
 records about how it was opened.
 """
 
-import json
 import secrets
-from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-import webauthn
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,8 +36,10 @@ from app.testing import (
     emitted,
     get_auth_headers,
     get_auth_token,
+    registration_for,
     signed_in_headers,
     stub_assertion,
+    stub_registration,
 )
 
 
@@ -50,54 +49,9 @@ BEGIN = "/api/v1/auth/passkeys/register/begin"
 FINISH = "/api/v1/auth/passkeys/register/finish"
 
 
-def _verifier(**kwargs):
-    """Stand in for the library's registration check.
-
-    It answers with what a real ceremony reports, keyed off the credential id
-    the request carried so two registrations are two credentials.
-    """
-    credential = kwargs["credential"]
-    assert kwargs["expected_rp_id"] == passkey_service.relying_party_id()
-    assert kwargs["expected_origin"] == passkey_service.expected_origin()
-    raw_id = credential.get("rawId") or credential.get("id") or ""
-    return SimpleNamespace(
-        credential_id=webauthn.base64url_to_bytes(raw_id),
-        credential_public_key=b"public-key-bytes",
-        sign_count=0,
-        aaguid="00000000-0000-0000-0000-000000000000",
-        user_verified=True,
-        credential_backed_up=True,
-    )
-
-
 @pytest.fixture
 def ceremony(monkeypatch):
-    monkeypatch.setattr(
-        passkey_service.webauthn, "verify_registration_response", _verifier
-    )
-
-
-def _credential(challenge: str, *, credential_id: str = "credential-one") -> dict:
-    """What the browser hands back, with the challenge inside the client data
-    it signed — which is where the server reads it from."""
-    raw_id = bytes_to_base64url(credential_id.encode())
-    client_data = json.dumps(
-        {
-            "type": "webauthn.create",
-            "challenge": challenge,
-            "origin": "http://localhost:5173",
-        }
-    ).encode()
-    return {
-        "id": raw_id,
-        "rawId": raw_id,
-        "type": "public-key",
-        "response": {
-            "clientDataJSON": bytes_to_base64url(client_data),
-            "attestationObject": bytes_to_base64url(b"attestation"),
-            "transports": ["internal", "hybrid"],
-        },
-    }
+    stub_registration(monkeypatch)
 
 
 async def _account(session: AsyncSession, email: str) -> User:
@@ -132,7 +86,7 @@ async def _register(
     response = await client.post(
         FINISH,
         json={
-            "credential": _credential(challenge, credential_id=credential_id),
+            "credential": registration_for(challenge, credential_id=credential_id),
             "name": name,
         },
         headers=get_auth_headers(user),
@@ -364,7 +318,7 @@ async def test_a_challenge_nobody_issued_is_refused(
     user = await _account(session, "pk-unknown@example.com")
     response = await client.post(
         FINISH,
-        json={"credential": _credential("never-issued"), "name": "Laptop"},
+        json={"credential": registration_for("never-issued"), "name": "Laptop"},
         headers=get_auth_headers(user),
     )
     assert response.status_code == 400
@@ -399,7 +353,7 @@ async def test_only_the_transports_webauthn_names_are_kept(
     so what is kept is what the specification names."""
     user = await _account(session, "pk-transports@example.com")
     challenge = await _begin(client, user)
-    credential = _credential(challenge)
+    credential = registration_for(challenge)
     credential["response"]["transports"] = ["usb", "nonsense", 123, "<b>x</b>"]
 
     response = await client.post(
@@ -440,7 +394,7 @@ async def test_a_challenge_answers_one_registration(
     user = await _account(session, "pk-once@example.com")
     user_id = user.id
     challenge = await _begin(client, user)
-    credential = _credential(challenge)
+    credential = registration_for(challenge)
 
     first = await client.post(
         FINISH,
@@ -475,7 +429,7 @@ async def test_a_challenge_belongs_to_the_account_that_began_it(
 
     response = await client.post(
         FINISH,
-        json={"credential": _credential(challenge), "name": "Laptop"},
+        json={"credential": registration_for(challenge), "name": "Laptop"},
         headers=get_auth_headers(two),
     )
     assert response.status_code == 400
@@ -500,7 +454,7 @@ async def test_a_ceremony_that_does_not_verify_is_refused(
 
     response = await client.post(
         FINISH,
-        json={"credential": _credential(challenge), "name": "Laptop"},
+        json={"credential": registration_for(challenge), "name": "Laptop"},
         headers=get_auth_headers(user),
     )
     assert response.status_code == 400
@@ -1005,7 +959,7 @@ async def test_a_sign_in_challenge_cannot_finish_a_registration(
     refused = await client.post(
         FINISH,
         json={
-            "credential": _credential(
+            "credential": registration_for(
                 sign_in_challenge, credential_id="credential-two"
             ),
             "name": "Laptop",

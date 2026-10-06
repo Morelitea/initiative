@@ -39,6 +39,7 @@ from webauthn.helpers.structs import (
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user import User
 from app.models.platform.user_passkey import UserPasskey
+from app.core import native_apps
 from app.core.clock import utcnow
 from app.services.auth import challenges as challenge_service
 from app.services.auth.challenges import ChallengePurpose
@@ -98,6 +99,13 @@ def expected_origin() -> str:
     )
     port = f":{parts.port}" if parts.port is not None and not is_default_port else ""
     return f"{scheme}://{host}{port}"
+
+
+def expected_origins() -> list[str]:
+    """Every origin a ceremony may have come from: the deployment's own
+    address, and each of the project's Android apps this image names in its
+    asset links, which report their signing certificate instead."""
+    return [expected_origin(), *native_apps.android_origins()]
 
 
 def relying_party_name() -> str:
@@ -252,7 +260,7 @@ def finish_registration(
         credential=credential,
         expected_challenge=expected_challenge,
         expected_rp_id=relying_party_id(),
-        expected_origin=expected_origin(),
+        expected_origin=expected_origins(),
         require_user_verification=True,
     )
     response = credential.get("response")
@@ -419,7 +427,7 @@ async def finish_authentication(
             credential=credential,
             expected_challenge=expected_challenge,
             expected_rp_id=rp_id,
-            expected_origin=expected_origin(),
+            expected_origin=expected_origins(),
             credential_public_key=row.public_key,
             credential_current_sign_count=row.sign_count,
             require_user_verification=True,

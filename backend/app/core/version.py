@@ -39,6 +39,12 @@ def get_min_desktop_version() -> str:
     return _read_root_file("MIN_DESKTOP_VERSION")
 
 
+def is_dev_image() -> bool:
+    """Whether this is a dev image, which the dev build marks in
+    IMAGE_CHANNEL. Anything else, an unmarked checkout included, is not."""
+    return _read_root_file("IMAGE_CHANNEL") == "dev"
+
+
 def _parts(version: str) -> tuple[int, int, int]:
     """``"0.64.3"`` -> ``(0, 64, 3)``. Anything unparseable sorts as ``0.0.0``.
 

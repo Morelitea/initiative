@@ -68,6 +68,27 @@ def test_the_origin_keeps_ipv6_brackets(monkeypatch):
     assert passkeys.expected_origin() == "https://[2001:db8::1]:8443"
 
 
+def test_the_projects_android_apps_are_expected_origins_too(monkeypatch):
+    """Android reports the hash of the app's signing certificate as the origin.
+    Only a dev image accepts the dev app."""
+    from app.core import version
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://initiative.example.org")
+    release = "android:apk-key-hash:cvsXHKGKyjCmmYG4hA_hawNRfOSvgZbPTouRe7vbG78"
+    dev = "android:apk-key-hash:QpphJvemX5-Tpxc2wJPiYbz0CXsKeHS5xgyGiYz-F_g"
+
+    monkeypatch.setattr(version, "is_dev_image", lambda: False)
+    assert passkeys.expected_origins() == ["https://initiative.example.org", release]
+
+    monkeypatch.setattr(version, "is_dev_image", lambda: True)
+    assert passkeys.expected_origins() == [
+        "https://initiative.example.org",
+        release,
+        dev,
+    ]
+
+
 @pytest.mark.parametrize(
     ("app_url", "refusal"),
     [
@@ -456,6 +477,7 @@ def test_the_registration_check_insists_on_it(monkeypatch):
         credential={"response": {"transports": []}}, expected_challenge=b"challenge"
     )
     assert seen["require_user_verification"] is True
+    assert seen["expected_origin"] == passkeys.expected_origins()
 
 
 async def test_the_assertion_check_insists_on_it(session, monkeypatch):
@@ -481,3 +503,4 @@ async def test_the_assertion_check_insists_on_it(session, monkeypatch):
     )
     assert isinstance(result, passkeys.Assertion)
     assert seen["require_user_verification"] is True
+    assert seen["expected_origin"] == passkeys.expected_origins()

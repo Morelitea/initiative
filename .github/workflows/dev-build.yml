@@ -39,6 +39,7 @@ jobs:
       build-args: |
         VITE_VERSION_SUFFIX=-dev-${{ needs.sha.outputs.short }}
         VITE_OTA_DEV_PUBLIC_KEY=${{ needs.sha.outputs.ota-dev-key }}
+        IMAGE_CHANNEL=dev
       # Only the commit's own tag: :dev moves in the job below.
       tags: |
         type=raw,value=dev-${{ needs.sha.outputs.short }}
