@@ -30,7 +30,9 @@
     "needsUpdate": "Needs a newer version of the app.",
     "withdrawn": "No longer offered.",
     "notFound": "Listing not found",
-    "notFoundDescription": "It may have been withdrawn, or the link may be wrong."
+    "notFoundDescription": "It may have been withdrawn, or the link may be wrong.",
+    "notAvailableHere": "Not available in this app",
+    "notAvailableHereDescription": "This listing isn't part of the catalogue this app offers."
   },
   "install": {
     "title": "Add {{name}}",

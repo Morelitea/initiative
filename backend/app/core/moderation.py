@@ -35,6 +35,10 @@ class PlatformReportTarget(str, Enum):
     decoration = "decoration"
     directory_listing = "directory_listing"
     guild = "guild"
+    #: A marketplace listing, reported from its page or from an installed
+    #: app. The catalog belongs to whoever runs the server, so its operators
+    #: handle it.
+    marketplace_listing = "marketplace_listing"
 
     # Direct messages are absent because **private conversations are not
     # moderated**. The server holds ciphertext and no key to it, so there is
@@ -49,7 +53,8 @@ class PlatformReportTarget(str, Enum):
 #: against. Not the underlying table: ``public.users`` is own-row for a
 #: platform-tier session, and ``public.user_profiles`` is the projection of it
 #: that a profile page already reads. ``public.guilds`` is itself scoped by
-#: RLS to what the reader may see.
+#: RLS to what the reader may see. ``public.marketplace_listings`` is the
+#: catalog every platform tier already browses.
 #:
 #: Asking through these is what makes a hidden row and a missing row answer
 #: the same way — the check runs as the reporter, on the reporter's session,
@@ -62,6 +67,7 @@ PLATFORM_TARGET_RELATION: dict[PlatformReportTarget, str] = {
     PlatformReportTarget.decoration: "user_profiles",
     PlatformReportTarget.directory_listing: "guilds",
     PlatformReportTarget.guild: "guilds",
+    PlatformReportTarget.marketplace_listing: "marketplace_listings",
 }
 
 

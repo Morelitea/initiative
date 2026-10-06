@@ -299,5 +299,12 @@
         "write": "Leer y cambiar: {{resource}}"
       }
     }
+  },
+  "providerNotice": {
+    "title": "Antes de abrir {{name}}",
+    "madeBy": "{{name}} lo hace {{publisher}}.",
+    "provided": "Esta comunidad lo añadió y lo ofrece su editor, no Initiative.",
+    "report": "¿Algo va mal? Denúncialo.",
+    "continue": "Continuar"
   }
 }

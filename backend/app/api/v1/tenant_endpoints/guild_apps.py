@@ -361,6 +361,7 @@ async def _detail(
         consent_rows=await consents_service.list_member_consents(
             session, install_id=app.id, user_id=user_id
         ),
+        listing=await catalog_service.get_listing_by_uid(session, app.listing_uid),
     )
 
 

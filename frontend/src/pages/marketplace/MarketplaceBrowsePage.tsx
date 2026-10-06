@@ -25,6 +25,7 @@ import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
 import { type CommunityShelf, parseCommunityShelf } from "@/lib/marketplace";
+import { catalogueSources, listingShownHere } from "@/lib/marketplaceCuration";
 
 const PAGE_SIZE = 24;
 /** One line per shelf, so a new kind shows its own rather than the dashboards'.
@@ -55,9 +56,12 @@ export function MarketplaceBrowsePage() {
   // the previous page while the next one loads.
   const search = useDebouncedValue(query, 250);
 
+  // The iPhone app asks for the curated catalogue only, and filters the answer
+  // as well so nothing else can reach a card there.
   const listingsQuery = useMarketplaceListings({
     kind,
     search: search.trim() || undefined,
+    source: catalogueSources(),
     page_size: PAGE_SIZE,
   });
 
@@ -84,7 +88,7 @@ export function MarketplaceBrowsePage() {
     return dashboardInstalls.data?.counts;
   }, [kind, installedQuery.isError, appInstalls.data, dashboardInstalls.data]);
 
-  const listings = listingsQuery.data?.items ?? [];
+  const listings = (listingsQuery.data?.items ?? []).filter(listingShownHere);
 
   return (
     <div className="space-y-6">

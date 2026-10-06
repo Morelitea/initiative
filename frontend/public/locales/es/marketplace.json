@@ -30,7 +30,9 @@
     "needsUpdate": "Necesita una versión más reciente de la aplicación.",
     "withdrawn": "Ya no está disponible.",
     "notFound": "Elemento no encontrado",
-    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto."
+    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto.",
+    "notAvailableHere": "No disponible en esta aplicación",
+    "notAvailableHereDescription": "Este anuncio no forma parte del catálogo que ofrece esta aplicación."
   },
   "install": {
     "title": "Añadir {{name}}",

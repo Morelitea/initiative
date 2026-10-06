@@ -43,6 +43,7 @@ import { useCreateDashboard } from "@/hooks/useDashboards";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { listingShownHere } from "@/lib/marketplaceCuration";
 import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
@@ -100,6 +101,9 @@ export function InstallListingDialog({
   };
 
   const nowhereToInstall = creatableInitiatives.length === 0;
+
+  // Only the catalogue this app shows can be installed from it.
+  if (!listingShownHere(listing)) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -47,6 +47,7 @@ import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/appScopes";
 import { communityAppPath } from "@/lib/appSurfaces";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { listingShownHere } from "@/lib/marketplaceCuration";
 import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
@@ -108,6 +109,9 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
     setRoles((current) =>
       on ? [...new Set([...current, role])] : current.filter((one) => one !== role)
     );
+
+  // Only the catalogue this app shows can be installed from it.
+  if (!listingShownHere(listing)) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

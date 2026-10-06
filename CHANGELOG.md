@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
+- **Report a marketplace listing or an app** with the flag on its listing page or at the top of the app. Reports go to whoever runs the server.
 
 ### Changed
 
@@ -38,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
 - **On iPhone, an app update is sent to the App Store**, not to an APK download.
+- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Apps a community already added still open, after a one-time note saying who made them.
 - **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
 - **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
 - **An app installed from Google Play is sent back to Play** when it needs updating.

@@ -1410,7 +1410,8 @@ export const useUploadListingPicture = <
 };
 /**
  * A page of listings this guild can install, searchable by name,
- * description, or publisher.
+ * description, or publisher, and narrowed to the given ``source`` values
+ * when any are named.
  *
  * A guild with none of an app installed sees the same catalog as before —
  * the apps themselves, and the dashboards that stand alone.

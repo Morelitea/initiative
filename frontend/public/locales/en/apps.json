@@ -299,5 +299,12 @@
         "write": "Read and change {{resource}}"
       }
     }
+  },
+  "providerNotice": {
+    "title": "Before you open {{name}}",
+    "madeBy": "{{name}} is made by {{publisher}}.",
+    "provided": "This community added it, and its publisher provides it — not Initiative.",
+    "report": "Something wrong with it? Report it.",
+    "continue": "Continue"
   }
 }

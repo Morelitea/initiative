@@ -178,6 +178,11 @@ async def file_report(
         reason=reason,
         detail=detail,
         moment=moment,
+        note=(
+            await _listing_note(reporter_session, target_id)
+            if target is PlatformReportTarget.marketplace_listing
+            else None
+        ),
     )
     if not opened:
         # Nothing is bound to receive it. Say so rather than answering 202 to
@@ -327,6 +332,31 @@ async def _platform_target_visible(
     if target is PlatformReportTarget.directory_listing:
         stmt = stmt.where(relation.c["is_community"].is_(True))
     return (await reporter_session.exec(stmt)).first() is not None
+
+
+async def _listing_note(session: AsyncSession, listing_id: int) -> Optional[str]:
+    """Which listing a report names, in the words the catalog uses.
+
+    A listing's row id means nothing to the person triaging the case, so the
+    case carries its public id, publisher and where it came from.
+    """
+    relation = public_relation(
+        PLATFORM_TARGET_RELATION[PlatformReportTarget.marketplace_listing]
+    )
+    row = (
+        await session.exec(
+            sa_select(
+                relation.c["public_id"],
+                relation.c["uid"],
+                relation.c["publisher"],
+                relation.c["source"],
+            ).where(relation.c["id"] == listing_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    public_id, uid, publisher, source = row
+    return f"Listing: {public_id} (uid {uid})\nPublisher: {publisher}\nSource: {source}"
 
 
 async def _open_platform_case(

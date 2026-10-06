@@ -36,6 +36,7 @@ export function buildMarketplaceListing(
 ): MarketplaceListingSummary {
   counter++;
   return {
+    id: counter,
     uid: `TESTLISTING${String(counter).padStart(3, "0")}`,
     public_id: `core.listing-${counter}`,
     kind: "dashboard",

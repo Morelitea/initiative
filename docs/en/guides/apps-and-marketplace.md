@@ -160,6 +160,16 @@ That's the lot. Anyone can write a listing; reaching *your* marketplace takes th
 
 Every listing shows **who published it** — on the card, on its page, and in the dialog where you add it — so the question is answered while you're deciding.
 
+### Reporting a listing or an app
+
+Something in an app that shouldn't be there? Press the **flag** beside the listing's name, or at the top of an installed app's page, pick a reason, and send it. It goes to whoever runs your server, not to the app's publisher and not to your community's admins, who are free to carry on not knowing.
+
+### On the iPhone app
+
+The iPhone app shows the **curated catalogue**: the listings that ship with Initiative and the ones from the Initiative registry. Anything your platform owner added themselves is browsed from the website or the other apps.
+
+Apps your community has already added open as usual. The first time you open one that didn't ship with Initiative, you're told who made it, that your community and its publisher provide it rather than Initiative, and where to report it. **Continue**, and it doesn't ask again for that app.
+
 Two things hold whatever you install:
 
 - **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — same community, initiative, role and sharing checks as everywhere else. Two people on the same dashboard can correctly see different numbers.

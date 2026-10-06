@@ -27,6 +27,7 @@ from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.marketplace import ListingSource
 from app.schemas.query import PageMeta
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
@@ -349,6 +350,21 @@ class CommunityAppDecline(SanitizedBaseModel):
     version: str = Field(max_length=32)
 
 
+class CommunityAppListingRef(SanitizedBaseModel):
+    """Where an install came from in the catalog, as the app's page shows it.
+
+    Read from the catalog rather than pinned, like the artwork: who publishes a
+    listing is the catalog's to say.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The listing's row id, which a report names it by.
+    id: int
+    source: ListingSource  # type: ignore[valid-type]
+    publisher: str
+
+
 class CommunityAppDetail(CommunityAppRead):
     """An install plus its connections, for the settings page.
 
@@ -380,6 +396,9 @@ class CommunityAppDetail(CommunityAppRead):
     #: version adds: the name the app it lets this one use goes by, keyed by
     #: that app's public id. Its public id when the catalog has no name for it.
     app_names: Dict[str, str] = {}
+    #: The catalog listing behind this install. Absent when the catalog no
+    #: longer holds it.
+    listing: Optional[CommunityAppListingRef] = None
 
 
 class CommunityAppListResponse(SanitizedBaseModel):
@@ -629,11 +648,13 @@ def serialize_guild_app_detail(
     artifacts: Sequence[Dict[str, Any]] = (),
     consent_rows: Sequence[Any] = (),
     app_names: Optional[Dict[str, str]] = None,
+    listing: Any = None,
 ) -> CommunityAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
     ``update_offer`` (an ``app_updates.UpdateOffer``) is resolved by the
-    caller, which is the layer holding a session that can read the catalog.
+    caller, which is the layer holding a session that can read the catalog,
+    and so is ``listing`` (the install's ``MarketplaceListing``, if any).
     """
     base = serialize_guild_app(
         app,
@@ -663,6 +684,13 @@ def serialize_guild_app_detail(
             app.definition, (install_state or InstallState()).scope_ceiling
         ),
         app_names=dict(app_names or {}),
+        listing=(
+            CommunityAppListingRef(
+                id=listing.id, source=listing.source, publisher=listing.publisher
+            )
+            if listing is not None and listing.id is not None
+            else None
+        ),
     )
 
 

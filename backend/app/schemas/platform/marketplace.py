@@ -64,6 +64,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: This deployment's row id. What a report names the listing by; the uid
+    #: and public id are its identity everywhere else.
+    id: int
     uid: str
     public_id: str
     kind: ListingKind  # type: ignore[valid-type]
@@ -272,7 +275,9 @@ def serialize_listing_summary(
     """One browse card. Shared by every surface that lists or reads a listing,
     so a card and the page it opens describe the same thing."""
     version = serialize_version(latest)
+    assert listing.id is not None
     return MarketplaceListingSummary(
+        id=listing.id,
         uid=listing.uid,
         public_id=listing.public_id,
         kind=listing.kind,

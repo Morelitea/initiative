@@ -27,6 +27,8 @@ import { useTranslation } from "react-i18next";
 
 import { createCommunityAppHandoff, createInitiativeAppHandoff } from "@/api/generated/apps/apps";
 import type { CommunityAppHandoff } from "@/api/generated/initiativeAPI.schemas";
+import { AppProviderNotice, appNoticeKey } from "@/components/apps/AppProviderNotice";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import {
   EditorSkeleton,
   SkeletonPillRow,
@@ -38,8 +40,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useCommunityAppDetail } from "@/hooks/useCommunityAppDetail";
+import { useServer } from "@/hooks/useServer";
 import { useTheme } from "@/hooks/useTheme";
 import { appEmbeds, embedAllow } from "@/lib/appSurfaces";
+import { showsCuratedCatalogueOnly } from "@/lib/marketplaceCuration";
+import { getItem, setItem } from "@/lib/storage";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -76,6 +81,21 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
   // for.
   const activeId = active?.id ?? null;
 
+  // The iPhone app says who an app comes from before it first opens one that
+  // did not ship with Initiative, and opens nothing until the member continues.
+  const { getServerOrigin } = useServer();
+  const noticeKey = appNoticeKey(getServerOrigin() ?? "", communityId, appId);
+  const [, noteAcknowledged] = useState(0);
+  const held =
+    Boolean(app) &&
+    showsCuratedCatalogueOnly() &&
+    app?.listing?.source !== "builtin" &&
+    getItem(noticeKey) !== "1";
+  const acknowledge = () => {
+    void setItem(noticeKey, "1");
+    noteAcknowledged((count) => count + 1);
+  };
+
   const [handoff, setHandoff] = useState<CommunityAppHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -103,7 +123,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
   // Mint for the surface being opened. Re-runs when the surface changes, which
   // is also when the iframe is replaced.
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || held) return;
     let cancelled = false;
     setHandoff(null);
     setError(null);
@@ -118,7 +138,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
     return () => {
       cancelled = true;
     };
-  }, [activeId, mint, t]);
+  }, [activeId, held, mint, t]);
 
   const origin = useMemo(() => {
     if (!handoff?.embed_url) return null;
@@ -274,27 +294,39 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
       />
     );
   if (!active) return <Notice title={t("apps:embed.noSurface", { name: app.name })} />;
+  if (held)
+    return <AppProviderNotice name={app.name} listing={app.listing} onContinue={acknowledge} />;
   if (error) return <Notice title={t("apps:embed.failed")} description={error} />;
+
+  const listing = app.listing;
 
   return (
     <div className="flex h-full flex-col">
-      {embeds.length > 1 && (
-        <div className="flex shrink-0 gap-1 border-b px-2">
-          {embeds.map((embed) => (
-            <button
-              key={embed.id}
-              type="button"
-              onClick={() => setSurfaceId(embed.id)}
-              className={cn(
-                "border-b-2 px-3 py-2 text-sm",
-                embed.id === active.id
-                  ? "border-primary font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {localized(embed.name, i18n.language) || embed.id}
-            </button>
-          ))}
+      {(embeds.length > 1 || listing) && (
+        <div className="flex shrink-0 items-center gap-1 border-b px-2">
+          {embeds.length > 1 &&
+            embeds.map((embed) => (
+              <button
+                key={embed.id}
+                type="button"
+                onClick={() => setSurfaceId(embed.id)}
+                className={cn(
+                  "border-b-2 px-3 py-2 text-sm",
+                  embed.id === active.id
+                    ? "border-primary font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {localized(embed.name, i18n.language) || embed.id}
+              </button>
+            ))}
+          {listing && (
+            <ReportButton
+              targetType="marketplace_listing"
+              targetId={listing.id}
+              className="ml-auto h-8 w-8"
+            />
+          )}
         </div>
       )}
       {handoff?.embed_url ? (
