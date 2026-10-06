@@ -5,7 +5,7 @@ from sqlalchemy import delete, func, tuple_, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import PERSONAL_TYPES, Channel
+from app.core.notification_categories import PERSONAL_TYPES, Channel, category_of
 from app.models.platform.notification import Notification, NotificationType
 from app.services import keyset_cursor
 from app.services.platform import (
@@ -75,7 +75,7 @@ async def create_notification(
         prefs = await notification_prefs.load_prefs_for_delivery(user_id)
     if not notification_prefs.wants(
         prefs,
-        notification_type=notification_type,
+        category=category_of(notification_type),
         channel=Channel.in_app,
         guild_id=place["guild_id"],
     ):

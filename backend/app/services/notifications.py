@@ -168,7 +168,7 @@ async def _channels(
     session: AsyncSession,
     recipient: User,
     *,
-    notification_type: NotificationType,
+    category: NotificationCategory,
     guild_id: int | None = None,
     prefs: Mapping[str, Any] | None = None,
 ) -> Channels:
@@ -187,7 +187,7 @@ async def _channels(
     allowed = {
         channel: notification_prefs.reachable(
             prefs,
-            notification_type=notification_type,
+            category=category,
             channel=channel,
             guild_id=guild_id,
             tz_name=recipient.timezone,
@@ -197,7 +197,7 @@ async def _channels(
     }
     allowed[Channel.email] = notification_prefs.wants(
         prefs,
-        notification_type=notification_type,
+        category=category,
         channel=Channel.email,
         guild_id=guild_id,
     )
@@ -494,7 +494,7 @@ async def deliver_notices(
         channels = await _channels(
             session,
             recipient,
-            notification_type=notification_type,
+            category=category_of(notification_type),
             guild_id=notice.guild_id,
             prefs=prefs,
         )
@@ -1078,10 +1078,9 @@ def wants_digest(
     clearing it because the email was switched off would silently take the
     push with it.
     """
-    sample = sample_type(category)
     return any(
         notification_prefs.wants(
-            prefs, notification_type=sample, channel=channel, guild_id=guild_id
+            prefs, category=category, channel=channel, guild_id=guild_id
         )
         for channel in (Channel.email, Channel.push)
     )
@@ -1219,9 +1218,7 @@ async def _send_digests(
         # Re-read the preferences off the row just reloaded, not the snapshot
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
-        channels = await _channels(
-            session, user, notification_type=sample_type(spec.category)
-        )
+        channels = await _channels(session, user, category=spec.category)
         email_batch, push_batch = await _digest_batch(session, batch)
         # Each channel is handed to its outbox, which tries a failed send again
         # itself, so the items never go back to waiting.
@@ -1602,7 +1599,7 @@ async def _roll_up_reaction(
     # line opens, as for a comment thread, so a flurry is one alert.
     if opened is not None and notification_prefs.reachable(
         prefs,
-        notification_type=NotificationType.comment_reaction,
+        category=NotificationCategory.reactions,
         channel=Channel.desktop,
         guild_id=guild_id,
         tz_name=recipient.timezone,
@@ -2055,7 +2052,7 @@ async def _send_overdue(
         # channel switched off meanwhile stays quiet.
         delivered = False
         channels = await _channels(
-            session, user, notification_type=NotificationType.overdue_tasks
+            session, user, category=NotificationCategory.due_dates
         )
         email_tasks, push_tasks = await _digest_batch(session, tasks)
         if channels.email and email_tasks:
@@ -2158,7 +2155,7 @@ def _rows_for(
         for category, guild_id, count in rows
         if notification_prefs.wants(
             prefs,
-            notification_type=sample_type(category),
+            category=category,
             channel=channel,
             guild_id=guild_id,
         )
