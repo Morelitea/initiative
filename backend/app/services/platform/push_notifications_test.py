@@ -12,7 +12,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import text
 from sqlmodel import select
 
 from app.models.platform.notification import NotificationType
@@ -141,22 +140,11 @@ def test_the_manifest_falls_back_to_a_channel_the_app_creates():
 # --- the recipient's devices ---------------------------------------------------
 
 
-async def _as_guild_floor(session) -> None:
-    await session.exec(text("SELECT set_config('role', 'app_guild_base', false)"))
-
-
-async def _reset_role(session) -> None:
-    await session.exec(text("SELECT set_config('role', 'none', false)"))
-
-
-async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
-    session, monkeypatch
-):
-    """The caller's session holds nothing on ``push_tokens`` here, as a
-    community-routed one does not: the recipient's rows are read, the delivered
-    one stamped and the dead one dropped all the same. A device whose session
-    has ended, or that names no sign-in, is not sent to and is dropped too. The
-    same value registered by another account is left alone."""
+async def test_delivery_reads_stamps_and_prunes_the_devices(session, monkeypatch):
+    """The recipient's rows are read, the delivered one stamped and the dead
+    one dropped. A device whose session has ended, or that names no sign-in,
+    is not sent to and is dropped too. The same value registered by another
+    account is left alone."""
     from app.models.platform.push_token import PushToken
     from app.services.platform import push_notifications, push_tokens
     from app.testing import create_user
@@ -164,7 +152,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     # FCM's switch moved onto the settings row in 0368, so the gate is the
     # resolved config rather than the env var. Patched here instead of seeded
     # through the cache so this test still asserts only what it is about --
-    # which session the device rows are read on.
+    # which devices are sent to and kept.
     from app.services.platform import push_config
 
     async def _enabled():
@@ -215,19 +203,12 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     recipient_id, bystander_id = recipient.id, bystander.id
 
-    await _as_guild_floor(session)
-    try:
-        sent = await push_notifications.send_push_to_user(
-            session=session,
-            user_id=recipient_id,
-            notification_type=NotificationType.mention,
-            title="t",
-            body="b",
-            locale="en",
-        )
-    finally:
-        await _reset_role(session)
-    assert sent == 1
+    again = await push_notifications.send_pushes(
+        session,
+        [push_notifications.Push(recipient_id, NotificationType.mention, "t", "b", {})],
+    )
+    await session.commit()
+    assert again == [False]
 
     session.expire_all()
     rows = (

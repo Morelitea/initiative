@@ -187,7 +187,7 @@ async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
 async def test_a_push_nobody_answered_is_tried_again_without_a_second_line(
     session: AsyncSession, fcm
 ):
-    """…and given up once its attempts are spent."""
+    """…and given up once it has waited out every step."""
     pushed, answer = fcm
     actor = await create_user(session)
     recipient = await create_user(session)
@@ -213,11 +213,11 @@ async def test_a_push_nobody_answered_is_tried_again_without_a_second_line(
     await _mention(session, guild.id, recipient, actor)
     await session.commit()
     at = start + timedelta(seconds=31)
-    for wait in notice_outbox.BACKOFF_SECONDS:
+    for wait in (*notice_outbox.BACKOFF_SECONDS, 0):
         await _deliver(session, at)
         at += timedelta(seconds=wait + 1)
     assert await _waiting(session) == []
-    assert len(pushed) == 2 + len(notice_outbox.BACKOFF_SECONDS)
+    assert len(pushed) == 2 + len(notice_outbox.BACKOFF_SECONDS) + 1
     assert len(await _lines(session, recipient.id)) == 2
 
 

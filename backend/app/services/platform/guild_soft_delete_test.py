@@ -797,18 +797,17 @@ async def test_the_hold_is_told_in_each_seats_language(
     held_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
     await _hold_since(session, guild_id, held_at)
     sent: list[dict] = []
+    written = email_service.community_on_hold_pieces
 
-    async def _capture(_session, **kwargs) -> None:
+    def _capture(**kwargs):
         sent.append(kwargs)
+        return written(**kwargs)
 
-    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+    monkeypatch.setattr(email_service, "community_on_hold_pieces", _capture)
 
     await guilds_service.announce_on_hold(session, guild_id)
 
-    assert sorted((letter["locale"], letter["recipients"]) for letter in sent) == [
-        ("de", ["hold-de@example.com"]),
-        ("en", ["hold-en@example.com"]),
-    ]
+    assert sorted(letter["locale"] for letter in sent) == ["de", "en"]
     delete_at = held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)
     assert {letter["delete_at"] for letter in sent} == {delete_at}
     assert {letter["guild_id"] for letter in sent} == {guild_id}
@@ -835,11 +834,13 @@ async def test_the_hold_notice_names_the_day_it_is_deleted(
     held_at = datetime.now(timezone.utc)
     await _hold_since(session, guild_id, held_at)
     sent = []
+    written = email_service.community_on_hold_pieces
 
-    async def _capture(_session, **kwargs) -> None:
+    def _capture(**kwargs):
         sent.append(kwargs["delete_at"])
+        return written(**kwargs)
 
-    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+    monkeypatch.setattr(email_service, "community_on_hold_pieces", _capture)
 
     await guilds_service.announce_on_hold(session, guild_id)
     assert sent == [held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)]

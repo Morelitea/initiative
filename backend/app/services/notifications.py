@@ -980,32 +980,6 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
     )
 
 
-async def _queue_push(
-    session: AsyncSession,
-    user: User,
-    push: push_notifications.Push,
-    communities: Iterable[int | None],
-) -> bool:
-    """Hand a push of its own to the notice worker, which sends it and tries
-    again if it fails, under the switches of the ``communities`` it gathers
-    from as well as the deployment's. Returns whether one may go at all."""
-    item = await notice_outbox.notice(
-        session,
-        user,
-        push.notification_type,
-        {},
-        guild_id=None,
-        push=(push.title, push.body),
-        push_data=push.data,
-        communities=communities,
-        kind="push",
-    )
-    if item["push_title"] is None:
-        return False
-    await notice_outbox.enqueue(session, [item])
-    return True
-
-
 def _digest_is_due(
     timestamps: list[datetime],
     *,
@@ -1233,7 +1207,7 @@ async def _send_digests(
                     user_id,
                 )
         if channels.push and push_batch:
-            await _queue_push(
+            await notice_outbox.queue_push(
                 session,
                 user,
                 spec.push(user, push_batch),
@@ -2070,7 +2044,7 @@ async def _send_overdue(
                 )
         if channels.push and push_tasks:
             delivered = (
-                await _queue_push(
+                await notice_outbox.queue_push(
                     session,
                     user,
                     _overdue_push(user, push_tasks),
@@ -2302,7 +2276,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             if lift.kind is notification_prefs.HoldKind.pause
             else "quietHours.summary"
         )
-        summarised = await _queue_push(
+        summarised = await notice_outbox.queue_push(
             session,
             user,
             push_notifications.Push(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -22,18 +23,50 @@ OVERDUE_EVERY = 5
 _minute_passes = itertools.count()
 
 
-async def _loop_worker(task_coro, interval: int, name: str) -> None:
-    logger.info("%s worker started (interval=%ss)", name, interval)
-    try:
-        while True:
-            try:
-                await task_coro()
-            except Exception:  # pragma: no cover
-                logger.exception("%s worker encountered an error", name)
-            await asyncio.sleep(interval)
-    except asyncio.CancelledError:  # pragma: no cover
-        logger.info("%s worker cancelled", name)
-        raise
+class Loop:
+    """One background worker's loop.
+
+    Runs its work every ``interval`` seconds, and soon after :meth:`wake` is
+    called. A woken pass waits ``settle`` seconds first, so wakes arriving
+    together are served by one pass. Without an ``interval`` it runs only when
+    woken. A pass that fails is logged, and the loop carries on.
+    """
+
+    def __init__(
+        self, name: str, *, interval: float | None = None, settle: float = 0.0
+    ) -> None:
+        self.name = name
+        self.interval = interval
+        self.settle = settle
+        self._woken = asyncio.Event()
+
+    def wake(self) -> None:
+        """Ask for a pass. Returns at once."""
+        self._woken.set()
+
+    async def run(self, work: Callable[[], Awaitable[object]]) -> None:
+        logger.info("%s worker started (interval=%ss)", self.name, self.interval)
+        try:
+            # A timed loop starts with a pass; one that is only woken waits.
+            if self.interval is None:
+                await self._wait()
+            while True:
+                self._woken.clear()
+                try:
+                    await work()
+                except Exception:  # pragma: no cover
+                    logger.exception("%s worker encountered an error", self.name)
+                await self._wait()
+        except asyncio.CancelledError:  # pragma: no cover
+            logger.info("%s worker cancelled", self.name)
+            raise
+
+    async def _wait(self) -> None:
+        try:
+            await asyncio.wait_for(self._woken.wait(), timeout=self.interval)
+        except TimeoutError:
+            return
+        await asyncio.sleep(self.settle)
 
 
 async def minute_pass() -> None:
@@ -207,66 +240,64 @@ def start_background_tasks() -> list[asyncio.Task]:
     tasks = [
         # Every sweep that visits the communities, grouped by how often it
         # needs to run.
-        asyncio.create_task(_loop_worker(minute_pass, MINUTE_PASS_SECONDS, "minute")),
-        asyncio.create_task(_loop_worker(slow_pass, SLOW_PASS_SECONDS, "slow")),
-        asyncio.create_task(_loop_worker(hourly_pass, HOURLY_PASS_SECONDS, "hourly")),
+        asyncio.create_task(
+            Loop("minute", interval=MINUTE_PASS_SECONDS).run(minute_pass)
+        ),
+        asyncio.create_task(Loop("slow", interval=SLOW_PASS_SECONDS).run(slow_pass)),
+        asyncio.create_task(
+            Loop("hourly", interval=HOURLY_PASS_SECONDS).run(hourly_pass)
+        ),
         # Communities a wake names, visited as soon as it arrives.
         asyncio.create_task(
             outbox_poller.drain.run([(Scope.ACTIVE, outbox_poller.drain_guild)])
         ),
         asyncio.create_task(data_jobs.drain.run(_claims())),
         asyncio.create_task(
-            _loop_worker(
-                process_hold_summaries,
-                HOLD_SUMMARY_POLL_SECONDS,
-                "hold-summary",
+            Loop("hold-summary", interval=HOLD_SUMMARY_POLL_SECONDS).run(
+                process_hold_summaries
             )
         ),
         # Notices, delivered as they are written.
-        asyncio.create_task(notice_outbox.run()),
+        asyncio.create_task(
+            notice_outbox.loop.run(notice_outbox.process_notice_outbox)
+        ),
         # The one way notification email leaves the building.
         asyncio.create_task(
-            _loop_worker(
-                process_email_outbox,
-                EMAIL_OUTBOX_POLL_SECONDS,
-                "email-outbox",
+            Loop("email-outbox", interval=EMAIL_OUTBOX_POLL_SECONDS).run(
+                process_email_outbox
             )
         ),
         # What the presence roll has seen, written where another process can
         # read it. The roll is this worker's own memory; delivery decides
         # elsewhere.
         asyncio.create_task(
-            _loop_worker(
-                process_activity_flush,
-                ACTIVITY_FLUSH_SECONDS,
-                "activity-flush",
+            Loop("activity-flush", interval=ACTIVITY_FLUSH_SECONDS).run(
+                process_activity_flush
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_oidc_refresh_sync, OIDC_SYNC_POLL_SECONDS, "oidc-refresh-sync"
+            Loop("oidc-refresh-sync", interval=OIDC_SYNC_POLL_SECONDS).run(
+                process_oidc_refresh_sync
             )
         ),
         asyncio.create_task(
-            _loop_worker(process_guild_purges, GUILD_PURGE_POLL_SECONDS, "guild-purge")
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_account_purges, ACCOUNT_PURGE_POLL_SECONDS, "account-purge"
+            Loop("guild-purge", interval=GUILD_PURGE_POLL_SECONDS).run(
+                process_guild_purges
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_identity_ref_sweep,
-                IDENTITY_REF_SWEEP_POLL_SECONDS,
-                "identity-ref-sweep",
+            Loop("account-purge", interval=ACCOUNT_PURGE_POLL_SECONDS).run(
+                process_account_purges
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_announcement_image_purge,
-                IMAGE_PURGE_POLL_SECONDS,
-                "announcement-image-purge",
+            Loop("identity-ref-sweep", interval=IDENTITY_REF_SWEEP_POLL_SECONDS).run(
+                process_identity_ref_sweep
+            )
+        ),
+        asyncio.create_task(
+            Loop("announcement-image-purge", interval=IMAGE_PURGE_POLL_SECONDS).run(
+                process_announcement_image_purge
             )
         ),
         # The room sink's backstop. The prompt path is the capture's own
@@ -274,36 +305,36 @@ def start_background_tasks() -> list[asyncio.Task]:
         # connection was rebuilding, and reads nothing for a guild this
         # process holds no socket for.
         asyncio.create_task(
-            _loop_worker(process_room_sweep, ROOM_SWEEP_SECONDS, "room-sweep")
+            Loop("room-sweep", interval=ROOM_SWEEP_SECONDS).run(process_room_sweep)
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_expired_token_purge, TOKEN_PURGE_POLL_SECONDS, "token-purge"
+            Loop("token-purge", interval=TOKEN_PURGE_POLL_SECONDS).run(
+                process_expired_token_purge
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_jti_blocklist_purges, JTI_PURGE_POLL_SECONDS, "jti-purge"
+            Loop("jti-purge", interval=JTI_PURGE_POLL_SECONDS).run(
+                process_jti_blocklist_purges
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_dead_session_purge,
-                SESSION_PURGE_POLL_SECONDS,
-                "session-purge",
+            Loop("session-purge", interval=SESSION_PURGE_POLL_SECONDS).run(
+                process_dead_session_purge
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_grant_expiry, GRANT_EXPIRY_POLL_SECONDS, "grant-expiry"
+            Loop("grant-expiry", interval=GRANT_EXPIRY_POLL_SECONDS).run(
+                process_grant_expiry
             )
         ),
         asyncio.create_task(
-            _loop_worker(process_due_holds, HOLD_SWEEP_POLL_SECONDS, "held-changes")
+            Loop("held-changes", interval=HOLD_SWEEP_POLL_SECONDS).run(
+                process_due_holds
+            )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_ticket_notices, TICKET_NOTICE_POLL_SECONDS, "ticket-notices"
+            Loop("ticket-notices", interval=TICKET_NOTICE_POLL_SECONDS).run(
+                process_ticket_notices
             )
         ),
     ]
@@ -319,11 +350,10 @@ def start_background_tasks() -> list[asyncio.Task]:
 
         tasks.append(
             asyncio.create_task(
-                _loop_worker(
-                    process_registry_refresh,
-                    settings.MARKETPLACE_REGISTRY_TTL_SECONDS,
+                Loop(
                     "marketplace-registry",
-                )
+                    interval=settings.MARKETPLACE_REGISTRY_TTL_SECONDS,
+                ).run(process_registry_refresh)
             )
         )
 

@@ -15,7 +15,7 @@ one left ``on_hold`` for longer than the deployment's hold window moves to
 ``deleted`` exactly as a deletion from its danger zone would, and the
 retention window then starts like any other.
 
-Polled by ``background_tasks._loop_worker`` once an hour on ``SystemSessionLocal``
+Polled by ``background_tasks.Loop`` once an hour on ``SystemSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds``; the one thing it does
 inside a guild's schema, deleting a held community's plug-in connections, runs on
 a system session from that community's cohort. The schema is dropped wholesale

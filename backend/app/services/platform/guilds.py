@@ -1487,31 +1487,6 @@ async def _deletion_recipients(session: AsyncSession, guild: Guild) -> list[str]
     return sorted(set(recipients))
 
 
-async def _seat_letters(
-    session: AsyncSession, user_ids: Sequence[int]
-) -> dict[str, list[str]]:
-    """Every proved address of these accounts, by the language each reads.
-
-    Sorted and de-duplicated per language: somebody holding two addresses gets
-    one letter at each, and two seat holders are not two letters to one box.
-    """
-    from app.services.auth import addresses
-
-    if not user_ids:
-        return {}
-    locales = (
-        await session.exec(
-            select(User.id, User.locale).where(User.id.in_(list(user_ids)))  # type: ignore[union-attr]
-        )
-    ).all()
-    letters: dict[str, set[str]] = {}
-    for user_id, locale in locales:
-        found = await addresses.proven_addresses(session, user_id=user_id)
-        if found:
-            letters.setdefault(locale or "en", set()).update(found)
-    return {locale: sorted(found) for locale, found in letters.items()}
-
-
 async def _superadmin_ids(session: AsyncSession, guild_id: int) -> list[int]:
     return list(
         (
@@ -1532,16 +1507,15 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     Called after the commit that put it there, on the system engine. The people
     told are its superadmins: the hold is about paying for it, which is the
     seat's errand. Each gets one line in their bell — an account notice, not
-    one filed under the community, which none of them can open now — and one
-    letter at every proved address, in the language they read, which names the
-    day the community is deleted if the hold is still in place. Neither is
-    allowed to fail the hold.
+    one filed under the community, which none of them can open now — and a
+    letter in the language they read, which names the day the community is
+    deleted if the hold is still in place. Both are written to the notice
+    outbox like a trial notice, whose worker delivers and retries them.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
     from app.services.platform import app_settings as app_settings_service
     from app.services.platform import intake as intake_service
-    from app.services.platform import notice_outbox
 
     await set_rls_context(session, Unattributed())
     guild = (
@@ -1553,38 +1527,26 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     delete_at = COMMUNITY_HOLD.ends_at(
         guild, await app_settings_service.get_app_settings(session)
     )
-    seat_holders = await _superadmin_ids(session, guild_id)
-    data: dict = {"community": guild.name, "contact": contact, "target_path": "/"}
+    data: dict[str, str | None] = {"contact": contact, "target_path": "/"}
     if delete_at is not None:
         # A calendar day; the bell writes it in the reader's language.
         data["delete_on"] = delete_at.date().isoformat()
-    await notice_outbox.enqueue(
+    await _queue_plan_notice(
         session,
-        [
-            notice_outbox.row(user_id, None, NotificationType.community_on_hold, data)
-            for user_id in seat_holders
-        ],
+        guild,
+        await _superadmin_ids(session, guild_id),
+        NotificationType.community_on_hold,
+        data,
+        lambda locale: email_service.community_on_hold_pieces(
+            community=guild.name,
+            contact=contact,
+            guild_id=guild_id,
+            delete_at=delete_at,
+            plan_managed=billing_service.billing_managed(),
+            locale=locale,
+        ),
+        in_community=False,
     )
-    letters = await _seat_letters(session, seat_holders)
-    community = guild.name
-    await session.commit()
-    for locale, recipients in letters.items():
-        try:
-            await email_service.send_community_on_hold_email(
-                session,
-                recipients=recipients,
-                community=community,
-                contact=contact,
-                guild_id=guild_id,
-                delete_at=delete_at,
-                plan_managed=billing_service.billing_managed(),
-                locale=locale,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.info("no mail configured; community hold not announced by letter")
-            return
-        except Exception:  # pragma: no cover - delivery is best-effort here
-            logger.exception("could not send the community hold notice")
 
 
 #: The bell line each billing trial notice writes.
@@ -1715,12 +1677,17 @@ async def _queue_plan_notice(
     guild: Guild,
     recipients: list[int],
     notification_type: NotificationType,
-    data: dict[str, str],
+    data: Mapping[str, str | None],
     letter_for: Callable[[str], EmailPieces],
+    *,
+    in_community: bool = True,
 ) -> None:
     """Write one account notice about a community's plan to each recipient: a
-    bell line leading to its Plan & usage tab unless ``data`` names another
-    ``target_path``, and a letter in the recipient's language. Commits."""
+    bell line, and a letter in the recipient's language. Commits.
+
+    The line leads to the community's Plan & usage tab unless ``data`` names
+    another ``target_path``; with ``in_community`` false it names no community
+    to open, for one its readers cannot open now."""
     from app.services.platform import notice_outbox
 
     locales = dict(
@@ -1740,7 +1707,7 @@ async def _queue_plan_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    "community_id": guild.id,
+                    **({"community_id": guild.id} if in_community else {}),
                     "target_path": "/settings/usage",
                     **data,
                 },

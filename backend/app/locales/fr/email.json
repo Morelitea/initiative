@@ -411,17 +411,11 @@
   "communityOnHold": {
     "subject": "{{community}} est en attente",
     "title": "{{community}} est en attente",
-    "greeting": "Bonjour,",
     "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
     "bodyDeleting": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
     "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
-    "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
-    "textBodyDeleting": "{{community}} est en attente et sera supprimée le {{date}} si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textBodyDeletingUnlessLifted": "{{community}} est en attente et sera supprimée le {{date}} si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textContact": "Contactez {{contact}} pour régler la situation.",
-    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
     "buttonLabel": "Rétablir le forfait"
   },
   "communityTrialEnding": {

@@ -11,10 +11,9 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import category_of
 from app.models.platform.notification import NotificationType
 from app.models.platform.push_token import PushToken
-from app.services.platform import notification_policy, push_tokens
+from app.services.platform import push_tokens
 
 from app.services.platform import push_config, push_relay
 from app.services.platform.push_config import ResolvedPushConfig
@@ -274,141 +273,6 @@ async def send_push_notification(
         return (False, False)
 
 
-async def _recipient_locale(user_id: int) -> str:
-    """The language one recipient reads, read on the system engine.
-
-    Only asked for when the caller had no locale in hand; the recipient's account is not the sending session's to
-    read, the same way their notification settings are not.
-    """
-    from app.db.session import SystemSessionLocal
-    from app.models.platform.user import User
-
-    async with SystemSessionLocal() as system_session:
-        user = await system_session.get(User, user_id)
-        return (getattr(user, "locale", None) if user else None) or "en"
-
-
-async def _recipient_tokens(user_id: int) -> list[PushToken]:
-    """One recipient's devices whose sign-in still stands, read on the system
-    engine.
-
-    The rows are the recipient's rather than the sending session's to read,
-    the same way their account and notification settings are.
-    """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
-        tokens = await push_tokens.live_for_user(system_session, user_id=user_id)
-        await system_session.commit()
-        return tokens
-
-
-async def _record_delivery(
-    user_id: int, *, delivered_ids: list[int], dead_tokens: list[str]
-) -> None:
-    """Write what a delivery learned back on the system engine, in one commit."""
-    if not delivered_ids and not dead_tokens:
-        return
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
-        await push_tokens.record_delivery(
-            system_session,
-            user_id=user_id,
-            delivered_ids=delivered_ids,
-            dead_tokens=dead_tokens,
-        )
-        await system_session.commit()
-
-
-async def send_push_to_user(
-    session: AsyncSession,
-    user_id: int,
-    notification_type: NotificationType,
-    title: str,
-    body: str,
-    data: Optional[Dict[str, Any]] = None,
-    only_session_ids: Optional[set[uuid.UUID]] = None,
-    guild_id: Optional[int] = None,
-    locale: Optional[str] = None,
-) -> int:
-    """Send push notification to all of a user's devices.
-
-    The deployment's and the community's switches are applied as it sends
-    (:func:`notification_policy.apply`): one of them declining sends nothing,
-    and either of them asking for a redacted notification replaces the wording
-    with the kind of thing that happened and keeps of ``data`` only where
-    tapping it opens.
-
-    The recipient's device rows are read and written on the system engine
-    rather than on ``session``, which is the caller's and often routed into a
-    community; ``session`` carries the resolved answers, so a fan-out on it
-    reads them once per transaction.
-
-    Args:
-        session: The caller's session (not used for the device rows)
-        user_id: User ID
-        notification_type: Type of notification (for logging/analytics)
-        title: Notification title
-        body: Notification body
-        data: Optional data payload
-        only_session_ids: Restrict delivery to the devices these sign-ins
-            registered. Used by categories that only make sense on a device set
-            up for them.
-        guild_id: The community this notification belongs to, whose own answer
-            applies alongside the deployment's. ``None`` for a notification that
-            belongs to no community — a message, a connection, an account
-            notice — which the deployment alone answers for.
-        locale: The recipient's language, for a redacted line. Read from their
-            account when this was not given.
-
-    Returns:
-        Number of successful deliveries
-    """
-    if not (await push_config.ensure_push_config_fresh()).enabled:
-        return 0
-
-    policy = await notification_policy.for_send(session, guild_id)
-    shown = notification_policy.apply(
-        policy,
-        (title, body),
-        category=category_of(notification_type),
-        locale=locale or await _recipient_locale(user_id),
-    )
-    if shown is None:
-        return 0
-    title, body = shown
-
-    tokens = await _recipient_tokens(user_id)
-    if only_session_ids is not None:
-        tokens = [token for token in tokens if token.session_id in only_session_ids]
-
-    if not tokens:
-        logger.debug(f"No push tokens found for user {user_id}")
-        return 0
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        outcome = await _send_to_devices(
-            client,
-            tokens,
-            title=title,
-            body=body,
-            data=notification_policy.push_data(policy, data),
-            channel_id=channel_for(notification_type),
-        )
-
-    await _record_delivery(
-        user_id, delivered_ids=outcome.delivered_ids, dead_tokens=outcome.dead_tokens
-    )
-
-    logger.info(
-        f"Sent push notification to {len(outcome.delivered_ids)}/{len(tokens)} "
-        f"devices for user {user_id} (type: {notification_type})"
-    )
-
-    return len(outcome.delivered_ids)
-
-
 @dataclass
 class _Outcome:
     """What sending one push to one person's devices came to."""
@@ -470,6 +334,8 @@ class Push:
     title: str
     body: str
     data: Dict[str, Any]
+    #: Only the devices these sign-ins registered; ``None`` for every device.
+    session_ids: frozenset[uuid.UUID] | None = None
 
 
 #: How many FCM calls one batch keeps in flight at once.
@@ -479,10 +345,11 @@ CONCURRENT_SENDS = 16
 async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[bool]:
     """Send a batch of pushes at once, on the system engine's ``session``.
 
-    For the notice worker, which has already applied the deployment's and the
-    community's switches and each recipient's settings: this only finds each
-    person's devices, sends, and records what FCM said. One HTTP client serves
-    the batch and :data:`CONCURRENT_SENDS` calls are in flight at a time.
+    The one way a push leaves the app. Its caller has already applied the
+    deployment's and the community's switches and each recipient's settings:
+    this only finds each person's devices, keeps those a push names, sends,
+    and records what FCM said. One HTTP client serves the batch and
+    :data:`CONCURRENT_SENDS` calls are in flight at a time.
 
     Returns, for each push in order, whether it should be tried again: no device
     took it, and a send failed short of an answer. Does not commit.
@@ -508,7 +375,12 @@ async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[boo
             *(
                 _send_to_devices(
                     client,
-                    devices[push.user_id] or [],
+                    [
+                        token
+                        for token in devices[push.user_id] or []
+                        if push.session_ids is None
+                        or token.session_id in push.session_ids
+                    ],
                     title=push.title,
                     body=push.body,
                     data=push.data,
