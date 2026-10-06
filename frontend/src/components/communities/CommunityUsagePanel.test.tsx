@@ -127,83 +127,38 @@ describe("CommunityUsagePanel", () => {
     expect(screen.getByText(/500 B/)).toBeInTheDocument();
   });
 
+  const shop = (values: Record<string, number | null> | null) => ({
+    items: [
+      {
+        app_id: 3,
+        name: "Acme Shop",
+        returns: [
+          { key: "orders", type: "int", label: { en: "Orders this month" } },
+          { key: "orders_limit", type: "int", label: { en: "Order limit" } },
+          { key: "credits", type: "int", label: { en: "Credits" } },
+        ],
+        values,
+      },
+    ],
+  });
+
   it("renders what each installed app reports, by the app's own labels", () => {
-    state.appUsage = {
-      items: [
-        {
-          app_id: 3,
-          name: "Acme Shop",
-          available: true,
-          figures: [
-            {
-              key: "orders",
-              label: { en: "Orders this month" },
-              value: 320,
-              limited: true,
-              limit: 500,
-            },
-            {
-              key: "credits",
-              label: { en: "Credits" },
-              value: 1200,
-              limited: false,
-              limit: null,
-            },
-          ],
-        },
-      ],
-    };
+    state.appUsage = shop({ orders: 320, orders_limit: 500, credits: 1200 });
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Acme Shop")).toBeInTheDocument();
-    expect(screen.getByText("Orders this month")).toBeInTheDocument();
-    expect(screen.getByText("320 of 500")).toBeInTheDocument();
-    expect(screen.getByText("Credits")).toBeInTheDocument();
-    expect(screen.getByText("1,200")).toBeInTheDocument();
+    expect(screen.getByText("Orders this month").nextSibling).toHaveTextContent("320 of 500");
+    expect(screen.getByText("Credits").nextSibling).toHaveTextContent("1,200");
+    expect(screen.queryByText("Order limit")).not.toBeInTheDocument();
   });
 
   it("says unlimited for a figure whose limit is null", () => {
-    state.appUsage = {
-      items: [
-        {
-          app_id: 3,
-          name: "Acme Shop",
-          available: true,
-          figures: [
-            {
-              key: "orders",
-              label: { en: "Orders this month" },
-              value: null,
-              limited: true,
-              limit: null,
-            },
-          ],
-        },
-      ],
-    };
-    state.community = buildCommunity({ id: 7, role: "superadmin", max_users: 10, member_count: 4 });
+    state.appUsage = shop({ orders: null, orders_limit: null, credits: 0 });
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Orders this month").nextSibling).toHaveTextContent("Unlimited");
   });
 
   it("names an app it could not read rather than showing zeros", () => {
-    state.appUsage = {
-      items: [
-        {
-          app_id: 3,
-          name: "Acme Shop",
-          available: false,
-          figures: [
-            {
-              key: "credits",
-              label: { en: "Credits" },
-              value: null,
-              limited: false,
-              limit: null,
-            },
-          ],
-        },
-      ],
-    };
+    state.appUsage = shop(null);
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Credits").nextSibling).toHaveTextContent("Unavailable right now");
   });

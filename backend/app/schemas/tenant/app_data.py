@@ -203,29 +203,15 @@ class AppParamOptionsResponse(SanitizedBaseModel):
     unavailable: Optional[str] = None
 
 
-class AppUsageFigure(SanitizedBaseModel):
-    """One figure an installed app reports on the community's Usage tab."""
-
-    key: str
-    #: The return's own label, in every language the app supplied.
-    label: Dict[str, str] = {}
-    #: Null when the app did not answer, or answered with no count.
-    value: Optional[int] = None
-    #: Whether the app declares a limit for this figure. With it, a null
-    #: ``limit`` is unlimited; without it, the figure stands on its own.
-    limited: bool = False
-    limit: Optional[int] = None
-
-
 class AppUsageEntry(SanitizedBaseModel):
-    """What one installed app reports of the community's usage."""
+    """One installed app's ``usage`` read, for the community's Usage tab."""
 
     app_id: int
     name: str
-    #: False when the app could not be read right now. The figures are then
-    #: the declared ones, each with no value.
-    available: bool = True
-    figures: List[AppUsageFigure] = []
+    #: What the endpoint declares it hands back, labels included.
+    returns: List[AppDataReturn] = []
+    #: What it answered, or null when it could not be read right now.
+    values: Optional[Dict[str, Any]] = None
 
 
 class AppUsageResponse(SanitizedBaseModel):

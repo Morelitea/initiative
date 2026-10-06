@@ -210,16 +210,11 @@ export function useReadAppWidgetCatalog<
 }
 
 /**
- * What this community's installed apps report it has used.
+ * Each enabled app's usage, for the community's Usage tab.
  *
- * Read on the settings surface by its admin rung, like the storage figure
- * beside it: an administrator, or a settings grant at either rung. That rung
- * is the gate for the endpoints' own ``admin_only`` too — the page is the
- * seat's, and a support grantee holding it reads what an admin reads.
- *
- * One entry per enabled install declaring a usage endpoint
- * (:func:`~app.services.marketplace.app_data.usage_endpoints`). An app that
- * does not answer is listed as unavailable rather than failing the page.
+ * An app reports usage with an ``admin_only`` read endpoint in the ``usage``
+ * group. Read on the settings surface by its admin rung, like the storage
+ * figure beside it.
  * @summary Read App Usage
  */
 export const readAppUsage = (

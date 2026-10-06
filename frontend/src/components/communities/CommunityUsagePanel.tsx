@@ -1,8 +1,7 @@
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { useReadAppUsage } from "@/api/generated/apps/apps";
-import type { AppUsageEntry, AppUsageFigure } from "@/api/generated/initiativeAPI.schemas";
+import type { AppUsageEntry } from "@/api/generated/initiativeAPI.schemas";
 import { useReadStorageUsage } from "@/api/generated/storage/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -16,59 +15,40 @@ import { localized } from "@/lib/widgets/widgetMeta";
 const ratioPct = (used: number, max: number | null): number | null =>
   max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : null;
 
-/** What one figure an app reported reads as: a count against its limit, a
- *  count with no limit, or unlimited. */
-const figureText = (
-  figure: AppUsageFigure,
-  formatCount: (value: number) => string,
-  t: TFunction<["communities", "common"]>
-): string => {
-  const value = figure.value ?? null;
-  if (figure.limited && figure.limit == null) {
-    return value == null
-      ? t("usagePanel.unlimited")
-      : t("usagePanel.countOfUnlimited", { used: formatCount(value) });
-  }
-  if (value == null) {
-    return t("usagePanel.storageUnavailable");
-  }
-  if (figure.limited && figure.limit != null) {
-    return t("usagePanel.countOfMax", { used: formatCount(value), max: formatCount(figure.limit) });
-  }
-  return formatCount(value);
-};
-
-/** One installed app's figures: runs, credits, whatever it meters. The labels
- *  are the app's own, in every language it supplied. */
+/** One installed app's usage: each number it returns, by its own label, read
+ *  "320 of 500" when it also returns `<key>_limit` (null there is unlimited). */
 const AppUsageSection = ({ entry }: { entry: AppUsageEntry }) => {
   const { t, i18n } = useTranslation(["communities", "common"]);
   const language = i18n.resolvedLanguage ?? i18n.language;
-  const formatCount = (value: number) => value.toLocaleString(language);
+  const keys = new Set((entry.returns ?? []).map((r) => r.key));
+  const fmt = (value: unknown) =>
+    typeof value === "number" ? value.toLocaleString(language) : null;
+  const text = (key: string): string => {
+    const values = entry.values;
+    if (!values) return t("usagePanel.storageUnavailable");
+    const used = fmt(values[key]);
+    if (!keys.has(`${key}_limit`)) return used ?? t("usagePanel.storageUnavailable");
+    const max = fmt(values[`${key}_limit`]);
+    if (max != null && used != null) return t("usagePanel.countOfMax", { used, max });
+    if (used != null) return t("usagePanel.countOfUnlimited", { used });
+    return t("usagePanel.unlimited");
+  };
+  const figures = (entry.returns ?? []).filter(
+    (r) =>
+      r.type === "int" && !r.list && !(r.key.endsWith("_limit") && keys.has(r.key.slice(0, -6)))
+  );
 
   return (
     <div className="space-y-4">
       <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
         {entry.name}
       </h3>
-      {(entry.figures ?? []).map((figure) => {
-        const pct =
-          entry.available !== false && figure.limited && figure.value != null
-            ? ratioPct(figure.value, figure.limit ?? null)
-            : null;
-        return (
-          <div key={figure.key} className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="font-medium">{localized(figure.label, language) ?? figure.key}</span>
-              <span className="text-muted-foreground">
-                {entry.available === false
-                  ? t("usagePanel.storageUnavailable")
-                  : figureText(figure, formatCount, t)}
-              </span>
-            </div>
-            {pct != null && <Progress value={pct} />}
-          </div>
-        );
-      })}
+      {figures.map((r) => (
+        <div key={r.key} className="flex justify-between text-sm">
+          <span className="font-medium">{localized(r.label, language) ?? r.key}</span>
+          <span className="text-muted-foreground">{text(r.key)}</span>
+        </div>
+      ))}
     </div>
   );
 };
