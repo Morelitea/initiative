@@ -24,6 +24,7 @@ import {
   answerSecondFactor,
   stepUpWithFactor as answerStepUpWithFactor,
   logout as endServerSession,
+  getBootstrapStatusQueryKey,
   loginAccessToken,
   registerUser,
   verifyStepUpCode,
@@ -512,8 +513,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await adoptSession(await verifyStepUpCode({ challenge, code }), { begin: false });
   };
 
-  const register = ({ inviteCode, ...body }: RegisterPayload) =>
-    registerUser(body, inviteCode ? { invite_code: inviteCode } : undefined);
+  const register = async ({ inviteCode, ...body }: RegisterPayload) => {
+    const made = await registerUser(body, inviteCode ? { invite_code: inviteCode } : undefined);
+    // The first account changes the server's answer to "has anyone signed up",
+    // which decides whether /login shows first-run registration. The next visit
+    // asks again; the page on screen keeps its card and what it says.
+    void queryClient.invalidateQueries({
+      queryKey: getBootstrapStatusQueryKey(),
+      refetchType: "none",
+    });
+    return made;
+  };
 
   // Memoized: the OIDC callback page calls this from an effect, and this
   // function also sets the user it depends on. An unstable identity would make

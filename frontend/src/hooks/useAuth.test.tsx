@@ -11,6 +11,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
+import { getBootstrapStatusQueryKey } from "@/api/generated/auth/auth";
 
 const get = vi.fn();
 const post = vi.fn();
@@ -82,6 +83,7 @@ vi.mock("@/lib/passkeys", () => ({
   stepUpWithPasskey: () => presentPasskey(),
 }));
 
+import { queryClient } from "@/lib/queryClient";
 import { CREDENTIAL_KEYS } from "@/lib/storage";
 
 import { AuthProvider, useAuth } from "./useAuth";
@@ -459,6 +461,32 @@ describe("useAuth passkey sign-in", () => {
     await expect(
       auth.applyPasskeySignIn({ token_type: "bearer", redirect_to: "initiative://oidc/callback" })
     ).rejects.toThrow();
+  });
+});
+
+describe("useAuth registration", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset();
+    getItem.mockReset().mockReturnValue(null);
+  });
+
+  it("asks the server again whether anyone has signed up", async () => {
+    get.mockResolvedValue({ data: null });
+    renderAuth();
+    queryClient.setQueryData(getBootstrapStatusQueryKey(), {
+      has_users: false,
+      public_registration_enabled: true,
+    });
+
+    post.mockResolvedValueOnce({ data: buildUser({ email_verified: false }) });
+    await act(async () => {
+      await auth.register({ email: "first@example.com", username: "first", password: "pw" });
+    });
+
+    // The first account waits on a letter, so nobody is signed in, and /login
+    // reads the fresh answer rather than offering first-run registration again.
+    expect(queryClient.getQueryState(getBootstrapStatusQueryKey())?.isInvalidated).toBe(true);
   });
 });
 
