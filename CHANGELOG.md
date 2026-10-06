@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Passkeys work inside the Android app**: signing in, adding one, and answering a community that asks for one, without leaving for the browser. Where the phone won't let the app do it for your server, and on iPhone, the browser opens as before. **Server operators:** nothing to set up, but if your reverse proxy answers `/.well-known/` itself, pass `/.well-known/assetlinks.json` through to Initiative.
 - **Plug-ins can have a minimum age**, which may differ by country. Someone younger than a plug-in's minimum where they are can't open or use it; their community can still install it. **Server operators:** set `CLIENT_COUNTRY_HEADER` (`CF-IPCountry` behind Cloudflare) so the limits apply by country; unset, a plug-in's highest minimum applies to everyone.
 - **Billing insights** for operators and owners, under **Operator dashboard → Billing** on servers connected to a billing service: revenue, subscribers and cancellations across every community, without opening any one of them. The new `billing.insights` capability gates it.
 - **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.

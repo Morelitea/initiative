@@ -23,7 +23,7 @@ import { useAuthChallenge } from "@/hooks/useAuthChallenge";
 import { isAnsweredVisitRead } from "@/hooks/useNotifications";
 import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { describePasskeyPromptError } from "@/lib/passkeys";
+import { appRunsPasskeys, describePasskeyPromptError } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 import { returnPath } from "@/lib/returnPath";
 import { compactCode } from "@/lib/secondFactorAnswer";
@@ -61,6 +61,9 @@ export const SecondFactorStepUpDialog = () => {
   const { logout, stepUpWithFactor, stepUpWithPasskey, stepUpWithEmailCode } = useAuth();
   const { emailOtpLoginEnabled } = useAppConfig();
   const { isNativePlatform } = useServer();
+  /** A phone whose app cannot run the ceremony itself, so the dialog points
+   *  to the browser instead of offering a key. */
+  const browserOnly = isNativePlatform && !appRunsPasskeys();
   const location = useLocation();
   const navigate = useNavigate();
   // Everything is accepted except the deployment's own ask while the person
@@ -101,7 +104,7 @@ export const SecondFactorStepUpDialog = () => {
   // passkey records the factor too, so an account with a key and no
   // authenticator app has one already.
   const passkeyQuery = useListPasskeys({
-    query: { enabled: open && !isNativePlatform },
+    query: { enabled: open && !browserOnly },
   });
   // Three states, not two. While the answer is in flight, offer the way in:
   // the refusal that opened this dialog is the common case and an account that
@@ -114,7 +117,7 @@ export const SecondFactorStepUpDialog = () => {
   const hasNoPasskey = passkeyQuery.isSuccess && (passkeyQuery.data.passkeys ?? []).length === 0;
   /** A key to present, where the ask is for a code and the account has none. */
   const canPresentPasskey =
-    !isNativePlatform && passkeyQuery.isSuccess && (passkeyQuery.data.passkeys ?? []).length > 0;
+    !browserOnly && passkeyQuery.isSuccess && (passkeyQuery.data.passkeys ?? []).length > 0;
   const passkeysUnknown = passkeyQuery.isError;
 
   const dismiss = () => {
@@ -216,7 +219,7 @@ export const SecondFactorStepUpDialog = () => {
 
   const presentDescription = offersEmailCode
     ? t("factorStepUp.proofEmail")
-    : isNativePlatform
+    : browserOnly
       ? t(wantsProof ? "factorStepUp.proofNative" : "factorStepUp.passkeyNative")
       : hasNoPasskey
         ? t(wantsProof ? "factorStepUp.proofSignIn" : "factorStepUp.passkeyNone")
@@ -287,7 +290,7 @@ export const SecondFactorStepUpDialog = () => {
                   {t("factorStepUp.emailCode")}
                 </Button>
               )}
-              {!isNativePlatform &&
+              {!browserOnly &&
                 (hasNoPasskey ? (
                   wantsProof ? (
                     <Button type="button" onClick={signInAgain} disabled={submitting}>
@@ -310,7 +313,7 @@ export const SecondFactorStepUpDialog = () => {
                 ))}
             </DialogFooter>
 
-            {!isNativePlatform &&
+            {!browserOnly &&
               passkeysUnknown &&
               (wantsProof ? (
                 <p className="text-muted-foreground text-sm">

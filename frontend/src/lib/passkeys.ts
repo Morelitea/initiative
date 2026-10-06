@@ -7,7 +7,18 @@
  * through the same call — the modal one a button opens, and the quiet one that
  * waits inside the browser's own autofill — because the only thing that
  * separates them is a flag the credential API reads.
+ *
+ * On Android the app runs sign-in, enrolment and step-up itself, through the
+ * platform's credential manager, when the server names the app in its asset
+ * links. Where it does not, the app goes to the phone's browser. Sign-up and
+ * break-glass are the browser's on every platform.
  */
+import { Capacitor } from "@capacitor/core";
+import {
+  type CreatePasskeyOptions,
+  type GetPasskeyOptions,
+  Passkeys,
+} from "@capawesome/capacitor-passkeys";
 import {
   browserSupportsWebAuthn,
   browserSupportsWebAuthnAutofill,
@@ -37,6 +48,86 @@ import type {
   PasskeyStepUpFinishCredential,
   Token,
 } from "@/api/generated/initiativeAPI.schemas";
+import { getStoredServerUrl } from "@/lib/serverStorage";
+import { getItem, setItem } from "@/lib/storage";
+
+/** Set when the phone would not let the app act for a server, which then
+ *  goes straight to the browser until it lapses: long enough not to fail
+ *  first on every press, short enough that a server put right is tried again. */
+const APP_REFUSED_KEY = "initiative-passkey-app-refused";
+const APP_REFUSED_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** The phone would not let the app run this ceremony for this server; the
+ *  browser can. */
+export class PasskeyNeedsBrowserError extends Error {
+  constructor() {
+    super("PASSKEY_NEEDS_BROWSER");
+    this.name = "PasskeyNeedsBrowserError";
+  }
+}
+
+const appHasPlugin = (): boolean =>
+  Capacitor.getPlatform() === "android" && Capacitor.isPluginAvailable("Passkeys");
+
+/**
+ * Whether this app runs a passkey ceremony itself, rather than in the phone's
+ * browser.
+ *
+ * Android only: an iOS app can act only for domains its build names. An older
+ * app without the plugin, and a server the phone refused lately, use the
+ * browser.
+ */
+export const appRunsPasskeys = (): boolean => {
+  if (!appHasPlugin()) return false;
+  const refusedAt = refusals()[getStoredServerUrl() ?? ""] ?? 0;
+  return Date.now() - refusedAt >= APP_REFUSED_TTL_MS;
+};
+
+/** When the phone last refused each server, by its address. */
+const refusals = (): Record<string, number> => {
+  try {
+    return JSON.parse(getItem(APP_REFUSED_KEY) ?? "{}") as Record<string, number>;
+  } catch {
+    return {};
+  }
+};
+
+/** Ask the app's plugin, giving its refusals the browser's names so one
+ *  message table reads both. */
+const viaApp = async <T>(call: () => Promise<T>): Promise<T> => {
+  try {
+    return await call();
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? "";
+    if (code === "DOMAIN_NOT_ASSOCIATED" || code === "NOT_SUPPORTED") {
+      const now = Date.now();
+      const fresh = Object.entries(refusals()).filter(([, at]) => now - at < APP_REFUSED_TTL_MS);
+      fresh.push([getStoredServerUrl() ?? "", now]);
+      void setItem(APP_REFUSED_KEY, JSON.stringify(Object.fromEntries(fresh)));
+      throw new PasskeyNeedsBrowserError();
+    }
+    const error = new Error(code || "PASSKEY_FAILED");
+    if (code === "CANCELED" || code === "NO_CREDENTIAL") error.name = "NotAllowedError";
+    throw error;
+  }
+};
+
+/** Present a credential, from the app or the browser. The server renders the
+ *  options the way both want them; the generated schema carries them as open
+ *  objects. */
+const presentCredential = (options: unknown, conditional = false) =>
+  appHasPlugin()
+    ? viaApp(() => Passkeys.getPasskey(options as GetPasskeyOptions))
+    : startAuthentication({
+        optionsJSON: options as PublicKeyCredentialRequestOptionsJSON,
+        useBrowserAutofill: conditional,
+      });
+
+/** Make a credential, from the app or the browser. */
+export const createCredential = (options: unknown) =>
+  appHasPlugin()
+    ? viaApp(() => Passkeys.createPasskey(options as CreatePasskeyOptions))
+    : startRegistration({ optionsJSON: options as PublicKeyCredentialCreationOptionsJSON });
 
 /** Whether this browser can present a passkey at all. */
 export const browserOffersPasskeys = (): boolean => browserSupportsWebAuthn();
@@ -75,13 +166,7 @@ export const signInWithPasskey = async ({
   // whatever they are asking for. Where the answer goes — a session for this
   // browser, or a way back to the app that sent it — is settled at the finish.
   const begun = await beginPasskeySignIn({});
-  // The server renders the options the way the credential API wants them, and
-  // the browser's answer goes back as it came; the generated schema carries
-  // both as open objects, so this is the one place the shapes are named.
-  const credential = await startAuthentication({
-    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
-    useBrowserAutofill: conditional,
-  });
+  const credential = await presentCredential(begun.options, conditional);
   return finishPasskeySignIn({
     credential: credential as unknown as PasskeySignInFinishCredential,
     mobile,
@@ -101,9 +186,7 @@ export const signInWithPasskey = async ({
  */
 export const stepUpWithPasskey = async (): Promise<Token> => {
   const begun = await beginPasskeyStepUp();
-  const credential = await startAuthentication({
-    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
-  });
+  const credential = await presentCredential(begun.options);
   return finishPasskeyStepUp({
     credential: credential as unknown as PasskeyStepUpFinishCredential,
   });
@@ -168,7 +251,8 @@ export type PasskeyPromptMessageKey = "auth:login.passkeyCancelled" | "auth:logi
  */
 export const describePasskeyPromptError = (error: unknown): PasskeyPromptMessageKey | null => {
   const name = error instanceof WebAuthnError || error instanceof Error ? error.name : "";
-  if (name === "AbortError") return null;
+  // The page offers the browser instead, which says more than a line would.
+  if (name === "AbortError" || error instanceof PasskeyNeedsBrowserError) return null;
   if (name === "NotAllowedError") return "auth:login.passkeyCancelled";
   return "auth:login.passkeyFailed";
 };

@@ -80,6 +80,9 @@ importers:
       '@capawesome/capacitor-electron':
         specifier: ^0.1.1
         version: 0.1.1(@capacitor/core@8.5.2)
+      '@capawesome/capacitor-passkeys':
+        specifier: ^0.1.2
+        version: 0.1.2(@capacitor/core@8.5.2)
       '@capgo/capacitor-updater':
         specifier: ^8.51.3
         version: 8.51.15(@capacitor/core@8.5.2)
@@ -721,6 +724,11 @@ packages:
     peerDependenciesMeta:
       electron:
         optional: true
+
+  '@capawesome/capacitor-passkeys@0.1.2':
+    resolution: {integrity: sha512-egaDs8M1XjYKG0tmc2brmpnQTCdnlq9NxA6dOMtS4cJY9viYkGPSdt8heaswey5uv8bYo3cxKeQcCZknypG5Hw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capgo/capacitor-updater@8.51.15':
     resolution: {integrity: sha512-eJxQrwMYjlaRY79r+1jJWzetgqeyVdXkkHTngVLVQq3/1BK6itOkO45wRzyFrrB9WZD84fY1ziGp8ItGCN3hWA==}
@@ -7144,6 +7152,10 @@ snapshots:
       '@capacitor/core': 8.5.2
 
   '@capawesome/capacitor-electron@0.1.1(@capacitor/core@8.5.2)':
+    dependencies:
+      '@capacitor/core': 8.5.2
+
+  '@capawesome/capacitor-passkeys@0.1.2(@capacitor/core@8.5.2)':
     dependencies:
       '@capacitor/core': 8.5.2
 
