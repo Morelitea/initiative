@@ -70,6 +70,11 @@ describe("a ceremony in the app", () => {
 
     setStoredServerUrl("https://two.example.com/api/v1");
     expect(appRunsPasskeys()).toBe(true);
+
+    // A second refusal keeps the first.
+    await expect(stepUpWithPasskey()).rejects.toBeInstanceOf(PasskeyNeedsBrowserError);
+    setStoredServerUrl("https://one.example.com/api/v1");
+    expect(appRunsPasskeys()).toBe(false);
   });
 
   it("gives a put-down prompt the browser's name for it", async () => {

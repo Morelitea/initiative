@@ -8,9 +8,10 @@
  * waits inside the browser's own autofill — because the only thing that
  * separates them is a flag the credential API reads.
  *
- * On Android the app runs the ceremony itself, through the platform's
- * credential manager, when the server names the app in its asset links. Where
- * it does not, the app goes to the phone's browser as it always has.
+ * On Android the app runs sign-in, enrolment and step-up itself, through the
+ * platform's credential manager, when the server names the app in its asset
+ * links. Where it does not, the app goes to the phone's browser. Sign-up and
+ * break-glass are the browser's on every platform.
  */
 import { Capacitor } from "@capacitor/core";
 import {
@@ -78,16 +79,16 @@ const appHasPlugin = (): boolean =>
  */
 export const appRunsPasskeys = (): boolean => {
   if (!appHasPlugin()) return false;
+  const refusedAt = refusals()[getStoredServerUrl() ?? ""] ?? 0;
+  return Date.now() - refusedAt >= APP_REFUSED_TTL_MS;
+};
+
+/** When the phone last refused each server, by its address. */
+const refusals = (): Record<string, number> => {
   try {
-    const refused = JSON.parse(getItem(APP_REFUSED_KEY) ?? "null") as {
-      server: string;
-      at: number;
-    } | null;
-    return !(
-      refused?.server === getStoredServerUrl() && Date.now() - refused.at < APP_REFUSED_TTL_MS
-    );
+    return JSON.parse(getItem(APP_REFUSED_KEY) ?? "{}") as Record<string, number>;
   } catch {
-    return true;
+    return {};
   }
 };
 
@@ -99,10 +100,10 @@ const viaApp = async <T>(call: () => Promise<T>): Promise<T> => {
   } catch (err) {
     const code = (err as { code?: string }).code ?? "";
     if (code === "DOMAIN_NOT_ASSOCIATED" || code === "NOT_SUPPORTED") {
-      void setItem(
-        APP_REFUSED_KEY,
-        JSON.stringify({ server: getStoredServerUrl(), at: Date.now() })
-      );
+      const now = Date.now();
+      const fresh = Object.entries(refusals()).filter(([, at]) => now - at < APP_REFUSED_TTL_MS);
+      fresh.push([getStoredServerUrl() ?? "", now]);
+      void setItem(APP_REFUSED_KEY, JSON.stringify(Object.fromEntries(fresh)));
       throw new PasskeyNeedsBrowserError();
     }
     const error = new Error(code || "PASSKEY_FAILED");
@@ -113,7 +114,7 @@ const viaApp = async <T>(call: () => Promise<T>): Promise<T> => {
 
 /** Present a credential, from the app or the browser. The server renders the
  *  options the way both want them; the generated schema carries them as open
- *  objects, so this and {@link createCredential} are where the shapes are named. */
+ *  objects. */
 const presentCredential = (options: unknown, conditional = false) =>
   appHasPlugin()
     ? viaApp(() => Passkeys.getPasskey(options as GetPasskeyOptions))
@@ -206,7 +207,9 @@ export const signUpWithPasskey = async (
 ): Promise<PasskeySignUpResult> => {
   const params = inviteCode ? { invite_code: inviteCode } : undefined;
   const begun = await beginPasskeySignUp(details, params);
-  const credential = await createCredential(begun.options);
+  const credential = await startRegistration({
+    optionsJSON: begun.options as unknown as PublicKeyCredentialCreationOptionsJSON,
+  });
   return finishPasskeySignUp(
     { ...details, credential: credential as unknown as PasskeySignUpFinishCredential },
     params
@@ -223,7 +226,9 @@ export const signUpWithPasskey = async (
  */
 export const assertForBreakGlass = async (): Promise<Record<string, unknown>> => {
   const begun = await beginBreakGlassPasskey();
-  const credential = await presentCredential(begun.options);
+  const credential = await startAuthentication({
+    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+  });
   return credential as unknown as Record<string, unknown>;
 };
 
