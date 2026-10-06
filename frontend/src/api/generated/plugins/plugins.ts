@@ -41,6 +41,7 @@ import type {
   PluginParamOptionsResponse,
   PluginPlacementRead,
   PluginPlacementUpdate,
+  PluginSummaryListResponse,
   PluginWidgetCatalogResponse,
   ReadPluginDataParams,
   ReadPluginParamOptionsParams,
@@ -372,6 +373,142 @@ export function useReadPluginData<
     params,
     options
   );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The installs whose pinned definition names a community summary, with
+ * what each declares it returns. Nothing is fetched here: each summary is read
+ * on its own, so one slow plug-in holds up only its own card.
+ * @summary List Plugin Summaries
+ */
+export const listPluginSummaries = (
+  communityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PluginSummaryListResponse>(
+    { url: `/api/v1/c/${communityId}/plugins/summaries`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPluginSummariesQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/plugins/summaries`] as const;
+};
+
+export const getListPluginSummariesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPluginSummaries>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPluginSummariesQueryKey(communityId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPluginSummaries>>> = ({ signal }) =>
+    listPluginSummaries(communityId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListPluginSummariesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPluginSummaries>>
+>;
+export type ListPluginSummariesQueryError = ErrorType<HTTPValidationError>;
+
+export function useListPluginSummaries<
+  TData = Awaited<ReturnType<typeof listPluginSummaries>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPluginSummaries>>,
+          TError,
+          Awaited<ReturnType<typeof listPluginSummaries>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPluginSummaries<
+  TData = Awaited<ReturnType<typeof listPluginSummaries>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPluginSummaries>>,
+          TError,
+          Awaited<ReturnType<typeof listPluginSummaries>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPluginSummaries<
+  TData = Awaited<ReturnType<typeof listPluginSummaries>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Plugin Summaries
+ */
+
+export function useListPluginSummaries<
+  TData = Awaited<ReturnType<typeof listPluginSummaries>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPluginSummaries>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPluginSummariesQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

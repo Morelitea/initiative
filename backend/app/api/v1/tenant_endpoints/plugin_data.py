@@ -24,9 +24,10 @@ widget sits on, and that is what makes the gates run **before** anything else:
 Only after all of that does the service layer look at the response cache, which
 is why the cache is a cache of *responses* rather than of decisions.
 
-``/plugins/{plugin_id}/summary`` is where the community stands with a plug-in: the
-read its manifest names as its ``community_summary``, drawn on the community's
-Usage settings. The caller names the install and nothing else — which endpoint
+``/plugins/summaries`` lists the installs that say where the community stands with
+them, and ``/plugins/{plugin_id}/summary`` reads one: the read its manifest names
+as its ``community_summary``, drawn on the community's Usage settings. Both are
+on the settings rung, so the list is not the content-gated install list. The caller names the install and nothing else — which endpoint
 is read comes from the pinned definition — and it is the settings rung that
 decides who may ask, the same as the storage figure beside it.
 
@@ -62,6 +63,9 @@ from app.schemas.tenant.plugin_data import (
     PluginEndpointRead,
     PluginParamOption,
     PluginParamOptionsResponse,
+    PluginSummaryListResponse,
+    PluginSummaryRead,
+    PluginSummaryReturn,
     PluginWidgetCatalogEntry,
     PluginWidgetCatalogResponse,
     PluginWidgetRead,
@@ -343,6 +347,39 @@ def _transformed(
     )
 
 
+def _summary_endpoint(plugin: GuildPlugin) -> dict[str, Any] | None:
+    """The read an enabled install names as its ``community_summary``, or None."""
+    endpoint_id = (plugin.definition or {}).get("community_summary")
+    if not plugin.enabled or not isinstance(endpoint_id, str):
+        return None
+    return plugin_data_service.find_read_endpoint(plugin.definition, endpoint_id)
+
+
+@router.get("/summaries", response_model=PluginSummaryListResponse)
+async def list_plugin_summaries(
+    session: SettingsRLSSessionDep,
+    _guild_context: SettingsAdminContextDep,
+) -> PluginSummaryListResponse:
+    """The installs whose pinned definition names a community summary, with
+    what each declares it returns. Nothing is fetched here: each summary is read
+    on its own, so one slow plug-in holds up only its own card."""
+    plugins = (await session.exec(select(GuildPlugin).order_by(GuildPlugin.id))).all()
+    items: list[PluginSummaryRead] = []
+    for plugin in plugins:
+        endpoint = _summary_endpoint(plugin)
+        returns = (endpoint or {}).get("returns") or []
+        if not returns:
+            continue
+        items.append(
+            PluginSummaryRead(
+                plugin_id=plugin.id,
+                name=plugin.name,
+                returns=[PluginSummaryReturn(**value) for value in returns],
+            )
+        )
+    return PluginSummaryListResponse(items=items)
+
+
 @router.get("/{plugin_id}/summary", response_model=PluginDataResponse)
 async def read_plugin_summary(
     plugin_id: int,
@@ -361,8 +398,8 @@ async def read_plugin_summary(
     plugin = (
         await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
     ).first()
-    endpoint_id = (plugin.definition or {}).get("community_summary") if plugin else None
-    if plugin is None or not plugin.enabled or not isinstance(endpoint_id, str):
+    endpoint = _summary_endpoint(plugin) if plugin else None
+    if plugin is None or endpoint is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
@@ -372,7 +409,7 @@ async def read_plugin_summary(
         result = await plugin_data_service.fetch_plugin_source(
             session,
             plugin=plugin,
-            endpoint_id=endpoint_id,
+            endpoint_id=endpoint["id"],
             raw_params=None,
             user_id=current_user.id,
             # The settings rung is the community's admin standing, which is

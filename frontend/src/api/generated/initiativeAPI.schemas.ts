@@ -7243,6 +7243,33 @@ export interface PluginServiceVendorSetupStart {
   organization?: string | null;
 }
 
+export type PluginSummaryReturnLabel = { [key: string]: string } | null;
+
+/**
+ * One figure a plug-in's community summary declares: its key, its type,
+ * the plug-in's own label for it, and what it is counted against.
+ */
+export interface PluginSummaryReturn {
+  key: string;
+  type: string;
+  label?: PluginSummaryReturnLabel;
+  list?: boolean;
+  of?: string | null;
+}
+
+/**
+ * An installed plug-in that says where the community stands with it.
+ */
+export interface PluginSummaryRead {
+  plugin_id: number;
+  name: string;
+  returns?: PluginSummaryReturn[];
+}
+
+export interface PluginSummaryListResponse {
+  items?: PluginSummaryRead[];
+}
+
 export type PluginWidgetReadMeta = { [key: string]: unknown };
 
 export type PluginWidgetReadSampleData = { [key: string]: unknown };

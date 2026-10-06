@@ -54,7 +54,12 @@ from app.services.marketplace.registration_lookup import invalidate_registration
 from app.services.tenant.plugin_connection_flows import TokenSet, seal_tokens
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
 from app.testing.fake_vendor import FakeVendor, declarative_plugin
+from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
+from app.models.platform.user import UserRole
 from app.testing import (
+    create_access_grant,
+    create_user,
+    get_auth_headers,
     guild_of,
     create_plugin_service_registration,
     create_dashboard,
@@ -1619,3 +1624,65 @@ class TestSummary:
 
         assert response.status_code == 502
         assert response.json()["detail"] == PluginDataMessages.SERVICE_UNAVAILABLE
+
+    async def test_the_list_names_each_install_with_a_summary_and_what_it_returns(
+        self, client, acting_user, session, upstream
+    ):
+        a, plugin = await self._summarised(session, acting_user)
+        # A second install that names none is not listed.
+        await create_guild_plugin(
+            session,
+            a.guild,
+            a.user,
+            definition=_definition(),
+            listing_uid="SHPAPP00000002",
+            name="Other",
+        )
+
+        response = await client.get(a.g("/plugins/summaries"), headers=a.headers)
+
+        assert response.status_code == 200, response.text
+        (item,) = response.json()["items"]
+        assert item["plugin_id"] == plugin.id
+        assert item["name"] == "Shop"
+        assert [value["key"] for value in item["returns"]] == ["tiers"]
+        assert upstream.count == 0
+
+    async def test_a_settings_grantee_lists_and_reads_summaries(
+        self, client, acting_user, session, upstream
+    ):
+        """Support lent the seat opens the Usage tab without a content grant, so
+        neither read may sit behind the content-gated install list."""
+        a, plugin = await self._summarised(session, acting_user)
+        support = await create_user(session, role=UserRole.support)
+        await create_access_grant(
+            session,
+            user=support,
+            guild=a.guild,
+            access_level=SettingsLevel.admin.value,
+            purpose=AccessGrantPurpose.settings.value,
+        )
+        headers = get_auth_headers(support)
+
+        listed = await client.get(
+            f"/api/v1/c/{a.guild.id}/plugins/summaries", headers=headers
+        )
+        read = await client.get(
+            f"/api/v1/c/{a.guild.id}/plugins/{plugin.id}/summary", headers=headers
+        )
+
+        assert listed.status_code == 200, listed.text
+        assert [item["plugin_id"] for item in listed.json()["items"]] == [plugin.id]
+        assert read.status_code == 200, read.text
+
+    async def test_a_member_lists_no_summaries(
+        self, client, acting_user, session, upstream
+    ):
+        a, _ = await self._summarised(session, acting_user)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+
+        response = await client.get(
+            member.g("/plugins/summaries"), headers=member.headers
+        )
+
+        assert response.status_code == 403
