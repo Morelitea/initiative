@@ -666,33 +666,34 @@ async def test_support_source_may_only_raise_storage(
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
 
 
-async def test_trial_expiry_sets_status_unattributed(
+async def test_a_status_billing_decides_is_paddles_and_unattributed(
     client: AsyncClient, session: AsyncSession
 ):
+    """A status billing's sweep decides — a subscription lapsed, or a trial
+    Paddle ended without a payment — comes as ``paddle_webhook``, names nobody,
+    and leaves the caps alone."""
     guild = await create_guild(session, max_storage_bytes=4096)
 
-    expired = await _post(
+    lapsed = await _post(
         client,
         "community-tier",
         await _tier_payload(
             guild.id,
-            source="trial_expiry",
-            event_id="evt-trial-expiry",
+            source="paddle_webhook",
+            event_id="evt-lapsed",
             status="read_only",
         ),
     )
-    assert expired.status_code == 200, expired.text
-    assert expired.json()["status"] == "read_only"
-    assert expired.json()["max_storage_bytes"] == 4096
+    assert lapsed.status_code == 200, lapsed.text
+    assert lapsed.json()["status"] == "read_only"
+    assert lapsed.json()["max_storage_bytes"] == 4096
 
     row = (
         await session.exec(
-            select(BillingEventLog).where(
-                BillingEventLog.event_id == "evt-trial-expiry"
-            )
+            select(BillingEventLog).where(BillingEventLog.event_id == "evt-lapsed")
         )
     ).one()
-    assert (row.source, row.actor) == ("trial_expiry", None)
+    assert (row.source, row.actor) == ("paddle_webhook", None)
 
 
 async def test_operator_manual_sets_status_and_names_the_actor(

@@ -312,8 +312,8 @@
     "communityOnHoldWithContact": "{{community}} est en attente. Contactez {{contact}} pour régler la situation.",
     "communityOnHoldDeleting": "{{community}} est en attente et sera supprimée le {{date}}. Contactez la personne qui gère ce serveur pour régler la situation.",
     "communityOnHoldDeletingWithContact": "{{community}} est en attente et sera supprimée le {{date}}. Contactez {{contact}} pour régler la situation.",
-    "communityTrialEnding": "L’essai de {{community}} se termine le {{date}}. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier.",
-    "communityTrialEndingInApp": "L’essai de {{community}} se termine le {{date}}. Ensuite, elle passera en lecture seule.",
+    "communityTrialEnding": "L’essai de {{community}} se termine le {{date}}. Ensuite, son forfait continue et est facturé au moyen de paiement enregistré. Vérifiez vos informations de facturation, ou annulez d’ici là si vous ne souhaitez pas continuer.",
+    "communityTrialEndingInApp": "L’essai de {{community}} se termine le {{date}}. Ensuite, son forfait continue et est facturé au moyen de paiement enregistré.",
     "communityTrialEnded": "L’essai de {{community}} est terminé et elle est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier.",
     "communityTrialEndedInApp": "L’essai de {{community}} est terminé et elle est désormais en lecture seule.",
     "communityWelcome": "{{community}} est prête. Configurez son forfait pour commencer.",
@@ -453,8 +453,7 @@
       "endsDetail": "Votre forfait se termine le {{date}}. Ensuite, la communauté est en lecture seule pendant 30 jours, puis mise en attente.",
       "pauses": "En pause le {{date}}",
       "resumes": "Reprend le {{date}}",
-      "trialDetail": "L'essai se termine le {{date}}. Abonnez-vous avant pour continuer à modifier.",
-      "trialDetailInApp": "L’essai se termine le {{date}}. Ensuite, la communauté sera en lecture seule.",
+      "trialDetail": "L’essai se termine le {{date}}, et la facturation commence à cette date.",
       "renews": "Renouvelé le {{date}}",
       "renewsWithAmount": "Renouvelé le {{date}} · {{amount}}"
     }
