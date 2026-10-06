@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -9,6 +9,17 @@ import { AUTH_FACTOR_REQUIRED_EVENT } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
 
 import { SecondFactorStepUpDialog } from "./SecondFactorStepUpDialog";
+
+const app = vi.hoisted(() => ({ runsPasskeys: false }));
+
+vi.mock("@/lib/passkeys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/passkeys")>()),
+  appRunsPasskeys: () => app.runsPasskeys,
+}));
+
+afterEach(() => {
+  app.runsPasskeys = false;
+});
 
 const statusIs = (enrolled: boolean) =>
   server.use(
@@ -276,6 +287,20 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     expect(stepUpWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("offers the key in the app where the app can run the ceremony", async () => {
+    app.runsPasskeys = true;
+    passkeysAre([{ id: "pk-1", name: "Phone" }]);
+    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
+    await mount({ auth: { stepUpWithPasskey }, server: { isNativePlatform: true } });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(screen.queryByText(/open it in a browser/i)).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
+    expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -29,12 +29,14 @@ import { useLoginProviders } from "@/hooks/useCommunityAuthPolicy";
 import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 import { useServer } from "@/hooks/useServer";
 import { getErrorCode } from "@/lib/errorMessage";
-import { beginNativeSignIn } from "@/lib/nativeSignIn";
+import { beginNativeSignIn, redeemNativeSignIn, takePendingSignIn } from "@/lib/nativeSignIn";
 import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import {
+  appRunsPasskeys,
   browserOffersPasskeyAutofill,
   browserOffersPasskeys,
   cancelPendingPasskeyPrompt,
+  PasskeyNeedsBrowserError,
   signInWithPasskey,
 } from "@/lib/passkeys";
 import { providerSignInHref } from "@/lib/returnPath";
@@ -79,7 +81,7 @@ const SignInCard = () => {
     device_name?: string;
     code_challenge?: string;
   };
-  const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
+  const { login, completeSecondFactor, applyPasskeySignIn, completeOidcLogin } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
   const { isNativePlatform, getServerOrigin } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
@@ -117,8 +119,8 @@ const SignInCard = () => {
   const relayChallenge =
     typeof searchParams.code_challenge === "string" ? searchParams.code_challenge : "";
 
-  // A phone's Add-a-passkey equivalent: the browser decides which site it is
-  // on, so on native the button opens one rather than prompting in the webview.
+  // On a phone the button runs the ceremony in the app, or opens the phone's
+  // browser where the app cannot, so it is offered either way.
   const passkeyOffered = passkeyLoginEnabled && (isNativePlatform || browserOffersPasskeys());
 
   const resolveDeviceName = async (): Promise<string> => {
@@ -242,8 +244,40 @@ const SignInCard = () => {
     await Browser.open({ url: `${origin}${RELAY_PATH}&${params}` });
   };
 
+  /** The app's own ceremony, finished the way the relay's is: the server
+   *  hands back a code bound to this app's challenge, and the app redeems it. */
+  const signInInApp = async (origin: string) => {
+    const result = await signInWithPasskey({
+      mobile: true,
+      deviceName: await resolveDeviceName(),
+      codeChallenge: await beginNativeSignIn(origin),
+    });
+    const code = result.redirect_to ? new URL(result.redirect_to).searchParams.get("code") : null;
+    const pending = takePendingSignIn(origin);
+    const session = code && pending ? await redeemNativeSignIn(code, pending) : null;
+    if (!session) throw new Error(t("login.passkeyFailed"));
+    await completeOidcLogin(session);
+    await goWhereTheySignedInFor();
+  };
+
   const handlePasskeyLogin = async () => {
     if (isNativePlatform) {
+      const origin = getServerOrigin();
+      if (origin && appRunsPasskeys()) {
+        setPasskeyBusy(true);
+        setError(null);
+        try {
+          await signInInApp(origin);
+          return;
+        } catch (err) {
+          if (!(err instanceof PasskeyNeedsBrowserError)) {
+            reportPasskeyFailure(err);
+            return;
+          }
+        } finally {
+          setPasskeyBusy(false);
+        }
+      }
       await openPasskeyRelay();
       return;
     }
