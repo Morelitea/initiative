@@ -946,10 +946,6 @@ export const useCreateCommunityInvite = <
  * The community as the caller's standing sees it — how a community
  * reached by a settings grant, which has no entry in ``GET /communities/``, gets
  * its entry and the answer to what the caller may change there.
- *
- * Its pictures are looked up on the system engine: a settings rung reads on
- * the read-only floor, which holds no grant on the image digests, and the
- * image route serves them to a grant holder as it does to a member.
  * @summary Read Community
  */
 export const readCommunity = (

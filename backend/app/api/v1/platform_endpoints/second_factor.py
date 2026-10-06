@@ -27,7 +27,6 @@ from app.core.messages import AuthMessages
 from app.core.rate_limit import limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
-    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
@@ -85,7 +84,9 @@ async def read_second_factor(
     """What the account holds. A started-but-unproved enrolment reads as not
     enrolled, because that is what the sign-in makes of it too."""
     offered = await auth_posture.login_method_allowed(system_session, LoginMethod.totp)
-    password_required = await password_confirms(system_session, current_user)
+    password_required = await auth_posture.password_confirms(
+        system_session, current_user
+    )
     factor = await totp_service.get_factor(system_session, user_id=current_user.id)
     enrolled = factor is not None and factor.confirmed_at is not None
     # An account that signs in without a password keeps a recovery set whether

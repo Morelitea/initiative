@@ -263,6 +263,62 @@ def _serialize_guild(
     )
 
 
+async def _guild_read(
+    system_session: AsyncSession,
+    guild: Guild,
+    *,
+    membership: GuildMembership | None = None,
+    standing: GuildContext | None = None,
+    guild_session: AsyncSession | None = None,
+) -> CommunityRead:
+    """One community's entry, with everything it is built from gathered here.
+
+    ``standing`` and ``guild_session`` are the caller's standing in the
+    community and their session routed into it, for the routes the seam
+    admitted. ``membership`` is the caller's row, for the routes that run
+    before there is a standing to route by (creating, joining).
+
+    The roster size and the administration row are read on the routed session
+    where there is one, and on the system engine where there is not. The
+    retention window lives in the community's own schema, so it is read only on
+    a routed session. The administration row and the window are read only for
+    an admin, the only rung served them. The pictures are read on the system engine: a settings rung reads on the
+    read-only floor, which holds no grant on the image digests, and the image
+    route serves them to a grant holder as it does to a member.
+    """
+    can: CommunityCan | None = None
+    if standing is not None:
+        role = standing.rung
+        can = _can_of(standing)
+        membership = standing.membership
+    elif membership is not None:
+        role = membership.role
+    else:
+        raise TypeError("_guild_read needs a standing or a membership")
+    is_admin = role.reaches(CommunityRole.admin)
+    reader = guild_session if guild_session is not None else system_session
+    return _serialize_guild(
+        guild,
+        role=role,
+        membership=membership,
+        can=can,
+        retention_days=(
+            await guilds_service.get_guild_retention_days(guild_session)
+            if is_admin and guild_session is not None
+            else None
+        ),
+        member_count=await guilds_service.count_members(reader, guild_id=guild.id),
+        administration=(
+            await guilds_service.get_administration(reader, guild_id=guild.id)
+            if is_admin
+            else None
+        ),
+        images=await images_service.image_urls_for(
+            system_session, guild.id, *GuildImageVariant
+        ),
+    )
+
+
 _GUILD_PROFILE_FIELDS = (
     "name",
     "description",
@@ -292,11 +348,7 @@ async def list_communities(
     # One query for the whole list, and only the digests — a guild list is
     # every guild the caller is in, and a banner is a third of a megabyte.
     images = await images_service.image_urls(
-        session,
-        [guild.id for guild, *_ in memberships],
-        GuildImageVariant.icon,
-        GuildImageVariant.full,
-        GuildImageVariant.card,
+        session, [guild.id for guild, *_ in memberships], *GuildImageVariant
     )
     # Asked once, and only when a suspended guild is on the list — the only
     # entry that names who to contact.
@@ -462,22 +514,9 @@ async def join_directory_community(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        membership=membership,
-        member_count=member_count,
-        # Joining is how the caller first earns the full-size banner they were
-        # shown a card of.
-        images=await images_service.image_urls_for(
-            session,
-            guild.id,
-            GuildImageVariant.icon,
-            GuildImageVariant.full,
-            GuildImageVariant.card,
-        ),
-    )
+    # Joining is how the caller first earns the full-size banner they were
+    # shown a card of.
+    return await _guild_read(session, guild, membership=membership)
 
 
 @router.get("/invite/{code}", response_model=CommunityInviteStatus)
@@ -612,17 +651,9 @@ async def create_community(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.COMMUNITY_MEMBERSHIP_CREATE_FAILED,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
     # The creator is the new guild's admin, so their payload carries the
     # administration row — freshly created with the guild, all defaults.
-    administration = await guilds_service.get_administration(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        membership=membership,
-        member_count=member_count,
-        administration=administration,
-    )
+    return await _guild_read(session, guild, membership=membership)
 
 
 @router.get("/{community_id}/invites", response_model=List[CommunityInviteRead])
@@ -645,29 +676,10 @@ async def read_community(
     """The community as the caller's standing sees it — how a community
     reached by a settings grant, which has no entry in ``GET /communities/``, gets
     its entry and the answer to what the caller may change there.
-
-    Its pictures are looked up on the system engine: a settings rung reads on
-    the read-only floor, which holds no grant on the image digests, and the
-    image route serves them to a grant holder as it does to a member.
     """
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        membership=guild_context.membership,
-        retention_days=await guilds_service.get_guild_retention_days(session),
-        member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        administration=await guilds_service.get_administration(
-            session, guild_id=guild_id
-        ),
-        images=await images_service.image_urls_for(
-            system_session,
-            guild_id,
-            GuildImageVariant.icon,
-            GuildImageVariant.full,
-            GuildImageVariant.card,
-        ),
+    return await _guild_read(
+        system_session, guild, standing=guild_context, guild_session=session
     )
 
 
@@ -754,25 +766,8 @@ async def update_community(
             },
         )
     await session.commit()
-    retention_days = await guilds_service.get_guild_retention_days(session)
-    member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    # Only a guild admin reaches this endpoint, so the caps belong in the reply.
-    administration = await guilds_service.get_administration(session, guild_id=guild_id)
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        membership=guild_context.membership,
-        retention_days=retention_days,
-        member_count=member_count,
-        administration=administration,
-        images=await images_service.image_urls_for(
-            session,
-            guild_id,
-            GuildImageVariant.icon,
-            GuildImageVariant.full,
-            GuildImageVariant.card,
-        ),
+    return await _guild_read(
+        system_session, guild, standing=guild_context, guild_session=session
     )
 
 
@@ -898,8 +893,9 @@ async def set_community_icon(
         uploads=[(GuildImageVariant.icon, icon)],
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
@@ -916,8 +912,9 @@ async def clear_community_icon(
         session, guild_id=guild_id, variants=[GuildImageVariant.icon]
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
@@ -952,8 +949,9 @@ async def set_community_banner(
         uploads=list(zip(BANNER_VARIANTS, (full, card))),
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
@@ -970,48 +968,9 @@ async def clear_community_banner(
         session, guild_id=guild_id, variants=list(BANNER_VARIANTS)
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
-    )
-
-
-async def _guild_payload_after_image_change(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    guild_context: GuildContext,
-) -> CommunityRead:
-    """The guild as its admin now sees it, so the SPA needs no follow-up read.
-
-    Read on the route's own settings session, routed into the guild by the
-    seam, once the image write on the system engine has committed. A
-    ``CommunityRead`` is not all public-schema: the trash retention window lives
-    in the guild's own schema, and the routed session reads it, the roster
-    size, the caps and the image digests as the admin the caller is.
-    """
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.COMMUNITY_NOT_FOUND,
-        )
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        membership=guild_context.membership,
-        retention_days=await guilds_service.get_guild_retention_days(session),
-        member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        administration=await guilds_service.get_administration(
-            session, guild_id=guild_id
-        ),
-        images=await images_service.image_urls_for(
-            session,
-            guild_id,
-            GuildImageVariant.icon,
-            GuildImageVariant.full,
-            GuildImageVariant.card,
-        ),
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
@@ -1403,22 +1362,7 @@ async def accept_invite(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        membership=membership,
-        member_count=member_count,
-        # Joining is how the caller first earns the full-size banner they were
-        # shown a card of.
-        images=await images_service.image_urls_for(
-            session,
-            guild.id,
-            GuildImageVariant.icon,
-            GuildImageVariant.full,
-            GuildImageVariant.card,
-        ),
-    )
+    return await _guild_read(session, guild, membership=membership)
 
 
 @router.patch(

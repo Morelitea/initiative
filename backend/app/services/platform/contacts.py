@@ -144,17 +144,13 @@ async def guild_sections(
         # and a routed session has no reach into the account row behind it. The
         # predicates below already speak this shape — selecting the account and
         # filtering the projection is what left the two unjoined.
-        base = (
-            select(MemberProfile)
-            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                # You are not your own contact.
-                MemberProfile.id != user_id,
-                users_service.visible_to_other_people(),
-                # And a contact is somebody you could actually reach out to.
-                ids_in(MemberProfile.id, listable.get(guild_id, set())),
-            )
+        base = users_service.guild_members(
+            select(MemberProfile), guild_id=guild_id
+        ).where(
+            # You are not your own contact.
+            MemberProfile.id != user_id,
+            # And a contact is somebody you could actually reach out to.
+            ids_in(MemberProfile.id, listable.get(guild_id, set())),
         )
         closest = None
         if search and (term := search.strip()):

@@ -8,9 +8,9 @@ An account that holds no password has nothing to re-check, so what stands in
 for it is the sign-in itself: :func:`require_password_or_recent_proof` asks
 such an account to be on a session opened within the last few minutes. The
 same goes for a password on a deployment that signs nobody in with one: it is
-not a way in there, so it is not asked for (:func:`password_confirms`). A
-step-up — a passkey, a code sent to a proved address — opens that session
-without signing out.
+not a way in there, so it is not asked for
+(``auth_posture.password_confirms``). A step-up — a passkey, a code sent to a
+proved address — opens that session without signing out.
 
 A wrong password here counts against the account as one at sign-in does, the
 right one starts the count over, and an account whose password is turned off
@@ -29,9 +29,8 @@ from app.api.v1.platform_endpoints.session_opening import (
     refuse_if_locked,
     require_session_row,
 )
-from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, UserMessages
-from app.core.security import has_usable_password, verify_password
+from app.core.security import verify_password
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.services.auth import sign_in_locks
@@ -41,19 +40,6 @@ from app.services.platform import auth_posture
 #: enough that the person is still the one at the keyboard, long enough to read
 #: a confirmation form and type a phrase into it.
 RECENT_PROOF_MINUTES = 10
-
-
-async def password_confirms(session: AsyncSession, user: User) -> bool:
-    """Whether a confirmation asks this account for its password.
-
-    It holds one, and this deployment signs people in with passwords. Where it
-    does not, the password is not a way in, and a recent sign-in answers
-    instead. What the settings surfaces read to decide whether to show the
-    field.
-    """
-    return has_usable_password(
-        user.hashed_password
-    ) and await auth_posture.login_method_allowed(session, LoginMethod.password)
 
 
 async def require_password(
@@ -76,14 +62,14 @@ async def require_password(
     password and a wrong one as the same refusal. Left unset, the two are told
     apart — which is what a field asking for the current password wants.
 
-    Where :func:`password_confirms` says the password is not asked for, this
-    asks nothing: the caller that needs a proof all the same takes
+    Where ``auth_posture.password_confirms`` says the password is not asked
+    for, this asks nothing: the caller that needs a proof all the same takes
     :func:`require_password_or_recent_proof` instead.
 
     Commits ``system_session`` when it counts a wrong password. The right one
     starts the count over, as a sign-in does, staged for the caller to commit.
     """
-    if not await password_confirms(system_session, user):
+    if not await auth_posture.password_confirms(system_session, user):
         return
     await refuse_if_locked(system_session, user.id)
     if not supplied:
@@ -119,9 +105,9 @@ async def require_password_or_recent_proof(
 ) -> bool:
     """Ask for the password, or for a sign-in recent enough to speak for it.
 
-    An account whose password :func:`password_confirms` answers the question
-    :func:`require_password` asks, in the same words and with the same
-    ``detail``. Any other answers a different question: it has to be
+    An account whose password ``auth_posture.password_confirms`` answers the
+    question :func:`require_password` asks, in the same words and with the
+    same ``detail``. Any other answers a different question: it has to be
     on a server-side session of its own that records how it signed in — a
     standing credential is not somebody signing in — and that session's chain
     has to have begun within :data:`RECENT_PROOF_MINUTES`.
@@ -133,7 +119,7 @@ async def require_password_or_recent_proof(
 
     Answers whether it was the password that was checked.
     """
-    if await password_confirms(system_session, user):
+    if await auth_posture.password_confirms(system_session, user):
         await require_password(system_session, user, supplied, detail=detail)
         return True
 
