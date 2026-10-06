@@ -222,10 +222,11 @@ async def lifespan(app: FastAPI):
         from app.services.data_jobs import cancel_running_jobs
 
         await cancel_running_jobs()
-        # Community steps a commit started finish before the pools close.
-        from app.db import cohorts
+        # Work a commit started, and every task spawned beside it, finishes
+        # before the pools close.
+        from app.db import post_commit
 
-        await cohorts.settle_all()
+        await post_commit.settle_all()
         # The expression evaluators of declarative plug-ins and the document
         # editor, if either started.
         from app.services import editor_engine

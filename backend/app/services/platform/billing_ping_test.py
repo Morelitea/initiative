@@ -14,7 +14,6 @@ Pinned properties:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -23,6 +22,7 @@ import httpx
 import pytest
 
 from app.core import config as config_module
+from app.db import post_commit
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
@@ -53,25 +53,19 @@ def sent_pings(monkeypatch):
     return calls
 
 
-async def _drain_pings():
-    # Let fire-and-forget tasks run to completion.
-    for _ in range(3):
-        await asyncio.sleep(0)
-
-
 def test_disabled_by_default():
     assert billing_ping.billing_ping_enabled() is False
 
 
 async def test_unconfigured_is_a_strict_noop(sent_pings):
     billing_ping.notify_membership_changed(123)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == []
 
 
 async def test_configured_dispatches_one_ping(billing_configured, sent_pings):
     billing_ping.notify_membership_changed(123)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [123]
 
 
@@ -131,12 +125,12 @@ async def test_membership_insert_fires_exactly_one_ping(
     user = await create_user(session, email="ping-join@example.com")
 
     await guilds_service.ensure_membership(session, guild_id=guild.id, user_id=user.id)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id]
 
     # Re-join / role refresh is not a membership change: no second ping.
     await guilds_service.ensure_membership(session, guild_id=guild.id, user_id=user.id)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id]
 
     # Removal also cleans the guild's initiative memberships (tenant schema),
@@ -145,7 +139,7 @@ async def test_membership_insert_fires_exactly_one_ping(
     await guilds_service.remove_user_from_guild(
         session, guild_id=guild.id, user_id=user.id, actor_user_id=user.id
     )
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id, guild.id]
     await session.rollback()
 
@@ -160,7 +154,7 @@ async def test_noop_removal_does_not_ping(session, billing_configured, sent_ping
     await guilds_service.remove_user_from_guild(
         session, guild_id=guild.id, user_id=stranger.id, actor_user_id=stranger.id
     )
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == []
     await session.rollback()
 

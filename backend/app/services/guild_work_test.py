@@ -1,11 +1,10 @@
 """A wake reaches its kind's drain once the transaction that sent it commits."""
 
-import asyncio
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import post_commit
 from app.services import data_jobs, guild_work
-from app.services.platform import notify_bus, user_stream
+from app.services.platform import notify_bus
 
 
 async def test_a_wake_reaches_its_drain_once_committed(
@@ -24,7 +23,7 @@ async def test_a_wake_reaches_its_drain_once_committed(
     assert sent == []
 
     await session.commit()
-    await asyncio.gather(*user_stream._inflight)
+    await post_commit.settle(session)
 
     assert sent == ["data_jobs:42"]
     assert data_jobs.drain.pending == {42}

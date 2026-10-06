@@ -53,7 +53,7 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import plugin_refs
-from app.db import cohorts
+from app.db import post_commit
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -477,7 +477,7 @@ async def join_directory_community(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -1466,7 +1466,7 @@ async def accept_invite(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -1609,7 +1609,7 @@ async def update_community_membership(
         session, guild_id=guild_id, user_id=user_id, role=payload.role
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.

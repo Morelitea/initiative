@@ -22,12 +22,12 @@ the service authenticates a claim the way it authenticates the tab.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import httpx
 
 from app.core.config import settings
+from app.db import post_commit
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
@@ -41,10 +41,6 @@ CLAIM_PATH = "/api/v1/communities/claim"
 # The same short deadline the membership ping uses: this runs detached, but a
 # hung connection would still hold a task and a socket for as long as it lasts.
 _CLAIM_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
-
-# Strong references so an in-flight claim isn't garbage-collected mid-send
-# (asyncio keeps only weak refs to tasks).
-_pending_claims: set[asyncio.Task] = set()
 
 
 def billing_claim_enabled() -> bool:
@@ -90,6 +86,4 @@ def claim_new_guild(*, user_id: int, guild_id: int, plan: str | None = None) -> 
     """
     if not billing_claim_enabled():
         return
-    task = asyncio.create_task(_send_claim(int(user_id), int(guild_id), plan))
-    _pending_claims.add(task)
-    task.add_done_callback(_pending_claims.discard)
+    post_commit.spawn(_send_claim(int(user_id), int(guild_id), plan))

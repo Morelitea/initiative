@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import cohorts
+from app.db import post_commit
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.guild import GuildInvite, CommunityRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
@@ -888,7 +888,7 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert roles == {welcome.id: "member", lounge.id: "member"}
@@ -939,7 +939,7 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {live.id}
@@ -961,7 +961,7 @@ async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
 
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=member.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=member.id)
     assert later.id not in roles
@@ -981,7 +981,7 @@ async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
         session, guild_id=guild.id, user_id=second_admin.id, role=CommunityRole.admin
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(
         session, guild_id=guild.id, user_id=second_admin.id
@@ -1002,7 +1002,7 @@ async def test_guild_without_auto_join_initiatives_admits_normally(
         session, guild_id=guild.id, user_id=joiner.id
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     assert membership.role == CommunityRole.member
     assert (
@@ -1038,7 +1038,7 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
             session, guild_id=guild.id, user_id=joiner.id
         )
         await session.commit()
-        await cohorts.settle(session)
+        await post_commit.settle(session)
 
     assert membership.role == CommunityRole.member
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
