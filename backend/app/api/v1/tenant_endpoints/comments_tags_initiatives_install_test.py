@@ -438,11 +438,11 @@ async def test_lists_the_property_definitions_of_its_initiatives(
     client, session, acting_user, role_session
 ):
     installed = await install_plugin(
-        session, acting_user, role_session, granted=["initiatives:read"]
+        session, acting_user, role_session, granted=["properties:read"]
     )
     await create_property_definition(session, installed.placed, name="Estimate")
     await create_property_definition(session, installed.unplaced, name="Hidden")
-    headers = install_headers(installed, ["initiatives:read"])
+    headers = install_headers(installed, ["properties:read"])
     guild_id = installed.guild.id
 
     listed = await client.get(
