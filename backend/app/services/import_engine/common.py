@@ -101,6 +101,17 @@ def unique_name(existing: set[str], desired: str, *, suffix: str = "imported") -
     return candidate
 
 
+async def unique_name_in_initiative(
+    session: AsyncSession, model: Any, initiative_id: int, desired: str
+) -> str:
+    """``desired``, made free (:func:`unique_name`) among the names the
+    initiative's ``model`` rows already have."""
+    taken = await session.exec(
+        select(model.name).where(model.initiative_id == initiative_id)
+    )
+    return unique_name(set(taken.all()), desired)
+
+
 async def unique_property_name(
     session: AsyncSession, *, initiative_id: int, desired_name: str
 ) -> str:

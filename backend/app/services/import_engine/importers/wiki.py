@@ -33,16 +33,16 @@ from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.import_envelopes import WikiEnvelope, WikiPageEnvelope
 from app.services.import_engine.common import (
-    ensure_tag,
     handle_key,
     load_initiative_member_handles,
     parse_datetime,
-    unique_name,
+    unique_name_in_initiative,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
@@ -54,7 +54,6 @@ from app.services.import_engine.people import (
     quoted_account,
     user_reference_handles,
 )
-from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
 
 logger = logging.getLogger(__name__)
@@ -164,14 +163,6 @@ class WikiImporter:
         env: WikiEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         warnings: list[str] = []
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Wiki.name).where(Wiki.initiative_id == target_initiative.id)
-                )
-            ).all()
-        }
         # The settings an export carried; absent ones keep the model's defaults.
         settings = env.model_dump(
             include={
@@ -185,7 +176,9 @@ class WikiImporter:
             exclude_none=True,
         )
         wiki = Wiki(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Wiki, target_initiative.id, env.name
+            ),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -202,24 +195,8 @@ class WikiImporter:
             importer=importer,
         )
 
-        tags_created = 0
-        tags_matched = 0
-
-        async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
-            nonlocal tags_created, tags_matched
-            for tag_name in names:
-                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-                if resolved.created:
-                    tags_created += 1
-                else:
-                    tags_matched += 1
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TAG_LINKS[surface], entity_id, resolved.id
-                    )
-                )
-
-        await attach_tags("wiki", wiki.id, env.tags)
+        tags = TagRestore(session)
+        await tags.attach(wiki, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -270,7 +247,7 @@ class WikiImporter:
                     SearchEntityType.wiki_page,
                     row.id,
                 )
-            await attach_tags("wiki_page", row.id, page_env.tags)
+            await tags.attach(row, page_env.tags)
             await props.attach(row, page_env.properties)
 
         # Pass two: file each page under its parent, by slug.
@@ -386,14 +363,14 @@ class WikiImporter:
             entity_id=wiki.id,
             entity_title=wiki.name,
             created={
-                "wikis": 1,
+                Tool.wiki.plural: 1,
                 "pages": len(env.pages),
                 "comments": comment_count,
-                "tags": tags_created,
-                "documents": filed,
+                "tags": tags.created,
+                Tool.document.plural: filed,
                 "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(wiki),
             warnings=warnings,
         )
@@ -554,13 +531,7 @@ async def _upload_document(
         file_content_type=content_type,
         file_size=stored.size_bytes,
     )
-    for tag_name in upload.tags:
-        resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-        session.add(
-            tags_service.tag_edge(
-                tags_service.TOOL_TAG_LINKS[Tool.document], document.id, resolved.id
-            )
-        )
+    await TagRestore(session).attach(document, upload.tags)
     props = PropertyRestore(
         session, initiative_id=target_initiative.id, context=context
     )

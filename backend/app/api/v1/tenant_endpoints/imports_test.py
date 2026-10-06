@@ -84,6 +84,8 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
 
     envelope = await _export_json(client, a, "/exports/queue", {"ids": [queue.id]})
     assert envelope["type"] == "initiative-queue"
+    # A name listed again in another case is the same tag, attached once.
+    envelope["tags"].append("raid")
 
     target = await _second_initiative(session, a, queues_enabled=True)
     resp = await _import_envelope(client, a, envelope, target.id)
@@ -363,12 +365,13 @@ async def _tool_with_a_row(session, a, tool):
         "post",
     ],
 )
-async def test_a_tools_properties_survive_export_and_import(
+async def test_a_tools_tags_and_properties_survive_export_and_import(
     client, acting_user, session, monkeypatch, tmp_path, tool
 ):
-    """A value on the tool row and one on a row inside it come back on the
-    rows the import makes: matched by name into the target initiative, and a
-    person value placed on the member its handle names."""
+    """The tool row's tag comes back on the row the import makes, and so do a
+    value on the tool row and one on a row inside it: matched by name into the
+    target initiative, and a person value placed on the member its handle
+    names."""
     from sqlmodel import select
 
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
@@ -391,6 +394,7 @@ async def test_a_tools_properties_survive_export_and_import(
         session, a.initiative, name="Owner", type=PropertyType.user_reference
     )
     row, inner = await _tool_with_a_row(session, a, tool)
+    await assign_tag(session, row, await create_tag(session, a.guild, name="Flagship"))
     await create_property_value(session, row, stage, value_text="Draft")
     if inner is not None:
         await create_property_value(session, inner, owner, value_user_id=a.user.id)
@@ -430,6 +434,8 @@ async def test_a_tools_properties_survive_export_and_import(
             select(spec.model).where(spec.model.initiative_id == target.id)
         )
     ).one()
+    await tags_service.annotate_tags(session, [restored])
+    assert [tag.name for tag in annotated_tags(restored)] == ["Flagship"]
     assert await values(tool, restored.id) == [("Stage", target.id, "Draft", None)]
     if inner is not None:
         inner_spec = link_for(inner)
