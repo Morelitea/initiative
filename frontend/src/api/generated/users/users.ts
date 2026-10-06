@@ -2559,15 +2559,11 @@ export const useClaimMyUsername = <TError = ErrorType<HTTPValidationError>, TCon
  * only that it is there. Beside it is the timestamp saying the question was
  * answered, which is what shows the deployment asked.
  *
- * **A kept date stands.** Answering again once one is on file is refused like
- * an under-age answer is: a date somebody could rewrite until a plug-in let
- * them in is not one. Putting it right is the same support ticket.
+ * **A kept date stands.** Answering again once one is on file is refused, as
+ * an under-age answer is. Putting it right is the same support ticket.
  *
  * The comparison is the server's because it is the one that decides. A client
  * could work out the same answer, and a client's answer is not evidence.
- *
- * Saying it again is not an error and does not move the timestamp — the record
- * is when they first answered.
  *
  * **An answer of "under age" also stands.** It is recorded — the fact, not the
  * date — and the question is not asked again, because a question you can
