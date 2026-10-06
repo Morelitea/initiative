@@ -122,8 +122,9 @@ async def test_closing_someone_elses_account_is_recorded_against_them(
     assert rows[0]["detail"] == {"self": False}
 
 
+@pytest.mark.parametrize("action", ["deactivate", "hard_delete"])
 async def test_closing_an_account_records_every_community_it_left(
-    client: AsyncClient, session: AsyncSession, capfd
+    client: AsyncClient, session: AsyncSession, action: str, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
@@ -144,7 +145,7 @@ async def test_closing_an_account_records_every_community_it_left(
         "DELETE",
         f"/api/v1/operator/users/{target_id}",
         headers=get_auth_headers(operator),
-        json={"action": "deactivate"},
+        json={"action": action},
     )
     assert response.status_code == 200, response.text
 

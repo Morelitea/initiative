@@ -26,10 +26,10 @@ Three outcomes appear below, and the distinction is the point:
 account a delivery was read as. It is ordinary authorship now, so it belongs to
 the third group with the rest.
 
-The two erasure paths are both exercised, because they do not do the same
-things: ``soft_delete_user`` is what the product runs (the deletion request and
-the retention purge; the row stays, emptied), and ``hard_delete_user`` is the
-operator's removal of the row itself.
+Both erasure paths run the same per-guild erasure and differ only in what
+happens to the shared ``users`` row: ``soft_delete_user`` is what the product
+runs (the deletion request and the retention purge; the row stays, emptied), and
+``hard_delete_user`` is the operator's removal of the row itself.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ import secrets
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -335,23 +336,22 @@ async def test_a_block_they_placed_outlives_them(session: AsyncSession, role_ses
 # --- the erasure path ends what the account opened ---------------------------
 
 
-async def test_erasure_ends_the_credentials_they_connected(
-    session: AsyncSession, role_session
+@pytest.mark.parametrize(
+    "erase",
+    [user_service.soft_delete_user, user_service.hard_delete_user],
+    ids=["soft", "hard"],
+)
+async def test_erasure_ends_what_they_opened_to_plugins(
+    session: AsyncSession, role_session, erase
 ):
-    """Losing the account has to end the vendor access it opened."""
+    """Losing the account ends the vendor access it opened and what a plug-in
+    could do as them, on both erasure paths."""
     s = await _seed(session)
-    await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
+    await erase(await role_session("app_admin"), s.victim_id)
     assert (
         await _reread(session, s.guild_id, GuildPluginUserConnection, s.connection)
         is None
     )
-
-
-async def test_erasure_ends_what_a_plugin_could_do_as_them(
-    session: AsyncSession, role_session
-):
-    s = await _seed(session)
-    await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
     assert await _reread(session, s.guild_id, PluginMemberConsent, s.consent) is None
 
 

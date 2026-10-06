@@ -79,13 +79,8 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "writes a filer's answer in the operations community its caller read "
         "the case in"
     ),
-    (f"{_SERVICES}/users.py", "hard_delete_user.erase"): (
-        "erases a deleted account's rows in one community, on that community's "
-        "cohort session"
-    ),
-    (f"{_SERVICES}/users.py", "soft_delete_user.scrub"): (
-        "scrubs a purged account's mentions and keys in one community, on that "
-        "community's cohort session"
+    (f"{_SERVICES}/users.py", "_erase_in_guild"): (
+        "erases an account's rows in one community, on that community's cohort session"
     ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"

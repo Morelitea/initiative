@@ -164,7 +164,7 @@ async def check_deletion_eligibility(
 
 
 async def _end_plugin_access(
-    session: AsyncSession, *, user_id: int, guild_id: int
+    session: AsyncSession, guild_id: int, *, user_id: int
 ) -> None:
     """End everything this account let a plug-in do, in one guild.
 
@@ -186,16 +186,18 @@ async def _end_plugin_access(
 
 async def _in_each_guild(
     guild_ids: Iterable[int],
-    work: Callable[[AsyncSession, int], Awaitable[None]],
+    work: Callable[..., Awaitable[None]],
+    *,
+    user_id: int,
 ) -> None:
-    """Run ``work`` in each guild in turn, on a system session from the guild's
-    cohort routed into it, committing each and telling plug-ins of the credentials
-    it ended. Stops at the first failure, so the caller's shared half never
-    runs ahead of a guild's."""
+    """Run ``work(guild_session, guild_id, user_id=user_id)`` in each guild in
+    turn, on a system session from the guild's cohort routed into it, committing
+    each and telling plug-ins of the credentials it ended. Stops at the first
+    failure, so the caller's shared half never runs ahead of a guild's."""
     for guild_id in guild_ids:
         async with cohorts.system_session(guild_id) as guild_session:
             await set_rls_context(guild_session, SystemGuild(guild_id))
-            await work(guild_session, guild_id)
+            await work(guild_session, guild_id, user_id=user_id)
             await guild_session.commit()
             await _dispatch_queued_revocations(guild_session)
 
@@ -220,46 +222,159 @@ async def _end_plugin_access_everywhere(session: AsyncSession, *, user_id: int) 
     the guilds have to be enumerated for it.
     """
 
-    async def end_plugin_access(guild_session: AsyncSession, guild_id: int) -> None:
-        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
+    await _in_each_guild(
+        await _member_guild_ids(session, user_id), _end_plugin_access, user_id=user_id
+    )
 
-    await _in_each_guild(await _member_guild_ids(session, user_id), end_plugin_access)
+
+async def _leave_guild(
+    guild_session: AsyncSession, guild_id: int, *, user_id: int
+) -> None:
+    """Take an account out of one guild's content and its plug-ins.
+
+    ``guild_session`` is a system session routed into ``guild_id``.
+    """
+    from app.services.tenant import initiatives as initiatives_service
+
+    await initiatives_service.remove_user_from_guild_initiatives(
+        guild_session, guild_id=guild_id, user_id=user_id
+    )
+    await _end_plugin_access(guild_session, guild_id, user_id=user_id)
+
+
+async def _erase_in_guild(
+    guild_session: AsyncSession, guild_id: int, *, user_id: int
+) -> None:
+    """Erase an account from one guild: its half of every account erasure.
+
+    Leaves the guild as :func:`_leave_guild` does, takes the account's name out
+    of content that embedded it as literal text, and deletes or un-attributes
+    every per-person row the guild holds. Authorship stays: ``created_by`` is a
+    weak reference — a plain integer, with no foreign key that fires across the
+    schema boundary — so the id stays and the rows keep telling one departed
+    author from another. ``account_erasure_rows_test`` asserts the outcome for
+    each table.
+
+    ``guild_session`` is a system session routed into ``guild_id``.
+    """
+    from app.models.tenant.calendar_event import CalendarEventAttendee
+    from app.models.tenant.property import PropertyValue
+    from app.models.tenant.queue import QueueItem
+    from app.services.tenant.mention_parser import anonymize_user_mentions
+
+    # Releases their owner grants (content is left unowned) and drops their
+    # initiative memberships and plug-in access.
+    await _leave_guild(guild_session, guild_id, user_id=user_id)
+
+    # Scrub the display name out of content that embedded it as literal text
+    # (@-mentions in comments, file mention nodes, digest name snapshots).
+    await set_rls_context(guild_session, SystemMaintenance(guild_id))
+    await anonymize_user_mentions(guild_session, user_id=user_id)
+    await set_rls_context(guild_session, SystemGuild(guild_id))
+
+    await guild_session.exec(
+        delete(ProjectOrder).where(ProjectOrder.user_id == user_id)
+    )
+    await guild_session.exec(
+        delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
+    )
+    await guild_session.exec(delete(RecentView).where(RecentView.user_id == user_id))
+    # The ledger that stops an event reminder being sent twice: one row per
+    # (event, person), of no use to anyone once the person is gone.
+    await guild_session.exec(
+        delete(EventReminderDispatch).where(EventReminderDispatch.user_id == user_id)
+    )
+    # AI credentials (member API keys) + connection preference for this
+    # guild — held in custody for them, so erasure removes them.
+    await guild_session.exec(
+        delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
+    )
+    await guild_session.exec(
+        delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
+    )
+    await guild_session.exec(
+        delete(TaskAssignmentDigestItem).where(
+            TaskAssignmentDigestItem.user_id == user_id
+        )
+    )
+    await guild_session.exec(
+        update(TaskAssignmentDigestItem)
+        .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
+        .values(assigned_by_id=None)
+    )
+    await guild_session.exec(
+        delete(ReactionDigestItem).where(ReactionDigestItem.user_id == user_id)
+    )
+    await guild_session.exec(
+        update(ReactionDigestItem)
+        .where(ReactionDigestItem.reactor_id == user_id)
+        .values(reactor_id=None)
+    )
+    # All per-user DAC grants (project, file, queue, counter group, calendar
+    # event) live in the polymorphic resource_grants table; one delete clears
+    # every resource type for this user in the schema.
+    await guild_session.exec(
+        delete(ResourceGrant).where(ResourceGrant.user_id == user_id)
+    )
+    await guild_session.exec(
+        delete(TaskAssignee).where(TaskAssignee.user_id == user_id)
+    )
+    # Queue items: assigned-to is nullable, so just clear the pointer.
+    await guild_session.exec(
+        update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
+    )
+    await guild_session.exec(
+        delete(CalendarEventAttendee).where(CalendarEventAttendee.user_id == user_id)
+    )
+    # Person-valued properties: NULL the reference (a value belongs to the
+    # initiative, not to the person it names).
+    await guild_session.exec(
+        update(PropertyValue)
+        .where(PropertyValue.value_user_id == user_id)
+        .values(value_user_id=None)
+    )
 
 
 async def _drop_user_memberships(
-    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+    session: AsyncSession,
+    user_id: int,
+    *,
+    actor_user_id: int | None = None,
+    erase: bool = False,
 ) -> User:
-    """Remove the user from every guild and initiative they belong to,
-    handing owned files off to PMs along the way. Returns the loaded
-    ``User`` row but does NOT commit — the caller is responsible for
-    issuing exactly one commit so its own status / PII writes land in
-    the same transaction as the membership cleanup.
+    """Remove the user from every guild and initiative they belong to.
+    Returns the loaded ``User`` row but does NOT commit — the caller is
+    responsible for issuing exactly one commit so its own status / PII writes
+    land in the same transaction as the membership cleanup.
 
     ``actor_user_id`` is who closed the account — the person themselves, or an
     operator doing it for them — and is what each departure record names.
 
-    Each guild's half — initiative memberships, owned content, plug-in access —
-    is done and committed first, guild by guild, and the shared membership
-    rows are deleted in the caller's transaction after. A guild that fails
-    stops the closure before any membership goes, and running it again
-    finishes it.
-    """
-    from app.services.tenant import initiatives as initiatives_service
+    ``erase`` runs :func:`_erase_in_guild` in EVERY guild schema rather than
+    :func:`_leave_guild` in the guilds they belong to: an erased account's
+    content survives leaving a guild, and an account anonymized earlier has no
+    membership rows left to enumerate (issue #794).
 
-    guild_ids = await _member_guild_ids(session, user_id)
+    Each guild's half is done and committed first, guild by guild, and the
+    shared membership rows are deleted in the caller's transaction after. A
+    guild that fails stops the closure before any membership goes, and running
+    it again finishes it.
+    """
+    from app.models.platform.guild import Guild
+
+    if erase:
+        guild_ids = list((await session.exec(select(Guild.id))).all())
+    else:
+        guild_ids = await _member_guild_ids(session, user_id)
 
     # Every community this account holds the seat of keeps it. Asked here, under
     # the same locks the leave and demotion paths take, because this is the
     # transaction that removes the rows.
     await _hold_seats_or_refuse(session, user_id)
 
-    async def leave(guild_session: AsyncSession, guild_id: int) -> None:
-        await initiatives_service.remove_user_from_guild_initiatives(
-            guild_session, guild_id=guild_id, user_id=user_id
-        )
-        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
-
-    await _in_each_guild(guild_ids, leave)
+    await _in_each_guild(
+        guild_ids, _erase_in_guild if erase else _leave_guild, user_id=user_id
+    )
 
     memberships = (
         await session.exec(
@@ -297,9 +412,8 @@ async def deactivate_user(
     acting on the account.
     """
     user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
-    # Owned files are handed off to other initiative PMs inside
-    # ``_drop_user_memberships`` above, before the InitiativeMember
-    # rows are dropped.
+    # Owned content is released (left unowned for a guild admin to claim)
+    # inside ``_drop_user_memberships`` above.
     user.status = UserStatus.deactivated
     user.token_version += 1
     user.updated_at = datetime.now(timezone.utc)
@@ -526,18 +640,14 @@ async def soft_delete_user(
 ) -> None:
     """Soft-delete (anonymize) a user account.
 
-    Drops memberships like ``deactivate_user``, then strips every PII
-    field on the row, replaces every address the account held with a
-    sentinel, blanks the password hash, and removes auth artifacts (API keys, push tokens,
-    user_tokens, sign-in sessions). The row stays so existing FKs (comment authors, task
-    assignees, project owners, …) continue to resolve and the UI can
-    render the placeholder "Deleted user #{id}" wherever the original
-    user was referenced.
-
-    The display name is also scrubbed out of content that embedded it as
-    literal text — @-mention markup in comments, Lexical mention nodes in
-    files, digest-row name snapshots — in EVERY guild schema (not just
-    current memberships: content survives leaving a guild).
+    Runs the per-guild erasure ``hard_delete_user`` runs (:func:`_erase_in_guild`,
+    in EVERY guild schema: content survives leaving a guild) and drops the
+    memberships, then strips every PII field on the row, replaces every address
+    the account held with a sentinel, blanks the password hash, and removes auth
+    artifacts (API keys, push tokens, user_tokens, sign-in sessions). The row
+    stays so authorship (comment authors, ``created_by``, …) continues to
+    resolve and the UI can render the placeholder "Deleted user #{id}" wherever
+    the original user was referenced.
 
     Every guild's half is done and committed first, guild by guild, and the
     shared rows are erased in one transaction after. A guild that fails stops
@@ -550,27 +660,11 @@ async def soft_delete_user(
     This is irreversible — there is no undo.
     """
     import secrets
-    from app.models.platform.guild import Guild
     from app.models.platform.push_token import PushToken
-    from app.services.tenant.mention_parser import anonymize_user_mentions
 
-    user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
-
-    async def scrub(guild_session: AsyncSession, guild_id: int) -> None:
-        await set_rls_context(guild_session, SystemMaintenance(guild_id))
-        await anonymize_user_mentions(guild_session, user_id=user_id)
-        await set_rls_context(guild_session, SystemGuild(guild_id))
-        # Drop the user's AI credentials (member API keys) + connection
-        # preference in this guild — the encrypted keys are a secret we must
-        # not leave behind, and this delete is what removes them.
-        await guild_session.exec(
-            delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
-        )
-
-    await _in_each_guild((await session.exec(select(Guild.id))).all(), scrub)
+    user = await _drop_user_memberships(
+        session, user_id, actor_user_id=actor_user_id, erase=True
+    )
 
     # Captured before ``replace_all`` below overwrites them — it is how a guild
     # invite bound to one of this person's addresses is found.
@@ -756,122 +850,27 @@ async def hard_delete_user(
     """
     Permanently delete a user account.
 
-    Ownership and authorship part ways here. ``remove_user_from_guild_initiatives``
-    releases the owner grants below, leaving that content unowned for a guild
-    admin to claim. Authorship is left exactly where it is: ``created_by`` is a
-    weak reference — a plain integer, with no foreign key that fires across the
-    schema boundary — so the id stays and the rows keep telling one departed
-    author from another. A guild that could once see who did what still can.
+    Ownership and authorship part ways here. Each guild's erasure
+    (:func:`_erase_in_guild`, the one ``soft_delete_user`` runs) releases the
+    owner grants, leaving that content unowned for a guild admin to claim, and
+    leaves authorship exactly where it is. A guild that could once see who did
+    what still can.
 
     Args:
         session: Database session
         user_id: ID of user to delete
         actor_user_id: Who asked for it, for the record
     """
-    from app.services.tenant import initiatives as initiatives_service
-    from app.services.tenant.mention_parser import anonymize_user_mentions
-    from app.models.tenant.queue import QueueItem
     from app.models.platform.push_token import PushToken
-    from app.models.tenant.calendar_event import CalendarEventAttendee
     from app.models.platform.guild import Guild, GuildInvite
-    from app.models.tenant.property import PropertyValue
 
-    # Sweep EVERY guild schema, not just current memberships. An anonymized
-    # user has no membership rows left (anonymize drops them), and even an
-    # active user's authored content survives leaving a guild — enumerating
-    # memberships here silently skipped all of it (issue #794).
-    guild_ids = list((await session.exec(select(Guild.id))).all())
-
-    # Phase 1 — each guild's half, on a system session from its cohort,
-    # committed guild by guild. A guild that fails stops the delete before the
+    # Phase 1 — each guild's half, the same erasure ``soft_delete_user`` runs,
+    # in EVERY guild schema, committed guild by guild; then the membership rows
+    # go, each one recorded. A guild that fails stops the delete before the
     # shared half, and running it again finishes it.
-    async def erase(guild_session: AsyncSession, guild_id: int) -> None:
-        # Releases their owner grants (content is left unowned) and drops their
-        # memberships.
-        await initiatives_service.remove_user_from_guild_initiatives(
-            guild_session, guild_id=guild_id, user_id=user_id
-        )
-
-        # Scrub the display name out of content that embedded it as literal
-        # text (@-mentions in comments, file mention nodes, digest name
-        # snapshots). Already done if the user was anonymized first; direct
-        # hard deletes need it here, before the row disappears.
-        await set_rls_context(guild_session, SystemMaintenance(guild_id))
-        await anonymize_user_mentions(guild_session, user_id=user_id)
-        await set_rls_context(guild_session, SystemGuild(guild_id))
-
-        # Per-user guild-scoped rows: each one is deleted or nulled here, in
-        # every guild schema, because this loop does it and nothing else will.
-        # account_erasure_rows_test asserts the outcome for each table.
-        await guild_session.exec(
-            delete(ProjectOrder).where(ProjectOrder.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(RecentView).where(RecentView.user_id == user_id)
-        )
-        # The ledger that stops an event reminder being sent twice: one row per
-        # (event, person), of no use to anyone once the person is gone.
-        await guild_session.exec(
-            delete(EventReminderDispatch).where(
-                EventReminderDispatch.user_id == user_id
-            )
-        )
-        # AI credentials (member API keys) + connection preference for this
-        # guild — held in custody for them, so erasure must not leave them.
-        await guild_session.exec(
-            delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(TaskAssignmentDigestItem).where(
-                TaskAssignmentDigestItem.user_id == user_id
-            )
-        )
-        await guild_session.exec(
-            update(TaskAssignmentDigestItem)
-            .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
-            .values(assigned_by_id=None)
-        )
-        await guild_session.exec(
-            delete(ReactionDigestItem).where(ReactionDigestItem.user_id == user_id)
-        )
-        await guild_session.exec(
-            update(ReactionDigestItem)
-            .where(ReactionDigestItem.reactor_id == user_id)
-            .values(reactor_id=None)
-        )
-        # All per-user DAC grants (project, file, queue, counter group,
-        # calendar event) live in the polymorphic resource_grants table now;
-        # one delete clears every resource type for this user in the schema.
-        await guild_session.exec(
-            delete(ResourceGrant).where(ResourceGrant.user_id == user_id)
-        )
-        await guild_session.exec(
-            delete(TaskAssignee).where(TaskAssignee.user_id == user_id)
-        )
-        # Queue items: assigned-to is nullable, so just clear the pointer.
-        await guild_session.exec(
-            update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
-        )
-        await guild_session.exec(
-            delete(CalendarEventAttendee).where(
-                CalendarEventAttendee.user_id == user_id
-            )
-        )
-        # Person-valued properties: NULL the reference (a value belongs to the
-        # initiative, not to the person it names).
-        await guild_session.exec(
-            update(PropertyValue)
-            .where(PropertyValue.value_user_id == user_id)
-            .values(value_user_id=None)
-        )
-
-    await _in_each_guild(guild_ids, erase)
+    user = await _drop_user_memberships(
+        session, user_id, actor_user_id=actor_user_id, erase=True
+    )
 
     # Phase 2 — shared/public cleanup.
     await session.exec(delete(Notification).where(Notification.user_id == user_id))
@@ -888,10 +887,6 @@ async def hard_delete_user(
         .where(GuildInvite.created_by == user_id)
         .values(created_by=None)
     )
-
-    # GuildMemberships cascade-delete via the User relationship. InitiativeMembers
-    # were already removed per guild above.
-    user = (await session.exec(select(User).where(User.id == user_id))).one()
 
     # Scrub the user's address out of any guild invite bound to it before the
     # row goes — a bound invite otherwise keeps a recoverable copy of the email

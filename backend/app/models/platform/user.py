@@ -372,8 +372,7 @@ class User(SQLModel, table=True):
     # those rows itself, guild by guild.
     #
     # ``guild_memberships`` is the exception, and stays: it is a ``public``
-    # table, and the cascade here is what removes a deleted account's
-    # memberships.
+    # table, and the cascade here goes with the row it names.
     guild_memberships: List["GuildMembership"] = Relationship(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

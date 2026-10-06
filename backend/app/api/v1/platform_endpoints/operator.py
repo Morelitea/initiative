@@ -1042,9 +1042,8 @@ async def delete_user(
             message=f"User {user.username} has been deleted",
         )
 
-    # hard_delete: ownership is released as the memberships go, and the
-    # authorship columns are re-pointed at the system user because the row they
-    # named is about to stop existing.
+    # hard_delete: the same per-guild erasure the purge runs, then the row
+    # itself goes. Ownership is released; authorship keeps naming the id.
     await users_service.hard_delete_user(
         session, user_id, actor_user_id=current_user.id
     )

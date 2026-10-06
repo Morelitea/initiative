@@ -145,14 +145,11 @@ from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
 from app.core.tools import Tool
 from app.api import resource_access
-from app.services.tenant import plugin_connections as plugin_connections_service
-from app.services.tenant import plugin_member_consents as consents_service
 from app.services.tenant import plugin_revocation as plugin_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
-from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
@@ -1999,18 +1996,6 @@ async def remove_member(
     reachable by them, until an admin re-homes it through
     ``POST /{user_id}/transfer-ownership``.
     """
-
-    # A platform question — whether the platform would be left with no config
-    # manager — so it is asked on the system engine rather than through the
-    # guild role this request has assumed. FOR UPDATE to prevent a race with a
-    # concurrent platform-role change.
-    if await users_service.is_last_capability_holder(
-        system_session, user_id, Capability.CONFIG_MANAGE, for_update=True
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CANNOT_REMOVE_LAST_OWNER,
-        )
     if user_id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2049,32 +2034,12 @@ async def remove_member(
             detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
-    await initiatives_service.remove_user_from_guild_initiatives(
+    await guilds_service.remove_user_from_guild(
         session,
         guild_id=guild_context.guild_id,
         user_id=user_id,
-    )
-    # Being removed ends what this guild's plug-ins let this person reach at an
-    # outside vendor, exactly as leaving voluntarily does.
-    await plugin_connections_service.delete_member_connections(
-        session, user_id=user_id, reason="removed_from_guild"
-    )
-    # And what they let this guild's plug-ins do as them, for the same reason.
-    await consents_service.delete_member_consents(session, user_id=user_id)
-
-    removed_role = membership.role
-    await session.delete(membership)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.GUILD_MEMBER_REMOVED,
         actor_user_id=current_admin.id,
-        target_user_id=user_id,
-        guild_id=guild_context.guild_id,
-        target_type="guild",
-        target_id=guild_context.guild_id,
-        detail={"role": removed_role.value, "via": "admin"},
     )
-    billing_ping.notify_membership_changed(guild_context.guild_id)
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.

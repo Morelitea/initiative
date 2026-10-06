@@ -755,7 +755,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     and wiki page that mentions them, archived ones included: an editor from
     before names were left out can have written one into it. A state that
     cannot be read is left as it is. Digest rows lose
-    the assigner's name snapshot (issue #794)."""
+    the assigner's name snapshot and id (issue #794)."""
     from sqlalchemy import text
 
     from app.db.session import set_rls_context
@@ -818,18 +818,18 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
         content=mentioning,
         yjs_state=MENTIONING_YJS_STATE,
     )
-    session.add(
-        TaskAssignmentDigestItem(
-            user_id=author.id,
-            task_id=task.id,
-            project_id=project.id,
-            task_title=task.title,
-            project_name=project.name,
-            assigned_by_name="Vic Tim",
-            assigned_by_id=victim.id,
-        )
+    digest = TaskAssignmentDigestItem(
+        user_id=author.id,
+        task_id=task.id,
+        project_id=project.id,
+        task_title=task.title,
+        project_name=project.name,
+        assigned_by_name="Vic Tim",
+        assigned_by_id=victim.id,
     )
+    session.add(digest)
     await session.commit()
+    digest_id = digest.id
     victim_id = victim.id
 
     # Account erasure is trusted system work and must not be narrowed by an
@@ -876,14 +876,16 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     for state in (*states.values(), refreshed_page.yjs_state):
         assert state != MENTIONING_YJS_STATE and nameless_state(state) is None
 
-    digest_name = (
+    digest_name, digest_by = (
         await session.exec(
-            select(TaskAssignmentDigestItem.assigned_by_name).where(
-                TaskAssignmentDigestItem.assigned_by_id == victim_id
-            )
+            select(
+                TaskAssignmentDigestItem.assigned_by_name,
+                TaskAssignmentDigestItem.assigned_by_id,
+            ).where(TaskAssignmentDigestItem.id == digest_id)
         )
     ).one()
     assert digest_name == ANONYMIZED_MENTION_NAME
+    assert digest_by is None
 
 
 async def test_hard_delete_anonymized_user_cleans_guild_data(

@@ -196,7 +196,6 @@
   "USER_INVALID_TIME_FORMAT": "Das Zeitformat muss system, 12 oder 24 sein",
   "USER_INVALID_REMINDER_MINUTES": "Ungültige Vorlaufzeit für die Erinnerung",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Unbekannter Effekt für die Aufgabenabschluss-Rückmeldung",
-  "USER_CANNOT_REMOVE_LAST_OWNER": "Der letzte Plattform-Eigentümer kann nicht entfernt werden",
   "USER_CANNOT_DELETE_SELF": "Du kannst dein eigenes Konto nicht löschen",
   "USER_NOT_IN_COMMUNITY": "Der Benutzer gehört nicht zu dieser Community",
   "QUEUE_NOT_FOUND": "Warteschlange nicht gefunden",

@@ -1839,7 +1839,10 @@ async def leave_community(
     # Ownership release happens inside remove_user_from_guild, while the
     # leaver's membership rows are still in place for RLS to match.
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild_id, user_id=current_user.id
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+        actor_user_id=current_user.id,
     )
 
     await session.commit()
