@@ -1,4 +1,4 @@
-"""Integration tests for spreadsheet-type documents.
+"""Integration tests for spreadsheet-type files.
 
 Covers the JSON-snapshot path: create / get / patch / validation.
 The live Y.Map collaboration layer is exercised separately on the
@@ -38,17 +38,17 @@ async def _create_sheet(
     """Save a workbook through the create endpoint, whatever comes back.
 
     Omitting ``content`` sends a payload without one, which is a fresh
-    spreadsheet; ``fields`` override the rest (``name``, ``document_type``).
+    spreadsheet; ``fields`` override the rest (``name``, ``file_type``).
     """
     payload: dict[str, Any] = {
         "name": "Sheet",
         "initiative_id": a.initiative.id,
-        "document_type": "spreadsheet",
+        "file_type": "spreadsheet",
         **fields,
     }
     if content is not None:
         payload["content"] = content
-    return await client.post(a.g("/documents/"), headers=a.headers, json=payload)
+    return await client.post(a.g("/files/"), headers=a.headers, json=payload)
 
 
 async def _stored_content(
@@ -89,11 +89,11 @@ async def test_create_spreadsheet_round_trips_cells(client: AsyncClient, author:
         name="Q2 Numbers",
     )
     assert created.status_code == 201, created.text
-    assert created.json()["document_type"] == "spreadsheet"
+    assert created.json()["file_type"] == "spreadsheet"
 
     # GET round-trip preserves the cell map exactly.
     response = await client.get(
-        author.g(f"/documents/{created.json()['id']}"), headers=author.headers
+        author.g(f"/files/{created.json()['id']}"), headers=author.headers
     )
     assert response.status_code == 200
     content = response.json()["content"]
@@ -108,7 +108,7 @@ async def test_patch_spreadsheet_replaces_cells(client: AsyncClient, author: Act
 
     # PATCH replaces the content snapshot wholesale (snapshot path).
     patch_response = await client.patch(
-        author.g(f"/documents/{doc_id}"),
+        author.g(f"/files/{doc_id}"),
         headers=author.headers,
         json={"content": {"cells": {"0:0": "after", "5:7": 99}}},
     )
@@ -166,7 +166,7 @@ async def test_create_spreadsheet_refuses_a_malformed_payload(
     response = await _create_sheet(client, author, content, name="Bad Sheet")
 
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
+    assert response.json()["detail"] == "FILE_SPREADSHEET_INVALID_PAYLOAD"
 
 
 async def test_create_spreadsheet_canonicalizes_cell_keys(
@@ -227,7 +227,7 @@ async def test_a_workbook_with_nothing_in_it_opens_on_one_empty_sheet(
 async def test_v1_payload_upcasts_to_current(client: AsyncClient, author: Actor):
     """An explicit v1 payload (no formatting keys) is accepted and saved
     as the current version with empty formatting structures — existing
-    documents keep working without a data migration and never 422."""
+    files keep working without a data migration and never 422."""
     content = await _stored_content(
         client,
         author,
@@ -323,7 +323,7 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, author: Actor):
 
 async def test_v2_drops_malformed_formatting(client: AsyncClient, author: Actor):
     """A bad ``align``, bad hex, and an unknown style key are stripped — the
-    document still saves (201, NOT 400) because formatting failures must never
+    file still saves (201, NOT 400) because formatting failures must never
     block the user's actual data."""
     content = await _stored_content(
         client,
@@ -507,7 +507,7 @@ async def test_v3_multiple_sheets_round_trip(client: AsyncClient, author: Actor)
 
 async def test_v2_payload_upcasts_to_single_sheet(client: AsyncClient, author: Actor):
     """A pre-multi-sheet payload is read as the workbook's one sheet, keeping
-    its cells and formatting — existing documents never 422 and never lose
+    its cells and formatting — existing files never 422 and never lose
     data on their next save."""
     content = await _stored_content(
         client,
@@ -589,15 +589,15 @@ async def test_v3_duplicate_sheet_ids_are_repaired(client: AsyncClient, author: 
 # ── import ───────────────────────────────────────────────────────────────────
 
 
-async def test_import_returns_sheets_without_writing_the_document(
+async def test_import_returns_sheets_without_writing_the_file(
     client: AsyncClient, author: Actor
 ):
-    """The document is the permission scope, not the destination — the editor
+    """The file is the permission scope, not the destination — the editor
     adds what comes back to its live workbook itself."""
     doc_id = await _stored_id(client, author, name="Inventory")
 
     response = await client.post(
-        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        author.g(f"/files/{doc_id}/spreadsheet/import"),
         headers=author.headers,
         files={"file": ("Q1 sales.csv", b"Item,Qty\nWidget,3\n", "text/csv")},
     )
@@ -613,10 +613,8 @@ async def test_import_returns_sheets_without_writing_the_document(
         "1:1": 3,
     }
 
-    # The document itself is untouched.
-    response = await client.get(
-        author.g(f"/documents/{doc_id}"), headers=author.headers
-    )
+    # The file itself is untouched.
+    response = await client.get(author.g(f"/files/{doc_id}"), headers=author.headers)
     assert _sheet(response.json()["content"])["cells"] == {}
 
 
@@ -624,32 +622,32 @@ async def test_import_refuses_a_file_it_cannot_read(client: AsyncClient, author:
     doc_id = await _stored_id(client, author, name="Inventory")
 
     response = await client.post(
-        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        author.g(f"/files/{doc_id}/spreadsheet/import"),
         headers=author.headers,
         files={"file": ("notes.pdf", b"%PDF-1.4", "application/pdf")},
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_UNREADABLE_FILE"
+    assert response.json()["detail"] == "FILE_SPREADSHEET_UNREADABLE_FILE"
 
 
-async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
+async def test_import_refuses_a_file_that_is_not_a_spreadsheet(
     client: AsyncClient, author: Actor
 ):
     created = await client.post(
-        author.g("/documents/"),
+        author.g("/files/"),
         headers=author.headers,
         json={
             "name": "Just notes",
             "initiative_id": author.initiative.id,
-            "document_type": "native",
+            "file_type": "native",
             "content": {},
         },
     )
     doc_id = created.json()["id"]
 
     response = await client.post(
-        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        author.g(f"/files/{doc_id}/spreadsheet/import"),
         headers=author.headers,
         files={"file": ("x.csv", b"a,b\n", "text/csv")},
     )
@@ -660,7 +658,7 @@ async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
 async def test_import_needs_write_access(
     client: AsyncClient, author: Actor, acting_user
 ):
-    """Reading a file through somebody else's document is still a write to it
+    """Reading a file through somebody else's file is still a write to it
     as far as permission goes — it is their workbook the sheets are for."""
     doc_id = await _stored_id(client, author, name="Inventory")
     reader = await acting_user(
@@ -671,7 +669,7 @@ async def test_import_needs_write_access(
     )
 
     response = await client.post(
-        reader.g(f"/documents/{doc_id}/spreadsheet/import"),
+        reader.g(f"/files/{doc_id}/spreadsheet/import"),
         headers=reader.headers,
         files={"file": ("x.csv", b"a,b\n", "text/csv")},
     )

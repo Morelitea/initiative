@@ -140,9 +140,9 @@ async def test_a_copy_keeps_its_sharing_beside_and_its_tags_anywhere(
     moved = await client.post(
         path, headers=a.headers, json={"target_initiative_id": elsewhere.id}
     )
-    # A document's name may carry a sigil, as its filename may; no other may.
+    # A file's name may carry a sigil, as its filename may; no other may.
     sigil = await client.post(path, headers=a.headers, json={"name": "Plan #2"})
-    if tool is Tool.document:
+    if tool is Tool.file:
         assert sigil.status_code == 201, sigil.text
     else:
         assert sigil.json()["detail"] == "RESERVED_SIGIL_IN_NAME"

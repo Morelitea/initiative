@@ -40,7 +40,7 @@ async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
     session.add(
         ResourceGrant(
             initiative_id=initiative.id,
-            resource_type="document",
+            resource_type="file",
             resource_id=project.id,
             user_id=user.id,
             level=ResourceAccessLevel.read,
@@ -56,7 +56,7 @@ async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
         )
     ).one()
     # Only this project's grants: the factory's owner grant, neither decoy
-    # (not `other`'s project grant, not the same-id document grant).
+    # (not `other`'s project grant, not the same-id file grant).
     assert all(
         g.resource_type == "project" and g.resource_id == project.id
         for g in loaded.grants

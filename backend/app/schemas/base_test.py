@@ -219,12 +219,12 @@ _NAME_FIELDS = frozenset({"name", "title", "label"})
 #: Request-body fields deliberately outside the rule, and why.
 _SIGIL_EXEMPT: frozenset[str] = frozenset(
     {
-        # A document's name starts life as a filename, and a filename may
+        # A file's name starts life as a filename, and a filename may
         # legitimately carry either character.
-        "app.schemas.tenant.document.DocumentCreate.name",
-        "app.schemas.tenant.document.DocumentUpdate.name",
+        "app.schemas.tenant.file.FileCreate.name",
+        "app.schemas.tenant.file.FileUpdate.name",
         # Any tool's copy: held in ``tool_copy.duplicate`` to the rule its
-        # tool's own name follows, since a document's may carry either.
+        # tool's own name follows, since a file's may carry either.
         "app.schemas.tenant.tool.ToolDuplicateRequest.name",
         # Configuration labels: named by whoever administers the thing, and not
         # written into the search index.

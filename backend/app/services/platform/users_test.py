@@ -751,7 +751,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     session: AsyncSession, role_session
 ):
     """Anonymizing a user leaves content as it is, since a mention holds no
-    name, and takes the names out of the collaboration state of every document
+    name, and takes the names out of the collaboration state of every file
     and wiki page that mentions them, archived ones included: an editor from
     before names were left out can have written one into it. A state that
     cannot be read is left as it is. Digest rows lose
@@ -759,7 +759,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     from sqlalchemy import text
 
     from app.db.session import set_rls_context
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.models.tenant.wiki import WikiPage
     from app.services.tenant.mention_parser import (
@@ -768,7 +768,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     )
     from app.testing import MENTIONING_YJS_STATE
     from app.testing.factories import (
-        create_document,
+        create_file,
         create_initiative,
         create_initiative_member,
         create_project,
@@ -789,10 +789,10 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     project = await create_project(session, initiative, author)
     task = await create_task(session, project)
     mentioning = lexical_body("Thanks ", mentioning=victim.id)
-    document = await create_document(
+    file = await create_file(
         session, initiative, author, content=mentioning, yjs_state=MENTIONING_YJS_STATE
     )
-    archived = await create_document(
+    archived = await create_file(
         session,
         initiative,
         author,
@@ -800,14 +800,14 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
         yjs_state=MENTIONING_YJS_STATE,
         archived_at=datetime.now(timezone.utc),
     )
-    elsewhere = await create_document(
+    elsewhere = await create_file(
         session,
         initiative,
         author,
         content=lexical_body("Thanks ", mentioning=author.id),
         yjs_state=b"kept-state",
     )
-    unreadable = await create_document(
+    unreadable = await create_file(
         session, initiative, author, content=mentioning, yjs_state=b"unreadable"
     )
     await enable_all_tools(session, initiative)
@@ -839,7 +839,7 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     await set_rls_context(session, Unattributed())
     await session.exec(
         text(
-            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".documents '
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".files '
             "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
         )
     )
@@ -853,10 +853,10 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     states = dict(
         (
             await session.exec(
-                select(Document.id, Document.yjs_state)
+                select(File.id, File.yjs_state)
                 .where(
-                    Document.id.in_(  # type: ignore[union-attr]
-                        [document.id, archived.id, elsewhere.id, unreadable.id]
+                    File.id.in_(  # type: ignore[union-attr]
+                        [file.id, archived.id, elsewhere.id, unreadable.id]
                     )
                 )
                 .execution_options(include_archived=True)

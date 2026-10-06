@@ -32,26 +32,22 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    # Mirrors a document-mention notice: the actor name is interpolated via
+    # Mirrors a file-mention notice: the actor name is interpolated via
     # email_t, which now escapes values for the email (HTML) namespace.
-    body_text = email_t(
-        "mention.document.body", "en", actor=EVIL_NAME, document="Plans"
-    )
+    body_text = email_t("mention.file.body", "en", actor=EVIL_NAME, file="Plans")
     html_body, text_body = email_service.render_single(
         email_service.EmailPieces(
-            subject=email_t(
-                "mention.document.subject", "en", document="Plans", escape=False
-            ),
-            headline=email_t("mention.document.title", "en"),
+            subject=email_t("mention.file.subject", "en", file="Plans", escape=False),
+            headline=email_t("mention.file.title", "en"),
             body=body_text,
-            link="https://app.example/documents/1",
+            link="https://app.example/files/1",
         ),
         user=user,
         accent="#000000",
         locale="en",
     )
     captured["subject"] = email_t(
-        "mention.document.subject", "en", document="Plans", escape=False
+        "mention.file.subject", "en", file="Plans", escape=False
     )
     captured["html_body"], captured["text_body"] = html_body, text_body
 

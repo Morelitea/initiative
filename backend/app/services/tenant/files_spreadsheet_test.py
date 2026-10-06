@@ -3,7 +3,7 @@
 The normalizer decides what a saved workbook contains: it builds its output
 from an allow-list of known keys, so anything it doesn't name is discarded.
 That makes it the place a schema addition is most easily forgotten, and the
-failure is quiet — the live collaborative document keeps carrying the new
+failure is quiet — the live collaborative file keeps carrying the new
 field, so the feature works for a whole session and is gone on reload.
 """
 
@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from app.services.tenant.documents_spreadsheet import normalize_spreadsheet_content
+from app.services.tenant.files_spreadsheet import normalize_spreadsheet_content
 
 FIXTURE = (
     Path(__file__).parents[4]

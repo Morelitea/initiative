@@ -287,7 +287,7 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     assert refused.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
-def test_the_plugin_document_lists_wiki_pages_and_gallery_pictures():
+def test_the_plugin_file_lists_wiki_pages_and_gallery_pictures():
     operations = {
         operation["operationId"]: operation
         for item in plugin_openapi()["paths"].values()

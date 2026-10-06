@@ -305,7 +305,7 @@ class TestRoles:
                 "name": "leads",
                 "display_name": "Leads",
                 "is_manager": True,
-                "permissions": {"create_documents": True},
+                "permissions": {"create_files": True},
             },
         )
         assert response.status_code == 201, response.text
@@ -319,7 +319,7 @@ class TestRoles:
         assert detail["initiative_id"] == manager.initiative.id
         assert detail["name"] == "leads"
         assert detail["is_manager"] is True
-        assert detail["permissions"] == {"create_documents": True}
+        assert detail["permissions"] == {"create_files": True}
 
     async def test_updating_a_role_records_the_permissions_that_moved(
         self, client: AsyncClient, acting_user, capfd
@@ -333,7 +333,7 @@ class TestRoles:
             json={
                 "name": "leads",
                 "display_name": "Leads",
-                "permissions": {"create_documents": False},
+                "permissions": {"create_files": False},
             },
         )
         assert created.status_code == 201, created.text
@@ -345,7 +345,7 @@ class TestRoles:
             headers=manager.headers,
             json={
                 "display_name": "Team leads",
-                "permissions": {"create_documents": True},
+                "permissions": {"create_files": True},
             },
         )
         assert response.status_code == 200, response.text
@@ -356,7 +356,7 @@ class TestRoles:
         assert detail["changed"] == ["display_name"]
         assert detail["values"] == {}
         assert detail["permissions_changed"] == {
-            "create_documents": {"from": False, "to": True}
+            "create_files": {"from": False, "to": True}
         }
         assert "Team leads" not in json.dumps(row)
 
@@ -370,7 +370,7 @@ class TestRoles:
             json={
                 "name": "leads",
                 "display_name": "Leads",
-                "permissions": {"create_documents": False},
+                "permissions": {"create_files": False},
             },
         )
         assert created.status_code == 201, created.text
@@ -383,7 +383,7 @@ class TestRoles:
             headers=manager.headers,
             json={
                 "display_name": "Leads",
-                "permissions": {"create_documents": False},
+                "permissions": {"create_files": False},
             },
         )
         assert response.status_code == 200, response.text

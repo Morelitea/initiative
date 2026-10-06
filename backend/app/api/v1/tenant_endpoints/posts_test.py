@@ -471,7 +471,7 @@ async def test_pin_requires_read_access_before_the_manager_check(
 async def test_a_notice_is_taken_up_to_the_length_ceiling(
     client: AsyncClient, board: Actor, length: int, status: int, detail: str | None
 ):
-    """A board is read, not studied — something longer than this is a document.
+    """A board is read, not studied — something longer than this is a file.
     The ceiling itself is inclusive."""
     response = await client.post(
         board.g("/posts/"),

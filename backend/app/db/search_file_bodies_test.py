@@ -1,9 +1,9 @@
-"""What a document contributes to search, by what kind of document it is.
+"""What a file contributes to search, by what kind of file it is.
 
-``documents.content`` holds a different shape per ``document_type``, so each
+``files.content`` holds a different shape per ``file_type``, so each
 gets its own extraction. These assert the text actually reaches the index
 against a real Postgres, including the shapes that would otherwise be silent:
-a legacy spreadsheet, a document type that stores no prose, and content nested
+a legacy spreadsheet, a file type that stores no prose, and content nested
 below the top level.
 """
 
@@ -17,23 +17,23 @@ from sqlmodel import select
 
 from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.models.tenant.search_entry import SearchEntry
 from app.services.tenant import file_versions
-from app.testing import Actor, create_document
+from app.testing import Actor, create_file
 from app.db.request_context import SystemGuild
 
 
 ActingUser = Callable[..., Awaitable[Actor]]
 
 
-async def _body(session: AsyncSession, guild_id: int, document_id: int) -> str:
+async def _body(session: AsyncSession, guild_id: int, file_id: int) -> str:
     await set_rls_context(session, SystemGuild(guild_id))
     rows = await session.exec(
         select(SearchEntry.body)
         .where(
-            SearchEntry.entity_type == "document",
-            SearchEntry.entity_id == document_id,
+            SearchEntry.entity_type == "file",
+            SearchEntry.entity_id == file_id,
         )
         .order_by(SearchEntry.chunk_ix.asc())
     )
@@ -44,18 +44,18 @@ async def _finds(session: AsyncSession, guild_id: int, query: str) -> list[str]:
     await set_rls_context(session, SystemGuild(guild_id))
     found = await session.exec(
         text(
-            "SELECT title FROM search_entries WHERE entity_type = 'document' "
+            "SELECT title FROM search_entries WHERE entity_type = 'file' "
             "AND tsv @@ websearch_to_tsquery('simple', :q)"
         ).bindparams(q=query)
     )
     return sorted({r[0] for r in found})
 
 
-async def test_a_native_document_indexes_its_prose(
+async def test_a_native_file_indexes_its_prose(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
@@ -81,7 +81,7 @@ async def test_nested_editor_content_is_reached(
     """A mention, a wikilink and an image caption all keep text below the top
     level; the recursive path is what picks them up."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
@@ -123,12 +123,12 @@ async def test_a_whiteboard_indexes_its_element_text(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Board",
-        document_type=DocumentType.whiteboard,
+        file_type=FileType.whiteboard,
         content={
             "elements": [
                 {"type": "text", "text": "architecture sketch"},
@@ -147,12 +147,12 @@ async def test_a_current_spreadsheet_indexes_cells_and_sheet_names(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Workbook",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={
             "schema_version": 3,
             "kind": "workbook",
@@ -174,12 +174,12 @@ async def test_a_legacy_spreadsheet_still_indexes(
     """v1 and v2 payloads are upcast only when next saved, so both shapes are
     live in the database and the extraction has to read either."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Legacy",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={
             "schema_version": 1,
             "kind": "sheet",
@@ -198,30 +198,30 @@ async def test_a_smart_link_indexes_its_url(
     """Searching for the service is a real thing people do, and the URL is the
     only place its name appears."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await create_document(
+    await create_file(
         session,
         a.initiative,
         a.user,
         name="Design system",
-        document_type=DocumentType.smart_link,
+        file_type=FileType.smart_link,
         content={"url": "https://www.figma.com/file/abc/Design-System"},
     )
     assert await _finds(session, a.guild.id, "figma") == ["Design system"]
     assert await _finds(session, a.guild.id, "www.figma.com") == ["Design system"]
 
 
-async def test_a_file_document_indexes_its_filename_only(
+async def test_a_uploaded_file_indexes_its_filename_only(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     """Its bytes live outside the database, so its name is all there is: the
     filename of the version it shows, which a new version replaces."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Contract",
-        document_type=DocumentType.file,
+        file_type=FileType.file,
         content={},
         file_url=f"/uploads/{a.guild.id}/v1.pdf",
         original_filename="draft-agreement.pdf",
@@ -245,9 +245,9 @@ async def test_text_is_stored_once(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     """The recursive path can reach the same value by more than one route; the
-    body must not carry it twice, or every document costs double."""
+    body must not carry it twice, or every file costs double."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,

@@ -33,7 +33,7 @@ from app.models.platform.guild import CommunityRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import (
     create_comment,
-    create_document,
+    create_file,
     create_project,
     create_tag,
     create_task,
@@ -144,17 +144,17 @@ async def test_a_comment_on_a_task_is_shared_as_its_project(session, acting_user
     assert row.title == "the renewal terms changed in March"
 
 
-async def test_a_comment_on_a_document_is_shared_as_that_document(session, acting_user):
+async def test_a_comment_on_a_file_is_shared_as_that_file(session, acting_user):
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     comment = await create_comment(
-        session, a.user, document=document, content="second draft reads better"
+        session, a.user, file=file, content="second draft reads better"
     )
 
     rows = await _entries(session, a.guild.id, "comment", comment.id)
     assert rows
-    assert rows[0].dac_tool == Tool.document.value
-    assert rows[0].dac_id == document.id
+    assert rows[0].dac_tool == Tool.file.value
+    assert rows[0].dac_id == file.id
 
 
 async def test_moving_a_task_moves_the_comments_on_it(session, acting_user):
