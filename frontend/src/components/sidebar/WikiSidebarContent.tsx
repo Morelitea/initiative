@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ChevronsDownUp,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  useCreateWikiPage,
+  useAddWikiPage,
   useMoveWikiFile,
   useMoveWikiPage,
   useRemoveWikiFile,
@@ -74,11 +74,10 @@ export const WikiSidebarContent = ({
 }: WikiSidebarContentProps) => {
   const { t } = useTranslation(["wikis", "common"]);
   const gp = useCommunityPath();
-  const navigate = useNavigate();
 
   const wikiQuery = useWiki(wikiId);
   const pagesQuery = useWikiPages(wikiId);
-  const createPage = useCreateWikiPage(wikiId);
+  const createPage = useAddWikiPage(wikiId, initiativeId);
   // Putting a file in the wiki, and taking one back out.
   const [addingFile, setAddingFile] = useState(false);
   const removeFile = useRemoveWikiFile(wikiId);
@@ -104,14 +103,7 @@ export const WikiSidebarContent = ({
   // where the server would accept one.
   const canWrite = Boolean(wikiQuery.data?.can.edit);
 
-  const addPage = () =>
-    createPage.mutate(
-      {},
-      {
-        onSuccess: (page) =>
-          void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, page.id)) }),
-      }
-    );
+  const addPage = () => createPage.mutate({});
 
   // A drop tells the server where the page landed; the tree is then redrawn
   // from what comes back rather than from what the drag guessed.
