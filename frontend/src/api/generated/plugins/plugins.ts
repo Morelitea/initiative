@@ -381,6 +381,146 @@ export function useReadPluginData<
 }
 
 /**
+ * Where the community stands with one installed plug-in.
+ *
+ * The endpoint is the one the pinned definition names as its
+ * ``community_summary``; an install that names none, or is switched off,
+ * has nothing to draw and answers 404. A plug-in that does not answer comes
+ * back as the proxy's own message code, so the page draws "unavailable"
+ * rather than failing.
+ * @summary Read Plugin Summary
+ */
+export const readPluginSummary = (
+  communityId: number,
+  pluginId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PluginDataResponse>(
+    { url: `/api/v1/c/${communityId}/plugins/${pluginId}/summary`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadPluginSummaryQueryKey = (communityId: number, pluginId: number) => {
+  return [`/api/v1/c/${communityId}/plugins/${pluginId}/summary`] as const;
+};
+
+export const getReadPluginSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPluginSummary>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  pluginId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadPluginSummaryQueryKey(communityId, pluginId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPluginSummary>>> = ({ signal }) =>
+    readPluginSummary(communityId, pluginId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null &&
+      communityId !== undefined &&
+      pluginId !== null &&
+      pluginId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadPluginSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readPluginSummary>>
+>;
+export type ReadPluginSummaryQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadPluginSummary<
+  TData = Awaited<ReturnType<typeof readPluginSummary>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  pluginId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readPluginSummary>>,
+          TError,
+          Awaited<ReturnType<typeof readPluginSummary>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadPluginSummary<
+  TData = Awaited<ReturnType<typeof readPluginSummary>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  pluginId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readPluginSummary>>,
+          TError,
+          Awaited<ReturnType<typeof readPluginSummary>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadPluginSummary<
+  TData = Awaited<ReturnType<typeof readPluginSummary>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  pluginId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Plugin Summary
+ */
+
+export function useReadPluginSummary<
+  TData = Awaited<ReturnType<typeof readPluginSummary>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  pluginId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPluginSummary>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadPluginSummaryQueryOptions(communityId, pluginId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * The values one of an endpoint's parameters permits.
  *
  * This is what turns a declared ``options_from`` into a menu, and it is the

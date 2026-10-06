@@ -24,6 +24,12 @@ widget sits on, and that is what makes the gates run **before** anything else:
 Only after all of that does the service layer look at the response cache, which
 is why the cache is a cache of *responses* rather than of decisions.
 
+``/plugins/{plugin_id}/summary`` is where the community stands with a plug-in: the
+read its manifest names as its ``community_summary``, drawn on the community's
+Usage settings. The caller names the install and nothing else — which endpoint
+is read comes from the pinned definition — and it is the settings rung that
+decides who may ask, the same as the storage figure beside it.
+
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}/options`` fills a menu. It is the one
 read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
@@ -41,6 +47,8 @@ from app.api.deps import (
     RLSSessionDep,
     GuildContextDep,
     CurrentUser,
+    SettingsAdminContextDep,
+    SettingsRLSSessionDep,
 )
 from app.core.messages import PluginDataMessages
 from app.core.tools import Tool
@@ -332,6 +340,53 @@ def _transformed(
             for column in planned.columns
         ],
         rows=[list(row) for row in answered],
+    )
+
+
+@router.get("/{plugin_id}/summary", response_model=PluginDataResponse)
+async def read_plugin_summary(
+    plugin_id: int,
+    session: SettingsRLSSessionDep,
+    current_user: CurrentUser,
+    _guild_context: SettingsAdminContextDep,
+) -> PluginDataResponse:
+    """Where the community stands with one installed plug-in.
+
+    The endpoint is the one the pinned definition names as its
+    ``community_summary``; an install that names none, or is switched off,
+    has nothing to draw and answers 404. A plug-in that does not answer comes
+    back as the proxy's own message code, so the page draws "unavailable"
+    rather than failing.
+    """
+    plugin = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).first()
+    endpoint_id = (plugin.definition or {}).get("community_summary") if plugin else None
+    if plugin is None or not plugin.enabled or not isinstance(endpoint_id, str):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
+        )
+
+    try:
+        result = await plugin_data_service.fetch_plugin_source(
+            session,
+            plugin=plugin,
+            endpoint_id=endpoint_id,
+            raw_params=None,
+            user_id=current_user.id,
+            # The settings rung is the community's admin standing, which is
+            # what an admin-only summary asks for.
+            is_guild_admin=True,
+        )
+    except plugin_data_service.PluginDataError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+
+    return PluginDataResponse(
+        rows=result.rows,
+        values=result.values,
+        fetched_at=result.fetched_at,
+        cached=result.cached,
     )
 
 

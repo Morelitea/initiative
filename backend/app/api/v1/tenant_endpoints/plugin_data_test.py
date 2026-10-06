@@ -1536,3 +1536,86 @@ class TestDeclarative:
 
         assert response.status_code == 502
         assert response.json()["detail"] == PluginDataMessages.SERVICE_UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# Where the community stands with a plug-in
+# ---------------------------------------------------------------------------
+
+
+class TestSummary:
+    """The read a manifest names as its ``community_summary``, for the Usage
+    settings tab. The caller names the install; the endpoint is the pinned
+    definition's to say."""
+
+    async def _summarised(self, session, acting_user, *, summary=REVENUE):
+        a = await acting_user(guild_role=CommunityRole.admin)
+        await _register(session)
+        definition = _definition()
+        if summary is not None:
+            definition["community_summary"] = summary
+        plugin = await create_guild_plugin(
+            session,
+            a.guild,
+            a.user,
+            definition=definition,
+            listing_uid=PLUGIN_UID,
+            name="Shop",
+        )
+        return a, plugin
+
+    async def test_an_admin_reads_the_endpoint_the_definition_names(
+        self, client, acting_user, session, upstream
+    ):
+        a, plugin = await self._summarised(session, acting_user)
+        upstream.rows = []
+        upstream.values = {"tiers": None}
+
+        response = await client.get(
+            a.g(f"/plugins/{plugin.id}/summary"), headers=a.headers
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["values"] == {"tiers": None}
+        (request,) = upstream.calls
+        assert json.loads(request.content)["endpoint"] == REVENUE
+
+    async def test_a_member_reads_no_summary(
+        self, client, acting_user, session, upstream
+    ):
+        a, plugin = await self._summarised(session, acting_user)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+
+        response = await client.get(
+            member.g(f"/plugins/{plugin.id}/summary"), headers=member.headers
+        )
+
+        assert response.status_code == 403
+        assert upstream.count == 0
+
+    async def test_an_install_naming_no_summary_has_nothing_to_draw(
+        self, client, acting_user, session, upstream
+    ):
+        a, plugin = await self._summarised(session, acting_user, summary=None)
+
+        response = await client.get(
+            a.g(f"/plugins/{plugin.id}/summary"), headers=a.headers
+        )
+
+        assert response.status_code == 404
+        assert upstream.count == 0
+
+    async def test_a_plugin_that_does_not_answer_is_named_unavailable(
+        self, client, acting_user, session, upstream
+    ):
+        a, plugin = await self._summarised(session, acting_user)
+        upstream.error = plugin_data_service.PluginDataError(
+            PluginDataMessages.SERVICE_UNAVAILABLE, 502, "down"
+        )
+
+        response = await client.get(
+            a.g(f"/plugins/{plugin.id}/summary"), headers=a.headers
+        )
+
+        assert response.status_code == 502
+        assert response.json()["detail"] == PluginDataMessages.SERVICE_UNAVAILABLE
