@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import builtin_announcements as builtins_module
 from app.core.builtin_announcements import BuiltinAnnouncement
+from app.core.image_headers import ImageRejected
 from app.models.platform.announcement import (
     AnnouncementAudienceAccounts,
     AnnouncementCategory,
@@ -462,7 +463,7 @@ async def test_storing_the_same_picture_twice_keeps_one_copy(session):
 
 
 async def test_a_file_that_is_not_an_image_is_refused(session):
-    with pytest.raises(service.AnnouncementImageError):
+    with pytest.raises(ImageRejected):
         await service.store_image(session, data=b"not an image at all, really")
 
 

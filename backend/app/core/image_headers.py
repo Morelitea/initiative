@@ -11,23 +11,113 @@ every caller here renders its result in an ``<img>`` rather than offering it as
 a download, so the force-download escape hatch that makes an SVG attachment
 safe does not apply.
 
-Which of these formats a given upload may actually be is the caller's decision,
-not this module's — a guild image and an avatar allow different sets. This only
-answers what the bytes are.
+Which of these formats a given upload may actually be is the caller's decision:
+each surface states it in an :class:`ImageSpec`, and :func:`validate_image`
+holds an upload to one — a guild image and an avatar allow different sets.
 
-Returns ``None`` for anything it does not recognize or cannot parse, so callers
-treat "not a supported image" and "corrupt header" the same way.
+``read_image_header`` returns ``None`` for anything it does not recognize or
+cannot parse, so callers treat "not a supported image" and "corrupt header" the
+same way.
 """
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
+
+from app.core.messages import ImageMessages
 
 #: JPEG frame markers that carry dimensions. The other ``FF Cx`` markers are
 #: huffman/arithmetic tables and restart intervals, which do not.
 _JPEG_SOF_MARKERS = frozenset(
     {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
 )
+
+
+#: Every format ``read_image_header`` recognizes.
+RASTER_CONTENT_TYPES: frozenset[str] = frozenset(
+    {"image/webp", "image/png", "image/jpeg", "image/gif"}
+)
+
+#: How far an image may drift from its spec's proportions. Wide enough for the
+#: rounding a browser's canvas does, narrow enough that a differently-shaped
+#: image is refused.
+ASPECT_TOLERANCE = 0.02
+
+
+@dataclass(frozen=True)
+class ImageSpec:
+    """What an uploaded image must be.
+
+    One of ``content_types``, at most ``max_bytes``, and no larger than
+    ``width`` by ``height``. With ``keep_aspect`` it must also be that box's
+    shape, within :data:`ASPECT_TOLERANCE`; without it, any shape that fits.
+    """
+
+    width: int
+    height: int
+    max_bytes: int
+    content_types: frozenset[str]
+    keep_aspect: bool = True
+
+    @property
+    def aspect(self) -> float:
+        return self.width / self.height
+
+
+@dataclass(frozen=True)
+class ValidatedImage:
+    """An upload that met its spec, described by its header, ready to store.
+
+    ``content_type`` is the one the header proves, never the one the client
+    claimed, because it is served back in a ``Content-Type``.
+    """
+
+    data: bytes
+    sha256: str
+    content_type: str
+    width: int
+    height: int
+
+    @property
+    def byte_size(self) -> int:
+        return len(self.data)
+
+
+class ImageRejected(ValueError):
+    """An upload that does not meet its spec, carrying the code naming why.
+
+    A domain error rather than an ``HTTPException`` so validation stays callable
+    from somewhere that is not a request; an endpoint maps ``code`` onto the
+    response.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def validate_image(spec: ImageSpec, data: bytes) -> ValidatedImage:
+    """Hold ``data`` to ``spec`` and describe it, or raise ``ImageRejected``."""
+    if not data:
+        raise ImageRejected(ImageMessages.IMAGE_EMPTY)
+    if len(data) > spec.max_bytes:
+        raise ImageRejected(ImageMessages.IMAGE_TOO_LARGE)
+    header = read_image_header(data)
+    if header is None or header.content_type not in spec.content_types:
+        raise ImageRejected(ImageMessages.IMAGE_INVALID)
+    if header.width > spec.width or header.height > spec.height:
+        raise ImageRejected(ImageMessages.IMAGE_WRONG_SIZE)
+    ratio = header.width / header.height
+    if spec.keep_aspect and abs(ratio - spec.aspect) > spec.aspect * ASPECT_TOLERANCE:
+        raise ImageRejected(ImageMessages.IMAGE_WRONG_RATIO)
+    return ValidatedImage(
+        data=data,
+        sha256=hashlib.sha256(data).hexdigest(),
+        content_type=header.content_type,
+        width=header.width,
+        height=header.height,
+    )
 
 
 @dataclass(frozen=True)

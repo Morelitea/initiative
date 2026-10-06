@@ -31,7 +31,7 @@ from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services import email as email_service
 from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
-from app.services.platform.identity_refs import billing_guild_ref, existing_ref
+from app.services.platform.identity_refs import billing_ref, existing_ref
 from app.testing import emitted
 from app.testing.factories import (
     create_guild,
@@ -260,7 +260,7 @@ async def test_billing_keeps_its_name_for_a_deleted_community_and_hears_both_way
     operator = await acting_user("owner")
     admin, guild = await _seated_guild(session)
     await create_guild_membership(session, user=await create_user(session), guild=guild)
-    ref = await billing_guild_ref(guild_id=guild.id)
+    ref = await billing_ref(IdentityEntity.guild, guild.id)
 
     await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
     assert await _billing_ref(guild.id) == ref
@@ -280,7 +280,7 @@ async def test_the_purge_is_what_drops_billings_name(
     client: AsyncClient, session: AsyncSession
 ):
     admin, guild = await _seated_guild(session)
-    await billing_guild_ref(guild_id=guild.id)
+    await billing_ref(IdentityEntity.guild, guild.id)
     await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
     session.expunge_all()
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()

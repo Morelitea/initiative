@@ -223,3 +223,37 @@ def changed_fields(
 def snapshot(obj: Any, names: Iterable[str]) -> dict[str, Any]:
     """The named attributes of ``obj``, for a before/after ``changed_fields``."""
     return {name: getattr(obj, name) for name in names}
+
+
+async def record_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int | None,
+    actor_user_id: int | None,
+    area: str,
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    extras: Mapping[str, Any] | None = None,
+) -> None:
+    """Stage the record for one area of a guild's settings, when it moved.
+
+    ``guild_id`` ``None`` is the deployment's own settings row. ``extras`` ride
+    along in the detail beside what ``changed_fields`` reports.
+    """
+    changes = changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    platform = guild_id is None
+    await record(
+        session,
+        event_type=(
+            AuditEventType.PLATFORM_SETTINGS_CHANGED
+            if platform
+            else AuditEventType.GUILD_SETTINGS_CHANGED
+        ),
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type=None if platform else "guild",
+        target_id=guild_id,
+        detail={"area": area, **changes, **(extras or {})},
+    )

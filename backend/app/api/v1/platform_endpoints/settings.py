@@ -31,6 +31,7 @@ from app.models.platform.guild import (
     CommunityRole,
 )
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.identity_ref import IdentityEntity
 from app.schemas.platform.settings import (
     NotificationSettingsResponse,
     NotificationSettingsUpdate,
@@ -80,7 +81,7 @@ from app.core.security import (
     create_billing_insights_handoff_token,
     create_billing_support_handoff_token,
 )
-from app.services.platform.identity_refs import billing_refs, billing_user_ref
+from app.services.platform.identity_refs import billing_ref, billing_refs
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
@@ -1288,7 +1289,7 @@ async def create_platform_community_billing_service_handoff(
             user_ref=user_ref,
             guild_ref=guild_ref,
             approver_ref=(
-                await billing_user_ref(user_id=grant.approved_by_id)
+                await billing_ref(IdentityEntity.user, grant.approved_by_id)
                 if grant.approved_by_id is not None
                 else None
             ),
@@ -1337,7 +1338,7 @@ async def create_billing_insights_handoff(
         )
     try:
         token, expires_in_seconds = create_billing_insights_handoff_token(
-            user_ref=await billing_user_ref(user_id=operator.id),
+            user_ref=await billing_ref(IdentityEntity.user, operator.id),
         )
     except HandoffSigningNotConfiguredError as exc:
         raise HTTPException(

@@ -24,6 +24,7 @@ from app.api.v1.platform_endpoints.billing_test import (
 )
 from app.models.platform.billing import BillingEventLog
 from app.models.platform.guild import CommunityRole, CommunityStatus
+from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.notification import Notification, NotificationType
 from app.core.notification_categories import NotificationCategory
 from app.services.platform import email_outbox, identity_refs, notice_outbox
@@ -106,7 +107,7 @@ async def test_the_owner_billing_names_is_told(
     client: AsyncClient, session: AsyncSession, letters
 ):
     guild_id, owner_id, other_seat_id, admin_id, _ = await _community(session)
-    owner_ref = await identity_refs.billing_user_ref(user_id=owner_id)
+    owner_ref = await identity_refs.billing_ref(IdentityEntity.user, owner_id)
 
     response = await _post(
         client,
@@ -145,7 +146,7 @@ async def test_an_owner_moved_off_the_seat_falls_back_to_the_superadmins(
 ):
     """Still a member, no longer the seat: the plan is not theirs to act on."""
     guild_id, _, other_seat_id, admin_id, _ = await _community(session)
-    admin_ref = await identity_refs.billing_user_ref(user_id=admin_id)
+    admin_ref = await identity_refs.billing_ref(IdentityEntity.user, admin_id)
 
     response = await _post(
         client,
@@ -196,7 +197,7 @@ async def test_an_owner_who_left_falls_back_to_the_superadmins(
     client: AsyncClient, session: AsyncSession, letters
 ):
     guild_id, owner_id, other_seat_id, admin_id, gone_id = await _community(session)
-    gone_ref = await identity_refs.billing_user_ref(user_id=gone_id)
+    gone_ref = await identity_refs.billing_ref(IdentityEntity.user, gone_id)
 
     response = await _post(
         client,

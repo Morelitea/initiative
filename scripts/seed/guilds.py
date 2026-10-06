@@ -6,6 +6,7 @@ from __future__ import annotations
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.image_headers import validate_image
 from app.db.schema_provisioning import provision_guild
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
@@ -16,7 +17,7 @@ from app.models.platform.guild import (
     GuildMembership,
     CommunityRole,
 )
-from app.models.platform.guild_image import GuildImageVariant
+from app.models.platform.guild_image import IMAGE_SPECS, GuildImageVariant
 from app.models.platform.user import User
 from app.services.platform import guild_images
 from app.services.platform import guilds as guilds_service
@@ -202,22 +203,20 @@ async def set_images(
 ) -> None:
     """Give a community an icon and a banner, through the upload path itself.
 
-    Each rendition goes through ``validate_rendition``, so seeded artwork is
-    held to the rules an uploaded one is; the banner is stored as both of its
-    renditions. Writes ``public.guild_images``, so the session must not be
-    routed into a guild schema.
+    Each rendition is held to its ``IMAGE_SPECS`` entry, as an uploaded one
+    is; the banner is stored as both of its renditions. Writes
+    ``public.guild_images``, so the session must not be routed into a guild
+    schema.
     """
-    renditions = [
-        guild_images.validate_rendition(
-            GuildImageVariant.icon, gradient_png(256, 256, *icon), None
-        ),
-        guild_images.validate_rendition(
-            GuildImageVariant.full, gradient_png(2400, 600, *banner), None
-        ),
-        guild_images.validate_rendition(
-            GuildImageVariant.card, gradient_png(1040, 260, *banner), None
-        ),
-    ]
+    pictures = {
+        GuildImageVariant.icon: gradient_png(256, 256, *icon),
+        GuildImageVariant.full: gradient_png(2400, 600, *banner),
+        GuildImageVariant.card: gradient_png(1040, 260, *banner),
+    }
+    renditions = {
+        variant: validate_image(IMAGE_SPECS[variant], data)
+        for variant, data in pictures.items()
+    }
     await guild_images.set_images(session, guild_id=guild.id, renditions=renditions)
 
 

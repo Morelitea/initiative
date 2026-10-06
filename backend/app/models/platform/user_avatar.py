@@ -27,23 +27,14 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlmodel import Field, SQLModel
 
+from app.core.image_headers import ImageSpec
+
 #: Avatars render at 24-40px in lists and around 128px on the profile page, so
-#: this covers 2x DPI everywhere with room to spare. The settings page resizes
-#: to it, the upload endpoint checks against it, and the frontend states it.
-AVATAR_MAX_DIMENSION = 256
-
-#: Per-image byte ceiling, checked before the body is buffered.
-AVATAR_MAX_BYTES = 64 * 1024
-
-#: How far from square an upload may be before it is refused. A canvas resize
-#: lands exactly on 1:1; the tolerance is for images prepared elsewhere.
-AVATAR_ASPECT_TOLERANCE = 0.02
-
-#: Raster only, and no SVG: an avatar is rendered rather than downloaded, so
-#: the force-download escape hatch that makes an SVG attachment safe does not
-#: apply here.
-AVATAR_CONTENT_TYPES: frozenset[str] = frozenset(
-    {"image/webp", "image/png", "image/jpeg"}
+#: 256px square covers 2x DPI everywhere with room to spare. The settings page
+#: resizes to it, the upload endpoint holds an upload to it, and the frontend
+#: states it. Raster only, and no GIF.
+AVATAR_SPEC = ImageSpec(
+    256, 256, 64 * 1024, frozenset({"image/webp", "image/png", "image/jpeg"})
 )
 
 

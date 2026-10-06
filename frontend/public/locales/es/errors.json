@@ -523,7 +523,6 @@
   "ANNOUNCEMENT_NOT_FOUND": "Ese anuncio ya no existe.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Esa imagen ya no existe.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Esa imagen es demasiado grande. Mantenla por debajo de 2 MB.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ese archivo no es una imagen compatible (PNG, JPEG, WebP o GIF).",
   "USER_AGE_ANSWER_STANDS": "Ya respondiste a la pregunta sobre la edad. Quien gestiona este servidor puede restablecerla.",
   "USER_AGE_NOT_BLOCKED": "Esa cuenta no tiene ningún bloqueo por edad que levantar.",
   "USER_SIGN_IN_NOT_LOCKED": "El inicio de sesión con contraseña no está desactivado para esa cuenta.",

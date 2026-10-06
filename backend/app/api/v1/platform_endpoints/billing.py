@@ -36,6 +36,7 @@ from app.schemas.platform.billing import (
     BillingUsageRequest,
 )
 from app.models.platform.guild import CommunityStatus
+from app.models.platform.identity_ref import IdentityEntity
 from app.services.platform import billing as billing_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import identity_refs
@@ -107,7 +108,7 @@ async def _resolve_guild(guild_ref: str) -> int:
     reference answers 404 with nothing consumed, which is the same retryable
     shape as a guild that does not exist yet.
     """
-    guild_id = await identity_refs.resolve_billing_guild(ref=guild_ref)
+    guild_id = await identity_refs.resolve_billing_ref(guild_ref, IdentityEntity.guild)
     if guild_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -204,7 +205,9 @@ async def community_notice(
         )
     await session.commit()  # persist the one-shot jti redemption
     owner_user_id = (
-        await identity_refs.resolve_billing_user(ref=payload.recipient_user_ref)
+        await identity_refs.resolve_billing_ref(
+            payload.recipient_user_ref, IdentityEntity.user
+        )
         if payload.recipient_user_ref
         else None
     )

@@ -36,6 +36,8 @@ from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import plugin_refs
+from app.core.image_headers import validate_image
+from app.models.platform.user_avatar import AVATAR_SPEC
 from app.services.platform import user_avatars
 from app.services.platform.user_avatars_test import png
 from app.testing import (
@@ -721,10 +723,10 @@ async def test_an_uploaded_picture_reaches_a_plugin_by_reference_under_members_r
     picture = png(64, 64)
     for person in (seat.user, elsewhere.user):
         await user_avatars.store_avatar(
-            session, user=person, avatar=user_avatars.validate_avatar(picture)
+            session, user=person, avatar=validate_image(AVATAR_SPEC, picture)
         )
     await session.commit()
-    digest = user_avatars.validate_avatar(picture).sha256
+    digest = validate_image(AVATAR_SPEC, picture).sha256
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(session, project, assignees=[seat.user])
     guild_id = installed.guild.id

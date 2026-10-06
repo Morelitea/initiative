@@ -50,6 +50,8 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Index, SQLModel
 
+from app.core.image_headers import RASTER_CONTENT_TYPES, ImageSpec
+
 
 class AnnouncementAudienceAccounts(str, Enum):
     """Which accounts a notice is for, measured against its publication.
@@ -78,21 +80,13 @@ class AnnouncementCategory(str, Enum):
     info = "info"
 
 
-#: Raster only, and no SVG: sections render their picture in an ``<img>``, so
-#: the force-download handling that makes an SVG attachment safe has nothing to
-#: apply to. Same set as guild images.
-ANNOUNCEMENT_IMAGE_CONTENT_TYPES: frozenset[str] = frozenset(
-    {"image/webp", "image/png", "image/jpeg", "image/gif"}
+#: A screenshot: full-width captures of a feature, so generous next to a guild
+#: icon at 2 MB, and mean next to a photo library, because they are pasted into
+#: a table row that every reader loads. Any shape up to 4096px on its longest
+#: side; anything larger is a screenshot nobody resized.
+ANNOUNCEMENT_IMAGE_SPEC = ImageSpec(
+    4096, 4096, 2 * 1024 * 1024, RASTER_CONTENT_TYPES, keep_aspect=False
 )
-
-#: A screenshot's weight ceiling. Generous next to a guild icon because that is
-#: what these are — full-width captures of a feature — and mean next to a photo
-#: library, because they are pasted into a table row that every reader loads.
-ANNOUNCEMENT_IMAGE_MAX_BYTES: int = 2 * 1024 * 1024
-
-#: Longest side accepted, in pixels. Anything larger is a screenshot nobody
-#: resized; the dialog renders at a fraction of this.
-ANNOUNCEMENT_IMAGE_MAX_DIMENSION: int = 4096
 
 #: How ``announcement_reads`` names what was read. DB rows are ``db:<id>``;
 #: notices compiled into the app are ``builtin:<slug>``.

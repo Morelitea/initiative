@@ -523,7 +523,6 @@
   "ANNOUNCEMENT_NOT_FOUND": "Cette annonce n'existe plus.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Cette image n'existe plus.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Cette image est trop lourde. Restez sous 2 Mo.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ce fichier n'est pas une image prise en charge (PNG, JPEG, WebP ou GIF).",
   "USER_AGE_ANSWER_STANDS": "Vous avez déjà répondu à la question sur l'âge. La personne qui gère ce serveur peut la réinitialiser.",
   "USER_AGE_NOT_BLOCKED": "Ce compte n'a aucun blocage lié à l'âge à lever.",
   "USER_SIGN_IN_NOT_LOCKED": "La connexion par mot de passe n'est pas désactivée pour ce compte.",

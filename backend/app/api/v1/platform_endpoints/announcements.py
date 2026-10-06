@@ -40,9 +40,10 @@ from app.api.deps import (
 )
 from app.core.capabilities import Capability
 from app.db.session import set_rls_context
+from app.core.image_headers import ImageRejected
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
-    ANNOUNCEMENT_IMAGE_MAX_BYTES,
+    ANNOUNCEMENT_IMAGE_SPEC,
     Announcement,
 )
 from app.models.platform.user import User
@@ -248,7 +249,7 @@ async def upload_announcement_image(
 ) -> AnnouncementImageRead:
     """Store one picture and return the URL a section should point at."""
     try:
-        data = await read_upload_bounded(file, ANNOUNCEMENT_IMAGE_MAX_BYTES)
+        data = await read_upload_bounded(file, ANNOUNCEMENT_IMAGE_SPEC.max_bytes)
     except FileTooLargeError:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -256,9 +257,9 @@ async def upload_announcement_image(
         )
     try:
         image = await announcements_service.store_image(session, data=data)
-    except announcements_service.AnnouncementImageError as exc:
+    except ImageRejected as exc:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
     # Sweep here as well as on save: an editor that is opened, uploads a
     # screenshot and is then closed leaves bytes nothing points at, and the

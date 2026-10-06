@@ -24,7 +24,6 @@ matching lives there because the routes do.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -37,13 +36,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, BuiltinAnnouncement
 from app.core.capabilities import role_rank
-from app.core.image_headers import read_image_header
+from app.core.image_headers import validate_image
 from app.core.version import compare_versions
-from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
-    ANNOUNCEMENT_IMAGE_CONTENT_TYPES,
+    ANNOUNCEMENT_IMAGE_SPEC,
     AnnouncementAudienceAccounts,
-    ANNOUNCEMENT_IMAGE_MAX_DIMENSION,
     Announcement,
     AnnouncementImage,
     AnnouncementReadReceipt,
@@ -72,10 +69,6 @@ ORPHAN_IMAGE_GRACE = timedelta(days=1)
 #: next announcement is written would leave an abandoned editor's bytes for as
 #: long as nobody writes another one — which could be forever.
 IMAGE_PURGE_POLL_SECONDS = 3600
-
-
-class AnnouncementImageError(Exception):
-    """An uploaded picture is not usable. Carries a message constant."""
 
 
 # --- audience ----------------------------------------------------------------
@@ -555,16 +548,8 @@ async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImag
     the client's claim, and what gets served back is decided by what the file
     actually is.
     """
-    header = read_image_header(data)
-    if header is None or header.content_type not in ANNOUNCEMENT_IMAGE_CONTENT_TYPES:
-        raise AnnouncementImageError(AnnouncementMessages.IMAGE_UNSUPPORTED_TYPE)
-    if (
-        header.width > ANNOUNCEMENT_IMAGE_MAX_DIMENSION
-        or header.height > ANNOUNCEMENT_IMAGE_MAX_DIMENSION
-    ):
-        raise AnnouncementImageError(AnnouncementMessages.IMAGE_TOO_LARGE)
-    digest = hashlib.sha256(data).hexdigest()
-    existing = await session.get(AnnouncementImage, digest)
+    image = validate_image(ANNOUNCEMENT_IMAGE_SPEC, data)
+    existing = await session.get(AnnouncementImage, image.sha256)
     if existing is not None:
         # The same bytes are kept once, and re-uploading them is somebody
         # putting this picture here *now* — so the clock the pruner reads
@@ -575,18 +560,18 @@ async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImag
         await session.flush()
         return existing
 
-    image = AnnouncementImage(
-        sha256=digest,
-        content_type=header.content_type,
-        byte_size=len(data),
-        width=header.width,
-        height=header.height,
+    stored = AnnouncementImage(
+        sha256=image.sha256,
+        content_type=image.content_type,
+        byte_size=image.byte_size,
+        width=image.width,
+        height=image.height,
         data=data,
         created_at=datetime.now(timezone.utc),
     )
-    session.add(image)
+    session.add(stored)
     await session.flush()
-    return image
+    return stored
 
 
 async def read_image(
