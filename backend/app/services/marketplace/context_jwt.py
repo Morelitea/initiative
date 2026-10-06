@@ -45,15 +45,16 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional
 
-import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.security import (
+    HANDOFF_JWT_ALGORITHM,
     PLUGIN_CONTEXT_TOKEN_TYPE,
-    PLUGIN_PLATFORM_ISSUER,
+    TOKEN_ISSUER,
     plugin_platform_audience,
     resolve_plugin_platform_signing_material,
+    sign_rs256,
 )
 
 __all__ = [
@@ -161,7 +162,7 @@ def mint_context_token(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "iss": PLUGIN_PLATFORM_ISSUER,
+        "iss": TOKEN_ISSUER,
         "aud": plugin_platform_audience(public_id),
         "iat": int(now.timestamp()),
         "exp": now + lifetime,
@@ -186,11 +187,11 @@ def mint_context_token(
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
 
-    key, algorithm, kid = resolve_plugin_platform_signing_material()
-    headers: dict[str, Any] = {"typ": PLUGIN_CONTEXT_TOKEN_TYPE}
-    if kid:
-        headers["kid"] = kid
-    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    token = sign_rs256(
+        payload,
+        *resolve_plugin_platform_signing_material(),
+        typ=PLUGIN_CONTEXT_TOKEN_TYPE,
+    )
     return token, int(lifetime.total_seconds())
 
 
@@ -210,7 +211,7 @@ def context_jwks() -> dict[str, Any]:
     """
     global _jwks_cache
 
-    private_pem, algorithm, kid = resolve_plugin_platform_signing_material()
+    private_pem, kid = resolve_plugin_platform_signing_material()
     if _jwks_cache is not None:
         cached_pem, cached_kid, document = _jwks_cache
         if cached_pem == private_pem and cached_kid == kid:
@@ -233,7 +234,7 @@ def context_jwks() -> dict[str, Any]:
     entry: dict[str, Any] = {
         "kty": "RSA",
         "use": "sig",
-        "alg": algorithm,
+        "alg": HANDOFF_JWT_ALGORITHM,
         "n": _b64u(numbers.n),
         "e": _b64u(numbers.e),
     }

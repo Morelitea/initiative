@@ -782,7 +782,7 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
 
     from app.core.security import (
         BILLING_SUPPORT_HANDOFF_AUDIENCE,
-        BILLING_SUPPORT_HANDOFF_ISSUER,
+        TOKEN_ISSUER,
     )
     from app.models.platform.access_grant import AccessGrant
 
@@ -801,7 +801,7 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
         _TEST_HANDOFF_SECRET,
         algorithms=[header["alg"]],
         audience=BILLING_SUPPORT_HANDOFF_AUDIENCE,
-        issuer=BILLING_SUPPORT_HANDOFF_ISSUER,
+        issuer=TOKEN_ISSUER,
     )
     # Everyone on the token is named by reference, `sub` included; no row id
     # of ours is in the claims at all.

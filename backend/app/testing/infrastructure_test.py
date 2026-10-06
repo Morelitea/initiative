@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import AUTH_ACCESS_AUDIENCE, AUTH_TOKEN_ISSUER
+from app.core.security import AUTH_ACCESS_AUDIENCE, TOKEN_ISSUER
 from app.models.platform.user import UserStatus
 from app.services.auth.subject import user_for_subject
 from app.testing.factories import (
@@ -206,7 +206,7 @@ async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession)
     )
 
     assert claims["aud"] == AUTH_ACCESS_AUDIENCE
-    assert claims["iss"] == AUTH_TOKEN_ISSUER
+    assert claims["iss"] == TOKEN_ISSUER
     # Named by reference, and the reference resolves back to this account —
     # asserting only the first half would pass for any opaque string.
     assert claims["sub"] != str(user.id)

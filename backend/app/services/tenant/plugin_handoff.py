@@ -57,7 +57,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-import jwt
 from fastapi import HTTPException, status
 
 from app.db.guild_standing import GuildContext
@@ -65,10 +64,11 @@ from app.db.session import routed_guild_id
 from app.core.messages import PluginServiceMessages, GuildPluginMessages
 from app.core.security import (
     PLUGIN_HANDOFF_TOKEN_TYPE,
-    PLUGIN_PLATFORM_ISSUER,
+    TOKEN_ISSUER,
     PluginPlatformSigningNotConfiguredError,
     plugin_platform_audience,
     resolve_plugin_platform_signing_material,
+    sign_rs256,
 )
 from app.models.tenant.guild_plugin import GuildPlugin
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -227,7 +227,7 @@ async def mint_embed_handoff(
     registration = await require_live_registration(plugin)
 
     try:
-        key, algorithm, kid = resolve_plugin_platform_signing_material()
+        key, kid = resolve_plugin_platform_signing_material()
     except PluginPlatformSigningNotConfiguredError as exc:
         # The plug-in platform's keypair is required and has no fallback, so an
         # unconfigured deployment fails closed and says which setting is
@@ -257,7 +257,7 @@ async def mint_embed_handoff(
         # unrelated to what any other sector holds for the same person.
         "sub": subject,
         "aud": audience,
-        "iss": PLUGIN_PLATFORM_ISSUER,
+        "iss": TOKEN_ISSUER,
         "iat": int(now.timestamp()),
         "exp": now + PLUGIN_EMBED_HANDOFF_LIFETIME,
         # The guild by reference, for the same reason as the member above: an
@@ -277,10 +277,7 @@ async def mint_embed_handoff(
             initiative_id in context.manager_initiatives
             and initiative_id in context.override_initiatives
         )
-    headers: dict[str, Any] = {"typ": PLUGIN_HANDOFF_TOKEN_TYPE}
-    if kid:
-        headers["kid"] = kid
-    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    token = sign_rs256(payload, key, kid, typ=PLUGIN_HANDOFF_TOKEN_TYPE)
 
     return EmbedHandoff(
         token=token,

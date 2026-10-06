@@ -229,13 +229,13 @@ async def test_a_deployment_with_no_platform_key_generates_one_and_keeps_it(
     assert not security.plugin_platform_signing_enabled()
 
     await load_plugin_platform_signing_key(session)
-    pem, algorithm, kid = security.resolve_plugin_platform_signing_material()
+    pem, kid = security.resolve_plugin_platform_signing_material()
     stored = await _stored_platform_key(session)
     assert decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY) == pem
-    assert algorithm == "RS256"
 
     # The published key carries the same kid: its RFC 7638 thumbprint.
     (entry,) = context_jwt.context_jwks()["keys"]
+    assert entry["alg"] == "RS256"
     members = json.dumps(
         {"e": entry["e"], "kty": "RSA", "n": entry["n"]}, separators=(",", ":")
     )
@@ -245,7 +245,7 @@ async def test_a_deployment_with_no_platform_key_generates_one_and_keeps_it(
     # Another process starting afterwards signs with the stored key.
     monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
     await load_plugin_platform_signing_key(session)
-    assert security.resolve_plugin_platform_signing_material() == (pem, "RS256", kid)
+    assert security.resolve_plugin_platform_signing_material() == (pem, kid)
     assert await _stored_platform_key(session) == stored
 
 
@@ -263,6 +263,5 @@ async def test_the_env_platform_key_wins(session: AsyncSession, monkeypatch):
     assert await _stored_platform_key(session) is None
     assert security.resolve_plugin_platform_signing_material() == (
         "env-pem",
-        "RS256",
         "env-kid",
     )
