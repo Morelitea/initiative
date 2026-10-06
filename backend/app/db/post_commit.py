@@ -88,7 +88,11 @@ async def settle(session: Any) -> None:
 
 async def settle_all() -> None:
     """Wait for every task this process has started here, as before its pools
-    close, cancelling those spawned with ``cancel_on_settle`` first."""
+    close, cancelling those spawned with ``cancel_on_settle`` first. Those get
+    one turn of the loop before the cancel, so work not yet started reaches its
+    own handler."""
+    if _cancel_on_settle:
+        await asyncio.sleep(0)
     for task in _cancel_on_settle:
         task.cancel()
     if _running:

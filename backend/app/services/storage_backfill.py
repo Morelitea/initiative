@@ -269,23 +269,24 @@ async def _finalize(
 async def _run() -> None:
     """Detached task: run the backfill with its own system session and persist
     progress + the final outcome to the shared row."""
-    async with SystemSessionLocal() as session:
+    try:
+        async with SystemSessionLocal() as session:
 
-        async def _on_progress(summary: BackfillSummary) -> None:
-            await _persist(session, status="running", summary=summary)
+            async def _on_progress(summary: BackfillSummary) -> None:
+                await _persist(session, status="running", summary=summary)
 
-        try:
-            summary = await backfill_uploads_to_s3(on_progress=_on_progress)
-            await _finalize(session, summary=summary)
-        except asyncio.CancelledError:
-            # Stopped at shutdown. The copy skips what the bucket already
-            # holds, so the next run carries on from here and may start now.
-            await session.rollback()
+            try:
+                summary = await backfill_uploads_to_s3(on_progress=_on_progress)
+                await _finalize(session, summary=summary)
+            except Exception as exc:  # noqa: BLE001 — surface the failure in status
+                logger.exception("storage backfill failed")
+                await _finalize(session, error=str(exc))
+    except asyncio.CancelledError:
+        # Stopped at shutdown, however early. The copy skips what the bucket
+        # already holds, so the next run carries on from here and may start now.
+        async with SystemSessionLocal() as session:
             await _persist(session, status="failed", finished=True)
-            raise
-        except Exception as exc:  # noqa: BLE001 — surface the failure in status
-            logger.exception("storage backfill failed")
-            await _finalize(session, error=str(exc))
+        raise
 
 
 async def start_backfill(session: AsyncSession) -> dict:
