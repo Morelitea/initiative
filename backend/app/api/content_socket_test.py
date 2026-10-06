@@ -27,9 +27,15 @@ from app.testing.sockets import settle
 class InboundWebSocket:
     """A client that sends ``frames`` and then waits for the server."""
 
-    def __init__(self, frames: list[dict], cookies: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        frames: list[dict],
+        cookies: Optional[dict] = None,
+        headers: Optional[dict] = None,
+    ) -> None:
         self._frames = list(frames)
         self.cookies = cookies or {}
+        self.headers = headers or {}
         self.accepted = False
         self.closed: Optional[int] = None
         self.sent: list[dict] = []
@@ -83,13 +89,20 @@ async def test_the_first_frame_carries_the_token(frame) -> None:
 
 
 async def test_a_session_cookie_stands_in_for_a_null_token() -> None:
-    websocket = InboundWebSocket(
-        [_binary({"token": None})], cookies={SESSION_COOKIE_NAME: "from-cookie"}
+    cookies = {SESSION_COOKIE_NAME: "from-cookie"}
+    websocket = InboundWebSocket([_binary({"token": None})], cookies=cookies)
+    # A handshake that presents a bearer header is not the cookie's to answer.
+    beside_bearer = InboundWebSocket(
+        [_binary({"token": None})],
+        cookies=cookies,
+        headers={"authorization": "Bearer a-token"},
     )
 
     first = await read_auth_frame(websocket)  # type: ignore[arg-type]
 
     assert first is not None and first[0] == "from-cookie"
+    assert await read_auth_frame(beside_bearer) is None  # type: ignore[arg-type]
+    assert beside_bearer.closed == status.WS_1008_POLICY_VIOLATION
 
 
 @pytest.mark.parametrize(

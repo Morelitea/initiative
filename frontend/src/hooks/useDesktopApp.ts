@@ -110,7 +110,7 @@ export const useDesktopApp = () => {
         notification &&
         openNotification(notification, {
           markRead: markRead.mutate,
-          navigate: router.navigate,
+          navigate: (options) => router.navigate(options),
           t: t as TranslateFn,
         });
       if (!opened) {

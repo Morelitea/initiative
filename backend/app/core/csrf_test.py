@@ -209,13 +209,16 @@ def test_same_site_is_not_taken_as_proof(client):
 def test_a_header_authenticated_client_is_not_asked_for_anything(client):
     # Bearer tokens, API keys and device tokens are out of scope here; asking
     # them for an Origin would break API scripts and mobile shells for nothing.
+    # Another scheme authenticates nothing, so beside it the cookie is still
+    # what the request is authenticated by, and it is asked.
     _cookie(client)
 
-    response = client.post(
-        "/write", json={}, headers={"authorization": "Bearer a-token"}
-    )
+    bearer = client.post("/write", json={}, headers={"authorization": "bearer a-token"})
+    basic = client.post("/write", json={}, headers={"authorization": "Basic a-token"})
 
-    assert response.status_code == 200
+    assert bearer.status_code == 200
+    assert basic.status_code == 403
+    assert basic.json()["detail"] == CSRF_ERROR_CODE
 
 
 def test_an_anonymous_request_is_not_refused_here(client):

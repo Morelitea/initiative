@@ -1194,11 +1194,12 @@ async def issue_upload_token(
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
+    recorded = auth_context.current()
     token, expires_in = create_upload_token(
         user_id=current_user.id,
-        satisfied_providers=sorted(auth_context.satisfied_providers()),
-        satisfied_claims=auth_context.satisfied_claims(),
-        session_amr=auth_context.session_amr(),
+        satisfied_providers=sorted(recorded.satisfied_providers),
+        satisfied_claims=recorded.satisfied_claims,
+        session_amr=recorded.session_amr,
         not_after=(
             datetime.fromtimestamp(session_exp, timezone.utc)
             if session_exp is not None

@@ -265,6 +265,8 @@ async def _erase_in_guild(
     # Releases their owner grants (content is left unowned) and drops their
     # initiative memberships and plug-in access.
     await _leave_guild(guild_session, guild_id, user_id=user_id)
+    # Written under the guild role that staged them, before the switch below.
+    await guild_session.flush()
 
     # Scrub the display name out of content that embedded it as literal text
     # (@-mentions in comments, file mention nodes, digest name snapshots).

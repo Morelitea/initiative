@@ -25,7 +25,7 @@ from fastapi import (
 )
 
 from app.api.deps import UserSessionDep, CurrentUser
-from app.core.auth_context import session_credential
+from app.core import auth_context
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.rate_limit import limiter
 from app.core.user_display import handle_of
@@ -90,7 +90,7 @@ def _error(exc: service.DmTransportError) -> HTTPException:
 
 def _session_id() -> uuid.UUID | None:
     """The sign-in this request is on, which a key store is linked to."""
-    credential = session_credential()
+    credential = auth_context.current().session_credential
     return credential.session_id if credential is not None else None
 
 

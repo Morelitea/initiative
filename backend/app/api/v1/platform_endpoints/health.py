@@ -55,6 +55,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core import metrics
 from app.core.config import settings
+from app.core.identify import bearer_token
 from app.core.rate_limit import limiter
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import Guild
@@ -193,13 +194,6 @@ async def readyz(response: Response) -> dict[str, object]:
     return body
 
 
-def _presents_token(request: Request, token: str) -> bool:
-    scheme, _, credentials = request.headers.get("authorization", "").partition(" ")
-    if scheme.lower() != "bearer":
-        return False
-    return secrets.compare_digest(credentials.strip().encode(), token.encode())
-
-
 async def _count_platform_totals() -> None:
     """Count accounts, communities, live sign-ins and active accounts for this
     scrape.
@@ -257,7 +251,10 @@ async def prometheus_metrics(request: Request) -> Response:
     token = settings.METRICS_TOKEN
     if token is None:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    if not _presents_token(request, token):
+    presented = bearer_token(request.headers)
+    if presented is None or not secrets.compare_digest(
+        presented.strip().encode(), token.encode()
+    ):
         return Response(
             status_code=status.HTTP_401_UNAUTHORIZED,
             headers={"WWW-Authenticate": "Bearer"},

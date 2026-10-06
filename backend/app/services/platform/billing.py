@@ -8,9 +8,9 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Mapping
 
 import jwt
+from starlette.datastructures import Headers
 from sqlalchemy import func, insert, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import billing_capabilities
 from app.core.config import settings
+from app.core.identify import bearer_token
 from app.core.messages import BillingMessages
 from app.core.security import PublicKeyBundleError, load_verification_keys
 from app.models.platform.billing import (
@@ -105,7 +106,7 @@ def verify_billing_envelope(
     *,
     method: str,
     path: str,
-    headers: Mapping[str, str],
+    headers: Headers,
     body: bytes,
 ) -> BillingClaims:
     """Verify the envelope on a billing call. Pure — no DB.
@@ -119,8 +120,8 @@ def verify_billing_envelope(
 
     ts_header = headers.get("X-Billing-Timestamp")
     signature = headers.get("X-Billing-Signature")
-    authorization = headers.get("Authorization", "")
-    if not ts_header or not signature or not authorization.startswith("Bearer "):
+    token = bearer_token(headers)
+    if not ts_header or not signature or not token:
         raise BillingEnvelopeError(BillingMessages.MISSING_SIGNATURE)
 
     try:
@@ -158,7 +159,6 @@ def verify_billing_envelope(
     if not keys:
         raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
 
-    token = authorization[len("Bearer ") :]
     payload = None
     first_error: jwt.PyJWTError | None = None
     for key in keys:

@@ -79,7 +79,7 @@ export const NotificationsInboxPage = () => {
   const open = (notification: NotificationRead) =>
     openNotification(notification, {
       markRead: markRead.mutate,
-      navigate: router.navigate,
+      navigate: (options) => router.navigate(options),
       t: t as TranslateFn,
     });
 

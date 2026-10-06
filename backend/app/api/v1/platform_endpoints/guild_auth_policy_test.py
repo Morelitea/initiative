@@ -17,11 +17,7 @@ from app.api.deps import (
     _enforce_guild_auth_policy,
     establish_guild_access,
 )
-from app.core.auth_context import (
-    satisfied_providers,
-    set_satisfied_claims,
-    set_satisfied_providers,
-)
+from app.core import auth_context
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
@@ -547,7 +543,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
     # A session that satisfied nothing: authenticates, gate refuses.
     plain_user = await authenticate_ws_token(get_auth_token(member.user), session)
     assert plain_user is not None
-    assert satisfied_providers() == frozenset()
+    assert auth_context.current().satisfied_providers == frozenset()
     with pytest.raises(GuildAccessError):
         await establish_guild_access(session, plain_user, guild_id)
 
@@ -561,7 +557,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
         session,
     )
     assert sat_user is not None
-    assert satisfied_providers() == frozenset({provider_id})
+    assert auth_context.current().satisfied_providers == frozenset({provider_id})
     ctx = await establish_guild_access(session, sat_user, guild_id)
     assert ctx.guild_id == guild_id
 
@@ -772,8 +768,9 @@ async def _app_admits(
     markers: frozenset[str] = frozenset(),
 ) -> bool:
     """What the gate in ``deps.py`` says, given the same standing."""
-    set_satisfied_providers(frozenset(satisfied))
-    set_satisfied_claims(asserted or {})
+    auth_context.record(
+        satisfied_providers=frozenset(satisfied), satisfied_claims=asserted or {}
+    )
     try:
         await _enforce_guild_auth_policy(
             session,
@@ -785,8 +782,7 @@ async def _app_admits(
     except GuildAccessError:
         return False
     finally:
-        set_satisfied_providers(None)
-        set_satisfied_claims(None)
+        auth_context.reset()
     return True
 
 

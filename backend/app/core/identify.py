@@ -15,8 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import NamedTuple
 
 import jwt
+from starlette.datastructures import Headers
 from starlette.requests import HTTPConnection
 
 from app.core.plugin_access_token import (
@@ -156,19 +158,48 @@ def identify_token(
     )
 
 
+class Presented(NamedTuple):
+    """The credential a request presents, and where it arrived."""
+
+    token: str
+    #: Whether it came in an ``Authorization: Bearer`` header rather than the
+    #: session cookie.
+    bearer: bool
+
+
+def bearer_token(headers: Headers) -> str | None:
+    """The token an ``Authorization`` header carries under the ``Bearer``
+    scheme (any case), or ``None`` when there is none."""
+    scheme, _, param = headers.get("authorization", "").partition(" ")
+    return param if scheme.lower() == "bearer" and param else None
+
+
+def presented_credential(connection: HTTPConnection) -> Presented | None:
+    """The credential a request presents: its bearer header when it carries
+    one, and otherwise its session cookie. ``None`` when it presents neither.
+
+    Every reader of a request's credential asks this, so they all agree on
+    which one the request carries.
+    """
+    token = bearer_token(connection.headers)
+    if token:
+        return Presented(token, bearer=True)
+    cookie = connection.cookies.get(SESSION_COOKIE_NAME)
+    return Presented(cookie, bearer=False) if cookie else None
+
+
 def identify(connection: HTTPConnection) -> Identified | None:
     """The credential a request's bearer header or session cookie carries,
     read once: a session or a personal API key. ``None`` when there is none.
     """
     if hasattr(connection.state, "identified"):
         return connection.state.identified
-    scheme, _, param = connection.headers.get("authorization", "").partition(" ")
-    identified: Identified | None
-    if scheme.lower() == "bearer" and param:
-        identified = identify_token(param, HEADER_CREDENTIALS, bearer=True)
-    else:
-        cookie = connection.cookies.get(SESSION_COOKIE_NAME)
-        identified = identify_token(cookie, HEADER_CREDENTIALS) if cookie else None
+    presented = presented_credential(connection)
+    identified = (
+        identify_token(presented.token, HEADER_CREDENTIALS, bearer=presented.bearer)
+        if presented is not None
+        else None
+    )
     connection.state.identified = identified
     return identified
 

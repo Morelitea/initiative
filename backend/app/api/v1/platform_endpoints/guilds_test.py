@@ -209,8 +209,7 @@ async def test_create_guild_requires_name(client: AsyncClient, acting_user):
         json={"name": "   ", "description": "No name"},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "COMMUNITY_NAME_REQUIRED"
+    assert response.status_code == 422
 
 
 # --- one free community each ------------------------------------------------

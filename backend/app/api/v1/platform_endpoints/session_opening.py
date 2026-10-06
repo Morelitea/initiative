@@ -40,7 +40,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
-from app.core.auth_context import session_credential
+from app.core import auth_context
 from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
@@ -636,7 +636,7 @@ async def replace_session(
             provider_auth=provider_auth,
             device=device,
         )
-        credential = session_credential()
+        credential = auth_context.current().session_credential
         if credential is not None:
             await session_service.follow_devices(
                 system_session,

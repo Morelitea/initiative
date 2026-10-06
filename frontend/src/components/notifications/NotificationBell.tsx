@@ -97,7 +97,7 @@ export const NotificationBell = () => {
     if (
       openNotification(notification, {
         markRead: markReadMutation.mutate,
-        navigate: router.navigate,
+        navigate: (options) => router.navigate(options),
         t: t as TranslateFn,
       })
     ) {

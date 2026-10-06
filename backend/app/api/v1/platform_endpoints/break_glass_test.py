@@ -353,13 +353,13 @@ async def test_the_deployments_requirement_asks_an_account_without_one(
     session.add(row)
     await session.commit()
 
-    auth_context.set_session_amr(signed_in_with)
+    auth_context.record(session_amr=signed_in_with)
     try:
         demanded = await access_grants_service.demands_second_factor(
             session, actor=a.user
         )
     finally:
-        auth_context.set_session_amr(None)
+        auth_context.reset()
     assert demanded is asked
 
 
