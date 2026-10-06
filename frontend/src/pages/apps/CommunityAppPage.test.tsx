@@ -18,7 +18,7 @@ const mint = vi.fn();
 // Whether this host may sell here, as `useBillingPortal` decides it.
 const sale = vi.hoisted(() => ({ canSell: false }));
 vi.mock("@/hooks/useBillingPortal", () => ({
-  useBillingPortal: () => ({ canSell: sale.canSell }),
+  useBillingPortal: () => ({ canSell: sale.canSell, sellsNow: async () => sale.canSell }),
 }));
 
 vi.mock("@/api/generated/apps/apps", () => ({

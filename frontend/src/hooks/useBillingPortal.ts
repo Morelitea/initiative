@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { createCommunityBillingHandoff } from "@/api/generated/communities/communities";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useStoreSelling } from "@/lib/storeSelling";
+import { sellsOnThisDevice, useStoreSellingAnswer } from "@/lib/storeSelling";
 
 /** Portal page to land on: the plan/card setup screen, or the existing
  *  subscription's management screen. */
@@ -46,11 +46,21 @@ const opensInBrowserSheet = (): boolean => {
  * tab, so `reserveTab` returns null there.
  */
 export const useBillingPortal = () => {
-  const { billing, isLoading } = useAppConfig();
+  const { billing, isLoading: configLoading } = useAppConfig();
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const sellsHere = useStoreSelling();
-  const canSell = billing != null && sellsHere;
+  const sellsAnswer = useStoreSellingAnswer();
+  const canSell = billing != null && sellsAnswer === true;
+  // Still loading while a phone's store has not said whether it may sell, so
+  // nothing decides on a `canSell` that is about to change.
+  const isLoading = configLoading || (billing != null && sellsAnswer === undefined);
+  const hasBilling = billing != null;
+
+  /** `canSell`, once a phone's store has answered. */
+  const sellsNow = useCallback(
+    async (): Promise<boolean> => hasBilling && (await sellsOnThisDevice()),
+    [hasBilling]
+  );
 
   const pageUrl = useCallback(
     (communityId: number, page: BillingPortalPage): string | null =>
@@ -89,12 +99,18 @@ export const useBillingPortal = () => {
       } catch {
         // Without a handoff, the bare portal page.
       }
-      if (opensInBrowserSheet()) await Browser.open({ url });
-      else if (tab) tab.location.href = url;
+      if (opensInBrowserSheet()) {
+        try {
+          await Browser.open({ url });
+        } catch {
+          // No browser sheet: let the system open the address.
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      } else if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     },
     [canSell, pageUrl, portalUrl, reserveTab]
   );
 
-  return { billing, canSell, isLoading, openPortal, portalUrl, reserveTab };
+  return { billing, canSell, isLoading, openPortal, portalUrl, reserveTab, sellsNow };
 };

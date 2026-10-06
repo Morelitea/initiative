@@ -101,12 +101,15 @@ export interface StartFlowProps {
 export const StartFlow = (props: StartFlowProps) => {
   const { signedIn = false } = props;
   const { isLoading, communityDirectoryEnabled } = useAppConfig();
+  // Whether a plan step is offered waits on a phone's store, so the steps are
+  // not laid out before it is known.
+  const { isLoading: sellingLoading } = useBillingPortal();
   const { canCreateCommunities } = useCommunities();
   const bootstrap = useBootstrapStatus({
     query: { enabled: !signedIn, retry: false },
   });
 
-  if (isLoading || (!signedIn && bootstrap.isPending)) {
+  if (isLoading || sellingLoading || (!signedIn && bootstrap.isPending)) {
     return (
       <SignInFrame>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

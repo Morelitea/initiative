@@ -162,10 +162,14 @@ describe("sellsOnThisDevice", () => {
     environment.get.mockResolvedValue({ installer: "dev.imranr.obtainium" });
     expect(await sellsOnThisDevice()).toBe(true);
     expect(environment.storeCountry).not.toHaveBeenCalled();
+  });
 
-    resetStoreSelling();
+  it("does not sell on Android when no installer is reported", async () => {
+    // A Play install whose installer Android does not name must not sell
+    // without Play's country.
+    onPlatform("android");
     environment.get.mockResolvedValue({});
-    expect(await sellsOnThisDevice()).toBe(true);
+    expect(await sellsOnThisDevice()).toBe(false);
   });
 
   it("does not sell on Android when the installer cannot be read", async () => {

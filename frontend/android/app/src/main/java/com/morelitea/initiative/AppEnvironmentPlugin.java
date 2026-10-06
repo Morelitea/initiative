@@ -73,6 +73,10 @@ public class AppEnvironmentPlugin extends Plugin {
                 new BillingClientStateListener() {
                     @Override
                     public void onBillingSetupFinished(BillingResult setupResult) {
+                        // The timeout already answered and closed the client.
+                        if (finished.get()) {
+                            return;
+                        }
                         if (setupResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
                             mainHandler.removeCallbacks(timeout);
                             finishStoreCountry(call, client, null, finished);

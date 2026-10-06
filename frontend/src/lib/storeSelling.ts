@@ -10,7 +10,8 @@
  * - Android installed from Google Play: Play allows it in the countries listed
  *   below, read from the Play billing country.
  * - Android installed any other way (an APK, Obtainium): Play's rules do not
- *   apply, so it sells as the web does.
+ *   apply, so it sells as the web does. An install whose installer Android
+ *   does not report is treated as a store install.
  *
  * When the store cannot say — an older native build without the method, no
  * storefront, Play billing unavailable, no answer in time — a store install
@@ -193,6 +194,8 @@ const decide = async (): Promise<boolean> => {
     );
     if (!environment) return false;
     const { installer } = environment;
+    // An installer Android would not name could still be Play.
+    if (!installer) return false;
     if (installer !== PLAY_STORE_INSTALLER) return true;
     return sellsWith({ platform, installer, country: await storeCountry() });
   }

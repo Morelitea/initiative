@@ -157,9 +157,11 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
   themeRef.current = resolvedTheme;
   const themeColorsRef = useRef(themeColors);
   themeColorsRef.current = themeColors;
-  const { canSell } = useBillingPortal();
-  const sellsRef = useRef(canSell);
-  sellsRef.current = canSell;
+  // Asked at delivery rather than read at render: a phone's store may not
+  // have answered yet when the frame announces itself.
+  const { sellsNow } = useBillingPortal();
+  const sellsNowRef = useRef(sellsNow);
+  sellsNowRef.current = sellsNow;
 
   useEffect(() => {
     if (!origin || !handoff) return;
@@ -171,7 +173,10 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
     // cannot tell them apart.
     let cancelled = false;
 
-    const send = (target: Window, token: CommunityAppHandoff) => {
+    const send = async (target: Window, token: CommunityAppHandoff) => {
+      const sells = await sellsNowRef.current();
+      // Dropped if the surface changed, or the frame was replaced, meanwhile.
+      if (cancelled || iframeRef.current?.contentWindow !== target) return;
       target.postMessage(
         {
           type: HANDOFF,
@@ -182,7 +187,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
           locale: localeRef.current,
           theme: themeRef.current,
           theme_colors: themeColorsRef.current,
-          sells: sellsRef.current,
+          sells,
         },
         // Never "*": that would hand the token to whatever happens to be
         // loaded in the frame.
@@ -202,7 +207,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
 
       if (data.type === READY) {
         if (!spentRef.current) {
-          send(target, handoff);
+          void send(target, handoff);
           spentRef.current = true;
           return;
         }
@@ -211,7 +216,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
             // Dropped if the surface changed while this was in flight, or if
             // the frame that asked is no longer the mounted one.
             if (cancelled || iframeRef.current?.contentWindow !== target) return;
-            send(target, fresh);
+            void send(target, fresh);
           })
           .catch(() => {
             if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
