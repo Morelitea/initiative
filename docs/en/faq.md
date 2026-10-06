@@ -26,14 +26,14 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Is all of it open source?"
     The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
 
-    So are the [app SDK](https://github.com/Morelitea/initiative-app-sdk) and the [GitHub app](https://github.com/Morelitea/initiative-developer/tree/main/apps/github), under MIT, if you fancy building an app of your own.
+    So are the [app SDK](https://github.com/Morelitea/initiative-plugin-sdk) and the [GitHub app](https://github.com/Morelitea/initiative-developer/tree/main/plugins/github), under MIT, if you fancy building an app of your own.
 
     The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
 
 ??? question "Can I add tools that aren't built in?"
-    Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+    Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/plugins-and-marketplace.md).
 
-    A few apps need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Apps that need something running behind them](self-host-or-hosted.md#apps-that-need-something-running-behind-them).
+    A few apps need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Apps that need something running behind them](self-host-or-hosted.md#plugins-that-need-something-running-behind-them).
 
 ## Getting in
 

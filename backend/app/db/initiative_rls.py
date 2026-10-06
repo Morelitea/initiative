@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.db import gucs
-from app.core.app_scopes import tool_resource
+from app.core.plugin_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
     ENDPOINT_KINDS,
@@ -38,7 +38,7 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
-from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
+from app.db.authorization import IN_POLICY, STANDING, plugin_narrowed, plugin_scope, in_body
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
@@ -218,8 +218,8 @@ def _tool_gate(
     at all.
     """
     legs: list[str] = [
-        app_scope(tool_resource(tool), command != "SELECT", _P),
-        app_narrowed(initiative, _P),
+        plugin_scope(tool_resource(tool), command != "SELECT", _P),
+        plugin_narrowed(initiative, _P),
     ]
 
     # Every tool carries a switch on the initiative. A community admin or a PAM
@@ -1153,7 +1153,7 @@ def webhook_subscription_path() -> InitiativePath:
     reports across every initiative, so reaching it is guild-admin authority —
     the one role that already spans them — or an installed app's whose token is
     not narrowed to one initiative. An app sees and changes only the
-    subscriptions it registered (the ``app_scope_*`` policies), and what one
+    subscriptions it registered (the ``plugin_scope_*`` policies), and what one
     delivers is capped by where the app is placed and the scopes it holds.
     """
     return InitiativePath(
@@ -1300,7 +1300,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # The events installed apps emit, scoped by the initiative an event names
     # like the change log beside it. Written by the system engine alone
     # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
-    "app_event_outbox": direct(),
+    "plugin_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
@@ -1799,7 +1799,7 @@ class Emit:
 EVENT_SOURCES: dict[str, Emit | Silent] = {
     # -- Silent ------------------------------------------------------------
     "event_outbox": Silent("the log cannot log itself"),
-    "app_event_outbox": Silent("delivered by the poller as events of its own"),
+    "plugin_event_outbox": Silent("delivered by the poller as events of its own"),
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
@@ -1864,8 +1864,8 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # A subscriber hears an install appear, change (``config_state`` moving is
     # the moment an app becomes usable), or go away, and re-reads current state
     # through the API like any other event. Published as ``apps`` because that
-    # is the segment the install's detail route lives at (``/apps/{id}``).
-    "guild_apps": Emit(guild_wide=True, resource_type="apps"),
+    # is the segment the install's detail route lives at (``/plugins/{id}``).
+    "guild_plugins": Emit(guild_wide=True, resource_type="apps"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
     # A property definition is read in its initiative's list, not at an

@@ -69,8 +69,8 @@ from app.services.marketplace.installs import (
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import view_as
 from app.services.tenant import tags as tags_service
-from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace.app_data import row_columns
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.services.marketplace.plugin_data import row_columns
 from app.services.tenant.dashboard_definition import (
     DashboardDefinitionError,
     normalize_dashboard_config,
@@ -94,7 +94,7 @@ async def _endpoint_columns(session: AsyncSession):
     handful of installs, and this is what lets a statement over an endpoint's
     rows be refused while its author is looking at it.
     """
-    installed = (await session.exec(select(GuildApp))).all()
+    installed = (await session.exec(select(GuildPlugin))).all()
     declared: dict[tuple[str, str], tuple] = {}
     for app in installed:
         for endpoint in (app.definition or {}).get("endpoints") or []:
@@ -104,8 +104,8 @@ async def _endpoint_columns(session: AsyncSession):
             if isinstance(endpoint_id, str):
                 declared[(app.listing_uid, endpoint_id)] = row_columns(endpoint)
 
-    def columns(app_uid: str, endpoint_id: str):
-        return declared.get((app_uid, endpoint_id))
+    def columns(plugin_uid: str, endpoint_id: str):
+        return declared.get((plugin_uid, endpoint_id))
 
     return columns
 

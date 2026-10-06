@@ -48,9 +48,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
-    SALT_APP_CONFIG,
-    SALT_APP_PLATFORM_SIGNING_KEY,
-    SALT_APP_VENDOR,
+    SALT_PLUGIN_CONFIG,
+    SALT_PLUGIN_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_VENDOR,
     SALT_EMAIL,
     SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
@@ -100,8 +100,8 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ),
     (
         "app_setting_secrets",
-        "app_platform_signing_key_encrypted",
-        SALT_APP_PLATFORM_SIGNING_KEY,
+        "plugin_platform_signing_key_encrypted",
+        SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     ),
     ("app_setting_secrets", "push_relay_key_encrypted", SALT_PUSH_RELAY_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
@@ -116,7 +116,7 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 # Shared-table JSONB columns holding one ciphertext per key: what an operator
 # supplied for an app's vendor client.
 _PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
-    ("app_service_registrations", "vendor_values", SALT_APP_VENDOR),
+    ("plugin_service_registrations", "vendor_values", SALT_PLUGIN_VENDOR),
 ]
 
 # Shared-table JSONB columns holding ciphertext at known places beside plain
@@ -149,8 +149,8 @@ _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
 # not a token and so cannot be its own WHERE clause the way a single-column
 # ciphertext can.
 _GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes, str]] = [
-    ("guild_app_secrets", "secrets", SALT_APP_CONFIG, "install_id"),
-    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG, "id"),
+    ("guild_plugin_secrets", "secrets", SALT_PLUGIN_CONFIG, "install_id"),
+    ("guild_plugin_user_connections", "config_secrets", SALT_PLUGIN_CONFIG, "id"),
 ]
 
 

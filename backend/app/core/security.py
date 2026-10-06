@@ -559,8 +559,8 @@ def create_billing_insights_handoff_token(
     return token, int(expires_in.total_seconds())
 
 
-class AppPlatformSigningNotConfiguredError(RuntimeError):
-    """Raised when app-platform signing material is needed but absent.
+class PluginPlatformSigningNotConfiguredError(RuntimeError):
+    """Raised when plugin-platform signing material is needed but absent.
 
     The app platform has its own dedicated keypair and deliberately no
     fallback to any other configured key: an app verifies context JWTs against
@@ -571,37 +571,37 @@ class AppPlatformSigningNotConfiguredError(RuntimeError):
 
 #: The key the deployment generated for the app platform, as
 #: ``(private_pem, kid)``, loaded at startup. Used only while
-#: ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
-_stored_app_platform_key: tuple[str, str] | None = None
+#: ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
+_stored_plugin_platform_key: tuple[str, str] | None = None
 
 
-def use_stored_app_platform_signing_key(private_pem: str, kid: str) -> None:
-    """Sign app-platform tokens with the deployment's stored key."""
-    global _stored_app_platform_key
-    _stored_app_platform_key = (private_pem, kid)
+def use_stored_plugin_platform_signing_key(private_pem: str, kid: str) -> None:
+    """Sign plugin-platform tokens with the deployment's stored key."""
+    global _stored_plugin_platform_key
+    _stored_plugin_platform_key = (private_pem, kid)
 
 
-def app_platform_signing_enabled() -> bool:
+def plugin_platform_signing_enabled() -> bool:
     """True when this deployment can sign for the app platform."""
     return bool(
-        settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_app_platform_key
+        settings.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_plugin_platform_key
     )
 
 
-def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
-    """Return (private_key_pem, "RS256", kid) for app-platform tokens.
+def resolve_plugin_platform_signing_material() -> tuple[str, str, str | None]:
+    """Return (private_key_pem, "RS256", kid) for plugin-platform tokens.
 
-    ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
-    ``APP_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
+    ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
+    ``PLUGIN_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
     and stored, with its RFC 7638 thumbprint as the kid.
     """
-    private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
+    private_pem = settings.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM
     if private_pem:
-        return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
-    if _stored_app_platform_key is not None:
-        stored_pem, kid = _stored_app_platform_key
+        return private_pem, "RS256", settings.PLUGIN_PLATFORM_SIGNING_KEY_ID
+    if _stored_plugin_platform_key is not None:
+        stored_pem, kid = _stored_plugin_platform_key
         return stored_pem, "RS256", kid
-    raise AppPlatformSigningNotConfiguredError(
+    raise PluginPlatformSigningNotConfiguredError(
         "no app platform signing key is loaded; it has no fallback to another "
         "service's key"
     )
@@ -609,20 +609,20 @@ def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
 
 # Pinned on both sides of the boundary — not deployment knobs.
 #: ``iss`` on the tokens this deployment mints for app services.
-APP_PLATFORM_ISSUER = "initiative"
+PLUGIN_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
 #: for one app is not accepted by another.
-APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
+PLUGIN_PLATFORM_AUDIENCE_PREFIX = "initiative-plugin:"
 #: ``typ`` in the header of each kind of token an app receives (RFC 8725
 #: §3.11): a call to an endpoint or a hook, and a page handoff. An app checks it
 #: to take each kind only where it expects that kind.
-APP_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
-APP_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
+PLUGIN_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
+PLUGIN_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
 
 
-def app_platform_audience(public_id: str) -> str:
+def plugin_platform_audience(public_id: str) -> str:
     """The ``aud`` a token minted for one app service carries."""
-    return f"{APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+    return f"{PLUGIN_PLATFORM_AUDIENCE_PREFIX}{public_id}"
 
 
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"

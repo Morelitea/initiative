@@ -24,9 +24,9 @@ from app.api.deps import (
     ActorContext,
     get_current_active_user,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import (
-    AppMessages,
+    PluginMessages,
     CalendarEventMessages,
     CounterMessages,
     GalleryMessages,
@@ -262,7 +262,7 @@ def duplicate_sharing(source: Any, *, initiative_id: int) -> list[ResourceGrantS
     return [
         ResourceGrantSchema.model_validate(grant)
         for grant in source.grants
-        if grant.level != ResourceAccessLevel.owner and grant.app_install_id is None
+        if grant.level != ResourceAccessLevel.owner and grant.plugin_install_id is None
     ]
 
 
@@ -275,13 +275,13 @@ SHARING_WRITE = "sharing:write"
 _SHARING_READS = ("members:read", "initiatives:read")
 
 
-def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
+def refuse_plugin_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
     """Raise 403 when an installed app's create sets any of ``fields`` — its
     initial sharing — without ``sharing:write``.
 
     What an app creates is owned by its install, whose owner row the tool
     table's trigger writes. With the scope, the initial sharing is applied as
-    a later share would be (:func:`apply_app_initial_sharing`). A field left at
+    a later share would be (:func:`apply_plugin_initial_sharing`). A field left at
     its default is not a request to share, so only the ones the payload sets
     are refused.
     """
@@ -303,15 +303,15 @@ def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None
     if not actor.holds(SHARING_WRITE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
     needed = list(_SHARING_READS)
     if kind is not None:
-        needed.append(scope_name(tool_resource(kind), AppScopeAccess.write))
+        needed.append(scope_name(tool_resource(kind), PluginScopeAccess.write))
     if not all(actor.holds(scope) for scope in needed):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SCOPE_REQUIRED,
+            detail=PluginMessages.SCOPE_REQUIRED,
         )
 
 
@@ -324,11 +324,11 @@ def refuse_install_community_share(
     if isinstance(actor, InstallContext) and initiative_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
 
 
-async def apply_app_initial_sharing(
+async def apply_plugin_initial_sharing(
     session: Any,
     actor: ActorContext,
     kind: Tool,
@@ -378,11 +378,11 @@ async def grant_initial_sharing(
     """Share a resource that has just been made: its maker owns it — the
     table's own trigger wrote that row as the resource went in — and ``grants``
     says who else may reach it. An installed app applies only the sharing its
-    create asked for (:func:`apply_app_initial_sharing`). The row is flushed
+    create asked for (:func:`apply_plugin_initial_sharing`). The row is flushed
     first; the caller commits.
     """
     if actor.user_id is None or user is None:
-        await apply_app_initial_sharing(
+        await apply_plugin_initial_sharing(
             session,
             actor,
             kind,

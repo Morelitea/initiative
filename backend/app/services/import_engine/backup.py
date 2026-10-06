@@ -256,7 +256,7 @@ def plan_backup(
     ]
     return BackupImportPlan(
         source_community_name=manifest.guild.name,
-        app_version=manifest.app_version,
+        plugin_version=manifest.plugin_version,
         exported_at=manifest.exported_at.isoformat(),
         schema_version=manifest.schema_version,
         initiatives=initiatives,

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from app.core.app_access_token import seal_install_token
+from app.core.plugin_access_token import seal_install_token
 from app.core.identify import HEADER_CREDENTIALS, URL_CREDENTIALS, identify_token
 from app.core.messages import AuthMessages
 from app.core.security import create_upload_token, mint_access_token
@@ -48,7 +48,7 @@ def test_a_token_with_another_audience_is_refused_where_it_is_not_allowed():
     )
 
 
-def test_an_installed_apps_token_is_unsealed_or_refused():
+def test_an_installed_plugins_token_is_unsealed_or_refused():
     token, _ = seal_install_token(
         guild_id=7,
         install_id=3,
@@ -56,10 +56,10 @@ def test_an_installed_apps_token_is_unsealed_or_refused():
         scopes=frozenset(),
         initiative_id=None,
     )
-    assert identify_token(token, HEADER_CREDENTIALS, bearer=True).app_token is not None
+    assert identify_token(token, HEADER_CREDENTIALS, bearer=True).plugin_token is not None
     tampered = identify_token(token[:-4] + "AAAA", HEADER_CREDENTIALS, bearer=True)
     assert tampered.refused == AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS
-    assert tampered.app_token is None
+    assert tampered.plugin_token is None
 
 
 def test_an_api_key_is_left_to_the_database():

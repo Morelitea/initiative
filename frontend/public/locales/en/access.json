@@ -28,8 +28,8 @@
     "fullAccessHint": "This role can view and edit everything in this initiative, so it's always an editor here.",
     "app": "App",
     "apps": "Apps",
-    "appFallback": "App {{id}}",
-    "appGrantHint": "The community's settings decide what an app can reach, so it can't be changed here.",
+    "pluginFallback": "App {{id}}",
+    "pluginGrantHint": "The community's settings decide what an app can reach, so it can't be changed here.",
     "settingsDescription": "Choose who can view and edit this."
   },
   "bulkAccess": {

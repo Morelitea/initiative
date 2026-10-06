@@ -211,7 +211,7 @@ class TestWhatItAnswers:
         )
         assert [row[0] for row in answered] == ["big", "small", "big", "small"]
 
-    def test_rows_the_app_left_a_column_out_of(self):
+    def test_rows_the_plugin_left_a_column_out_of(self):
         """An app is not a table: a key it did not send reads as absent rather
         than failing the whole read."""
         assert run("SELECT revenue FROM rows", [{"shop": "west"}]) == ((None,),)

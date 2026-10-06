@@ -118,7 +118,7 @@ class UserCreate(SanitizedBaseModel):
     birthdate: Optional[date] = None
 
 
-class AppPerson(SanitizedBaseModel):
+class PluginPerson(SanitizedBaseModel):
     """A person, as an installed app receives them wherever one appears.
 
     ``id`` is the install's own reference for them. Their handle (``username``
@@ -158,22 +158,22 @@ class PersonShape(SanitizedBaseModel):
     """A shape that draws a person.
 
     Served as itself to a person. To an installed app it is the
-    :class:`AppPerson` it names, which is how the app API's document types it
-    (``x-person``, read by ``app.api.app_openapi``).
+    :class:`PluginPerson` it names, which is how the app API's document types it
+    (``x-person``, read by ``app.api.plugin_openapi``).
     """
 
     model_config = ConfigDict(json_schema_extra={"x-person": True})
 
-    def app_person(self) -> AppPerson:
+    def plugin_person(self) -> PluginPerson:
         """Who this shape draws, read off its own fields. A shape that names
         the person under other fields says so."""
-        return AppPerson.model_validate(self, from_attributes=True)
+        return PluginPerson.model_validate(self, from_attributes=True)
 
     # Left unannotated, so the shape's published schema stays its own.
     @model_serializer(mode="wrap")
-    def _as_app_person(self, handler: SerializerFunctionWrapHandler):
+    def _as_plugin_person(self, handler: SerializerFunctionWrapHandler):
         if responding_to_install():
-            return self.app_person().for_install()
+            return self.plugin_person().for_install()
         return handler(self)
 
 

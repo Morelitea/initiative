@@ -440,7 +440,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const plan = stagedJob?.plan as
     | {
         source_community_name?: string;
-        app_version?: string;
+        plugin_version?: string;
         exported_at?: string;
         initiatives?: Array<{
           source_id: number;
@@ -465,7 +465,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     return {
       communityName: peeked.guild?.name ?? "",
-      appVersion: peeked.app_version ?? "",
+      appVersion: peeked.plugin_version ?? "",
       exportedAt: formatDateTime(peeked.exported_at),
       initiativeCount: peeked.initiatives?.length ?? 0,
       entryCount: peeked.entries?.length ?? 0,

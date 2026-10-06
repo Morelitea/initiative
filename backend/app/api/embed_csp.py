@@ -2,7 +2,7 @@
 
 An embedded app runs in a cross-origin iframe, which the app-wide
 ``Content-Security-Policy`` forbids by default. The permission comes from the
-deployment's own registrations: ``app_service_registrations`` is the operator's
+deployment's own registrations: ``plugin_service_registrations`` is the operator's
 trusted-site list, and the live ones' origins are what ``frame-src`` names.
 
 An origin reaches that list one way — an operator wires up an app service. So
@@ -30,10 +30,10 @@ from app.services.marketplace import registration_lookup
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["app_frame_policy"]
+__all__ = ["plugin_frame_policy"]
 
 
-async def app_frame_policy() -> str:
+async def plugin_frame_policy() -> str:
     """The policy for a served document: the app-wide one, admitting the frame
     origins this deployment's live registrations name.
 

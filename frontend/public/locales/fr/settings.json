@@ -995,7 +995,7 @@
       "integrations": "Intégrations"
     }
   },
-  "appServices": {
+  "pluginServices": {
     "platformOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
     "loading": "Chargement des services applicatifs…",
     "loadError": "Impossible de charger les services applicatifs.",
@@ -1293,7 +1293,7 @@
       "seatHelp": "Cette personne en devient le superadministrateur : le siège qui nomme les autres, accède à la facturation et définit la connexion.",
       "statusDescription": "Choisissez l'état dans lequel la communauté revient.",
       "statusLabel": "Revient en",
-      "appsNote": "Ses connexions aux applications ont pris fin lors de la suppression et ne reviennent pas. Ses administrateurs peuvent les rétablir.",
+      "pluginsNote": "Ses connexions aux applications ont pris fin lors de la suppression et ne reviennent pas. Ses administrateurs peuvent les rétablir.",
       "confirm": "Restaurer",
       "done": "{{name}} restaurée.",
       "error": "Impossible de restaurer la communauté. Veuillez réessayer."

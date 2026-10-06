@@ -20,7 +20,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { appWidgetSample, appWidgetSource } from "@/api/appData";
+import { pluginWidgetSample, pluginWidgetSource } from "@/api/pluginData";
 import type { DashboardWidgetData } from "@/api/generated/initiativeAPI.schemas";
 import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
@@ -31,13 +31,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAppWidgetCatalog } from "@/hooks/useAppData";
+import { usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useBindingLabels } from "@/hooks/useBindingLabels";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
-import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
+import { type DefinitionWidget, isPluginWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { emptyDataFor, normalizeQueryRows } from "@/lib/widgets/normalize";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
@@ -78,7 +78,7 @@ export function DashboardWidget({
   onRemove,
 }: DashboardWidgetProps) {
   const { t } = useTranslation("dashboards");
-  const isAppWidget = isAppWidgetType(widget.type);
+  const isPluginWidget = isPluginWidgetType(widget.type);
 
   // An app widget's module lives in the install's pinned definition rather than
   // in this build's registry — the seam `WidgetTile.source` exists for. The
@@ -89,8 +89,8 @@ export function DashboardWidget({
   // *own* sample rows through the app's own module, so what it shows is the
   // listing rather than a stand-in. It still issues no data request — no
   // initiative, no dashboard, nothing to fetch.
-  const appCatalogQuery = useAppWidgetCatalog(isAppWidget);
-  const moduleSource = isAppWidget ? appWidgetSource(appCatalogQuery.data, widget.type) : undefined;
+  const pluginCatalogQuery = usePluginWidgetCatalog(isPluginWidget);
+  const moduleSource = isPluginWidget ? pluginWidgetSource(pluginCatalogQuery.data, widget.type) : undefined;
 
   // Named from its own module, like every widget: an app names its widgets in
   // the manifest, so a marketplace tile has a real title without a locale edit
@@ -113,7 +113,7 @@ export function DashboardWidget({
   const labels = useBindingLabels(binding, initiativeId, !sampleData);
   const [view, setView] = useState<"scene" | "table">("scene");
 
-  const appSample = appWidgetSample(appCatalogQuery.data, widget.type, binding.endpoint_id);
+  const pluginSample = pluginWidgetSample(pluginCatalogQuery.data, widget.type, binding.endpoint_id);
   const answered = answer?.result
     ? normalizeQueryRows(answer.result.columns, answer.result.rows)
     : undefined;
@@ -122,8 +122,8 @@ export function DashboardWidget({
     : answer !== undefined && binding.source === "query"
       ? emptyDataFor("query")
       : sampleData
-        ? isAppWidget
-          ? { source: "app" as const, ...appSample }
+        ? isPluginWidget
+          ? { source: "app" as const, ...pluginSample }
           : sampleFor(widget.type)
         : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the
@@ -235,7 +235,7 @@ export function DashboardWidget({
             slots={slots}
             source={moduleSource}
             errorCode={errorCode}
-            isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
+            isLoading={isLoading || (isPluginWidget && pluginCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
             view={drawable ? view : "table"}
             chromeless

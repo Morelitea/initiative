@@ -25,11 +25,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  type AppDataParam,
-  type AppEndpointRead,
-  appWidgetEntry,
-  appWidgetSource,
-} from "@/api/appData";
+  type PluginDataParam,
+  type PluginEndpointRead,
+  pluginWidgetEntry,
+  pluginWidgetSource,
+} from "@/api/pluginData";
 import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { SqlEditor } from "@/components/initiativeTools/dashboards/SqlEditor";
@@ -53,7 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
+import { usePluginParamOptions, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDocumentsList } from "@/hooks/useDocuments";
@@ -64,9 +64,9 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
+import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/pluginParams";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
-import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
+import { catalogEntry, type DefinitionWidget, isPluginWidgetType } from "@/lib/widgets/definition";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
 import {
@@ -82,7 +82,7 @@ import { WidgetTile } from "./WidgetTile";
 
 /** The only source an app widget binds. A namespaced type says which app and
  *  which widget; `app` is what it draws through, always. */
-const APP_SOURCES: WidgetSource[] = ["app"];
+const PLUGIN_SOURCES: WidgetSource[] = ["app"];
 
 export interface WidgetConfigDialogProps {
   widget: DefinitionWidget | null;
@@ -153,20 +153,20 @@ export function WidgetConfigDialog({
    * An app widget binds one source and it is always `app` — that is what the
    * namespaced type means — so the list does not need looking up at all.
    */
-  const isApp = isAppWidgetType(widget?.type ?? "");
+  const isPlugin = isPluginWidgetType(widget?.type ?? "");
   //: An app's *data*, whoever draws it — its own widget, or one of ours
   //: pointed at it with a statement.
-  const readsApp = isApp || binding.source === "app";
-  const appCatalog = useAppWidgetCatalog(open && readsApp);
+  const readsPlugin = isPlugin || binding.source === "app";
+  const pluginCatalog = usePluginWidgetCatalog(open && readsPlugin);
   // An app widget resolves its app from its own namespaced type. One of ours
   // has no such type, so it resolves the app it *named* — which is the only
   // difference between the two, and why the picker below exists at all.
   const app = useMemo(() => {
-    const byType = appWidgetEntry(appCatalog.data, widget?.type ?? "");
+    const byType = pluginWidgetEntry(pluginCatalog.data, widget?.type ?? "");
     if (byType) return byType;
-    const named = (appCatalog.data?.items ?? []).find((item) => item.app_uid === binding.app_uid);
+    const named = (pluginCatalog.data?.items ?? []).find((item) => item.plugin_uid === binding.plugin_uid);
     return named ? { entry: named, widget: undefined } : undefined;
-  }, [appCatalog.data, widget?.type, binding.app_uid]);
+  }, [pluginCatalog.data, widget?.type, binding.plugin_uid]);
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
   // A built-in widget reads an app too, as far as the rows are described: a
@@ -174,7 +174,7 @@ export function WidgetConfigDialog({
   // hands back. Without one they are the app's own shape, which only the app's
   // own module knows how to draw — so the source is offered and the statement
   // is what makes it usable.
-  const sources: string[] = isApp ? APP_SOURCES : ["query", "sheet_range", "app"];
+  const sources: string[] = isPlugin ? PLUGIN_SOURCES : ["query", "sheet_range", "app"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 
@@ -185,15 +185,15 @@ export function WidgetConfigDialog({
    * that names none is offered every read the app has — a publisher who did not
    * narrow it has not said it should be narrowed here.
    */
-  const appEndpoints = useMemo((): AppEndpointRead[] => {
+  const pluginEndpoints = useMemo((): PluginEndpointRead[] => {
     const all = app?.entry.endpoints ?? [];
     const named = app?.widget?.endpoints ?? [];
     if (!named.length) return all;
     return all.filter((candidate) => named.includes(candidate.id));
   }, [app]);
 
-  const appEndpoint = appEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
-  const appParams = (binding.params ?? {}) as Record<string, unknown>;
+  const pluginEndpoint = pluginEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
+  const pluginParams = (binding.params ?? {}) as Record<string, unknown>;
 
   // Which lists this source's controls need. Enabled only while the control is
   // on screen, so opening the dialog for a statement fetches nothing.
@@ -224,9 +224,9 @@ export function WidgetConfigDialog({
     if (!open || !app) return;
     setForm(({ binding }) => ({
       binding:
-        binding.source === "app" && binding.app_uid === app.entry.app_uid
+        binding.source === "app" && binding.plugin_uid === app.entry.plugin_uid
           ? binding
-          : { ...binding, source: "app", app_uid: app.entry.app_uid },
+          : { ...binding, source: "app", plugin_uid: app.entry.plugin_uid },
     }));
   }, [open, app, setForm]);
 
@@ -246,7 +246,7 @@ export function WidgetConfigDialog({
    * binding ends up naming an aisle of a shop it no longer reads. Cleared to a
    * fixpoint, because a dependent can itself have dependents.
    */
-  const setAppParam = (key: string, value: unknown) =>
+  const setPluginParam = (key: string, value: unknown) =>
     setBinding((current) => {
       const params = (current.params ?? {}) as Record<string, unknown>;
       const next = { ...params };
@@ -262,7 +262,7 @@ export function WidgetConfigDialog({
       // Only a real change invalidates anything. Re-picking the value that was
       // already there must not throw away the choices made under it.
       if (JSON.stringify(params[key] ?? null) !== JSON.stringify(next[key] ?? null)) {
-        const declared = appEndpoint?.params ?? [];
+        const declared = pluginEndpoint?.params ?? [];
         const stale = new Set([key]);
         let spreading = true;
         while (spreading) {
@@ -284,7 +284,7 @@ export function WidgetConfigDialog({
 
   /** Pointing a widget at a different read drops the old one's answers: they
    *  were that endpoint's parameters, and they are not this one's. */
-  const setAppEndpoint = (endpointId: string) =>
+  const setPluginEndpoint = (endpointId: string) =>
     setBinding((current) => ({ ...current, endpoint_id: endpointId, params: undefined }));
 
   /**
@@ -298,7 +298,7 @@ export function WidgetConfigDialog({
    */
   // An app binding without a read is one the server refuses, whichever kind of
   // widget carries it — and one of ours has an app to name as well.
-  const incomplete = readsApp && (!binding.endpoint_id || !binding.app_uid);
+  const incomplete = readsPlugin && (!binding.endpoint_id || !binding.plugin_uid);
 
   /**
    * The same, for a statement the server would refuse.
@@ -385,10 +385,10 @@ export function WidgetConfigDialog({
             </section>
 
             {/* An app widget's own controls replace these. The registry's two
-                slots for it are `app_uid` and `endpoint_id`, and neither is a
+                slots for it are `plugin_uid` and `endpoint_id`, and neither is a
                 thing to type: one comes from the widget's type, the other is a
                 choice among the reads the app declares. */}
-            {(readsApp ? [] : params).map((param) => (
+            {(readsPlugin ? [] : params).map((param) => (
               <ParamControl
                 key={param.key as string}
                 param={param}
@@ -400,28 +400,28 @@ export function WidgetConfigDialog({
               />
             ))}
 
-            {readsApp && (
+            {readsPlugin && (
               <section className="space-y-4">
-                {!isApp && (
+                {!isPlugin && (
                   <div className="space-y-2">
-                    <Label htmlFor="app-uid">{t("dashboards:config.app")}</Label>
+                    <Label htmlFor="plugin-uid">{t("dashboards:config.app")}</Label>
                     <Select
-                      value={binding.app_uid ?? ""}
+                      value={binding.plugin_uid ?? ""}
                       onValueChange={(next) =>
                         setBindingValue({
-                          app_uid: next,
+                          plugin_uid: next,
                           // A different app's reads are not this one's.
                           endpoint_id: undefined,
                           params: undefined,
                         })
                       }
                     >
-                      <SelectTrigger id="app-uid">
-                        <SelectValue placeholder={t("dashboards:config.appPlaceholder")} />
+                      <SelectTrigger id="plugin-uid">
+                        <SelectValue placeholder={t("dashboards:config.pluginPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {(appCatalog.data?.items ?? []).map((item) => (
-                          <SelectItem key={item.app_uid} value={item.app_uid}>
+                        {(pluginCatalog.data?.items ?? []).map((item) => (
+                          <SelectItem key={item.plugin_uid} value={item.plugin_uid}>
                             {item.name}
                           </SelectItem>
                         ))}
@@ -430,22 +430,22 @@ export function WidgetConfigDialog({
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="app-endpoint">{t("dashboards:config.appEndpoint")}</Label>
-                  <Select value={binding.endpoint_id ?? ""} onValueChange={setAppEndpoint}>
-                    <SelectTrigger id="app-endpoint">
-                      <SelectValue placeholder={t("dashboards:config.appEndpointPlaceholder")} />
+                  <Label htmlFor="plugin-endpoint">{t("dashboards:config.pluginEndpoint")}</Label>
+                  <Select value={binding.endpoint_id ?? ""} onValueChange={setPluginEndpoint}>
+                    <SelectTrigger id="plugin-endpoint">
+                      <SelectValue placeholder={t("dashboards:config.pluginEndpointPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {appEndpoints.map((candidate) => (
+                      {pluginEndpoints.map((candidate) => (
                         <SelectItem key={candidate.id} value={candidate.id}>
                           {candidate.id}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {!appCatalog.isLoading && !app && (
+                  {!pluginCatalog.isLoading && !app && (
                     <p className="text-muted-foreground text-xs">
-                      {t("dashboards:config.appNotInstalled")}
+                      {t("dashboards:config.pluginNotInstalled")}
                     </p>
                   )}
                 </div>
@@ -455,15 +455,15 @@ export function WidgetConfigDialog({
                     facts about one install — so a control that offers a menu
                     gets it from the app rather than from anything written down
                     here. */}
-                {(appEndpoint?.params ?? []).map((param) => (
-                  <AppParamControl
+                {(pluginEndpoint?.params ?? []).map((param) => (
+                  <PluginParamControl
                     key={param.key}
                     param={param}
-                    appId={app?.entry.app_id}
-                    endpointId={appEndpoint?.id}
-                    values={appParams}
+                    pluginId={app?.entry.plugin_id}
+                    endpointId={pluginEndpoint?.id}
+                    values={pluginParams}
                     open={open}
-                    onChange={setAppParam}
+                    onChange={setPluginParam}
                   />
                 ))}
               </section>
@@ -511,7 +511,7 @@ export function WidgetConfigDialog({
             options={options}
             initiativeId={initiativeId}
             dashboardId={dashboardId}
-            moduleSource={isApp ? appWidgetSource(appCatalog.data, widget.type) : undefined}
+            moduleSource={isPlugin ? pluginWidgetSource(pluginCatalog.data, widget.type) : undefined}
           />
         </div>
 
@@ -621,14 +621,14 @@ function ParamControl({
  * not yet an integer, so the stored value is briefly absent, and a field
  * rendering that would blank itself under the cursor.
  */
-function AppParamScalarInput({
+function PluginParamScalarInput({
   id,
   param,
   value,
   onChange,
 }: {
   id: string;
-  param: AppDataParam;
+  param: PluginDataParam;
   value: string;
   onChange: (next: string | number | boolean | undefined) => void;
 }) {
@@ -668,14 +668,14 @@ function AppParamScalarInput({
  * moment it is typed: "red," becomes ["red"] becomes "red", and the comma has
  * to be typed again.
  */
-function AppParamListInput({
+function PluginParamListInput({
   id,
   param,
   values,
   onChange,
 }: {
   id: string;
-  param: AppDataParam;
+  param: PluginDataParam;
   values: string[];
   onChange: (next: (string | number | boolean)[]) => void;
 }) {
@@ -716,7 +716,7 @@ function AppParamListInput({
           );
         }}
       />
-      <p className="text-muted-foreground text-xs">{t("config.appParamListHint")}</p>
+      <p className="text-muted-foreground text-xs">{t("config.pluginParamListHint")}</p>
     </>
   );
 }
@@ -739,16 +739,16 @@ function AppParamListInput({
  * have worked unreachable until somebody else fixes something. So the fallback
  * is an input, never a dead select.
  */
-function AppParamControl({
+function PluginParamControl({
   param,
-  appId,
+  pluginId,
   endpointId,
   values,
   open,
   onChange,
 }: {
-  param: AppDataParam;
-  appId: number | undefined;
+  param: PluginDataParam;
+  pluginId: number | undefined;
   endpointId: string | undefined;
   values: Record<string, unknown>;
   open: boolean;
@@ -759,8 +759,8 @@ function AppParamControl({
   // Only the parameters that named a source ask for one, and only while the
   // dialog is open. A sibling's answer is part of the question, so changing it
   // re-asks rather than reusing a menu built for a different one.
-  const menu = useAppParamOptions({
-    appId,
+  const menu = usePluginParamOptions({
+    pluginId,
     endpointId,
     param: param.key,
     params: values,
@@ -770,7 +770,7 @@ function AppParamControl({
   const label = localized(param.label, i18n.language) ?? param.key;
   const value = values[param.key];
   const shown = asControlValue(value);
-  const controlId = `app-param-${param.key}`;
+  const controlId = `plugin-param-${param.key}`;
   const chosen = Array.isArray(value) ? value.map(String) : [];
 
   const offered = param.options_from
@@ -801,10 +801,10 @@ function AppParamControl({
               label: option.label ?? option.value,
             }))}
             onChange={(next) => onChange(param.key, asDeclaredList(param, next))}
-            placeholder={t("dashboards:config.appParamPlaceholder")}
+            placeholder={t("dashboards:config.pluginParamPlaceholder")}
           />
         ) : (
-          <AppParamListInput
+          <PluginParamListInput
             id={controlId}
             param={param}
             values={chosen}
@@ -824,7 +824,7 @@ function AppParamControl({
           onValueChange={(next) => onChange(param.key, asDeclaredType(param, next))}
         >
           <SelectTrigger id={controlId}>
-            <SelectValue placeholder={t("dashboards:config.appParamPlaceholder")} />
+            <SelectValue placeholder={t("dashboards:config.pluginParamPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {offered.map((option) => (
@@ -843,7 +843,7 @@ function AppParamControl({
   return (
     <div className="space-y-2">
       {heading}
-      <AppParamScalarInput
+      <PluginParamScalarInput
         id={controlId}
         param={param}
         value={shown}
@@ -851,7 +851,7 @@ function AppParamControl({
       />
       {param.options_from && menu.data?.unavailable === "needs-sibling" && (
         <p className="text-muted-foreground text-xs">
-          {t("dashboards:config.appParamNeedsSibling")}
+          {t("dashboards:config.pluginParamNeedsSibling")}
         </p>
       )}
     </div>

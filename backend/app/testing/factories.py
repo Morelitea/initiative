@@ -38,7 +38,7 @@ from app.core.security import (
     get_password_hash,
     mint_access_token,
 )
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.publisher import Publisher, publisher_prefix
 from app.core.reactions import ReactionTarget
 from app.models.tenant.calendar import Calendar
@@ -52,8 +52,8 @@ from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
-from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_secret import GuildAppSecret
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.models.tenant.guild_plugin_secret import GuildPluginSecret
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -62,10 +62,10 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild_administration import GuildAdministration
-from app.services.marketplace import app_installs
+from app.services.marketplace import plugin_installs
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.services.tenant import app_schedules
+from app.services.tenant import plugin_schedules
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -688,7 +688,7 @@ async def create_resource_grant(
     user: User | None = None,
     role_id: int | None = None,
     all_initiative_members: bool = False,
-    app_install_id: int | None = None,
+    plugin_install_id: int | None = None,
     commit: bool = True,
 ) -> ResourceGrant:
     """Share a tool's row: ``level`` for ``user``, for an initiative role, for
@@ -700,7 +700,7 @@ async def create_resource_grant(
         user_id=user.id if user is not None else None,
         role_id=role_id,
         all_initiative_members=all_initiative_members,
-        app_install_id=app_install_id,
+        plugin_install_id=plugin_install_id,
         level=level,
         initiative_id=resource.initiative_id,
     )
@@ -1131,14 +1131,14 @@ async def create_guild_calendar(
     *,
     name: str | None = None,
     shared_with_everyone: bool = True,
-    app: GuildApp | None = None,
+    app: GuildPlugin | None = None,
     **overrides: Any,
 ) -> Calendar:
     """A guild calendar — the one the calendar app installs.
 
     Belongs to no initiative, which is the whole of what makes it different: it
     holds its own events and reaches into nothing. Given ``app``, it is what
-    ``guild_apps.create_app_artifacts`` builds: owned by that install. Without
+    ``guild_plugins.create_plugin_artifacts`` builds: owned by that install. Without
     one, ``creator`` owns it.
     """
     await route_session_to_guild(session, guild.id)
@@ -1160,7 +1160,7 @@ async def create_guild_calendar(
         calendar,
         level=ResourceAccessLevel.owner,
         user=creator if app is None else None,
-        app_install_id=app.id if app is not None else None,
+        plugin_install_id=app.id if app is not None else None,
         commit=False,
     )
     if shared_with_everyone:
@@ -1172,7 +1172,7 @@ async def create_guild_calendar(
     return calendar
 
 
-async def create_guild_app(
+async def create_guild_plugin(
     session: AsyncSession,
     guild: Guild,
     creator: User,
@@ -1183,26 +1183,26 @@ async def create_guild_app(
     name: str = "Test app",
     secrets: dict[str, Any] | None = None,
     **overrides: Any,
-) -> GuildApp:
+) -> GuildPlugin:
     """An installed app, written straight into the guild's schema.
 
     ``secrets`` is its secret values, ``{connection_id: {key: ciphertext}}``,
-    stored in ``guild_app_secrets``.
+    stored in ``guild_plugin_secrets``.
 
     Deliberately not routed through the install endpoint. A ``service`` app's
     definition is publishable and storable today but the install path does not
-    mount one yet (``GUILD_INSTALLABLE_APP_KINDS``), and the configuration and
+    mount one yet (``GUILD_INSTALLABLE_PLUGIN_KINDS``), and the configuration and
     connection machinery it carries needs an install to exist to be exercised
     at all. This is that install: the same row the endpoint will write once the
     kind is admitted, so the tests hold the real endpoints rather than a mock.
     """
     await route_session_to_guild(session, guild.id)
 
-    app = GuildApp(
+    app = GuildPlugin(
         **{
             "listing_uid": listing_uid,
             "listing_version": listing_version,
-            "app_kind": definition.get("app_kind", "service"),
+            "plugin_kind": definition.get("plugin_kind", "service"),
             "name": name,
             "definition": definition,
             "created_by": creator.id,
@@ -1212,24 +1212,24 @@ async def create_guild_app(
     session.add(app)
     await session.commit()
     if secrets:
-        session.add(GuildAppSecret(install_id=app.id, secrets=secrets))
+        session.add(GuildPluginSecret(install_id=app.id, secrets=secrets))
         await session.commit()
     await session.refresh(app)
-    await app_installs.record(guild.id, app)
-    await app_schedules.reconcile(guild.id, app.id, app.definition)
+    await plugin_installs.record(guild.id, app)
+    await plugin_schedules.reconcile(guild.id, app.id, app.definition)
     return app
 
 
-_TEST_APP_KEY = ec.generate_private_key(ec.SECP256R1())
+_TEST_PLUGIN_KEY = ec.generate_private_key(ec.SECP256R1())
 
 
-def sample_app_jwks(kid: str = "tests-app-key") -> dict[str, Any]:
+def sample_plugin_jwks(kid: str = "tests-plugin-key") -> dict[str, Any]:
     """A public key set for a test registration: one P-256 key under ``kid``.
 
     A registration is live only with a key set, so every test registration
     carries one unless the test says otherwise.
     """
-    entry = json.loads(ECAlgorithm.to_jwk(_TEST_APP_KEY.public_key()))
+    entry = json.loads(ECAlgorithm.to_jwk(_TEST_PLUGIN_KEY.public_key()))
     entry["kid"] = kid
     return {"keys": [entry]}
 
@@ -1264,15 +1264,15 @@ async def create_publisher(
 
 def sealed_vendor_values(values: dict[str, str]) -> dict[str, str]:
     """Vendor values as a registration stores them: one ciphertext per key."""
-    from app.core.encryption import SALT_APP_VENDOR, encrypt_field
+    from app.core.encryption import SALT_PLUGIN_VENDOR, encrypt_field
 
-    return {key: encrypt_field(value, SALT_APP_VENDOR) for key, value in values.items()}
+    return {key: encrypt_field(value, SALT_PLUGIN_VENDOR) for key, value in values.items()}
 
 
-async def create_app_service_registration(
+async def create_plugin_service_registration(
     session: AsyncSession,
     *,
-    public_id: str = "tests.app-service",
+    public_id: str = "tests.plugin-service",
     base_url: str | None = "https://app.example.test",
     listing_uid: str | None = None,
     allowed_origins: list[str] | None = None,
@@ -1280,11 +1280,11 @@ async def create_app_service_registration(
     enabled: bool = True,
     jwks: dict[str, Any] | None = None,
     **overrides: Any,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """A deployment-level registration, written straight into ``public``.
 
     Its publisher is the row for its ``public_id`` prefix, made when there is
-    none. It carries :func:`sample_app_jwks` unless ``jwks`` is given, so it is
+    none. It carries :func:`sample_plugin_jwks` unless ``jwks`` is given, so it is
     live unless the test switches it or its publisher off; pass
     ``jwks={}`` for one with no key set.
 
@@ -1292,7 +1292,7 @@ async def create_app_service_registration(
     this registration rather than whatever a previous test left cached.
     """
     publisher = await create_publisher(session, prefix=publisher_prefix(public_id))
-    row = AppServiceRegistration(
+    row = PluginServiceRegistration(
         **{
             "public_id": public_id,
             "listing_uid": listing_uid,
@@ -1301,7 +1301,7 @@ async def create_app_service_registration(
             "allowed_origins": allowed_origins
             if allowed_origins is not None
             else [base_url],
-            "jwks": (jwks or None) if jwks is not None else sample_app_jwks(),
+            "jwks": (jwks or None) if jwks is not None else sample_plugin_jwks(),
             "mandatory": mandatory,
             "enabled": enabled,
             **overrides,
@@ -1334,7 +1334,7 @@ async def create_marketplace_listing(
     kind: str = "dashboard",
     version: str = "1.0.0",
     definition: dict[str, Any] | None = None,
-    min_app_version: str | None = None,
+    min_plugin_version: str | None = None,
     available: bool = True,
     commit: bool = True,
     **overrides: Any,
@@ -1355,7 +1355,7 @@ async def create_marketplace_listing(
         "description": overrides.pop("description", "A listing for tests."),
         "avatar_url": overrides.pop("avatar_url", "/marketplace/test.svg"),
         "version": version,
-        "min_app_version": min_app_version,
+        "min_plugin_version": min_plugin_version,
         "definition": definition
         if definition is not None
         else {

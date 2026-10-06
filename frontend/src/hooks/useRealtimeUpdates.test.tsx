@@ -352,9 +352,9 @@ describe("realtime resource frames", () => {
 
   it("refreshes the app list and an install's own reads", () => {
     // Community-wide and parentless: nothing else on the client covers it.
-    const list = seed([`/api/v1/c/${COMMUNITY}/apps/`]);
-    const detail = seed(["community-app", COMMUNITY, ENTITY_ID]);
-    const members = seed(["community-app-members", COMMUNITY, ENTITY_ID]);
+    const list = seed([`/api/v1/c/${COMMUNITY}/plugins/`]);
+    const detail = seed(["community-plugin", COMMUNITY, ENTITY_ID]);
+    const members = seed(["community-plugin-members", COMMUNITY, ENTITY_ID]);
 
     applyChanges(
       [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }],
@@ -367,7 +367,7 @@ describe("realtime resource frames", () => {
   });
 
   it("leaves another community's install reads alone", () => {
-    const other = seed(["community-app", COMMUNITY + 1, ENTITY_ID]);
+    const other = seed(["community-plugin", COMMUNITY + 1, ENTITY_ID]);
 
     applyChanges(
       [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }],

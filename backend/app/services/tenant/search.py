@@ -21,11 +21,11 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
 from app.db.query import build_paginated_response
-from app.core.app_scopes import tool_resource
-from app.core.messages import AppMessages
+from app.core.plugin_scopes import tool_resource
+from app.core.messages import PluginMessages
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.plugin_rls import SEARCH_ENTRY_READ_SCOPE
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db.search_index import MENTION_LEXEME, entity_types
 from app.models.platform.user_profile_view import GuildMember
@@ -114,7 +114,7 @@ def install_entity_types(
         and install.holds(f"{resource.value}:read")
     )
     if not readable:
-        raise SearchScopeError(AppMessages.SCOPE_REQUIRED)
+        raise SearchScopeError(PluginMessages.SCOPE_REQUIRED)
     return readable
 
 

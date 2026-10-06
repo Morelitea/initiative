@@ -57,7 +57,7 @@ from app.testing.factories import (
     create_dashboard,
     create_document,
     create_export_job,
-    create_guild_app,
+    create_guild_plugin,
     create_initiative,
     create_post,
     create_project,
@@ -3340,7 +3340,7 @@ async def test_hand_built_dashboard_exports(
     assert "definition" in envelope
 
 
-async def test_dashboard_from_a_third_party_app_is_refused(
+async def test_dashboard_from_a_third_party_plugin_is_refused(
     client: AsyncClient, acting_user, session
 ):
     """Its definition belongs to its publisher; the way to have it elsewhere
@@ -3356,13 +3356,13 @@ async def test_dashboard_from_a_third_party_app_is_refused(
 
     resp = await _export(client, a, "dashboard", ids=[dashboard.id])
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "EXPORT_THIRD_PARTY_APP"
+    assert resp.json()["detail"] == "EXPORT_THIRD_PARTY_PLUGIN"
 
 
 async def test_backup_skips_third_party_dashboards_and_says_so(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """One app-derived dashboard must not fail a whole community's backup —
+    """One plugin-derived dashboard must not fail a whole community's backup —
     and the archive states that it existed rather than quietly omitting it."""
     a = await acting_user(
         guild_role=CommunityRole.superadmin, initiative=True, project=True
@@ -3387,10 +3387,10 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
         for s in manifest["skipped"]
         if s["tool"] == "dashboard"
     }
-    assert skipped.get(theirs.id) == "third_party_app"
+    assert skipped.get(theirs.id) == "third_party_plugin"
 
 
-async def test_guild_backup_records_apps_it_does_not_carry(
+async def test_guild_backup_records_plugins_it_does_not_carry(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """An app published by somebody else is restored by installing it in the
@@ -3399,7 +3399,7 @@ async def test_guild_backup_records_apps_it_does_not_carry(
     a = await acting_user(
         guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    app = await create_guild_app(
+    app = await create_guild_plugin(
         session,
         a.guild,
         a.user,
@@ -3416,7 +3416,7 @@ async def test_guild_backup_records_apps_it_does_not_carry(
     skipped = {
         s["entity_id"]: s["reason"] for s in manifest["skipped"] if s["tool"] == "app"
     }
-    assert skipped.get(app.id) == "third_party_app"
+    assert skipped.get(app.id) == "third_party_plugin"
 
 
 async def test_backup_carries_property_definitions(

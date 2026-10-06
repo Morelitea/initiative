@@ -17,7 +17,7 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -73,8 +73,8 @@ router = APIRouter(route_class=ActorRoute)
 
 #: The routes an installed app may call. A task is the project's, so it
 #: answers to the projects scopes.
-ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
-ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
+ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
+ProjectsWrite = Annotated[ActorContext, Depends(plugin_scope("projects:write"))]
 
 
 # Cross-guild "my tasks" aggregates (My Tasks / Created Tasks pages). Mounted

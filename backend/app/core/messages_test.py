@@ -35,9 +35,9 @@ LOCALES = ("de", "en", "es", "fr")
 #: program and never rendered.
 MACHINE_SURFACES = frozenset(
     {
-        "AppChannelMessages",
-        "AppDataMessages",
-        "AppServiceMessages",
+        "PluginChannelMessages",
+        "PluginDataMessages",
+        "PluginServiceMessages",
         "BillingMessages",
         "BundledChannelMessages",
     }

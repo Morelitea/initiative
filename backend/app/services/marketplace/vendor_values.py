@@ -10,7 +10,7 @@ They arrive three ways, all on the system engine:
 
 * the operator's registration form (``apps.manage``), which may also set them
   on a registration the registry brought;
-* ``vendor_env`` on an ``APP_SERVICES_CONFIG`` entry, which names environment
+* ``vendor_env`` on an ``PLUGIN_SERVICES_CONFIG`` entry, which names environment
   variables read at boot, so rotating one is changing the variable and
   restarting;
 * nowhere else. A manifest declares the fields and never carries a value.
@@ -36,10 +36,10 @@ from fastapi import HTTPException, status as http_status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import SALT_APP_VENDOR, decrypt_field, encrypt_field
-from app.core.messages import AppServiceMessages
+from app.core.encryption import SALT_PLUGIN_VENDOR, decrypt_field, encrypt_field
+from app.core.messages import PluginServiceMessages
 from app.db import session as db_session
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -114,7 +114,7 @@ async def listing_definitions(
     return {uid: dict(definition or {}) for uid, definition in rows}
 
 
-async def sync_required(session: AsyncSession, row: AppServiceRegistration) -> None:
+async def sync_required(session: AsyncSession, row: PluginServiceRegistration) -> None:
     """Bring ``vendor_required`` in line with the listing's latest manifest.
 
     A registration whose listing is not in the catalog yet requires nothing
@@ -136,8 +136,8 @@ async def sync_required_for_listing(
     wanted = required_keys(definition)
     rows = (
         await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.listing_uid == listing_uid
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.listing_uid == listing_uid
             )
         )
     ).all()
@@ -154,7 +154,7 @@ def _bad(detail: str) -> HTTPException:
     logger.debug("vendor value refused: %s", detail)
     return HTTPException(
         status_code=http_status.HTTP_400_BAD_REQUEST,
-        detail=AppServiceMessages.INVALID_VENDOR_VALUE,
+        detail=PluginServiceMessages.INVALID_VENDOR_VALUE,
     )
 
 
@@ -171,7 +171,7 @@ def _checked(field: Mapping[str, Any] | None, value: str) -> str:
 
 
 def apply_vendor_values(
-    row: AppServiceRegistration,
+    row: PluginServiceRegistration,
     submitted: Mapping[str, Optional[str]],
     *,
     definition: Mapping[str, Any] | None,
@@ -189,7 +189,7 @@ def apply_vendor_values(
         if key not in fields:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=AppServiceMessages.UNKNOWN_VENDOR_FIELD,
+                detail=PluginServiceMessages.UNKNOWN_VENDOR_FIELD,
             )
         if value is None or (isinstance(value, str) and not value.strip()):
             if key in stored:
@@ -198,7 +198,7 @@ def apply_vendor_values(
             continue
         if not isinstance(value, str):
             raise _bad("not a string")
-        stored[key] = encrypt_field(_checked(fields[key], value), SALT_APP_VENDOR)
+        stored[key] = encrypt_field(_checked(fields[key], value), SALT_PLUGIN_VENDOR)
         changed.append(key)
     if changed:
         # Reassigned rather than mutated: a JSONB column is tracked by identity.
@@ -207,9 +207,9 @@ def apply_vendor_values(
 
 
 def apply_vendor_env(
-    row: AppServiceRegistration, vendor_env: Any, *, public_id: str
+    row: PluginServiceRegistration, vendor_env: Any, *, public_id: str
 ) -> list[str]:
-    """Seal the environment variables an ``APP_SERVICES_CONFIG`` entry names.
+    """Seal the environment variables an ``PLUGIN_SERVICES_CONFIG`` entry names.
 
     ``vendor_env`` maps a vendor key to the name of an environment variable.
     A variable that is unset or empty is logged and leaves that value as it
@@ -250,7 +250,7 @@ def apply_vendor_env(
             continue
         if current.get(key) == value:
             continue
-        stored[key] = encrypt_field(value, SALT_APP_VENDOR)
+        stored[key] = encrypt_field(value, SALT_PLUGIN_VENDOR)
         changed.append(key)
     if changed:
         row.vendor_values = stored
@@ -266,7 +266,7 @@ def _decrypt_all(stored: Mapping[str, Any], *, public_id: str) -> dict[str, str]
         if not isinstance(ciphertext, str):
             continue
         try:
-            values[key] = decrypt_field(ciphertext, SALT_APP_VENDOR)
+            values[key] = decrypt_field(ciphertext, SALT_PLUGIN_VENDOR)
         except (InvalidToken, UnicodeDecodeError):
             logger.warning(
                 "app services: %r vendor value %r does not decrypt", public_id, key
@@ -287,7 +287,7 @@ class VendorView:
 
 
 def vendor_view(
-    row: AppServiceRegistration, definition: Mapping[str, Any] | None
+    row: PluginServiceRegistration, definition: Mapping[str, Any] | None
 ) -> VendorView:
     fields = vendor_fields(definition)
     stored = row.vendor_values or {}
@@ -321,8 +321,8 @@ async def load_vendor_values(public_id: str) -> dict[str, str]:
     async with db_session.SystemSessionLocal() as session:
         row = (
             await session.exec(
-                select(AppServiceRegistration).where(
-                    AppServiceRegistration.public_id == public_id
+                select(PluginServiceRegistration).where(
+                    PluginServiceRegistration.public_id == public_id
                 )
             )
         ).first()

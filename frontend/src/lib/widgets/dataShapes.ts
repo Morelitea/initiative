@@ -11,7 +11,7 @@
  * both answer with columns and rows, so both arrive as {@link TabularData} and
  * a widget never learns which it was given. An installed app's data is its own
  * shape, declared in its own manifest, and its widget ships alongside — that is
- * {@link AppRows}, and no built-in widget reads it.
+ * {@link PluginRows}, and no built-in widget reads it.
  *
  * **All timestamps are epoch milliseconds, UTC.** The sandbox has a frozen
  * clock and no timezone, deliberately: rendering a timestamp for a human is the
@@ -76,7 +76,7 @@ export interface TabularData {
  * to return has no `html` mark, no raw-string passthrough and no way to name a
  * URL, so an app cannot turn its own rows into rendering.
  */
-export interface AppRows {
+export interface PluginRows {
   source: "app";
   /** One entry per index across the endpoint's `list` returns. */
   rows: Record<string, unknown>[];
@@ -101,7 +101,7 @@ export interface DataMeta {
   truncated?: boolean;
 }
 
-export type WidgetData = (TabularData | AppRows) & { meta?: DataMeta };
+export type WidgetData = (TabularData | PluginRows) & { meta?: DataMeta };
 
 /** What a *binding* may name — as distinct from the envelope it produces. */
 export type WidgetSource = "query" | "sheet_range" | "app";

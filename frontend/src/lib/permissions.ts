@@ -25,7 +25,7 @@ export const Capability = {
   accessRequest: "access.request",
   accessApprove: "access.approve",
   configManage: "config.manage",
-  appsManage: "apps.manage",
+  pluginsManage: "apps.manage",
 } as const;
 
 export type Capability = (typeof Capability)[keyof typeof Capability];
@@ -48,7 +48,7 @@ export function hasAnyCapability(user: WithCapabilities, capabilities: Capabilit
  * auth, branding, email, AI, app services). Owner-only in practice. */
 const PLATFORM_SETTINGS_CAPABILITIES: Capability[] = [
   Capability.configManage,
-  Capability.appsManage,
+  Capability.pluginsManage,
 ];
 
 /** Capabilities behind the **Operator dashboard** area (operational: platform

@@ -13,7 +13,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -85,7 +85,7 @@ router = APIRouter(route_class=ActorRoute)
 _S = TypeVar("_S", bound=Select)
 
 #: The routes an installed app may call, under the initiatives scope.
-InitiativesRead = Annotated[ActorContext, Depends(app_scope("initiatives:read"))]
+InitiativesRead = Annotated[ActorContext, Depends(plugin_scope("initiatives:read"))]
 
 
 #: What an initiative read loads beside the row: what the caller may do in it,

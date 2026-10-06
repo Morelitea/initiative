@@ -18,9 +18,9 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    app_scope_by,
+    plugin_scope_by,
 )
-from app.core.app_scopes import tool_resource
+from app.core.plugin_scopes import tool_resource
 from app.schemas.tenant.property import (
     PropertySummary,
     PropertyTarget,
@@ -35,7 +35,7 @@ router = APIRouter(route_class=ActorRoute)
 PropertiesWrite = Annotated[
     ActorContext,
     Depends(
-        app_scope_by(
+        plugin_scope_by(
             "target",
             {
                 target: f"{tool_resource(spec.tool).value}:write"

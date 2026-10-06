@@ -428,7 +428,7 @@ async def test_the_ticket_makes_the_account_and_signs_it_in(
     assert account.hashed_password is None
 
 
-async def test_the_app_signing_up_keeps_its_session(
+async def test_the_plugin_signing_up_keeps_its_session(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """The app keeps its refresh token itself, so the sign-up hands it one."""

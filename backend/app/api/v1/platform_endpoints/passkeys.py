@@ -588,7 +588,7 @@ async def finish_passkey_sign_in(
         await system_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=NativeMessages.APP_UPDATE_REQUIRED,
+            detail=NativeMessages.PLUGIN_UPDATE_REQUIRED,
         )
 
     # The spent challenge and the credential's counter commit with the session.

@@ -9,11 +9,11 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
-from app.models.tenant.app_member_consent import AppMemberConsent
-from app.models.tenant.app_placement import AppPlacement
-from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_secret import GuildAppSecret
-from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.models.tenant.plugin_member_consent import PluginMemberConsent
+from app.models.tenant.plugin_placement import PluginPlacement
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.models.tenant.guild_plugin_secret import GuildPluginSecret
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.filter_preset import ProjectFilterPreset
@@ -49,9 +49,9 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
-from app.models.tenant.app_event_outbox import AppEventOutbox
-from app.models.tenant.app_hook_delivery import AppHookDelivery
-from app.models.tenant.app_schedule_run import AppScheduleRun
+from app.models.tenant.plugin_event_outbox import PluginEventOutbox
+from app.models.tenant.plugin_hook_delivery import PluginHookDelivery
+from app.models.tenant.plugin_schedule_run import PluginScheduleRun
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard
@@ -127,10 +127,10 @@ from app.models.platform.marketplace_registry import (
     MarketplaceTufMetadata,
 )
 from app.models.platform.ai_connection import PlatformAIConnection
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.publisher import Publisher
-from app.models.platform.app_assertion_jti import AppAssertionJti
-from app.models.platform.app_install import AppInstall
+from app.models.platform.plugin_assertion_jti import PluginAssertionJti
+from app.models.platform.plugin_install import PluginInstall
 from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -192,9 +192,9 @@ __all__ = [
     "CalendarEventAnswer",
     "CalendarEventAttendee",
     "EventOutbox",
-    "AppEventOutbox",
-    "AppHookDelivery",
-    "AppScheduleRun",
+    "PluginEventOutbox",
+    "PluginHookDelivery",
+    "PluginScheduleRun",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
@@ -243,10 +243,10 @@ __all__ = [
     "IntakeCase",
     "ModerationReport",
     "ModerationReportReporter",
-    "AppServiceRegistration",
+    "PluginServiceRegistration",
     "Publisher",
-    "AppAssertionJti",
-    "AppInstall",
+    "PluginAssertionJti",
+    "PluginInstall",
     "MarketplaceMedia",
     "MarketplaceRegistryStatus",
     "MarketplaceTufMetadata",
@@ -255,11 +255,11 @@ __all__ = [
     "GuildAIConnectionKey",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
-    "AppMemberConsent",
-    "AppPlacement",
-    "GuildApp",
-    "GuildAppSecret",
-    "GuildAppUserConnection",
+    "PluginMemberConsent",
+    "PluginPlacement",
+    "GuildPlugin",
+    "GuildPluginSecret",
+    "GuildPluginUserConnection",
     "UserTotp",
     "UserTotpSecret",
     "MfaRecoveryCode",

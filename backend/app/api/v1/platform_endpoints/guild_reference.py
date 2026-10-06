@@ -34,12 +34,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep, oauth2_scheme, SystemSessionDep
-from app.api.v1.platform_endpoints.app_installation import installation_caller
-from app.core.app_access_token import is_access_token
+from app.api.v1.platform_endpoints.plugin_installation import installation_caller
+from app.core.plugin_access_token import is_access_token
 from app.core.config import settings
 from app.core.messages import BundledChannelMessages
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
+from app.models.platform.plugin_service_registration import (
+    PluginServiceRegistration,
     RegistrationSource,
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
@@ -48,7 +48,7 @@ from app.schemas.marketplace.guild_reference import (
     CommunityReferenceRequest,
     InstallationReferenceRequest,
 )
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.services.marketplace.bundled_channel import (
     BundledChannelError,
     verify_bundled_envelope,
@@ -101,8 +101,8 @@ async def _answer_installation(
     public_id = installation.registration.public_id
     row = (
         await system_session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == public_id
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.public_id == public_id
             )
         )
     ).first()
@@ -117,7 +117,7 @@ async def _answer_installation(
 
     guild_id = installation.guild_id
     if payload.community_ref is not None:
-        named = await app_refs.guild_for_app_ref(
+        named = await plugin_refs.guild_for_plugin_ref(
             ref=payload.community_ref, public_id=public_id
         )
         if named != guild_id:
@@ -185,7 +185,7 @@ async def read_community_reference(
 
     # The reference must be one of the CALLER's own. Resolving says which
     # install minted it; this says that install is the caller's.
-    guild_id = await app_refs.guild_for_app_ref(
+    guild_id = await plugin_refs.guild_for_plugin_ref(
         ref=payload.community_ref,
         public_id=(settings.BUNDLED_SERVICE_PUBLIC_ID or "").strip(),
     )

@@ -45,7 +45,7 @@ Who may turn it on is a role permission, **Run dashboards as Initiative**, under
 
 From the initiative's **Dashboards** tab: **New Dashboard**. Add tiles, point each at what it should read, arrange them on the canvas. In the list, each dashboard's card is a small copy of it, so you can pick the right one by its shape.
 
-Or skip the building entirely. **Browse the marketplace**, in the list's **More actions** menu — or beside **Create Your First Dashboard** while there are none — has ready-made dashboards you add in a couple of clicks and then adjust. See [Apps & the marketplace](apps-and-marketplace.md).
+Or skip the building entirely. **Browse the marketplace**, in the list's **More actions** menu — or beside **Create Your First Dashboard** while there are none — has ready-made dashboards you add in a couple of clicks and then adjust. See [Apps & the marketplace](plugins-and-marketplace.md).
 
 Usually faster than starting from a blank canvas, and often better, because somebody else has already spent a year discovering which four numbers actually matter and which nine just look impressive.
 
@@ -103,6 +103,6 @@ Each dashboard has its own comment thread, which is an excellent place to argue 
 ## Related
 
 - [Counters](counters.md) — numbers a dashboard can read.
-- [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards.
+- [Apps & the marketplace](plugins-and-marketplace.md) — ready-made dashboards.
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — access levels in full.
 - [Your space](your-space.md#my-tools) — every dashboard that's reached you, from every community.

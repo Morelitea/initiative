@@ -31,8 +31,8 @@ from app.api.deps import (
     get_upload_user,
     raise_for_guild_access,
 )
-from app.api.app_openapi import build_app_openapi, mark_app_scopes
-from app.api.embed_csp import app_frame_policy
+from app.api.plugin_openapi import build_plugin_openapi, mark_plugin_scopes
+from app.api.embed_csp import plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
@@ -173,7 +173,7 @@ async def lifespan(app: FastAPI):
     from app.services.platform import app_settings as app_settings_service
 
     async with SystemSessionLocal() as session:
-        await app_settings_service.load_app_platform_signing_key(session)
+        await app_settings_service.load_plugin_platform_signing_key(session)
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
@@ -267,25 +267,25 @@ async def swagger_ui_html() -> Response:
     return _swagger_ui(f"{API_V1_STR}/openapi.json", f"{PROJECT_NAME} - Swagger UI")
 
 
-def app_openapi() -> dict:
-    """The app API's document (``app.api.app_openapi``), built once per
+def plugin_openapi() -> dict:
+    """The app API's document (``app.api.plugin_openapi``), built once per
     process from the main one."""
-    cached = getattr(app.state, "app_openapi_schema", None)
+    cached = getattr(app.state, "plugin_openapi_schema", None)
     if cached is None:
-        cached = build_app_openapi(app.openapi(), app.routes)
-        app.state.app_openapi_schema = cached
+        cached = build_plugin_openapi(app.openapi(), app.routes)
+        app.state.plugin_openapi_schema = cached
     return cached
 
 
-@app.get(f"{API_V1_STR}/app-platform/openapi.json", include_in_schema=False)
-async def app_openapi_json() -> JSONResponse:
-    return JSONResponse(app_openapi())
+@app.get(f"{API_V1_STR}/plugin-platform/openapi.json", include_in_schema=False)
+async def plugin_openapi_json() -> JSONResponse:
+    return JSONResponse(plugin_openapi())
 
 
-@app.get(f"{API_V1_STR}/app-platform/docs", include_in_schema=False)
+@app.get(f"{API_V1_STR}/plugin-platform/docs", include_in_schema=False)
 async def app_swagger_ui_html() -> Response:
     return _swagger_ui(
-        f"{API_V1_STR}/app-platform/openapi.json", "Initiative app API - Swagger UI"
+        f"{API_V1_STR}/plugin-platform/openapi.json", "Initiative app API - Swagger UI"
     )
 
 
@@ -347,7 +347,7 @@ class _DefaultRateLimit(SlowAPIMiddleware):
             # Nothing to read a marker off, so a mount is limited like any
             # undecorated route — by the URL it was asked for.
             handler = None
-        elif _should_exempt(request_limiter, endpoint) or _is_app_file(
+        elif _should_exempt(request_limiter, endpoint) or _is_plugin_file(
             request, endpoint
         ):
             return await call_next(request)
@@ -801,7 +801,7 @@ def custom_openapi() -> dict:
             if not has_api_key:
                 security.append({"ApiKeyAuth": []})
 
-    mark_app_scopes(openapi_schema, app.routes)
+    mark_plugin_scopes(openapi_schema, app.routes)
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -872,7 +872,7 @@ def _resolve_static_file(path: str) -> Path | None:
     return None
 
 
-def _is_app_file(request: Request, endpoint: object) -> bool:
+def _is_plugin_file(request: Request, endpoint: object) -> bool:
     """Whether the request is for one of the app's own built files, which take
     no limit: they are read from disk, unchanged once built, and a first visit
     asks for over a hundred. A path that falls back to the index is counted."""
@@ -906,7 +906,7 @@ async def serve_spa(full_path: str) -> FileResponse:
         # setdefault, so this one wins.
         headers = {
             "Cache-Control": "no-cache",
-            "Content-Security-Policy": await app_frame_policy(),
+            "Content-Security-Policy": await plugin_frame_policy(),
         }
         return FileResponse(static_index_path, headers=headers)
     raise HTTPException(status_code=404, detail="SPA bundle not found")

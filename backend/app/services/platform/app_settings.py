@@ -20,13 +20,13 @@ from app.core.config import settings as app_config
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
-    SALT_APP_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     SALT_CAPTCHA_SECRET_KEY,
     SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
-from app.core.security import use_stored_app_platform_signing_key
+from app.core.security import use_stored_plugin_platform_signing_key
 from app.core.login_methods import (
     DEFAULT_LOGIN_METHODS,
     LOGIN_METHOD_VALUES,
@@ -128,7 +128,7 @@ def _seeded_login_methods(*, mail_configured: bool) -> list[str]:
     return sorted(m.value for m in resolved)
 
 
-def _build_default_app_settings() -> AppSetting:
+def _build_default_plugin_settings() -> AppSetting:
     """A fresh, env-seeded ``AppSetting`` singleton (id=1), NOT persisted.
 
     Shared by the create path (persisted by a writer) and the privilege-tolerant
@@ -237,7 +237,7 @@ async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -
     await session.refresh(settings_row)
 
 
-async def _stored_app_settings(session: AsyncSession) -> AppSetting | None:
+async def _stored_plugin_settings(session: AsyncSession) -> AppSetting | None:
     stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
     result = await session.exec(stmt)
     return result.one_or_none()
@@ -265,7 +265,7 @@ async def get_app_setting_secrets(session: AsyncSession) -> AppSettingSecret:
     return _build_default_app_setting_secrets()
 
 
-async def load_app_setting_secrets() -> AppSettingSecret:
+async def load_plugin_setting_secrets() -> AppSettingSecret:
     """:func:`get_app_setting_secrets` on a system-engine session of its own.
 
     For readers that hold whatever session their caller runs on — the mailer
@@ -323,17 +323,17 @@ async def ensure_settings_row(session: AsyncSession) -> AppSetting:
     The caller must hold write access to the table — every caller does, since
     it is on its way to a write. A read wants :func:`get_app_settings`.
     """
-    settings_row = await _stored_app_settings(session)
+    settings_row = await _stored_plugin_settings(session)
     if settings_row is not None:
         return settings_row
-    defaults = _build_default_app_settings()
+    defaults = _build_default_plugin_settings()
     columns = AppSetting.__table__.columns
     await session.exec(
         pg_insert(AppSetting.__table__)
         .values({name: getattr(defaults, name) for name in columns.keys()})
         .on_conflict_do_nothing(index_elements=["id"])
     )
-    settings_row = await _stored_app_settings(session)
+    settings_row = await _stored_plugin_settings(session)
     if settings_row is None:  # pragma: no cover - the INSERT landed or conflicted
         raise RuntimeError("app_settings singleton could not be created")
     return settings_row
@@ -347,10 +347,10 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     deployment whose session cannot write the table gets the env-seeded
     defaults in memory and no row, which is what it had before.
     """
-    settings_row = await _stored_app_settings(session)
+    settings_row = await _stored_plugin_settings(session)
     if settings_row is None:
         if not await _session_can_write_app_settings(session):
-            return _build_default_app_settings()
+            return _build_default_plugin_settings()
         settings_row = await ensure_settings_row(session)
         await session.commit()
         await session.refresh(settings_row)
@@ -365,24 +365,24 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     return settings_row
 
 
-async def load_app_platform_signing_key(session: AsyncSession) -> None:
+async def load_plugin_platform_signing_key(session: AsyncSession) -> None:
     """Load the app platform's stored signing key into this process.
 
-    Only while ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset; the env key
+    Only while ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset; the env key
     is used as it is. The first start generates a key and stores it, and every
     start after it, on any replica, loads that one: the write only fills an
     empty column, and the key is read back from the row. System engine only,
     after :func:`seed_app_settings`. Commits.
     """
-    if app_config.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM:
+    if app_config.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM:
         return
-    column = AppSettingSecret.__table__.c.app_platform_signing_key_encrypted
+    column = AppSettingSecret.__table__.c.plugin_platform_signing_key_encrypted
     stored_query = select(column).where(
         AppSettingSecret.__table__.c.id == GLOBAL_SETTINGS_ID
     )
     encrypted = await session.scalar(stored_query)
     if encrypted is None:
-        if await _stored_app_settings(session) is None:
+        if await _stored_plugin_settings(session) is None:
             logger.warning(
                 "app platform: the settings row is not stored, so no signing "
                 "key can be kept; app services stay unavailable."
@@ -399,7 +399,7 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
                 {
                     column: encrypt_field(
                         context_jwt.generate_signing_key(),
-                        SALT_APP_PLATFORM_SIGNING_KEY,
+                        SALT_PLUGIN_PLATFORM_SIGNING_KEY,
                     )
                 }
             )
@@ -409,7 +409,7 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
         if encrypted is None:  # pragma: no cover - the UPDATE landed or lost a race
             raise RuntimeError("app platform signing key could not be stored")
     try:
-        private_pem = decrypt_field(encrypted, SALT_APP_PLATFORM_SIGNING_KEY)
+        private_pem = decrypt_field(encrypted, SALT_PLUGIN_PLATFORM_SIGNING_KEY)
     except InvalidToken:
         logger.error(
             "app platform: the stored signing key does not decrypt under "
@@ -417,7 +417,7 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
             "to the key it was stored under."
         )
         return
-    use_stored_app_platform_signing_key(
+    use_stored_plugin_platform_signing_key(
         private_pem, context_jwt.key_thumbprint(private_pem)
     )
 
@@ -477,14 +477,14 @@ async def get_app_settings(session: AsyncSession) -> AppSetting:
     nothing, and so never ends the transaction of whoever asked.
 
     An existing row is served as-is — env values seed a *new* row once
-    (``_build_default_app_settings``); after that the database is
+    (``_build_default_plugin_settings``); after that the database is
     authoritative. (The OIDC env values seed the platform provider registry row
     instead — see ``platform_provider.seed_platform_provider_from_env``.)
     """
-    settings_row = await _stored_app_settings(session)
+    settings_row = await _stored_plugin_settings(session)
     if settings_row is not None:
         return settings_row
-    return _build_default_app_settings()
+    return _build_default_plugin_settings()
 
 
 # Which columns of the settings singleton each area of the owner's settings

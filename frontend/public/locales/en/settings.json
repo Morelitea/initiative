@@ -995,7 +995,7 @@
       "integrations": "Integrations"
     }
   },
-  "appServices": {
+  "pluginServices": {
     "platformOnly": "Only platform owners can manage app services.",
     "loading": "Loading app services…",
     "loadError": "Unable to load app services.",
@@ -1214,7 +1214,7 @@
       "seatHelp": "They become its superadmin: the seat that appoints others, reaches billing and sets sign-in.",
       "statusDescription": "Choose what the community comes back as.",
       "statusLabel": "Comes back as",
-      "appsNote": "Its app connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
+      "pluginsNote": "Its app connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
       "confirm": "Restore",
       "done": "Restored {{name}}.",
       "error": "Could not restore the community. Please try again."

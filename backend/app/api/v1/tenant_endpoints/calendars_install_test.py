@@ -1,6 +1,6 @@
 """Calendars and calendar events as an installed app calls them.
 
-Each test installs an app the way a community does (``install_app``: placed in
+Each test installs an app the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the calendar and event routes that name a scope: the
 reads, create and update, and the event's attendee list.
@@ -13,28 +13,28 @@ from typing import Any
 
 from sqlmodel import select
 
-from app.core.messages import AppMessages, CalendarMessages, RelationshipMessages
+from app.core.messages import PluginMessages, CalendarMessages, RelationshipMessages
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.testing import (
     guild_url,
     create_calendar,
     create_document,
     create_resource_grant,
     create_calendar_event,
-    create_guild_app,
+    create_guild_plugin,
     create_guild_calendar,
     guild_of,
     route_session_to_guild,
     drain_notices,
 )
-from app.testing.app_clients import (
+from app.testing.plugin_clients import (
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
     share_with_members,
@@ -75,7 +75,7 @@ async def _member_of_a(acting_user: Any, installed: Any) -> Any:
 async def test_reads_the_calendars_and_events_open_to_its_initiative(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["calendars:read"]
     )
     seat = installed.seat
@@ -128,7 +128,7 @@ async def test_reads_the_calendars_and_events_open_to_its_initiative(
 async def test_changing_anything_needs_the_write_scope(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["calendars:read"]
     )
     seat = installed.seat
@@ -153,7 +153,7 @@ async def test_changing_anything_needs_the_write_scope(
             method, guild_url(guild_id, path), headers=headers, json=body
         )
         assert response.status_code == 403, (method, path, response.text)
-        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+        assert response.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["calendars:write"]
     )
     guild_id = installed.guild.id
@@ -221,7 +221,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
             )
         )
     ).all()
-    assert [(g.level, g.app_install_id, g.user_id) for g in grants] == [
+    assert [(g.level, g.plugin_install_id, g.user_id) for g in grants] == [
         (ResourceAccessLevel.owner, installed.app.id, None)
     ]
     stored_calendar = await session.get(Calendar, calendar["id"])
@@ -233,7 +233,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
 async def test_it_shares_nothing_and_makes_no_community_calendar(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["calendars:write"]
     )
     guild_id = installed.guild.id
@@ -250,13 +250,13 @@ async def test_it_shares_nothing_and_makes_no_community_calendar(
         },
     )
     assert shared.status_code == 403, shared.text
-    assert shared.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
+    assert shared.json()["detail"] == PluginMessages.SHARING_NOT_AVAILABLE
 
     community = await client.post(
         guild_url(guild_id, "/calendars/"), headers=headers, json={"name": "Everyone"}
     )
     assert community.status_code == 403, community.text
-    assert community.json()["detail"] == CalendarMessages.APP_INITIATIVE_REQUIRED
+    assert community.json()["detail"] == CalendarMessages.PLUGIN_INITIATIVE_REQUIRED
 
 
 async def test_links_the_documents_open_to_it_in_the_calendars_initiative(
@@ -266,7 +266,7 @@ async def test_links_the_documents_open_to_it_in_the_calendars_initiative(
     the install: one it can read in the calendar's initiative, and not one
     from an initiative it was never placed in."""
     scopes = ["calendars:write", "documents:read", "relationships:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     guild_id = installed.guild.id
     await _switch_on(session, installed.placed)
     headers = install_headers(installed, scopes)
@@ -307,7 +307,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session,
         acting_user,
         role_session,
@@ -404,7 +404,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
 async def test_an_attendee_it_does_not_know_is_unprocessable(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session,
         acting_user,
         role_session,
@@ -431,18 +431,18 @@ async def test_an_attendee_it_does_not_know_is_unprocessable(
     members_grant.level = ResourceAccessLevel.write
     session.add(members_grant)
     await session.commit()
-    other = await create_guild_app(
+    other = await create_guild_plugin(
         session,
         installed.guild,
         seat.user,
         definition={
-            "app_kind": "service",
+            "plugin_kind": "service",
             "service": {"public_id": "tests.token-client-two", "protocol": 1},
         },
         listing_uid="TOKENCLIENT002",
     )
-    foreign = await app_refs.ensure_app_ref(
-        guild_id=guild_id, app_install_id=other.id, user_id=attendee.user.id
+    foreign = await plugin_refs.ensure_plugin_ref(
+        guild_id=guild_id, plugin_install_id=other.id, user_id=attendee.user.id
     )
     headers = install_headers(installed, ["calendars:write", "members:read"])
 
@@ -453,7 +453,7 @@ async def test_an_attendee_it_does_not_know_is_unprocessable(
             json=attendees,
         )
         assert response.status_code == 422, (attendees, response.text)
-        assert AppMessages.REFERENCE_UNKNOWN in {
+        assert PluginMessages.REFERENCE_UNKNOWN in {
             error["msg"] for error in response.json()["detail"]
         }
 

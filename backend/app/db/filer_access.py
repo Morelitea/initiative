@@ -126,7 +126,7 @@ def filer_role_pattern() -> str:
 
 
 def _grant_statements(schema: str, role: str) -> list[str]:
-    from app.db.schema_provisioning import APP_LOGIN_ROLE
+    from app.db.schema_provisioning import PLUGIN_LOGIN_ROLE
 
     stmts = [
         f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{role}"',
@@ -138,7 +138,7 @@ def _grant_statements(schema: str, role: str) -> list[str]:
     for table, columns in sorted({**POLICY_READS, **FILER_TABLE_ACCESS}.items()):
         cols = ", ".join(f'"{c}"' for c in columns)
         stmts.append(f'GRANT SELECT ({cols}) ON "{schema}"."{table}" TO "{role}"')
-    stmts.append(f'GRANT "{role}" TO "{APP_LOGIN_ROLE}" WITH INHERIT FALSE')
+    stmts.append(f'GRANT "{role}" TO "{PLUGIN_LOGIN_ROLE}" WITH INHERIT FALSE')
     return stmts
 
 

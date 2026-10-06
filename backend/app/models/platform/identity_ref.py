@@ -17,7 +17,7 @@ key is, and this deployment rotates ``SECRET_KEY``
 This is the pairwise pseudonymous identifier of OpenID Connect Core §8.1,
 generalised: ``purpose`` is the sector. A sector that lives inside one guild —
 an installed app — also carries ``sector_guild_id`` + ``sector_id``; see
-``services.marketplace.app_refs``.
+``services.marketplace.plugin_refs``.
 
 Minted on the system engine, and read there for every sector but one: the
 request path holds ``SELECT`` and a policy admitting ``client``, the sector an
@@ -141,7 +141,7 @@ class IdentityRef(SQLModel, table=True):
             postgresql_nulls_not_distinct=True,
         ),
         # Removing an install's references, and a guild's. Neither can be a
-        # foreign key: ``guild_apps`` lives in a guild schema and this table
+        # foreign key: ``guild_plugins`` lives in a guild schema and this table
         # does not, so both are deleted explicitly.
         Index("ix_identity_refs_sector", "sector_guild_id", "sector_id"),
         # Sweeping the rows a re-issue left behind.

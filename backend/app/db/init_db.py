@@ -575,22 +575,22 @@ async def _prepare_database() -> None:
     # This project's own app publisher. Added once; a row that exists is left
     # exactly as it is, so an operator's switch survives a restart.
     try:
-        from app.services.marketplace import publishers as app_publishers
+        from app.services.marketplace import publishers as plugin_publishers
 
         async with SystemSessionLocal() as publisher_session:
-            if await app_publishers.seed_publishers(publisher_session):
+            if await plugin_publishers.seed_publishers(publisher_session):
                 logger.info("app publishers: seeded this project's publisher")
     except Exception:
         logger.exception("app publishers: seeding failed")
-    # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
+    # App services the deployment declares in a mounted file (PLUGIN_SERVICES_CONFIG).
     # Database-only: an app's container may boot after this one, and nothing is
     # fetched from it. No-op when the setting is unset.
-    if settings.APP_SERVICES_CONFIG:
+    if settings.PLUGIN_SERVICES_CONFIG:
         try:
-            from app.services.marketplace import registrations as app_registrations
+            from app.services.marketplace import registrations as plugin_registrations
 
             async with SystemSessionLocal() as app_service_session:
-                reconciled = await app_registrations.reconcile_from_config(
+                reconciled = await plugin_registrations.reconcile_from_config(
                     app_service_session
                 )
             logger.info(
@@ -612,9 +612,9 @@ async def _prepare_database() -> None:
     # when nothing is marked mandatory, which is every install that has not
     # asked for this.
     try:
-        from app.services.tenant import mandatory_apps as mandatory_apps_service
+        from app.services.tenant import mandatory_plugins as mandatory_plugins_service
 
-        backfilled = await mandatory_apps_service.backfill_mandatory_apps()
+        backfilled = await mandatory_plugins_service.backfill_mandatory_plugins()
         if backfilled.installed or backfilled.failed:
             logger.info(
                 "mandatory apps: %d installed across %d guild(s), %d failed",

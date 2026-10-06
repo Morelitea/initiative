@@ -40,20 +40,20 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_APP_VENDOR_SETUP, decrypt_field, encrypt_field
-from app.core.messages import AppServiceMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.core.encryption import SALT_PLUGIN_VENDOR_SETUP, decrypt_field, encrypt_field
+from app.core.messages import PluginServiceMessages
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.auth import challenges as challenge_service
 from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.manifest_values import ListingDefinitionError
-from app.services.marketplace.service_apps import (
+from app.services.marketplace.service_plugins import (
     GITHUB_APP_MANIFEST,
     check_setup_values,
 )
 from app.services.safe_http import ResponseTooLargeError, request_public_target
-from app.services.tenant import app_connection_flows as flows_service
+from app.services.tenant import plugin_connection_flows as flows_service
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -123,7 +123,7 @@ def redirect_url(registration_id: int) -> str:
 
 
 async def _manifest(
-    session: AsyncSession, row: AppServiceRegistration
+    session: AsyncSession, row: PluginServiceRegistration
 ) -> tuple[Optional[int], dict[str, Any]]:
     """The registration's listing version and its manifest, as they are now."""
     version = (
@@ -150,7 +150,7 @@ def _organization(value: Optional[str]) -> Optional[str]:
     ):
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=AppServiceMessages.VENDOR_SETUP_INVALID_ORGANIZATION,
+            detail=PluginServiceMessages.VENDOR_SETUP_INVALID_ORGANIZATION,
         )
     return cleaned
 
@@ -170,14 +170,14 @@ async def start(
     if setup_kind(definition) is None:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.VENDOR_SETUP_UNAVAILABLE,
+            detail=PluginServiceMessages.VENDOR_SETUP_UNAVAILABLE,
         )
     setup = definition["vendor"]["setup"]
     owner = _organization(organization)
     action = (
-        f"{GITHUB_URL}/organizations/{owner}/settings/apps/new"
+        f"{GITHUB_URL}/organizations/{owner}/settings/plugins/new"
         if owner
-        else f"{GITHUB_URL}/settings/apps/new"
+        else f"{GITHUB_URL}/settings/plugins/new"
     )
     manifest = {
         **setup["app"],
@@ -197,12 +197,12 @@ async def start(
                 "values": setup["values"],
             }
         ),
-        SALT_APP_VENDOR_SETUP,
+        SALT_PLUGIN_VENDOR_SETUP,
     )
     await challenge_service.create(
         session,
         user_id=actor_user_id,
-        purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        purpose=challenge_service.ChallengePurpose.plugin_vendor_setup,
         value=state,
         answer=str(row.id),
         ttl=STATE_TTL,
@@ -214,14 +214,14 @@ async def start(
 def _expired() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_400_BAD_REQUEST,
-        detail=AppServiceMessages.VENDOR_SETUP_EXPIRED,
+        detail=PluginServiceMessages.VENDOR_SETUP_EXPIRED,
     )
 
 
 def _failed() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_502_BAD_GATEWAY,
-        detail=AppServiceMessages.VENDOR_SETUP_FAILED,
+        detail=PluginServiceMessages.VENDOR_SETUP_FAILED,
     )
 
 
@@ -234,7 +234,7 @@ async def _spend_state(
     spent = await challenge_service.spend_answered(
         session,
         value=state,
-        purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        purpose=challenge_service.ChallengePurpose.plugin_vendor_setup,
         user_id=actor_user_id,
         answer=str(registration_id),
     )
@@ -242,7 +242,7 @@ async def _spend_state(
     if not spent:
         raise _expired()
     try:
-        sealed = json.loads(decrypt_field(state, SALT_APP_VENDOR_SETUP))
+        sealed = json.loads(decrypt_field(state, SALT_PLUGIN_VENDOR_SETUP))
     except (InvalidToken, UnicodeDecodeError, ValueError) as exc:
         raise _expired() from exc
     if not isinstance(sealed, dict) or not isinstance(sealed.get("values"), dict):
@@ -254,7 +254,7 @@ async def _convert(code: str) -> dict[str, Any]:
     """GitHub's answer for the code: the new app's values."""
     if not code or len(code) > _MAX_CODE or any(c not in _CODE_CHARS for c in code):
         raise _failed()
-    url = f"{GITHUB_API_URL}/app-manifests/{quote(code, safe='')}/conversions"
+    url = f"{GITHUB_API_URL}/plugin-manifests/{quote(code, safe='')}/conversions"
     try:
         response = await request_public_target(
             "POST",
@@ -290,7 +290,7 @@ async def complete(
     code: str,
     state: str,
     actor_user_id: int,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Finish the setup GitHub sent the operator back from: exchange its code,
     and write each value GitHub answers with to the vendor field the setup
     named when it started, all of them in one write or none.

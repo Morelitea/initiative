@@ -1,6 +1,6 @@
 """Every field the contract declares is one this build reads.
 
-The vocabulary now arrives from the app-kit rather than being declared here, and
+The vocabulary now arrives from the plugin-kit rather than being declared here, and
 a kit release can reach an author before it reaches a deployment. That makes one
 failure possible that could not happen while this build owned both sides: the
 contract declares a field, the normalizer does not read it, and the field is
@@ -45,7 +45,7 @@ def maximal_manifest() -> dict:
     none of the caller-side fields, so those sit on the read endpoint.
     """
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {
             "public_id": "acme.tracker",
             "protocol": 1,
@@ -270,7 +270,7 @@ def maximal_declarative_manifest() -> dict:
         "on_limit": "truncate",
     }
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "features": ["endpoints"],
         "hosts": ["api.tracker.example", "*.tracker.example"],
         "auth": {"header": "X-Tracker-Token", "prefix": ""},
@@ -853,7 +853,7 @@ def _with(build, change):
         "member-connection-not-in-requires",
     ],
 )
-def test_one_app_is_one_kind_and_says_only_what_its_kind_says(body):
+def test_one_plugin_is_one_kind_and_says_only_what_its_kind_says(body):
     """An app is a container or declarative, never both, and a declarative
     app's expressions parse and read only the steps before them. An endpoint
     is closed: a misspelt term is refused, not dropped."""

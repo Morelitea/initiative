@@ -167,7 +167,7 @@ export const CommunityRestoreWizard = ({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">{t("communities.restore.appsNote")}</p>
+        <p className="text-muted-foreground text-xs">{t("communities.restore.pluginsNote")}</p>
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={restore.isPending}>

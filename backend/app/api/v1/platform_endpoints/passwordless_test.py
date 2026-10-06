@@ -390,7 +390,7 @@ async def test_the_letter_says_the_password_is_gone(
     assert sent == [user.id]
 
 
-async def test_the_app_is_sent_to_a_browser_for_this(
+async def test_the_plugin_is_sent_to_a_browser_for_this(
     client: AsyncClient, session: AsyncSession
 ):
     """The answer hands back a replacement session in cookies, which the native

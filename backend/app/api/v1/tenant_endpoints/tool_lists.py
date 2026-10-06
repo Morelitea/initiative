@@ -51,11 +51,11 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
@@ -425,7 +425,7 @@ class ToolListSpec:
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
     #: Whether an installed app may list this tool, under its read scope.
-    serves_apps: bool = True
+    serves_plugins: bool = True
 
     def __post_init__(self) -> None:
         # The switch column is spelled out in the table for readability; this
@@ -1005,7 +1005,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
         # Not among what an installed app reads today.
-        serves_apps=False,
+        serves_plugins=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
         grants_doc=(
@@ -1196,11 +1196,11 @@ def _actor_params(tool: Tool) -> tuple[tuple[str, Any], ...]:
     """The same three, for a list an installed app may call under the tool's
     read scope: a person arrives exactly as above, and an install through its
     token."""
-    scope = scope_name(tool_resource(tool), AppScopeAccess.read)
+    scope = scope_name(tool_resource(tool), PluginScopeAccess.read)
     return (
         ("session", ActorSessionDep),
         ("current_user", ActorUserDep),
-        ("guild_context", Annotated[ActorContext, Depends(app_scope(scope))]),
+        ("guild_context", Annotated[ActorContext, Depends(plugin_scope(scope))]),
     )
 
 
@@ -1260,7 +1260,7 @@ def _mount_list(spec: ToolListSpec) -> None:
 
     list_rows.__signature__ = _signature(
         spec.params,
-        _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
+        _actor_params(spec.tool) if spec.serves_plugins else _CONTEXT_PARAMS,
     )
     router.add_api_route(
         f"/{spec.tool.route_segment}/",

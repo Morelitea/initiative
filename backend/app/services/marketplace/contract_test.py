@@ -1,6 +1,6 @@
 """The vendored contract, and the manifest this build actually accepts.
 
-The vocabulary is declared once, in the app-kit, and vendored here. The kit
+The vocabulary is declared once, in the plugin-kit, and vendored here. The kit
 generates a JSON Schema from the same file. So there are three things that must
 agree, and this module is where they are made to:
 
@@ -24,7 +24,7 @@ and every handler having a term — lives in :mod:`contract_coverage_test`.
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.core.app_scopes import ALL_SCOPES
+from app.core.plugin_scopes import ALL_SCOPES
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
@@ -33,9 +33,9 @@ from app.services.marketplace.manifest_values import (
 )
 from app.services.marketplace.definitions import normalize_listing_definition
 from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
-from app.services.marketplace.service_apps import (
+from app.services.marketplace.service_plugins import (
     ACTOR_KINDS,
-    APP_PROTOCOL_VERSIONS,
+    PLUGIN_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
     DIRECTIONS,
     EMBED_CAPABILITIES,
@@ -57,8 +57,8 @@ pytestmark = pytest.mark.always
 def platform_accepts(manifest) -> None:
     """Run a manifest through the whole app path, not the service normalizer.
 
-    `app_kind` is read by the dispatcher rather than by
-    `normalize_service_app_definition`, so a case that varies it has to enter
+    `plugin_kind` is read by the dispatcher rather than by
+    `normalize_service_plugin_definition`, so a case that varies it has to enter
     where a published manifest actually enters.
     """
     normalize_listing_definition("app", manifest)
@@ -76,7 +76,7 @@ def validator():
 def _manifest(**overrides):
     """A minimal manifest the platform accepts, for a case to vary one thing of."""
     body = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "acme.tracker", "protocol": 1},
         "features": [],
     }
@@ -138,7 +138,7 @@ def test_vocabularies_come_from_the_validator():
 
     assert set(props["features"]["items"]["enum"]) == FEATURES
     assert set(props["service"]["properties"]["protocol"]["enum"]) == (
-        APP_PROTOCOL_VERSIONS
+        PLUGIN_PROTOCOL_VERSIONS
     )
     assert set(defs["connection"]["properties"]["scope"]["enum"]) == CONNECTION_SCOPES
     assert set(defs["connectionField"]["properties"]["type"]["enum"]) == FIELD_TYPES
@@ -148,7 +148,7 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
     scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
     assert set(scope_items[0]["enum"]) == set(ALL_SCOPES)
-    assert scope_items[1] == {"$ref": "#/$defs/appScope"}
+    assert scope_items[1] == {"$ref": "#/$defs/pluginScope"}
     assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
     assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"
     assert set(defs["embed"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
@@ -199,7 +199,7 @@ def test_the_schema_names_itself_stably():
     so a drifting `$id` invalidates both."""
     assert (
         contract.manifest_schema()["$id"]
-        == "https://initiative.morels.me/schemas/app-manifest-v1.json"
+        == "https://initiative.morels.me/schemas/plugin-manifest-v1.json"
     )
 
 
@@ -225,7 +225,7 @@ ACCEPTED = [
                 "scopes": ["projects:read", "apps:acme.github"],
             }
         ),
-        id="requested-app-scope",
+        id="requested-plugin-scope",
     ),
     pytest.param(
         _manifest(
@@ -421,7 +421,7 @@ ACCEPTED = [
                 }
             ],
         ),
-        id="a-dashboard-the-app-ships-with-itself",
+        id="a-dashboard-the-plugin-ships-with-itself",
     ),
     pytest.param(
         _manifest(
@@ -485,9 +485,9 @@ REFUSED_BY_BOTH = [
         id="endpoint-naming-a-retired-audience-term",
     ),
     pytest.param(
-        {"service": {"public_id": "acme.x"}, "features": []}, id="no-app-kind"
+        {"service": {"public_id": "acme.x"}, "features": []}, id="no-plugin-kind"
     ),
-    pytest.param(_manifest(app_kind="tool_instance"), id="wrong-app-kind"),
+    pytest.param(_manifest(plugin_kind="tool_instance"), id="wrong-plugin-kind"),
     pytest.param(
         _manifest(service={"public_id": "no-dot"}), id="public-id-without-dot"
     ),
@@ -513,11 +513,11 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(service={"public_id": "acme.x", "scopes": ["apps:github"]}),
-        id="app-scope-without-a-public-id",
+        id="plugin-scope-without-a-public-id",
     ),
     pytest.param(
         _manifest(service={"public_id": "acme.x", "scopes": ["apps:Acme.github"]}),
-        id="app-scope-out-of-charset",
+        id="plugin-scope-out-of-charset",
     ),
     pytest.param(
         _manifest(
@@ -762,9 +762,9 @@ def test_requested_scopes_are_stored_sorted_and_absent_when_none():
     """Canonical, so re-publishing the same manifest stores the same document;
     and left out when empty, so "does this app ask for anything?" has one
     shape."""
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import normalize_service_plugin_definition
 
-    cleaned = normalize_service_app_definition(
+    cleaned = normalize_service_plugin_definition(
         _manifest(
             service={
                 "public_id": "acme.tracker",
@@ -777,17 +777,17 @@ def test_requested_scopes_are_stored_sorted_and_absent_when_none():
         "projects:read",
         "tags:write",
     ]
-    bare = normalize_service_app_definition(_manifest())
+    bare = normalize_service_plugin_definition(_manifest())
     assert "scopes" not in bare["service"]
 
 
-def test_app_scopes_are_stored_with_the_rest_and_bounded():
-    from app.services.marketplace.service_apps import (
-        MAX_APP_SCOPES,
-        normalize_service_app_definition,
+def test_plugin_scopes_are_stored_with_the_rest_and_bounded():
+    from app.services.marketplace.service_plugins import (
+        MAX_PLUGIN_SCOPES,
+        normalize_service_plugin_definition,
     )
 
-    cleaned = normalize_service_app_definition(
+    cleaned = normalize_service_plugin_definition(
         _manifest(
             service={
                 "public_id": "acme.tracker",
@@ -797,18 +797,18 @@ def test_app_scopes_are_stored_with_the_rest_and_bounded():
     )
     assert cleaned["service"]["scopes"] == ["apps:acme.github", "projects:read"]
 
-    too_many = [f"apps:acme.app{index}" for index in range(MAX_APP_SCOPES + 1)]
+    too_many = [f"apps:acme.app{index}" for index in range(MAX_PLUGIN_SCOPES + 1)]
     with pytest.raises(ValueError):
-        normalize_service_app_definition(
+        normalize_service_plugin_definition(
             _manifest(service={"public_id": "acme.tracker", "scopes": too_many})
         )
 
 
 def test_public_is_stored_only_when_set_and_refused_on_an_emission():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import normalize_service_plugin_definition
 
     def endpoint(**extra):
-        return normalize_service_app_definition(
+        return normalize_service_plugin_definition(
             _manifest(
                 features=["endpoints"],
                 endpoints=[{"id": "app.acme.tracker.s", **extra}],
@@ -823,14 +823,14 @@ def test_public_is_stored_only_when_set_and_refused_on_an_emission():
 
 
 def test_admin_only_defaults_to_false_and_is_always_stored():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import normalize_service_plugin_definition
 
     def embed(**extra):
         body = _manifest(
             features=["embeds"],
             embeds=[{"id": "e", "path": "/e", "name": {"en": "E"}, **extra}],
         )
-        return normalize_service_app_definition(body)["embeds"][0]
+        return normalize_service_plugin_definition(body)["embeds"][0]
 
     assert embed()["admin_only"] is False
     assert embed(admin_only=True)["admin_only"] is True
@@ -866,14 +866,14 @@ def test_the_retired_audience_term_is_refused_by_name(where):
 
 
 def test_an_endpoint_admin_only_defaults_to_false_and_is_always_stored():
-    from app.services.marketplace.service_apps import normalize_service_app_definition
+    from app.services.marketplace.service_plugins import normalize_service_plugin_definition
 
     def endpoint(**extra):
         body = _manifest(
             features=["endpoints"],
             endpoints=[{"id": "app.acme.tracker.s", "direction": "read", **extra}],
         )
-        return normalize_service_app_definition(body)["endpoints"][0]
+        return normalize_service_plugin_definition(body)["endpoints"][0]
 
     assert endpoint()["admin_only"] is False
     assert endpoint(admin_only=True)["admin_only"] is True
@@ -913,6 +913,6 @@ def test_an_emission_is_not_admin_only():
     ],
 )
 def test_is_admin_only_reads_both_contracts(declared, expected):
-    from app.services.marketplace.service_apps import is_admin_only
+    from app.services.marketplace.service_plugins import is_admin_only
 
     assert is_admin_only(declared) is expected

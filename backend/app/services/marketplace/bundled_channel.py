@@ -10,7 +10,7 @@ the same shape: an HMAC over ``METHOD\\nPATH\\nTIMESTAMP\\nsha256(body)``,
 which binds a signature to the exact request it was minted for rather than to a
 body that could be replayed at another route.
 
-Its own secret, separate from the app-platform registration's. The two channels
+Its own secret, separate from the plugin-platform registration's. The two channels
 prove different things and do not share key material.
 """
 

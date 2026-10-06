@@ -18,7 +18,7 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CommunitySidebar } from "@/components/communities/CommunitySidebar";
 import { DIRECTORY_SECTION_ID } from "@/components/communityHome/InitiativeDirectory";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
-import { AppsSection } from "@/components/sidebar/AppsSection";
+import { PluginsSection } from "@/components/sidebar/PluginsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
@@ -48,7 +48,7 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { useCommunities } from "@/hooks/useCommunities";
-import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
@@ -195,13 +195,13 @@ export const AppSidebar = () => {
   // The same install list the Apps section reads, handed to each initiative so
   // an app declaring a surface in one gets a row there too. Filtered to what is
   // actually reachable, on the same terms the Apps section uses.
-  const communityAppsQuery = useCommunityApps({ enabled: communityTreeEnabled });
-  const initiativeApps = useMemo(
+  const communityPluginsQuery = useCommunityPlugins({ enabled: communityTreeEnabled });
+  const initiativePlugins = useMemo(
     () =>
-      (communityAppsQuery.data?.items ?? []).filter(
+      (communityPluginsQuery.data?.items ?? []).filter(
         (app) => app.enabled && app.available !== false
       ),
-    [communityAppsQuery.data]
+    [communityPluginsQuery.data]
   );
 
   // Your own account, so your own name if you set one — and your handle, not
@@ -214,10 +214,10 @@ export const AppSidebar = () => {
   const [initiativeCollapseKey, setInitiativeCollapseKey] = useState(0);
   // Remembered like the other sections; open by default so a newly installed
   // app is visible without hunting for it.
-  const [appsOpen, setAppsOpenState] = useState(() => getItem("apps-section-open") !== "false");
-  const setAppsOpen = (open: boolean) => {
-    setAppsOpenState(open);
-    setItem("apps-section-open", String(open));
+  const [pluginsOpen, setPluginsOpenState] = useState(() => getItem("plugins-section-open") !== "false");
+  const setPluginsOpen = (open: boolean) => {
+    setPluginsOpenState(open);
+    setItem("plugins-section-open", String(open));
   };
   const collapseAllInitiatives = useCallback(() => {
     const states: Record<number, boolean> = {};
@@ -288,7 +288,7 @@ export const AppSidebar = () => {
 
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
-  const currentVersion = __APP_VERSION__;
+  const currentVersion = __PLUGIN_VERSION__;
   const hasUpdate =
     latestVersion && currentVersion && compareVersions(latestVersion, currentVersion) > 0;
 
@@ -405,10 +405,10 @@ export const AppSidebar = () => {
                             initiatives rather than inside any of them. */}
                         {activeCommunity && (
                           <>
-                            <AppsSection
+                            <PluginsSection
                               isCommunityAdmin={isCommunityAdmin}
-                              open={appsOpen}
-                              onOpenChange={setAppsOpen}
+                              open={pluginsOpen}
+                              onOpenChange={setPluginsOpen}
                             />
                             <SidebarSeparator />
                           </>
@@ -471,7 +471,7 @@ export const AppSidebar = () => {
                                       initiative={initiative}
                                       projects={projects}
                                       activeProjectId={activeProjectId}
-                                      apps={initiativeApps}
+                                      apps={initiativePlugins}
                                       counts={countsFor(initiative.id, projects.length)}
                                       activeCommunityId={activeCommunityId}
                                       collapseKey={initiativeCollapseKey}

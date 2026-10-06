@@ -192,10 +192,10 @@ def test_every_context_branch_binds_every_parameter():
             standing=InstallContext(
                 guild_id=3,
                 install_id=5,
-                client_id="tests.app-service",
+                client_id="tests.plugin-service",
                 token_scopes=frozenset({"documents:read"}),
             ),
-            token_client_id="tests.app-service",
+            token_client_id="tests.plugin-service",
             token_scopes=frozenset({"documents:read"}),
         ),
     }

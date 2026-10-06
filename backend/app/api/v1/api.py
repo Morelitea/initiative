@@ -17,14 +17,14 @@ from app.api.v1.tenant_endpoints import (
     smart_chips,
     search as guild_search,
     ai_settings,
-    app_data,
+    plugin_data,
     attachments,
     webhooks,
     calendar_entries,
     calendar_events,
     calendars,
     dashboards,
-    guild_apps,
+    guild_plugins,
     collaboration,
     comments,
     counters,
@@ -67,14 +67,14 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
-    app_consent_requests,
-    app_oauth,
-    app_platform,
-    app_installation,
-    app_hub,
-    app_connection_callbacks,
-    app_hooks,
-    app_services,
+    plugin_consent_requests,
+    plugin_oauth,
+    plugin_platform,
+    plugin_installation,
+    plugin_hub,
+    plugin_connection_callbacks,
+    plugin_hooks,
+    plugin_services,
     auth,
     auth_providers,
     provider_placement,
@@ -167,47 +167,47 @@ api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 # Deployment-level app service wiring (apps.manage — owner). Platform-addressed
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(
-    app_services.router, prefix="/app-services", tags=["app-services"]
+    plugin_services.router, prefix="/plugin-services", tags=["plugin-services"]
 )
 api_router.include_router(
-    app_services.publishers_router, prefix="/app-publishers", tags=["app-services"]
+    plugin_services.publishers_router, prefix="/plugin-publishers", tags=["plugin-services"]
 )
 # Public: apps verify the context JWTs we send them against this key set. No
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
-    app_platform.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_platform.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 api_router.include_router(
-    guild_reference.router, prefix="/app-platform", tags=["app-platform"]
+    guild_reference.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 # The token endpoint: an app authenticates with a JWT it signs and is issued an
 # app or installation token. The listing of its installs takes the app token.
 api_router.include_router(
-    app_oauth.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_oauth.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 # An installed app asking a member to let it act as them, on its installation
 # token. The member answers on their own consent screen.
 api_router.include_router(
-    app_consent_requests.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_consent_requests.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 # An installed app's calls about its own installation — its configuration, its
 # members' connections, its verdict on the configuration and the events it
 # re-emits — on its installation token. The install comes from the token.
 api_router.include_router(
-    app_installation.router, prefix="/app-platform", tags=["app-platform"]
+    plugin_installation.router, prefix="/plugin-platform", tags=["plugin-platform"]
 )
 # An installed app calling another app's public endpoint, on its installation
 # or member token. Initiative checks the call and makes it.
-api_router.include_router(app_hub.router, prefix="/app-platform", tags=["app-platform"])
+api_router.include_router(plugin_hub.router, prefix="/plugin-platform", tags=["plugin-platform"])
 # Where a vendor returns a person during an app connection's flow. The two
 # addresses an operator registers with each vendor client; they act on the
 # flow's sealed state alone.
 api_router.include_router(
-    app_connection_callbacks.router, prefix="/app-connections", tags=["app-platform"]
+    plugin_connection_callbacks.router, prefix="/plugin-connections", tags=["plugin-platform"]
 )
 # Where a vendor sends an app's webhooks, one address per app. A delivery is
 # admitted by its signature and routed by the install index.
-api_router.include_router(app_hooks.router, prefix="/app-hooks", tags=["app-platform"])
+api_router.include_router(plugin_hooks.router, prefix="/plugin-hooks", tags=["plugin-platform"])
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
@@ -298,14 +298,14 @@ guild_router.include_router(wikis.pages_router, tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
-# The data plane is included FIRST so its literal ``/apps/widget-catalog`` wins
-# the match against ``/apps/{app_id}`` below — the same ordering rule the
+# The data plane is included FIRST so its literal ``/plugins/widget-catalog`` wins
+# the match against ``/plugins/{plugin_id}`` below — the same ordering rule the
 # dashboards router uses for its own widget catalog.
-guild_router.include_router(app_data.router, prefix="/apps", tags=["apps"])
-guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
+guild_router.include_router(plugin_data.router, prefix="/plugins", tags=["apps"])
+guild_router.include_router(guild_plugins.router, prefix="/plugins", tags=["apps"])
 # The same installs reached from inside one initiative. Its own router because
 # the initiative leads the path: it is what the request is scoped to.
-guild_router.include_router(guild_apps.initiative_router, tags=["apps"])
+guild_router.include_router(guild_plugins.initiative_router, tags=["apps"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )

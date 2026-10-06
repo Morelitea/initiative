@@ -4,7 +4,7 @@ A declarative app has no container. Each of its reads and writes is a request,
 or up to three named steps, rendered from JSONata expressions, sent to the
 vendor with the credential its connection holds, and an expression that maps
 the answers. This module runs one, exactly as the SDK's ``runEndpoint``
-(``initiative-app-sdk/testing``) does against recorded answers, and hands back
+(``initiative-plugin-sdk/testing``) does against recorded answers, and hands back
 the envelope a container answers with, ``{endpoint, actor, result}``, so
 everything around the call reads it the same way.
 
@@ -43,29 +43,29 @@ from urllib.parse import parse_qsl, quote, urljoin, urlsplit
 import httpx
 from sqlmodel import select
 
-from app.core.messages import AppDataMessages
+from app.core.messages import PluginDataMessages
 from app.db import cohorts
-from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.services.marketplace import expressions
-from app.services.marketplace.app_data import (
+from app.services.marketplace.plugin_data import (
     MAX_RESPONSE_BYTES,
     REQUEST_TIMEOUT_SECONDS,
-    AppDataError,
+    PluginDataError,
     _required_connection_ids,
 )
 from app.services.marketplace.expressions import UNDEFINED, ExpressionError
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
-from app.services.marketplace.service_apps import (
+from app.services.marketplace.service_plugins import (
     DEFAULT_AUTH_HEADER,
     DEFAULT_AUTH_PREFIX,
     PLATFORM_CODES,
     TRANSIENT_CODE,
 )
 from app.services.safe_http import ResponseTooLargeError, request_public_target
-from app.services.tenant import app_connection_flows as flows
-from app.services.tenant.app_channels import AppChannelError, load_install
-from app.services.tenant.app_config import connection_by_id, without_tokens
+from app.services.tenant import plugin_connection_flows as flows
+from app.services.tenant.plugin_channels import PluginChannelError, load_install
+from app.services.tenant.plugin_config import connection_by_id, without_tokens
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -409,8 +409,8 @@ class _Run:
                 max_bytes=flows.VENDOR_MAX_RESPONSE_BYTES,
             )
         except ResponseTooLargeError as exc:
-            raise AppDataError(
-                AppDataMessages.RESPONSE_TOO_LARGE, 502, "the vendor answered too much"
+            raise PluginDataError(
+                PluginDataMessages.RESPONSE_TOO_LARGE, 502, "the vendor answered too much"
             ) from exc
         except (
             httpx.HTTPError,
@@ -550,7 +550,7 @@ async def run_endpoint(
     ``credentials`` its token, by connection id. Expressions read a request's
     own connection as ``connection`` and every connection the endpoint's
     ``requires`` names as ``connections.<id>``. A passing failure raises
-    :class:`AppDataError` as the app being unavailable.
+    :class:`PluginDataError` as the app being unavailable.
     """
     run = _Run(
         definition,
@@ -607,8 +607,8 @@ async def run_endpoint(
         return answer
     except _Outcome as outcome:
         if outcome.code is None:
-            raise AppDataError(
-                AppDataMessages.SERVICE_UNAVAILABLE, 502, outcome.detail or "transient"
+            raise PluginDataError(
+                PluginDataMessages.SERVICE_UNAVAILABLE, 502, outcome.detail or "transient"
             ) from outcome
         if outcome.detail:
             logger.info(
@@ -640,7 +640,7 @@ async def after_connect(
     step's answer as ``steps.<name>`` and, once a call is answered,
     ``response``. An answer the defaults refuse, a passing failure or an
     expression that fails raises
-    :class:`~app.services.tenant.app_connection_flows.HookError`, as a hook
+    :class:`~app.services.tenant.plugin_connection_flows.HookError`, as a hook
     that fails does.
     """
     run = _Run(
@@ -688,7 +688,7 @@ async def after_connect(
             f"after_connect answered {outcome.code or TRANSIENT_CODE}"
             + (f" ({outcome.detail})" if outcome.detail else "")
         ) from outcome
-    except AppDataError as exc:
+    except PluginDataError as exc:
         raise flows.HookError(f"after_connect answered {exc.code}") from exc
     return flows.connected(result)
 
@@ -732,7 +732,7 @@ async def health_state(
                 continue
             return row["state"]
         return "ok" if 200 <= answer.status <= 299 else "unavailable"
-    except (_Outcome, AppDataError) as exc:
+    except (_Outcome, PluginDataError) as exc:
         logger.info("app health: the check answered no state (%s)", exc)
         return "unavailable"
 
@@ -825,7 +825,7 @@ async def map_delivery(
     return Delivered(event=event, status=status, failures=tuple(failures))
 
 
-# --- the call behind ``_call_app`` -------------------------------------------
+# --- the call behind ``_call_plugin`` -------------------------------------------
 
 
 def _typed(endpoint: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
@@ -861,7 +861,7 @@ def _connection_ids(endpoint: Mapping[str, Any]) -> list[str]:
 async def _credentials(
     *,
     registration: RegistrationSnapshot,
-    app: GuildApp,
+    app: GuildPlugin,
     guild_id: int,
     endpoint: Mapping[str, Any],
     refs: Mapping[str, str],
@@ -883,17 +883,17 @@ async def _credentials(
     async with cohorts.system_session(guild_id) as session:
         try:
             install = await load_install(
-                session, registration, guild_id, app_install_id=app.id, for_write=True
+                session, registration, guild_id, plugin_install_id=app.id, for_write=True
             )
-        except AppChannelError as exc:
-            raise AppDataError(exc.code, exc.status_code) from exc
+        except PluginChannelError as exc:
+            raise PluginDataError(exc.code, exc.status_code) from exc
         for connection_id in _connection_ids(endpoint):
             connection = connection_by_id(install.definition, connection_id)
             interactive = (connection or {}).get("scope") == "interactive"
-            refusal = AppDataError(
-                AppDataMessages.CONNECTION_REQUIRED
+            refusal = PluginDataError(
+                PluginDataMessages.CONNECTION_REQUIRED
                 if interactive
-                else AppDataMessages.NEEDS_CONFIGURATION,
+                else PluginDataMessages.NEEDS_CONFIGURATION,
                 409,
             )
             ref = refs.get(connection_id)
@@ -912,9 +912,9 @@ async def _credentials(
                     )
                     row = (
                         await session.exec(
-                            select(GuildAppUserConnection).where(
-                                GuildAppUserConnection.app_id == install.id,
-                                GuildAppUserConnection.connection_ref == ref,
+                            select(GuildPluginUserConnection).where(
+                                GuildPluginUserConnection.plugin_id == install.id,
+                                GuildPluginUserConnection.connection_ref == ref,
                             )
                         )
                     ).first()
@@ -941,7 +941,7 @@ async def _credentials(
 async def call_endpoint(
     *,
     registration: RegistrationSnapshot,
-    app: GuildApp,
+    app: GuildPlugin,
     guild_id: int,
     endpoint_id: str,
     params: Mapping[str, Any],
@@ -970,7 +970,7 @@ async def call_endpoint(
         None,
     )
     if endpoint is None:
-        raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
+        raise PluginDataError(PluginDataMessages.ENDPOINT_NOT_FOUND, 404)
     try:
         async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
             tokens, used, member = await _credentials(
@@ -990,19 +990,19 @@ async def call_endpoint(
                 now=datetime.now(timezone.utc),
             )
     except TimeoutError as exc:
-        raise AppDataError(
-            AppDataMessages.SERVICE_UNAVAILABLE, 502, "the call ran out of time"
+        raise PluginDataError(
+            PluginDataMessages.SERVICE_UNAVAILABLE, 502, "the call ran out of time"
         ) from exc
     if endpoint["direction"] == "write" and set(result) == {"unavailable"}:
         code = result["unavailable"]
-        raise AppDataError(code, _WRITE_STATUS.get(code, _STATE_REFUSED))
+        raise PluginDataError(code, _WRITE_STATUS.get(code, _STATE_REFUSED))
     body = {
         "endpoint": endpoint_id,
         "actor": "member" if member else "installation",
         "result": result,
     }
     if len(json.dumps(body, ensure_ascii=False).encode("utf-8")) > MAX_RESPONSE_BYTES:
-        raise AppDataError(
-            AppDataMessages.RESPONSE_TOO_LARGE, 502, "the answer exceeded the ceiling"
+        raise PluginDataError(
+            PluginDataMessages.RESPONSE_TOO_LARGE, 502, "the answer exceeded the ceiling"
         )
     return body

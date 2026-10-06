@@ -866,7 +866,7 @@ def _minimal_manifest(initiative_id=1, name="Restored", entries=None, assets=Non
     return {
         "type": "initiative-backup",
         "schema_version": 1,
-        "app_version": "0.0.0-test",
+        "plugin_version": "0.0.0-test",
         "exported_at": "2026-07-15T00:00:00+00:00",
         "exported_by_handle": "tester#0001",
         "source_instance_url": None,
@@ -1214,7 +1214,7 @@ def test_reject_non_flat_asset_keys_unit():
         return BackupManifest(
             type="initiative-backup",
             schema_version=1,
-            app_version="0.0.0-test",
+            plugin_version="0.0.0-test",
             exported_at="2026-07-15T00:00:00+00:00",
             guild={"id": 1, "name": "g"},
             include_uploads=True,
@@ -1572,7 +1572,7 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
     manifest = BackupManifest(
         type="initiative-backup",
         schema_version=1,
-        app_version="0.0.0-test",
+        plugin_version="0.0.0-test",
         exported_at="2026-07-15T00:00:00+00:00",
         guild={"id": 1, "name": "g"},
         include_uploads=True,
@@ -1937,7 +1937,7 @@ async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, ses
     envelope = {
         "type": "initiative-project",
         "schema_version": 1,
-        "app_version": "0.0.0-test",
+        "plugin_version": "0.0.0-test",
         "exported_at": "2026-07-15T00:00:00+00:00",
         "project": {"name": "Imported Board"},
         "tags": [],
@@ -2235,7 +2235,7 @@ def _project_envelope_with_comment(author_handle: str, author_name: str) -> dict
     return {
         "type": "initiative-project",
         "schema_version": 1,
-        "app_version": "0.0.0-test",
+        "plugin_version": "0.0.0-test",
         "exported_at": "2026-07-15T00:00:00+00:00",
         "project": {"name": "Imported Board"},
         "tags": [],

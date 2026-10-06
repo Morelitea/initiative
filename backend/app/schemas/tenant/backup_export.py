@@ -150,7 +150,7 @@ class ManifestCommunity(SanitizedBaseModel):
 class BackupManifest(SanitizedBaseModel):
     type: str  # "initiative-backup" | "guild-backup"
     schema_version: int = BACKUP_SCHEMA_VERSION
-    app_version: str
+    plugin_version: str
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None

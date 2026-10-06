@@ -31,9 +31,9 @@ vi.mock("@/hooks/useDocuments", () => ({
 // Mocked like every other sibling: this file is about how a binding becomes a
 // request, and the app hooks reach for community context a bare renderHook has no
 // provider for.
-vi.mock("@/hooks/useAppData", () => ({
-  useAppData: () => idle,
-  useAppWidgetCatalog: () => idle,
+vi.mock("@/hooks/usePluginData", () => ({
+  usePluginData: () => idle,
+  usePluginWidgetCatalog: () => idle,
 }));
 
 /** The statement the query hook was actually asked for. */

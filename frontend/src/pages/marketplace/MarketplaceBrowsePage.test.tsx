@@ -23,7 +23,7 @@ vi.mock("@/hooks/useMarketplace", () => ({
 }));
 
 let installedFailed = false;
-let installedApps: { listing_uid: string }[] = [];
+let installedPlugins: { listing_uid: string }[] = [];
 
 vi.mock("@/hooks/useDashboards", () => ({
   useInstalledListings: () => ({
@@ -32,9 +32,9 @@ vi.mock("@/hooks/useDashboards", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useCommunityApps", () => ({
-  useCommunityApps: () => ({
-    data: installedFailed ? undefined : { items: installedApps },
+vi.mock("@/hooks/useCommunityPlugins", () => ({
+  useCommunityPlugins: () => ({
+    data: installedFailed ? undefined : { items: installedPlugins },
     isError: installedFailed,
   }),
 }));
@@ -60,7 +60,7 @@ const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
 
 beforeEach(() => {
   installed = {};
-  installedApps = [];
+  installedPlugins = [];
   installedFailed = false;
   listingsFor.mockReturnValue({
     data: { items: [listing()], total: 1 },
@@ -96,14 +96,14 @@ describe("MarketplaceBrowsePage", () => {
     // Each shelf asks its own tool: the dashboards aggregate knows nothing
     // about apps, so reading installed state from it here would report every
     // app as not installed.
-    installedApps = [{ listing_uid: "SPRNT000000001" }];
+    installedPlugins = [{ listing_uid: "SPRNT000000001" }];
     renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
     expect(await screen.findByText("Installed")).toBeInTheDocument();
   });
 
   it("does not read app installs from the dashboard aggregate", async () => {
     installed = { SPRNT000000001: 1 };
-    installedApps = [];
+    installedPlugins = [];
     renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
     await screen.findByText("Sprint health");
     expect(screen.queryByText("Installed")).toBeNull();

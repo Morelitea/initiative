@@ -25,7 +25,7 @@ from typing import Optional
 
 from cryptography.fernet import InvalidToken
 
-from app.core.encryption import SALT_APP_CONNECTION_FLOW, decrypt_field, encrypt_field
+from app.core.encryption import SALT_PLUGIN_CONNECTION_FLOW, decrypt_field, encrypt_field
 
 __all__ = [
     "PHASES",
@@ -124,7 +124,7 @@ def encode_state(state: ConnectionFlowState) -> str:
         },
         separators=(",", ":"),
     )
-    return encrypt_field(plaintext, SALT_APP_CONNECTION_FLOW)
+    return encrypt_field(plaintext, SALT_PLUGIN_CONNECTION_FLOW)
 
 
 def decode_state(
@@ -135,7 +135,7 @@ def decode_state(
         raise FlowStateError("missing state")
     try:
         plaintext = decrypt_field(
-            token, SALT_APP_CONNECTION_FLOW, ttl_seconds=max_age_seconds
+            token, SALT_PLUGIN_CONNECTION_FLOW, ttl_seconds=max_age_seconds
         )
     except (InvalidToken, UnicodeDecodeError) as exc:
         raise FlowStateError("invalid or expired state") from exc

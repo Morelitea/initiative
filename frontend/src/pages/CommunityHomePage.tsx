@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
+import { PluginSettingsDialog } from "@/components/plugins/PluginSettingsDialog";
 import { CommunityLocationLine } from "@/components/communities/CommunityLocationLine";
 import { CommunityBannerBadges } from "@/components/communityHome/CommunityBannerBadges";
 import { CommunityHomeEmptyState } from "@/components/communityHome/CommunityHomeEmptyState";
@@ -249,8 +249,8 @@ export function CommunityHomePage() {
         {/* `?app=` opens one app's settings where the reader answers what it
             asked to do as them — the link its notification carries. */}
         {search.app ? (
-          <AppSettingsDialog
-            appId={search.app}
+          <PluginSettingsDialog
+            pluginId={search.app}
             isCommunityAdmin={isCommunityAdmin}
             open
             onOpenChange={(next) => {

@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
-import { InstallAppDialog } from "@/components/marketplace/InstallAppDialog";
+import { InstallPluginDialog } from "@/components/marketplace/InstallPluginDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -36,7 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCommunities } from "@/hooks/useCommunities";
-import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -56,7 +56,7 @@ export function MarketplaceListingPage() {
   const { activeCommunity } = useCommunities();
 
   const listing = listingQuery.data;
-  const isApp = listing?.kind === ListingKind.app;
+  const isPlugin = listing?.kind === ListingKind.app;
   // Back to the shelf this listing was found on, falling back to the listing's
   // own kind when someone arrived by direct link. Both can be unknown when the
   // listing failed to load, and neither is guaranteed to be a shelf this
@@ -74,10 +74,10 @@ export function MarketplaceListingPage() {
   // request failed. "We do not know" and "you do not have it" would otherwise
   // render identically — as an install button and a note telling a member to go
   // ask for something they may already have.
-  const appInstalls = useCommunityApps({ enabled: isApp });
+  const pluginInstalls = useCommunityPlugins({ enabled: isPlugin });
   const isInstalled: boolean | undefined =
-    isApp && !appInstalls.isLoading && !appInstalls.isError
-      ? (appInstalls.data?.items ?? []).some((app) => app.listing_uid === listing?.uid)
+    isPlugin && !pluginInstalls.isLoading && !pluginInstalls.isError
+      ? (pluginInstalls.data?.items ?? []).some((app) => app.listing_uid === listing?.uid)
       : undefined;
 
   if (listingQuery.isError) {
@@ -159,23 +159,23 @@ export function MarketplaceListingPage() {
                 // something the community may already have is the one action this
                 // page should not take on a guess.
                 disabled={
-                  !listing.installable || (isApp && (!holdsTheSeat || isInstalled === undefined))
+                  !listing.installable || (isPlugin && (!holdsTheSeat || isInstalled === undefined))
                 }
               >
                 <Download className="mr-1.5 h-4 w-4" />
-                {isApp ? t("apps:install.action") : t("detail.install")}
+                {isPlugin ? t("apps:install.action") : t("detail.install")}
               </Button>
             )}
             {!listing.installable ? (
               <span className="text-muted-foreground text-xs">
                 {listing.available ? t("detail.needsUpdate") : t("detail.withdrawn")}
               </span>
-            ) : isApp && appInstalls.isError ? (
+            ) : isPlugin && pluginInstalls.isError ? (
               <span className="text-muted-foreground text-xs">
                 {t("apps:install.unknownState")}
               </span>
             ) : (
-              isApp &&
+              isPlugin &&
               !holdsTheSeat &&
               isInstalled === false && (
                 <span className="text-muted-foreground text-xs">{t("apps:install.adminOnly")}</span>
@@ -208,7 +208,7 @@ export function MarketplaceListingPage() {
 
       {/* An app mounts one of this build's tools; there is no canvas to draw,
           so the preview is a dashboard-only affordance. */}
-      {!isApp && (
+      {!isPlugin && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
@@ -237,8 +237,8 @@ export function MarketplaceListingPage() {
       )}
 
       {listing &&
-        (isApp ? (
-          <InstallAppDialog listing={listing} open={installing} onOpenChange={setInstalling} />
+        (isPlugin ? (
+          <InstallPluginDialog listing={listing} open={installing} onOpenChange={setInstalling} />
         ) : (
           <InstallListingDialog listing={listing} open={installing} onOpenChange={setInstalling} />
         ))}

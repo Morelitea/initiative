@@ -11,7 +11,7 @@ kinds:
   row's ``initiative_id`` for it (see ``app.services.permissions``).
   ``all_initiative_members`` may only be set when there is no user/role grantee
   (enforced by the ``resource_grants_one_grantee`` check), or
-- an **installed app** (``app_install_id`` set), the install acting as its
+- an **installed app** (``plugin_install_id`` set), the install acting as its
   community.
 
 Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables.
@@ -82,7 +82,7 @@ class ResourceGrant(CreatedByMixin, table=True):
         CheckConstraint(
             "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
             "+ (all_initiative_members)::int "
-            "+ (app_install_id IS NOT NULL)::int = 1",
+            "+ (plugin_install_id IS NOT NULL)::int = 1",
             name="resource_grants_one_grantee",
         ),
         # A resource has one owner or none. Nothing else in the schema said so,
@@ -102,7 +102,7 @@ class ResourceGrant(CreatedByMixin, table=True):
             "resource_id",
             "user_id",
             "role_id",
-            "app_install_id",
+            "plugin_install_id",
             name="resource_grants_unique_grantee",
             postgresql_nulls_not_distinct=True,
         ),
@@ -150,13 +150,13 @@ class ResourceGrant(CreatedByMixin, table=True):
     #: The installed app this grant is made to. The row says what the install
     #: may reach when it acts as its community; uninstalling removes its
     #: grants with it.
-    app_install_id: Optional[int] = Field(
+    plugin_install_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("guild_apps.id", ondelete="CASCADE"),
+            ForeignKey("guild_plugins.id", ondelete="CASCADE"),
             nullable=True,
-        ),  # indexed by the partial ix_resource_grants_app_install
+        ),  # indexed by the partial ix_resource_grants_plugin_install
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)

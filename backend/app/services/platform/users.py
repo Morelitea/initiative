@@ -157,7 +157,7 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
-async def _end_app_access(
+async def _end_plugin_access(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
     """End everything this account let an app do, in one guild.
@@ -169,10 +169,10 @@ async def _end_app_access(
 
     ``session`` is a system session routed into ``guild_id``.
     """
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_member_consents as consents_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_member_consents as consents_service
 
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="account_closed"
     )
     await consents_service.delete_member_consents(session, user_id=user_id)
@@ -206,7 +206,7 @@ async def _member_guild_ids(session: AsyncSession, user_id: int) -> list[int]:
     )
 
 
-async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
+async def _end_plugin_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
     """The same, across every community the account belongs to.
 
     For the paths that keep the roster: a deleted account holds its memberships
@@ -214,10 +214,10 @@ async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> 
     the guilds have to be enumerated for it.
     """
 
-    async def end_app_access(guild_session: AsyncSession, guild_id: int) -> None:
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+    async def end_plugin_access(guild_session: AsyncSession, guild_id: int) -> None:
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
-    await _in_each_guild(await _member_guild_ids(session, user_id), end_app_access)
+    await _in_each_guild(await _member_guild_ids(session, user_id), end_plugin_access)
 
 
 async def _drop_user_memberships(
@@ -251,7 +251,7 @@ async def _drop_user_memberships(
         await initiatives_service.remove_user_from_guild_initiatives(
             guild_session, guild_id=guild_id, user_id=user_id
         )
-        await _end_app_access(guild_session, user_id=user_id, guild_id=guild_id)
+        await _end_plugin_access(guild_session, user_id=user_id, guild_id=guild_id)
 
     await _in_each_guild(guild_ids, leave)
 
@@ -339,7 +339,7 @@ async def request_account_deletion(
     # rather than in a month's time — the same call the community deletion
     # makes, for the same reason. A restored account comes back with its app
     # connections gone, and reconnects them.
-    await _end_app_access_everywhere(session, user_id=user_id)
+    await _end_plugin_access_everywhere(session, user_id=user_id)
     user.status = UserStatus.deleted
     user.status_changed_at = datetime.now(timezone.utc)
     # Every session this account holds ends here. Getting back in is what calls
@@ -685,10 +685,10 @@ async def _dispatch_queued_revocations(session: AsyncSession) -> None:
     best-effort — the account is closed either way, and our own delete is the
     authoritative half.
     """
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
+    await plugin_revocation_service.dispatch_revocations(
+        plugin_revocation_service.drain_revocations(session)
     )
 
 

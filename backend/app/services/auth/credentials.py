@@ -184,7 +184,7 @@ async def authenticate(session: AsyncSession, identified: Identified) -> Authent
     half that asks the database. Raises :class:`CredentialRefused` for
     anything else. An installed app's access token is never a person and is
     refused whatever the caller allows; a route that admits one reads it from
-    :attr:`Identified.app_token`.
+    :attr:`Identified.plugin_token`.
     """
     clear_recorded_credential()
     token, allow = identified.token, identified.allow

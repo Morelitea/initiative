@@ -41,8 +41,8 @@ from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
 )
 from app.services.fields.spec import FieldType
-from app.services.marketplace.service_apps import (
-    APP_WIDGET_TYPE_PREFIX,
+from app.services.marketplace.service_plugins import (
+    PLUGIN_WIDGET_TYPE_PREFIX,
     ENDPOINT_ID_CHARS,
     MAX_ENDPOINT_ID_LENGTH,
 )
@@ -350,23 +350,23 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 # be reconnected. Only a malformed type is a rejection.
 
 #: The one binding source an app widget may name.
-APP_BINDING_SOURCE = "app"
+PLUGIN_BINDING_SOURCE = "app"
 
 #: Size floors for an app widget. Uniform, because this build cannot know what
 #: a vendor's module draws; the floor is simply "big enough to read". It
 #: declares no shape: an app's rows are its own, described in its manifest, and
 #: the module that draws them ships alongside — there is nothing here to map.
-APP_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
+PLUGIN_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
 
 #: What one app binding may carry, mirroring the manifest's per-source cap.
-MAX_APP_BINDING_PARAMS = 12
+MAX_PLUGIN_BINDING_PARAMS = 12
 #: A parameter value is a scalar the endpoint declared a type for, or several
 #: of them where it declared ``list``. Checked again against that type at fetch
 #: time; bounded here so a definition stays small.
-MAX_APP_PARAM_LENGTH = 2_000
+MAX_PLUGIN_PARAM_LENGTH = 2_000
 #: How many values one parameter may carry. A parameter declaring ``list`` is
 #: still one answer on a form, so this bounds a definition rather than a query.
-MAX_APP_PARAM_VALUES = 64
+MAX_PLUGIN_PARAM_VALUES = 64
 
 
 def _check_identifier(value: Any) -> str:
@@ -403,15 +403,15 @@ def _check_uid(value: Any, code: str) -> str:
     return value
 
 
-def app_widget_parts(declared: str) -> tuple[str, str] | None:
+def plugin_widget_parts(declared: str) -> tuple[str, str] | None:
     """Split ``app:<listing_uid>:<widget_id>``, or None if it is not one.
 
     ``:`` is outside the identifier character set on both halves, so the three
     parts stay unambiguous however an app names its widget.
     """
-    if not declared.startswith(APP_WIDGET_TYPE_PREFIX):
+    if not declared.startswith(PLUGIN_WIDGET_TYPE_PREFIX):
         return None
-    remainder = declared[len(APP_WIDGET_TYPE_PREFIX) :]
+    remainder = declared[len(PLUGIN_WIDGET_TYPE_PREFIX) :]
     listing_uid, separator, widget_id = remainder.partition(":")
     if not separator:
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
@@ -433,19 +433,19 @@ def app_widget_parts(declared: str) -> tuple[str, str] | None:
 EndpointColumns = Callable[[str, str], "Optional[Sequence[RowColumn]]"]
 
 
-def _normalize_app_binding(
+def _normalize_plugin_binding(
     binding: dict[str, Any],
     listing_uid: str,
     endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
     """An ``app`` binding: which installed app, which source, which parameters.
 
-    ``app_uid`` has to be the app the widget came from. A widget is one app's
+    ``plugin_uid`` has to be the app the widget came from. A widget is one app's
     module and its endpoints are that app's, so letting a definition point one
     app's widget at another app's data would be a definition choosing what
     crosses between two vendors.
     """
-    declared_uid = _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID)
+    declared_uid = _check_uid(binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID)
     if declared_uid != listing_uid:
         _fail(DashboardMessages.BINDING_INVALID)
     endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
@@ -453,14 +453,14 @@ def _normalize_app_binding(
     raw_params = binding.get("params")
     params: dict[str, Any] = {}
     if raw_params is not None:
-        if not isinstance(raw_params, dict) or len(raw_params) > MAX_APP_BINDING_PARAMS:
+        if not isinstance(raw_params, dict) or len(raw_params) > MAX_PLUGIN_BINDING_PARAMS:
             _fail(DashboardMessages.BINDING_INVALID)
         for key, value in raw_params.items():
-            params[_check_identifier(key)] = _check_app_param(value)
+            params[_check_identifier(key)] = _check_plugin_param(value)
 
     cleaned: dict[str, Any] = {
-        "source": APP_BINDING_SOURCE,
-        "app_uid": listing_uid,
+        "source": PLUGIN_BINDING_SOURCE,
+        "plugin_uid": listing_uid,
         "endpoint_id": endpoint_id,
     }
     if params:
@@ -506,7 +506,7 @@ def _checked_row_statement(
     return raw
 
 
-def _check_app_param(value: Any) -> Any:
+def _check_plugin_param(value: Any) -> Any:
     """One parameter value: a scalar, or several of them.
 
     Deliberately not coerced: the source's own ``params_schema`` declares the
@@ -521,17 +521,17 @@ def _check_app_param(value: Any) -> Any:
     bound, which is all a definition can know about somebody else's manifest.
     """
     if isinstance(value, list):
-        if len(value) > MAX_APP_PARAM_VALUES:
+        if len(value) > MAX_PLUGIN_PARAM_VALUES:
             _fail(DashboardMessages.BINDING_INVALID)
-        return [_check_app_scalar(entry) for entry in value]
-    return _check_app_scalar(value)
+        return [_check_plugin_scalar(entry) for entry in value]
+    return _check_plugin_scalar(value)
 
 
-def _check_app_scalar(value: Any) -> Any:
+def _check_plugin_scalar(value: Any) -> Any:
     """One value inside a parameter, of the types a manifest may declare."""
     if isinstance(value, bool) or isinstance(value, int):
         return value
-    if isinstance(value, str) and len(value) <= MAX_APP_PARAM_LENGTH:
+    if isinstance(value, str) and len(value) <= MAX_PLUGIN_PARAM_LENGTH:
         return value
     _fail(DashboardMessages.BINDING_INVALID)
 
@@ -640,7 +640,7 @@ def _normalize_binding(
     raw: Any,
     spec: WidgetSpec,
     *,
-    app_listing_uid: str | None = None,
+    plugin_listing_uid: str | None = None,
     endpoint_columns: "Optional[EndpointColumns]" = None,
 ) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
@@ -648,14 +648,14 @@ def _normalize_binding(
     binding = _require_mapping(raw, DashboardMessages.BINDING_INVALID)
     source = binding.get("source")
 
-    if app_listing_uid is not None:
+    if plugin_listing_uid is not None:
         # An app widget draws its own app's data and nothing else, so this is a
         # total branch rather than an extra allowed value.
-        if source != APP_BINDING_SOURCE:
+        if source != PLUGIN_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        return _normalize_app_binding(binding, app_listing_uid, endpoint_columns)
+        return _normalize_plugin_binding(binding, plugin_listing_uid, endpoint_columns)
 
-    if source == APP_BINDING_SOURCE:
+    if source == PLUGIN_BINDING_SOURCE:
         # A widget of this build's own — a chart, a table, a total — reading an
         # app, which is possible exactly as far as the rows are described. A
         # statement makes them so: it names the columns it returns, and the
@@ -667,9 +667,9 @@ def _normalize_binding(
         # reads rather than inheriting one. What it may see is decided exactly
         # where an app widget's is: the dashboard's gates and the binding the
         # definition stores.
-        return _normalize_app_binding(
+        return _normalize_plugin_binding(
             binding,
-            _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),
+            _check_uid(binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID),
             endpoint_columns,
         )
 
@@ -786,11 +786,11 @@ def _normalize_widget(
     # An app's widget keeps its namespaced type verbatim: the module that draws
     # it lives in the installed app's pinned definition, and this build resolves
     # it there rather than in the built-in registry.
-    app_parts = app_widget_parts(declared)
-    if app_parts is not None:
+    plugin_parts = plugin_widget_parts(declared)
+    if plugin_parts is not None:
         preset = None
         primitive = declared
-        spec = APP_WIDGET_SPEC
+        spec = PLUGIN_WIDGET_SPEC
     else:
         if declared not in WIDGET_TYPES:
             _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
@@ -812,7 +812,7 @@ def _normalize_widget(
         "binding": _normalize_binding(
             widget.get("binding"),
             spec,
-            app_listing_uid=app_parts[0] if app_parts else None,
+            plugin_listing_uid=plugin_parts[0] if plugin_parts else None,
             endpoint_columns=endpoint_columns,
         ),
     }

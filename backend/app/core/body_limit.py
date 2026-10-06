@@ -43,10 +43,10 @@ DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
 #: largest route on that surface — events — plus its envelope, and kept here
 #: rather than imported from the router so this module stays free of app-layer
 #: imports.
-APP_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
+PLUGIN_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
 
 #: The most one vendor webhook delivery may carry.
-APP_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
+PLUGIN_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
 
 #: The most an Atlassian request may carry. A connect is a site URL, an
 #: account's address and an API token; a start is a credential id, an
@@ -93,13 +93,13 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # An installed app's installation calls are configuration writes and
         # events, none larger than an event. The transport refuses a body past
         # that first, and the handler's exact cap still applies after.
-        re.compile(r"^/api/v1/app-platform/installation(/|$)"),
-        lambda: APP_INSTALLATION_MAX_REQUEST_BYTES,
-        "APP_CHANNEL_EVENT_TOO_LARGE",
+        re.compile(r"^/api/v1/plugin-platform/installation(/|$)"),
+        lambda: PLUGIN_INSTALLATION_MAX_REQUEST_BYTES,
+        "PLUGIN_CHANNEL_EVENT_TOO_LARGE",
     ),
     (
-        re.compile(r"^/api/v1/app-hooks/[^/]+$"),
-        lambda: APP_HOOK_MAX_REQUEST_BYTES,
+        re.compile(r"^/api/v1/plugin-hooks/[^/]+$"),
+        lambda: PLUGIN_HOOK_MAX_REQUEST_BYTES,
         CommonMessages.REQUEST_TOO_LARGE,
     ),
     (

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { useCompleteVendorSetup } from "@/hooks/useAppServices";
+import { useCompleteVendorSetup } from "@/hooks/usePluginServices";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
@@ -29,35 +29,35 @@ export const SettingsVendorSetupPage = () => {
     sent.current = true;
     const id = Number(registrationId);
     if (!code || !state || !Number.isInteger(id)) {
-      setError(t("appServices.vendorSetupFailed"));
+      setError(t("pluginServices.vendorSetupFailed"));
       return;
     }
     complete.mutate(
       { registrationId: id, code, state },
       {
         onSuccess: () => {
-          toast.success(t("appServices.vendorSetupDone"));
+          toast.success(t("pluginServices.vendorSetupDone"));
           void navigate({ to: "/settings/platform/integrations", replace: true });
         },
-        onError: (err) => setError(getErrorMessage(err, "settings:appServices.vendorSetupFailed")),
+        onError: (err) => setError(getErrorMessage(err, "settings:pluginServices.vendorSetupFailed")),
       }
     );
   }, [code, state, registrationId, complete, navigate, t]);
 
   return (
     <div className="space-y-3">
-      <h2 className="font-semibold text-lg">{t("appServices.vendorSetupTitle")}</h2>
+      <h2 className="font-semibold text-lg">{t("pluginServices.vendorSetupTitle")}</h2>
       {error ? (
         <>
           <p className="text-destructive text-sm" role="alert">
             {error}
           </p>
           <Button asChild variant="outline" size="sm">
-            <Link to="/settings/platform/integrations">{t("appServices.vendorSetupBack")}</Link>
+            <Link to="/settings/platform/integrations">{t("pluginServices.vendorSetupBack")}</Link>
           </Button>
         </>
       ) : (
-        <p className="text-muted-foreground text-sm">{t("appServices.vendorSetupFinishing")}</p>
+        <p className="text-muted-foreground text-sm">{t("pluginServices.vendorSetupFinishing")}</p>
       )}
     </div>
   );

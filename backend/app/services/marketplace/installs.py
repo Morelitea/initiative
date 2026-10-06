@@ -26,7 +26,7 @@ from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
 )
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "ListingInstallError",
     "count_install",
-    "installed_app_uids",
+    "installed_plugin_uids",
     "listing_is_offered",
     "resolve_listing_install",
 ]
@@ -86,14 +86,14 @@ async def resolve_listing_install(
     if not listing.available:
         raise ListingInstallError(MarketplaceMessages.LISTING_UNAVAILABLE)
     if not await listing_is_offered(session, listing):
-        raise ListingInstallError(MarketplaceMessages.LISTING_NEEDS_APP)
+        raise ListingInstallError(MarketplaceMessages.LISTING_NEEDS_PLUGIN)
     version = await catalog_service.resolve_installable_version(session, listing)
     if version is None:
         # Either it has published nothing, or its current version needs a newer
         # app. Silently installing an older one would be worse: the guild would
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
-    if not already_installed and not await registration_lookup.app_is_offered(
+    if not already_installed and not await registration_lookup.plugin_is_offered(
         version.definition, listing_uid=listing.uid
     ):
         # An app whose service this deployment does not run is not in this
@@ -105,7 +105,7 @@ async def resolve_listing_install(
     return listing, version
 
 
-async def installed_app_uids(session: AsyncSession) -> set[str]:
+async def installed_plugin_uids(session: AsyncSession) -> set[str]:
     """The listing uids of the apps the guild this session is routed to has,
     switched on.
 
@@ -118,7 +118,7 @@ async def installed_app_uids(session: AsyncSession) -> set[str]:
     both from one query is cheaper than keeping two ways to ask.
     """
     rows = await session.exec(
-        select(GuildApp.listing_uid).where(GuildApp.enabled.is_(True))
+        select(GuildPlugin.listing_uid).where(GuildPlugin.enabled.is_(True))
     )
     return set(rows)
 
@@ -138,7 +138,7 @@ async def listing_is_offered(
     """
     if listing.bundled_with_uid is None:
         return True
-    return listing.bundled_with_uid in await installed_app_uids(session)
+    return listing.bundled_with_uid in await installed_plugin_uids(session)
 
 
 async def count_install(guild_id: int, listing_id: Optional[int]) -> None:

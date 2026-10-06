@@ -32,7 +32,7 @@ def _doc(*projects):
 
 
 def _build(content, selection="7"):
-    return vm.build_project_envelope(content, selection=selection, app_version="1.2.3")
+    return vm.build_project_envelope(content, selection=selection, plugin_version="1.2.3")
 
 
 # --- the HTML Vikunja writes into a description ----------------------------

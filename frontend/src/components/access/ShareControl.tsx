@@ -2,7 +2,7 @@ import { Blocks, ChevronDown, Loader2, Lock, Users, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OwnerAppSummary, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type { OwnerPluginSummary, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
 import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { type MemberSearchScope, useMemberSearch } from "@/hooks/useUsers";
@@ -52,7 +52,7 @@ export interface ShareControlProps {
   /** The installed app that owns the resource, as its read model names it.
    *  An app owner's row is shown whenever the grants hold one; this supplies
    *  its name and picture without looking the app up. */
-  ownerApp?: OwnerAppSummary | null;
+  ownerPlugin?: OwnerPluginSummary | null;
   /** Viewer can't manage, or a save is in flight. */
   disabled?: boolean;
 }
@@ -62,7 +62,7 @@ type ShareLevel = "read" | "write";
 const COMMUNITY_SCOPE: MemberSearchScope = { type: "community" };
 
 /** An app's picture, small, or the generic app mark when it has none. */
-const AppMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
+const PluginMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
   avatarUrl ? (
     <img
       src={resolveArtworkUrl(avatarUrl) ?? undefined}
@@ -103,7 +103,7 @@ export const ShareControl = ({
   grants,
   onChange,
   ownerId,
-  ownerApp,
+  ownerPlugin,
   disabled = false,
 }: ShareControlProps) => {
   const { t } = useTranslation(["access", "common"]);
@@ -183,30 +183,30 @@ export const ShareControl = ({
 
   // ── Apps: the owning install, and the ones the seat granted ──────────────
 
-  const ownerAppId = useMemo(
-    () => grants.find((g) => g.level === "owner" && g.app_install_id != null)?.app_install_id,
+  const ownerPluginId = useMemo(
+    () => grants.find((g) => g.level === "owner" && g.plugin_install_id != null)?.plugin_install_id,
     [grants]
   );
-  const appGrants = useMemo(
-    () => grants.filter((g) => g.app_install_id != null && g.level !== "owner"),
+  const pluginGrants = useMemo(
+    () => grants.filter((g) => g.plugin_install_id != null && g.level !== "owner"),
     [grants]
   );
   // The apps list is only read when a grant names an app the read model did
   // not already describe.
-  const needsAppNames = appGrants.length > 0 || (ownerAppId != null && ownerApp?.id !== ownerAppId);
-  const { data: communityApps } = useCommunityApps({ enabled: needsAppNames });
+  const needsPluginNames = pluginGrants.length > 0 || (ownerPluginId != null && ownerPlugin?.id !== ownerPluginId);
+  const { data: communityPlugins } = useCommunityPlugins({ enabled: needsPluginNames });
 
-  const appSummary = useCallback(
-    (appId: number): { name: string; avatarUrl: string | null } => {
-      if (ownerApp?.id === appId) return { name: ownerApp.name, avatarUrl: ownerApp.avatar_url };
-      const app = communityApps?.items.find((one) => one.id === appId);
+  const pluginSummary = useCallback(
+    (pluginId: number): { name: string; avatarUrl: string | null } => {
+      if (ownerPlugin?.id === pluginId) return { name: ownerPlugin.name, avatarUrl: ownerPlugin.avatar_url };
+      const app = communityPlugins?.items.find((one) => one.id === pluginId);
       return app
         ? { name: app.name, avatarUrl: app.avatar_url }
-        : { name: t("share.appFallback", { id: appId }), avatarUrl: null };
+        : { name: t("share.pluginFallback", { id: pluginId }), avatarUrl: null };
     },
-    [ownerApp, communityApps, t]
+    [ownerPlugin, communityPlugins, t]
   );
-  const owningApp = ownerId == null && ownerAppId != null ? appSummary(ownerAppId) : null;
+  const owningPlugin = ownerId == null && ownerPluginId != null ? pluginSummary(ownerPluginId) : null;
 
   // ── Lookup helpers ───────────────────────────────────────────────────────
 
@@ -508,10 +508,10 @@ export const ShareControl = ({
                   <Badge variant="secondary">{t("share.owner")}</Badge>
                 </div>
               )}
-              {owningApp && (
+              {owningPlugin && (
                 <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-                  <AppMark avatarUrl={owningApp.avatarUrl} />
-                  <span className="min-w-0 flex-1 truncate text-sm">{owningApp.name}</span>
+                  <PluginMark avatarUrl={owningPlugin.avatarUrl} />
+                  <span className="min-w-0 flex-1 truncate text-sm">{owningPlugin.name}</span>
                   <Badge variant="outline">{t("share.app")}</Badge>
                   <Badge variant="secondary">{t("share.owner")}</Badge>
                 </div>
@@ -665,20 +665,20 @@ export const ShareControl = ({
       )}
 
       {/* ── Apps the community granted: shown, never edited here ──────── */}
-      {appGrants.length > 0 && (
+      {pluginGrants.length > 0 && (
         <div className="space-y-2">
           <Label className="font-medium text-sm">{t("share.apps")}</Label>
           <div className="space-y-1">
-            {appGrants.map((grant) => {
-              const appId = grant.app_install_id as number;
-              const app = appSummary(appId);
+            {pluginGrants.map((grant) => {
+              const pluginId = grant.plugin_install_id as number;
+              const app = pluginSummary(pluginId);
               return (
                 <div
-                  key={`app-${appId}`}
+                  key={`plugin-${pluginId}`}
                   className="flex items-center gap-2 rounded-md border px-3 py-2"
-                  title={t("share.appGrantHint")}
+                  title={t("share.pluginGrantHint")}
                 >
-                  <AppMark avatarUrl={app.avatarUrl} />
+                  <PluginMark avatarUrl={app.avatarUrl} />
                   <span className="min-w-0 flex-1 truncate text-sm">{app.name}</span>
                   <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
                     {grant.level === "write" ? t("share.editor") : t("share.viewer")}

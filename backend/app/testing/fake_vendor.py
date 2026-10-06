@@ -1,7 +1,7 @@
 """A vendor and an app, answering the calls a connection's flow makes.
 
 Every outbound call the flow module makes goes through one transport
-(``app_connection_flows.http_transport``) after the pinned egress helper has
+(``plugin_connection_flows.http_transport``) after the pinned egress helper has
 resolved its host. :meth:`FakeVendor.install` points both at this object: the
 host resolves to a fixed public address, and the request is answered here by
 the host it names.
@@ -30,18 +30,18 @@ import httpx
 from app.services import safe_http
 from app.services.webhook_target_url import ValidatedTarget
 
-__all__ = ["FakeVendor", "declarative_app", "declarative_github"]
+__all__ = ["FakeVendor", "declarative_plugin", "declarative_github"]
 
 VENDOR_HOST = "github.test"
 API_HOST = "api.github.test"
 
 
-def declarative_app(public_id: str) -> dict[str, Any]:
+def declarative_plugin(public_id: str) -> dict[str, Any]:
     """A declarative app calling this vendor's API on a community connection:
     a read of a repository's issues and a write that labels one."""
     api = f'"https://{API_HOST}/repos/" & params.repo'
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "features": ["endpoints"],
         "hosts": [API_HOST],
         "vendor": {
@@ -121,11 +121,11 @@ def declarative_app(public_id: str) -> dict[str, Any]:
 
 
 def declarative_github(public_id: str) -> dict[str, Any]:
-    """:func:`declarative_app` as GitHub's is: its community connection is an
+    """:func:`declarative_plugin` as GitHub's is: its community connection is an
     installation, found among the person's own by ``after_connect`` and
     checked by ``health``, and the vendor's deliveries become its
     ``issue-opened`` event and the installation's state."""
-    app = declarative_app(public_id)
+    app = declarative_plugin(public_id)
     issue_opened = f"app.{public_id}.issue-opened"
     app["vendor"] = {
         "fields": [
@@ -134,7 +134,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
                 "client_id",
                 "client_secret",
                 "app_slug",
-                "app_id",
+                "plugin_id",
                 "private_key",
                 "webhook_secret",
             )
@@ -156,7 +156,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
                 "client_id": "{vendor.client_id}",
                 "client_secret": "{vendor.client_secret}",
                 "install_url": (
-                    f"https://{VENDOR_HOST}/apps/{{vendor.app_slug}}/installations/new"
+                    f"https://{VENDOR_HOST}/plugins/{{vendor.app_slug}}/installations/new"
                 ),
                 "after_connect": {
                     "request": {
@@ -188,7 +188,7 @@ def declarative_github(public_id: str) -> dict[str, Any]:
                     f"https://{VENDOR_HOST}/app/installations/"
                     "{installation_id}/access_tokens"
                 ),
-                "iss": "{vendor.app_id}",
+                "iss": "{vendor.plugin_id}",
                 "key": "{vendor.private_key}",
             },
             "health": {
@@ -316,7 +316,7 @@ class FakeVendor:
 
     def install(self, monkeypatch: Any) -> None:
         """Answer every outbound call of the flow module from here."""
-        from app.services.tenant import app_connection_flows
+        from app.services.tenant import plugin_connection_flows
 
         async def resolve(url: str, *, allow_private: bool = False) -> ValidatedTarget:
             host = httpx.URL(url).host
@@ -326,7 +326,7 @@ class FakeVendor:
 
         monkeypatch.setattr(safe_http, "resolve_validated_target_async", resolve)
         monkeypatch.setattr(
-            app_connection_flows, "http_transport", httpx.MockTransport(self.handle)
+            plugin_connection_flows, "http_transport", httpx.MockTransport(self.handle)
         )
 
     def authorize(self, challenge: Optional[str]) -> str:

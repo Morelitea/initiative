@@ -1,7 +1,7 @@
 """Comments, tags, initiatives and property definitions, called by an
 installed app on the real-role client.
 
-Each test installs an app the way a community does (``install_app``: placed in
+Each test installs an app the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the routes these four routers let an app reach.
 """
@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from sqlmodel import select
 
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.platform.guild import CommunityRole
@@ -29,9 +29,9 @@ from app.testing import (
     route_session_to_guild,
     drain_notices,
 )
-from app.testing.app_clients import (
+from app.testing.plugin_clients import (
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
     share_with_members,
@@ -61,7 +61,7 @@ async def test_reads_the_comments_on_what_it_can_read(
 ):
     await lift_person_and_guild_ids(session)
     scopes = ["comments:read", "documents:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     in_a, in_b = await _open_documents(session, installed)
     on_a = await create_comment(
         session, installed.seat.user, document=in_a, content="Seen in A"
@@ -104,7 +104,7 @@ async def test_reads_the_comments_on_what_it_can_read(
 async def test_without_the_parents_scope_the_thread_is_not_there(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["comments:read"]
     )
     in_a, _in_b = await _open_documents(session, installed)
@@ -121,7 +121,7 @@ async def test_posting_a_comment_needs_the_write_scope(
     client, session, acting_user, role_session
 ):
     scopes = ["comments:read", "documents:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     in_a, _in_b = await _open_documents(session, installed)
 
     posted = await client.post(
@@ -130,15 +130,15 @@ async def test_posting_a_comment_needs_the_write_scope(
         json={"content": "Hello", "document_id": in_a.id},
     )
     assert posted.status_code == 403, posted.text
-    assert posted.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert posted.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
-async def test_posts_as_itself_and_the_notices_name_the_app(
+async def test_posts_as_itself_and_the_notices_name_the_plugin(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
     scopes = ["comments:write", "documents:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
         guild_role=CommunityRole.member,
         guild=installed.guild,
@@ -206,7 +206,7 @@ async def test_lists_the_tags_naming_the_community_by_reference(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["tags:read"]
     )
     await create_tag(session, installed.guild, name="alpha")
@@ -226,7 +226,7 @@ async def test_tags_what_it_may_write_in_bulk(
     client, session, acting_user, role_session
 ):
     scopes = ["tags:write", "documents:write", "relationships:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
@@ -276,7 +276,7 @@ async def test_tags_what_it_may_write_in_bulk(
 async def test_bulk_tagging_needs_every_scope_it_writes_under(
     client, session, acting_user, role_session, scopes
 ):
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
     in_a, _in_b = await _open_documents(session, installed)
 
@@ -290,13 +290,13 @@ async def test_bulk_tagging_needs_every_scope_it_writes_under(
         },
     )
     assert tagged.status_code == 403, tagged.text
-    assert tagged.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert tagged.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_bulk_tagging_with_a_read_token_is_refused(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["tags:read"]
     )
     tag = await create_tag(session, installed.guild, name="triaged")
@@ -307,14 +307,14 @@ async def test_bulk_tagging_with_a_read_token_is_refused(
         json={"target_type": "document", "target_ids": [1], "add_tag_ids": [tag.id]},
     )
     assert tagged.status_code == 403, tagged.text
-    assert tagged.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert tagged.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 async def test_bulk_tagging_what_it_cannot_write_is_refused(
     client, session, acting_user, role_session
 ):
     scopes = ["tags:write", "documents:write", "relationships:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
     in_a, in_b = await _open_documents(session, installed)
     headers = install_headers(installed, scopes)
@@ -352,7 +352,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["initiatives:read"]
     )
     headers = install_headers(installed, ["initiatives:read"])
@@ -395,7 +395,7 @@ async def test_with_the_members_scope_the_roster_names_people_by_reference(
 ):
     await lift_person_and_guild_ids(session)
     scopes = ["initiatives:read", "members:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
 
     headers = install_headers(installed, scopes)
 
@@ -420,7 +420,7 @@ async def test_with_the_members_scope_the_roster_names_people_by_reference(
 async def test_initiatives_need_the_initiatives_scope(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["comments:read"]
     )
     listed = await client.get(
@@ -428,7 +428,7 @@ async def test_initiatives_need_the_initiatives_scope(
         headers=install_headers(installed, ["comments:read"]),
     )
     assert listed.status_code == 403, listed.text
-    assert listed.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert listed.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
 
 # ---------------------------------------------------------------------------
@@ -439,7 +439,7 @@ async def test_initiatives_need_the_initiatives_scope(
 async def test_lists_the_property_definitions_of_its_initiatives(
     client, session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["initiatives:read"]
     )
     await create_property_definition(session, installed.placed, name="Estimate")

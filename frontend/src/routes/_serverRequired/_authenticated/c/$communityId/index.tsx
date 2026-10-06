@@ -32,13 +32,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$communi
     q: typeof search.q === "string" && search.q ? search.q : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     dir: search.dir === "asc" || search.dir === "desc" ? search.dir : undefined,
-    app: appIdOf(search.app),
+    app: pluginIdOf(search.app),
   }),
   component: CommunityHome,
 });
 
 /** A positive integer id, or nothing. */
-function appIdOf(value: unknown): number | undefined {
+function pluginIdOf(value: unknown): number | undefined {
   const id = typeof value === "number" ? value : Number(value);
   return Number.isInteger(id) && id > 0 ? id : undefined;
 }

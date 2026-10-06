@@ -30,31 +30,31 @@ SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 # Values a guild (or one of its members) supplies to an installed app's
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.
-SALT_APP_CONFIG = b"app-config"
+SALT_PLUGIN_CONFIG = b"app-config"
 # What an operator supplies for an app's vendor client (its secret, its
 # signing key), one ciphertext per field on the app's registration.
-SALT_APP_VENDOR = b"app-vendor"
+SALT_PLUGIN_VENDOR = b"app-vendor"
 # The app platform's signing key, when this deployment generated its own
-# rather than being given one in APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
-SALT_APP_PLATFORM_SIGNING_KEY = b"app-platform-signing-key"
+# rather than being given one in PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
+SALT_PLUGIN_PLATFORM_SIGNING_KEY = b"app-platform-signing-key"
 # The state an app connection's vendor flow carries through the vendor and
 # back. Transient: it lives ten minutes and is never stored.
-SALT_APP_CONNECTION_FLOW = b"app-connection-flow"
+SALT_PLUGIN_CONNECTION_FLOW = b"app-connection-flow"
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
 # The access tokens the app platform's token endpoint issues. Transient: a
 # token lives ten minutes and is never stored, so a key rotation ends the ones
 # in flight and their apps ask again.
-SALT_APP_ACCESS_TOKEN = b"app-access-token"
+SALT_PLUGIN_ACCESS_TOKEN = b"app-access-token"
 # Where a page of an app's installs ends, handed to the app to ask for the next
 # one. Transient: never stored.
-SALT_APP_INSTALLS_CURSOR = b"app-installs-cursor"
+SALT_PLUGIN_INSTALLS_CURSOR = b"app-installs-cursor"
 # A sign-in finished in the phone's browser, on its way back to the app that
 # began it. Transient: it lives two minutes and is spent once.
 SALT_NATIVE_HANDOFF = b"native-handoff"
 # The state an app vendor's own setup carries through the vendor and back.
 # Transient: it lives an hour and is spent once.
-SALT_APP_VENDOR_SETUP = b"app-vendor-setup"
+SALT_PLUGIN_VENDOR_SETUP = b"app-vendor-setup"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

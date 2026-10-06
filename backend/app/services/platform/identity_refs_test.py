@@ -100,7 +100,7 @@ class TestMintingAndResolving:
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
         )
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
@@ -108,7 +108,7 @@ class TestMintingAndResolving:
             sector_guild_id=3,
             sector_id=7,
         )
-        assert billing != at_app
+        assert billing != at_plugin
 
     async def test_a_user_and_a_guild_of_the_same_id_differ(self, session):
         as_user = await ensure_ref(
@@ -241,7 +241,7 @@ class TestReissuingEvery:
             assert (await resolve_ref(session, ref=old)) is not None
 
     async def test_it_leaves_other_purposes_and_entities_alone(self, session):
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
@@ -269,7 +269,7 @@ class TestReissuingEvery:
                 sector_guild_id=3,
                 sector_id=7,
             )
-            == at_app
+            == at_plugin
         )
         assert (
             await ensure_ref(
@@ -307,7 +307,7 @@ class TestRemoval:
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
         )
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
@@ -321,7 +321,7 @@ class TestRemoval:
         )
         assert dropped == 2
         assert await resolve_ref(session, ref=billing) is None
-        assert await resolve_ref(session, ref=at_app) is None
+        assert await resolve_ref(session, ref=at_plugin) is None
 
     async def test_a_deleted_guild_leaves_neither_half(self, session):
         """A guild is in this table twice and both have to go.
@@ -445,7 +445,7 @@ class TestTheSweep:
                 purpose=BILLING,
             )
 
-        async def app_ref(guild_id: int) -> str:
+        async def plugin_ref(guild_id: int) -> str:
             return await ensure_ref(
                 session,
                 entity_type=IdentityEntity.user,
@@ -460,14 +460,14 @@ class TestTheSweep:
             await user_ref(leaving.id),
             await guild_ref(live_guild.id),
             await guild_ref(retained_guild.id),
-            await app_ref(live_guild.id),
+            await plugin_ref(live_guild.id),
         ]
         swept = [
             await user_ref(erased.id),
             await user_ref(gone_id),
             await guild_ref(gone_id),
-            await app_ref(retained_guild.id),
-            await app_ref(gone_id),
+            await plugin_ref(retained_guild.id),
+            await plugin_ref(gone_id),
         ]
         await session.commit()
 

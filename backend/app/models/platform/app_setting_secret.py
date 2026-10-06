@@ -62,10 +62,10 @@ class AppSettingSecret(SQLModel, table=True):
     )
 
     # The app platform's signing key as a PEM
-    # (``SALT_APP_PLATFORM_SIGNING_KEY``): generated at the first start that
-    # finds APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM unset, and read by every
+    # (``SALT_PLUGIN_PLATFORM_SIGNING_KEY``): generated at the first start that
+    # finds PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM unset, and read by every
     # process after it. Never shown on a settings page.
-    app_platform_signing_key_encrypted: Optional[str] = Field(
+    plugin_platform_signing_key_encrypted: Optional[str] = Field(
         default=None, sa_column=Column(String(4000), nullable=True)
     )
 

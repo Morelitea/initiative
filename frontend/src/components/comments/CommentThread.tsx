@@ -107,7 +107,7 @@ export const CommentThread = ({
     (comment.created_by == null
       ? comment.system_kind
         ? t("comments:platformAuthor")
-        : t("comments:appAuthor")
+        : t("comments:pluginAuthor")
       : getUserDisplayName(comment.author ?? { id: comment.created_by }));
   // The server says who may delete, from the rule the delete route applies.
   const canDelete = comment.can_remove;

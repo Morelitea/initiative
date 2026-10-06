@@ -241,7 +241,7 @@ def build_envelope(
     description: str | None,
     statuses: list[dict[str, Any]],
     tasks: list[dict[str, Any]],
-    app_version: str,
+    plugin_version: str,
     source_url: str | None = None,
     property_definitions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -249,7 +249,7 @@ def build_envelope(
     return {
         "type": "initiative-project",
         "schema_version": 1,
-        "app_version": app_version,
+        "plugin_version": plugin_version,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "source_instance_url": source_url,
         "project": {

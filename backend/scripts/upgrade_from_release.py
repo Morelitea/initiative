@@ -372,7 +372,7 @@ async def _snapshot(conn: asyncpg.Connection, schema: str) -> dict[str, str]:
     return shape
 
 
-def _app_role(alias: str) -> str:
+def _plugin_role(alias: str) -> str:
     """Every role but Postgres's own and the owner login the check connects
     as: what the app made, whatever its names."""
     return f"{alias}.rolname !~ '^pg_' AND {alias}.rolname <> current_user"
@@ -382,7 +382,7 @@ _ROLES = {
     "role": (
         "SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, "
         "rolcanlogin, rolreplication, rolbypassrls, rolconnlimit "
-        f"FROM pg_roles r WHERE {_app_role('r')}"
+        f"FROM pg_roles r WHERE {_plugin_role('r')}"
     ),
     "membership": (
         # One row per grantor: the same membership can be held twice.
@@ -391,7 +391,7 @@ _ROLES = {
         "a.inherit_option, a.set_option "
         "FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member "
         "JOIN pg_roles g ON g.oid = a.roleid "
-        f"WHERE ({_app_role('m')}) OR ({_app_role('g')})"
+        f"WHERE ({_plugin_role('m')}) OR ({_plugin_role('g')})"
     ),
 }
 

@@ -18,12 +18,12 @@ os.environ.setdefault(
     "SECRET_KEY", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 )
 
-from app.main import app, app_openapi  # noqa: E402
+from app.main import app, plugin_openapi  # noqa: E402
 
 
 def main():
     args = sys.argv[1:]
-    spec = app_openapi() if "--app" in args else app.openapi()
+    spec = plugin_openapi() if "--app" in args else app.openapi()
     paths = [arg for arg in args if arg != "--app"]
     output = paths[0] if paths else "-"
     content = json.dumps(spec, indent=2)

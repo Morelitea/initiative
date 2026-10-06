@@ -45,7 +45,7 @@ Nothing in Initiative is held back to make the hosted version look better. What 
 
 ### Apps that need something running behind them
 
-Some [marketplace apps](guides/apps-and-marketplace.md#adding-an-app) aren't just a screen — they need a program running alongside Initiative to do their job.
+Some [marketplace apps](guides/plugins-and-marketplace.md#adding-a-plugin) aren't just a screen — they need a program running alongside Initiative to do their job.
 
 On a server you run, that's yours to stand up. On the hosted service it's already running. Two we're launching with:
 

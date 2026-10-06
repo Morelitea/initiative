@@ -42,7 +42,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -76,7 +76,7 @@ from app.schemas.tenant.post_poll import (
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import notifications as notifications_service
 from app.services import rls as rls_service
-from app.services.notifications import AppAuthor
+from app.services.notifications import PluginAuthor
 from app.core.search import SearchEntityType
 from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
@@ -103,8 +103,8 @@ router = APIRouter(route_class=ActorRoute)
 
 #: The routes an installed app may call, under the posts scopes. Pinning is an
 #: edit of the board, so it asks the write scope.
-PostsRead = Annotated[ActorContext, Depends(app_scope("posts:read"))]
-PostsWrite = Annotated[ActorContext, Depends(app_scope("posts:write"))]
+PostsRead = Annotated[ActorContext, Depends(plugin_scope("posts:read"))]
+PostsWrite = Annotated[ActorContext, Depends(plugin_scope("posts:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ def _poll_of(post: Post) -> PostPoll:
 async def _announce(
     session: RLSSessionDep,
     post: Post,
-    author: User | AppAuthor,
+    author: User | PluginAuthor,
     guild_context: ActorContext,
 ) -> None:
     """Tell the notice's audience it is up.
@@ -361,7 +361,7 @@ async def create_post(
 ) -> PostRead:
     """Post a notice to an initiative's board. Requires create_posts permission
     on the initiative (or guild admin); the author gets the owner grant."""
-    resource_access.refuse_app_sharing(guild_context, post_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, post_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.post, post_in.initiative_id, current_user, guild_context
     )

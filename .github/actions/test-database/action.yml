@@ -21,7 +21,7 @@ runs:
     - name: Start PgBouncer (transaction mode)
       # edoburu/pgbouncer is pinned; PgBouncer >= 1.21 is required for
       # max_prepared_statements (asyncpg keeps its normal prepared-statement
-      # cache — there is no app-side pooler mode).
+      # cache — there is no plugin-side pooler mode).
       shell: bash
       run: |
         printf '"app_user" "app_user"\n"app_admin" "app_admin"\n' > /tmp/pgb-userlist.txt

@@ -578,7 +578,7 @@ class ProjectMapper:
         project: Any,
         issue_type_statuses: Iterable[Any],
         board_column_order: Optional[list[str]] = None,
-        app_version: str,
+        plugin_version: str,
         site_url: str | None = None,
         field_catalog: Any = None,
         include_comments: bool = False,
@@ -600,7 +600,7 @@ class ProjectMapper:
             statuses[0]["name"],
         )
         self._project = project
-        self._app_version = app_version
+        self._plugin_version = plugin_version
         self._site_url = site_url
         self._include_comments = include_comments
         self._guild_id = guild_id
@@ -677,7 +677,7 @@ class ProjectMapper:
                 description=description or None,
                 statuses=self._statuses,
                 tasks=self._tasks,
-                app_version=self._app_version,
+                plugin_version=self._plugin_version,
                 source_url=self._site_url,
                 property_definitions=fields.definitions,
             ),
@@ -700,7 +700,7 @@ def build_project_envelope(
     issue_type_statuses: Iterable[Any],
     issues: Iterable[Any],
     board_column_order: Optional[list[str]] = None,
-    app_version: str,
+    plugin_version: str,
     site_url: str | None = None,
     field_catalog: Any = None,
     include_comments: bool = False,
@@ -722,7 +722,7 @@ def build_project_envelope(
         project=project,
         issue_type_statuses=issue_type_statuses,
         board_column_order=board_column_order,
-        app_version=app_version,
+        plugin_version=plugin_version,
         site_url=site_url,
         field_catalog=field_catalog,
         include_comments=include_comments,

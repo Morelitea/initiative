@@ -220,7 +220,7 @@ class MarketplaceListingVersion(SQLModel, table=True):
     # Compared against this deployment's VERSION. A version that needs a newer
     # app is hidden from browse and refused on upgrade, rather than installing
     # something that cannot render.
-    min_app_version: Optional[str] = Field(
+    min_plugin_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
     published_at: datetime = Field(

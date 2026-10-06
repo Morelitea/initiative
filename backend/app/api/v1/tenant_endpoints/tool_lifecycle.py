@@ -39,7 +39,7 @@ from app.api.deps import (
     ActorUserDep,
     GuildContext,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -156,8 +156,8 @@ def _mount_duplicate(
             await session.commit()
         return await spec.read_row(session, copy_id, current_user, guild_context)
 
-    if spec.serves_apps:
-        ToolWrite = Annotated[ActorContext, Depends(app_scope(f"{tool.plural}:write"))]
+    if spec.serves_plugins:
+        ToolWrite = Annotated[ActorContext, Depends(plugin_scope(f"{tool.plural}:write"))]
 
         async def duplicate(
             entity_id: entity_id_param,

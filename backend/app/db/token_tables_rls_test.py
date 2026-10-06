@@ -5,7 +5,7 @@ floor holds a verb on it and it carries no policy. ``push_tokens`` is reached
 from the platform path for the caller's own devices, and delivered from on the
 system engine; the guild floors hold nothing on it.
 
-Style mirrors ``app_service_registrations_rls_test``: ``SET ROLE`` drops the
+Style mirrors ``plugin_service_registrations_rls_test``: ``SET ROLE`` drops the
 superuser setup session to the role under test, so table grants and policies
 are enforced as they are on a real request.
 """

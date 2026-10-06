@@ -25,12 +25,12 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
 )
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.platform.user import User
 from app.schemas.tenant.calendar import (
     CalendarCreate,
@@ -42,15 +42,15 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
 
 #: The routes an installed app may call, under the calendars scopes.
-CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
-CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
+CalendarsRead = Annotated[ActorContext, Depends(plugin_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(plugin_scope("calendars:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -112,14 +112,14 @@ async def create_calendar(
     What it creates is owned by its install, whose owner row the table's
     trigger writes; it sets no initial sharing.
     """
-    resource_access.refuse_app_sharing(guild_context, calendar_in, "grants")
-    app: Optional[GuildApp] = None
+    resource_access.refuse_plugin_sharing(guild_context, calendar_in, "grants")
+    app: Optional[GuildPlugin] = None
     initiative_id = calendar_in.initiative_id
 
     if initiative_id is None and current_user is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.APP_INITIATIVE_REQUIRED,
+            detail=CalendarMessages.PLUGIN_INITIATIVE_REQUIRED,
         )
     if initiative_id is None:
         if not guild_context.is_admin:
@@ -127,13 +127,13 @@ async def create_calendar(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
             )
-        app = await guild_apps_service.find_mounting_app(
+        app = await guild_plugins_service.find_mounting_plugin(
             session, tool=Tool.calendar.value
         )
         if app is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=CalendarMessages.GUILD_APP_REQUIRED,
+                detail=CalendarMessages.GUILD_PLUGIN_REQUIRED,
             )
     else:
         await resource_access.prepare_create(
@@ -169,7 +169,7 @@ async def create_calendar(
             session,
             tool=Tool.calendar,
             row=calendar,
-            new_owner=ownership_service.Owner(app_install_id=app.id),
+            new_owner=ownership_service.Owner(plugin_install_id=app.id),
         )
         # The default sharing, at guild scope, reads as every member of the guild.
         await permissions_service.replace_resource_grants(

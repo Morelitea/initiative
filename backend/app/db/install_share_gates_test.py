@@ -70,7 +70,7 @@ async def test_an_install_shares_what_it_owns(session, acting_user, role_session
             select(ResourceGrant.level, ResourceGrant.all_initiative_members).where(
                 ResourceGrant.resource_type == Tool.document.value,
                 ResourceGrant.resource_id == made.id,
-                ResourceGrant.app_install_id.is_(None),
+                ResourceGrant.plugin_install_id.is_(None),
             )
         )
     ).all()
@@ -88,7 +88,7 @@ async def test_an_install_shares_what_it_owns(session, acting_user, role_session
     )
     left = (
         await s.exec(
-            select(ResourceGrant.level, ResourceGrant.app_install_id).where(
+            select(ResourceGrant.level, ResourceGrant.plugin_install_id).where(
                 ResourceGrant.resource_type == Tool.document.value,
                 ResourceGrant.resource_id == made.id,
             )
@@ -127,7 +127,7 @@ async def test_without_both_write_scopes_an_install_shares_nothing(
         await create_resource_grant(
             session,
             document,
-            app_install_id=install.app.id,
+            plugin_install_id=install.app.id,
             level=ResourceAccessLevel.owner,
         )
         target = document.id
@@ -176,7 +176,7 @@ async def test_reading_a_resource_is_not_enough_to_share_it(
 
 
 @pytest.mark.parametrize("row", ["owner_for_a_person", "owner_for_itself", "to_itself"])
-async def test_a_share_is_never_ownership_or_an_app_grant(
+async def test_a_share_is_never_ownership_or_a_plugin_grant(
     session, acting_user, role_session, row
 ):
     """On a document open to its initiative for writing and owned by nobody,
@@ -205,7 +205,7 @@ async def test_a_share_is_never_ownership_or_an_app_grant(
     grantee = (
         {"user_id": install.seat.user.id}
         if row == "owner_for_a_person"
-        else {"app_install_id": install.app.id}
+        else {"plugin_install_id": install.app.id}
     )
     level = (
         ResourceAccessLevel.write if row == "to_itself" else ResourceAccessLevel.owner

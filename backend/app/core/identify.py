@@ -20,9 +20,9 @@ from typing import NamedTuple
 import jwt
 from starlette.requests import HTTPConnection
 
-from app.core.app_access_token import (
+from app.core.plugin_access_token import (
     AccessTokenError,
-    AppAccessToken,
+    PluginAccessToken,
     InstallAccessToken,
     is_access_token,
     unseal_access_token,
@@ -82,12 +82,12 @@ class Identified:
     bearer: bool = False
     session: TokenPayload | None = None
     upload: VerifiedUpload | None = None
-    access: InstallAccessToken | AppAccessToken | None = None
+    access: InstallAccessToken | PluginAccessToken | None = None
     #: Why it was refused, when its local check failed.
     refused: str | None = None
 
     @property
-    def app_token(self) -> InstallAccessToken | AppAccessToken | None:
+    def plugin_token(self) -> InstallAccessToken | PluginAccessToken | None:
         """The installed app's or app's token, when it came as a bearer."""
         return self.access if self.bearer else None
 
@@ -99,10 +99,10 @@ class Identified:
             return f"subject:{self.session.sub}"
         if self.upload is not None:
             return f"user:{self.upload.user_id}"
-        token = self.app_token
+        token = self.plugin_token
         if isinstance(token, InstallAccessToken):
             return f"install:{token.client_id}:{token.guild_id}:{token.install_id}"
-        if isinstance(token, AppAccessToken):
+        if isinstance(token, PluginAccessToken):
             return f"app:{token.client_id}"
         return None
 
@@ -182,13 +182,13 @@ def identify(connection: HTTPConnection) -> Identified | None:
     return identified
 
 
-def bearer_app_token(
+def bearer_plugin_token(
     connection: HTTPConnection,
-) -> InstallAccessToken | AppAccessToken | None:
+) -> InstallAccessToken | PluginAccessToken | None:
     """The installed app's or app's token in the request's bearer header,
     unsealed. ``None`` when there is none or it does not unseal."""
     identified = identify(connection)
-    return identified.app_token if identified is not None else None
+    return identified.plugin_token if identified is not None else None
 
 
 def identify_url_token(connection: HTTPConnection) -> Identified | None:

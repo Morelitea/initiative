@@ -240,11 +240,11 @@ async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user
     Published as ``apps`` — the segment the install's detail route lives at —
     so the id every event carries resolves by the derivable route rule.
     """
-    from app.testing import create_guild_app
+    from app.testing import create_guild_plugin
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await create_guild_app(
-        session, a.guild, a.user, definition={"app_kind": "service"}
+    app = await create_guild_plugin(
+        session, a.guild, a.user, definition={"plugin_kind": "service"}
     )
 
     rows = [
@@ -635,13 +635,13 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     person = await _create_document_as(session, install)
 
     rows = await _outbox(session, install.guild.id)
-    by_app = [
+    by_plugin = [
         r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
     ]
-    assert by_app, "an install's write produced no outbox row"
+    assert by_plugin, "an install's write produced no outbox row"
     # The document, and the owner grant the database wrote for the install
     # beside it: both are the app's writes.
-    assert {(r.actor_install_id, r.actor_user_id) for r in by_app} == {
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_plugin} == {
         (install.app.id, None)
     }
 

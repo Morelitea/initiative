@@ -17,23 +17,23 @@ implementation could quietly lose:
 
 import pytest
 
-from app.services.marketplace import service_apps
+from app.services.marketplace import service_plugins
 from app.services.marketplace.definitions import (
     KIND_AUDIENCE,
     LISTING_AUDIENCES,
     LISTING_KINDS,
     kinds_for_audience,
-    APP_KINDS,
-    GUILD_INSTALLABLE_APP_KINDS,
+    PLUGIN_KINDS,
+    GUILD_INSTALLABLE_PLUGIN_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
-    app_widget_type,
+    plugin_widget_type,
     normalize_publisher,
     normalize_listing_definition,
     reserved_prefix_problem,
 )
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
-from app.services.marketplace.service_apps import EMBED_CAPABILITIES
+from app.services.marketplace.service_plugins import EMBED_CAPABILITIES
 
 
 def _label(text: str = "A label") -> dict[str, str]:
@@ -73,7 +73,7 @@ def _service(**overrides) -> dict:
     render — so the smallest valid manifest is the right starting point.
     """
     definition = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "tests.widget-co", "protocol": 1},
         "features": [],
     }
@@ -133,32 +133,32 @@ class TestReservedNamespace:
         assert reserved_prefix_problem("coreutils.x", source="registry") is None
 
 
-class TestAppKinds:
+class TestPluginKinds:
     def test_service_is_publishable(self):
-        assert "service" in APP_KINDS
+        assert "service" in PLUGIN_KINDS
 
     def test_service_is_installable_into_a_guild(self):
         """A service app has somewhere to land now: the registration supplies
         the address and the powers, and the install is the pinned definition
         plus whatever the guild configures against it."""
-        assert "service" in GUILD_INSTALLABLE_APP_KINDS
+        assert "service" in GUILD_INSTALLABLE_PLUGIN_KINDS
 
     def test_installable_kinds_are_declared_kinds(self):
         """The two sets answer different questions — what a listing may declare
         versus what this build can mount — so a kind added to the vocabulary
         ahead of its machinery is refused rather than half-mounted."""
-        assert GUILD_INSTALLABLE_APP_KINDS <= APP_KINDS
+        assert GUILD_INSTALLABLE_PLUGIN_KINDS <= PLUGIN_KINDS
 
     def test_an_unknown_kind_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="unknown app kind"):
-            normalize_listing_definition("app", {"app_kind": "daemon"})
+            normalize_listing_definition("app", {"plugin_kind": "daemon"})
 
 
 class TestServiceIdentity:
     def test_a_service_names_itself(self):
         with pytest.raises(ListingDefinitionError, match="service.public_id"):
             normalize_listing_definition(
-                "app", {"app_kind": "service", "service": {}, "features": []}
+                "app", {"plugin_kind": "service", "service": {}, "features": []}
             )
 
     def test_the_service_id_is_publisher_scoped(self):
@@ -173,7 +173,7 @@ class TestServiceIdentity:
         definition = normalize_listing_definition(
             "app",
             {
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.widget-co"},
                 "features": [],
             },
@@ -217,7 +217,7 @@ class TestFeaturesMatchBlocks:
         with pytest.raises(ListingDefinitionError, match="is declared but"):
             _normalize(features=["endpoints"], endpoints=[])
 
-    def test_an_app_may_offer_no_local_features(self):
+    def test_a_plugin_may_offer_no_local_features(self):
         definition = _normalize()
         assert definition["features"] == []
         assert "widgets" not in definition
@@ -232,11 +232,11 @@ class TestFeaturesMatchBlocks:
         )
         assert definition["features"] == ["embeds", "endpoints"]
 
-    @pytest.mark.parametrize("feature", sorted(service_apps.FEATURES))
+    @pytest.mark.parametrize("feature", sorted(service_plugins.FEATURES))
     def test_every_feature_names_a_block(self, feature):
         # The cross-check is only as complete as this map, so a feature added
         # without one would silently stop being checked.
-        assert feature in service_apps.FEATURE_BLOCKS
+        assert feature in service_plugins.FEATURE_BLOCKS
 
 
 class TestConnections:
@@ -317,7 +317,7 @@ class TestConnections:
                     "flow": {
                         **FLOW,
                         "install_url": (
-                            "https://vendor.test/apps/{vendor.app_slug}/install"
+                            "https://vendor.test/plugins/{vendor.app_slug}/install"
                         ),
                     },
                     "fields": [_managed()],
@@ -699,7 +699,7 @@ class TestRequires:
 
 
 class TestEndpoints:
-    def test_an_id_is_namespaced_under_the_app(self):
+    def test_an_id_is_namespaced_under_the_plugin(self):
         # Two apps offering `create-issue` would be two different things under
         # one name, and a caller resolving the wrong one would do the wrong
         # thing successfully.
@@ -732,7 +732,7 @@ class TestEndpoints:
     def test_a_cache_window_is_clamped_rather_than_refused(self):
         definition = _with_source(cache_ttl_seconds=10_000_000)
         ttl = definition["endpoints"][0]["cache_ttl_seconds"]
-        assert ttl == service_apps.MAX_CACHE_TTL_SECONDS
+        assert ttl == service_plugins.MAX_CACHE_TTL_SECONDS
 
     def test_only_a_read_is_cached(self):
         # A write answers once, so a window means nothing on one.
@@ -758,7 +758,7 @@ class TestEndpoints:
     def test_a_parameter_cannot_be_a_secret(self):
         # A credential is supplied once and held in custody; it is never
         # restated as a query parameter.
-        assert "secret" not in service_apps.PARAM_TYPES
+        assert "secret" not in service_plugins.PARAM_TYPES
         with pytest.raises(ListingDefinitionError, match="unknown field type"):
             _with_source(params=[{"key": "token", "type": "secret", "label": _label()}])
 
@@ -783,7 +783,7 @@ class TestWidgets:
             _with_widget(module_source="")
 
     def test_a_module_larger_than_the_cap_is_refused(self):
-        oversized = "x" * (service_apps.MAX_MODULE_SOURCE_BYTES + 1)
+        oversized = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES + 1)
         with pytest.raises(ListingDefinitionError, match="larger than"):
             _with_widget(module_source=oversized)
 
@@ -794,7 +794,7 @@ class TestWidgets:
         definition = _with_widget(module_source=source)
         assert definition["widgets"][0]["module_source"] == source
 
-    def test_a_widget_may_only_bind_an_endpoint_the_app_declares(self):
+    def test_a_widget_may_only_bind_an_endpoint_the_plugin_declares(self):
         with pytest.raises(
             ListingDefinitionError, match="not a declared read endpoint"
         ):
@@ -870,7 +870,7 @@ class TestWidgets:
                         "module_source": "export const render = () => ({});",
                         "endpoints": [READ_ID],
                         "sample_data": {
-                            READ_ID: {"blob": "x" * service_apps.MAX_SAMPLE_DATA_BYTES}
+                            READ_ID: {"blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES}
                         },
                     }
                 ],
@@ -887,15 +887,15 @@ class TestWidgets:
 
 
 class TestWidgetTypeNamespacing:
-    def test_an_app_widget_carries_its_listing(self):
-        assert app_widget_type("K7M2QX8N4TVB9C", "summary") == (
+    def test_a_plugin_widget_carries_its_listing(self):
+        assert plugin_widget_type("K7M2QX8N4TVB9C", "summary") == (
             "app:K7M2QX8N4TVB9C:summary"
         )
 
     def test_it_cannot_collide_with_a_built_in_type(self):
         from app.services.tenant.dashboard_definition import WIDGET_TYPES
 
-        assert app_widget_type("K7M2QX8N4TVB9C", "stat") not in WIDGET_TYPES
+        assert plugin_widget_type("K7M2QX8N4TVB9C", "stat") not in WIDGET_TYPES
 
     def test_the_separator_is_outside_the_id_alphabet(self):
         # Which is what keeps the three parts separable: no widget id can
@@ -904,7 +904,7 @@ class TestWidgetTypeNamespacing:
 
     def test_a_widget_id_is_checked_before_it_is_composed(self):
         with pytest.raises(ListingDefinitionError, match="widget id"):
-            app_widget_type("K7M2QX8N4TVB9C", "sum:mary")
+            plugin_widget_type("K7M2QX8N4TVB9C", "sum:mary")
 
 
 class TestEmbeds:
@@ -1074,7 +1074,7 @@ class TestEmissions:
         endpoint.update(overrides)
         return _normalize(features=["endpoints"], endpoints=[endpoint])
 
-    def test_an_id_is_namespaced_under_the_app(self):
+    def test_an_id_is_namespaced_under_the_plugin(self):
         for value in ("order_created", "app.someone.else.order_created"):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 self._emit(id=value)
@@ -1110,13 +1110,13 @@ class TestCanonicalShape:
             base_url="https://widget.test",
         )
         assert set(definition) == {
-            "app_kind",
+            "plugin_kind",
             "service",
             "features",
             "default_name",
         }
 
-    def test_a_definition_holds_no_address_of_the_app(self):
+    def test_a_definition_holds_no_address_of_the_plugin(self):
         """The governing rule, asserted on a manifest that tries: an app says
         which route, and the deployment's registration says where. The one kind
         of address it may hold is its vendor's, in a flow Initiative runs."""
@@ -1153,14 +1153,14 @@ class TestCanonicalShape:
 
     def test_the_whole_document_is_size_capped(self):
         # Each widget is under the per-module cap; together they are not.
-        module = "x" * (service_apps.MAX_MODULE_SOURCE_BYTES - 1)
+        module = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES - 1)
         widgets = [
             {
                 "id": f"w{index}",
                 "meta": {"name": {"en": f"Widget {index}"}},
                 "module_source": module,
             }
-            for index in range(service_apps.MAX_WIDGETS)
+            for index in range(service_plugins.MAX_WIDGETS)
         ]
         with pytest.raises(ListingDefinitionError, match="service app definition"):
             _normalize(features=["widgets"], widgets=widgets)
@@ -1171,7 +1171,7 @@ class TestCanonicalShape:
                 features=["embeds"],
                 embeds=[
                     {"id": f"e{index}", "path": f"/embed/{index}", "name": _label()}
-                    for index in range(service_apps.MAX_EMBEDS + 1)
+                    for index in range(service_plugins.MAX_EMBEDS + 1)
                 ],
             )
 
@@ -1386,7 +1386,7 @@ class TestWhereAParametersValuesComeFrom:
         cleaned = _with_option_source({"endpoint": LOOKUP_ID, "key": "ids"})
         assert "needs" not in cleaned["endpoints"][1]["params"][0]["options_from"]
 
-    def test_an_endpoint_from_another_app_is_refused(self):
+    def test_an_endpoint_from_another_plugin_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="not declared here"):
             _with_option_source({"endpoint": "app.other.co.boards", "key": "ids"})
 

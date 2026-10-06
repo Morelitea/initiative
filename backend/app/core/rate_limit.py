@@ -113,7 +113,7 @@ def get_user_or_ip_key(request: Request) -> str:
     allowance that way. The client address for the rest: no credential, one
     only the database can name (an API key), or one that failed its check.
     """
-    install = getattr(request.state, "app_install", None)
+    install = getattr(request.state, "plugin_install", None)
     if install is not None:
         client_id, guild_id, install_id = install
         return f"install:{client_id}:{guild_id}:{install_id}"
@@ -222,9 +222,9 @@ NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
 
 #: Calls one install may make to other apps through Initiative in one window,
 #: to every app together.
-APP_HUB_CALLS_PER_INSTALL = parse("120/minute")
+PLUGIN_HUB_CALLS_PER_INSTALL = parse("120/minute")
 #: Calls one install may make to one other app in one window.
-APP_HUB_CALLS_PER_TARGET = parse("60/minute")
+PLUGIN_HUB_CALLS_PER_TARGET = parse("60/minute")
 
 
 async def take_allowance(item: RateLimitItem, namespace: str, key: str) -> bool:

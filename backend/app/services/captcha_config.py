@@ -71,10 +71,10 @@ async def resolve_saved_secret() -> str | None:
     no request-path role.
     """
     from app.services.platform.app_settings import (  # noqa: PLC0415
-        load_app_setting_secrets,
+        load_plugin_setting_secrets,
     )
 
-    row = await load_app_setting_secrets()
+    row = await load_plugin_setting_secrets()
     if not row.captcha_secret_key_encrypted:
         return None
     return decrypt_field(row.captcha_secret_key_encrypted, SALT_CAPTCHA_SECRET_KEY)

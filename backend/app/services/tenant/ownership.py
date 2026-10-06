@@ -31,7 +31,7 @@ Leaving a guild drops the person's owner grants rather than handing them to
 someone else: nobody inherits privilege they did not ask for, which matters most
 in a guild with heavy turnover. Guild admins still administer unowned content
 through their guild-admin authority, and can claim it whenever they choose, or
-hand it to an app that may own it (:func:`eligible_app_owners`).
+hand it to an app that may own it (:func:`eligible_plugin_owners`).
 """
 
 from collections.abc import Iterable, Sequence
@@ -44,9 +44,9 @@ from sqlalchemy import select as sa_select
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import (
-    AppScopeResource,
-    UnknownAppScope,
+from app.core.plugin_scopes import (
+    PluginScopeResource,
+    UnknownPluginScope,
     expand,
     tool_resource,
 )
@@ -56,8 +56,8 @@ from app.core.tools import Tool
 from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.app_placement import AppPlacement
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.plugin_placement import PluginPlacement
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
@@ -68,7 +68,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.schemas.tenant.ownership import OwnerAppSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary
 from app.services import audit as audit_service
 from app.services.marketplace import catalog as catalog_service
 
@@ -142,10 +142,10 @@ class Owner:
     Exactly one of the two is set."""
 
     user_id: Optional[int] = None
-    app_install_id: Optional[int] = None
+    plugin_install_id: Optional[int] = None
 
     def __post_init__(self) -> None:
-        if (self.user_id is None) == (self.app_install_id is None):
+        if (self.user_id is None) == (self.plugin_install_id is None):
             raise ValueError("an owner is a person or an app, and exactly one")
 
 
@@ -155,8 +155,8 @@ def _grant_owner(grant: Any) -> Optional[Owner]:
         return None
     if grant.user_id is not None:
         return Owner(user_id=grant.user_id)
-    if grant.app_install_id is not None:
-        return Owner(app_install_id=grant.app_install_id)
+    if grant.plugin_install_id is not None:
+        return Owner(plugin_install_id=grant.plugin_install_id)
     return None
 
 
@@ -182,22 +182,22 @@ def owner_user_id_of(row: Any) -> Optional[int]:
     return owner.user_id if owner is not None else None
 
 
-#: Where :func:`annotate_owner_apps` leaves a row's owning app.
-_OWNER_APP_ATTRIBUTE = "_owner_app"
+#: Where :func:`annotate_owner_plugins` leaves a row's owning app.
+_OWNER_PLUGIN_ATTRIBUTE = "_owner_plugin"
 
 
-def owner_app_of(row: Any) -> Optional[OwnerAppSummary]:
-    """The installed app that owns ``row``, as :func:`annotate_owner_apps`
+def owner_plugin_of(row: Any) -> Optional[OwnerPluginSummary]:
+    """The installed app that owns ``row``, as :func:`annotate_owner_plugins`
     left it; None when a person owns it, nobody does, or it was not
     annotated."""
-    return getattr(row, _OWNER_APP_ATTRIBUTE, None)
+    return getattr(row, _OWNER_PLUGIN_ATTRIBUTE, None)
 
 
-async def annotate_owner_apps(session: AsyncSession, rows: Iterable[Any]) -> None:
+async def annotate_owner_plugins(session: AsyncSession, rows: Iterable[Any]) -> None:
     """Set the owning app on each row an installed app owns, for its serializer
-    (:func:`owner_app_of`). Reads each row's eagerly loaded ``grants``.
+    (:func:`owner_plugin_of`). Reads each row's eagerly loaded ``grants``.
 
-    One query for the installs, and none when no row is app-owned. The picture
+    One query for the installs, and none when no row is plugin-owned. The picture
     is the listing's, read from the catalog for a person's request; an
     installed app's response names the app without it.
     """
@@ -206,16 +206,16 @@ async def annotate_owner_apps(session: AsyncSession, rows: Iterable[Any]) -> Non
         if row is None:
             continue
         owner = owner_of(row)
-        install_id = owner.app_install_id if owner is not None else None
-        object.__setattr__(row, _OWNER_APP_ATTRIBUTE, None)
+        install_id = owner.plugin_install_id if owner is not None else None
+        object.__setattr__(row, _OWNER_PLUGIN_ATTRIBUTE, None)
         if install_id is not None:
             owned.append((row, install_id))
     if not owned:
         return
     installs = (
         await session.exec(
-            select(GuildApp.id, GuildApp.name, GuildApp.listing_uid).where(
-                GuildApp.id.in_({install_id for _row, install_id in owned})
+            select(GuildPlugin.id, GuildPlugin.name, GuildPlugin.listing_uid).where(
+                GuildPlugin.id.in_({install_id for _row, install_id in owned})
             )
         )
     ).all()
@@ -225,13 +225,13 @@ async def annotate_owner_apps(session: AsyncSession, rows: Iterable[Any]) -> Non
             session, [listing_uid for _id, _name, listing_uid in installs]
         )
     summaries = {
-        install_id: OwnerAppSummary(
+        install_id: OwnerPluginSummary(
             id=install_id, name=name, avatar_url=avatars.get(listing_uid)
         )
         for install_id, name, listing_uid in installs
     }
     for row, install_id in owned:
-        object.__setattr__(row, _OWNER_APP_ATTRIBUTE, summaries.get(install_id))
+        object.__setattr__(row, _OWNER_PLUGIN_ATTRIBUTE, summaries.get(install_id))
 
 
 # ── Reading what is owned ────────────────────────────────────────────────────
@@ -272,13 +272,13 @@ async def _unowned_rows(
     member_ids = sa_select(GuildMembership.user_id).where(
         GuildMembership.guild_id == guild_id
     )
-    live_installs = sa_select(GuildApp.id).where(GuildApp.enabled.is_(True))
+    live_installs = sa_select(GuildPlugin.id).where(GuildPlugin.enabled.is_(True))
     owned = sa_select(ResourceGrant.resource_id).where(
         ResourceGrant.resource_type == tool.value,
         ResourceGrant.level == ResourceAccessLevel.owner,
         or_(
             ResourceGrant.user_id.in_(member_ids),
-            ResourceGrant.app_install_id.in_(live_installs),
+            ResourceGrant.plugin_install_id.in_(live_installs),
         ),
     )
     stmt = select(OWNABLE[tool].model).where(OWNABLE[tool].model.id.not_in(owned))
@@ -325,22 +325,22 @@ async def summarize_unowned_content(
 # ── Which apps may own ───────────────────────────────────────────────────────
 
 
-def _written_resources(scopes: Iterable[str]) -> frozenset[AppScopeResource]:
+def _written_resources(scopes: Iterable[str]) -> frozenset[PluginScopeResource]:
     """The resources ``scopes`` let an app write. A scope the vocabulary no
     longer names grants nothing."""
     known: list[str] = []
     for scope in scopes or ():
         try:
             expand([scope])
-        except UnknownAppScope:
+        except UnknownPluginScope:
             continue
         known.append(scope)
     return expand(known)[1]
 
 
-async def eligible_app_owners(
+async def eligible_plugin_owners(
     session: AsyncSession, items: Sequence[OwnedItem]
-) -> list[OwnerAppSummary]:
+) -> list[OwnerPluginSummary]:
     """The installed apps that may own every one of ``items``, by name.
 
     An install may own a resource when it is switched on, the community's
@@ -354,13 +354,13 @@ async def eligible_app_owners(
     installs = (
         await session.exec(
             select(
-                GuildApp.id,
-                GuildApp.name,
-                GuildApp.listing_uid,
-                GuildApp.granted_scopes,
+                GuildPlugin.id,
+                GuildPlugin.name,
+                GuildPlugin.listing_uid,
+                GuildPlugin.granted_scopes,
             )
-            .where(GuildApp.enabled.is_(True))
-            .order_by(GuildApp.name, GuildApp.id)
+            .where(GuildPlugin.enabled.is_(True))
+            .order_by(GuildPlugin.name, GuildPlugin.id)
         )
     ).all()
     if not installs:
@@ -368,8 +368,8 @@ async def eligible_app_owners(
     placed: dict[int, set[int]] = {}
     for install_id, initiative_id in (
         await session.exec(
-            select(AppPlacement.install_id, AppPlacement.initiative_id).where(
-                AppPlacement.install_id.in_([row[0] for row in installs])
+            select(PluginPlacement.install_id, PluginPlacement.initiative_id).where(
+                PluginPlacement.install_id.in_([row[0] for row in installs])
             )
         )
     ).all():
@@ -392,21 +392,21 @@ async def eligible_app_owners(
         session, [listing_uid for _id, _name, listing_uid in eligible]
     )
     return [
-        OwnerAppSummary(id=install_id, name=name, avatar_url=avatars.get(listing_uid))
+        OwnerPluginSummary(id=install_id, name=name, avatar_url=avatars.get(listing_uid))
         for install_id, name, listing_uid in eligible
     ]
 
 
-async def require_app_owner_eligible(
+async def require_plugin_owner_eligible(
     session: AsyncSession, *, install_id: int, items: Sequence[OwnedItem]
 ) -> None:
-    """Raise 422 ``OWNER_APP_NOT_ELIGIBLE`` unless ``install_id`` may own
-    every one of ``items`` (:func:`eligible_app_owners`)."""
-    eligible = await eligible_app_owners(session, items)
+    """Raise 422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` unless ``install_id`` may own
+    every one of ``items`` (:func:`eligible_plugin_owners`)."""
+    eligible = await eligible_plugin_owners(session, items)
     if not items or install_id not in {app.id for app in eligible}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=UserMessages.OWNER_APP_NOT_ELIGIBLE,
+            detail=UserMessages.OWNER_PLUGIN_NOT_ELIGIBLE,
         )
 
 
@@ -464,7 +464,7 @@ async def set_resource_owner(
 ) -> None:
     """Make ``new_owner`` the resource's owner, or leave it unowned when None.
     Caller commits, and has decided the new owner may hold it (an app, by
-    :func:`require_app_owner_eligible`).
+    :func:`require_plugin_owner_eligible`).
 
     A person's owner row changes hands in place — one ``UPDATE`` — so the
     request writing it holds the owner's rung for the whole of the change, as
@@ -491,7 +491,7 @@ async def set_resource_owner(
     is_recipient = (
         (lambda g: g.user_id == new_owner.user_id)
         if new_owner.user_id is not None
-        else (lambda g: g.app_install_id == new_owner.app_install_id)
+        else (lambda g: g.plugin_install_id == new_owner.plugin_install_id)
     )
     held = next((g for g in grants if is_recipient(g)), None)
     if held is not None and held.level == ResourceAccessLevel.owner:
@@ -515,7 +515,7 @@ async def set_resource_owner(
                     resource_type=tool.value,
                     resource_id=row.id,
                     user_id=new_owner.user_id,
-                    app_install_id=new_owner.app_install_id,
+                    plugin_install_id=new_owner.plugin_install_id,
                     role_id=None,
                     level=ResourceAccessLevel.owner,
                     initiative_id=row.initiative_id,
@@ -527,7 +527,7 @@ async def set_resource_owner(
         await session.delete(held)
         await session.flush()
     handover.user_id = new_owner.user_id
-    handover.app_install_id = new_owner.app_install_id
+    handover.plugin_install_id = new_owner.plugin_install_id
     session.add(handover)
     await session.flush()
 
@@ -621,7 +621,7 @@ async def _record_ownership_move(
         detail={
             "from_user_id": from_user_id,
             "to_user_id": to.user_id,
-            "to_app_install_id": to.app_install_id,
+            "to_plugin_install_id": to.plugin_install_id,
             "counts": {tool.value: count for tool, count in counts.items()},
         },
     )
@@ -637,9 +637,9 @@ async def _move(
     items = [
         item for tool, rows in rows_by_tool.items() for item in _as_items(tool, rows)
     ]
-    if to.app_install_id is not None and items:
-        await require_app_owner_eligible(
-            session, install_id=to.app_install_id, items=items
+    if to.plugin_install_id is not None and items:
+        await require_plugin_owner_eligible(
+            session, install_id=to.plugin_install_id, items=items
         )
     moved: dict[Tool, int] = {}
     for tool, rows in rows_by_tool.items():
@@ -662,7 +662,7 @@ async def transfer_content_ownership(
     Returns a per-tool count of what moved. Caller commits.
 
     An app receives it only when it may own every item; otherwise nothing
-    moves and the answer is 422 ``OWNER_APP_NOT_ELIGIBLE``. ``actor_user_id``
+    moves and the answer is 422 ``OWNER_PLUGIN_NOT_ELIGIBLE``. ``actor_user_id``
     is who did it; without one the move is unrecorded."""
     rows_by_tool = {
         tool: await _owned_rows(session, tool, from_user_id) for tool in OWNABLE
@@ -710,13 +710,13 @@ async def claim_unowned_content(
 __all__ = [
     "OWNABLE",
     "Owner",
-    "annotate_owner_apps",
+    "annotate_owner_plugins",
     "current_owner",
-    "eligible_app_owners",
-    "owner_app_of",
+    "eligible_plugin_owners",
+    "owner_plugin_of",
     "owner_of",
     "owner_user_id_of",
-    "require_app_owner_eligible",
+    "require_plugin_owner_eligible",
     "restore_ownership_to_author",
     "tool_for_row",
     "OwnableSpec",

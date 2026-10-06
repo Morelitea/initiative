@@ -83,7 +83,7 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
   app: {
     rowNoun: "row",
     params: [
-      { kind: "text", key: "app_uid", required: true },
+      { kind: "text", key: "plugin_uid", required: true },
       { kind: "text", key: "endpoint_id", required: true },
     ],
   },

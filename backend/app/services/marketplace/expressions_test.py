@@ -1,7 +1,7 @@
 """JSONata, evaluated as the SDK evaluates it.
 
 The corpus is shared with the SDK by construction: each expected answer is what
-``initiative-app-sdk``'s own ``evaluate`` (``src/expression.ts``, 1.4.0) gives
+``initiative-plugin-sdk``'s own ``evaluate`` (``src/expression.ts``, 1.4.0) gives
 for the same expression and document at the same instant. The SDK ships no
 corpus of its own, so it is kept here: the expressions of its
 ``test/testing.test.ts`` app (``test/support/app.ts``), with the documents its

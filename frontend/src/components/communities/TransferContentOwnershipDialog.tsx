@@ -56,12 +56,12 @@ const useToolCounts = (counts: Record<string, number> | undefined) => {
 
 /** A recipient in the picker: an admin (`user:<id>`) or an app (`app:<id>`). */
 const personRecipient = (id: number) => `user:${id}`;
-const appRecipient = (id: number) => `app:${id}`;
+const pluginRecipient = (id: number) => `app:${id}`;
 
 /** The request body a picked recipient becomes. */
 const transferBody = (recipient: string): OwnershipTransferRequest => {
   const [kind, id] = recipient.split(":");
-  return kind === "app" ? { new_owner_app_id: Number(id) } : { new_owner_id: Number(id) };
+  return kind === "app" ? { new_owner_plugin_id: Number(id) } : { new_owner_id: Number(id) };
 };
 
 interface TransferContentOwnershipDialogProps {
@@ -79,7 +79,7 @@ interface TransferContentOwnershipDialogProps {
  * place in the app that does. Recipients are community admins, who already reach
  * every part of the community, so a transfer can never widen anyone's access — or
  * an installed app the server lists as able to own all of it
- * (`eligible_apps`): one placed where all of it lives and allowed to change
+ * (`eligible_plugins`): one placed where all of it lives and allowed to change
  * it, which is the reach it already has.
  *
  * With `member` null it claims the community's unowned content instead — the pile
@@ -138,7 +138,7 @@ export const TransferContentOwnershipDialog = ({
 
   const toolCounts = useToolCounts(content?.counts);
   const nothingToMove = !loading && (content?.total ?? 0) === 0;
-  const eligibleApps = content?.eligible_apps ?? [];
+  const eligiblePlugins = content?.eligible_plugins ?? [];
 
   // Admins are found by name on the server rather than read from the whole
   // roster: the closest matches, of which the admins are offered. The few apps
@@ -156,13 +156,13 @@ export const TransferContentOwnershipDialog = ({
       ...(adminSearch.data?.items ?? [])
         .filter((user) => isAdminRole(user.community_role) && user.status !== "anonymized")
         .map((admin) => ({ value: personRecipient(admin.id), label: getUserDisplayName(admin) })),
-      ...(content?.eligible_apps ?? [])
+      ...(content?.eligible_plugins ?? [])
         .filter((app) => app.name.toLowerCase().includes(term))
         .map((app) => ({
-          value: appRecipient(app.id),
+          value: pluginRecipient(app.id),
           label: app.name,
           icon: Blocks,
-          hint: t("transferOwnership.appHint"),
+          hint: t("transferOwnership.pluginHint"),
         })),
     ];
   }, [adminSearch.data, content, search, t]);
@@ -250,8 +250,8 @@ export const TransferContentOwnershipDialog = ({
                 aria-label={t("transferOwnership.recipientLabel")}
               />
               <p className="text-muted-foreground text-xs">
-                {eligibleApps.length > 0
-                  ? t("transferOwnership.adminsOrApps")
+                {eligiblePlugins.length > 0
+                  ? t("transferOwnership.adminsOrPlugins")
                   : t("transferOwnership.adminsOnly")}
               </p>
             </div>

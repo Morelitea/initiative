@@ -22,7 +22,7 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    app_scope,
+    plugin_scope,
     FactorExemptAccountHolder,
     FactorExemptAccountHolderSessionDep,
     RLSSessionDep,
@@ -123,7 +123,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.ownership import (
     OwnedContentItem,
     OwnedContentResponse,
-    OwnerAppSummary,
+    OwnerPluginSummary,
     OwnershipTransferRequest,
     OwnershipTransferResponse,
 )
@@ -145,9 +145,9 @@ from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
 from app.core.tools import Tool
 from app.api import resource_access
-from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_member_consents as consents_service
-from app.services.tenant import app_revocation as app_revocation_service
+from app.services.tenant import plugin_connections as plugin_connections_service
+from app.services.tenant import plugin_member_consents as consents_service
+from app.services.tenant import plugin_revocation as plugin_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
@@ -208,7 +208,7 @@ guild_router = APIRouter(route_class=ActorRoute)
 # under /c/{community_id}/members.
 members_router = APIRouter(route_class=ActorRoute)
 
-MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
+MembersRead = Annotated[ActorContext, Depends(plugin_scope("members:read"))]
 
 
 @me_router.get("/time-out", response_model=AccountTimeOutRead)
@@ -373,7 +373,7 @@ def _in_initiative(initiative_id: int):
     )
 
 
-async def _search_members_for_app(
+async def _search_members_for_plugin(
     session: AsyncSession,
     *,
     search: Optional[str],
@@ -481,7 +481,7 @@ async def search_users(
     rehydrating stored ids into names/avatars) rather than searching.
 
     An installed app (``members:read``) names members by its own references
-    and reads each as an :class:`AppPerson`: the reference, the handle and the
+    and reads each as an :class:`PluginPerson`: the reference, the handle and the
     display name set in the community.
     """
     if initiative_id is not None and not (
@@ -496,7 +496,7 @@ async def search_users(
             detail=InitiativeMessages.NOT_A_MEMBER,
         )
     if isinstance(guild_context, InstallContext):
-        return await _search_members_for_app(
+        return await _search_members_for_plugin(
             session,
             search=search,
             user_id=user_id,
@@ -1825,7 +1825,7 @@ async def _require_receiving_admin(
 
 
 def _ownership_payload(
-    items: list, eligible_apps: list[OwnerAppSummary]
+    items: list, eligible_plugins: list[OwnerPluginSummary]
 ) -> OwnedContentResponse:
     counts: dict[str, int] = {}
     for item in items:
@@ -1837,7 +1837,7 @@ def _ownership_payload(
         ],
         counts=counts,
         total=len(items),
-        eligible_apps=eligible_apps,
+        eligible_plugins=eligible_plugins,
     )
 
 
@@ -1847,8 +1847,8 @@ async def _recipient(
     """Who the request names to receive the content. A person must be an
     active admin of this guild; an app's eligibility is asked of the content
     it would receive, by the move itself."""
-    if payload.new_owner_app_id is not None:
-        return ownership_service.Owner(app_install_id=payload.new_owner_app_id)
+    if payload.new_owner_plugin_id is not None:
+        return ownership_service.Owner(plugin_install_id=payload.new_owner_plugin_id)
     person_id = payload.new_owner_id
     if person_id is None:
         # The schema requires one of the two; nobody named is nobody eligible.
@@ -1881,7 +1881,7 @@ async def list_unowned_content(
         session, guild_id=guild_context.guild_id
     )
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1893,7 +1893,7 @@ async def claim_unowned_content(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Give everything nobody owns to one guild admin, or to an app that may
-    own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise)."""
+    own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise)."""
     recipient = await _recipient(
         session, guild_id=guild_context.guild_id, payload=payload
     )
@@ -1922,7 +1922,7 @@ async def list_owned_content(
     """
     items = await ownership_service.summarize_owned_content(session, user_id)
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1937,7 +1937,7 @@ async def transfer_ownership(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Move everything ``user_id`` owns in this guild to a guild admin, or to
-    an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+    an app that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
 
     The only place ownership is moved by hand, and guild-admin only.
     """
@@ -2033,7 +2033,7 @@ async def remove_member(
     )
     # Being removed ends what this guild's apps let this person reach at an
     # outside vendor, exactly as leaving voluntarily does.
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="removed_from_guild"
     )
     # And what they let this guild's apps do as them, for the same reason.
@@ -2056,7 +2056,7 @@ async def remove_member(
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    app_revocation_service.send_after_response(session, background_tasks)
+    plugin_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------

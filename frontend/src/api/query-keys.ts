@@ -69,7 +69,7 @@ export type Spec = {
   personalPrefix?: readonly string[];
   /**
    * Hand-written keys named by their first element and carrying their community in
-   * the second (`["community-app", communityId, appId]`). Scoped to the active community by
+   * the second (`["community-plugin", communityId, pluginId]`). Scoped to the active community by
    * that element, like every other community key.
    */
   communityNamed?: readonly string[];
@@ -385,11 +385,11 @@ const moderationReports = (initiativeId: number): Spec => ({
 const platformCommunities = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
 // ── App services (personal / platform) ───────────────────────────────────────
-// Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
-// as `/api/v1/app-services/{id}` (no slash), so they are siblings rather than a
+// Orval keys the list as `/api/v1/plugin-services/` (trailing slash) and each row
+// as `/api/v1/plugin-services/{id}` (no slash), so they are siblings rather than a
 // prefix pair. Name the shared path so one description reaches the list and
 // every detail read.
-const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
+const pluginServices = (): Spec => ({ personalPrefix: ["/api/v1/plugin-services"] });
 
 // ── Installed apps (community) ───────────────────────────────────────────────────
 // The other half of the same domain: a service is the platform's registration
@@ -402,8 +402,8 @@ const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
 // reads are hand-written and keyed by name. The named pair carries its community in
 // element 1, so it is scoped like every other community key rather than by name.
 const apps = (): Spec => ({
-  communityPrefix: ["/api/v1/apps"],
-  communityNamed: ["community-app", "community-app-members"],
+  communityPrefix: ["/api/v1/plugins"],
+  communityNamed: ["community-plugin", "community-plugin-members"],
 });
 
 // ── AI Settings (platform config is personal; community/member/resolved are community) ──
@@ -638,7 +638,7 @@ export const q = {
   allTasks,
   announcements,
   appConfig,
-  appServices,
+  pluginServices,
   apps,
   authProviders,
   communityNarrowings,

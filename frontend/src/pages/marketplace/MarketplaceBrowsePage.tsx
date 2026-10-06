@@ -20,7 +20,7 @@ import { MarketplaceCard } from "@/components/marketplace/MarketplaceCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
@@ -32,7 +32,7 @@ const PAGE_SIZE = 24;
  *  without a line of its own does not compile. */
 const SUBTITLE_KEYS = {
   [ListingKind.dashboard]: "subtitle",
-  [ListingKind.app]: "subtitleApps",
+  [ListingKind.app]: "subtitlePlugins",
   [ListingKind.auto]: "subtitleAuto",
 } as const satisfies Record<CommunityShelf, string>;
 /** Stable keys for the loading placeholders — they never reorder, and an index
@@ -69,8 +69,8 @@ export function MarketplaceBrowsePage() {
   // map: "we do not know" and "you have none of these" look identical on a card,
   // and only one of them is true. The notice below says which.
   const dashboardInstalls = useInstalledListings({ enabled: kind === ListingKind.dashboard });
-  const appInstalls = useCommunityApps({ enabled: kind === ListingKind.app });
-  const installedQuery = kind === ListingKind.app ? appInstalls : dashboardInstalls;
+  const pluginInstalls = useCommunityPlugins({ enabled: kind === ListingKind.app });
+  const installedQuery = kind === ListingKind.app ? pluginInstalls : dashboardInstalls;
 
   const installedByUid = useMemo(() => {
     if (installedQuery.isError) return undefined;
@@ -78,11 +78,11 @@ export function MarketplaceBrowsePage() {
       // One install per listing per community, so this is a presence map that
       // happens to be shaped like the dashboards' counts.
       const counts: Record<string, number> = {};
-      for (const app of appInstalls.data?.items ?? []) counts[app.listing_uid] = 1;
+      for (const app of pluginInstalls.data?.items ?? []) counts[app.listing_uid] = 1;
       return counts;
     }
     return dashboardInstalls.data?.counts;
-  }, [kind, installedQuery.isError, appInstalls.data, dashboardInstalls.data]);
+  }, [kind, installedQuery.isError, pluginInstalls.data, dashboardInstalls.data]);
 
   const listings = listingsQuery.data?.items ?? [];
 

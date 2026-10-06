@@ -32,7 +32,7 @@ export const PlatformSettingsLayout = () => {
     // both the AI settings and the app service registrations, is shown to
     // either.
     const canManageConfig = hasCapability(user, Capability.configManage);
-    const canManageApps = hasCapability(user, Capability.appsManage);
+    const canManagePlugins = hasCapability(user, Capability.pluginsManage);
     return [
       {
         value: "auth",
@@ -74,7 +74,7 @@ export const PlatformSettingsLayout = () => {
         value: "integrations",
         label: t("platformLayout.tabs.integrations"),
         path: "/settings/platform/integrations",
-        visible: canManageConfig || canManageApps,
+        visible: canManageConfig || canManagePlugins,
       },
       {
         value: "storage",

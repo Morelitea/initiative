@@ -59,7 +59,7 @@ export const startAnalytics = (collectorUrl: string): Promise<void> => {
         }) => {
           faro = initializeFaro({
             url: collectorUrl,
-            app: { name: "initiative", version: __APP_VERSION__ },
+            app: { name: "initiative", version: __PLUGIN_VERSION__ },
             // Errors, Web Vitals and the session they belong to. The console
             // and request timings are left out: both carry addresses and text.
             instrumentations: [

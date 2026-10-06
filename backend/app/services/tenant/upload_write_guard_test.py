@@ -29,8 +29,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_APP_DIR = Path(__file__).resolve().parents[2]
-_BACKEND_DIR = _APP_DIR.parent
+_PLUGIN_DIR = Path(__file__).resolve().parents[2]
+_BACKEND_DIR = _PLUGIN_DIR.parent
 
 _SEAM = "app/services/tenant/attachments.py::store_upload"
 
@@ -58,7 +58,7 @@ _WRITE_EXCEPTIONS = {
 
 
 def _runtime_files() -> list[Path]:
-    return sorted(p for p in _APP_DIR.rglob("*.py") if not p.name.endswith("_test.py"))
+    return sorted(p for p in _PLUGIN_DIR.rglob("*.py") if not p.name.endswith("_test.py"))
 
 
 def _callee(node: ast.Call) -> str | None:

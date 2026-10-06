@@ -15,15 +15,15 @@ import { MarketplaceRegistrySection } from "@/components/platform/MarketplaceReg
 import { useAuth } from "@/hooks/useAuth";
 import { Capability, hasCapability } from "@/lib/permissions";
 import { SettingsAIPage } from "@/pages/SettingsAIPage";
-import { SettingsAppServicesPage } from "@/pages/SettingsAppServicesPage";
+import { SettingsPluginServicesPage } from "@/pages/SettingsPluginServicesPage";
 
 export const SettingsPlatformIntegrationsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const canManageConfig = hasCapability(user, Capability.configManage);
-  const canManageApps = hasCapability(user, Capability.appsManage);
+  const canManagePlugins = hasCapability(user, Capability.pluginsManage);
 
-  if (!canManageConfig && !canManageApps) {
+  if (!canManageConfig && !canManagePlugins) {
     return <p className="text-muted-foreground text-sm">{t("platformAI.platformOnly")}</p>;
   }
 
@@ -31,7 +31,7 @@ export const SettingsPlatformIntegrationsPage = () => {
     <div className="space-y-6">
       {canManageConfig ? <SettingsAIPage /> : null}
       {canManageConfig ? <MarketplaceRegistrySection /> : null}
-      {canManageApps ? <SettingsAppServicesPage /> : null}
+      {canManagePlugins ? <SettingsPluginServicesPage /> : null}
     </div>
   );
 };

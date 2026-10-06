@@ -763,7 +763,7 @@ async def _database_admits(
     return bool(verdict.verdict)
 
 
-async def _app_admits(
+async def _plugin_admits(
     session: AsyncSession,
     policy,
     guild_id: int,
@@ -893,7 +893,7 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
         await session.refresh(stored)
 
         for standing, satisfied, asserted, markers in standings:
-            in_app = await _app_admits(
+            in_app = await _plugin_admits(
                 session, stored, guild_id, satisfied, asserted, markers
             )
             in_db = await _database_admits(
@@ -925,9 +925,9 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
     await session.refresh(asking_for_a_key)
     a_key = frozenset({"hwk", SECOND_FACTOR_AMR})
     a_code = frozenset({SECOND_FACTOR_AMR})
-    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, a_key)
+    assert await _plugin_admits(session, asking_for_a_key, guild_id, [], None, a_key)
     assert await db_admits(markers=a_key)
-    assert not await _app_admits(session, asking_for_a_key, guild_id, [], None, a_code)
+    assert not await _plugin_admits(session, asking_for_a_key, guild_id, [], None, a_code)
     assert not await db_admits(markers=a_code)
 
     # The matrix would pass if both layers refused everything, so pin the two

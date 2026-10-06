@@ -30,13 +30,13 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
-from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.plugin_scopes import PluginScopeResource, tool_resource
 from app.core.tools import PROPERTY_TARGETS, Tool
-from app.db.app_rls import (
-    APP_REFUSED_TABLES,
-    APP_TABLE_ACCESS,
+from app.db.plugin_rls import (
+    PLUGIN_REFUSED_TABLES,
+    PLUGIN_TABLE_ACCESS,
     SEARCH_ENTRY_READ_SCOPE,
-    AppTableKind,
+    PluginTableKind,
 )
 from app.db.initiative_rls import (
     ANSWERED,
@@ -59,8 +59,8 @@ from app.db.authorization import (
     POLICY_SETTINGS_ADMIN,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
     STANDING,
-    app_refused,
-    app_scope,
+    plugin_refused,
+    plugin_scope,
     render_guild_authorization_functions,
     sql_values,
 )
@@ -343,7 +343,7 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # The reindex sweep routes as the guild admin, which is the second leg.
     "search_entries": f"pg_trigger_depth() > 0 OR {IN_POLICY.system} OR {IN_POLICY.admin}",
     # An app's events are written by the system engine, on the app's behalf.
-    "app_event_outbox": IN_POLICY.system,
+    "plugin_event_outbox": IN_POLICY.system,
 }
 
 
@@ -445,8 +445,8 @@ _SEAT_SECTION = """\
 -- seat holds beside a read_write content grant, or by the system engine. A
 -- table a trigger also fills admits that trigger on INSERT.
 --
--- tr_guild_app_secrets_fields: each write to an install's secret values
--- rewrites guild_apps.secret_fields, the keys that hold a value and a digest
+-- tr_guild_plugin_secrets_fields: each write to an install's secret values
+-- rewrites guild_plugins.secret_fields, the keys that hold a value and a digest
 -- of each, as whoever made the write.
 -- tr_guild_ai_connection_keys_present: each write to a connection's shared
 -- key sets guild_ai_connections.has_api_key, as whoever made the write.
@@ -458,11 +458,11 @@ _SEAT_WRITE_PREDICATE = f"({IN_POLICY.system} OR ({POLICY_SEAT} AND ({IN_POLICY.
 
 
 # Seat tables a trigger also writes: table -> the leg OR'd into the INSERT
-# policy beside the seat's. ``app_placements`` gains a row for each install that
+# policy beside the seat's. ``plugin_placements`` gains a row for each install that
 # follows new initiatives when an initiative's built-in moderator role is
 # created, by whoever created the initiative.
 _SEAT_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
-    "app_placements": "pg_trigger_depth() > 0",
+    "plugin_placements": "pg_trigger_depth() > 0",
 }
 
 
@@ -510,12 +510,12 @@ def _seat_block(table: str) -> str:
     )
 
 
-#: ``guild_apps.secret_fields`` from an install's secret values: the same
+#: ``guild_plugins.secret_fields`` from an install's secret values: the same
 #: connection and field keys, each holding the SHA-256 hex digest of its
 #: ciphertext. Shared, in ``public``; the row it writes is in the schema the
 #: trigger fired in.
-APP_SECRET_FIELDS_FN = """
-CREATE OR REPLACE FUNCTION public.fn_app_secret_fields() RETURNS trigger
+PLUGIN_SECRET_FIELDS_FN = """
+CREATE OR REPLACE FUNCTION public.fn_plugin_secret_fields() RETURNS trigger
     LANGUAGE plpgsql AS $secret_fields$
 DECLARE
     v_install integer;
@@ -538,7 +538,7 @@ BEGIN
     FROM jsonb_each(v_secrets) c
     WHERE jsonb_typeof(c.value) = 'object';
     EXECUTE format(
-        $q$UPDATE %I.guild_apps SET secret_fields = $1
+        $q$UPDATE %I.guild_plugins SET secret_fields = $1
             WHERE id = $2 AND secret_fields IS DISTINCT FROM $1$q$,
         TG_TABLE_SCHEMA
     ) USING v_fields, v_install;
@@ -547,10 +547,10 @@ END;
 $secret_fields$;
 """
 
-APP_SECRET_FIELDS_TRIGGER = (
-    "CREATE OR REPLACE TRIGGER tr_guild_app_secrets_fields"
-    " AFTER INSERT OR UPDATE OR DELETE ON guild_app_secrets FOR EACH ROW"
-    " EXECUTE FUNCTION public.fn_app_secret_fields();"
+PLUGIN_SECRET_FIELDS_TRIGGER = (
+    "CREATE OR REPLACE TRIGGER tr_guild_plugin_secrets_fields"
+    " AFTER INSERT OR UPDATE OR DELETE ON guild_plugin_secrets FOR EACH ROW"
+    " EXECUTE FUNCTION public.fn_plugin_secret_fields();"
 )
 
 #: ``guild_ai_connections.has_api_key`` from whether the connection has a row in
@@ -603,10 +603,10 @@ def _ledger_block(table: str, parent: str, fk: str) -> str:
     )
 
 
-_APP_SECTION = """\
+_PLUGIN_SECTION = """\
 -- ===========================================================================
 -- An installed app's scopes, on the tables no tool's gate answers for
--- (app.db.app_rls.APP_TABLE_ACCESS). RESTRICTIVE, so each AND-combines with
+-- (app.db.plugin_rls.PLUGIN_TABLE_ACCESS). RESTRICTIVE, so each AND-combines with
 -- the table's own policies, and each opens with the install id: a request a
 -- person makes carries none and passes in one comparison, once per statement.
 --
@@ -630,16 +630,16 @@ _APP_SECTION = """\
 -- consent rows, which its standing reads; it writes no consent.
 -- ==========================================================================="""
 
-_APP_POLICY_PREFIX = "app_scope"
+_PLUGIN_POLICY_PREFIX = "plugin_scope"
 
 _IID = IN_POLICY.install_id
 
 
-def _app_placed_initiatives() -> str:
+def _plugin_placed_initiatives() -> str:
     """The initiatives the install is placed in, narrowed like its token."""
     scope = IN_POLICY.scope
     return (
-        "(SELECT p.initiative_id FROM app_placements p"
+        "(SELECT p.initiative_id FROM plugin_placements p"
         f" WHERE p.install_id = {_IID}"
         f" AND ({scope} IS NULL OR p.initiative_id = {scope}))"
     )
@@ -647,18 +647,18 @@ def _app_placed_initiatives() -> str:
 
 #: The member a member token acts for, read back from the routing. Empty for
 #: an installation token, which then matches no row.
-_APP_MEMBER = gucs.USER_ID.once
+_PLUGIN_MEMBER = gucs.USER_ID.once
 
 #: The owner row on a tool's resource an installed app creates, written by
 #: ``public.fn_install_owns_what_it_creates`` and never by the request itself.
 #: It names the install, or, for a member token, the member it acts for.
-_APP_CREATED_OWNER_ROW = (
+_PLUGIN_CREATED_OWNER_ROW = (
     "(pg_trigger_depth() > 0"
     f" AND level = '{ResourceAccessLevel.owner.value}'"
     " AND role_id IS NULL"
     " AND NOT all_initiative_members"
-    f" AND ((app_install_id = {_IID} AND user_id IS NULL AND {_APP_MEMBER} IS NULL)"
-    f" OR (user_id = {_APP_MEMBER} AND app_install_id IS NULL)))"
+    f" AND ((plugin_install_id = {_IID} AND user_id IS NULL AND {_PLUGIN_MEMBER} IS NULL)"
+    f" OR (user_id = {_PLUGIN_MEMBER} AND plugin_install_id IS NULL)))"
 )
 
 #: The write scope of the tool a grant row is about: the row names its tool
@@ -679,42 +679,42 @@ _SHARED_LEVELS = (ResourceAccessLevel.read, ResourceAccessLevel.write)
 #: and the rung that lets a person share (``resource_shares``). The row
 #: shares with a person, a role or all initiative members at read or write;
 #: owner rows and app grants are not a share.
-_APP_SHARE_ROW = (
-    f"('{AppScopeResource.sharing.value}' = ANY ({IN_POLICY.field('install_write')})"
+_PLUGIN_SHARE_ROW = (
+    f"('{PluginScopeResource.sharing.value}' = ANY ({IN_POLICY.field('install_write')})"
     f" AND COALESCE({_GRANT_TOOL_SCOPE}"
     f" = ANY ({IN_POLICY.field('install_write')}), false)"
     f" AND level IN ({sql_values(level.value for level in _SHARED_LEVELS)})"
-    " AND app_install_id IS NULL"
+    " AND plugin_install_id IS NULL"
     " AND resource_shares(resource_grants.resource_type, resource_grants.resource_id,"
-    f" {_APP_MEMBER}, resource_grants.initiative_id, {STANDING}))"
+    f" {_PLUGIN_MEMBER}, resource_grants.initiative_id, {STANDING}))"
 )
 
 #: What an installed app's request writes on ``resource_grants``: the owner
 #: row on what it creates, and, with ``sharing:write``, the sharing rows of a
 #: resource it may share. A share is rewritten by deleting and inserting rows,
 #: so an install updates none.
-_APP_GRANT_INSERT = f"({_IID} IS NULL OR {_APP_CREATED_OWNER_ROW} OR {_APP_SHARE_ROW})"
-_APP_GRANT_DELETE = f"({_IID} IS NULL OR {_APP_SHARE_ROW})"
+_PLUGIN_GRANT_INSERT = f"({_IID} IS NULL OR {_PLUGIN_CREATED_OWNER_ROW} OR {_PLUGIN_SHARE_ROW})"
+_PLUGIN_GRANT_DELETE = f"({_IID} IS NULL OR {_PLUGIN_SHARE_ROW})"
 
 #: What a member token's standing reads of the member's own place in their
 #: initiatives, whatever its scopes: their roster rows, and the roles those
 #: rows name. Read beside the resource's scope, never instead of the row's own
 #: policies.
-_APP_MEMBER_OWN_READ: dict[str, str] = {
-    "initiative_members": f"initiative_members.user_id = {_APP_MEMBER}",
+_PLUGIN_MEMBER_OWN_READ: dict[str, str] = {
+    "initiative_members": f"initiative_members.user_id = {_PLUGIN_MEMBER}",
     "initiative_roles": (
         "initiative_roles.id IN (SELECT im.role_id FROM initiative_members im"
-        f" WHERE im.user_id = {_APP_MEMBER})"
+        f" WHERE im.user_id = {_PLUGIN_MEMBER})"
     ),
 }
 
 #: A member's answers to the apps asking to act as them. A member token's
 #: standing reads the one for its own install and purpose; nothing an app
 #: sends reads or writes the table otherwise.
-_APP_CONSENT_READ = f"({_IID} IS NULL OR app_member_consents.install_id = {_IID})"
+_PLUGIN_CONSENT_READ = f"({_IID} IS NULL OR plugin_member_consents.install_id = {_IID})"
 
 
-def _app_search_read() -> str:
+def _plugin_search_read() -> str:
     """What an installed app asks to read one search entry.
 
     The read scope of the entry's kind (``SEARCH_ENTRY_READ_SCOPE``), and of
@@ -759,24 +759,24 @@ def _property_values_scope(write: bool) -> str:
     )
 
 
-def _app_predicates(table: str) -> dict[str, str]:
+def _plugin_predicates(table: str) -> dict[str, str]:
     """What each command asks of an installed app on ``table``, beside what
     the table's own policies ask. Empty where a tool's gate already asks it."""
-    refused = app_refused(IN_POLICY)
+    refused = plugin_refused(IN_POLICY)
     if table == "resource_grants":
         return {
-            "INSERT": _APP_GRANT_INSERT,
+            "INSERT": _PLUGIN_GRANT_INSERT,
             "UPDATE": refused,
-            "DELETE": _APP_GRANT_DELETE,
+            "DELETE": _PLUGIN_GRANT_DELETE,
         }
-    if table == "app_member_consents":
+    if table == "plugin_member_consents":
         return {
-            "SELECT": _APP_CONSENT_READ,
+            "SELECT": _PLUGIN_CONSENT_READ,
             "INSERT": refused,
             "UPDATE": refused,
             "DELETE": refused,
         }
-    if table in APP_REFUSED_TABLES:
+    if table in PLUGIN_REFUSED_TABLES:
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), refused)
     if table == "property_values":
         write = _property_values_scope(True)
@@ -786,17 +786,17 @@ def _app_predicates(table: str) -> dict[str, str]:
             "UPDATE": write,
             "DELETE": write,
         }
-    access = APP_TABLE_ACCESS[table]
-    if access.kind is AppTableKind.subscriptions:
-        own = f"({_IID} IS NULL OR app_install_id = {_IID})"
+    access = PLUGIN_TABLE_ACCESS[table]
+    if access.kind is PluginTableKind.subscriptions:
+        own = f"({_IID} IS NULL OR plugin_install_id = {_IID})"
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), own)
-    if access.kind is AppTableKind.side_effect:
+    if access.kind is PluginTableKind.side_effect:
         if table == "uploads":
             # Stored and claimed as a step of saving content, in the
             # initiatives the install is placed in.
             placed = (
                 f"({_IID} IS NULL OR uploads.initiative_id IN "
-                f"{_app_placed_initiatives()})"
+                f"{_plugin_placed_initiatives()})"
             )
             return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), placed)
         if table not in _TRIGGER_WRITTEN_INSERT:
@@ -805,41 +805,41 @@ def _app_predicates(table: str) -> dict[str, str]:
         predicates = dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), by_trigger)
         if table == "search_entries":
             predicates["SELECT"] = (
-                f"({_IID} IS NULL OR pg_trigger_depth() > 0 OR {_app_search_read()})"
+                f"({_IID} IS NULL OR pg_trigger_depth() > 0 OR {_plugin_search_read()})"
             )
         return predicates
     if governing_path(table) is not None or access.resource is None:
         return {}
-    read = app_scope(access.resource, False, IN_POLICY)
+    read = plugin_scope(access.resource, False, IN_POLICY)
     if table == "initiatives":
-        read = f"({read} OR initiatives.id IN {_app_placed_initiatives()})"
-    elif table in _APP_MEMBER_OWN_READ:
-        read = f"({read} OR {_APP_MEMBER_OWN_READ[table]})"
-    write = app_scope(access.resource, True, IN_POLICY) if access.writable else refused
+        read = f"({read} OR initiatives.id IN {_plugin_placed_initiatives()})"
+    elif table in _PLUGIN_MEMBER_OWN_READ:
+        read = f"({read} OR {_PLUGIN_MEMBER_OWN_READ[table]})"
+    write = plugin_scope(access.resource, True, IN_POLICY) if access.writable else refused
     return {"SELECT": read, "INSERT": write, "UPDATE": write, "DELETE": write}
 
 
 #: Every table carrying the policies above.
-APP_POLICY_TABLES: frozenset[str] = frozenset(
+PLUGIN_POLICY_TABLES: frozenset[str] = frozenset(
     t
     for t in (
-        *APP_TABLE_ACCESS,
-        *APP_REFUSED_TABLES,
+        *PLUGIN_TABLE_ACCESS,
+        *PLUGIN_REFUSED_TABLES,
         "resource_grants",
-        "app_member_consents",
+        "plugin_member_consents",
     )
-    if _app_predicates(t)
+    if _plugin_predicates(t)
 )
 
 
-def _app_block(table: str) -> str:
-    """The installed-app policies on one table: RESTRICTIVE, one per command
+def _plugin_block(table: str) -> str:
+    """The installed-plugin policies on one table: RESTRICTIVE, one per command
     it asks something of, and the others dropped wherever an earlier render
     left them."""
-    predicates = _app_predicates(table)
+    predicates = _plugin_predicates(table)
     lines: list[str] = []
     for suffix, command, clause, _write in _COMMANDS:
-        name = f"{_APP_POLICY_PREFIX}_{suffix}"
+        name = f"{_PLUGIN_POLICY_PREFIX}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         pred = predicates.get(command)
         if pred is None:
@@ -891,7 +891,7 @@ _SHARING_SECTION = """\
 #: The request may share the resource, or a trigger is writing the row.
 _SHARES_ROW = (
     "(pg_trigger_depth() > 0 OR resource_shares(resource_grants.resource_type,"
-    f" resource_grants.resource_id, {_APP_MEMBER}, resource_grants.initiative_id,"
+    f" resource_grants.resource_id, {_PLUGIN_MEMBER}, resource_grants.initiative_id,"
     f" {STANDING}))"
 )
 #: An owner row naming the author of a resource that has no owner.
@@ -943,12 +943,12 @@ def _draft_block() -> str:
             "DROP POLICY IF EXISTS published_read ON posts;",
             "CREATE POLICY published_read ON posts AS RESTRICTIVE FOR SELECT",
             f"  USING (NOT ({DRAFTS['posts']}) OR resource_access('post', posts.id,"
-            f" {_APP_MEMBER}, posts.initiative_id, true, {STANDING}));",
+            f" {_PLUGIN_MEMBER}, posts.initiative_id, true, {STANDING}));",
             "DROP POLICY IF EXISTS finished_read ON wiki_pages;",
             "CREATE POLICY finished_read ON wiki_pages AS RESTRICTIVE FOR SELECT",
             f"  USING (NOT ({DRAFTS['wiki_pages']}) OR EXISTS (SELECT 1 FROM wikis w"
             " WHERE w.id = wiki_pages.wiki_id AND resource_access('wiki', w.id,"
-            f" {_APP_MEMBER}, w.initiative_id, true, {STANDING})));",
+            f" {_PLUGIN_MEMBER}, w.initiative_id, true, {STANDING})));",
         ]
     )
 
@@ -1140,14 +1140,14 @@ def render_guild_rls_ddl() -> str:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
-    out += "\n" + APP_SECRET_FIELDS_FN + "\n" + APP_SECRET_FIELDS_TRIGGER
+    out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER
     out += "\n" + AI_KEY_PRESENT_FN + "\n" + AI_KEY_PRESENT_TRIGGER
     ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
     out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
     # After every block above, so each table's RLS is on before its app
     # policies join the ones already there.
-    apps = [_app_block(t) for t in sorted(APP_POLICY_TABLES)]
-    out += "\n\n" + _APP_SECTION + "\n\n" + "\n\n".join(apps)
+    apps = [_plugin_block(t) for t in sorted(PLUGIN_POLICY_TABLES)]
+    out += "\n\n" + _PLUGIN_SECTION + "\n\n" + "\n\n".join(apps)
     out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
     out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
     out += (

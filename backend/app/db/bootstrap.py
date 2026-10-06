@@ -403,7 +403,7 @@ $$;
 # read floor should have it; guild_base_ro_parity_test is what asks. Nor does
 # app_superadmin, the seat floor: it holds the community's sign-in
 # configuration and nothing else until the registry in system_grants.py says
-# otherwise. Nor does app_install_base, the floor an installed app's routed
+# otherwise. Nor does plugin_install_base, the floor an installed app's routed
 # role inherits.
 _DEFAULT_PRIVILEGES = """
 DO $$

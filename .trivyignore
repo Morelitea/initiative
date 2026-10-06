@@ -10,7 +10,7 @@
 # because privilege is dropped at runtime rather than at build time:
 # backend/entrypoint.sh validates PUID/PGID, refuses 0 explicitly, creates the
 # user and group, chowns /app/uploads, then execs the app through
-# `gosu "$APP_UID:$APP_GID"`. The container starts as root only long enough to
+# `gosu "$PLUGIN_UID:$PLUGIN_GID"`. The container starts as root only long enough to
 # set that up, and the process always ends up unprivileged (UID/GID 1000 by
 # default).
 #

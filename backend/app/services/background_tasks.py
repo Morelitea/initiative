@@ -48,7 +48,7 @@ async def minute_pass() -> None:
     """
     from app.services import notifications
     from app.services.guild_sweeps import Scope, each_guild
-    from app.services.tenant import app_schedules, outbox_poller, post_publication
+    from app.services.tenant import plugin_schedules, outbox_poller, post_publication
 
     now = datetime.now(timezone.utc)
     scans = [
@@ -68,7 +68,7 @@ async def minute_pass() -> None:
     await each_guild(
         [
             (Scope.ACTIVE, outbox_poller.drain_guild),
-            (Scope.ACTIVE, app_schedules.run_due),
+            (Scope.ACTIVE, plugin_schedules.run_due),
             *_claims(),
             (
                 Scope.ACTIVE,
@@ -110,7 +110,7 @@ async def hourly_pass() -> None:
     from app.services.export import worker as export_worker
     from app.services.guild_sweeps import Scope, each_guild
     from app.services.import_engine import worker as import_worker
-    from app.services.tenant import app_updates, outbox_poller, trash_purge
+    from app.services.tenant import plugin_updates, outbox_poller, trash_purge
 
     await each_guild(
         [
@@ -118,7 +118,7 @@ async def hourly_pass() -> None:
             (Scope.PROVISIONED, export_worker.expire_artifacts),
             (Scope.PROVISIONED, import_worker.expire_payloads),
             (Scope.ACTIVE, outbox_poller.expire_history),
-            (Scope.ACTIVE, app_updates.update_guild),
+            (Scope.ACTIVE, plugin_updates.update_guild),
         ],
         name="hourly",
         scans=[notifications.digest_gc_scan(now=datetime.now(timezone.utc))],

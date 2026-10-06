@@ -705,7 +705,7 @@ async def _ensure_said_to_a_filer(
 async def create_comment(
     session: AsyncSession,
     *,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     guild_id: int,
     content: str,
     task_id: Optional[int] = None,
@@ -817,7 +817,7 @@ async def notify_task_assignees(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     task: Task,
     thread: notifications.Subject | None = None,
     recipients: Sequence[int] | None = None,
@@ -862,7 +862,7 @@ async def _process_comment_notifications(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User | notifications.AppAuthor,
+    author: User | notifications.PluginAuthor,
     ctx: _ParentContext,
     parent_comment: Comment | None,
 ) -> None:

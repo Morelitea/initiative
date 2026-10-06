@@ -143,7 +143,7 @@ async def test_no_other_status_is_the_operators(
 
 
 @pytest.mark.parametrize("managed", [True, False])
-async def test_the_app_says_whether_billing_sets_plans(
+async def test_the_plugin_says_whether_billing_sets_plans(
     client: AsyncClient, monkeypatch, managed
 ):
     from app.core.config import settings

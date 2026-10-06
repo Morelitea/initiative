@@ -2,7 +2,7 @@
  * What the router actually resolves each URL to.
  *
  * The initiative subtree puts a tool tab (`/i/5/projects`) beside the
- * initiative's own static children (`/i/5/settings`, `/i/5/apps/3`), and every
+ * initiative's own static children (`/i/5/settings`, `/i/5/plugins/3`), and every
  * link in the app is a plain string rather than a typed route id — so nothing
  * else checks that a built path lands where it was meant to. These failures
  * would otherwise appear only at runtime, as a blank page.
@@ -63,7 +63,7 @@ describe("initiative route resolution", () => {
   it("keeps the initiative's own children ahead of the tool tabs", () => {
     // `/settings` is a layout now; its index serves the details section.
     expect(resolvedRouteId("/c/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
-    expect(resolvedRouteId("/c/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
+    expect(resolvedRouteId("/c/1/i/5/plugins/3")).toBe(`${INITIATIVE}/plugins/$pluginId`);
   });
 
   // Each settings section is an address of its own, so a manager can be linked

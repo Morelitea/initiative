@@ -497,7 +497,7 @@ jobs:
           mkdir -p artifacts
           docker run --rm --entrypoint python \
             -v "$PWD/backend/scripts:/app/scripts:ro" -v "$PWD/artifacts:/out" \
-            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --app /out/initiative-app-api.json
+            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --app /out/initiative-plugin-api.json
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -509,7 +509,7 @@ jobs:
             artifacts/*.dmg
             artifacts/*.deb
             artifacts/latest*.yml
-            artifacts/initiative-app-api.json
+            artifacts/initiative-plugin-api.json
           body_path: release_body.md
           draft: false
           prerelease: false

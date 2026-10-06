@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # routing (search_path) sends guild-scoped queries there: app_user for the RLS
 # request path, app_admin for guild creation / seeding / background jobs.
 # (Tightening to per-guild roles + SET ROLE is the fail-closed step.)
-APP_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_APP")
+PLUGIN_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_APP")
 SYSTEM_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_ADMIN")
 
 
@@ -79,9 +79,9 @@ class GuildRoleKind(StrEnum):
     #: that asked for the seat and holds it; an ordinary request by a seat
     #: holder routes as the full role.
     seat = "_superadmin"
-    #: An installed app's request: only what ``app.db.app_rls.APP_TABLE_ACCESS``
-    #: names, no default privileges, and ``app_install_base`` for ``public``.
-    app = "_app"
+    #: An installed app's request: only what ``app.db.plugin_rls.PLUGIN_TABLE_ACCESS``
+    #: names, no default privileges, and ``plugin_install_base`` for ``public``.
+    app = "_plugin"
 
 
 def guild_role_name(guild_id: int, kind: GuildRoleKind = GuildRoleKind.full) -> str:
@@ -115,12 +115,12 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     # A member's own credential for an installed app. Deciding who reaches an
     # outside system through this guild is access management, not the
     # edit-existing-content a scoped read_write grant is for.
-    "guild_app_user_connections",
+    "guild_plugin_user_connections",
     # A member's answer to an app asking to act as them. Access management for
     # the same reason, and pointedly so: the row holds what one person decided
     # about their own name, which is not a support grantee's to write in either
     # direction.
-    "app_member_consents",
+    "plugin_member_consents",
 )
 
 # Direct grants for the guild-scoped system operations that must not go through
@@ -161,7 +161,7 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
         "SELECT (id, txn_id)",
     ),
     # The same scan over the events apps emit.
-    "app_event_outbox": ("SELECT (id, txn_id)",),
+    "plugin_event_outbox": ("SELECT (id, txn_id)",),
     # The other half of that scan: what the ledger already records as settled
     # or leased for a subscription, so only the remainder is named.
     "webhook_deliveries": (
@@ -492,15 +492,15 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     return len(policies) + len(triggers) + functions
 
 
-#: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
+#: What ``guild_<id>_plugin`` reads outside ``PLUGIN_TABLE_ACCESS``: table -> the
 #: columns, or ``()`` for the whole row. The install standing statement reads
 #: the install, the scopes its pinned version requests and where it is
 #: placed, and for a member token the member's
 #: consent and what their initiative roles permit; the sharing gate reads the
 #: grant rows; a notification about what the install did names it. No route
 #: addresses any of them for an app.
-APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
-    "guild_apps": (
+PLUGIN_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
+    "guild_plugins": (
         "id",
         "listing_uid",
         "enabled",
@@ -508,8 +508,8 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
         "definition",
         "name",
     ),
-    "app_placements": ("install_id", "initiative_id"),
-    "app_member_consents": (
+    "plugin_placements": ("install_id", "initiative_id"),
+    "plugin_member_consents": (
         "install_id",
         "user_id",
         "purpose",
@@ -521,17 +521,17 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
     "resource_grants": (),
 }
 
-#: What ``guild_<id>_app`` writes outside ``APP_TABLE_ACCESS``: table -> the
+#: What ``guild_<id>_plugin`` writes outside ``PLUGIN_TABLE_ACCESS``: table -> the
 #: verbs. The owner grant on a resource an install creates names the install,
 #: and an install with ``sharing:write`` rewrites a resource's shares; the row
 #: policies on ``resource_grants`` admit those rows and no other.
-APP_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
+PLUGIN_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
     "resource_grants": ("INSERT", "DELETE"),
 }
 
 
-def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
-    """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
+def _plugin_role_grant_statements(schema: str, plugin_role: str) -> list[str]:
+    """The app role's grants, rendered from ``PLUGIN_TABLE_ACCESS`` in table order.
 
     A scoped table an app writes, a side-effect table and the subscriptions
     table take DML (the row policies decide which rows); a scoped read-only
@@ -539,36 +539,36 @@ def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
     The role's table grants are cleared first, so a re-provision leaves it
     holding what the registry says now.
     """
-    from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
+    from app.db.plugin_rls import PLUGIN_TABLE_ACCESS, PluginTableKind
 
     stmts = [
-        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{app_role}"',
-        f'GRANT USAGE ON SCHEMA "{schema}" TO "{app_role}"',
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{plugin_role}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{plugin_role}"',
     ]
-    for table in sorted(APP_TABLE_ACCESS):
-        access = APP_TABLE_ACCESS[table]
-        if access.writable or access.kind is AppTableKind.side_effect:
+    for table in sorted(PLUGIN_TABLE_ACCESS):
+        access = PLUGIN_TABLE_ACCESS[table]
+        if access.writable or access.kind is PluginTableKind.side_effect:
             verbs = "SELECT, INSERT, UPDATE, DELETE"
         else:
             verbs = "SELECT"
-        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{app_role}"')
+        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{plugin_role}"')
     # Read by the install standing statement and the gates, never addressed
     # by an app: the install's own row and its placements, column by column,
     # and the sharing rows ``resource_access`` reads under the invoker's role.
-    for table, columns in sorted(APP_ROLE_MACHINERY_READS.items()):
+    for table, columns in sorted(PLUGIN_ROLE_MACHINERY_READS.items()):
         target = f" ({', '.join(columns)})" if columns else ""
         stmts.append(
-            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{plugin_role}"'
         )
-    for table, verbs in sorted(APP_ROLE_MACHINERY_WRITES.items()):
+    for table, verbs in sorted(PLUGIN_ROLE_MACHINERY_WRITES.items()):
         stmts.append(
-            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{plugin_role}"'
         )
     stmts += [
         # Ids of the rows it writes come from the schema's sequences.
-        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{app_role}"',
-        f'GRANT app_install_base TO "{app_role}"',
-        f'GRANT "{app_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{plugin_role}"',
+        f'GRANT plugin_install_base TO "{plugin_role}"',
+        f'GRANT "{plugin_role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
     return stmts
@@ -591,10 +591,10 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     revoked write on the structural/permission tables — the DB-enforced
     "no member/permission management" line. The query role holds no shared
     floor: its schema and the routed community's members. The app role (an
-    installed app's requests) holds only what ``_app_role_grant_statements``
+    installed app's requests) holds only what ``_plugin_role_grant_statements``
     renders.
     """
-    role, ro_role, support_role, query_role, seat_role, app_role = _guild_roles(
+    role, ro_role, support_role, query_role, seat_role, plugin_role = _guild_roles(
         guild_id
     )
     stmts = [
@@ -626,7 +626,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT app_guild_base TO "{role}"',
-        f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Read-only role: SELECT only on the schema (PAM read grants, read-only
         # members), and the read-only shared floor.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{ro_role}"',
@@ -635,7 +635,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT app_guild_base_ro TO "{ro_role}"',
-        f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{ro_role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Support role: read_write on content, but SELECT-only on the structural /
         # permission tables. Grant broadly (incl. default privileges for future
         # content tables) then REVOKE write on the protected set — coarse by design.
@@ -648,7 +648,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         f'TO "{support_role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{support_role}"',
         f'GRANT app_guild_base TO "{support_role}"',
-        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f'GRANT "{support_role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Query role: SELECT on the schema's tables and nothing else. No
         # sequences — a read names no sequence — and no DML at any level.
@@ -665,7 +665,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         f'REVOKE app_guild_base_ro FROM "{query_role}"',
         f'GRANT USAGE ON SCHEMA public TO "{query_role}"',
         f'GRANT SELECT ON public.current_guild_members TO "{query_role}"',
-        f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f'GRANT "{query_role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Seat role: the full guild role's reach into the schema and the
         # shared floor, plus app_superadmin — the one shared floor carrying
@@ -674,7 +674,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         # it by the same default privilege that reaches that one.
         f'GRANT "{role}" TO "{seat_role}"',
         f'GRANT app_superadmin TO "{seat_role}"',
-        f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f'GRANT "{seat_role}" TO "{PLUGIN_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
     # Cap the support role: SELECT stays, writes are revoked on the permission
@@ -686,7 +686,7 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         )
     # App role: table by table from the app registry, with no default
     # privileges and no guild role composed in.
-    stmts.extend(_app_role_grant_statements(schema, app_role))
+    stmts.extend(_plugin_role_grant_statements(schema, plugin_role))
     return stmts
 
 

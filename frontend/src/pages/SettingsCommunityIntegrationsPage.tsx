@@ -1,5 +1,5 @@
 import { SettingsCommunityAIPage } from "@/pages/SettingsCommunityAIPage";
-import { SettingsCommunityAppsPage } from "@/pages/SettingsCommunityAppsPage";
+import { SettingsCommunityPluginsPage } from "@/pages/SettingsCommunityPluginsPage";
 
 /**
  * What the community hands to somebody outside it (Settings → Integrations):
@@ -12,6 +12,6 @@ import { SettingsCommunityAppsPage } from "@/pages/SettingsCommunityAppsPage";
 export const SettingsCommunityIntegrationsPage = () => (
   <div className="space-y-6">
     <SettingsCommunityAIPage />
-    <SettingsCommunityAppsPage />
+    <SettingsCommunityPluginsPage />
   </div>
 );

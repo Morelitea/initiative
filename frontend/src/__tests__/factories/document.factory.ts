@@ -22,7 +22,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     updated_at: "2026-01-15T00:00:00.000Z",
     initiative: null,
     owner: null,
-    owner_app: null,
+    owner_plugin: null,
     projects: [],
     comment_count: 0,
     comments_enabled: true,

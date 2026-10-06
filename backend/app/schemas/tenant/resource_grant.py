@@ -29,7 +29,7 @@ class ResourceGrantSchema(SanitizedBaseModel):
     """One ``resource_grants`` row — exactly the columns that define a grant: a
     ``level`` for a user (``user_id``), an initiative role (``role_id``), all
     initiative members (``all_initiative_members``), or an installed app
-    (``app_install_id``). Exactly one grantee is set.
+    (``plugin_install_id``). Exactly one grantee is set.
 
     The identical shape both reports a resource's grants (``grants`` is a list of
     these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
@@ -51,7 +51,7 @@ class ResourceGrantSchema(SanitizedBaseModel):
     role_id: Optional[int] = None
     all_initiative_members: bool = False
     #: The installed app this grant is made to. Reported, never taken.
-    app_install_id: Optional[int] = None
+    plugin_install_id: Optional[int] = None
 
     @model_validator(mode="after")
     def exactly_one_grantee(self) -> "ResourceGrantSchema":
@@ -59,12 +59,12 @@ class ResourceGrantSchema(SanitizedBaseModel):
             (self.user_id is not None)
             + (self.role_id is not None)
             + self.all_initiative_members
-            + (self.app_install_id is not None)
+            + (self.plugin_install_id is not None)
         )
         if count != 1:
             raise ValueError(
                 "Exactly one of user_id, role_id, all_initiative_members "
-                "or app_install_id must be set"
+                "or plugin_install_id must be set"
             )
         return self
 

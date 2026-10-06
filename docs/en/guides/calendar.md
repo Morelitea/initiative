@@ -101,7 +101,7 @@ Repeats go both ways too, with their skipped dates and any date changed on its o
 
 Some things belong to everybody rather than to one effort: bank holidays, the monthly social, game nights, the fortnight when the office is shut and nobody can find out why.
 
-Those go in the **Community calendar** app, which a community admin adds from the [marketplace](apps-and-marketplace.md). It shows up in the sidebar's Apps section and opens on every calendar the community shares, overlaid in one view.
+Those go in the **Community calendar** app, which a community admin adds from the [marketplace](plugins-and-marketplace.md). It shows up in the sidebar's Apps section and opens on every calendar the community shares, overlaid in one view.
 
 It arrives with one calendar, and community calendars belong to the admins: only an admin sees **New Calendar** there. One for holidays, one for socials, one per team, as many as the community needs. A new one starts readable by *everyone in the community*, and members add events to the calendars shared with them. So a community calendar is a way to post a schedule that everybody follows and nobody can accidentally edit.
 
@@ -117,4 +117,4 @@ Calendars share like every other tool: **Viewer**, **Editor**, **Owner**, or ope
 
 - [Your space](your-space.md#my-calendar) — everything you're expected at, in one place.
 - [Notifications](notifications.md) — event invites and reminders.
-- [Apps & the marketplace](apps-and-marketplace.md) — where the community calendar comes from.
+- [Apps & the marketplace](plugins-and-marketplace.md) — where the community calendar comes from.

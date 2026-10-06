@@ -36,9 +36,9 @@ vi.mock("@/hooks/useCommunities", async (importOriginal) => ({
     activeCommunity: { role: communityRole, can: communityCan(communityRole) },
   }),
 }));
-vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useCommunityApps")>()),
-  useCommunityApps: () => ({
+vi.mock("@/hooks/useCommunityPlugins", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityPlugins")>()),
+  useCommunityPlugins: () => ({
     data:
       installsState === "ready"
         ? { items: installedUids.map((uid) => ({ listing_uid: uid })) }
@@ -48,7 +48,7 @@ vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
   }),
 }));
 
-const appListing = () =>
+const pluginListing = () =>
   ({
     uid: "GLDCAL00000001",
     public_id: "core.community-calendar",
@@ -74,7 +74,7 @@ const backHref = () =>
     .find((href) => href?.includes("/marketplace") && !href.includes("core."));
 
 beforeEach(() => {
-  listing = appListing();
+  listing = pluginListing();
   failed = false;
   communityRole = "superadmin";
   installedUids = [];
@@ -116,7 +116,7 @@ describe("MarketplaceListingPage", () => {
 
   it("names the publisher of a listing that did not ship with this build", async () => {
     listing = {
-      ...appListing(),
+      ...pluginListing(),
       source: "operator",
       publisher: "Acme Widgets",
     } as unknown as MarketplaceListingDetail;

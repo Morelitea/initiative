@@ -22,11 +22,11 @@ from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
-from app.testing import create_guild, create_guild_app, create_user
+from app.testing import create_guild, create_guild_plugin, create_user
 from app.testing.schema_harness import route_session_to_guild
 
 
-APP_UID = "TYG4VVZKAWRMBZ"
+PLUGIN_UID = "TYG4VVZKAWRMBZ"
 DASH_UID = "J9H7S9T7GP7FAG"
 OTHER_DASH_UID = "P3R9WT5HZ2NM6D"
 
@@ -56,9 +56,9 @@ def _dashboard(uid=DASH_UID, public_id="tests.tracker-overview", **overrides):
     return entry
 
 
-def _app_manifest(dashboards=None, version="1.0.0"):
+def _plugin_manifest(dashboards=None, version="1.0.0"):
     definition = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "tests.tracker", "protocol": 1},
         "features": ["endpoints", "widgets"],
         "endpoints": [{"id": OPEN_ITEMS, "direction": "read"}],
@@ -75,7 +75,7 @@ def _app_manifest(dashboards=None, version="1.0.0"):
         definition["features"] = [*definition["features"], "dashboards"]
         definition["dashboards"] = dashboards
     return {
-        "uid": APP_UID,
+        "uid": PLUGIN_UID,
         "public_id": "tests.tracker",
         "kind": "app",
         "name": "Tracker",
@@ -96,17 +96,17 @@ async def _by_uid(session, uid):
 
 
 class TestPublishing:
-    async def test_publishing_the_app_publishes_its_dashboards(self, session):
+    async def test_publishing_the_plugin_publishes_its_dashboards(self, session):
         """One file for the operator. That is the whole point of the block."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
         dashboard = await _by_uid(session, DASH_UID)
         assert dashboard is not None
         assert dashboard.kind == "dashboard"
-        assert dashboard.bundled_with_uid == APP_UID
+        assert dashboard.bundled_with_uid == PLUGIN_UID
         # Inherited, because it *is* the app's publish.
         assert dashboard.publisher == "Tests"
         assert dashboard.source == "operator"
@@ -115,7 +115,7 @@ class TestPublishing:
         """Nothing downstream should be able to tell it was derived: a guild
         installs it with the same call it installs any other dashboard with."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
@@ -134,10 +134,10 @@ class TestPublishing:
         # Resolved to the namespaced form here, from the app's own uid — a
         # publisher writes a bare widget id and never a uid, so the two cannot
         # disagree.
-        assert widget["type"] == f"app:{APP_UID}:open-items"
+        assert widget["type"] == f"app:{PLUGIN_UID}:open-items"
         assert widget["binding"] == {
             "source": "app",
-            "app_uid": APP_UID,
+            "plugin_uid": PLUGIN_UID,
             "endpoint_id": OPEN_ITEMS,
         }
 
@@ -156,7 +156,7 @@ class TestPublishing:
             "endpoint_id": OPEN_ITEMS,
             "params": {"labels": ["bug", "regression"], "state": "open"},
         }
-        await service.upsert_listing(session, _app_manifest([entry]), source="operator")
+        await service.upsert_listing(session, _plugin_manifest([entry]), source="operator")
         await session.commit()
 
         dashboard = await _by_uid(session, DASH_UID)
@@ -178,14 +178,14 @@ class TestPublishing:
         }
         with pytest.raises(CatalogError):
             await service.upsert_listing(
-                session, _app_manifest([entry]), source="operator"
+                session, _plugin_manifest([entry]), source="operator"
             )
 
     async def test_it_carries_no_artwork_of_its_own(self, session):
         """A dashboard previews by rendering its widgets against their sample
         data, which cannot go stale against the app the way a picture would."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
@@ -193,18 +193,18 @@ class TestPublishing:
         assert dashboard.avatar_url == service.DEFAULT_AVATAR_URL
         assert dashboard.images == []
 
-    async def test_an_app_with_no_dashboards_publishes_one_row(self, session):
-        await service.upsert_listing(session, _app_manifest(), source="operator")
+    async def test_a_plugin_with_no_dashboards_publishes_one_row(self, session):
+        await service.upsert_listing(session, _plugin_manifest(), source="operator")
         await session.commit()
 
         assert await _by_uid(session, DASH_UID) is None
-        assert await _by_uid(session, APP_UID) is not None
+        assert await _by_uid(session, PLUGIN_UID) is not None
 
     async def test_two_dashboards_sharing_a_uid_are_refused(self, session):
         with pytest.raises(CatalogError):
             await service.upsert_listing(
                 session,
-                _app_manifest(
+                _plugin_manifest(
                     [_dashboard(), _dashboard(public_id="tests.tracker-second")]
                 ),
                 source="operator",
@@ -216,7 +216,7 @@ class TestPublishing:
         await service.upsert_listing(
             session,
             {
-                **_app_manifest(),
+                **_plugin_manifest(),
                 "uid": DASH_UID,
                 "public_id": "tests.something-else",
                 "kind": "dashboard",
@@ -228,7 +228,7 @@ class TestPublishing:
 
         with pytest.raises(CatalogError):
             await service.upsert_listing(
-                session, _app_manifest([_dashboard()]), source="operator"
+                session, _plugin_manifest([_dashboard()]), source="operator"
             )
 
 
@@ -246,7 +246,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
         await service.upsert_listing(
             session,
             {
-                **_app_manifest(version="0.9.0"),
+                **_plugin_manifest(version="0.9.0"),
                 "uid": uid,
                 "public_id": public_id,
                 "kind": "dashboard",
@@ -262,7 +262,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
 
         with pytest.raises(CatalogError):
             await service.upsert_listing(
-                session, _app_manifest([_dashboard()]), source="operator"
+                session, _plugin_manifest([_dashboard()]), source="operator"
             )
 
     async def test_the_standalone_listing_is_left_alone(self, session):
@@ -270,7 +270,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
 
         with pytest.raises(CatalogError):
             await service.upsert_listing(
-                session, _app_manifest([_dashboard()]), source="operator"
+                session, _plugin_manifest([_dashboard()]), source="operator"
             )
         await session.rollback()
 
@@ -278,18 +278,18 @@ class TestItCannotTakeOverSomebodyElsesListing:
         assert untouched.name == "Somebody else's board"
         assert untouched.bundled_with_uid is None
 
-    async def test_it_cannot_adopt_another_app_s_dashboard(self, session):
+    async def test_it_cannot_adopt_another_plugin_s_dashboard(self, session):
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
         # A different version too, so version immutability cannot be what
         # refuses it — ownership has to be.
-        other = _app_manifest([_dashboard()], version="2.0.0")
+        other = _plugin_manifest([_dashboard()], version="2.0.0")
         other["uid"] = "P3R9WT5HZ2NM6D"
-        other["public_id"] = "tests.other-app"
-        other["definition"]["service"]["public_id"] = "tests.other-app"
+        other["public_id"] = "tests.other-plugin"
+        other["definition"]["service"]["public_id"] = "tests.other-plugin"
 
         with pytest.raises(CatalogError):
             await service.upsert_listing(session, other, source="operator")
@@ -298,7 +298,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
         """The mirror. An operator dropping a file with a uid an app already
         bundles must not edit that row, or take it out of the app's lifecycle."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
@@ -306,7 +306,7 @@ class TestItCannotTakeOverSomebodyElsesListing:
             await service.upsert_listing(
                 session,
                 {
-                    **_app_manifest(version="3.0.0"),
+                    **_plugin_manifest(version="3.0.0"),
                     "uid": DASH_UID,
                     "public_id": "tests.tracker-overview",
                     "kind": "dashboard",
@@ -316,28 +316,28 @@ class TestItCannotTakeOverSomebodyElsesListing:
                 source="operator",
             )
 
-    async def test_republishing_the_same_app_is_not_a_takeover(self, session):
+    async def test_republishing_the_same_plugin_is_not_a_takeover(self, session):
         """The case all of this has to stay out of the way of."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()], version="1.0.0"), source="operator"
+            session, _plugin_manifest([_dashboard()], version="1.0.0"), source="operator"
         )
         await session.commit()
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
         )
         await session.commit()
 
-        assert (await _by_uid(session, DASH_UID)).bundled_with_uid == APP_UID
+        assert (await _by_uid(session, DASH_UID)).bundled_with_uid == PLUGIN_UID
 
 
 class TestLifecycle:
-    async def test_they_version_with_the_app(self, session):
+    async def test_they_version_with_the_plugin(self, session):
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()], version="1.0.0"), source="operator"
+            session, _plugin_manifest([_dashboard()], version="1.0.0"), source="operator"
         )
         await session.commit()
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
         )
         await session.commit()
 
@@ -351,13 +351,13 @@ class TestLifecycle:
         """Withdrawn, not deleted: a guild that installed it keeps what it has."""
         await service.upsert_listing(
             session,
-            _app_manifest([_dashboard(), _dashboard(OTHER_DASH_UID, "tests.second")]),
+            _plugin_manifest([_dashboard(), _dashboard(OTHER_DASH_UID, "tests.second")]),
             source="operator",
         )
         await session.commit()
 
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()], version="2.0.0"), source="operator"
+            session, _plugin_manifest([_dashboard()], version="2.0.0"), source="operator"
         )
         await session.commit()
 
@@ -365,13 +365,13 @@ class TestLifecycle:
         dropped = await _by_uid(session, OTHER_DASH_UID)
         assert dropped is not None and dropped.available is False
 
-    async def test_withdrawing_the_app_withdraws_them(self, session):
+    async def test_withdrawing_the_plugin_withdraws_them(self, session):
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
-        assert await service.withdraw_listing(session, APP_UID) is True
+        assert await service.withdraw_listing(session, PLUGIN_UID) is True
         await session.commit()
 
         assert (await _by_uid(session, DASH_UID)).available is False
@@ -380,14 +380,14 @@ class TestLifecycle:
         self, session
     ):
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
         assert await service.withdraw_listing(session, DASH_UID) is True
         await session.commit()
 
-        assert (await _by_uid(session, APP_UID)).available is True
+        assert (await _by_uid(session, PLUGIN_UID)).available is True
 
 
 class TestWhoIsOfferedOne:
@@ -395,21 +395,21 @@ class TestWhoIsOfferedOne:
         """The platform-addressed browse has no guild to decide for, so it
         offers nothing bundled rather than offering it to everybody."""
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
         listings, _ = await service.list_listings(session, kind="dashboard")
         assert DASH_UID not in {listing.uid for listing in listings}
 
-    async def test_it_is_offered_where_the_app_is_installed(self, session):
+    async def test_it_is_offered_where_the_plugin_is_installed(self, session):
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
 
         listings, _ = await service.list_listings(
-            session, kind="dashboard", bundled_with=[APP_UID]
+            session, kind="dashboard", bundled_with=[PLUGIN_UID]
         )
         assert DASH_UID in {listing.uid for listing in listings}
 
@@ -417,7 +417,7 @@ class TestWhoIsOfferedOne:
         await service.upsert_listing(
             session,
             {
-                **_app_manifest(),
+                **_plugin_manifest(),
                 "uid": OTHER_DASH_UID,
                 "public_id": "tests.shared-board",
                 "kind": "dashboard",
@@ -427,7 +427,7 @@ class TestWhoIsOfferedOne:
         )
         await session.commit()
 
-        for bundled_with in (None, [APP_UID]):
+        for bundled_with in (None, [PLUGIN_UID]):
             listings, _ = await service.list_listings(
                 session, kind="dashboard", bundled_with=bundled_with
             )
@@ -435,21 +435,21 @@ class TestWhoIsOfferedOne:
 
 
 class TestWhoMayInstallOne:
-    async def test_a_guild_with_the_app_may_install_it(self, session):
+    async def test_a_guild_with_the_plugin_may_install_it(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        await create_guild_app(
+        await create_guild_plugin(
             session,
             guild,
             user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
         await route_session_to_guild(session, guild.id)
@@ -459,50 +459,50 @@ class TestWhoMayInstallOne:
         )
         assert listing.uid == DASH_UID
         canvas = version.definition["definition"]
-        assert canvas["widgets"][0]["binding"]["app_uid"] == APP_UID
+        assert canvas["widgets"][0]["binding"]["plugin_uid"] == PLUGIN_UID
 
-    async def test_a_guild_without_the_app_may_not(self, session):
+    async def test_a_guild_without_the_plugin_may_not(self, session):
         """The case the browse filter cannot cover on its own. A uid read in a
         guild that has the app is otherwise just as installable here."""
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
         await route_session_to_guild(session, guild.id)
 
         with pytest.raises(ListingInstallError) as caught:
             await resolve_listing_install(session, DASH_UID, kind="dashboard")
-        assert caught.value.code == "MARKETPLACE_LISTING_NEEDS_APP"
+        assert caught.value.code == "MARKETPLACE_LISTING_NEEDS_PLUGIN"
         assert caught.value.not_found is False
 
-    async def test_a_guild_that_switched_the_app_off_may_not(self, session):
+    async def test_a_guild_that_switched_the_plugin_off_may_not(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
-        app = await create_guild_app(
+        app = await create_guild_plugin(
             session,
             guild,
             user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         app.enabled = False
         session.add(app)
         await service.upsert_listing(
-            session, _app_manifest([_dashboard()]), source="operator"
+            session, _plugin_manifest([_dashboard()]), source="operator"
         )
         await session.commit()
         await route_session_to_guild(session, guild.id)
 
         with pytest.raises(ListingInstallError) as caught:
             await resolve_listing_install(session, DASH_UID, kind="dashboard")
-        assert caught.value.code == "MARKETPLACE_LISTING_NEEDS_APP"
+        assert caught.value.code == "MARKETPLACE_LISTING_NEEDS_PLUGIN"
 
-    async def test_a_standalone_dashboard_needs_no_app(self, session):
+    async def test_a_standalone_dashboard_needs_no_plugin(self, session):
         """The other route, unchanged: somebody publishes a dashboard to share
         and any guild installs it."""
         user = await create_user(session)
@@ -510,7 +510,7 @@ class TestWhoMayInstallOne:
         await service.upsert_listing(
             session,
             {
-                **_app_manifest(),
+                **_plugin_manifest(),
                 "uid": OTHER_DASH_UID,
                 "public_id": "tests.shared-board",
                 "kind": "dashboard",

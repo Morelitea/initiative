@@ -28,7 +28,7 @@ BUILTIN_SOURCE = "builtin"
 
 # The manifest ``skipped`` reason recorded for what this filter removes, so an
 # archive states that the entity existed rather than silently omitting it.
-THIRD_PARTY_REASON = "third_party_app"
+THIRD_PARTY_REASON = "third_party_plugin"
 
 
 async def builtin_listing_uids(

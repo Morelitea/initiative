@@ -923,7 +923,7 @@ async def seed_guild_content(
     """
     from app.db.schema_provisioning import provision_guild
     from app.db.session import set_rls_context
-    from app.services.tenant import mandatory_apps as mandatory_apps_service
+    from app.services.tenant import mandatory_plugins as mandatory_plugins_service
 
     await provision_guild(guild_id)
     # Seeding is the system engine's, routed into the new schema: the guild
@@ -936,7 +936,7 @@ async def seed_guild_content(
             # and nothing else: the guild being created must survive whatever
             # an app's listing or registration is doing.
             async with guild_session.begin_nested():
-                await mandatory_apps_service.install_mandatory_apps(
+                await mandatory_plugins_service.install_mandatory_plugins(
                     guild_session, guild_id=guild_id, created_by=owner.id
                 )
         except Exception:
@@ -974,7 +974,7 @@ async def provision_new_guild(
     """
     from app.db.schema_provisioning import deprovision_guild
     from app.db.session import clear_rls_context
-    from app.services.marketplace import app_refs
+    from app.services.marketplace import plugin_refs
 
     first = owner or creator
     guild = await create_guild(
@@ -1006,7 +1006,7 @@ async def provision_new_guild(
             via="provision_failed",
         )
         await session.commit()
-        await app_refs.forget_guild(guild_id=guild_id)
+        await plugin_refs.forget_guild(guild_id=guild_id)
         raise GuildProvisionError(guild_id) from exc
     return guild
 
@@ -1426,7 +1426,7 @@ async def delete_guild(
     attempt sync loads in the async context (MissingGreenlet).
 
     **Callers must follow a successful commit with**
-    ``app_refs.forget_guild(guild_id=...)`` — what this guild's installed
+    ``plugin_refs.forget_guild(guild_id=...)`` — what this guild's installed
     apps called its members lives in a platform-wide table that neither the
     guild row's cascade nor the schema drop reaches. After the commit rather
     than here: those references are on a different connection and cannot join
@@ -2594,8 +2594,8 @@ async def remove_user_from_guild(
     The session must already be routed into the guild. Revocations are queued on
     it and delivered by the caller after the commit.
     """
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_member_consents as consents_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_member_consents as consents_service
     from app.services.tenant import initiatives as initiatives_service
 
     # Read before the delete below takes the row: the record says which standing
@@ -2616,7 +2616,7 @@ async def remove_user_from_guild(
         user_id=user_id,
     )
 
-    await app_connections_service.delete_member_connections(
+    await plugin_connections_service.delete_member_connections(
         session, user_id=user_id, reason="left_guild"
     )
     # Leaving ends what this guild's apps may do as this person, the same way it

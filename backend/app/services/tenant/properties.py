@@ -46,7 +46,7 @@ from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import current_install_boundary
-from app.core.messages import AppMessages, PropertyMessages, QueryMessages
+from app.core.messages import PluginMessages, PropertyMessages, QueryMessages
 from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
@@ -547,7 +547,7 @@ async def property_values_by_row_id(
 
     Unchanged for a person. An installed app names a person by the reference
     it was given for them, which is resolved here the way a ``PersonId`` field
-    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``). Only
+    is; anything else in that place is a 422 (``PLUGIN_REFERENCE_UNKNOWN``). Only
     a person-valued property's value is read this way, since which values
     name a person depends on each value's definition.
     """
@@ -570,7 +570,7 @@ async def property_values_by_row_id(
             except PydanticCustomError:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=AppMessages.REFERENCE_UNKNOWN,
+                    detail=PluginMessages.REFERENCE_UNKNOWN,
                 )
             entry = entry.model_copy(update={"value": row_id})
         resolved.append(entry)

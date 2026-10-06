@@ -83,7 +83,7 @@ class Capability(str, Enum):
     # secret, and the powers the operator confers on them. owner only — this is
     # deployment configuration, the same class ``config.manage`` occupies, kept
     # as its own capability so the app catalog can be delegated separately later.
-    APPS_MANAGE = "apps.manage"
+    PLUGINS_MANAGE = "apps.manage"
 
 
 # Capability presets per platform role, least → most privileged. Each higher
@@ -116,7 +116,7 @@ _OWNER: FrozenSet[Capability] = (
     _OPERATOR
     | {
         Capability.CONFIG_MANAGE,
-        Capability.APPS_MANAGE,
+        Capability.PLUGINS_MANAGE,
     }
 ) - {
     # Owners approve access requests; they don't go through the request→approve

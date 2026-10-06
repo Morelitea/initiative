@@ -202,7 +202,7 @@ def build_project_envelope(
     content: str,
     *,
     selection: str,
-    app_version: str,
+    plugin_version: str,
 ) -> MappedProject:
     """One Vikunja project as the envelope an ordinary import applies."""
     project = next(
@@ -335,7 +335,7 @@ def build_project_envelope(
             description=html_to_markdown(str(project.get("description") or "")) or None,
             statuses=statuses,
             tasks=tasks,
-            app_version=app_version,
+            plugin_version=plugin_version,
         ),
         skipped_rows=skipped,
     )

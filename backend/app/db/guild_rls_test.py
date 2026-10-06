@@ -419,7 +419,7 @@ _NO_SINGLE_PARENT = {
     "relationships": "source and target must both clear it, whatever they are",
     # No sharing leg at all — see the registry for each.
     "event_outbox": "the change log is no tool's own table",
-    "app_event_outbox": "the events apps emit are no tool's own table",
+    "plugin_event_outbox": "the events apps emit are no tool's own table",
     "property_definitions": "initiative configuration, not a tool's content",
     "resource_grants": "sharing itself; resource_access reads this table",
     "webhook_subscriptions": "integration config, gated by the initiative",
@@ -432,7 +432,7 @@ _NO_SINGLE_PARENT = {
 }
 
 
-def test_the_app_reads_the_same_governing_tool_the_policy_asks_about():
+def test_the_plugin_reads_the_same_governing_tool_the_policy_asks_about():
     """``governing_path`` must name the tool the rendered sharing leg calls.
 
     The app layer asks this registry which tool governs a sub-resource — a

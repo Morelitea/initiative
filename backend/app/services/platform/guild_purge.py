@@ -38,7 +38,7 @@ from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, CommunityStatus
 from app.services import audit as audit_service
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -119,8 +119,8 @@ async def _delete_expired_hold(
     from app.services import email as email_service
     from app.services.platform import billing_ping
     from app.services.platform import guilds as guilds_service
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
     await set_rls_context(session, Unattributed())
     guild = await _lock_expired_hold(session, guild_id, cutoff=cutoff)
@@ -130,9 +130,9 @@ async def _delete_expired_hold(
 
     async with cohorts.system_session(guild_id) as guild_session:
         await set_rls_context(guild_session, SystemGuild(guild_id))
-        await app_connections_service.delete_guild_connections(guild_session)
+        await plugin_connections_service.delete_guild_connections(guild_session)
         await guild_session.commit()
-        revocations = app_revocation_service.drain_revocations(guild_session)
+        revocations = plugin_revocation_service.drain_revocations(guild_session)
 
     try:
         notice = await guilds_service.soft_delete_guild(
@@ -141,12 +141,12 @@ async def _delete_expired_hold(
         await session.commit()
     finally:
         # The connections are gone either way, so the apps are told either way.
-        await app_revocation_service.dispatch_revocations(revocations)
+        await plugin_revocation_service.dispatch_revocations(revocations)
 
     await email_service.announce_community_deleted(session, notice)
     # These live on other connections, so they go after the commit that made
     # the deletion real.
-    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    await plugin_refs.forget_guild(guild_id=guild_id, keep_billing=True)
     billing_ping.notify_lifecycle_changed(guild_id)
     return True
 
@@ -235,7 +235,7 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
 
     # These live on other connections, so they go after the commit that made
     # the purge real.
-    await app_refs.forget_guild(guild_id=guild_id)
+    await plugin_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:

@@ -95,15 +95,15 @@ export const effectiveBinding = (
 /**
  * The prefix an installed app's widget types carry.
  *
- * Mirrors `APP_WIDGET_TYPE_PREFIX` in the backend's `service_apps.py`. A type is
+ * Mirrors `PLUGIN_WIDGET_TYPE_PREFIX` in the backend's `service_plugins.py`. A type is
  * `app:<listing_uid>:<widget_id>`, and `:` is outside the identifier character
  * set both halves use, so the three parts stay unambiguous. The namespacing is
  * what stops an app's widget resolving to a built-in renderer, or a built-in
  * resolving to an app's module.
  */
-export const APP_WIDGET_TYPE_PREFIX = "app:";
+export const PLUGIN_WIDGET_TYPE_PREFIX = "app:";
 
-export const isAppWidgetType = (type: string): boolean => type.startsWith(APP_WIDGET_TYPE_PREFIX);
+export const isPluginWidgetType = (type: string): boolean => type.startsWith(PLUGIN_WIDGET_TYPE_PREFIX);
 
 /** Slots a widget still needs filled before it can draw anything.
  *

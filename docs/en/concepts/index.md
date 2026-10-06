@@ -101,7 +101,7 @@ Some of what a group needs isn't in that list, and doesn't have to be.
 
 The **marketplace** has ready-made **dashboards** and **apps** built by people who had the same problem first. Adding one is a couple of clicks: pick it, choose where it goes, name it.
 
-Dashboards land in an initiative like any other tool. Apps get added community-wide by an admin, because they add something everybody shares. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+Dashboards land in an initiative like any other tool. Apps get added community-wide by an admin, because they add something everybody shares. See [Apps & the marketplace](../guides/plugins-and-marketplace.md).
 
 ## The other half: who can see what
 
@@ -127,5 +127,5 @@ The friendly version is [Sharing & access](../sharing/index.md). The one with th
 
 - Want to actually *do* things? [The how-to guides](../guides/index.md).
 - Worried about who can see what? [Sharing & access](../sharing/index.md).
-- Need something the built-in tools don't do? [Apps & the marketplace](../guides/apps-and-marketplace.md).
+- Need something the built-in tools don't do? [Apps & the marketplace](../guides/plugins-and-marketplace.md).
 - Hit a word you don't recognise? [The glossary](../reference/glossary.md), or just search for it.

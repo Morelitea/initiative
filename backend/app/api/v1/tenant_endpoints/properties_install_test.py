@@ -13,19 +13,19 @@ from typing import Any
 
 import pytest
 
-from app.core.messages import AppMessages, QueryMessages
+from app.core.messages import PluginMessages, QueryMessages
 from app.models.tenant.property import PropertyType
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.testing import (
     guild_url,
-    create_guild_app,
+    create_guild_plugin,
     create_property_definition,
     guild_of,
     route_session_to_guild,
 )
-from app.testing.app_clients import (
+from app.testing.plugin_clients import (
     assert_names_nobody,
-    install_app,
+    install_plugin,
     install_headers,
     lift_person_and_guild_ids,
 )
@@ -115,7 +115,7 @@ async def test_setting_values_needs_the_tools_write(
 ):
     tool = _KINDS[kind][0]
     scopes = [f"{tool}:read", f"{tool}:write", "initiatives:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     guild_id = installed.guild.id
     item_id = await _KINDS[kind][1](
         client, session, installed, install_headers(installed, scopes)
@@ -130,7 +130,7 @@ async def test_setting_values_needs_the_tools_write(
         url, headers=install_headers(installed, [f"{tool}:read"]), json=body
     )
     assert read_only.status_code == 403, read_only.text
-    assert read_only.json()["detail"] == AppMessages.SCOPE_REQUIRED
+    assert read_only.json()["detail"] == PluginMessages.SCOPE_REQUIRED
 
     written = await client.put(
         url, headers=install_headers(installed, scopes), json=body
@@ -155,7 +155,7 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
     # The person has to be a member of the item's initiative, which the
     # service reads from the roster.
     scopes = [f"{tool}:read", f"{tool}:write", "initiatives:read", "members:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
     item_id = await _KINDS[kind][1](client, session, installed, headers)
@@ -194,26 +194,26 @@ async def test_a_person_named_any_other_way_is_a_422(
     client, session, acting_user, role_session
 ):
     scopes = ["documents:read", "documents:write", "initiatives:read", "members:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
     document_id = await _document(client, session, installed, headers)
     owner = await create_property_definition(
         session, installed.placed, name="Owner", type=PropertyType.user_reference
     )
-    other = await create_guild_app(
+    other = await create_guild_plugin(
         session,
         installed.guild,
         installed.seat.user,
         definition={
-            "app_kind": "service",
+            "plugin_kind": "service",
             "service": {"public_id": "tests.token-client-two", "protocol": 1},
         },
         listing_uid="TOKENCLIENT002",
     )
     # The seat, as another install knows them.
-    foreign = await app_refs.ensure_app_ref(
-        guild_id=guild_id, app_install_id=other.id, user_id=installed.seat.user.id
+    foreign = await plugin_refs.ensure_plugin_ref(
+        guild_id=guild_id, plugin_install_id=other.id, user_id=installed.seat.user.id
     )
 
     for named in (foreign, installed.seat.user.id, "uapp_" + "x" * 32):
@@ -223,14 +223,14 @@ async def test_a_person_named_any_other_way_is_a_422(
             json={"values": [{"property_id": owner.id, "value": named}]},
         )
         assert response.status_code == 422, (named, response.text)
-        assert response.json()["detail"] == AppMessages.REFERENCE_UNKNOWN
+        assert response.json()["detail"] == PluginMessages.REFERENCE_UNKNOWN
 
 
 async def test_a_document_list_filter_that_names_a_person_is_refused(
     client, session, acting_user, role_session
 ):
     scopes = ["documents:read", "documents:write", "initiatives:read", "members:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
     await _document(client, session, installed, headers)

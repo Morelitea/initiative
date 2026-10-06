@@ -131,7 +131,7 @@ export interface PeekedManifest {
   type?: string;
   kind?: string;
   schema_version?: number;
-  app_version?: string;
+  plugin_version?: string;
   exported_at?: string;
   // A backup file names its community and type with the old word.
   guild?: { id?: number; name?: string };

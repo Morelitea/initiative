@@ -995,7 +995,7 @@
       "integrations": "Integrationen"
     }
   },
-  "appServices": {
+  "pluginServices": {
     "platformOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
     "loading": "App-Dienste werden geladen…",
     "loadError": "App-Dienste konnten nicht geladen werden.",
@@ -1293,7 +1293,7 @@
       "seatHelp": "Die Person wird Superadmin: der Sitz, der andere ernennt, die Abrechnung erreicht und die Anmeldung festlegt.",
       "statusDescription": "Wählen Sie, in welchem Zustand die Community zurückkommt.",
       "statusLabel": "Kommt zurück als",
-      "appsNote": "Die App-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
+      "pluginsNote": "Die App-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
       "confirm": "Wiederherstellen",
       "done": "{{name}} wiederhergestellt.",
       "error": "Die Community konnte nicht wiederhergestellt werden. Bitte erneut versuchen."

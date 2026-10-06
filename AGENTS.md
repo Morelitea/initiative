@@ -85,7 +85,7 @@ This project uses **semantic versioning** (semver) with a single source of truth
 
 - **Single source**: The `VERSION` file contains the current version (e.g., `0.1.0`)
 - **Backend**: Reads VERSION file and exposes via `/api/v1/version` endpoint and OpenAPI schema
-- **Frontend**: Vite injects VERSION as `__APP_VERSION__` constant, displayed in the sidebar footer
+- **Frontend**: Vite injects VERSION as `__PLUGIN_VERSION__` constant, displayed in the sidebar footer
 - **Docker**: VERSION is copied into the image and set as OCI labels
 
 ### Releasing a Version

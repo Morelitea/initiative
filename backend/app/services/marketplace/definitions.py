@@ -17,7 +17,7 @@ too large a vocabulary to read in one sitting:
 * ``manifest_values`` — the bounded primitives every value goes through.
 * ``widget_meta`` — the server-side reading of the rules the browser applies to
   a widget's own strings.
-* ``service_apps`` — the ``app_kind: "service"`` manifest.
+* ``service_plugins`` — the ``plugin_kind: "service"`` manifest.
 
 Two rules span all of them. **Attribution is required**: a listing states who
 wrote it or it is not published. And **``core.*`` belongs to this repository**:
@@ -40,9 +40,9 @@ from app.services.marketplace.manifest_values import (
 from app.services.marketplace.profile_packs import (
     normalize_profile_pack_definition,
 )
-from app.services.marketplace.service_apps import (
-    app_widget_type,
-    normalize_service_app_definition,
+from app.services.marketplace.service_plugins import (
+    plugin_widget_type,
+    normalize_service_plugin_definition,
 )
 from app.services.marketplace.tool_listings import (
     normalize_tool_example,
@@ -58,11 +58,11 @@ __all__ = [
     "kinds_for_audience",
     "LISTING_SOURCES",
     "LOCAL_SOURCE",
-    "APP_KINDS",
-    "GUILD_INSTALLABLE_APP_KINDS",
+    "PLUGIN_KINDS",
+    "GUILD_INSTALLABLE_PLUGIN_KINDS",
     "MOUNTABLE_TOOLS",
     "RESERVED_PUBLIC_ID_PREFIX",
-    "app_widget_type",
+    "plugin_widget_type",
     "normalize_publisher",
     "normalize_listing_definition",
     "normalize_listing_example",
@@ -144,7 +144,7 @@ LOCAL_SOURCE = "local"
 #: ``embed`` hosts an external surface in an iframe, driven by the signed handoff
 #: machinery. ``service`` declares features a container the operator runs will
 #: serve.
-APP_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
+PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
 #: The app kinds the guild install path can mount.
 #:
@@ -154,11 +154,11 @@ APP_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 #: service app creates no local content, so installing one is the row and
 #: nothing else.
 #:
-#: The set is still separate from :data:`APP_KINDS` because the two answer
+#: The set is still separate from :data:`PLUGIN_KINDS` because the two answer
 #: different questions — what a listing may *declare* versus what this build can
 #: *mount* — and a kind added to the vocabulary ahead of its machinery is
 #: refused by name rather than half-mounted.
-GUILD_INSTALLABLE_APP_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
+GUILD_INSTALLABLE_PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
 #: Tools an app may mount at guild scope. A tool qualifies when its content is
 #: meaningful without an initiative — a calendar of the guild's own events is;
@@ -215,7 +215,7 @@ def reserved_prefix_problem(public_id: str, *, source: str) -> Optional[str]:
 # --- definitions ------------------------------------------------------------
 
 
-def _normalize_app_definition(
+def _normalize_plugin_definition(
     definition: Any, *, public_id: Optional[str]
 ) -> dict[str, Any]:
     """An app's body: which kind it is, and what that kind needs.
@@ -226,20 +226,20 @@ def _normalize_app_definition(
     in the deployment's own configuration, which is where the address comes from.
 
     ``service`` is the wide one, and it keeps the same rule (see
-    ``service_apps``): paths, never addresses. Unknown keys are dropped rather
+    ``service_plugins``): paths, never addresses. Unknown keys are dropped rather
     than stored, so a definition always has canonical shape.
     """
     if not isinstance(definition, dict):
         raise ListingDefinitionError("app definition must be an object")
 
-    app_kind = definition.get("app_kind")
-    if app_kind not in APP_KINDS:
-        raise ListingDefinitionError(f"unknown app kind {app_kind!r}")
+    plugin_kind = definition.get("plugin_kind")
+    if plugin_kind not in PLUGIN_KINDS:
+        raise ListingDefinitionError(f"unknown app kind {plugin_kind!r}")
 
-    if app_kind == "service":
-        return normalize_service_app_definition(definition, public_id=public_id)
+    if plugin_kind == "service":
+        return normalize_service_plugin_definition(definition, public_id=public_id)
 
-    cleaned: dict[str, Any] = {"app_kind": app_kind}
+    cleaned: dict[str, Any] = {"plugin_kind": plugin_kind}
     tool = definition.get("tool")
     if tool not in MOUNTABLE_TOOLS:
         raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
@@ -274,7 +274,7 @@ def normalize_listing_definition(
             "automation listings are not installable in this build yet"
         )
     if kind == "app":
-        return _normalize_app_definition(definition, public_id=public_id)
+        return _normalize_plugin_definition(definition, public_id=public_id)
     if kind == "profile_pack":
         return normalize_profile_pack_definition(definition)
     return normalize_tool_listing(TOOL_LISTING_KINDS[kind], definition)

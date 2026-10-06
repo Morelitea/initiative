@@ -70,7 +70,7 @@ class ListingDefinitionError(ValueError):
 # definition stays a document rather than a payload.
 #
 # Read from the vendored contract rather than declared here: the same numbers
-# are what the app-kit's schema and types are built from, so a cap is raised in
+# are what the plugin-kit's schema and types are built from, so a cap is raised in
 # one place and both sides of the protocol move together.
 
 MAX_IDENTIFIER_LENGTH = contract.cap("identifierLength")

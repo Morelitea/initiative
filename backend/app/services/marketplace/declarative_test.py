@@ -12,11 +12,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.core.messages import AppDataMessages
-from app.services.marketplace.app_data import AppDataError
+from app.core.messages import PluginDataMessages
+from app.services.marketplace.plugin_data import PluginDataError
 from app.services.marketplace.declarative import after_connect, run_endpoint
 from app.services.marketplace.definitions import normalize_listing_definition
-from app.services.tenant.app_connection_flows import HookError
+from app.services.tenant.plugin_connection_flows import HookError
 from app.testing.fake_vendor import FakeVendor
 
 NOW = datetime(2026, 10, 2, 12, tzinfo=timezone.utc)
@@ -29,8 +29,8 @@ def _api(path: str) -> str:
     return f'"{API}{path}"'
 
 
-def issues_app(**changes) -> dict:
-    """The SDK's ``issuesApp``, as Initiative stores it."""
+def issues_plugin(**changes) -> dict:
+    """The SDK's ``issuesPlugin``, as Initiative stores it."""
     endpoints: dict[str, dict] = {
         "open-issues": {
             "direction": "read",
@@ -130,7 +130,7 @@ def issues_app(**changes) -> dict:
     return normalize_listing_definition(
         "app",
         {
-            "app_kind": "service",
+            "plugin_kind": "service",
             "features": ["endpoints"],
             "hosts": ["api.tracker.example", "*.tracker.example"],
             "connections": [
@@ -174,7 +174,7 @@ def vendor(monkeypatch) -> FakeVendor:
 async def _run(
     name: str, *, params=None, definition=None, connections=WORKSPACE
 ) -> dict:
-    definition = definition or issues_app()
+    definition = definition or issues_plugin()
     endpoint = next(
         entry for entry in definition["endpoints"] if entry["id"].endswith(f".{name}")
     )
@@ -214,11 +214,11 @@ async def test_a_range_past_max_pages_is_refused_when_on_limit_says_so(vendor):
 async def test_a_truncating_range_answers_the_pages_it_read(vendor):
     full = {"body": [{"title": "A"}, {"title": "B"}]}
     vendor.api_answers = [full, full]
-    definition = issues_app(
+    definition = issues_plugin(
         **{
             "open-issues": {
                 "request": {
-                    **issues_app()["endpoints"][0]["request"],
+                    **issues_plugin()["endpoints"][0]["request"],
                     "paging": {
                         "kind": "page_number",
                         "page_param": "page",
@@ -278,7 +278,7 @@ STEPPED_AFTER_CONNECT = {
 
 async def _after_connect(after: dict = STEPPED_AFTER_CONNECT):
     return await after_connect(
-        issues_app(),
+        issues_plugin(),
         after,
         params={"installation_id": "2"},
         access_token="tok-person",
@@ -333,9 +333,9 @@ async def test_an_answer_means_what_its_rule_or_the_default_says(
 ):
     vendor.api_answers = [answer]
     if answered is None:
-        with pytest.raises(AppDataError) as refused:
+        with pytest.raises(PluginDataError) as refused:
             await _run("label", params={"number": 7})
-        assert refused.value.code == AppDataMessages.SERVICE_UNAVAILABLE
+        assert refused.value.code == PluginDataMessages.SERVICE_UNAVAILABLE
         assert refused.value.status_code == 502
     else:
         assert await _run("label", params={"number": 7}) == {"unavailable": answered}
@@ -345,7 +345,7 @@ async def test_an_answer_means_what_its_rule_or_the_default_says(
 async def test_connections_holds_each_connection_requires_names(vendor):
     """A request on the member's connection reads the community's by id; a
     connection ``requires`` does not name is not there."""
-    definition = issues_app(
+    definition = issues_plugin(
         comment={
             "direction": "write",
             "requires": {"all_of": ["workspace", "account"]},
@@ -404,7 +404,7 @@ async def test_a_graphql_cursor_is_sent_in_its_variable_from_the_second_page(ven
     assert result == {"ids": ["a", "b"]}
 
 
-async def test_a_link_header_is_followed_on_the_apps_hosts_only(vendor):
+async def test_a_link_header_is_followed_on_the_plugins_hosts_only(vendor):
     listing = {
         "request": {
             "method": "GET",
@@ -414,7 +414,7 @@ async def test_a_link_header_is_followed_on_the_apps_hosts_only(vendor):
         },
         "map": '{"titles": response.body.title[], "total": $count(response.body)}',
     }
-    definition = issues_app(**{"open-issues": listing})
+    definition = issues_plugin(**{"open-issues": listing})
     vendor.api_answers = [
         {
             "headers": {"Link": f'<{API}/issues?page=2>; rel="next"'},
@@ -444,8 +444,8 @@ async def test_a_link_header_is_followed_on_the_apps_hosts_only(vendor):
         "42",
     ],
 )
-async def test_a_request_off_the_apps_hosts_is_never_sent(vendor, url):
-    definition = issues_app(
+async def test_a_request_off_the_plugins_hosts_is_never_sent(vendor, url):
+    definition = issues_plugin(
         **{
             "open-issues": {
                 "request": {"method": "GET", "url": url, "connection": "workspace"},
@@ -458,8 +458,8 @@ async def test_a_request_off_the_apps_hosts_is_never_sent(vendor, url):
     assert vendor.api_requests == []
 
 
-async def test_a_cursor_in_a_parameter_and_the_apps_own_auth(vendor):
-    definition = issues_app(
+async def test_a_cursor_in_a_parameter_and_the_plugins_own_auth(vendor):
+    definition = issues_plugin(
         **{
             "open-issues": {
                 "request": {
@@ -512,5 +512,5 @@ async def test_a_map_answers_its_returns_or_a_code_of_its_own(
     """A map that does not fit the declared returns, names a code the endpoint
     does not have, or passes an expression bound answers mapping-failed."""
     vendor.api_answers = [{"body": []}]
-    definition = issues_app(**{"open-issues": {"map": mapping}})
+    definition = issues_plugin(**{"open-issues": {"map": mapping}})
     assert await _run("open-issues", definition=definition) == {"unavailable": answered}

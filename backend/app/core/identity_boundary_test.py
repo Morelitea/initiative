@@ -28,7 +28,7 @@ from app.core.identity_boundary import (
     boundary_scope,
     current_install_boundary,
 )
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.db.guild_standing import named_ref_candidates
 from app.models.platform.identity_ref import IdentityEntity
 from app.schemas.platform.user import UserPublic
@@ -164,7 +164,7 @@ def test_anything_but_a_resolved_reference_is_refused(field, value):
         with pytest.raises(ValidationError) as caught:
             _Payload.model_validate(body)
     assert _errors(caught.value) == [
-        (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+        (UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN)
     ]
 
 
@@ -365,7 +365,7 @@ def test_a_mention_of_nobody_named_here_is_refused(named):
             with pytest.raises(ValidationError) as caught:
                 _Body.model_validate(body)
             assert _errors(caught.value) == [
-                (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+                (UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN)
             ]
 
 
@@ -374,7 +374,7 @@ def test_a_mention_of_nobody_named_here_is_refused(named):
 # ---------------------------------------------------------------------------
 
 
-def test_only_app_references_are_candidates():
+def test_only_plugin_references_are_candidates():
     assert named_ref_candidates(
         [
             _PERSON_REF,

@@ -43,7 +43,7 @@ from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
-    app_widget_type,
+    plugin_widget_type,
     normalize_publisher,
     normalize_listing_definition,
     normalize_listing_example,
@@ -77,7 +77,7 @@ __all__ = [
 #: Characters a version string may use. Deliberately an explicit set rather than
 #: a semver pattern — the catalog stores what the publisher published and only
 #: needs it to be a safe, short, comparable token. From the vendored contract,
-#: which is what the app-kit checks a listing against before it is published.
+#: which is what the plugin-kit checks a listing against before it is published.
 _VERSION_CHARS = contract.charset("version")
 _MAX_VERSION = contract.cap("versionLength")
 
@@ -163,22 +163,22 @@ def _version_tuple(value: str) -> tuple[int, ...]:
     return tuple(parts)
 
 
-def version_is_compatible(min_app_version: Optional[str]) -> bool:
+def version_is_compatible(min_plugin_version: Optional[str]) -> bool:
     """Whether this deployment is new enough to run a listing version.
 
     A definition can name only what its app build has a renderer for, so a
     version needing a newer app is hidden from browse and refused on install
     rather than landing as a canvas full of error tiles.
     """
-    if not min_app_version:
+    if not min_plugin_version:
         return True
-    return _version_tuple(get_version()) >= _version_tuple(min_app_version)
+    return _version_tuple(get_version()) >= _version_tuple(min_plugin_version)
 
 
 # --- reads ------------------------------------------------------------------
 
 
-async def _unoffered_app() -> Exists:
+async def _unoffered_plugin() -> Exists:
     """Matches an app listing this deployment does not run the service for.
 
     Read from the registration snapshot rather than joined from the table:
@@ -195,7 +195,7 @@ async def _unoffered_app() -> Exists:
         select(latest.id)
         .where(
             latest.id == MarketplaceListing.latest_version_id,
-            latest.definition["app_kind"].astext == "service",
+            latest.definition["plugin_kind"].astext == "service",
             # A declarative app has no service block and is its listing's
             # public id.
             func.coalesce(
@@ -249,8 +249,8 @@ async def list_listings(
         )
     else:
         filters.append(MarketplaceListing.bundled_with_uid.is_(None))
-    unoffered_app = await _unoffered_app()
-    filters.append(~unoffered_app)
+    unoffered_plugin = await _unoffered_plugin()
+    filters.append(~unoffered_plugin)
     if query:
         # Case-insensitive across the three fields someone would actually type.
         needle = f"%{query.strip()}%"
@@ -354,7 +354,7 @@ async def resolve_installable_version(
     version = await get_listing_version(session, listing.latest_version_id)
     if version is None:
         return None
-    return version if version_is_compatible(version.min_app_version) else None
+    return version if version_is_compatible(version.min_plugin_version) else None
 
 
 # --- writes (system engine only) --------------------------------------------
@@ -538,7 +538,7 @@ async def upsert_listing(
         )
     ).first()
     release_notes = manifest.get("release_notes")
-    min_app_version = manifest.get("min_app_version")
+    min_plugin_version = manifest.get("min_plugin_version")
     if version is None:
         version = MarketplaceListingVersion(
             listing_id=listing.id,
@@ -547,7 +547,7 @@ async def upsert_listing(
             definition=definition,
             example=example,
             release_notes=release_notes,
-            min_app_version=min_app_version,
+            min_plugin_version=min_plugin_version,
             awaiting_review=hold_for_review,
         )
         session.add(version)
@@ -556,7 +556,7 @@ async def upsert_listing(
         definition,
         example,
         release_notes,
-        min_app_version,
+        min_plugin_version,
     ):
         # A published version is immutable, for two reasons:
         #
@@ -611,7 +611,7 @@ def _stored_body(
         example = normalize_listing_example(kind, version.example, definition)
     except ListingDefinitionError:
         return None
-    return definition, example, version.release_notes, version.min_app_version
+    return definition, example, version.release_notes, version.min_plugin_version
 
 
 def _crosses_sources(existing: MarketplaceListing, source: str) -> bool:
@@ -678,7 +678,7 @@ async def _publish_bundled_dashboards(
 
     Widget types are resolved to their namespaced form here. A manifest carries
     no uid inside it, so a publisher writes the bare widget id and this stamps
-    the app's own uid on — the same value :func:`app_widget_type` puts on the
+    the app's own uid on — the same value :func:`plugin_widget_type` puts on the
     palette. What gets stored is therefore the shape the dashboard tool already
     renders, and nothing downstream needs to know the row was derived.
     """
@@ -688,10 +688,10 @@ async def _publish_bundled_dashboards(
         widgets = [
             {
                 "id": widget["id"],
-                "type": app_widget_type(app.uid, widget["type"]),
+                "type": plugin_widget_type(app.uid, widget["type"]),
                 **({"title": widget["title"]} if "title" in widget else {}),
                 **({"grid": widget["grid"]} if "grid" in widget else {}),
-                "binding": {"source": "app", "app_uid": app.uid, **widget["binding"]},
+                "binding": {"source": "app", "plugin_uid": app.uid, **widget["binding"]},
             }
             for widget in entry["widgets"]
         ]
@@ -735,13 +735,13 @@ async def _publish_bundled_dashboards(
 
 
 async def _bundled_dashboards_of(
-    session: AsyncSession, app_uid: str
+    session: AsyncSession, plugin_uid: str
 ) -> Sequence[MarketplaceListing]:
     """Every dashboard listing published as part of one app."""
     return (
         await session.exec(
             select(MarketplaceListing).where(
-                MarketplaceListing.bundled_with_uid == app_uid
+                MarketplaceListing.bundled_with_uid == plugin_uid
             )
         )
     ).all()

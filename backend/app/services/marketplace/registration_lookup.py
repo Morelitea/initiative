@@ -1,6 +1,6 @@
 """What the request path knows about the app services this deployment wired up.
 
-``app_service_registrations`` is deployment configuration: no guild role and no
+``plugin_service_registrations`` is deployment configuration: no guild role and no
 bare login role holds a grant on it, and an installed app's standing reads only
 the few columns of its own row. Everything else a request needs from a
 registration — is this app wired up, is it live, where does it live, which
@@ -13,7 +13,7 @@ any registration or publisher write. A replica that did not serve the write
 picks the change up within the TTL.
 
 Whether a registration is live is computed by the database with the one rule
-in :func:`~app.models.platform.app_service_registration.registration_live_sql`,
+in :func:`~app.models.platform.plugin_service_registration.registration_live_sql`,
 the same one the install standing asks, and carried on the snapshot.
 """
 
@@ -30,8 +30,8 @@ from sqlalchemy import literal_column
 from sqlmodel import select
 
 from app.db import session as db_session
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
+from app.models.platform.plugin_service_registration import (
+    PluginServiceRegistration,
     RegistrationKind,
     browser_base,
     registration_live_sql,
@@ -44,7 +44,7 @@ __all__ = [
     "CACHE_TTL_SECONDS",
     "InstallState",
     "RegistrationSnapshot",
-    "app_is_offered",
+    "plugin_is_offered",
     "declarative_registration",
     "enabled_service_ids",
     "frame_origins",
@@ -96,7 +96,7 @@ class RegistrationSnapshot:
     #: Not secret: it bounds what a community's seat may grant.
     scope_ceiling: tuple[str, ...] = ()
     #: Where the app publishes its key set, when it does
-    #: (:mod:`app.services.marketplace.app_keys`).
+    #: (:mod:`app.services.marketplace.plugin_keys`).
     jwks_uri: Optional[str] = None
     #: Initiative makes this app's calls itself, from its manifest; it has no
     #: location and no keys.
@@ -108,7 +108,7 @@ class RegistrationSnapshot:
         return browser_base(self)
 
 
-def _parse_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
+def _parse_keys(row: PluginServiceRegistration) -> Mapping[str, Any]:
     """Build the ``kid`` → key index for one registration.
 
     The keys were validated when they were stored, so anything unusable here
@@ -142,11 +142,11 @@ def invalidate_registrations() -> None:
 
 
 def live_registration_clause() -> Any:
-    """:func:`registration_live_sql` over ``app_service_registrations`` joined
+    """:func:`registration_live_sql` over ``plugin_service_registrations`` joined
     to ``publishers``, for a query that selects both by their table names."""
     return literal_column(
         registration_live_sql(
-            AppServiceRegistration.__tablename__, Publisher.__tablename__
+            PluginServiceRegistration.__tablename__, Publisher.__tablename__
         )
     )
 
@@ -167,11 +167,11 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
         rows = (
             await session.exec(
                 select(
-                    AppServiceRegistration,
+                    PluginServiceRegistration,
                     live_registration_clause().label("live"),
                 )
-                .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
-                .order_by(AppServiceRegistration.public_id)
+                .join(Publisher, Publisher.id == PluginServiceRegistration.publisher_id)
+                .order_by(PluginServiceRegistration.public_id)
             )
         ).all()
 
@@ -227,7 +227,7 @@ def is_declarative(definition: Mapping[str, Any] | None) -> bool:
     ``service`` block, whose calls Initiative makes itself."""
     return (
         isinstance(definition, Mapping)
-        and definition.get("app_kind") == "service"
+        and definition.get("plugin_kind") == "service"
         and "service" not in definition
     )
 
@@ -244,7 +244,7 @@ def service_public_id(
     """
     if is_declarative(definition):
         return listing_public_id
-    if not isinstance(definition, Mapping) or definition.get("app_kind") != "service":
+    if not isinstance(definition, Mapping) or definition.get("plugin_kind") != "service":
         return None
     service = definition.get("service")
     if not isinstance(service, dict):
@@ -345,7 +345,7 @@ async def enabled_service_ids() -> frozenset[str]:
     )
 
 
-async def app_is_offered(
+async def plugin_is_offered(
     definition: dict[str, Any] | None, *, listing_uid: Optional[str] = None
 ) -> bool:
     """Whether this deployment offers the app a listing describes.

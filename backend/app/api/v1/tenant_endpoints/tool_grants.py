@@ -44,7 +44,7 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -58,7 +58,7 @@ router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 SharingWrite = Annotated[
-    ActorContext, Depends(app_scope(resource_access.SHARING_WRITE))
+    ActorContext, Depends(plugin_scope(resource_access.SHARING_WRITE))
 ]
 
 
@@ -94,7 +94,7 @@ def _mount(
         sockets.signal(guild_context.guild_id, tool, entity_id, "permissions_changed")
         return result
 
-    if spec.serves_apps:
+    if spec.serves_plugins:
 
         async def set_grants(
             entity_id: entity_id_param,

@@ -9,7 +9,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -27,8 +27,8 @@ from app.services.tenant import comments as comments_service
 
 router = APIRouter(route_class=ActorRoute)
 #: The routes an installed app may call, under the comments scopes.
-CommentsRead = Annotated[ActorContext, Depends(app_scope("comments:read"))]
-CommentsWrite = Annotated[ActorContext, Depends(app_scope("comments:write"))]
+CommentsRead = Annotated[ActorContext, Depends(plugin_scope("comments:read"))]
+CommentsWrite = Annotated[ActorContext, Depends(plugin_scope("comments:write"))]
 
 
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)

@@ -434,7 +434,7 @@ async def _build_scope(
         manifest = BackupManifest(
             type=f"{scope_kind}-backup",
             schema_version=BACKUP_SCHEMA_VERSION,
-            app_version=get_version(),
+            plugin_version=get_version(),
             exported_at=datetime.now(timezone.utc),
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,

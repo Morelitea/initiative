@@ -63,8 +63,8 @@ vi.mock("@/hooks/useUsers", () => ({
 }));
 
 // The community's installed apps, which name an app grantee.
-vi.mock("@/hooks/useCommunityApps", () => ({
-  useCommunityApps: () => ({
+vi.mock("@/hooks/useCommunityPlugins", () => ({
+  useCommunityPlugins: () => ({
     data: {
       items: [
         { id: 301, name: "Automations", avatar_url: null },
@@ -236,14 +236,14 @@ describe("ShareControl in its community view", () => {
 
 describe("ShareControl with an app", () => {
   it("shows the owning app by name and picture in the Owner row", () => {
-    const grants: ResourceGrantSchema[] = [{ app_install_id: 302, level: "owner" }];
+    const grants: ResourceGrantSchema[] = [{ plugin_install_id: 302, level: "owner" }];
 
     renderWithProviders(
       <ShareControl
         initiativeId={1}
         grants={grants}
         ownerId={null}
-        ownerApp={{ id: 302, name: "Storefront", avatar_url: "/media/storefront.png" }}
+        ownerPlugin={{ id: 302, name: "Storefront", avatar_url: "/media/storefront.png" }}
         onChange={vi.fn()}
       />
     );
@@ -257,7 +257,7 @@ describe("ShareControl with an app", () => {
   });
 
   it("names an owning app from the community's apps when the read model does not", () => {
-    const grants: ResourceGrantSchema[] = [{ app_install_id: 301, level: "owner" }];
+    const grants: ResourceGrantSchema[] = [{ plugin_install_id: 301, level: "owner" }];
 
     renderWithProviders(
       <ShareControl initiativeId={1} grants={grants} ownerId={null} onChange={vi.fn()} />
@@ -270,7 +270,7 @@ describe("ShareControl with an app", () => {
   it("lists an app grantee by name, read-only, and never sends it back", async () => {
     const onChange = vi.fn();
     const grants: ResourceGrantSchema[] = [
-      { app_install_id: 301, level: "write" },
+      { plugin_install_id: 301, level: "write" },
       { user_id: alice.id, level: "read" },
     ];
 

@@ -16,7 +16,7 @@ import pytest
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages
 from app.models.platform.guild import CommunityRole
-from app.testing.tuf_repository import service_app_definition
+from app.testing.tuf_repository import service_plugin_definition
 
 
 RESCAN_URL = "/api/v1/marketplace/operator-catalog/rescan"
@@ -183,13 +183,13 @@ def _counter_manifest(**overrides) -> dict:
     }
 
 
-def _app_manifest(**overrides) -> dict:
+def _plugin_manifest(**overrides) -> dict:
     return _counter_manifest(
         uid="VPR0ADAPP00001",
         public_id="ours.tracker",
         kind="app",
         name="Tracker",
-        definition=service_app_definition("ours.tracker"),
+        definition=service_plugin_definition("ours.tracker"),
         **overrides,
     )
 
@@ -246,13 +246,13 @@ class TestUploadingAListingFile:
         assert response.status_code == 422
         assert "builtin" in response.json()["problem"]
 
-    async def test_a_private_apps_listing_brings_its_registration(
+    async def test_a_private_plugins_listing_brings_its_registration(
         self, client, acting_user
     ):
         """Adding a private app is uploading its listing, then giving it
         deployment facts under App services."""
         owner = await acting_user("owner")
-        manifest = _app_manifest(
+        manifest = _plugin_manifest(
             registration={"kind": "container", "scope_ceiling": ["projects:read"]}
         )
 
@@ -261,7 +261,7 @@ class TestUploadingAListingFile:
         )
 
         assert response.status_code == 201, response.text
-        services = await client.get("/api/v1/app-services/", headers=owner.headers)
+        services = await client.get("/api/v1/plugin-services/", headers=owner.headers)
         [registration] = services.json()
         assert registration["public_id"] == "ours.tracker"
         assert registration["listing_uid"] == manifest["uid"]
@@ -272,7 +272,7 @@ class TestUploadingAListingFile:
         self, client, acting_user
     ):
         owner = await acting_user("owner")
-        manifest = _app_manifest(
+        manifest = _plugin_manifest(
             registration={"kind": "container", "reference_sectors": ["billing"]}
         )
 

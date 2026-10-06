@@ -15,10 +15,10 @@ from sqlalchemy import text
 from app.models.platform.notification import NotificationType
 from app.services.platform import notice_outbox, user_notifications
 from app.testing import (
-    create_app_service_registration,
+    create_plugin_service_registration,
     create_export_job,
     create_guild,
-    create_guild_app,
+    create_guild_plugin,
     create_marketplace_listing,
     create_user,
 )
@@ -149,9 +149,9 @@ async def test_stored_values_say_community_and_back(session) -> None:
 
 
 _OLD_DEFINITION = {
-    "app_kind": "service",
+    "plugin_kind": "service",
     "service": {
-        "public_id": "tests.app-service",
+        "public_id": "tests.plugin-service",
         "protocol": 1,
         "scopes": ["documents:read", "guild:admin"],
     },
@@ -160,15 +160,15 @@ _OLD_DEFINITION = {
         {"id": "inside", "path": "/i", "scopes": ["initiative"]},
         {"id": "legacy", "path": "/l"},
     ],
-    "guild_summary": "app.tests.app-service.summary",
+    "guild_summary": "app.tests.plugin-service.summary",
 }
 
 
-async def _app_contract(session, schema: str, listing_id: int, registration_id: int):
+async def _plugin_contract(session, schema: str, listing_id: int, registration_id: int):
     install = (
         await _sql(
             session,
-            text(f'SELECT definition, granted_scopes FROM "{schema}".guild_apps'),
+            text(f'SELECT definition, granted_scopes FROM "{schema}".guild_plugins'),
         )
     ).one()
     listed = await _scalar(
@@ -182,7 +182,7 @@ async def _app_contract(session, schema: str, listing_id: int, registration_id: 
     ceiling = await _scalar(
         session,
         text(
-            "SELECT scope_ceiling FROM public.app_service_registrations WHERE id = :id"
+            "SELECT scope_ceiling FROM public.plugin_service_registrations WHERE id = :id"
         ),
         {"id": registration_id},
     )
@@ -194,13 +194,13 @@ async def _app_contract(session, schema: str, listing_id: int, registration_id: 
     }
 
 
-async def test_app_contract_says_community_and_back(session) -> None:
+async def test_plugin_contract_says_community_and_back(session) -> None:
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     schema = f"guild_{guild.id}"
-    await create_guild_app(session, guild, user, definition=_OLD_DEFINITION)
+    await create_guild_plugin(session, guild, user, definition=_OLD_DEFINITION)
     listing = await create_marketplace_listing(session)
-    registration = await create_app_service_registration(
+    registration = await create_plugin_service_registration(
         session, scope_ceiling=["documents:read", "guild:admin"]
     )
     migration = _load("20261003_0446_app_contract_says_community.py")
@@ -223,16 +223,16 @@ async def test_app_contract_says_community_and_back(session) -> None:
         route(bind)
         migration._unforced(
             bind,
-            ("guild_apps",),
+            ("guild_plugins",),
             lambda: bind.execute(
-                text("UPDATE guild_apps SET granted_scopes = :g"),
+                text("UPDATE guild_plugins SET granted_scopes = :g"),
                 {"g": ["documents:read", "guild:admin"]},
             ),
         )
 
     await session.run_sync(seed)
     await session.commit()
-    old = await _app_contract(session, schema, listing.id, registration.id)
+    old = await _plugin_contract(session, schema, listing.id, registration.id)
     assert old["granted"] == ["documents:read", "guild:admin"]
 
     def run(names):
@@ -247,9 +247,9 @@ async def test_app_contract_says_community_and_back(session) -> None:
     await session.run_sync(run(migration.FORWARD))
     await session.commit()
     definition = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {
-            "public_id": "tests.app-service",
+            "public_id": "tests.plugin-service",
             "protocol": 1,
             "scopes": ["documents:read", "community:admin"],
         },
@@ -258,9 +258,9 @@ async def test_app_contract_says_community_and_back(session) -> None:
             {"id": "inside", "path": "/i", "scopes": ["initiative"]},
             {"id": "legacy", "path": "/l"},
         ],
-        "community_summary": "app.tests.app-service.summary",
+        "community_summary": "app.tests.plugin-service.summary",
     }
-    assert await _app_contract(session, schema, listing.id, registration.id) == {
+    assert await _plugin_contract(session, schema, listing.id, registration.id) == {
         "installed": definition,
         "granted": ["documents:read", "community:admin"],
         "listed": definition,
@@ -269,7 +269,7 @@ async def test_app_contract_says_community_and_back(session) -> None:
 
     await session.run_sync(run(migration.BACKWARD))
     await session.commit()
-    assert await _app_contract(session, schema, listing.id, registration.id) == old
+    assert await _plugin_contract(session, schema, listing.id, registration.id) == old
 
 
 _PREFERENCES = {

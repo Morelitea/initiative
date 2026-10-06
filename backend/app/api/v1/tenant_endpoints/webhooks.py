@@ -37,7 +37,7 @@ this app.
 An installed app registers and removes subscriptions on its installation token.
 What it may register depends on the
 event types it names — each needs the read scope of its tool — so the two
-routes take :func:`app.api.deps.app_scope_checked` and the service asks those
+routes take :func:`app.api.deps.plugin_scope_checked` and the service asks those
 scopes of the install's standing. An install sees and removes only the
 subscriptions it registered.
 """
@@ -55,7 +55,7 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     RLSSessionDep,
-    app_scope_checked,
+    plugin_scope_checked,
     get_current_active_user,
     GuildContextDep,
 )
@@ -92,7 +92,7 @@ router = APIRouter(route_class=ActorRoute)
 #: removing reaches only the install's own subscriptions.
 SubscriptionsByEventType = Annotated[
     ActorContext,
-    Depends(app_scope_checked(webhook_events.event_read_scopes(), per="event type")),
+    Depends(plugin_scope_checked(webhook_events.event_read_scopes(), per="event type")),
 ]
 
 
@@ -139,14 +139,14 @@ async def _named(
         own = {
             row.id
             for row in rows
-            if row.app_install_id == actor.install_id and row.created_by is None
+            if row.plugin_install_id == actor.install_id and row.created_by is None
         }
     minted = iter(
         await webhook_refs.names_for_subscribers(
             guild_id=guild_id,
             subscribers=[
                 (
-                    row.app_install_id,
+                    row.plugin_install_id,
                     row.id,
                     () if row.created_by is None else (row.created_by,),
                 )
@@ -204,7 +204,7 @@ async def create_subscription(
     An installed app registers one as its community, naming no person: each
     event type needs the read scope of its tool, a token narrowed to one
     initiative registers for that initiative only, and a community-wide one
-    needs a token that is not narrowed. Otherwise 403 (``APP_SCOPE_REQUIRED``).
+    needs a token that is not narrowed. Otherwise 403 (``PLUGIN_SCOPE_REQUIRED``).
 
     Target policy: ``target_url`` must be https and resolve to a public unicast
     address; private, loopback and link-local addresses are rejected.

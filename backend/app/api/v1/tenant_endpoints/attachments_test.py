@@ -807,7 +807,7 @@ async def test_a_picture_the_saver_cannot_read_is_left_as_written(
     assert await _status(client, c, url) == 404
 
 
-async def test_an_app_copies_only_a_picture_it_reads_through_content(
+async def test_a_plugin_copies_only_a_picture_it_reads_through_content(
     client: AsyncClient, session, acting_user, role_session
 ):
     """An install placed in two initiatives copies a picture into the second
@@ -815,7 +815,7 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     under a scope it was not granted, does not."""
     from sqlmodel import select
 
-    from app.models.tenant.app_placement import AppPlacement
+    from app.models.tenant.plugin_placement import PluginPlacement
     from app.models.tenant.document import Document
     from app.testing import (
         create_document,
@@ -825,10 +825,10 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
         guild_url,
         route_session_to_guild,
     )
-    from app.testing.app_clients import install_app, install_headers
+    from app.testing.plugin_clients import install_plugin, install_headers
 
     scopes = ["documents:read", "documents:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     seat = installed.seat
     in_task, in_document = await _paste(client, seat), await _paste(client, seat)
     task = await create_task(
@@ -838,7 +838,7 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     await create_resource_grant(session, document, all_initiative_members=True)
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        AppPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
     )
     await session.commit()
     await _set_description(client, seat, task.id, f"![shot]({in_task})")
@@ -874,12 +874,12 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     assert shown[1] != in_document
 
 
-async def test_an_app_moving_a_task_carries_its_picture(
+async def test_a_plugin_moving_a_task_carries_its_picture(
     client: AsyncClient, session, acting_user, role_session
 ):
     """A task an install moves into another initiative it is placed in takes a
     copy of the picture only it shows: the content came with the task."""
-    from app.models.tenant.app_placement import AppPlacement
+    from app.models.tenant.plugin_placement import PluginPlacement
     from app.models.tenant.resource_grant import ResourceAccessLevel
     from app.testing import (
         create_project,
@@ -888,10 +888,10 @@ async def test_an_app_moving_a_task_carries_its_picture(
         guild_url,
         route_session_to_guild,
     )
-    from app.testing.app_clients import install_app, install_headers
+    from app.testing.plugin_clients import install_plugin, install_headers
 
     scopes = ["projects:read", "projects:write"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     seat = installed.seat
     here = await create_project(session, installed.placed, seat.user)
     there = await create_project(session, installed.unplaced, seat.user)
@@ -905,7 +905,7 @@ async def test_an_app_moving_a_task_carries_its_picture(
     task = await create_task(session, here)
     await route_session_to_guild(session, installed.guild.id)
     session.add(
-        AppPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+        PluginPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
     )
     await session.commit()
     url = await _paste(client, seat)

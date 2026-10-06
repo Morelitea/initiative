@@ -1,6 +1,6 @@
 """An installed app's standing, computed from rows and read by the gates.
 
-``establish_install_access`` routes a session as ``guild_<id>_app`` and runs
+``establish_install_access`` routes a session as ``guild_<id>_plugin`` and runs
 the install standing statement. These tests set an install up the way a
 community does — placed in initiatives, granted scopes by its seat, registered
 by the operator — route a real request login through the seam, and check two
@@ -18,7 +18,7 @@ from sqlmodel import select
 from datetime import datetime, timezone
 
 from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_access
-from app.core.app_scopes import ALL_SCOPES
+from app.core.plugin_scopes import ALL_SCOPES
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.request_context import ContextShapeError, Install
@@ -31,17 +31,17 @@ from app.db.session import (
 )
 from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
-from app.models.tenant.app_placement import AppPlacement
+from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.document import Document
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.initiative import PermissionKey
 from app.services.platform.identity_refs import ensure_ref
 from app.testing import (
     create_resource_grant,
-    create_app_service_registration,
+    create_plugin_service_registration,
     create_document,
-    create_guild_app,
+    create_guild_plugin,
     create_initiative,
     route_as,
     route_as_install,
@@ -50,8 +50,8 @@ from app.testing import (
 
 CLIENT = "tests.install-standing"
 LISTING = "INSTALLSTAND01"
-_APP_DEFINITION = {
-    "app_kind": "service",
+_PLUGIN_DEFINITION = {
+    "plugin_kind": "service",
     "service": {"public_id": CLIENT, "protocol": 1},
 }
 
@@ -65,7 +65,7 @@ class _Install:
     """What a test needs to name: the community, the install, and the two
     initiatives it may be placed in."""
 
-    def __init__(self, seat, app: GuildApp, second) -> None:
+    def __init__(self, seat, app: GuildPlugin, second) -> None:
         self.seat = seat
         self.guild = seat.guild
         self.app = app
@@ -88,13 +88,13 @@ async def _install(
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     second = await create_initiative(session, seat.guild, seat.user, name="B")
     definition = {
-        **_APP_DEFINITION,
-        "service": {**_APP_DEFINITION["service"], "scopes": list(requested)},
+        **_PLUGIN_DEFINITION,
+        "service": {**_PLUGIN_DEFINITION["service"], "scopes": list(requested)},
     }
-    app = await create_guild_app(
+    app = await create_guild_plugin(
         session, seat.guild, seat.user, definition=definition, listing_uid=LISTING
     )
-    await create_app_service_registration(
+    await create_plugin_service_registration(
         session, public_id=CLIENT, listing_uid=LISTING
     )
     install = _Install(seat, app, second)
@@ -102,14 +102,14 @@ async def _install(
     await route_session_to_guild(session, seat.guild.id)
     for key, initiative in (("a", install.a), ("b", install.b)):
         if key in placed:
-            session.add(AppPlacement(install_id=app.id, initiative_id=initiative.id))
+            session.add(PluginPlacement(install_id=app.id, initiative_id=initiative.id))
     await session.commit()
 
     if granted:
         # Granted the way a community grants it: by its seat.
         s = await role_session("app_user")
         await route_as(s, user_id=seat.user.id, guild_id=seat.guild.id)
-        row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
+        row = (await s.exec(select(GuildPlugin).where(GuildPlugin.id == app.id))).one()
         row.granted_scopes = granted
         s.add(row)
         await s.commit()
@@ -157,8 +157,8 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
     placed = sorted(
         (
             await session.exec(
-                select(AppPlacement.initiative_id).where(
-                    AppPlacement.install_id == install.app.id
+                select(PluginPlacement.initiative_id).where(
+                    PluginPlacement.install_id == install.app.id
                 )
             )
         ).all()
@@ -286,7 +286,7 @@ async def test_what_an_install_uses_is_the_grant_and_the_token_together(
 async def _disable_install(session, install: _Install) -> None:
     await route_session_to_guild(session, install.guild.id)
     await session.exec(
-        text("UPDATE guild_apps SET enabled = false WHERE id = :id").bindparams(
+        text("UPDATE guild_plugins SET enabled = false WHERE id = :id").bindparams(
             id=install.app.id
         )
     )
@@ -296,7 +296,7 @@ async def _disable_install(session, install: _Install) -> None:
 async def _set_registration(session, column: str, value) -> None:
     await session.exec(
         text(
-            f"UPDATE public.app_service_registrations SET {column} = :v "
+            f"UPDATE public.plugin_service_registrations SET {column} = :v "
             "WHERE public_id = :pid"
         ).bindparams(v=value, pid=CLIENT)
     )
@@ -343,7 +343,7 @@ async def test_an_install_that_may_not_act_is_refused(
         await session.exec(
             text(
                 "UPDATE public.publishers SET enabled = false WHERE id = "
-                "(SELECT publisher_id FROM public.app_service_registrations "
+                "(SELECT publisher_id FROM public.plugin_service_registrations "
                 "WHERE public_id = :c)"
             ).bindparams(c=CLIENT)
         )
@@ -475,7 +475,7 @@ async def test_an_install_without_a_tool_scope_reads_none_of_it(
     await s.rollback()
 
 
-async def test_the_app_role_cannot_read_the_communitys_settings(
+async def test_the_plugin_role_cannot_read_the_communitys_settings(
     session, acting_user, role_session
 ):
     install = await _install(
@@ -714,7 +714,7 @@ async def test_a_new_transaction_replays_the_install(
     [
         ("guilds", {"id", "status"}),
         (
-            "app_service_registrations",
+            "plugin_service_registrations",
             {
                 "public_id",
                 "listing_uid",
@@ -744,7 +744,7 @@ async def test_the_install_floor_reads_only_what_its_standing_needs(
         await session.exec(
             text(
                 "SELECT column_name, "
-                "has_column_privilege('app_install_base', "
+                "has_column_privilege('plugin_install_base', "
                 "CAST(:t AS text), column_name, 'SELECT') "
                 "FROM information_schema.columns "
                 "WHERE table_schema = 'public' AND table_name = :name"

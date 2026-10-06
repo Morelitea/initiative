@@ -49,7 +49,7 @@ await build({
   define: {
     "process.env.NODE_ENV": '"production"',
     "import.meta.env": JSON.stringify({ MODE: "production", PROD: true, DEV: false }),
-    __APP_VERSION__: JSON.stringify(VERSION),
+    __PLUGIN_VERSION__: JSON.stringify(VERSION),
     __IS_CAPACITOR__: "false",
     __EMOJIBASE_URL__: '""',
     __PDFJS_WORKER_URL__: '""',

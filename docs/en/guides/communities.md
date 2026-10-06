@@ -154,7 +154,7 @@ Open **Community settings** from the sidebar or the rail:
 | **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
 | **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
-| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
+| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](plugins-and-marketplace.md#adding-a-plugin). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |

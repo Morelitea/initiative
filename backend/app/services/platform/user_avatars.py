@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, select
 
-from app.core.config import API_V1_STR, APP_SERVER_URL
+from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
 from app.core.image_headers import read_image_header
 from app.core.messages import GuildMessages, UserMessages
 from app.models.platform.user_avatar import (
@@ -86,7 +86,7 @@ def uploaded_digest(user_id: int, url: str | None) -> str | None:
 def member_avatar_url(person: str, sha256: str) -> str:
     """Where an installed app is served a member's uploaded picture: under the
     app API, by the install's ``person`` reference rather than the row id."""
-    return f"{APP_SERVER_URL}/members/{person}/avatar/{sha256}"
+    return f"{PLUGIN_SERVER_URL}/members/{person}/avatar/{sha256}"
 
 
 def is_avatar_url(value: str) -> bool:

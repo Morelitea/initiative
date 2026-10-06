@@ -631,7 +631,7 @@ async def claim_uploads(
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
-    from app.db.app_rls import APP_TABLE_ACCESS
+    from app.db.plugin_rls import PLUGIN_TABLE_ACCESS
     from app.db.initiative_rls import INITIATIVE_PATHS
     from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
@@ -717,7 +717,7 @@ async def claim_uploads(
                     session,
                     Path(url).name,
                     leaving={} if carried else saving,
-                    tables=set(APP_TABLE_ACCESS),
+                    tables=set(PLUGIN_TABLE_ACCESS),
                 )
             }
     copies = {

@@ -33,7 +33,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContext,
     GuildContextDep,
@@ -48,7 +48,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
-from app.core.messages import AppMessages, CalendarEventMessages
+from app.core.messages import PluginMessages, CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventSummary,
     CalendarEventCreate,
@@ -86,8 +86,8 @@ logger = logging.getLogger(__name__)
 
 #: The routes an installed app may call. An event answers to its calendar, so
 #: they name the calendars scopes.
-CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
-CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
+CalendarsRead = Annotated[ActorContext, Depends(plugin_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(plugin_scope("calendars:write"))]
 
 
 #: The widest date window a calendar read may ask for: the year view plus
@@ -302,7 +302,7 @@ async def _notify_about_event(
     event: CalendarEvent,
     *,
     key: str,
-    actor: "User | notifications_service.AppAuthor",
+    actor: "User | notifications_service.PluginAuthor",
     role: str,
     data: dict[str, Any] | None = None,
     values: dict[str, str] | None = None,
@@ -787,7 +787,7 @@ async def create_calendar_event(
             # writes under its relationships scope.
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=AppMessages.SCOPE_REQUIRED,
+                detail=PluginMessages.SCOPE_REQUIRED,
             )
         await relationships.set_related(
             session,

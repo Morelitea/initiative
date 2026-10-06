@@ -79,7 +79,7 @@ from app.testing import (
     route_as,
     route_as_install,
 )
-from app.testing.app_clients import CLIENT, install_app
+from app.testing.plugin_clients import CLIENT, install_plugin
 
 pytestmark = pytest.mark.seam
 
@@ -103,7 +103,7 @@ class World:
 
 
 async def _world(session, acting_user, role_session) -> World:
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["projects:read"]
     )
     guild, owner = installed.guild, installed.seat.user

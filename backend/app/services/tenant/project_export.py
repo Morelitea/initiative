@@ -231,7 +231,7 @@ async def build_project_export(
 
     return ProjectExportEnvelope(
         schema_version=SCHEMA_VERSION,
-        app_version=get_version(),
+        plugin_version=get_version(),
         exported_at=datetime.now(timezone.utc),
         exported_by_handle=exported_by_handle,
         source_instance_url=source_instance_url,

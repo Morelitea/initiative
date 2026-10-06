@@ -14,7 +14,7 @@ from app.api.deps import (
     ActorUserDep,
     RLSSessionDep,
     SessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -55,7 +55,7 @@ initiative_router = APIRouter(
 
 #: The routes an installed app may call. A status column is its project's, so
 #: it answers to the projects scopes.
-ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
+ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
 
 
 def _sorted(statuses: List[TaskStatus]) -> List[TaskStatus]:

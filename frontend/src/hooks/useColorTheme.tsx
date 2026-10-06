@@ -43,7 +43,7 @@ const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
  * A color theme's tokens as CSS custom properties (`--background` →
  * `oklch(…)`), for one resolved mode. What {@link useColorTheme} applies to
  * this document, and what an embedded app is handed so it can wear the same
- * palette (see `CommunityAppPage`).
+ * palette (see `CommunityPluginPage`).
  */
 export const themeCssVariables = (
   colorThemeId: string,

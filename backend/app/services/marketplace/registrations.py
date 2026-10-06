@@ -1,7 +1,7 @@
 """Managing the deployment's app service registrations.
 
 Every app splits the same way, whatever published its listing
-(:mod:`app.models.platform.app_service_registration`):
+(:mod:`app.models.platform.plugin_service_registration`):
 
 * **Its listing gives the app facts.** A listing from any source (the
   registry, a local upload, the operator's catalog directory, the build) may
@@ -13,7 +13,7 @@ Every app splits the same way, whatever published its listing
 * **The operator gives the deployment facts**: where the app runs, the keys
   its container signs with, its vendor values, the switch, the mandatory flag
   and the origins. Through the ``apps.manage`` endpoints, or in
-  ``APP_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
+  ``PLUGIN_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
   entry's ``vendor_env`` names the environment variables holding its vendor
   values, which are sealed into the registration on each boot. An entry for an
   app whose listing has not arrived waits for it: the listing apply that
@@ -32,7 +32,7 @@ One rule the reconciler keeps, about not undoing a person: it never re-enables
 a registration an operator disabled — deactivating an app is the
 incident-response lever, so a restart must not quietly reverse it.
 
-Everything here runs on the system engine: ``app_service_registrations`` has no
+Everything here runs on the system engine: ``plugin_service_registrations`` has no
 request-path write grant.
 """
 
@@ -52,17 +52,17 @@ from jwt.exceptions import InvalidKeyError, PyJWKError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import ALL_SCOPES, app_scope_target
+from app.core.plugin_scopes import ALL_SCOPES, plugin_scope_target
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.messages import AppServiceMessages
-from app.core.security import app_platform_signing_enabled
-from app.models.platform.app_service_registration import (
+from app.core.messages import PluginServiceMessages
+from app.core.security import plugin_platform_signing_enabled
+from app.models.platform.plugin_service_registration import (
     IMAGE_REFERENCE_MAX_LENGTH,
     LISTING_STATED_FIELDS,
-    MAX_APP_ID_LENGTH,
+    MAX_PLUGIN_ID_LENGTH,
     REFERENCE_SECTORS,
-    AppServiceRegistration,
+    PluginServiceRegistration,
     RegistrationKind,
     RegistrationSource,
 )
@@ -72,7 +72,7 @@ from app.models.platform.publisher import (
     publisher_prefix,
 )
 from app.services import audit as audit_service
-from app.services.marketplace.app_keys import (
+from app.services.marketplace.plugin_keys import (
     PRIVATE_JWK_MEMBERS,
     PUBLIC_JWK_TYPES,
     KeySetUnreadableError,
@@ -151,7 +151,7 @@ __all__ = [
 #: same shape the catalog requires, checked as an explicit set so a stored id is
 #: exactly what a URL and a JWT audience will carry.
 _PUBLIC_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
-_MAX_PUBLIC_ID = MAX_APP_ID_LENGTH
+_MAX_PUBLIC_ID = MAX_PLUGIN_ID_LENGTH
 _MAX_BASE_URL = 1000
 _MAX_ORIGIN = 253 + 16
 _MAX_ORIGINS = 20
@@ -162,7 +162,7 @@ def _bad_request(code: str, detail: str) -> HTTPException:
     return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
 
 
-def row_browser_base(row: AppServiceRegistration) -> Optional[str]:
+def row_browser_base(row: PluginServiceRegistration) -> Optional[str]:
     """Where a browser loads the app's surfaces, or ``None`` for an app that
     has no location yet."""
     return row.embed_origin or row.base_url
@@ -171,7 +171,7 @@ def row_browser_base(row: AppServiceRegistration) -> Optional[str]:
 def _registry_managed() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_409_CONFLICT,
-        detail=AppServiceMessages.REGISTRY_MANAGED,
+        detail=PluginServiceMessages.REGISTRY_MANAGED,
     )
 
 
@@ -184,10 +184,10 @@ def check_signing_configured() -> None:
     The keypair is required and has no fallback to any other configured key, so
     an unset one is reported as configuration rather than silently substituted.
     """
-    if not app_platform_signing_enabled():
+    if not plugin_platform_signing_enabled():
         raise HTTPException(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AppServiceMessages.SIGNING_NOT_CONFIGURED,
+            detail=PluginServiceMessages.SIGNING_NOT_CONFIGURED,
         )
 
 
@@ -195,18 +195,18 @@ def normalize_public_id(value: str) -> str:
     cleaned = (value or "").strip().lower()
     if not cleaned or len(cleaned) > _MAX_PUBLIC_ID:
         raise _bad_request(
-            AppServiceMessages.INVALID_PUBLIC_ID,
+            PluginServiceMessages.INVALID_PUBLIC_ID,
             f"public_id must be 1..{_MAX_PUBLIC_ID} characters",
         )
     for char in cleaned:
         if char not in _PUBLIC_ID_CHARS:
             raise _bad_request(
-                AppServiceMessages.INVALID_PUBLIC_ID,
+                PluginServiceMessages.INVALID_PUBLIC_ID,
                 f"public_id contains {char!r}, which is not allowed",
             )
     if "." not in cleaned:
         raise _bad_request(
-            AppServiceMessages.INVALID_PUBLIC_ID,
+            PluginServiceMessages.INVALID_PUBLIC_ID,
             "public_id must be '<publisher>.<slug>'",
         )
     return cleaned
@@ -233,7 +233,7 @@ def _normalize_url_base(value: str, *, code: str, field: str) -> str:
 def normalize_base_url(value: str) -> str:
     """Where Initiative's own server calls this app."""
     return _normalize_url_base(
-        value, code=AppServiceMessages.INVALID_BASE_URL, field="base_url"
+        value, code=PluginServiceMessages.INVALID_BASE_URL, field="base_url"
     )
 
 
@@ -246,7 +246,7 @@ def normalize_embed_origin(value: str) -> str:
     path prefix can therefore say so here as well.
     """
     return _normalize_url_base(
-        value, code=AppServiceMessages.INVALID_EMBED_ORIGIN, field="embed_origin"
+        value, code=PluginServiceMessages.INVALID_EMBED_ORIGIN, field="embed_origin"
     )
 
 
@@ -268,17 +268,17 @@ def normalize_origin(value: str) -> str:
     cleaned = (value or "").strip().rstrip("/")
     if not cleaned or len(cleaned) > _MAX_ORIGIN:
         raise _bad_request(
-            AppServiceMessages.INVALID_ORIGIN, "origin has an unusable length"
+            PluginServiceMessages.INVALID_ORIGIN, "origin has an unusable length"
         )
     parsed = urlparse(cleaned)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise _bad_request(
-            AppServiceMessages.INVALID_ORIGIN,
+            PluginServiceMessages.INVALID_ORIGIN,
             "origin must be 'scheme://host[:port]'",
         )
     if parsed.path or parsed.query or parsed.fragment:
         raise _bad_request(
-            AppServiceMessages.INVALID_ORIGIN, "origin carries no path or query"
+            PluginServiceMessages.INVALID_ORIGIN, "origin carries no path or query"
         )
     return origin_of(cleaned)
 
@@ -296,7 +296,7 @@ def normalize_origins(
         return [origin_of(browser_base)]
     if len(items) > _MAX_ORIGINS:
         raise _bad_request(
-            AppServiceMessages.INVALID_ORIGIN,
+            PluginServiceMessages.INVALID_ORIGIN,
             f"at most {_MAX_ORIGINS} origins per registration",
         )
     normalized: list[str] = []
@@ -329,7 +329,7 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
         return None
     if not isinstance(value, dict):
         raise _bad_request(
-            AppServiceMessages.INVALID_JWKS,
+            PluginServiceMessages.INVALID_JWKS,
             "expected a JWKS object",
         )
     if not value:
@@ -338,7 +338,7 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     keys = value.get("keys")
     if not isinstance(keys, list) or not keys:
         raise _bad_request(
-            AppServiceMessages.INVALID_JWKS,
+            PluginServiceMessages.INVALID_JWKS,
             "expected {'keys': [...]} holding at least one key",
         )
 
@@ -346,31 +346,31 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     for entry in keys:
         if not isinstance(entry, dict):
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 "every entry in 'keys' must be an object",
             )
         kid = entry.get("kid")
         if not isinstance(kid, str) or not kid.strip():
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 "every key needs a 'kid' — a token names one to select it",
             )
         if kid in seen:
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 f"two keys share the kid {kid!r}",
             )
         seen.add(kid)
         if entry.get("kty") not in PUBLIC_JWK_TYPES:
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 f"key {kid!r} is not a public key type "
                 f"({', '.join(sorted(PUBLIC_JWK_TYPES))})",
             )
         private = sorted(PRIVATE_JWK_MEMBERS.intersection(entry))
         if private:
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 f"key {kid!r} carries private material ({', '.join(private)}) — "
                 "provision the public half",
             )
@@ -378,7 +378,7 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
             PyJWK.from_dict(entry)
         except (PyJWKError, InvalidKeyError, KeyError, TypeError, ValueError) as exc:
             raise _bad_request(
-                AppServiceMessages.INVALID_JWKS,
+                PluginServiceMessages.INVALID_JWKS,
                 f"key {kid!r} is unusable: {exc}",
             ) from exc
 
@@ -393,17 +393,17 @@ def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
         return None
     if len(cleaned) > _MAX_BASE_URL:
         raise _bad_request(
-            AppServiceMessages.INVALID_JWKS_URI, "jwks_uri has an unusable length"
+            PluginServiceMessages.INVALID_JWKS_URI, "jwks_uri has an unusable length"
         )
     parsed = urlparse(cleaned)
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
         raise _bad_request(
-            AppServiceMessages.INVALID_JWKS_URI,
+            PluginServiceMessages.INVALID_JWKS_URI,
             "jwks_uri carries no query, fragment, or credentials",
         )
     if not jwks_uri_allowed(cleaned, base_url):
         raise _bad_request(
-            AppServiceMessages.INVALID_JWKS_URI,
+            PluginServiceMessages.INVALID_JWKS_URI,
             "jwks_uri must be https on base_url's own origin",
         )
     return cleaned
@@ -414,9 +414,9 @@ def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
 
 async def list_registrations(
     session: AsyncSession,
-) -> Sequence[AppServiceRegistration]:
+) -> Sequence[PluginServiceRegistration]:
     result = await session.exec(
-        select(AppServiceRegistration).order_by(AppServiceRegistration.public_id.asc())
+        select(PluginServiceRegistration).order_by(PluginServiceRegistration.public_id.asc())
     )
     return result.all()
 
@@ -425,7 +425,7 @@ async def list_registrations(
 class RegistrationView:
     """A registration with its publisher, and whether it is live."""
 
-    row: AppServiceRegistration
+    row: PluginServiceRegistration
     publisher: Publisher
     live: bool
 
@@ -436,12 +436,12 @@ async def registration_views(
     """Every registration, or the one ``registration_id`` names, each with its
     publisher and whether it is live, in one statement."""
     query = (
-        select(AppServiceRegistration, Publisher, live_registration_clause())
-        .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
-        .order_by(AppServiceRegistration.public_id.asc())
+        select(PluginServiceRegistration, Publisher, live_registration_clause())
+        .join(Publisher, Publisher.id == PluginServiceRegistration.publisher_id)
+        .order_by(PluginServiceRegistration.public_id.asc())
     )
     if registration_id is not None:
-        query = query.where(AppServiceRegistration.id == registration_id)
+        query = query.where(PluginServiceRegistration.id == registration_id)
     rows = (await session.exec(query)).all()
     return [
         RegistrationView(row=row, publisher=publisher, live=bool(live))
@@ -451,22 +451,22 @@ async def registration_views(
 
 async def get_registration(
     session: AsyncSession, registration_id: int
-) -> AppServiceRegistration:
-    row = await session.get(AppServiceRegistration, registration_id)
+) -> PluginServiceRegistration:
+    row = await session.get(PluginServiceRegistration, registration_id)
     if row is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=AppServiceMessages.NOT_FOUND,
+            detail=PluginServiceMessages.NOT_FOUND,
         )
     return row
 
 
 async def _by_public_id(
     session: AsyncSession, public_id: str
-) -> Optional[AppServiceRegistration]:
+) -> Optional[PluginServiceRegistration]:
     result = await session.exec(
-        select(AppServiceRegistration).where(
-            AppServiceRegistration.public_id == public_id
+        select(PluginServiceRegistration).where(
+            PluginServiceRegistration.public_id == public_id
         )
     )
     return result.first()
@@ -488,7 +488,7 @@ async def create_registration(
     enabled: bool = True,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Set up an app service's deployment facts before its listing arrives.
 
     Nothing is fetched from the app: the operator names it, its addresses and
@@ -506,11 +506,11 @@ async def create_registration(
     if await _by_public_id(session, resolved_id) is not None:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.DUPLICATE_PUBLIC_ID,
+            detail=PluginServiceMessages.DUPLICATE_PUBLIC_ID,
         )
     publisher = await ensure_publisher(session, publisher_prefix(resolved_id))
 
-    row = AppServiceRegistration(
+    row = PluginServiceRegistration(
         public_id=resolved_id,
         publisher_id=publisher.id,
         base_url=base_url,
@@ -527,9 +527,9 @@ async def create_registration(
     await session.flush()
     await audit_service.record(
         session,
-        event_type=AuditEventType.APP_SERVICE_CREATED,
+        event_type=AuditEventType.PLUGIN_SERVICE_CREATED,
         actor_user_id=actor_user_id,
-        target_type="app_service_registration",
+        target_type="plugin_service_registration",
         target_id=row.id,
         detail={
             **audit_service.changed_fields(
@@ -546,7 +546,7 @@ async def create_registration(
 
 async def _apply_vendor(
     session: AsyncSession,
-    row: AppServiceRegistration,
+    row: PluginServiceRegistration,
     submitted: Optional[dict[str, Optional[str]]],
 ) -> list[str]:
     """Set the vendor values the form sent, against the fields the listing's
@@ -574,7 +574,7 @@ async def update_registration(
     enabled: Optional[bool] = None,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Edit a registration's deployment facts.
 
     An empty ``embed_origin`` clears it, putting both surfaces back on
@@ -588,7 +588,7 @@ async def update_registration(
         value is not None for value in placement
     ):
         raise _bad_request(
-            AppServiceMessages.DECLARATIVE_NOT_PLACED,
+            PluginServiceMessages.DECLARATIVE_NOT_PLACED,
             "a declarative app has no address, origins or keys",
         )
     _write_placement(
@@ -618,9 +618,9 @@ async def update_registration(
     if changed["changed"] or vendor_changed:
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_SERVICE_UPDATED,
+            event_type=AuditEventType.PLUGIN_SERVICE_UPDATED,
             actor_user_id=actor_user_id,
-            target_type="app_service_registration",
+            target_type="plugin_service_registration",
             target_id=row.id,
             detail=changed,
         )
@@ -634,7 +634,7 @@ async def update_registration(
 
 
 def _write_placement(
-    row: AppServiceRegistration,
+    row: PluginServiceRegistration,
     *,
     base_url: Optional[str],
     embed_origin: Optional[str],
@@ -696,9 +696,9 @@ async def delete_registration(
     await session.delete(row)
     await audit_service.record(
         session,
-        event_type=AuditEventType.APP_SERVICE_DELETED,
+        event_type=AuditEventType.PLUGIN_SERVICE_DELETED,
         actor_user_id=actor_user_id,
-        target_type="app_service_registration",
+        target_type="plugin_service_registration",
         target_id=registration_id,
         detail={},
     )
@@ -725,7 +725,7 @@ async def _served_key_set(
     if not base_url:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.CONNECT_NEEDS_BASE_URL,
+            detail=PluginServiceMessages.CONNECT_NEEDS_BASE_URL,
         )
     url = key_set_url(base_url)
     try:
@@ -734,11 +734,11 @@ async def _served_key_set(
         logger.info("app services: %s could not be read (%s)", url, exc)
         raise HTTPException(
             status_code=http_status.HTTP_502_BAD_GATEWAY,
-            detail=AppServiceMessages.KEYS_UNREADABLE,
+            detail=PluginServiceMessages.KEYS_UNREADABLE,
         ) from exc
     key_set = normalize_jwks(document)
     if key_set is None:
-        raise _bad_request(AppServiceMessages.INVALID_JWKS, "the app serves no keys")
+        raise _bad_request(PluginServiceMessages.INVALID_JWKS, "the app serves no keys")
     keys = [
         PublishedKey(kid=entry["kid"], fingerprint=jwk_thumbprint(entry))
         for entry in key_set["keys"]
@@ -749,7 +749,7 @@ async def _served_key_set(
 def _keys_changed() -> HTTPException:
     return HTTPException(
         status_code=http_status.HTTP_409_CONFLICT,
-        detail=AppServiceMessages.KEYS_CHANGED,
+        detail=PluginServiceMessages.KEYS_CHANGED,
     )
 
 
@@ -773,7 +773,7 @@ async def connect_registration(
     keys: Sequence[PublishedKey],
     actor_user_id: int | None = None,
     transport: Optional[httpx.AsyncBaseTransport] = None,
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Pin the key set the app serves as the registration's ``jwks``, and
     clear its ``jwks_uri`` so the pinned set is the only one it is verified
     against.
@@ -790,8 +790,8 @@ async def connect_registration(
         raise _keys_changed()
     locked = (
         await session.exec(
-            select(AppServiceRegistration)
-            .where(AppServiceRegistration.id == registration_id)
+            select(PluginServiceRegistration)
+            .where(PluginServiceRegistration.id == registration_id)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
@@ -930,7 +930,7 @@ def _compose(value: Any, *, image: Optional[str]) -> dict[str, str]:
     return {"service": service, "base_url": base_url}
 
 
-def filled_compose(row: AppServiceRegistration) -> Optional[str]:
+def filled_compose(row: PluginServiceRegistration) -> Optional[str]:
     """The registration's Compose service as the operator copies it: its
     image pinned by digest and Initiative's public address filled in."""
     service = (row.compose or {}).get("service")
@@ -1025,7 +1025,7 @@ async def read_listing_registration(
             for scope in (
                 declared_ceiling if isinstance(declared_ceiling, list) else []
             )
-            if isinstance(scope, str) and app_scope_target(scope) is not None
+            if isinstance(scope, str) and plugin_scope_target(scope) is not None
         ),
         what=f"{public_id} ceiling",
     )
@@ -1062,11 +1062,11 @@ async def read_listing_registration(
 
 async def apply_listing_registration(
     session: AsyncSession, registration: ListingRegistration
-) -> AppServiceRegistration:
+) -> PluginServiceRegistration:
     """Write a listing's app facts onto the registration for its service.
 
     The one writer of app facts, for every source. A registration that is not
-    there yet is created, with the deployment facts ``APP_SERVICES_CONFIG``
+    there yet is created, with the deployment facts ``PLUGIN_SERVICES_CONFIG``
     gives it, and is not live until it has a location and keys. The caller
     commits.
     """
@@ -1076,7 +1076,7 @@ async def apply_listing_registration(
         publisher = await ensure_publisher(
             session, publisher_prefix(registration.public_id)
         )
-        row = AppServiceRegistration(
+        row = PluginServiceRegistration(
             public_id=registration.public_id, publisher_id=publisher.id
         )
     before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
@@ -1113,12 +1113,12 @@ async def apply_listing_registration(
     await audit_service.record(
         session,
         event_type=(
-            AuditEventType.APP_SERVICE_CREATED
+            AuditEventType.PLUGIN_SERVICE_CREATED
             if created
-            else AuditEventType.APP_SERVICE_UPDATED
+            else AuditEventType.PLUGIN_SERVICE_UPDATED
         ),
         actor_user_id=None,
-        target_type="app_service_registration",
+        target_type="plugin_service_registration",
         target_id=row.id,
         detail={"via": registration.source, **changed},
     )
@@ -1131,7 +1131,7 @@ async def apply_listing_registration(
 
 @dataclass(frozen=True)
 class ReconcileResult:
-    """What one pass over ``APP_SERVICES_CONFIG`` did."""
+    """What one pass over ``PLUGIN_SERVICES_CONFIG`` did."""
 
     updated: int = 0
     unchanged: int = 0
@@ -1147,7 +1147,7 @@ class ReconcileResult:
 def _load_entries(path: Path) -> list[dict[str, Any]]:
     document = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(document, dict):
-        document = document.get("app_services", [])
+        document = document.get("plugin_services", [])
     if not isinstance(document, list):
         raise ValueError("expected a JSON array of app service entries")
     return [entry for entry in document if isinstance(entry, dict)]
@@ -1155,7 +1155,7 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
 
 @dataclass(frozen=True)
 class DeploymentFacts:
-    """How this deployment runs an app, from an ``APP_SERVICES_CONFIG`` entry.
+    """How this deployment runs an app, from an ``PLUGIN_SERVICES_CONFIG`` entry.
 
     ``None`` is a fact the entry leaves out, which leaves the row's value as
     it is. A container's placement is one statement: an entry that gives its
@@ -1183,7 +1183,7 @@ def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
     stated = [key for key in LISTING_STATED_FIELDS if key in entry]
     if stated:
         raise _bad_request(
-            AppServiceMessages.STATED_BY_LISTING,
+            PluginServiceMessages.STATED_BY_LISTING,
             f"the app's listing states {', '.join(stated)}",
         )
     declared_base = entry.get("base_url")
@@ -1192,13 +1192,13 @@ def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
         entry.get(key) for key in ("embed_origin", "jwks", "jwks_uri")
     ):
         raise _bad_request(
-            AppServiceMessages.INVALID_BASE_URL,
+            PluginServiceMessages.INVALID_BASE_URL,
             "a container's browser address and keys come with its base_url",
         )
     declared_origins = entry.get("allowed_origins") or []
     if not isinstance(declared_origins, list) or len(declared_origins) > _MAX_ORIGINS:
         raise _bad_request(
-            AppServiceMessages.INVALID_ORIGIN,
+            PluginServiceMessages.INVALID_ORIGIN,
             f"allowed_origins must be a list of at most {_MAX_ORIGINS} origins",
         )
     origins = [normalize_origin(str(item)) for item in declared_origins]
@@ -1222,13 +1222,13 @@ def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
 
 
 def configured_facts(public_id: str) -> Optional[DeploymentFacts]:
-    """The facts ``APP_SERVICES_CONFIG`` gives for ``public_id``, or ``None``.
+    """The facts ``PLUGIN_SERVICES_CONFIG`` gives for ``public_id``, or ``None``.
 
     Read when a listing apply creates the registration, so an entry written
     before the listing arrived reaches its row. An entry reconciliation
     refuses gives nothing here either.
     """
-    configured = settings.APP_SERVICES_CONFIG
+    configured = settings.PLUGIN_SERVICES_CONFIG
     if not configured:
         return None
     try:
@@ -1245,7 +1245,7 @@ def configured_facts(public_id: str) -> Optional[DeploymentFacts]:
     return None
 
 
-def apply_deployment_facts(row: AppServiceRegistration, facts: DeploymentFacts) -> bool:
+def apply_deployment_facts(row: PluginServiceRegistration, facts: DeploymentFacts) -> bool:
     """Write an entry's facts onto a registration, and say whether any moved.
 
     Vendor values are sealed from the environment variables the entry names.
@@ -1303,7 +1303,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     A malformed file or an unreadable path costs that file, and a refused entry
     costs that entry, and nothing else — the caller keeps booting.
     """
-    configured = settings.APP_SERVICES_CONFIG
+    configured = settings.PLUGIN_SERVICES_CONFIG
     if not configured:
         return ReconcileResult()
 
@@ -1316,7 +1316,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
 
     updated = unchanged = waiting = skipped = 0
     # The rows this pass changed, with what they looked like before.
-    edited: list[tuple[AppServiceRegistration, dict]] = []
+    edited: list[tuple[PluginServiceRegistration, dict]] = []
     seen: set[str] = set()
 
     for entry in entries:
@@ -1372,9 +1372,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     for edit, was in edited:
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_SERVICE_UPDATED,
+            event_type=AuditEventType.PLUGIN_SERVICE_UPDATED,
             actor_user_id=None,
-            target_type="app_service_registration",
+            target_type="plugin_service_registration",
             target_id=edit.id,
             detail={
                 "via": "config",

@@ -30,7 +30,7 @@ You are a senior React TypeScript engineer with deep expertise in modern fronten
 - Components use PascalCase filenames, hooks use `useThing` convention
 - The app communicates with a FastAPI backend via `VITE_API_URL`
 - Guild context is passed via `X-Guild-ID` header in API calls
-- Version is injected as `__APP_VERSION__` constant
+- Version is injected as `__PLUGIN_VERSION__` constant
 
 ## Development Commands
 

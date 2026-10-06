@@ -1408,7 +1408,7 @@ async def test_the_insights_button_says_what_the_deployment_is_missing(
 
 
 @pytest.mark.parametrize("signing", [True, False])
-async def test_the_app_config_says_whether_insights_can_open(
+async def test_the_plugin_config_says_whether_insights_can_open(
     client: AsyncClient, monkeypatch, handoff_signing_key, signing
 ) -> None:
     from app.core.config import settings as app_settings

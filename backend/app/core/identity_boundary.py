@@ -17,7 +17,7 @@ install's standing is in:
   either type accepts only a reference, looked up in what the standing
   statement resolved for this request (:attr:`InstallBoundary.named`). A row
   id, or a reference that names nobody in this install's sector, is a 422
-  (``APP_REFERENCE_UNKNOWN``).
+  (``PLUGIN_REFERENCE_UNKNOWN``).
 - **handler**: the route's own code runs. Both types behave as ``int``, so a
   model built from rows and a payload stored as JSON hold row ids.
 - **response**: the route's return value is serialized. A :data:`GuildId`
@@ -68,7 +68,7 @@ from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
 from app.core.config import settings
-from app.core.messages import AppMessages
+from app.core.messages import PluginMessages
 from app.models.platform.identity_ref import IdentityEntity
 
 __all__ = [
@@ -104,11 +104,11 @@ class BoundaryPhase(str, Enum):
 
 
 #: The pydantic error type a reference that names nobody raises under.
-UNKNOWN_REFERENCE_ERROR = "app_reference_unknown"
+UNKNOWN_REFERENCE_ERROR = "plugin_reference_unknown"
 
 
 def _unknown() -> PydanticCustomError:
-    return PydanticCustomError(UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+    return PydanticCustomError(UNKNOWN_REFERENCE_ERROR, PluginMessages.REFERENCE_UNKNOWN)
 
 
 @dataclass
@@ -266,7 +266,7 @@ def _serializer(entity: IdentityEntity):
 
 #: The schema each type publishes, in both modes: an integer, which is what a
 #: person sends and receives, marked with what it names so the app API's
-#: document (``app.api.app_openapi``) can publish it as an install's reference.
+#: document (``app.api.plugin_openapi``) can publish it as an install's reference.
 _PERSON_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "person"})
 _GUILD_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "community"})
 

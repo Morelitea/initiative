@@ -621,7 +621,7 @@ describe("CommunityHomePage", () => {
     stubInitiatives();
     stubTools();
     server.use(
-      communityHttp.get("/apps/3", () =>
+      communityHttp.get("/plugins/3", () =>
         HttpResponse.json({
           id: 3,
           name: "Auto",

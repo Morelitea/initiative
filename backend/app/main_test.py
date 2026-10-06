@@ -22,7 +22,7 @@ from app.main import (
     SecurityHeadersMiddleware,
     validation_exception_handler,
 )
-from app.testing import captcha_switched_on, create_app_service_registration
+from app.testing import captcha_switched_on, create_plugin_service_registration
 
 
 async def test_validation_handler_strips_input_and_url() -> None:
@@ -150,16 +150,16 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
 
 @pytest.mark.parametrize(
     "route",
-    ["/c/7/apps/12", "/c/7/initiatives/3/apps/12", "/"],
+    ["/c/7/plugins/12", "/c/7/initiatives/3/plugins/12", "/"],
 )
-async def test_every_document_frames_the_registered_apps(
+async def test_every_document_frames_the_registered_plugins(
     client: AsyncClient, session: AsyncSession, route: str
 ) -> None:
     """One header, whatever the route. An app opens the same way from a guild
     page, from inside an initiative, and from a tab the SPA navigated to after
     loading somewhere else — so the permission cannot be a property of which
     document the browser happened to ask for."""
-    await create_app_service_registration(
+    await create_plugin_service_registration(
         session,
         public_id="tests.framed",
         base_url="https://framed.example.test",

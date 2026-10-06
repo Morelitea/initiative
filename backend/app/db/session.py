@@ -21,9 +21,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
 
 from app.core import audit_context, metrics
-from app.core.app_access_token import InstallAccessToken
+from app.core.plugin_access_token import InstallAccessToken
 from app.core.config import settings
-from app.core.identify import bearer_app_token
+from app.core.identify import bearer_plugin_token
 from app.core.tools import Tool
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db import cohorts, gucs
@@ -209,7 +209,7 @@ def served_guild_id(connection: HTTPConnection) -> int | None:
 
     An installed app's calls are about the community its token names, whatever
     the path says, so that community's cohort serves them."""
-    token = bearer_app_token(connection)
+    token = bearer_plugin_token(connection)
     if isinstance(token, InstallAccessToken):
         return token.guild_id
     return cohorts.addressed_guild_id(connection.path_params)

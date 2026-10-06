@@ -248,7 +248,7 @@ export const initiativeRoute = (initiativeId: number): string =>
  * the initiative page with that tool's tab selected, e.g. "/i/12/counter-groups".
  *
  * `initiativeId === null` names a COMMUNITY-LEVEL entity. Calendars are the only
- * tool that has any (an app-installed calendar has no `initiative_id`), and
+ * tool that has any (an plugin-installed calendar has no `initiative_id`), and
  * they keep their community routes. Treat `null` as "address me at the community
  * route", never as "initiative unknown".
  */

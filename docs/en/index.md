@@ -72,11 +72,11 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
     [:octicons-arrow-right-24: How-to guides](guides/index.md)
 
--   :material-storefront-outline: __Apps & the marketplace__
+-   :material-storefront-outline: __Plugins & the marketplace__
 
     Ready-made dashboards and apps, built by groups like yours.
 
-    [:octicons-arrow-right-24: Apps & the marketplace](guides/apps-and-marketplace.md)
+    [:octicons-arrow-right-24: Apps & the marketplace](guides/plugins-and-marketplace.md)
 
 -   :material-account-multiple-check-outline: __Sharing & access__
 
@@ -114,7 +114,7 @@ Which is how the payroll planning stays away from the seasonal staff, and next y
 
 Whatever your group needs, some other group has needed precisely the same thing, built it, spent three years rebuilding it by hand every January, finally snapped, and shared it.
 
-That's the **marketplace**: ready-made dashboards and apps, about two clicks each. It's curated rather than open season — yours holds what ships with Initiative plus whatever the person running your server approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+That's the **marketplace**: ready-made dashboards and apps, about two clicks each. It's curated rather than open season — yours holds what ships with Initiative plus whatever the person running your server approved. See [Apps & the marketplace](guides/plugins-and-marketplace.md).
 
 ## Why we built this
 

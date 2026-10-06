@@ -16,7 +16,7 @@
  * Names, descriptions, and option labels come from each widget module's own
  * `meta`, which is what lets an installed listing describe itself here without
  * an app release. The dialog's own chrome — and the binding *source* names,
- * which are our endpoints — stay app-owned.
+ * which are our endpoints — stay plugin-owned.
  */
 
 import type { TFunction } from "i18next";

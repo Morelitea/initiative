@@ -24,9 +24,9 @@ from typing import Callable
 
 from sqlmodel import SQLModel
 
-from app.core.security import app_platform_signing_enabled
+from app.core.security import plugin_platform_signing_enabled
 from app.db.jti_blocklist import purge_expired_jtis
-from app.models.platform.app_assertion_jti import AppAssertionJti
+from app.models.platform.plugin_assertion_jti import PluginAssertionJti
 from app.models.platform.billing import BillingJti
 from app.services.platform.billing import billing_inbound_enabled
 
@@ -50,7 +50,7 @@ _BLOCKLISTS: tuple[_Blocklist, ...] = (
     _Blocklist(BillingJti, billing_inbound_enabled, "billing"),
     # A registration exists only where the app platform can sign, so that is
     # also where an app can have presented a client assertion.
-    _Blocklist(AppAssertionJti, app_platform_signing_enabled, "app-assertion"),
+    _Blocklist(PluginAssertionJti, plugin_platform_signing_enabled, "plugin-assertion"),
 )
 
 

@@ -188,17 +188,17 @@ describe("notificationText — mentions", () => {
 });
 
 describe("an app asking to act as the reader", () => {
-  const request = notice("app_consent_requested", {
+  const request = notice("plugin_consent_requested", {
     community_id: 4,
-    app_id: 7,
-    app_name: "Auto",
+    plugin_id: 7,
+    plugin_name: "Auto",
     label: "Comment on the linked issue",
     target_path: "/?app=7",
   });
 
   it("names the app and quotes what it asked", () => {
     expect(notificationText(request, t)).toBe(
-      `notifications.appConsentRequested(${JSON.stringify({
+      `notifications.pluginConsentRequested(${JSON.stringify({
         app: "Auto",
         label: "Comment on the linked issue",
       })})`
@@ -211,17 +211,17 @@ describe("an app asking to act as the reader", () => {
 });
 
 describe("an app version waiting for the seat", () => {
-  const waiting = notice("app_update_pending", {
+  const waiting = notice("plugin_update_pending", {
     community_id: 4,
-    app_id: 7,
-    app_name: "Auto",
+    plugin_id: 7,
+    plugin_name: "Auto",
     version: "1.2.0",
     target_path: "/settings/integrations",
   });
 
   it("names the app and the version", () => {
     expect(notificationText(waiting, t)).toBe(
-      `notifications.appUpdatePending(${JSON.stringify({ app: "Auto", version: "1.2.0" })})`
+      `notifications.pluginUpdatePending(${JSON.stringify({ app: "Auto", version: "1.2.0" })})`
     );
   });
 

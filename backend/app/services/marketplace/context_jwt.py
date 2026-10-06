@@ -12,11 +12,11 @@ are what the shape buys:
 * **It carries no person.** There is no ``sub``, no email, no display name. Where
   a source needs a member's own vendor credential the token carries
   ``connection_refs`` — the opaque handles from :mod:`app.services.tenant.
-  app_connections` — so the app selects the right credential while learning
+  plugin_connections` — so the app selects the right credential while learning
   nothing about who the member is. The embed handoff is the one channel that
   carries a real identity, because that is a person's session crossing into an
   interactive surface; this one is the platform calling a service.
-* **Its audience is one app.** ``aud`` is ``initiative-app:<public_id>``, so a
+* **Its audience is one app.** ``aud`` is ``initiative-plugin:<public_id>``, so a
   token minted for one app is not accepted by another even if it is somehow
   handed over.
 
@@ -29,8 +29,8 @@ document, stamped with the same ``kid`` the token header carries, so an app can
 verify and an operator can rotate without a coordinated restart.
 
 The keypair is dedicated and has no fallback (see
-:func:`app.core.security.resolve_app_platform_signing_material`): the one in
-``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM``, or else the one the deployment
+:func:`app.core.security.resolve_plugin_platform_signing_material`): the one in
+``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM``, or else the one the deployment
 generated and stored. With neither loaded this module raises, and callers turn
 that into a fail-closed 503 rather than signing app traffic with some other
 boundary's key.
@@ -50,10 +50,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.security import (
-    APP_CONTEXT_TOKEN_TYPE,
-    APP_PLATFORM_ISSUER,
-    app_platform_audience,
-    resolve_app_platform_signing_material,
+    PLUGIN_CONTEXT_TOKEN_TYPE,
+    PLUGIN_PLATFORM_ISSUER,
+    plugin_platform_audience,
+    resolve_plugin_platform_signing_material,
 )
 
 __all__ = [
@@ -124,7 +124,7 @@ def mint_context_token(
     *,
     public_id: str,
     guild_ref: str,
-    app_install_id: int,
+    plugin_install_id: int,
     scope: str,
     endpoint_id: Optional[str] = None,
     hook: Optional[str] = None,
@@ -161,12 +161,12 @@ def mint_context_token(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "iss": APP_PLATFORM_ISSUER,
-        "aud": app_platform_audience(public_id),
+        "iss": PLUGIN_PLATFORM_ISSUER,
+        "aud": plugin_platform_audience(public_id),
         "iat": int(now.timestamp()),
         "exp": now + lifetime,
         "community_ref": guild_ref,
-        "app_install_id": app_install_id,
+        "plugin_install_id": plugin_install_id,
         "scope": scope,
     }
     # Each optional claim appears only when it means something, so an app can
@@ -186,8 +186,8 @@ def mint_context_token(
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
 
-    key, algorithm, kid = resolve_app_platform_signing_material()
-    headers: dict[str, Any] = {"typ": APP_CONTEXT_TOKEN_TYPE}
+    key, algorithm, kid = resolve_plugin_platform_signing_material()
+    headers: dict[str, Any] = {"typ": PLUGIN_CONTEXT_TOKEN_TYPE}
     if kid:
         headers["kid"] = kid
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
@@ -210,7 +210,7 @@ def context_jwks() -> dict[str, Any]:
     """
     global _jwks_cache
 
-    private_pem, algorithm, kid = resolve_app_platform_signing_material()
+    private_pem, algorithm, kid = resolve_plugin_platform_signing_material()
     if _jwks_cache is not None:
         cached_pem, cached_kid, document = _jwks_cache
         if cached_pem == private_pem and cached_kid == kid:
@@ -222,11 +222,11 @@ def context_jwks() -> dict[str, Any]:
         )
     except (ValueError, TypeError) as exc:
         raise ContextTokenError(
-            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM is not a readable private key"
+            "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM is not a readable private key"
         ) from exc
     if not isinstance(private_key, rsa.RSAPrivateKey):
         raise ContextTokenError(
-            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM must be an RSA key for RS256"
+            "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM must be an RSA key for RS256"
         )
 
     numbers = private_key.public_key().public_numbers()

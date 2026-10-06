@@ -42,8 +42,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_APP_DIR = Path(__file__).resolve().parents[1]
-_BACKEND_DIR = _APP_DIR.parent
+_PLUGIN_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_DIR = _PLUGIN_DIR.parent
 
 _SCANNED = ("api/v1/platform_endpoints", "services/platform")
 
@@ -212,7 +212,7 @@ def _scanned_files() -> list[Path]:
     return [
         path
         for root in _SCANNED
-        for path in sorted((_APP_DIR / root).rglob("*.py"))
+        for path in sorted((_PLUGIN_DIR / root).rglob("*.py"))
         if not path.name.endswith("_test.py")
     ]
 

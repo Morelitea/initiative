@@ -52,7 +52,7 @@ async def _materialize_lazy_shared_tables():
     await _ensure_table()
 
 
-def _app_role_family() -> list[str]:
+def _plugin_role_family() -> list[str]:
     """The fixed app roles plus this worker's prefixed platform ladder."""
     from app.db.schema_provisioning import billing_role_name, platform_role_name
 
@@ -62,14 +62,14 @@ def _app_role_family() -> list[str]:
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         "app_superadmin",
-        "app_install_base",
+        "plugin_install_base",
         *(platform_role_name(t.value) for t in UserRole),
         billing_role_name(),
     ]
 
 
 async def test_no_app_role_is_superuser_and_only_app_admin_bypasses_rls(engine):
-    roles = _app_role_family()
+    roles = _plugin_role_family()
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
@@ -811,7 +811,7 @@ async def test_no_app_role_can_create_in_public(engine):
     unqualified-name trigger functions/types via search_path — only the
     provisioning (owner) role may define objects."""
     async with engine.connect() as conn:
-        for role in _app_role_family():
+        for role in _plugin_role_family():
             can_create = (
                 await conn.execute(
                     text("SELECT has_schema_privilege(:r, 'public', 'CREATE')"),

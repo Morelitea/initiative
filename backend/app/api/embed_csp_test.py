@@ -9,7 +9,7 @@ that takes an origin back out of it.
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.embed_csp import app_frame_policy
+from app.api.embed_csp import plugin_frame_policy
 from app.core.config import settings
 from app.models.platform.publisher import Publisher
 from app.services.marketplace import registration_lookup
@@ -17,7 +17,7 @@ from app.services.marketplace.registration_lookup import (
     frame_origins,
     invalidate_registrations,
 )
-from app.testing import create_app_service_registration, create_publisher
+from app.testing import create_plugin_service_registration, create_publisher
 
 
 FRAMED = "https://framed.example.test"
@@ -26,7 +26,7 @@ SECOND = "https://second.example.test"
 
 class TestTheRegisteredOrigins:
     async def test_a_live_registration_is_named(self, session: AsyncSession):
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="tests.framed",
             base_url=FRAMED,
@@ -41,13 +41,13 @@ class TestTheRegisteredOrigins:
         """Two apps served from one origin put it on the list once. The order
         is the sorted one, so the header is the same string until a
         registration changes rather than varying with row order."""
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="tests.first",
             base_url=FRAMED,
             allowed_origins=[FRAMED, SECOND],
         )
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="tests.second",
             base_url=SECOND,
@@ -62,7 +62,7 @@ class TestTheRegisteredOrigins:
     async def test_a_stopped_registration_is_not_named(self, session: AsyncSession):
         """The kill switch reaches the header: a stopped app is not framed
         while it is stopped."""
-        registration = await create_app_service_registration(
+        registration = await create_plugin_service_registration(
             session,
             public_id="tests.stopped",
             base_url=FRAMED,
@@ -80,7 +80,7 @@ class TestTheRegisteredOrigins:
         self, session: AsyncSession
     ):
         """A publisher's switch reaches the header for every app under it."""
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="offpub.framed",
             base_url=FRAMED,
@@ -98,7 +98,7 @@ class TestTheRegisteredOrigins:
         self, session: AsyncSession
     ):
         """No key set, not live, not framed."""
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="tests.keyless",
             base_url=FRAMED,
@@ -110,22 +110,22 @@ class TestTheRegisteredOrigins:
 
 
 class TestThePolicy:
-    async def test_a_document_may_frame_a_registered_app(self, session: AsyncSession):
-        await create_app_service_registration(
+    async def test_a_document_may_frame_a_registered_plugin(self, session: AsyncSession):
+        await create_plugin_service_registration(
             session,
             public_id="tests.framed",
             base_url=FRAMED,
             allowed_origins=[FRAMED],
         )
 
-        assert FRAMED in _directive(await app_frame_policy(), "frame-src")
+        assert FRAMED in _directive(await plugin_frame_policy(), "frame-src")
 
     async def test_a_deployment_with_nothing_live_frames_nothing(
         self, session: AsyncSession
     ):
         """Nothing live, nothing named: the document carries the same policy
         the middleware puts on everything else."""
-        registration = await create_app_service_registration(
+        registration = await create_plugin_service_registration(
             session,
             public_id="tests.stopped",
             base_url=FRAMED,
@@ -136,7 +136,7 @@ class TestThePolicy:
         await session.commit()
         invalidate_registrations()
 
-        assert await app_frame_policy() == _ordinary_policy()
+        assert await plugin_frame_policy() == _ordinary_policy()
 
     async def test_an_unreadable_list_leaves_the_ordinary_policy(self, monkeypatch):
         """Answered, not raised: this runs on the route that serves every
@@ -148,10 +148,10 @@ class TestThePolicy:
 
         monkeypatch.setattr(registration_lookup, "frame_origins", boom)
 
-        assert await app_frame_policy() == _ordinary_policy()
+        assert await plugin_frame_policy() == _ordinary_policy()
 
 
-def test_the_ordinary_policy_frames_no_app():
+def test_the_ordinary_policy_frames_no_plugin():
     """What the middleware puts on every response that is not a document."""
     assert "example.test" not in _directive(_ordinary_policy(), "frame-src")
 

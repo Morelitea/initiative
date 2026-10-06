@@ -68,7 +68,7 @@ class DashboardAdapter(ToolExportAdapter):
         if not is_exportable(dashboard.listing_uid, builtin):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ExportMessages.EXPORT_THIRD_PARTY_APP,
+                detail=ExportMessages.EXPORT_THIRD_PARTY_PLUGIN,
             )
         return dashboard
 

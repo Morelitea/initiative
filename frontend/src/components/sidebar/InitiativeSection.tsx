@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  CommunityAppRead,
+  CommunityPluginRead,
   InitiativeRead,
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -22,7 +22,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { initiativeAppPath } from "@/lib/appSurfaces";
+import { initiativePluginPath } from "@/lib/pluginSurfaces";
 import { communityPath } from "@/lib/communityUrl";
 import { getItem, setItem } from "@/lib/storage";
 import {
@@ -47,7 +47,7 @@ export interface InitiativeSectionProps {
   counts: Record<Tool, number>;
   /** The community's installed apps. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
-  apps: CommunityAppRead[];
+  apps: CommunityPluginRead[];
   activeCommunityId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -78,9 +78,9 @@ export const InitiativeSection = memo(
 
     // Apps offering this reader a surface inside *this* initiative, as the
     // server computed it for them.
-    const appRows = apps
-      .map((app) => ({ app, path: initiativeAppPath(app, initiative.id) }))
-      .filter((row): row is { app: CommunityAppRead; path: string } => row.path !== null);
+    const pluginRows = apps
+      .map((app) => ({ app, path: initiativePluginPath(app, initiative.id) }))
+      .filter((row): row is { app: CommunityPluginRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -236,8 +236,8 @@ export const InitiativeSection = memo(
               {/* Apps first, above the tools, the same way the community's apps sit
                   above its initiatives — and because the tool rows end with
                   projects, whose list has to expand directly beneath them. */}
-              {appRows.map(({ app, path }) => (
-                <SidebarMenuItem key={`app-${app.id}`}>
+              {pluginRows.map(({ app, path }) => (
+                <SidebarMenuItem key={`plugin-${app.id}`}>
                   <SidebarMenuButton asChild size="sm" className="min-w-0">
                     <Link to={gp(path)} className="flex min-w-0 items-center gap-2">
                       {app.avatar_url ? (

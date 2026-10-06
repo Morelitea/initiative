@@ -28,7 +28,7 @@ PROJECT_NAME = "Initiative API"
 API_V1_STR = "/api/v1"
 #: Where an installed app calls the API from. The ``0`` stands for the
 #: install's own community, which its token names.
-APP_SERVER_URL = f"{API_V1_STR}/c/0"
+PLUGIN_SERVER_URL = f"{API_V1_STR}/c/0"
 
 # Origins used by the Capacitor native apps (iOS, Android and the desktop app).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
@@ -461,11 +461,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_database_logins(self) -> "Settings":
-        has_app, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
-        if has_app != has_admin:
+        has_plugin, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
+        if has_plugin != has_admin:
             given, missing = (
                 ("DATABASE_URL_APP", "DATABASE_URL_ADMIN")
-                if has_app
+                if has_plugin
                 else ("DATABASE_URL_ADMIN", "DATABASE_URL_APP")
             )
             raise ValueError(
@@ -474,7 +474,7 @@ class Settings(BaseSettings):
                 f"neither, with DATABASE_URL as the database owner, and the app "
                 f"makes them."
             )
-        if has_app:
+        if has_plugin:
             self._check_query_login()
             return self
         if self.DATABASE_URL_BOOTSTRAP:
@@ -597,7 +597,7 @@ class Settings(BaseSettings):
         return origins
 
     def content_security_policy_with_frames(
-        self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
+        self, plugin_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:
         """The app-wide CSP, optionally admitting the registered frame origins.
 
@@ -611,7 +611,7 @@ class Settings(BaseSettings):
         app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 
-        ``app_frame_origins`` is how a marketplace app's embedded surface gets
+        ``plugin_frame_origins`` is how a marketplace app's embedded surface gets
         framed. It holds the origins of the app services this deployment has
         registered — the operator's trusted-site list, passed in by
         ``app.api.embed_csp`` on the documents where ``frame-src`` applies, and
@@ -658,7 +658,7 @@ class Settings(BaseSettings):
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
-        for candidate in app_frame_origins:
+        for candidate in plugin_frame_origins:
             origin = _origin_of(candidate) if candidate else None
             if origin:
                 frame_src.append(origin)
@@ -944,13 +944,13 @@ class Settings(BaseSettings):
     # RSA private key (PEM) signing what Initiative sends an app. Optional:
     # unset, Initiative generates one on first start and keeps it in the
     # database, encrypted under SECRET_KEY, so every replica signs with the same
-    # key. Set it to supply your own (``openssl genrsa -out app-platform.pem
+    # key. Set it to supply your own (``openssl genrsa -out plugin-platform.pem
     # 2048``); while set it wins, and changing it is how the key is rotated.
-    APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
     # Key id stamped on the JWT header for the key above, so an app picks it out
     # of the published JWKS during a rotation. A generated key uses its RFC 7638
     # thumbprint instead.
-    APP_PLATFORM_SIGNING_KEY_ID: str | None = None
+    PLUGIN_PLATFORM_SIGNING_KEY_ID: str | None = None
     # Path to a mounted JSON file (an array of entries) wiring app services at
     # startup, with no owner clicks. An entry gives the app's ``public_id`` and
     # this deployment's facts about it; what the app is (its listing) comes
@@ -973,7 +973,7 @@ class Settings(BaseSettings):
     # arrives. Unset (the default) ⇒ nothing is reconciled.
     # Reconciliation never re-enables a registration an operator disabled, and
     # never blocks boot.
-    APP_SERVICES_CONFIG: str | None = None
+    PLUGIN_SERVICES_CONFIG: str | None = None
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below

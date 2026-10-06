@@ -39,7 +39,7 @@ __all__ = [
     "container_registration",
     "dashboard_definition",
     "png",
-    "service_app_definition",
+    "service_plugin_definition",
 ]
 
 #: Where the fake repository is served from.
@@ -53,9 +53,9 @@ def png(seed: str) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + seed.encode()
 
 
-def service_app_definition(public_id: str) -> dict[str, Any]:
+def service_plugin_definition(public_id: str) -> dict[str, Any]:
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": public_id},
         "features": [],
     }
@@ -162,7 +162,7 @@ class TufRepository:
         files = self.content[prefix]
         if definition is None:
             definition = (
-                service_app_definition(public_id)
+                service_plugin_definition(public_id)
                 if kind == "app"
                 else dashboard_definition()
             )

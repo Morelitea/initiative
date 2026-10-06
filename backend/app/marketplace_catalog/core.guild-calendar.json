@@ -11,7 +11,7 @@
   "version": "1.0.1",
   "release_notes": "Brings installs that had the first copy up to the calendar as it ships now.",
   "definition": {
-    "app_kind": "tool_instance",
+    "plugin_kind": "tool_instance",
     "tool": "calendar",
     "default_name": "Community calendar"
   }

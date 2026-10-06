@@ -52,7 +52,7 @@ class MarketplaceVersionRead(SanitizedBaseModel):
 
     version: str
     release_notes: Optional[str] = None
-    min_app_version: Optional[str] = None
+    min_plugin_version: Optional[str] = None
     published_at: datetime
     #: Whether this deployment is new enough to install it. A version needing a
     #: newer app is shown, not hidden, so the reason is legible.
@@ -113,7 +113,7 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: For each requested ``apps:`` scope, the name the app it lets this one
     #: use goes by, keyed by that app's public id. Its public id when the
     #: catalog has no name for it.
-    app_names: Dict[str, str] = {}
+    plugin_names: Dict[str, str] = {}
     #: Whether the app offers a surface inside initiatives, and so has
     #: somewhere to be placed.
     has_initiative_surfaces: bool = False
@@ -259,9 +259,9 @@ def serialize_version(
     return MarketplaceVersionRead(
         version=version.version,
         release_notes=version.release_notes,
-        min_app_version=version.min_app_version,
+        min_plugin_version=version.min_plugin_version,
         published_at=version.published_at,
-        compatible=version_is_compatible(version.min_app_version),
+        compatible=version_is_compatible(version.min_plugin_version),
     )
 
 

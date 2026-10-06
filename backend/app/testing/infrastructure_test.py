@@ -192,7 +192,7 @@ async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_
     await session.rollback()
 
 
-async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession):
+async def test_the_factory_mints_the_token_the_plugin_issues(session: AsyncSession):
     """What the suite authenticates with is the shipped session credential, not
     the pre-session scheme beside it. Every endpoint test rides on this, so it
     is pinned here rather than left to whichever test happens to notice."""

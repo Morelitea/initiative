@@ -409,7 +409,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
         entity_id=victim.id,
         purpose=IdentityPurpose.billing,
     )
-    app_ref = await ensure_ref(
+    plugin_ref = await ensure_ref(
         session,
         entity_type=IdentityEntity.user,
         entity_id=victim.id,
@@ -428,7 +428,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     await user_service.soft_delete_user(session, victim.id)
 
     assert await resolve_ref(session, ref=billing_ref) is None
-    assert await resolve_ref(session, ref=app_ref) is None
+    assert await resolve_ref(session, ref=plugin_ref) is None
     # One person's erasure is not everybody's.
     assert await resolve_ref(session, ref=kept) is not None
 

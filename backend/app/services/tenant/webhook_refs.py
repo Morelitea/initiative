@@ -40,15 +40,15 @@ __all__ = [
 
 
 def _sector(
-    *, guild_id: int, app_install_id: int | None, subscription_id: int
+    *, guild_id: int, plugin_install_id: int | None, subscription_id: int
 ) -> tuple[IdentityPurpose, int]:
     """The purpose and the id inside the guild that this subscriber is named by."""
-    if app_install_id is not None:
-        return IdentityPurpose.app, app_install_id
+    if plugin_install_id is not None:
+        return IdentityPurpose.app, plugin_install_id
     return IdentityPurpose.webhook, subscription_id
 
 
-#: ``(app_install_id, subscription_id, actor_ids)`` — one subscriber to name,
+#: ``(plugin_install_id, subscription_id, actor_ids)`` — one subscriber to name,
 #: and the people it will be told about.
 Subscriber = tuple[int | None, int, Collection[int]]
 
@@ -56,7 +56,7 @@ Subscriber = tuple[int | None, int, Collection[int]]
 async def name_for_subscriber(
     *,
     guild_id: int,
-    app_install_id: int | None,
+    plugin_install_id: int | None,
     subscription_id: int,
     actor_ids: Collection[int] = (),
 ) -> tuple[str, dict[int, str]]:
@@ -67,7 +67,7 @@ async def name_for_subscriber(
     transaction it describes touched.
     """
     (names,) = await names_for_subscribers(
-        guild_id=guild_id, subscribers=[(app_install_id, subscription_id, actor_ids)]
+        guild_id=guild_id, subscribers=[(plugin_install_id, subscription_id, actor_ids)]
     )
     return names
 
@@ -81,10 +81,10 @@ async def names_for_subscribers(
         return []
     names = []
     async with db_session.SystemSessionLocal() as session:
-        for app_install_id, subscription_id, actor_ids in subscribers:
+        for plugin_install_id, subscription_id, actor_ids in subscribers:
             purpose, sector_id = _sector(
                 guild_id=guild_id,
-                app_install_id=app_install_id,
+                plugin_install_id=plugin_install_id,
                 subscription_id=subscription_id,
             )
             guild_ref = await identity_refs.ensure_ref(

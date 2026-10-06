@@ -22,8 +22,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_APP_DIR = Path(__file__).resolve().parents[2]
-_BACKEND_DIR = _APP_DIR.parent
+_PLUGIN_DIR = Path(__file__).resolve().parents[2]
+_BACKEND_DIR = _PLUGIN_DIR.parent
 
 #: Who may write a bell line, and why.
 _BELL_WRITERS = {
@@ -46,7 +46,7 @@ _PUSH_SENDERS = {
 def _callers(name: str) -> set[str]:
     """Every ``path::function`` outside the tests that calls ``name``."""
     found: set[str] = set()
-    for path in sorted(_APP_DIR.rglob("*.py")):
+    for path in sorted(_PLUGIN_DIR.rglob("*.py")):
         if path.name.endswith("_test.py"):
             continue
         rel = path.relative_to(_BACKEND_DIR).as_posix()

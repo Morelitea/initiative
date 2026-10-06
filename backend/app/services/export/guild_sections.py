@@ -17,7 +17,7 @@ Two rules the builders hold to:
 
 * **Secrets never leave.** A row that holds a credential is exempt, and a
   section over a table that holds one selects columns rather than dumping the
-  row (``guild_apps.connection_refs`` is the live example).
+  row (``guild_plugins.connection_refs`` is the live example).
 * **People are named the way the rest of the app names them.** The roster goes
   through ``GuildMember``/``handle_of``, the same shape every other
   server-generated text uses, so a name reads here exactly as it does
@@ -175,7 +175,7 @@ async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
     return payload, len(members)
 
 
-async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
+async def _build_plugins(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
     """Apps the community installed — built-in ones only.
 
     An app published by anybody but this build is not ours to put in a file:
@@ -186,17 +186,17 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
 
     Columns are selected rather than dumped: ``secret_fields`` and
     ``connection_refs`` never appear, and the secret values are in
-    ``guild_app_secrets``, which is exempt.
+    ``guild_plugin_secrets``, which is exempt.
     """
     from sqlmodel import select
 
-    from app.models.tenant.guild_app import GuildApp
+    from app.models.tenant.guild_plugin import GuildPlugin
     from app.services.export.provenance import builtin_listing_uids
 
     from app.schemas.tenant.backup_export import ManifestSkipped
     from app.services.export.provenance import THIRD_PARTY_REASON
 
-    rows = list(await ctx.session.exec(select(GuildApp).order_by(GuildApp.id.asc())))
+    rows = list(await ctx.session.exec(select(GuildPlugin).order_by(GuildPlugin.id.asc())))
     if not rows:
         return None
     builtin = await builtin_listing_uids(
@@ -217,17 +217,17 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
             )
     if not kept:
         return None
-    from app.services.tenant.guild_apps import placements_by_install
+    from app.services.tenant.guild_plugins import placements_by_install
 
     placements = await placements_by_install(ctx.session, [row.id for row in kept])
     payload = {
-        "type": "guild-apps",
+        "type": "guild-plugins",
         "schema_version": 2,
         "apps": [
             {
                 "listing_uid": row.listing_uid,
                 "listing_version": row.listing_version,
-                "app_kind": row.app_kind,
+                "plugin_kind": row.plugin_kind,
                 "name": row.name,
                 "enabled": row.enabled,
                 "auto_update": row.auto_update,
@@ -267,7 +267,7 @@ GUILD_SECTIONS: tuple[GuildSection, ...] = (
         scopes=frozenset({"guild", "initiative"}),
     ),
     GuildSection("members", "guild/members.json", _build_members),
-    GuildSection("apps", "guild/apps.json", _build_apps),
+    GuildSection("apps", "guild/apps.json", _build_plugins),
 )
 
 
@@ -282,9 +282,9 @@ def sections_for(scope_kind: str) -> tuple[GuildSection, ...]:
 SECTION_TABLES: dict[str, str] = {
     "guild_settings": "settings",
     "tags": "tags",
-    "guild_apps": "apps",
+    "guild_plugins": "apps",
     # Each install's placements ride inside its entry in the apps section.
-    "app_placements": "apps",
+    "plugin_placements": "apps",
     # Carried per-initiative rather than at the guild root: an initiative's
     # roster and role set belong beside its content, not in one flat file.
     "initiatives": "initiatives",
@@ -301,9 +301,9 @@ EXEMPT: dict[str, str] = {
     "guild_ai_connections": "credentials",
     "guild_ai_connection_keys": "credentials",
     "guild_ai_member_keys": "credentials",
-    "guild_app_secrets": "credentials",
-    "guild_app_user_connections": "credentials",
-    "app_member_consents": "credentials",
+    "guild_plugin_secrets": "credentials",
+    "guild_plugin_user_connections": "credentials",
+    "plugin_member_consents": "credentials",
     # Per-member personal preference, not community property — it belongs to
     # the member, and follows them rather than the guild.
     "guild_ai_member_prefs": "personal",
@@ -312,8 +312,8 @@ EXEMPT: dict[str, str] = {
     "export_jobs": "operational",
     "import_jobs": "operational",
     "webhook_deliveries": "operational",
-    "app_hook_deliveries": "operational",
-    "app_schedule_runs": "operational",
+    "plugin_hook_deliveries": "operational",
+    "plugin_schedule_runs": "operational",
     # In-flight workflow rather than owned content: a request to join is a
     # question waiting on somebody in THIS instance.
     "initiative_join_requests": "in_flight",

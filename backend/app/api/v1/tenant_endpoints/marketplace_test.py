@@ -21,16 +21,16 @@ from app.models.platform.guild import CommunityRole
 from app.models.platform.publisher import Publisher
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.testing.fake_vendor import declarative_app
+from app.testing.fake_vendor import declarative_plugin
 from app.testing import (
-    create_app_service_registration,
-    create_guild_app,
+    create_plugin_service_registration,
+    create_guild_plugin,
     create_marketplace_listing,
     marketplace_uid,
 )
 
 
-APP_UID = "TYG4VVZKAWRMBZ"
+PLUGIN_UID = "TYG4VVZKAWRMBZ"
 BUNDLED_UID = "J9H7S9T7GP7FAG"
 STANDALONE_UID = "P3R9WT5HZ2NM6D"
 
@@ -54,7 +54,7 @@ async def listing(session):
 def _tracker_manifest(with_dashboard: bool = True) -> dict:
     """An app that ships one dashboard with itself."""
     definition: dict[str, Any] = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "tests.tracker", "protocol": 1},
         "features": ["endpoints", "widgets"],
         "endpoints": [{"id": OPEN_ITEMS, "direction": "read"}],
@@ -85,7 +85,7 @@ def _tracker_manifest(with_dashboard: bool = True) -> dict:
             }
         ]
     return {
-        "uid": APP_UID,
+        "uid": PLUGIN_UID,
         "public_id": "tests.tracker",
         "kind": "app",
         "name": "Tracker",
@@ -224,7 +224,7 @@ class TestNoWrites:
         assert response.status_code == 405
 
 
-class TestABundledDashboardFollowsItsApp:
+class TestABundledDashboardFollowsItsPlugin:
     """A dashboard an app ships with is offered where the app is.
 
     It draws that app's widgets, so anywhere else it would install as a canvas
@@ -237,10 +237,10 @@ class TestABundledDashboardFollowsItsApp:
         await catalog_service.upsert_listing(
             session, _tracker_manifest(), source="operator"
         )
-        await create_app_service_registration(session, public_id="tests.tracker")
+        await create_plugin_service_registration(session, public_id="tests.tracker")
         await session.commit()
 
-    async def test_a_guild_without_the_app_is_not_offered_it(
+    async def test_a_guild_without_the_plugin_is_not_offered_it(
         self, client, acting_user, published
     ):
         actor = await acting_user(guild_role=CommunityRole.admin)
@@ -248,19 +248,19 @@ class TestABundledDashboardFollowsItsApp:
             client, actor, kind="dashboard"
         )
 
-    async def test_a_guild_with_the_app_is(
+    async def test_a_guild_with_the_plugin_is(
         self, client, acting_user, session, published
     ):
         actor = await acting_user(guild_role=CommunityRole.admin)
-        await create_guild_app(
+        await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         assert "tests.tracker-overview" in await _shelf(client, actor, kind="dashboard")
 
@@ -269,15 +269,15 @@ class TestABundledDashboardFollowsItsApp:
     ):
         """Two guilds, one catalog: the answer is per guild, not per catalog."""
         haves = await acting_user(guild_role=CommunityRole.admin)
-        await create_guild_app(
+        await create_guild_plugin(
             session,
             haves.guild,
             haves.user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         have_nots = await acting_user(guild_role=CommunityRole.admin)
 
@@ -286,19 +286,19 @@ class TestABundledDashboardFollowsItsApp:
             client, have_nots, kind="dashboard"
         )
 
-    async def test_switching_the_app_off_takes_it_back_off_the_shelf(
+    async def test_switching_the_plugin_off_takes_it_back_off_the_shelf(
         self, client, acting_user, session, published
     ):
         actor = await acting_user(guild_role=CommunityRole.admin)
-        app = await create_guild_app(
+        app = await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         assert "tests.tracker-overview" in await _shelf(client, actor, kind="dashboard")
 
@@ -310,7 +310,7 @@ class TestABundledDashboardFollowsItsApp:
             client, actor, kind="dashboard"
         )
 
-    async def test_its_page_answers_404_where_the_app_is_not_installed(
+    async def test_its_page_answers_404_where_the_plugin_is_not_installed(
         self, client, acting_user, published
     ):
         """The page says what the shelf said by leaving it out."""
@@ -323,19 +323,19 @@ class TestABundledDashboardFollowsItsApp:
             assert response.status_code == 404, url
             assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
 
-    async def test_its_page_opens_where_the_app_is_installed(
+    async def test_its_page_opens_where_the_plugin_is_installed(
         self, client, acting_user, session, published
     ):
         actor = await acting_user(guild_role=CommunityRole.admin)
-        await create_guild_app(
+        await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         response = await client.get(
             actor.g("/marketplace/listings/tests.tracker-overview"),
@@ -344,22 +344,22 @@ class TestABundledDashboardFollowsItsApp:
         assert response.status_code == 200
         assert response.json()["installable"] is True
 
-    async def test_removing_the_app_stops_an_update_being_offered(
+    async def test_removing_the_plugin_stops_an_update_being_offered(
         self, client, acting_user, session, published
     ):
         """An installed board looks its listing up by uid to see if there is a
         newer version. With the app gone there is nothing it could take, and
         the lookup says so rather than offering an upgrade that is refused."""
         actor = await acting_user(guild_role=CommunityRole.admin)
-        app = await create_guild_app(
+        app = await create_guild_plugin(
             session,
             actor.guild,
             actor.user,
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.tracker"},
             },
-            listing_uid=APP_UID,
+            listing_uid=PLUGIN_UID,
         )
         by_uid = actor.g(f"/marketplace/listings/by-uid/{BUNDLED_UID}")
         assert (await client.get(by_uid, headers=actor.headers)).status_code == 200
@@ -405,10 +405,10 @@ class TestABundledDashboardFollowsItsApp:
             headers=actor.headers,
         )
         assert response.status_code == 409
-        assert response.json()["detail"] == MarketplaceMessages.LISTING_NEEDS_APP
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NEEDS_PLUGIN
 
 
-class TestAnAppNeedsItsServiceRegistered:
+class TestAPluginNeedsItsServiceRegistered:
     """What this deployment carries is narrower than what its catalog holds.
 
     A catalog reaches every deployment the same way, but an app is realized by
@@ -425,7 +425,7 @@ class TestAnAppNeedsItsServiceRegistered:
     TOOL_UID = marketplace_uid("toolapp")
 
     @pytest.fixture
-    async def service_app(self, session):
+    async def service_plugin(self, session):
         return await create_marketplace_listing(
             session,
             uid=self.SERVICE_UID,
@@ -433,30 +433,30 @@ class TestAnAppNeedsItsServiceRegistered:
             kind="app",
             name="Shop",
             definition={
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.shop", "protocol": 1},
                 "features": [],
             },
         )
 
-    async def test_an_unwired_service_app_is_not_on_the_shelf(
-        self, client, acting_user, service_app
+    async def test_an_unwired_service_plugin_is_not_on_the_shelf(
+        self, client, acting_user, service_plugin
     ):
         actor = await acting_user(guild_role=CommunityRole.member)
         assert "tests.shop" not in await _shelf(client, actor, kind="app")
 
     async def test_wiring_the_service_up_puts_it_on_the_shelf(
-        self, client, acting_user, session, service_app
+        self, client, acting_user, session, service_plugin
     ):
-        await create_app_service_registration(session, public_id="tests.shop")
+        await create_plugin_service_registration(session, public_id="tests.shop")
         actor = await acting_user(guild_role=CommunityRole.member)
         assert "tests.shop" in await _shelf(client, actor, kind="app")
 
     async def test_the_kill_switch_takes_it_back_off(
-        self, client, acting_user, session, service_app
+        self, client, acting_user, session, service_plugin
     ):
         """Switched off is switched off everywhere, the shelf included."""
-        registration = await create_app_service_registration(
+        registration = await create_plugin_service_registration(
             session, public_id="tests.shop"
         )
         registration.enabled = False
@@ -468,11 +468,11 @@ class TestAnAppNeedsItsServiceRegistered:
         assert "tests.shop" not in await _shelf(client, actor, kind="app")
 
     async def test_a_publisher_switched_off_takes_it_back_off(
-        self, client, acting_user, session, service_app
+        self, client, acting_user, session, service_plugin
     ):
         """A publisher's switch reaches every app under its prefix, the shelf
         included."""
-        registration = await create_app_service_registration(
+        registration = await create_plugin_service_registration(
             session, public_id="tests.shop"
         )
         publisher = await session.get(Publisher, registration.publisher_id)
@@ -485,7 +485,7 @@ class TestAnAppNeedsItsServiceRegistered:
         assert "tests.shop" not in await _shelf(client, actor, kind="app")
 
     async def test_its_page_answers_the_same_as_a_listing_that_is_not_there(
-        self, client, acting_user, service_app
+        self, client, acting_user, service_plugin
     ):
         actor = await acting_user(guild_role=CommunityRole.member)
         for url in (
@@ -497,9 +497,9 @@ class TestAnAppNeedsItsServiceRegistered:
             assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
 
     async def test_wiring_the_service_up_opens_its_page_too(
-        self, client, acting_user, session, service_app
+        self, client, acting_user, session, service_plugin
     ):
-        await create_app_service_registration(session, public_id="tests.shop")
+        await create_plugin_service_registration(session, public_id="tests.shop")
         actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get(
             actor.g("/marketplace/listings/tests.shop"), headers=actor.headers
@@ -507,7 +507,7 @@ class TestAnAppNeedsItsServiceRegistered:
         assert response.status_code == 200
         assert response.json()["installable"] is True
 
-    async def test_a_declarative_app_is_offered_by_its_listings_registration(
+    async def test_a_declarative_plugin_is_offered_by_its_listings_registration(
         self, client, acting_user, session
     ):
         """It names no service: the registration its listing applied, under
@@ -519,12 +519,12 @@ class TestAnAppNeedsItsServiceRegistered:
             public_id="tests.issues",
             kind="app",
             name="Issues",
-            definition=declarative_app("tests.issues"),
+            definition=declarative_plugin("tests.issues"),
         )
         actor = await acting_user(guild_role=CommunityRole.member)
         assert "tests.issues" not in await _shelf(client, actor, kind="app")
 
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session,
             public_id="tests.issues",
             listing_uid=uid,
@@ -539,7 +539,7 @@ class TestAnAppNeedsItsServiceRegistered:
         )
         assert response.json()["installable"] is True
 
-    async def test_an_app_that_mounts_a_built_in_tool_needs_no_registration(
+    async def test_a_plugin_that_mounts_a_built_in_tool_needs_no_registration(
         self, client, acting_user, session
     ):
         await create_marketplace_listing(
@@ -548,7 +548,7 @@ class TestAnAppNeedsItsServiceRegistered:
             public_id="tests.guild-calendar",
             kind="app",
             name="Community calendar",
-            definition={"app_kind": "tool_instance", "tool": "calendar"},
+            definition={"plugin_kind": "tool_instance", "tool": "calendar"},
         )
         actor = await acting_user(guild_role=CommunityRole.member)
         assert "tests.guild-calendar" in await _shelf(client, actor, kind="app")
@@ -646,14 +646,14 @@ class TestOneListingsPage:
         )
         assert response.status_code == 403
 
-    async def test_a_listing_needing_a_newer_app_says_so_rather_than_hiding(
+    async def test_a_listing_needing_a_newer_plugin_says_so_rather_than_hiding(
         self, client, acting_user, session
     ):
         await create_marketplace_listing(
             session,
             uid="TNEW0000000001",
             public_id="tests.toonew",
-            min_app_version="999.0.0",
+            min_plugin_version="999.0.0",
         )
         actor = await acting_user(guild_role=CommunityRole.member)
         body = (
@@ -838,7 +838,7 @@ class TestInstallingAToolListing:
         assert response.status_code == 403
         assert response.json()["detail"] == "IMPORT_PERMISSION_REQUIRED"
 
-    async def test_an_app_is_not_installed_here(self, client, acting_user, session):
+    async def test_a_plugin_is_not_installed_here(self, client, acting_user, session):
         actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await catalog_service.upsert_listing(
             session, _tracker_manifest(with_dashboard=False), source="builtin"
@@ -846,7 +846,7 @@ class TestInstallingAToolListing:
         await session.commit()
 
         response = await client.post(
-            actor.g(f"/marketplace/listings/by-uid/{APP_UID}/install"),
+            actor.g(f"/marketplace/listings/by-uid/{PLUGIN_UID}/install"),
             json={"initiative_id": actor.initiative.id},
             headers=actor.headers,
         )

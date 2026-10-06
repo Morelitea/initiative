@@ -25,11 +25,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import config as config_module
 from app.core.messages import BundledChannelMessages
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
-from app.services.marketplace.app_refs import ensure_app_guild_ref
+from app.services.marketplace.plugin_refs import ensure_plugin_guild_ref
 from app.services.platform.identity_refs import ensure_ref
-from app.testing import create_guild, create_guild_app, create_user
+from app.testing import create_guild, create_guild_plugin, create_user
 
-ROUTE = "/api/v1/app-platform/community-reference"
+ROUTE = "/api/v1/plugin-platform/community-reference"
 SECRET = "a-bundled-service-secret-for-tests"
 #: The service this deployment ships, by the public id its registration carries.
 BUNDLED_PUBLIC_ID = "acme.auto"
@@ -65,15 +65,15 @@ async def _callers_own_ref(session: AsyncSession, guild) -> str:
     # A user is a public row, so it is made before the session is routed into
     # the guild to write the install.
     installer = await create_user(session)
-    app = await create_guild_app(
+    app = await create_guild_plugin(
         session,
         guild,
         installer,
-        definition={"app_kind": "service", "service": {"public_id": BUNDLED_PUBLIC_ID}},
+        definition={"plugin_kind": "service", "service": {"public_id": BUNDLED_PUBLIC_ID}},
         name="Bundled",
     )
     await session.commit()
-    return await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
+    return await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=app.id)
 
 
 async def test_it_names_the_same_guild_in_the_sector_asked_for(
@@ -116,7 +116,7 @@ async def test_a_reference_that_is_not_the_callers_own_is_refused(
     )
     await session.commit()
     # A reference for an install that is not the bundled service's.
-    someone_elses = await ensure_app_guild_ref(guild_id=guild.id, app_install_id=98765)
+    someone_elses = await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=98765)
 
     response = await _ask(
         client, {"community_ref": someone_elses, "purpose": "billing"}
@@ -267,8 +267,8 @@ def shipped_root(monkeypatch, tmp_path):
 async def _sectored_install(session: AsyncSession, **registration):
     """A guild with the sectored app installed, a billing name for the guild,
     and an installation token for the install."""
-    from app.core.app_access_token import seal_install_token
-    from app.testing import create_app_service_registration, create_guild_app
+    from app.core.plugin_access_token import seal_install_token
+    from app.testing import create_plugin_service_registration, create_guild_plugin
 
     fields = {
         "source": "registry",
@@ -276,17 +276,17 @@ async def _sectored_install(session: AsyncSession, **registration):
         "root_is_builtin": True,
         **registration,
     }
-    await create_app_service_registration(
+    await create_plugin_service_registration(
         session, public_id=SECTORED_ID, listing_uid=SECTORED_UID, **fields
     )
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    app = await create_guild_app(
+    app = await create_guild_plugin(
         session,
         guild,
         user,
         definition={
-            "app_kind": "service",
+            "plugin_kind": "service",
             "service": {"public_id": SECTORED_ID, "protocol": 1},
             "features": [],
         },
@@ -314,7 +314,7 @@ async def _sectored_install(session: AsyncSession, **registration):
 async def test_a_token_whose_registration_carries_the_sector_is_answered(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    _guild, _app, billing, headers = await _sectored_install(session)
+    _guild, _plugin, billing, headers = await _sectored_install(session)
 
     response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
 
@@ -326,7 +326,7 @@ async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
     guild, app, billing, headers = await _sectored_install(session)
-    own = await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
+    own = await ensure_plugin_guild_ref(guild_id=guild.id, plugin_install_id=app.id)
 
     response = await client.post(
         ROUTE, json={"purpose": "billing", "community_ref": own}, headers=headers
@@ -339,10 +339,10 @@ async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
 async def test_a_token_naming_another_guild_is_refused(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    _guild, _app, _billing, headers = await _sectored_install(session)
+    _guild, _plugin, _billing, headers = await _sectored_install(session)
     other = await create_guild(session, creator=await create_user(session))
     await session.commit()
-    elsewhere = await ensure_app_guild_ref(guild_id=other.id, app_install_id=98765)
+    elsewhere = await ensure_plugin_guild_ref(guild_id=other.id, plugin_install_id=98765)
 
     response = await client.post(
         ROUTE, json={"purpose": "billing", "community_ref": elsewhere}, headers=headers
@@ -354,7 +354,7 @@ async def test_a_token_naming_another_guild_is_refused(
 async def test_a_token_without_the_sector_is_refused(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    _guild, _app, _billing, headers = await _sectored_install(
+    _guild, _plugin, _billing, headers = await _sectored_install(
         session, reference_sectors=[]
     )
 
@@ -367,7 +367,7 @@ async def test_a_token_without_the_sector_is_refused(
 async def test_a_sector_from_an_operators_registration_is_refused(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    _guild, _app, _billing, headers = await _sectored_install(
+    _guild, _plugin, _billing, headers = await _sectored_install(
         session, source="operator"
     )
 
@@ -383,7 +383,7 @@ async def test_a_sector_is_refused_under_a_replaced_root(
     flag; replacing the root afterwards still ends the sector."""
     from app.testing.tuf_repository import TufRepository
 
-    _guild, _app, _billing, headers = await _sectored_install(session)
+    _guild, _plugin, _billing, headers = await _sectored_install(session)
     replaced = tmp_path / "replaced.json"
     replaced.write_bytes(TufRepository().root_bytes())
     monkeypatch.setattr(
@@ -398,7 +398,7 @@ async def test_a_sector_is_refused_under_a_replaced_root(
 async def test_a_sector_recorded_under_another_root_is_refused(
     client: AsyncClient, session: AsyncSession, shipped_root
 ):
-    _guild, _app, _billing, headers = await _sectored_install(
+    _guild, _plugin, _billing, headers = await _sectored_install(
         session, root_is_builtin=False
     )
 

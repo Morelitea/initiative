@@ -50,7 +50,7 @@ at call time is still the caller's route, which is the same schema.
 from __future__ import annotations
 from collections.abc import Iterable
 from app.db import gucs
-from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.plugin_scopes import PluginScopeResource, tool_resource
 from app.core.tools import Tool
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -91,9 +91,9 @@ __all__ = [
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
-    "app_narrowed",
-    "app_refused",
-    "app_scope",
+    "plugin_narrowed",
+    "plugin_refused",
+    "plugin_scope",
     "apply_authorization_functions",
     "authorization_functions_digest",
     "drop_public_copies",
@@ -651,15 +651,15 @@ POLICY_SEAT = f"({IN_POLICY.this_guild} AND {gucs.GUILD_SEAT.once})"
 # in a gate.
 
 
-def app_scope(resource: str, write: bool, legs: Legs) -> str:
+def plugin_scope(resource: str, write: bool, legs: Legs) -> str:
     """An installed app holds ``resource``'s read scope, or its write scope
-    when ``write``. ``resource`` is an ``AppScopeResource`` value."""
-    name = AppScopeResource(getattr(resource, "value", resource)).value
+    when ``write``. ``resource`` is an ``PluginScopeResource`` value."""
+    name = PluginScopeResource(getattr(resource, "value", resource)).value
     held = legs.field("install_write" if write else "install_read")
     return f"({legs.install_id} IS NULL OR '{name}' = ANY ({held}))"
 
 
-def app_narrowed(initiative_expr: str, legs: Legs) -> str:
+def plugin_narrowed(initiative_expr: str, legs: Legs) -> str:
     """A token narrowed to one initiative reaches rows that belong to an
     initiative, and none that belong to the community as a whole.
     ``initiative_access`` already keeps it to the one it names."""
@@ -669,7 +669,7 @@ def app_narrowed(initiative_expr: str, legs: Legs) -> str:
     )
 
 
-def app_refused(legs: Legs) -> str:
+def plugin_refused(legs: Legs) -> str:
     """No installed app reaches the row."""
     return f"({legs.install_id} IS NULL)"
 
@@ -833,8 +833,8 @@ g.resource_type = p_tool
                     AND {_B.this_guild}
                     AND (g.initiative_id IS NULL
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
-                OR (g.app_install_id IS NOT NULL
-                    AND g.app_install_id = {_B.install_id})
+                OR (g.plugin_install_id IS NOT NULL
+                    AND g.plugin_install_id = {_B.install_id})
               )"""
 
 
@@ -930,7 +930,7 @@ _SHARES = f"""(v_level = '{_OWNER}'
         AND NOT {_B.pam_any}
         AND {_WRITES_ROW}
         AND ({_B.install_id} IS NULL
-             OR ('{AppScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
+             OR ('{PluginScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
                  AND COALESCE((CASE p_tool
                    {" ".join(f"WHEN '{t.value}' THEN '{tool_resource(t).value}'" for t in Tool)}
                    END) = ANY ({_B.field("install_write")}), false))))"""

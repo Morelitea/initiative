@@ -168,7 +168,7 @@ async def get_document_hydrated(
         await tags_service.annotate_tags(session, [document])
         await properties_service.annotate_properties(session, [document])
         await annotate_comment_counts(session, [document])
-        await ownership_service.annotate_owner_apps(session, [document])
+        await ownership_service.annotate_owner_plugins(session, [document])
     return document
 
 

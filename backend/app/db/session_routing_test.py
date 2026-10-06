@@ -165,7 +165,7 @@ class TestTheInstallRoute:
             )
         )
 
-    def test_it_assumes_the_app_role_and_names_no_person(self):
+    def test_it_assumes_the_plugin_role_and_names_no_person(self):
         out = self._install(scope_initiative_id=9)
         assert out["role"] == guild_role_name(3, GuildRoleKind.app)
         assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"

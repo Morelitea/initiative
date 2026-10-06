@@ -31,7 +31,7 @@ import { peekBackupManifest } from "@/lib/backupPeek";
 const MANIFEST = {
   type: "guild-backup",
   guild: { name: "Old Community" },
-  app_version: "0.56.0",
+  plugin_version: "0.56.0",
   exported_at: "2026-07-15T00:00:00Z",
   initiatives: [{ id: 1, name: "Lore", tools: {} }],
   entries: [{ tool: "queue" }, { tool: "document" }],

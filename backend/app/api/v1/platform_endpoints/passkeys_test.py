@@ -1073,7 +1073,7 @@ async def test_a_phone_is_handed_a_code(
     ]
 
 
-async def test_an_older_app_is_asked_to_update(
+async def test_an_older_plugin_is_asked_to_update(
     client: AsyncClient, session: AsyncSession, assertion
 ):
     """An app bundle from before the code flow sends no challenge, and can only

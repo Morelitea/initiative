@@ -264,7 +264,7 @@ async def import_foreign(
             foreign_source,
             payload.content,
             selection=payload.selection,
-            app_version=get_version(),
+            plugin_version=get_version(),
         )
         started = await import_engine.start_envelope_import(
             session,

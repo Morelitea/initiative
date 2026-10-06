@@ -995,7 +995,7 @@
       "integrations": "Integraciones"
     }
   },
-  "appServices": {
+  "pluginServices": {
     "platformOnly": "Solo los propietarios de la plataforma pueden gestionar los servicios de aplicación.",
     "loading": "Cargando servicios de aplicación…",
     "loadError": "No se pudieron cargar los servicios de aplicación.",
@@ -1293,7 +1293,7 @@
       "seatHelp": "Pasa a ser su superadministrador: el puesto que nombra a los demás, accede a la facturación y define el inicio de sesión.",
       "statusDescription": "Elige en qué estado vuelve la comunidad.",
       "statusLabel": "Vuelve como",
-      "appsNote": "Sus conexiones con aplicaciones terminaron al eliminarla y no vuelven. Sus administradores pueden volver a conectarlas.",
+      "pluginsNote": "Sus conexiones con aplicaciones terminaron al eliminarla y no vuelven. Sus administradores pueden volver a conectarlas.",
       "confirm": "Restaurar",
       "done": "{{name}} restaurada.",
       "error": "No se ha podido restaurar la comunidad. Inténtalo de nuevo."

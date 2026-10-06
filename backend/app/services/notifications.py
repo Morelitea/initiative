@@ -68,7 +68,7 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.reaction_digest import ReactionDigestItem
@@ -99,7 +99,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class AppAuthor:
+class PluginAuthor:
     """An installed app, as a notification names what it did.
 
     By its name in the community, and by no account: ``id`` is ``None``, so a
@@ -111,17 +111,17 @@ class AppAuthor:
     id: None = None
 
 
-def actor_name(actor: "User | AppAuthor") -> str:
+def actor_name(actor: "User | PluginAuthor") -> str:
     """What a notification calls whoever caused it: a person's handle, or an
     installed app's name."""
-    if isinstance(actor, AppAuthor):
+    if isinstance(actor, PluginAuthor):
         return actor.name
     return handle_of(actor)
 
 
 async def author_of(
     session: AsyncSession, actor: ActorContext, user: User | None
-) -> "User | AppAuthor":
+) -> "User | PluginAuthor":
     """Who a request's notifications say acted: the person, or — for an
     installed app — the install's name in its community, read from its own
     row on the request's session."""
@@ -130,9 +130,9 @@ async def author_of(
     if not isinstance(actor, InstallContext):
         raise RuntimeError("a request with no person is an installed app's")
     name = (
-        await session.exec(select(GuildApp.name).where(GuildApp.id == actor.install_id))
+        await session.exec(select(GuildPlugin.name).where(GuildPlugin.id == actor.install_id))
     ).scalar_one()
-    return AppAuthor(name=name)
+    return PluginAuthor(name=name)
 
 
 # My Tasks is the app root: the cross-guild list of everything assigned to you.
@@ -324,7 +324,7 @@ async def notify(
     key: str,
     values: Mapping[str, str | Callable[[User], str]] | None = None,
     data: Mapping[str, Any] | None = None,
-    actor: "User | AppAuthor | None" = None,
+    actor: "User | PluginAuthor | None" = None,
     rollup_key: str | None = None,
     email: Callable[[User], email_service.EmailPieces] | None = None,
     email_names_line: bool = True,
@@ -547,7 +547,7 @@ async def deliver_notices(
     return push
 
 
-def actor_id(actor: "User | AppAuthor | None") -> int | None:
+def actor_id(actor: "User | PluginAuthor | None") -> int | None:
     """The account behind whoever acted, or ``None`` for an installed app."""
     return actor.id if actor is not None else None
 
@@ -827,7 +827,7 @@ async def notify_assigned(
     task: Task,
     assignee_ids: Iterable[int | None],
     *,
-    assigned_by: "User | AppAuthor",
+    assigned_by: "User | PluginAuthor",
     project_name: str,
 ) -> None:
     """Tell the people just assigned to ``task``, among those who can open it.

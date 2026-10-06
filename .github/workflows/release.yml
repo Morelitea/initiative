@@ -83,7 +83,7 @@ jobs:
       - name: Commit as the release app
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          SLUG: ${{ steps.app.outputs.app-slug }}
+          SLUG: ${{ steps.app.outputs.plugin-slug }}
         run: |
           id=$(gh api "users/${SLUG}[bot]" --jq .id)
           git config --global user.name "${SLUG}[bot]"

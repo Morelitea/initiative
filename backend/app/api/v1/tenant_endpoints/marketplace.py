@@ -9,7 +9,7 @@ the app is installed.
 That makes the guild a required part of the question rather than a filter the
 client applies afterwards, and it puts browse on the same footing as the
 install: both run on the guild-routed session, and both read the guild's own
-installs through :func:`installed_app_uids`, so a card and the install behind
+installs through :func:`installed_plugin_uids`, so a card and the install behind
 it always agree.
 
 Listings are written by the system engine (boot seeding, the operator's
@@ -57,7 +57,7 @@ from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
     count_install,
-    installed_app_uids,
+    installed_plugin_uids,
     listing_is_offered,
     resolve_listing_install,
 )
@@ -68,7 +68,7 @@ from app.services.marketplace.listing_assets import (
     UploadedImageError,
     store_uploaded_image,
 )
-from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
@@ -108,7 +108,7 @@ async def list_marketplace_listings(
         session,
         kind=kind,
         query=search,
-        bundled_with=sorted(await installed_app_uids(session)),
+        bundled_with=sorted(await installed_plugin_uids(session)),
         page=page,
         page_size=page_size,
     )
@@ -142,7 +142,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
-    offered = await registration_lookup.app_is_offered(
+    offered = await registration_lookup.plugin_is_offered(
         latest.definition if latest else None, listing_uid=listing.uid
     ) and await listing_is_offered(session, listing)
     if not offered:
@@ -157,19 +157,19 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     requested: list[str] = []
     grantable: list[str] = []
     if listing.kind == "app":
-        requested = guild_apps_service.requested_scopes(definition)
+        requested = guild_plugins_service.requested_scopes(definition)
         registration = await registration_lookup.registration_for_definition(definition)
-        grantable = guild_apps_service.grantable_scopes(
+        grantable = guild_plugins_service.grantable_scopes(
             definition, registration.scope_ceiling if registration else ()
         )
     return MarketplaceListingDetail(
         **summary.model_dump(),
         requested_scopes=requested,
         grantable_scopes=grantable,
-        app_names=await guild_apps_service.app_scope_names(session, requested),
+        plugin_names=await guild_plugins_service.plugin_scope_names(session, requested),
         has_initiative_surfaces=(
             listing.kind == "app"
-            and guild_apps_service.has_initiative_surfaces(definition)
+            and guild_plugins_service.has_initiative_surfaces(definition)
         ),
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads

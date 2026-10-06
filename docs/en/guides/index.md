@@ -82,11 +82,11 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
     [:octicons-arrow-right-24: Wikis](wikis.md)
 
--   :material-storefront-outline: __Apps & the marketplace__
+-   :material-storefront-outline: __Plugins & the marketplace__
 
     Ready-made dashboards and apps built by other groups.
 
-    [:octicons-arrow-right-24: Apps & the marketplace](apps-and-marketplace.md)
+    [:octicons-arrow-right-24: Apps & the marketplace](plugins-and-marketplace.md)
 
 -   :material-tag-multiple-outline: __Tags__
 

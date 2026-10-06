@@ -33,8 +33,8 @@ import pytest
 pytestmark = pytest.mark.always
 
 
-_APP_DIR = Path(__file__).resolve().parents[1]
-_BACKEND_DIR = _APP_DIR.parent
+_PLUGIN_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_DIR = _PLUGIN_DIR.parent
 
 #: Where the seam lives.
 _SEAM = "app/api/deps.py"
@@ -55,7 +55,7 @@ _ESTABLISHED = frozenset(
 
 
 def _python_files() -> list[Path]:
-    return sorted(p for p in _APP_DIR.rglob("*.py"))
+    return sorted(p for p in _PLUGIN_DIR.rglob("*.py"))
 
 
 def _runtime_files() -> list[Path]:

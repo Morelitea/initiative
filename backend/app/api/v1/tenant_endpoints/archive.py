@@ -29,11 +29,11 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope_by,
+    plugin_scope_by,
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import Tool, plural_of
 from app.models.platform.user import User
@@ -53,13 +53,13 @@ router = APIRouter(route_class=ActorRoute)
 #: no app may ask for one.
 _ARCHIVE_SCOPES: dict[str, str] = {
     **{
-        tool.value: scope_name(tool_resource(tool), AppScopeAccess.write)
+        tool.value: scope_name(tool_resource(tool), PluginScopeAccess.write)
         for tool in Tool
     },
-    "task": scope_name(tool_resource(Tool.project), AppScopeAccess.write),
+    "task": scope_name(tool_resource(Tool.project), PluginScopeAccess.write),
 }
 ArchiveWrite = Annotated[
-    ActorContext, Depends(app_scope_by("entity_type", _ARCHIVE_SCOPES))
+    ActorContext, Depends(plugin_scope_by("entity_type", _ARCHIVE_SCOPES))
 ]
 
 #: Wire name -> the model it addresses. Derived from the mixin: the archivable

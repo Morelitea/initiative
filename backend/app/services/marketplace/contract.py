@@ -1,9 +1,9 @@
 """The app contract, as this build reads it.
 
 The vocabulary an app manifest draws on — every enum, cap and character set —
-and the shape it takes are declared once, in the ``initiative-app-sdk``
+and the shape it takes are declared once, in the ``initiative-plugin-sdk``
 repository, in ``manifest.contract.json``. That file is vendored here under
-``backend/vendor/app-kit`` at a pinned kit version and read at import.
+``backend/vendor/plugin-kit`` at a pinned kit version and read at import.
 
 **Why the kit owns it.** An app author writes against the kit: its types, its
 offline validator, its published JSON Schema. When the vocabulary lived here and
@@ -12,7 +12,7 @@ repository, the two drifted — the kit could not declare a block this build
 accepts. One document, generated into both representations, is what removes
 that.
 
-**Why this build still pins it.** ``normalize_service_app_definition`` is
+**Why this build still pins it.** ``normalize_service_plugin_definition`` is
 admission control: it decides what a publisher may install. A deployment
 therefore reads a copy it shipped with, never one fetched at run time, and a new
 contract reaches it when it next releases. So the direction is asymmetric on
@@ -21,7 +21,7 @@ next release — and a term the vendored contract declares that this build does
 not act on is a failing test (:mod:`contract_coverage_test`), not a value
 quietly dropped.
 
-Refresh the vendored copy with ``python scripts/refresh_app_kit.py``.
+Refresh the vendored copy with ``python scripts/refresh_plugin_kit.py``.
 """
 
 from __future__ import annotations
@@ -47,11 +47,11 @@ __all__ = [
 ]
 
 #: Where the vendored kit lives, relative to the backend package root.
-_VENDOR = Path(__file__).resolve().parents[3] / "vendor" / "app-kit"
+_VENDOR = Path(__file__).resolve().parents[3] / "vendor" / "plugin-kit"
 
 #: The JSON Schema the kit generates from the same contract. Not read by the
 #: validator — it is what the conformance tests measure this build against.
-SCHEMA_PATH = _VENDOR / "app-manifest.json"
+SCHEMA_PATH = _VENDOR / "plugin-manifest.json"
 
 
 def _read(name: str) -> str:

@@ -17,7 +17,7 @@ Two custody rules run through everything here:
 
 A guild-wide connection is not always typed. One that declares a ``flow`` is
 established by Initiative instead
-(:mod:`app.services.tenant.app_connection_flows`): a guild admin runs the
+(:mod:`app.services.tenant.plugin_connection_flows`): a guild admin runs the
 vendor's own flow once — an organization-wide install, on the vendor's page,
 where somebody who owns the account grants what it may see — and the app's
 ``after_connect`` hook says what goes into that connection's managed fields.
@@ -41,12 +41,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
-from app.core.messages import GuildAppMessages
+from app.core.encryption import SALT_PLUGIN_CONFIG, decrypt_field, encrypt_field
+from app.core.messages import GuildPluginMessages
 
 __all__ = [
     "RESERVED_TOKEN_KEYS",
-    "AppConfigError",
+    "PluginConfigError",
     "ConfigState",
     "MAX_CONFIG_VALUE_LENGTH",
     "MAX_SECRET_VALUE_LENGTH",
@@ -100,7 +100,7 @@ def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:
     return {k: v for k, v in (values or {}).items() if k not in RESERVED_TOKEN_KEYS}
 
 
-class AppConfigError(Exception):
+class PluginConfigError(Exception):
     """A configuration write this build will not store, as a message code."""
 
     def __init__(self, code: str) -> None:
@@ -226,37 +226,37 @@ def _coerce(field: dict[str, Any], value: Any) -> Any:
 
     if field_type == "bool":
         if not isinstance(value, bool):
-            raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
         return value
 
     if field_type == "int":
         if isinstance(value, bool) or not isinstance(value, int):
-            raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
         return value
 
     if not isinstance(value, str):
-        raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+        raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
     text = value.strip()
     if not text:
-        raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+        raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
 
     limit = (
         MAX_SECRET_VALUE_LENGTH if field_type == "secret" else MAX_CONFIG_VALUE_LENGTH
     )
     if len(text) > limit:
-        raise AppConfigError(GuildAppMessages.CONFIG_VALUE_TOO_LONG)
+        raise PluginConfigError(GuildPluginMessages.CONFIG_VALUE_TOO_LONG)
 
     if field_type == "select":
         options = field.get("options")
         if not isinstance(options, list) or text not in options:
-            raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
         return text
 
     if field_type == "url":
         if not (text.startswith("https://") or text.startswith("http://")):
-            raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
         if " " in text:
-            raise AppConfigError(GuildAppMessages.CONFIG_INVALID_VALUE)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_INVALID_VALUE)
         return text
 
     return text
@@ -290,9 +290,9 @@ def apply_connection_values(
     for key, value in submitted.items():
         field = fields.get(key)
         if field is None:
-            raise AppConfigError(GuildAppMessages.CONFIG_UNKNOWN_FIELD)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_UNKNOWN_FIELD)
         if field.get("managed") is True and not allow_managed:
-            raise AppConfigError(GuildAppMessages.CONFIG_MANAGED_FIELD)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_MANAGED_FIELD)
 
         is_secret = field.get("type") == "secret"
         if value is None:
@@ -303,7 +303,7 @@ def apply_connection_values(
 
         coerced = _coerce(field, value)
         if is_secret:
-            secrets[key] = encrypt_field(coerced, SALT_APP_CONFIG)
+            secrets[key] = encrypt_field(coerced, SALT_PLUGIN_CONFIG)
             config.pop(key, None)
         else:
             config[key] = coerced
@@ -321,7 +321,7 @@ def apply_connection_values(
         if field.get("required") is not True or key in cleared:
             continue
         if key not in config and key not in secrets:
-            raise AppConfigError(GuildAppMessages.CONFIG_REQUIRED_FIELD)
+            raise PluginConfigError(GuildPluginMessages.CONFIG_REQUIRED_FIELD)
 
     return config, secrets
 
@@ -334,7 +334,7 @@ def decrypt_connection_secrets(secrets: dict[str, Any] | None) -> dict[str, str]
     out: dict[str, str] = {}
     for key, ciphertext in (secrets or {}).items():
         if isinstance(ciphertext, str):
-            out[key] = decrypt_field(ciphertext, SALT_APP_CONFIG)
+            out[key] = decrypt_field(ciphertext, SALT_PLUGIN_CONFIG)
     return out
 
 

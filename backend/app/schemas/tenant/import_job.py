@@ -262,7 +262,7 @@ class BackupImportPlan(SanitizedBaseModel):
     counts and names only, never envelope content."""
 
     source_community_name: str = ""
-    app_version: str = ""
+    plugin_version: str = ""
     exported_at: Optional[str] = None
     schema_version: int = 0
     initiatives: list[BackupPlanInitiative] = []
