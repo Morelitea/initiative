@@ -13,12 +13,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
-const post = vi.fn();
+const acceptLegalDocuments = vi.fn();
 const refreshUser = vi.fn();
 const logout = vi.fn();
 
-vi.mock("@/api/client", () => ({
-  apiClient: { post: (...args: unknown[]) => post(...args) },
+vi.mock("@/api/generated/users/users", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/users/users")>()),
+  acceptLegalDocuments: () => acceptLegalDocuments(),
 }));
 
 vi.mock("@/hooks/useLegalDocuments", async (importOriginal) => ({
@@ -40,7 +41,7 @@ const render = () => renderWithProviders(<AcceptTerms />, { auth: { refreshUser,
 
 describe("AcceptTerms", () => {
   beforeEach(() => {
-    post.mockReset().mockResolvedValue({ data: {} });
+    acceptLegalDocuments.mockReset().mockResolvedValue(undefined);
     refreshUser.mockReset().mockResolvedValue(undefined);
     logout.mockReset();
   });
@@ -63,7 +64,7 @@ describe("AcceptTerms", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /i agree/i }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledWith("/me/legal-acceptance"));
+    await waitFor(() => expect(acceptLegalDocuments).toHaveBeenCalled());
     // The screen is drawn from the account's own record, so it only goes away
     // once the account has been read again.
     expect(refreshUser).toHaveBeenCalled();
@@ -80,7 +81,7 @@ describe("AcceptTerms", () => {
   });
 
   it("says so and stays put when the agreement could not be recorded", async () => {
-    post.mockRejectedValue(new Error("nope"));
+    acceptLegalDocuments.mockRejectedValue(new Error("nope"));
     render();
 
     await userEvent.click(screen.getByRole("button", { name: /i agree/i }));

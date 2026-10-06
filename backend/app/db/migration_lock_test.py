@@ -88,7 +88,7 @@ async def test_migrate_database_covers_the_stamp_check_and_the_upgrade(
     then acts on."""
     held: list[bool] = []
 
-    async def _probe() -> None:
+    async def _probe(*_conn) -> None:
         held.append(not await _key_is_free(engine))
 
     monkeypatch.setattr(init_db, "check_pre_baseline_db", _probe)

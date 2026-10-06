@@ -37,8 +37,7 @@ from app.api.v1.platform_endpoints.held_changes import (
     hold_change,
 )
 from app.api.v1.platform_endpoints.session_opening import (
-    count_wrong_answer,
-    refuse_if_locked,
+    prove_second_factor,
     upgrade_session,
 )
 
@@ -59,10 +58,8 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.models.platform.account_change_hold import HeldChangeKind
 from app.services.auth import held_changes
-from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
-from app.services.auth.assurance import SECOND_FACTOR_AMR
 
 router = APIRouter()
 
@@ -250,29 +247,15 @@ async def disable_second_factor(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    await refuse_if_locked(system_session, current_user.id)
+    await prove_second_factor(
+        system_session,
+        user_id=current_user.id,
+        code=payload.code,
+        recovery_code=payload.recovery_code,
+        during="removal",
+        signed_in=True,
+    )
 
-    if payload.recovery_code:
-        proved = await totp_service.consume_recovery_code(
-            system_session, user_id=current_user.id, code=payload.recovery_code
-        )
-        refusal = AuthMessages.RECOVERY_CODE_INVALID
-    else:
-        proved = await totp_service.verify_code(
-            system_session, user_id=current_user.id, code=payload.code or ""
-        )
-        refusal = AuthMessages.TOTP_INVALID
-    if not proved:
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=current_user.id,
-            detail={"method": "totp", "during": "removal"},
-        )
-        await count_wrong_answer(system_session, current_user.id)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
-
-    await sign_in_locks.record_success(system_session, current_user.id)
     if await is_risky(request, system_session, current_user):
         held = await hold_change(
             request,
@@ -317,38 +300,20 @@ async def step_up_with_factor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    await refuse_if_locked(system_session, current_user.id)
-
-    if payload.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            system_session, user_id=current_user.id, code=payload.recovery_code
-        )
-        method, factor_amr = "recovery_code", [SECOND_FACTOR_AMR]
-        refusal = AuthMessages.RECOVERY_CODE_INVALID
-    else:
-        accepted = await totp_service.verify_code(
-            system_session, user_id=current_user.id, code=payload.code or ""
-        )
-        method, factor_amr = "totp", ["otp", SECOND_FACTOR_AMR]
-        refusal = AuthMessages.TOTP_INVALID
-
-    if not accepted:
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=current_user.id,
-            detail={"method": method, "during": "step_up"},
-        )
-        await count_wrong_answer(system_session, current_user.id)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
-
-    await sign_in_locks.record_success(system_session, current_user.id)
+    proof = await prove_second_factor(
+        system_session,
+        user_id=current_user.id,
+        code=payload.code,
+        recovery_code=payload.recovery_code,
+        during="step_up",
+        signed_in=True,
+    )
     return await upgrade_session(
         request,
         response,
         system_session,
         user=current_user,
-        add_amr=factor_amr,
+        add_amr=proof.amr,
     )
 
 

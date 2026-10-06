@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import platform_tier, role_name
 from app.testing import as_role, create_user
 
 
@@ -51,7 +51,7 @@ async def test_auth_provider_secrets_unreadable_on_request_path(session):
     ).scalar_one()
     assert seen >= 1
 
-    async with as_role(session, platform_role_name("owner"), u1.id):
+    async with as_role(session, role_name(platform_tier("owner")), u1.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(

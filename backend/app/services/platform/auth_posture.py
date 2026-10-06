@@ -327,7 +327,7 @@ async def answers_the_rule(session: AsyncSession, *, user: User) -> bool:
     from app.core import auth_context
     from app.services.auth.assurance import SECOND_FACTOR_AMR
 
-    if SECOND_FACTOR_AMR in auth_context.session_amr():
+    if SECOND_FACTOR_AMR in auth_context.current().session_amr:
         return True
     return await holds_second_factor(session, user_id=user.id)
 
@@ -709,10 +709,11 @@ class _SignInRequirement(Rule):
         from app.core import auth_context
         from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 
-        amr = auth_context.session_amr()
+        recorded = auth_context.current()
+        amr = recorded.session_amr
         if (
             after.provider_id is not None
-            and after.provider_id not in auth_context.satisfied_providers()
+            and after.provider_id not in recorded.satisfied_providers
         ):
             raise self_unsatisfied("provider")
         # Coming in by any of the community's own providers is also proof it

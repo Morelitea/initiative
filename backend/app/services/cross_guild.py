@@ -80,7 +80,8 @@ async def member_guild_ids(
         Guild.status.in_(LIVE_STATUS_VALUES),
         User.status != UserStatus.suspended,
     ]
-    if auth_context.api_key_credential():
+    recorded = auth_context.current()
+    if recorded.api_key_credential:
         conditions.append(
             or_(
                 GuildMembership.api_keys_allowed.is_(True),
@@ -89,7 +90,7 @@ async def member_guild_ids(
                 ),
             )
         )
-    pinned = auth_context.api_key_guild_id()
+    pinned = recorded.api_key_guild_id
     if pinned is not None:
         conditions.append(GuildMembership.guild_id == pinned)
     rows = await session.exec(
@@ -162,7 +163,7 @@ async def gather_across_guilds(
     contexts: dict[tuple[int, int, bool], GuildContext] = session.info.setdefault(
         _CONTEXT_CACHE_KEY, {}
     )
-    satisfied = auth_context.satisfied_providers()
+    satisfied = auth_context.current().satisfied_providers
 
     async def enter(routed: AsyncSession, account: User, guild_id: int) -> bool:
         """Route ``routed`` into ``guild_id`` as ``account``; False when this

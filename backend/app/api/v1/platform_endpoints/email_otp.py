@@ -65,7 +65,6 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.auth import sign_in_locks
 from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
@@ -494,9 +493,6 @@ async def verify_step_up_code(
             detail=AuthMessages.EMAIL_OTP_INVALID,
         )
 
-    # The right code starts the count over, as a sign-in does; it commits with
-    # the upgrade.
-    await sign_in_locks.record_success(system_session, current_user.id)
     return await upgrade_session(
         request,
         response,

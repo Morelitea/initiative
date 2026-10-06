@@ -4,11 +4,11 @@ import logging
 import re
 from urllib.parse import quote, quote_plus
 
-import asyncpg
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
@@ -16,9 +16,9 @@ from app.core.security import get_password_hash
 from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
+    APP_LOGIN_ROLE,
     ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
-    verify_effective_shared_grants,
     verify_engine_identities,
 )
 from app.db.session import (
@@ -143,84 +143,72 @@ def _require_image_knows(stamped: list[str]) -> None:
     )
 
 
-async def check_pre_baseline_db() -> None:
+async def check_pre_baseline_db(conn: AsyncConnection) -> None:
     """Exit with upgrade instructions if the database predates the v0.53.5
     baseline squash — its revision id no longer exists in this chain, so
-    alembic would fail with a cryptic "can't locate revision" otherwise."""
-    url = make_url(settings.DATABASE_URL)
+    alembic would fail with a cryptic "can't locate revision" otherwise.
 
-    try:
-        conn = await asyncpg.connect(
-            user=url.username,
-            password=url.password,
-            database=url.database,
-            host=url.host,
-            port=url.port or 5432,
-        )
-    except Exception:
-        return  # Can't connect; let alembic surface the error
-
-    try:
-        has_table = await conn.fetchval(
+    Runs on the migration lock's connection, which autocommits."""
+    has_table = await conn.scalar(
+        text(
             "SELECT EXISTS ("
             "  SELECT 1 FROM information_schema.tables "
             "  WHERE table_schema = 'public' AND table_name = 'alembic_version'"
             ")"
         )
-        if not has_table:
-            return  # Fresh database
+    )
+    if not has_table:
+        return  # Fresh database
 
-        # Every row, not just one: a database left on a branch carries a stamp
-        # per head, and a single image has to be able to run all of them.
-        stamped = [
-            row["version_num"]
-            for row in await conn.fetch("SELECT version_num FROM alembic_version")
-        ]
-        if not stamped:
-            return  # Fresh database (empty alembic_version)
-        revision = stamped[0]
+    # Every row, not just one: a database left on a branch carries a stamp
+    # per head, and a single image has to be able to run all of them.
+    stamped = list(
+        (await conn.scalars(text("SELECT version_num FROM alembic_version"))).all()
+    )
+    if not stamped:
+        return  # Fresh database (empty alembic_version)
+    revision = stamped[0]
 
-        if revision == BASELINE_REVISION:
-            # Stamped at the baseline, but roles may be missing on a database
-            # that never actually ran it (e.g. restored without roles). Clear
-            # the stamp so the (idempotent) baseline migration re-runs — it
-            # recreates roles, RLS policies, and grants as needed.
-            has_roles = await conn.fetchval(
-                "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user')"
-            )
-            if not has_roles:
-                print(
-                    "Baseline stamped but database roles missing. Re-running baseline migration..."
-                )
-                await conn.execute("DELETE FROM alembic_version")
-            return
-
-        if _is_dated_revision(revision) and revision > BASELINE_REVISION:
-            # Post-squash, so alembic can run it — as long as this image is the
-            # one that has it. Say so when it isn't, for the same reason the
-            # pre-baseline message below exists.
-            _require_image_knows(stamped)
-            return  # normal upgrade
-
-        raise SystemExit(
-            f"\n{'=' * 70}\n"
-            f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
-            f"This version's migration history starts at the v0.53.5 baseline;\n"
-            f"older databases must step through a v0.53.x release first:\n\n"
-            f"  1. Deploy any v0.53.x image (e.g. morelitea/initiative:0.53.5)\n"
-            f"     and let it boot once — its migrations and startup conversion\n"
-            f"     bring the database to the baseline state.\n"
-            f"  2. Then deploy this version and restart.\n\n"
-            f"Step 1 is mandatory, not advisory: it is what copies guild content\n"
-            f"into the per-guild schemas. This version DROPS the old copies in\n"
-            f"the public schema (migration 20260811_0163) and cannot be rolled\n"
-            f"back, so anything not converted by then is lost.\n\n"
-            f"(Installs older than v0.30.0 are no longer supported for\n"
-            f"in-place upgrade — restore into a fresh install instead.)\n"
-            f"{'=' * 70}"
+    if revision == BASELINE_REVISION:
+        # Stamped at the baseline, but roles may be missing on a database
+        # that never actually ran it (e.g. restored without roles). Clear
+        # the stamp so the (idempotent) baseline migration re-runs — it
+        # recreates roles, RLS policies, and grants as needed.
+        has_roles = await conn.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :login)"),
+            {"login": APP_LOGIN_ROLE},
         )
-    finally:
-        await conn.close()
+        if not has_roles:
+            print(
+                "Baseline stamped but database roles missing. Re-running baseline migration..."
+            )
+            await conn.execute(text("DELETE FROM alembic_version"))
+        return
+
+    if _is_dated_revision(revision) and revision > BASELINE_REVISION:
+        # Post-squash, so alembic can run it — as long as this image is the
+        # one that has it. Say so when it isn't, for the same reason the
+        # pre-baseline message below exists.
+        _require_image_knows(stamped)
+        return  # normal upgrade
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
+        f"This version's migration history starts at the v0.53.5 baseline;\n"
+        f"older databases must step through a v0.53.x release first:\n\n"
+        f"  1. Deploy any v0.53.x image (e.g. morelitea/initiative:0.53.5)\n"
+        f"     and let it boot once — its migrations and startup conversion\n"
+        f"     bring the database to the baseline state.\n"
+        f"  2. Then deploy this version and restart.\n\n"
+        f"Step 1 is mandatory, not advisory: it is what copies guild content\n"
+        f"into the per-guild schemas. This version DROPS the old copies in\n"
+        f"the public schema (migration 20260811_0163) and cannot be rolled\n"
+        f"back, so anything not converted by then is lost.\n\n"
+        f"(Installs older than v0.30.0 are no longer supported for\n"
+        f"in-place upgrade — restore into a fresh install instead.)\n"
+        f"{'=' * 70}"
+    )
 
 
 async def migrate_database() -> None:
@@ -230,8 +218,8 @@ async def migrate_database() -> None:
     that the upgrade then acts on, so the two share a lock rather than taking
     one each.
     """
-    async with migration_lock():
-        await check_pre_baseline_db()
+    async with migration_lock() as conn:
+        await check_pre_baseline_db(conn)
         await run_migrations()
 
 
@@ -431,11 +419,9 @@ async def _prepare_database() -> None:
     # the per-table GRANTs (cluster state a stamped DB never re-applies), so
     # seeding dies on "permission denied for table guilds" instead. Re-assert
     # the audited shared-table grants from the registry (issue #835 follow-up).
+    # It heals the logins the URLs connect as and stops with the exact GRANTs
+    # when that does not take.
     await ensure_shared_table_grants()
-    # The heal above targets the canonical role names; verify the CONNECTED
-    # logins actually hold the audited privileges, stopping with the exact
-    # GRANTs when a deployment's URLs connect as other logins.
-    await verify_effective_shared_grants()
     await warn_if_search_operator_missing()
     backfill = await backfill_guild_schemas()
     if backfill.failed:

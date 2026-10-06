@@ -23,6 +23,7 @@ from app.api.deps import (
     require_capability,
     SystemSessionDep,
 )
+from app.api.v1.platform_endpoints.session_opening import prove_second_factor
 from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
@@ -184,7 +185,9 @@ async def check_second_factor(
     authenticator, a recovery code, or one of the account's passkeys. The
     recovery code is there because an operator whose phone is gone is exactly
     who needs to reach a community; the passkey, because a holder who signs in
-    with one has no reason to keep an authenticator app as well.
+    with one has no reason to keep an authenticator app as well. A code is
+    taken by :func:`prove_second_factor`, as it is at a sign-in, so the
+    account's lock and its count of wrong answers hold here too.
     """
     if not await service.demands_second_factor(session, actor=actor):
         return
@@ -203,35 +206,34 @@ async def check_second_factor(
         )
 
     if answer.passkey is not None:
-        accepted = await _answers_with_a_passkey(
+        if not await _answers_with_a_passkey(
             session, actor=actor, credential=answer.passkey
-        )
-        method, refusal = "passkey", AccessGrantMessages.PASSKEY_INVALID
-    elif answer.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            session, user_id=actor_id, code=answer.recovery_code
-        )
-        method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
-    elif answer.code:
-        accepted = await totp_service.verify_code(
-            session, user_id=actor_id, code=answer.code
-        )
-        method, refusal = "totp", AuthMessages.TOTP_INVALID
-    else:
+        ):
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+                actor_user_id=actor_id,
+                detail={"method": "passkey", "during": during},
+            )
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AccessGrantMessages.PASSKEY_INVALID,
+            )
+        return
+    if not (answer.code or answer.recovery_code):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AccessGrantMessages.SECOND_FACTOR_REQUIRED,
         )
-
-    if not accepted:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=actor_id,
-            detail={"method": method, "during": during},
-        )
-        await session.commit()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+    await prove_second_factor(
+        session,
+        user_id=actor_id,
+        code=answer.code,
+        recovery_code=answer.recovery_code,
+        during=during,
+        signed_in=True,
+    )
 
 
 @router.get("/break-glass", response_model=BreakGlassRequirements)

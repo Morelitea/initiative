@@ -68,24 +68,20 @@ from app.api.v1.platform_endpoints.session_cookies import (
     REFRESH_COOKIE_PATH,
     clear_refresh_cookie,
     clear_session_cookie,
-    set_refresh_cookie,
-    set_session_cookie,
 )
 from app.api.v1.platform_endpoints.session_opening import (
     PASSWORD_LEG,
     SECOND_FACTOR_PURPOSES,
-    count_wrong_answer,
     current_session_row,
     MOBILE_CALLBACK_URI,
     first_leg_of,
-    issue_session,
     mint_for,
     open_session,
     prove_password,
-    refuse_if_locked,
+    prove_second_factor,
     require_login_method,
     second_factor_outstanding,
-    session_store,
+    upgrade_session,
 )
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
@@ -855,12 +851,6 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
-    try:
-        await refuse_if_locked(system_session, user_id)
-    except HTTPException:
-        # The attempt the claim took stands.
-        await system_session.commit()
-        raise
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await system_session.get(User, user_id)
@@ -870,33 +860,20 @@ async def answer_second_factor(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
 
-    if payload.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            system_session, user_id=user_id, code=payload.recovery_code
-        )
-        method, factor_amr = "recovery_code", ["mfa"]
-        refusal = AuthMessages.RECOVERY_CODE_INVALID
-    else:
-        accepted = await totp_service.verify_code(
-            system_session, user_id=user_id, code=payload.code or ""
-        )
-        method, factor_amr = "totp", ["otp", "mfa"]
-        refusal = AuthMessages.TOTP_INVALID
-
-    if not accepted:
-        # The attempt is already counted against the challenge, which stands
-        # until it runs out; this records the refusal and lets them try again.
-        await audit_service.record(
+    try:
+        proof = await prove_second_factor(
             system_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=None,
-            target_user_id=user_id,
-            target_type="user",
-            target_id=user_id,
-            detail={"method": method},
+            user_id=user_id,
+            code=payload.code,
+            recovery_code=payload.recovery_code,
+            during="sign_in",
+            signed_in=False,
         )
-        await count_wrong_answer(system_session, user_id)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+    except HTTPException:
+        # The attempt the claim took stands, and the challenge with it until
+        # it runs out, so they can try again.
+        await system_session.commit()
+        raise
 
     if not await challenge_service.consume(system_session, challenge):
         # Spent between the claim and here, so the session it bought is not
@@ -907,18 +884,6 @@ async def answer_second_factor(
             detail=AuthMessages.TOTP_CHALLENGE_INVALID,
         )
 
-    if method == "recovery_code":
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
-            actor_user_id=user_id,
-            detail={
-                "remaining": await totp_service.remaining_recovery_codes(
-                    system_session, user_id=user_id
-                )
-            },
-        )
-
     leg, _ = first_leg_of(challenge.purpose)
     return await open_session(
         request,
@@ -926,8 +891,8 @@ async def answer_second_factor(
         system_session,
         user_id=user_id,
         token_version=user.token_version,
-        amr=[*leg.amr, *factor_amr],
-        audit_detail={"method": leg.method, "second_factor": method},
+        amr=[*leg.amr, *proof.amr],
+        audit_detail={"method": leg.method, "second_factor": proof.method},
     )
 
 
@@ -1013,15 +978,9 @@ async def refresh_access_token(
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     # Bounded by the row it renews, the same way the first token was.
-    access_token, access_max_age = mint_for(
-        issued.session, subject=subject, token_version=user.token_version
-    )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(
-        access_token=access_token,
-        refresh_token=issued.refresh_token if presented_in_body else None,
-    )
+    renewed = mint_for(issued, subject=subject, token_version=user.token_version)
+    renewed.set_cookies(response)
+    return renewed.to_token(include_refresh=presented_in_body)
 
 
 @router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
@@ -1193,11 +1152,12 @@ async def issue_upload_token(
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
+    recorded = auth_context.current()
     token, expires_in = create_upload_token(
         user_id=current_user.id,
-        satisfied_providers=sorted(auth_context.satisfied_providers()),
-        satisfied_claims=auth_context.satisfied_claims(),
-        session_amr=auth_context.session_amr(),
+        satisfied_providers=sorted(recorded.satisfied_providers),
+        satisfied_claims=recorded.satisfied_claims,
+        session_amr=recorded.session_amr,
         not_after=(
             datetime.fromtimestamp(session_exp, timezone.utc)
             if session_exp is not None
@@ -1210,6 +1170,7 @@ async def issue_upload_token(
 @router.post("/native/token", response_model=Token)
 async def redeem_native_sign_in(
     request: Request,
+    response: Response,
     system_session: SystemSessionDep,
     payload: NativeSignInRedeem,
 ) -> Token:
@@ -1232,31 +1193,23 @@ async def redeem_native_sign_in(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
         )
-    user_id, token_version = user.id, user.token_version
-    async with session_store(system_session, user_id=user_id):
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail={
-                "method": handoff.method,
-                "native": True,
-                "device_name": handoff.device_name,
-            },
-        )
-        await sign_in_locks.record_success(system_session, user_id)
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=handoff.amr,
-            satisfied_providers=handoff.satisfied_providers,
-            provider_auth=handoff.provider_auth,
-            device_name=handoff.device_name,
-            device=True,
-        )
-    return issued.to_token(include_refresh=True)
+    return await open_session(
+        request,
+        response,
+        system_session,
+        user_id=user.id,
+        token_version=user.token_version,
+        amr=handoff.amr,
+        audit_detail={
+            "method": handoff.method,
+            "native": True,
+            "device_name": handoff.device_name,
+        },
+        satisfied_providers=handoff.satisfied_providers,
+        provider_auth=handoff.provider_auth,
+        device_name=handoff.device_name,
+        device=True,
+    )
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -1881,10 +1834,9 @@ async def _complete_provider_login(
             logger.exception("Could not hand a native sign-in to user %s", user_id)
             return _error_redirect(True, OidcMessages.SESSION_STORE_UNAVAILABLE)
         return RedirectResponse(f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}")
-    # A step-up upgrades the session it interrupted rather than starting over:
-    # its factors and satisfied providers carry forward, and it is replaced.
-    # Satisfying one guild's requirement never un-satisfies another's. Only the
-    # same user's session merges; anything else is a fresh sign-in.
+    # A step-up upgrades the session it interrupted rather than starting over
+    # (see ``upgrade_session``). Only the same user's session merges; anything
+    # else is a fresh sign-in.
     #
     # The assurance record merges per provider: this provider's entry is
     # replaced by what it just asserted, and every other provider's account of
@@ -1897,46 +1849,49 @@ async def _complete_provider_login(
         )
         if prior is not None and prior.user_id != user_id:
             prior = None
-    if prior is not None:
-        amr = sorted(set(prior.amr) | set(amr))
-        satisfied = [*prior.satisfied_providers, *satisfied]
     provider_auth = record_for_provider(
         prior.provider_auth if prior is not None else None,
         provider_id=provider_id,
         assurance=assurance,
     )
+    audit_detail = {
+        "method": "oidc",
+        "provider": provider_slug,
+        "step_up": prior is not None,
+        # What the provider said about this authentication, in the same shape
+        # the session row keeps. Absent claims add no keys.
+        **assurance.as_record(),
+    }
     try:
-        async with session_store(system_session, user_id=user_id):
-            await audit_service.record(
-                system_session,
-                event_type=AuditEventType.AUTH_SIGNED_IN,
-                actor_user_id=user_id,
-                guild_id=None,
-                detail={
-                    "method": "oidc",
-                    "provider": provider_slug,
-                    "step_up": prior is not None,
-                    # What the provider said about this authentication, in the
-                    # same shape the session row keeps. Absent claims add no
-                    # keys.
-                    **assurance.as_record(),
-                },
-            )
-            issued = await issue_session(
+        if prior is None:
+            await open_session(
                 request,
+                oidc_response,
                 system_session,
                 user_id=user_id,
                 token_version=token_version,
                 amr=amr,
+                audit_detail=audit_detail,
                 satisfied_providers=satisfied,
                 provider_auth=provider_auth,
-                replaces=prior.id if prior is not None else None,
+                device=False,
+            )
+        else:
+            await upgrade_session(
+                request,
+                oidc_response,
+                system_session,
+                user=user,
+                add_amr=amr,
+                prior=prior,
+                add_providers=satisfied,
+                provider_auth=provider_auth,
+                audit_detail=audit_detail,
             )
     except HTTPException:
         # The provider authenticated them; we could not record it. Back to the
         # app with a code rather than a credential that cannot renew.
         return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
-    issued.set_cookies(oidc_response)
     return oidc_response
 
 

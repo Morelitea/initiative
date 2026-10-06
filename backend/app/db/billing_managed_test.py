@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.db.public_rls import role_name
 from app.testing import create_guild
 from app.testing.billing_managed import billing_manages_plans
 
@@ -53,7 +53,7 @@ async def _as_billing(role_session, guild_id: int, sql: str, **params) -> None:
                 "SELECT set_config('role', :role, true),"
                 " set_config('app.billing_guild_id', :g, true)"
             ).bindparams(
-                role=f"{settings.PLATFORM_ROLE_PREFIX}initiative_billing",
+                role=role_name("initiative_billing"),
                 g=str(guild_id),
             )
         )

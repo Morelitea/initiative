@@ -90,7 +90,7 @@ def _error(exc: service.DmTransportError) -> HTTPException:
 
 def _session_id() -> uuid.UUID | None:
     """The sign-in this request is on, which a key store is linked to."""
-    credential = session_credential()
+    credential = auth_context.current().session_credential
     return credential.session_id if credential is not None else None
 
 

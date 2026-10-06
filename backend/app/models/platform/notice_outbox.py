@@ -66,7 +66,8 @@ class NoticeOutboxItem(SQLModel, table=True):
     )
     #: A ``NotificationType`` value.
     type: str = Field(sa_column=Column(String(64), nullable=False))
-    #: The bell line's payload, as ``notify`` built it.
+    #: The bell line's payload, as ``notify`` built it; for a push of its own,
+    #: the ``communities`` it gathers from.
     data: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
     #: The thread a rolled-up line belongs to, and who it names; null for a
     #: notice that is a line of its own.

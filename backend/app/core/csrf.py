@@ -1,17 +1,17 @@
 """Where a state-changing request came from, for cookie-authenticated callers.
 
 The session cookie authenticates ordinary API requests, not only the refresh
-route: ``get_current_user`` falls back to it when no ``Authorization`` header
-is present. So for those callers this asks for one more thing before an unsafe
-method is allowed through -- that the request came from a page this deployment
-serves.
+route: ``get_current_user`` falls back to it when no ``Authorization: Bearer``
+header is present. So for those callers this asks for one more thing before an
+unsafe method is allowed through -- that the request came from a page this
+deployment serves.
 
 Scope, and why it is drawn here:
 
-* **Only cookie-authenticated callers.** An ``Authorization`` header is never
-  attached by a browser on someone else's behalf, so bearer tokens and API
-  keys are not asked for anything. That is also what keeps mobile
-  shells and API scripts working unchanged.
+* **Only cookie-authenticated callers.** A bearer header is never attached by
+  a browser on someone else's behalf, so bearer tokens and API keys are not
+  asked for anything. That is also what keeps mobile shells and API scripts
+  working unchanged.
 * **Unsafe methods, and every WebSocket handshake.** ``OPTIONS`` is excluded
   along with the read methods: it is the CORS preflight and is answered before
   this runs. A handshake has no method to branch on and opens a two-way
@@ -42,12 +42,13 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
+from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
+from app.core.identify import presented_credential
 from app.core.messages import AuthMessages
-from app.core.security import SESSION_COOKIE_NAME
 
 #: Methods that cannot change state, per RFC 9110.
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
@@ -56,23 +57,14 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 CSRF_ERROR_CODE = AuthMessages.REQUEST_ORIGIN_NOT_RECOGNIZED
 
 
-def _carries_session_cookie(headers: Headers) -> bool:
+def _carries_session_cookie(scope: Scope) -> bool:
     """Whether this request is authenticated by the cookie rather than a header.
 
-    An ``Authorization`` header wins in ``get_current_user``, so a request that
-    carries one is not a cookie session even if a cookie rode along too.
+    Read by the same rule ``identify`` authenticates by, so the request this
+    asks about is the one authentication sees.
     """
-    if headers.get("authorization"):
-        return False
-    cookie = headers.get("cookie")
-    if not cookie:
-        return False
-    # Compare whole names: a cookie called `x_session_token` contains the
-    # session cookie's name as a substring without being it.
-    return any(
-        piece.strip().split("=", 1)[0] == SESSION_COOKIE_NAME
-        for piece in cookie.split(";")
-    )
+    presented = presented_credential(HTTPConnection(scope))
+    return presented is not None and not presented.bearer
 
 
 def _request_scheme(scope: Scope) -> str:
@@ -156,7 +148,7 @@ class CsrfOriginMiddleware:
             return
 
         headers = Headers(scope=scope)
-        if not _carries_session_cookie(headers) or intent_is_proven(
+        if not _carries_session_cookie(scope) or intent_is_proven(
             headers, _request_scheme(scope)
         ):
             await self.app(scope, receive, send)
@@ -182,7 +174,7 @@ class CsrfOriginMiddleware:
         has already run whatever the route does on accept.
         """
         headers = Headers(scope=scope)
-        if not _carries_session_cookie(headers) or intent_is_proven(
+        if not _carries_session_cookie(scope) or intent_is_proven(
             headers, _request_scheme(scope)
         ):
             await self.app(scope, receive, send)

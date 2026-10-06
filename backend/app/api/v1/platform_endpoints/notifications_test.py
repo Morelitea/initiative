@@ -11,6 +11,7 @@ from __future__ import annotations
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.notification_categories import category_of
 from app.core.tools import COMMENT_TARGETS, Tool
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
@@ -312,7 +313,9 @@ async def test_the_desktop_alert_is_the_line_unless_its_community_redacts(
     session.add(guild)
     await session.commit()
     body = (await client.get(url, headers=get_auth_headers(user))).json()
-    title, text = notification_policy.redacted_push(NotificationType.mention, "en")
+    title, text = notification_policy.redacted_line(
+        category_of(NotificationType.mention), "en"
+    )
     assert body["redacted"] == {"title": title, "body": text}
 
 

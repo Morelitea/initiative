@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { acceptLegalDocuments } from "@/api/generated/users/users";
 import { LegalDocumentLinks } from "@/components/auth/LegalNotice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,7 @@ export const AcceptTerms = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.post("/me/legal-acceptance");
+      await acceptLegalDocuments();
       await refreshUser();
     } catch (err) {
       setError(getErrorMessage(err, "legal:acceptError"));

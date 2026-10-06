@@ -209,26 +209,45 @@ async def test_a_row_with_no_bell_line_is_never_superseded(
 async def test_a_channel_switched_off_after_writing_is_not_delivered(
     session: AsyncSession, configured, sent
 ):
-    """…while a security letter goes regardless, on its own."""
+    """By the recipient or by the row's community, which may also have started
+    redacting since; a security letter goes regardless, on its own."""
     user = await create_user(session, email="switched-off@example.com")
+    quiet = await create_guild(session, creator=user)
+    redacting = await create_guild(session, creator=user)
     await email_outbox.enqueue(
         session, user, category=NotificationCategory.mentions, pieces=_pieces()
     )
+    for guild in (quiet, redacting):
+        await email_outbox.enqueue(
+            session,
+            user,
+            category=NotificationCategory.replies,
+            guild_id=guild.id,
+            pieces=_pieces(body="<strong>Alice</strong> replied on Q3 budget"),
+        )
     await set_notification_prefs(
         session,
         user,
         {"categories": {"mentions": {"email": False}, "account": {"email": False}}},
     )
+    quiet.allow_email_notifications = False
+    redacting.redact_notification_content = True
+    session.add_all([quiet, redacting])
     await session.commit()
     await email_outbox.enqueue_account_letter(
         user, _pieces(body="Your password was changed")
     )
 
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
-    [letter] = sent
+    letter, reply = sent
     assert letter["recipient"] == "switched-off@example.com"
     assert "Your password was changed" in letter["html"]
-    assert [row.sent_at is not None for row in await _rows(session, user.id)] == [True]
+    assert reply["subject"] == "You have a reply"
+    assert "Q3 budget" not in reply["html"]
+    assert [row.sent_at is not None for row in await _rows(session, user.id)] == [
+        True,
+        True,
+    ]
 
 
 async def test_an_account_letter_goes_to_each_address_with_its_own_link(

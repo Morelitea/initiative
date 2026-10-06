@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.plugin_access_token import InstallAccessToken, is_access_token
+from app.core.plugin_access_token import InstallAccessToken
 from app.core.plugin_scopes import (
     UnknownPluginScope,
     parse_scope,
@@ -25,6 +25,7 @@ from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
 from app.core.identify import (
     CredentialKind,
+    Identified,
     bearer_plugin_token,
     identify,
     identify_url_token,
@@ -33,7 +34,6 @@ from app.services.auth.credentials import (
     Authenticated,
     CredentialRefused,
     asked_of_an_account,
-    clear_recorded_credential,
 )
 from app.services.auth.assurance import (
     SECOND_FACTOR_AMR,
@@ -71,7 +71,7 @@ from app.db.guild_standing import (
     named_ref_candidates,
 )
 from app.models.platform.identity_ref import IdentityEntity
-from app.db.schema_provisioning import PLATFORM_SUSPENDED
+from app.db.public_rls import PLATFORM_SUSPENDED
 from app.db.request_context import (
     Filer,
     ContentGrantee,
@@ -159,19 +159,14 @@ def _admit(request: Request, authenticated: Authenticated) -> User:
     return authenticated.user
 
 
-async def get_current_user(
-    request: Request,
-    session: SessionDep,
-    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+async def _authenticate(
+    request: Request, session: AsyncSession, identified: Identified | None
 ) -> User:
+    """The account the credential a request presented names, admitted."""
     # Nothing recorded until a credential is read, so a request that presents
     # none reads as something other than a session.
-    clear_recorded_credential()
+    auth_context.reset()
     request.state.credential = None
-    # ``bearer_token`` and ``session_cookie`` declare the schemes for the API
-    # description; the credential itself is read once, by ``identify``.
-    identified = identify(request)
     if identified is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -185,6 +180,17 @@ async def get_current_user(
     except CredentialRefused as exc:
         raise exc.as_http() from exc
     return _admit(request, authenticated)
+
+
+async def get_current_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> User:
+    # ``bearer_token`` and ``session_cookie`` declare the schemes for the API
+    # description; the credential itself is read once, by ``identify``.
+    return await _authenticate(request, session, identify(request))
 
 
 def require_first_party_session(request: Request) -> str:
@@ -266,18 +272,18 @@ async def platform_factor_unmet(
 
     ``guild_id`` is the community the request serves, or ``None``.
     """
-    if SECOND_FACTOR_AMR in auth_context.session_amr():
-        auth_context.set_platform_factor(True)
+    if SECOND_FACTOR_AMR in auth_context.current().session_amr:
+        auth_context.record(platform_factor=True)
         return False
     if level is None:
-        level = auth_context.asked_of_account()
+        level = auth_context.current().asked_of_account
     if level is None:
         level = await auth_posture.second_factor_requirement(session)
     if not auth_posture.rule_covers(level, user.role):
-        auth_context.set_platform_factor(True)
+        auth_context.record(platform_factor=True)
         return False
     held = await _account_holds_factor(user, guild_id)
-    auth_context.set_platform_factor(held)
+    auth_context.record(platform_factor=held)
     return not held
 
 
@@ -459,11 +465,12 @@ def _sign_in(satisfied: frozenset[int], on_behalf: bool) -> SignIn:
     """How this request's session signed in, as the routing records it: the
     providers ``satisfied`` names, and the rest as the credential validator
     recorded it."""
+    recorded = auth_context.current()
     return SignIn(
         providers=tuple(satisfied),
-        claims=auth_context.satisfied_claims(),
-        amr=auth_context.session_amr(),
-        platform_factor=auth_context.platform_factor(),
+        claims=recorded.satisfied_claims,
+        amr=recorded.session_amr,
+        platform_factor=recorded.platform_factor,
         on_behalf=on_behalf,
     )
 
@@ -600,7 +607,7 @@ async def declines_this_credential(
     The cross-guild aggregates, which pick their guilds in one query, ask the
     same question there (see ``app.services.cross_guild``).
     """
-    return auth_context.api_key_credential() and await refuses_api_keys(
+    return auth_context.current().api_key_credential and await refuses_api_keys(
         session, membership
     )
 
@@ -609,7 +616,7 @@ def pinned_elsewhere(guild_id: int) -> bool:
     """Whether this request's API key is limited to a guild other than
     ``guild_id``. False for a key limited to no guild and for every other
     credential."""
-    pinned = auth_context.api_key_guild_id()
+    pinned = auth_context.current().api_key_guild_id
     return pinned is not None and pinned != guild_id
 
 
@@ -763,7 +770,7 @@ async def _load_guild_context(
             raise GuildAccessError()
         # A grant is reached by the person in a session of their own, never
         # with a personal API key, whatever the community's options.
-        if auth_context.api_key_credential():
+        if auth_context.current().api_key_credential:
             raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
         is_read_write = (
             grant is not None and grant.access_level == AccessLevel.read_write.value
@@ -1229,7 +1236,7 @@ async def establish_guild_access(
     ``for_payment`` and ``factor_asked`` are :func:`_load_guild_context`'s.
     """
     satisfied = (
-        auth_context.satisfied_providers()
+        auth_context.current().satisfied_providers
         if satisfied_providers is None
         else satisfied_providers
     )
@@ -1280,7 +1287,7 @@ async def _refuse_sign_in(
         await session.get(GuildAuthPolicy, guild_id),
         guild_id,
         satisfied,
-        auth_context.session_amr(),
+        auth_context.current().session_amr,
         require_second_factor=guild_context.guild.require_second_factor,
     )
     raise GuildAccessError()
@@ -1718,12 +1725,12 @@ async def get_actor_user(
     """The person a scoped route serves, or ``None`` for an installed plug-in.
 
     For a person, the same two dependencies a content route composes, in the
-    same order. An installation token is not read here and costs nothing: the
-    route's :func:`plugin_scope` dependency admits it. FastAPI resolves this once
-    per request, so a handler that takes :data:`ActorUserDep` beside its scope
-    gets the account the scope dependency authenticated.
+    same order. An installation token is admitted by the route's
+    :func:`plugin_scope` dependency, not here. FastAPI resolves this once per
+    request, so a handler that takes :data:`ActorUserDep` beside its scope gets
+    the account the scope dependency authenticated.
     """
-    if bearer_token and is_access_token(bearer_token):
+    if bearer_plugin_token(request) is not None:
         return None
     user = await get_current_user(request, session, bearer_token, session_cookie)
     return await get_current_active_user(request, session, user)
@@ -2037,7 +2044,7 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
-async def _resolve_upload_user(
+async def get_upload_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
@@ -2055,47 +2062,14 @@ async def _resolve_upload_user(
         refused; native clients fetch a scoped token from
         ``POST /auth/upload-token`` instead.
 
-    Held to the same account status rule as every other route.
+    Held to the same account status and second-factor rules as every other
+    route.
     """
-    clear_recorded_credential()
-    request.state.credential = None
     identified = identify(request) or identify_url_token(request)
-    if identified is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.NOT_AUTHENTICATED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    try:
-        authenticated = await credentials.authenticate(session, identified)
-    except CredentialRefused as exc:
-        raise exc.as_http() from exc
-    return await _active_user(request, _admit(request, authenticated))
-
-
-async def get_upload_user(
-    request: Request,
-    session: SessionDep,
-    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    token_param: Annotated[Optional[str], Query(alias="token")] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
-) -> User:
-    """The media path's caller, held to the deployment's second-factor rule.
-
-    The resolution itself is next door and unchanged; this is where the one
-    question every other request answers is asked of this one too, once the
-    credential has named somebody.
-    """
-    user = await _resolve_upload_user(
-        request, session, bearer_token, token_param, session_cookie
+    user = await _active_user(
+        request, await _authenticate(request, session, identified)
     )
-    guild_id = cohorts.addressed_guild_id(request.path_params)
-    if await platform_factor_unmet(session, user, guild_id=guild_id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
-            headers={"WWW-Authenticate": STEP_UP_CHALLENGE},
-        )
+    await _require_platform_factor(request, session, user)
     return user
 
 
