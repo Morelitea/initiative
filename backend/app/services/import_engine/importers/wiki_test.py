@@ -75,7 +75,7 @@ def test_content_with_nothing_to_place_is_left_as_it_was():
         )
         is None
     )
-    assert _place_references("not a document", page_ids={}, mentioned={}) is None
+    assert _place_references("not a file", page_ids={}, mentioned={}) is None
 
 
 def test_the_people_a_wiki_names_are_asked_about_most_named_first():
@@ -196,19 +196,19 @@ def _file_mention(ref, text="spec.pdf"):
     return {
         "type": "entity-mention",
         "version": 1,
-        "entityType": "document",
+        "entityType": "file",
         "entityId": 0,
         "text": text,
         "importRef": ref,
     }
 
 
-def test_a_file_the_page_links_to_is_the_document_it_became():
+def test_a_file_the_page_links_to_is_the_file_it_became():
     placed = _place_references(
         _doc(_file_mention("entry:assets/a.pdf"), _file_mention("entry:assets/b.pdf")),
         page_ids={},
         mentioned={},
-        documents={"entry:assets/a.pdf": 31},
+        file_ids={"entry:assets/a.pdf": 31},
     )
     assert placed is not None
     found, missing = placed["root"]["children"][0]["children"]

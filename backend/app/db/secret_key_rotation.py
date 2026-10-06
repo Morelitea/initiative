@@ -61,6 +61,7 @@ from app.core.encryption import (
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     SALT_TOTP_SECRET,
+    SALT_BIRTHDATE,
     decrypt_field,
     encrypt_field,
     hash_email,
@@ -89,6 +90,8 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The seed behind an account's authenticator factor, Fernet at rest like
     # the secrets above it and re-keyed with them.
     ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
+    # An account's date of birth, re-keyed with the rest.
+    ("user_birthdates", "birthdate_encrypted", SALT_BIRTHDATE),
     # The settings singleton's credentials, on their own companion row.
     ("app_setting_secrets", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_setting_secrets", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),

@@ -7,7 +7,7 @@
     "pages": "Pages",
     "projects": "Projects",
     "tasks": "Tasks",
-    "documents": "Documents",
+    "files": "Files",
     "queues": "Queues",
     "counterGroups": "Counter Groups",
     "calendars": "Calendars",
@@ -19,7 +19,7 @@
   },
   "actions": {
     "addTask": "Add Task",
-    "addDocument": "Add Document"
+    "addFile": "Add file"
   },
   "pages": {
     "myTasks": "My Tasks",

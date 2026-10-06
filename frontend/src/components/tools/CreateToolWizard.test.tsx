@@ -59,9 +59,9 @@ vi.mock("@/lib/storage", () => ({
 import { CreateToolWizard, getOpenCreateToolWizard } from "./CreateToolWizard";
 
 const openWizard = async () => {
-  renderWithProviders(<CreateToolWizard tool={Tool.document} />, { auth: { user: buildUser() } });
-  await waitFor(() => expect(getOpenCreateToolWizard(Tool.document)).not.toBeNull());
-  getOpenCreateToolWizard(Tool.document)?.();
+  renderWithProviders(<CreateToolWizard tool={Tool.file} />, { auth: { user: buildUser() } });
+  await waitFor(() => expect(getOpenCreateToolWizard(Tool.file)).not.toBeNull());
+  getOpenCreateToolWizard(Tool.file)?.();
   return screen.findByRole("dialog");
 };
 

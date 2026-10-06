@@ -35,7 +35,7 @@ if TYPE_CHECKING:  # pragma: no cover
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
 
 #: A join request's note is a sentence or two for the managers reading the
-#: queue, not a document — so it is capped well below the 8 KB plain-text
+#: queue, not a file — so it is capped well below the 8 KB plain-text
 #: ceiling every ``SanitizedBaseModel`` string already carries.
 JOIN_REQUEST_MESSAGE_MAX_LENGTH = 1000
 
@@ -60,7 +60,7 @@ class InitiativeListScope(str, Enum):
 # its migration and the drift test).
 #
 # The field default matches the column default, so a create that names no tools
-# gets projects and documents rather than an initiative with nothing in it.
+# gets projects and files rather than an initiative with nothing in it.
 _InitiativeToolSwitches = create_model(
     "_InitiativeToolSwitches",
     __base__=SanitizedBaseModel,
@@ -359,7 +359,7 @@ def serialize_role(
 class InitiativeSummary(SanitizedBaseModel):
     """An initiative as something else names it: enough to label and link it.
 
-    What a project, a document or a task carries about the initiative it is in.
+    What a project, a file or a task carries about the initiative it is in.
     The initiative's own read is :class:`InitiativeRead`.
     """
 

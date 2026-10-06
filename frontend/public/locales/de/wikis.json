@@ -123,13 +123,13 @@
     "edit": "Diese Seite bearbeiten"
   },
   "updated": "Aktualisiert",
-  "documents": {
-    "openDocument": "Dokument öffnen",
-    "addDocument": "Dokument hinzufügen",
-    "added": "Dokument zum Wiki hinzugefügt",
-    "removed": "Dokument aus dem Wiki entfernt",
+  "files": {
+    "openFile": "Datei öffnen",
+    "addFile": "Datei hinzufügen",
+    "added": "Datei zum Wiki hinzugefügt",
+    "removed": "Datei aus dem Wiki entfernt",
     "remove": "Aus diesem Wiki entfernen",
-    "none": "Keine Dokumente zum Hinzufügen",
-    "pick": "Welches Dokument?"
+    "none": "Keine Dateien zum Hinzufügen",
+    "pick": "Welche Datei?"
   }
 }

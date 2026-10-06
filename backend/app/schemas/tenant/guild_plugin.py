@@ -29,7 +29,9 @@ from app.models.tenant.plugin_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.query import PageMeta
 from app.services.marketplace.registration_lookup import InstallState
+from app.services.tenant import plugin_age
 from app.services.tenant import plugin_config as plugin_config_service
+from app.services.tenant.plugin_age import AgeViewer
 from app.services.tenant.guild_plugins import (
     grantable_scopes,
     requested_scopes,
@@ -496,6 +498,7 @@ def serialize_guild_plugin(
     avatar_url: Optional[str] = None,
     placements: Sequence[Any] = (),
     artifacts: Sequence[Dict[str, Any]] = (),
+    viewer: AgeViewer,
 ) -> CommunityPluginRead:
     """One install as the client sees it.
 
@@ -504,7 +507,8 @@ def serialize_guild_plugin(
     all. It is passed in rather than looked up here so a list of installs
     resolves it once. ``placements`` are the install's ``plugin_placements`` rows,
     and ``artifacts`` what it owns at guild scope, loaded by the caller for the
-    same reason.
+    same reason. ``viewer`` is the person reading, so a surface they are too
+    young for is not offered to them.
     """
     definition = plugin.definition or {}
     state = plugin_config_service.config_state(plugin)
@@ -513,6 +517,7 @@ def serialize_guild_plugin(
         placements=placements,
         is_guild_admin=context.is_admin,
         member_role_ids=context.member_role_ids,
+        age_allows=plugin_age.age_allows(definition, viewer),
     )
     features = definition.get("features")
     service_state = install_state or InstallState()
@@ -629,6 +634,7 @@ def serialize_guild_plugin_detail(
     artifacts: Sequence[Dict[str, Any]] = (),
     consent_rows: Sequence[Any] = (),
     plugin_names: Optional[Dict[str, str]] = None,
+    viewer: AgeViewer,
 ) -> CommunityPluginDetail:
     """The install and its connections, from the viewer's own perspective.
 
@@ -642,6 +648,7 @@ def serialize_guild_plugin_detail(
         avatar_url=avatar_url,
         placements=placements,
         artifacts=artifacts,
+        viewer=viewer,
     )
     connections = [
         serialize_connection(

@@ -43,7 +43,7 @@ describe("ToolViewFilter", () => {
   });
 
   it("renders without totals before they load", () => {
-    render(<ToolViewFilter tool={Tool.document} value="templates" onChange={vi.fn()} />);
+    render(<ToolViewFilter tool={Tool.file} value="templates" onChange={vi.fn()} />);
     const templates = screen.getByRole("radio", { name: "Templates" });
     expect(templates).toHaveAttribute("data-state", "on");
     expect(templates).toHaveTextContent(/^Templates$/);

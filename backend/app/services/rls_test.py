@@ -129,7 +129,7 @@ async def test_check_initiative_permission_manager_has_all(
         asking,
         initiative_id=initiative.id,
         user=user,
-        permission_key=PermissionKey.create_documents,
+        permission_key=PermissionKey.create_files,
     )
 
     assert result is True
@@ -149,14 +149,14 @@ async def test_check_initiative_permission_member_explicit_enabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has documents_enabled=True and projects_enabled=True by default
+    # The member role has files_enabled=True and projects_enabled=True by default
     asking = await role_session("app_user")
     await route_as(asking, user_id=member.id, guild_id=guild.id)
     result = await check_initiative_permission(
         asking,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.documents_enabled,
+        permission_key=PermissionKey.files_enabled,
     )
 
     assert result is True
@@ -176,14 +176,14 @@ async def test_check_initiative_permission_member_explicit_disabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has create_documents=False and create_projects=False by default
+    # The member role has create_files=False and create_projects=False by default
     asking = await role_session("app_user")
     await route_as(asking, user_id=member.id, guild_id=guild.id)
     result = await check_initiative_permission(
         asking,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.create_documents,
+        permission_key=PermissionKey.create_files,
     )
 
     assert result is False

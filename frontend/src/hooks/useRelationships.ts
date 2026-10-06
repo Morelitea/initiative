@@ -3,7 +3,7 @@
  *
  * These belong to no one tool, because the question they answer is about a pair
  * of things rather than about either: the same hook serves a project's
- * attachments, a task's dependencies and a document's backlinks.
+ * attachments, a task's dependencies and a file's backlinks.
  *
  * The per-tool attach hooks in `useProjects` / `useQueues` stay, because they
  * keep a shape their own callers already expect. What is different here is that
@@ -65,8 +65,8 @@ const toolRefOf = (end: RelatedEnd): ToolRef | null =>
  * What changing a link invalidates: the graph, and the tool at each end of it.
  *
  * Both ends, because a link is a fact about a pair and several tools still
- * serialise their own side of one — a project lists its documents, a document
- * lists its projects, a queue item its documents and tasks. Those shapes read
+ * serialise their own side of one — a project lists its files, a file
+ * lists its projects, a queue item its files and tasks. Those shapes read
  * differently the moment an edge moves, whichever end was clicked.
  */
 const invalidateEdge = (...ends: (ToolRef | null | undefined)[]) =>

@@ -7,7 +7,7 @@
     "pages": "Pages",
     "projects": "Projets",
     "tasks": "Tâches",
-    "documents": "Documents",
+    "files": "Fichiers",
     "queues": "Files",
     "counterGroups": "Groupes de compteurs",
     "calendars": "Calendriers",
@@ -19,7 +19,7 @@
   },
   "actions": {
     "addTask": "Ajouter une tâche",
-    "addDocument": "Ajouter un document"
+    "addFile": "Ajouter un fichier"
   },
   "pages": {
     "myTasks": "Mes tâches",

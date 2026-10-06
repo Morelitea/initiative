@@ -27,7 +27,7 @@ describe("what [[ ]] can reach", () => {
   it("keeps the core tools, which have no switch to turn off", () => {
     const types = linkableToolTypes(enabled({ queues_enabled: false, calendars_enabled: false }));
     expect(types).toContain(SearchEntityType.project);
-    expect(types).toContain(SearchEntityType.document);
+    expect(types).toContain(SearchEntityType.file);
   });
 
   it("never reaches what lives inside a tool", () => {
@@ -44,11 +44,11 @@ describe("what [[ ]] can create", () => {
   it("will not put back a tool the initiative turned off", () => {
     const initiative = enabled({ queues_enabled: false });
     expect(isCreatableFromName(SearchEntityType.queue, initiative)).toBe(false);
-    expect(isCreatableFromName(SearchEntityType.document, initiative)).toBe(true);
+    expect(isCreatableFromName(SearchEntityType.file, initiative)).toBe(true);
   });
 
   it("creates nothing until the initiative is known", () => {
-    expect(isCreatableFromName(SearchEntityType.document, null)).toBe(false);
+    expect(isCreatableFromName(SearchEntityType.file, null)).toBe(false);
   });
 
   it("creates no task, however it is spelled", () => {

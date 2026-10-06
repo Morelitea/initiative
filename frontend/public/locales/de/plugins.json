@@ -236,9 +236,9 @@
         "read": "Projekte lesen",
         "write": "Projekte lesen und ändern"
       },
-      "documents": {
-        "read": "Dokumente lesen",
-        "write": "Dokumente lesen und ändern"
+      "files": {
+        "read": "Dateien lesen",
+        "write": "Dateien lesen und ändern"
       },
       "queues": {
         "read": "Abläufe lesen",

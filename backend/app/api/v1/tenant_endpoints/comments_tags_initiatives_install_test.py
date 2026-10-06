@@ -23,7 +23,7 @@ from app.models.tenant.relationship import EntityRelationship
 from app.testing import (
     guild_url,
     create_comment,
-    create_document,
+    create_file,
     create_property_definition,
     create_tag,
     route_session_to_guild,
@@ -38,13 +38,13 @@ from app.testing.plugin_clients import (
 )
 
 
-async def _open_documents(session: Any, installed: Any) -> tuple[Any, Any]:
-    """A document open to A's members and one open to B's, both the seat's."""
-    in_a = await create_document(
+async def _open_files(session: Any, installed: Any) -> tuple[Any, Any]:
+    """A file open to A's members and one open to B's, both the seat's."""
+    in_a = await create_file(
         session, installed.placed, installed.seat.user, name="Open in A"
     )
     await share_with_members(session, in_a, installed.placed.id)
-    in_b = await create_document(
+    in_b = await create_file(
         session, installed.unplaced, installed.seat.user, name="Open in B"
     )
     await share_with_members(session, in_b, installed.unplaced.id)
@@ -60,20 +60,20 @@ async def test_reads_the_comments_on_what_it_can_read(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    scopes = ["comments:read", "documents:read"]
+    scopes = ["comments:read", "files:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
-    in_a, in_b = await _open_documents(session, installed)
+    in_a, in_b = await _open_files(session, installed)
     on_a = await create_comment(
-        session, installed.seat.user, document=in_a, content="Seen in A"
+        session, installed.seat.user, file=in_a, content="Seen in A"
     )
     on_b = await create_comment(
-        session, installed.seat.user, document=in_b, content="Seen in B"
+        session, installed.seat.user, file=in_b, content="Seen in B"
     )
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
 
     listed = await client.get(
-        guild_url(guild_id, f"/comments/?document_id={in_a.id}"), headers=headers
+        guild_url(guild_id, f"/comments/?file_id={in_a.id}"), headers=headers
     )
     assert listed.status_code == 200, listed.text
     [comment] = listed.json()["comments"]
@@ -92,7 +92,7 @@ async def test_reads_the_comments_on_what_it_can_read(
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
     other = await client.get(
-        guild_url(guild_id, f"/comments/?document_id={in_b.id}"), headers=headers
+        guild_url(guild_id, f"/comments/?file_id={in_b.id}"), headers=headers
     )
     assert other.status_code == 404, other.text
     other_one = await client.get(
@@ -107,11 +107,11 @@ async def test_without_the_parents_scope_the_thread_is_not_there(
     installed = await install_plugin(
         session, acting_user, role_session, granted=["comments:read"]
     )
-    in_a, _in_b = await _open_documents(session, installed)
-    await create_comment(session, installed.seat.user, document=in_a)
+    in_a, _in_b = await _open_files(session, installed)
+    await create_comment(session, installed.seat.user, file=in_a)
 
     listed = await client.get(
-        guild_url(installed.guild.id, f"/comments/?document_id={in_a.id}"),
+        guild_url(installed.guild.id, f"/comments/?file_id={in_a.id}"),
         headers=install_headers(installed, ["comments:read"]),
     )
     assert listed.status_code == 404, listed.text
@@ -120,14 +120,14 @@ async def test_without_the_parents_scope_the_thread_is_not_there(
 async def test_posting_a_comment_needs_the_write_scope(
     client, session, acting_user, role_session
 ):
-    scopes = ["comments:read", "documents:read"]
+    scopes = ["comments:read", "files:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
-    in_a, _in_b = await _open_documents(session, installed)
+    in_a, _in_b = await _open_files(session, installed)
 
     posted = await client.post(
         guild_url(installed.guild.id, "/comments/"),
         headers=install_headers(installed, scopes),
-        json={"content": "Hello", "document_id": in_a.id},
+        json={"content": "Hello", "file_id": in_a.id},
     )
     assert posted.status_code == 403, posted.text
     assert posted.json()["detail"] == PluginMessages.SCOPE_REQUIRED
@@ -137,7 +137,7 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
-    scopes = ["comments:write", "documents:read"]
+    scopes = ["comments:write", "files:read"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
         guild_role=CommunityRole.member,
@@ -145,10 +145,8 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
         initiative=installed.placed,
         initiative_role="member",
     )
-    in_a, in_b = await _open_documents(session, installed)
-    theirs = await create_comment(
-        session, member.user, document=in_a, content="A question"
-    )
+    in_a, in_b = await _open_files(session, installed)
+    theirs = await create_comment(session, member.user, file=in_a, content="A question")
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
 
@@ -157,7 +155,7 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
         headers=headers,
         json={
             "content": "An answer",
-            "document_id": in_a.id,
+            "file_id": in_a.id,
             "parent_comment_id": theirs.id,
         },
     )
@@ -172,7 +170,7 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
     stored = await session.get(Comment, body["id"])
     assert stored is not None and stored.created_by is None
 
-    # The member it answered hears of the reply, and the document's owner of
+    # The member it answered hears of the reply, and the file's owner of
     # the comment: both from the plug-in, by its name.
     await drain_notices()
     notices = (
@@ -192,7 +190,7 @@ async def test_posts_as_itself_and_the_notices_name_the_plugin(
     elsewhere = await client.post(
         guild_url(guild_id, "/comments/"),
         headers=headers,
-        json={"content": "Not here", "document_id": in_b.id},
+        json={"content": "Not here", "file_id": in_b.id},
     )
     assert elsewhere.status_code == 404, elsewhere.text
 
@@ -225,26 +223,26 @@ async def test_lists_the_tags_naming_the_community_by_reference(
 async def test_tags_what_it_may_write_in_bulk(
     client, session, acting_user, role_session
 ):
-    scopes = ["tags:write", "documents:write", "relationships:write"]
+    scopes = ["tags:write", "files:write", "relationships:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
 
     created = await client.post(
-        guild_url(guild_id, "/documents/"),
+        guild_url(guild_id, "/files/"),
         headers=headers,
         json={"name": "Its own", "initiative_id": installed.placed.id},
     )
     assert created.status_code == 201, created.text
-    document_id = created.json()["id"]
+    file_id = created.json()["id"]
 
     tagged = await client.post(
         guild_url(guild_id, "/tags/bulk"),
         headers=headers,
         json={
-            "target_type": "document",
-            "target_ids": [document_id],
+            "target_type": "file",
+            "target_ids": [file_id],
             "add_tag_ids": [tag.id],
         },
     )
@@ -255,8 +253,8 @@ async def test_tags_what_it_may_write_in_bulk(
     edges = (
         await session.exec(
             select(EntityRelationship).where(
-                EntityRelationship.source_type == SearchEntityType.document.value,
-                EntityRelationship.source_id == document_id,
+                EntityRelationship.source_type == SearchEntityType.file.value,
+                EntityRelationship.source_id == file_id,
                 EntityRelationship.relationship_type
                 == RelationshipType.tagged_with.value,
             )
@@ -269,7 +267,7 @@ async def test_tags_what_it_may_write_in_bulk(
     "scopes",
     [
         ["tags:write"],
-        ["tags:write", "documents:write"],
+        ["tags:write", "files:write"],
         ["tags:write", "relationships:write"],
     ],
 )
@@ -278,13 +276,13 @@ async def test_bulk_tagging_needs_every_scope_it_writes_under(
 ):
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
-    in_a, _in_b = await _open_documents(session, installed)
+    in_a, _in_b = await _open_files(session, installed)
 
     tagged = await client.post(
         guild_url(installed.guild.id, "/tags/bulk"),
         headers=install_headers(installed, scopes),
         json={
-            "target_type": "document",
+            "target_type": "file",
             "target_ids": [in_a.id],
             "add_tag_ids": [tag.id],
         },
@@ -304,7 +302,7 @@ async def test_bulk_tagging_with_a_read_token_is_refused(
     tagged = await client.post(
         guild_url(installed.guild.id, "/tags/bulk"),
         headers=install_headers(installed, ["tags:read"]),
-        json={"target_type": "document", "target_ids": [1], "add_tag_ids": [tag.id]},
+        json={"target_type": "file", "target_ids": [1], "add_tag_ids": [tag.id]},
     )
     assert tagged.status_code == 403, tagged.text
     assert tagged.json()["detail"] == PluginMessages.SCOPE_REQUIRED
@@ -313,10 +311,10 @@ async def test_bulk_tagging_with_a_read_token_is_refused(
 async def test_bulk_tagging_what_it_cannot_write_is_refused(
     client, session, acting_user, role_session
 ):
-    scopes = ["tags:write", "documents:write", "relationships:write"]
+    scopes = ["tags:write", "files:write", "relationships:write"]
     installed = await install_plugin(session, acting_user, role_session, granted=scopes)
     tag = await create_tag(session, installed.guild, name="triaged")
-    in_a, in_b = await _open_documents(session, installed)
+    in_a, in_b = await _open_files(session, installed)
     headers = install_headers(installed, scopes)
 
     # Open to A's members to read, which is not to write.
@@ -324,7 +322,7 @@ async def test_bulk_tagging_what_it_cannot_write_is_refused(
         guild_url(installed.guild.id, "/tags/bulk"),
         headers=headers,
         json={
-            "target_type": "document",
+            "target_type": "file",
             "target_ids": [in_a.id],
             "add_tag_ids": [tag.id],
         },
@@ -335,7 +333,7 @@ async def test_bulk_tagging_what_it_cannot_write_is_refused(
         guild_url(installed.guild.id, "/tags/bulk"),
         headers=headers,
         json={
-            "target_type": "document",
+            "target_type": "file",
             "target_ids": [in_b.id],
             "add_tag_ids": [tag.id],
         },

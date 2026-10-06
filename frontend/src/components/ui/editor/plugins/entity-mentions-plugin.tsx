@@ -54,7 +54,7 @@ export function entityMatch(text: string): MenuTextMatch | null {
 export interface EntityMentionsPluginProps {
   /** Initiative the document belongs to — what a mention may reach. */
   initiativeId?: number | null;
-  /** The thing being written in, as a reference (`document:12`). Never
+  /** The thing being written in, as a reference (`file:12`). Never
    *  offered: a thing does not point at itself. */
   subject?: string | null;
 }

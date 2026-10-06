@@ -114,11 +114,11 @@ describe("a page does not point at itself", () => {
       })
     );
 
-    renderPage(() => <Harness subject="document:42" />);
+    renderPage(() => <Harness subject="file:42" />);
     await waitFor(() => expect(editor).toBeTruthy());
     type("#ship");
 
-    await waitFor(() => expect(asked).toContain("document:42"), { timeout: 4000 });
+    await waitFor(() => expect(asked).toContain("file:42"), { timeout: 4000 });
   });
 
   it("asks for everything when there is nothing to be written in yet", async () => {

@@ -106,7 +106,7 @@ def _property_values(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
 
     ``value`` is a dict of ``{"property_id": int, "value": <any>}``. Compilation
     is delegated to ``build_single_property_clause`` so the typed-column and
-    is_empty semantics stay in sync with documents and events.
+    is_empty semantics stay in sync with files and events.
     """
     if not isinstance(value, dict):
         return None

@@ -30,7 +30,7 @@ from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery, GalleryImage
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
@@ -42,7 +42,7 @@ from app.models.tenant.wiki import Wiki, WikiPage
 SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     Project,
     Task,
-    Document,
+    File,
     Comment,
     Initiative,
     Tag,

@@ -21,7 +21,7 @@
   "entityType": {
     "project": "Project",
     "task": "Task",
-    "document": "Document",
+    "file": "File",
     "comment": "Comment",
     "initiative": "Initiative",
     "tag": "Tag",

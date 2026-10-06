@@ -1,7 +1,8 @@
 """Migration 20261005_0459 points file documents and pictures at the version
 they show. Loaded by path and run on a guild the test builds, the way
-``upload_initiative_backfill_test`` runs its revision: down to the old shape,
-rows written as an older release wrote them, and up again."""
+``upload_initiative_backfill_test`` runs its revision: down to the old shape
+(20261006_0464's rename first), rows written as an older release wrote them,
+and up again."""
 
 from __future__ import annotations
 
@@ -13,9 +14,9 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import text
 
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.testing import (
-    create_document,
+    create_file,
     create_gallery,
     create_gallery_image,
     create_guild,
@@ -23,16 +24,13 @@ from app.testing import (
     create_user,
 )
 
-_MIGRATION = (
-    Path(__file__).resolve().parents[2]
-    / "alembic"
-    / "versions"
-    / "20261005_0459_file_versions_by_pointer.py"
-)
+_VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
+_MIGRATION = _VERSIONS / "20261005_0459_file_versions_by_pointer.py"
+_FILES = _VERSIONS / "20261006_0464_documents_are_files.py"
 
 
-def _load() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(_MIGRATION.stem, _MIGRATION)
+def _load(path: Path = _MIGRATION) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -53,20 +51,21 @@ async def test_old_files_get_versions_types_and_pointers(
     guild = await create_guild(session, creator=user)
     schema = f"guild_{guild.id}"
     initiative = await create_initiative(session, guild, user)
-    versioned = await create_document(
+    versioned = await create_file(
         session,
         initiative,
         user,
-        document_type=DocumentType.file,
+        file_type=FileType.file,
         file_url="/uploads/1/brief.pdf",
         original_filename="brief.pdf",
     )
-    named = await create_document(session, initiative, user)
-    nameless = await create_document(session, initiative, user)
+    named = await create_file(session, initiative, user)
+    nameless = await create_file(session, initiative, user)
     picture = await create_gallery_image(
         session, await create_gallery(session, initiative, user), user
     )
     migration = _load()
+    files = _load(_FILES)
 
     def run(step):
         def apply(sync_session) -> None:
@@ -80,6 +79,7 @@ async def test_old_files_get_versions_types_and_pointers(
 
         return apply
 
+    await session.run_sync(run(lambda: files._apply(False)))
     await session.run_sync(run(migration._apply_downgrade))
     # Written as an import used to write them: a file and no version.
     for document, url, filename in (
@@ -149,3 +149,4 @@ async def test_old_files_get_versions_types_and_pointers(
         )
     ).scalar()
     assert leftover == 0
+    await session.run_sync(run(lambda: files._apply(True)))

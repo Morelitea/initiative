@@ -246,9 +246,9 @@ PageResolver = Callable[[str, Optional[str]], Optional[PageTarget]]
 #: ``account_id`` → the person's display name, or ``None``.
 UserResolver = Callable[[str], Optional[str]]
 #: ``filename`` → the URL it is served from here, or ``None``.
+UploadResolver = Callable[[str], Optional[str]]
+#: ``filename`` → the ref of the file the attachment became, or ``None``.
 FileResolver = Callable[[str], Optional[str]]
-#: ``filename`` → the ref of the document the file became, or ``None``.
-DocumentResolver = Callable[[str], Optional[str]]
 #: The block listing the pages beneath this one, or ``None`` when it has none.
 ChildrenResolver = Callable[[], Optional[dict[str, Any]]]
 
@@ -468,14 +468,14 @@ class _Walker:
         *,
         page: Optional[PageResolver],
         user: Optional[UserResolver],
-        image: Optional[FileResolver],
-        attachment: Optional[FileResolver],
+        image: Optional[UploadResolver],
+        attachment: Optional[UploadResolver],
         site_url: Optional[str],
         children: Optional[ChildrenResolver] = None,
-        document: Optional[DocumentResolver] = None,
+        file: Optional[FileResolver] = None,
     ) -> None:
         self.children = children
-        self.document = document
+        self.file = file
         self.page = page
         self.user = user
         self.image = image
@@ -495,19 +495,19 @@ class _Walker:
     def file_link(
         self, filename: str, text: list[dict], *, in_link: bool
     ) -> list[dict]:
-        """A link to an attached file: a mention of the document it became,
+        """A link to an attached file: a mention of the file it became,
         a link to where it is served, or its words."""
         self.note_attachment(filename)
-        ref = self.document(filename) if (self.document and filename) else None
+        ref = self.file(filename) if (self.file and filename) else None
         if ref and not in_link:
             return [
                 {
                     "type": "entity-mention",
                     "version": 1,
-                    "entityType": SearchEntityType.document.value,
+                    "entityType": SearchEntityType.file.value,
                     "entityId": 0,
                     "text": "".join(n.get("text", "") for n in text) or filename,
-                    # Resolved to the imported document's id on apply.
+                    # Resolved to the imported file's id on apply.
                     "importRef": ref,
                 }
             ]
@@ -1291,11 +1291,11 @@ def storage_to_lexical(
     *,
     page: Optional[PageResolver] = None,
     user: Optional[UserResolver] = None,
-    image: Optional[FileResolver] = None,
-    attachment: Optional[FileResolver] = None,
+    image: Optional[UploadResolver] = None,
+    attachment: Optional[UploadResolver] = None,
     site_url: Optional[str] = None,
     children: Optional[ChildrenResolver] = None,
-    document: Optional[DocumentResolver] = None,
+    file: Optional[FileResolver] = None,
 ) -> StorageResult:
     """Convert one page body.
 
@@ -1304,13 +1304,13 @@ def storage_to_lexical(
     names an account id, and a mention it cannot name keeps its link text.
     ``image`` and ``attachment`` give the URL an attachment is served from
     here, by filename; an image nobody can place becomes its alt text and is
-    counted. ``document`` names the document a file became, and a link to
+    counted. ``file`` names the file an attachment became, and a link to
     one becomes a mention of it. ``site_url`` is where a Jira issue macro
     links to.
 
     A wiki-page mention is written with ``entityId`` 0 and an ``importSlug``:
     the apply swaps in the imported page's id, or turns it back into text if
-    that page did not arrive. A document mention carries an ``importRef`` the
+    that page did not arrive. A file mention carries an ``importRef`` the
     same way.
     """
     walker = _Walker(
@@ -1320,7 +1320,7 @@ def storage_to_lexical(
         attachment=attachment,
         site_url=site_url,
         children=children,
-        document=document,
+        file=file,
     )
     tree = _parse(xhtml if isinstance(xhtml, str) else "")
     body = walker.blocks(tree.children)

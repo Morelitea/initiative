@@ -20,7 +20,7 @@ interface EntityLinkFieldProps {
  * A list of linked things, of any kind, edited in place.
  *
  * This replaces the two kind-locked pickers a queue item carried — one that
- * could only find documents and one that could only find tasks — which between
+ * could only find files and one that could only find tasks — which between
  * them covered two of the thirteen kinds a link may name. It is controlled: the
  * owning form holds the value and decides when to save, because both of its
  * callers save on submit rather than on each pick, and one of them is editing a
@@ -85,7 +85,7 @@ export const EntityLinkField = ({
                   image_urls: [],
                   icon: null,
                   color: null,
-                  document_type: null,
+                  file_type: null,
                   mime_type: null,
                   original_filename: null,
                   smart_link_url: null,

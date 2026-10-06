@@ -450,28 +450,28 @@ def test_a_link_to_an_attachment_goes_where_the_file_went():
         '<p><ac:link><ri:attachment ri:filename="spec.pdf"/>'
         "<ac:plain-text-link-body><![CDATA[the spec]]></ac:plain-text-link-body>"
         "</ac:link></p>",
-        attachment=lambda name: "/documents/12",
+        attachment=lambda name: "/files/12",
     )
     (link,) = p["children"]
-    assert link["type"] == "link" and link["url"] == "/documents/12"
+    assert link["type"] == "link" and link["url"] == "/files/12"
     assert texts(link) == "the spec"
 
 
-def test_a_link_to_a_file_that_became_a_document_mentions_it():
+def test_a_link_to_a_file_that_became_a_file_mentions_it():
     (p,) = blocks(
         '<p><ac:link><ri:attachment ri:filename="spec.pdf"/>'
         "<ac:plain-text-link-body><![CDATA[the spec]]></ac:plain-text-link-body>"
         '</ac:link> and <ac:link><ri:attachment ri:filename="other.pdf"/></ac:link>'
         '<a href="https://example.com"><ac:link><ri:attachment ri:filename="spec.pdf"/>'
         "</ac:link></a></p>",
-        document=lambda name: "entry:assets/abc.pdf" if name == "spec.pdf" else None,
+        file=lambda name: "entry:assets/abc.pdf" if name == "spec.pdf" else None,
         attachment=lambda name: None,
     )
     mention, words, inside = p["children"]
     assert mention == {
         "type": "entity-mention",
         "version": 1,
-        "entityType": "document",
+        "entityType": "file",
         "entityId": 0,
         "text": "the spec",
         "importRef": "entry:assets/abc.pdf",
@@ -482,12 +482,12 @@ def test_a_link_to_a_file_that_became_a_document_mentions_it():
     assert inside["type"] == "link" and texts(inside) == "spec.pdf"
 
 
-def test_a_file_card_mentions_its_document_too():
+def test_a_file_card_mentions_its_file_too():
     (p,) = blocks(
         '<p><ac:structured-macro ac:name="view-file"><ac:parameter ac:name="name">'
         '<ri:attachment ri:filename="deck.pptx"/></ac:parameter>'
         "</ac:structured-macro></p>",
-        document=lambda name: f"entry:assets/{name}",
+        file=lambda name: f"entry:assets/{name}",
     )
     (mention,) = p["children"]
     assert mention["importRef"] == "entry:assets/deck.pptx"
@@ -599,7 +599,7 @@ def test_every_real_page_converts_to_a_state_the_editor_can_load(page):
         page=lambda title, space: PageTarget(slug="x"),
         user=lambda account: "Somebody",
         image=lambda name: f"/uploads/1/{name}",
-        attachment=lambda name: "/documents/1",
+        attachment=lambda name: "/files/1",
         site_url="https://example.atlassian.net",
     )
     root = result.content["root"]
@@ -643,7 +643,7 @@ def real(stem: str) -> StorageResult:
         page=lambda title, space: PageTarget(slug=title.lower().replace(" ", "-")),
         user=lambda account: "Somebody",
         image=lambda name: f"/uploads/1/{name}",
-        attachment=lambda name: f"/documents/{name}",
+        attachment=lambda name: f"/files/{name}",
         site_url="https://morels.atlassian.net",
         children=lambda: {"type": "list", "listType": "bullet", "children": []},
     )

@@ -236,7 +236,7 @@ def _open_blocker_count_expression():
     What counts as outstanding is per kind and comes from
     :data:`app.db.blocking.OPEN_WHEN`: a task not yet done, an event not yet
     passed, a counter short of its target. A kind with no rule there is not
-    counted at all, which is the honest reading — nothing says when a document
+    counted at all, which is the honest reading — nothing says when a file
     stops blocking. One ``EXISTS`` arm per registered kind, built from the
     registry, so a kind gains a count the day it gains a rule.
 

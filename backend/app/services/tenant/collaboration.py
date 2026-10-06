@@ -2,10 +2,10 @@
 Real-time collaboration service using Yjs (via pycrdt).
 
 A room is the Yjs document plus its persistence, for ANY body several people
-can write at once — a document with an editor, a wiki page. Which row a room is
+can write at once — a file with an editor, a wiki page. Which row a room is
 a body of, and whose sharing decides who may open it, is declared once in
 :mod:`app.services.tenant.collaborative_resources`; nothing here knows about
-documents in particular.
+files in particular.
 
 A room deliberately does **not**
 keep a list of who is connected: that register lives once, in
@@ -399,7 +399,7 @@ async def versioned(read: Any, guild_id: int, resource_type: str) -> Any:
 # is part of the key because bodies live in per-guild schemas (`guild_<id>.…`,
 # `id SERIAL`): ids are per-schema sequences, so id 5 names a different row in
 # every guild that has one. The resource_type is part of it because two kinds
-# number independently — document 5 and wiki page 5 are both real. This manager
+# number independently — file 5 and wiki page 5 are both real. This manager
 # is a single process-global structure, so neither the id nor the pair without
 # the guild identifies a body. Never key collaboration state by a
 # guild-schema-local id alone.
@@ -486,8 +486,8 @@ class CollaborationManager:
     ) -> bool:
         """Remove a room if it exists and has no active connections.
 
-        Used when document content is modified externally (e.g. unresolving
-        wikilinks when a target document is deleted) so the next session loads
+        Used when a body is modified externally (e.g. unresolving
+        wikilinks when a target file is deleted) so the next session loads
         fresh state from the database instead of stale in-memory state.
 
         Returns True if the room was removed, False if it is still in use (in

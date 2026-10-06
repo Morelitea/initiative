@@ -60,9 +60,9 @@
       "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a quien gestiona este servidor que configure una."
     },
     "report": {
-      "documentNative": "Documentos de texto",
-      "documentSpreadsheet": "Hojas de cálculo",
-      "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
+      "fileNative": "Documentos de texto",
+      "fileSpreadsheet": "Hojas de cálculo",
+      "fileOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
     },
     "format": {
       "prompt": "Elige un formato"
@@ -162,7 +162,7 @@
       "tasks": "Tareas",
       "events": "Eventos",
       "project": "Proyecto",
-      "document": "Documento",
+      "file": "Archivo",
       "queue": "Cola",
       "calendar": "Calendario",
       "post": "Publicación",

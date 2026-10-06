@@ -75,6 +75,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.marketplace import plugin_refs, registration_lookup
 from app.services.marketplace.service_plugins import is_admin_only
+from app.services.tenant import plugin_age
+from app.services.tenant.plugin_age import AgeViewer
 from app.services.tenant.guild_plugins import (
     SurfaceAccess,
     declared_surfaces,
@@ -164,6 +166,7 @@ async def mint_embed_handoff(
     surface_id: str,
     context: GuildContext,
     initiative_id: int | None,
+    viewer: AgeViewer,
 ) -> EmbedHandoff:
     """Authorize the caller for one surface, then mint its handoff.
 
@@ -175,8 +178,8 @@ async def mint_embed_handoff(
 
     Who may open it is :func:`~app.services.tenant.guild_plugins.surface_access`,
     the same decision the plug-in read reports to the client, measured on the
-    viewer's standing (``context``). An initiative handoff reads the
-    placement's roles in one query.
+    viewer's standing (``context``) and their age where they are (``viewer``).
+    An initiative handoff reads the placement's roles in one query.
     """
     if not plugin.enabled:
         raise HTTPException(
@@ -203,11 +206,17 @@ async def mint_embed_handoff(
         ),
         is_guild_admin=context.is_admin,
         member_role_ids=context.member_role_ids,
+        age_allows=plugin_age.age_allows(plugin.definition, viewer),
     )
     if access is SurfaceAccess.not_here:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildPluginMessages.SURFACE_NOT_FOUND,
+        )
+    if access is SurfaceAccess.too_young:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildPluginMessages.AGE_RESTRICTED,
         )
     if access is SurfaceAccess.refused:
         raise HTTPException(

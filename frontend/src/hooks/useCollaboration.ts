@@ -35,8 +35,8 @@ const KEEPALIVE_LIMIT = 60_000;
 export interface UseCollaborationOptions {
   /**
    * The room, as the server addresses it: the collaboration path under
-   * `/c/{communityId}/collaboration/`. A document is
-   * `documents/{id}/collaborate`; a wiki page is
+   * `/c/{communityId}/collaboration/`. A file is
+   * `files/{id}/collaborate`; a wiki page is
    * `wiki-pages/{id}/collaborate`.
    *
    * The path IS the identity — changing it is what tears the old socket down

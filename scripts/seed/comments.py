@@ -1,4 +1,4 @@
-"""Comments on tasks and documents."""
+"""Comments on tasks and files."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from app.models.tenant.comment import Comment
 
 from seed.common import Community
 
-#: Each comment names the ``task`` or ``document`` it is on, by title.
+#: Each comment names the ``task`` or ``file`` it is on, by title.
 COMMENTS: dict[str, list[dict]] = {
     "primary": [
         {
@@ -54,12 +54,12 @@ COMMENTS: dict[str, list[dict]] = {
         },
         {
             "author": "Dungeon Master",
-            "document": "Campaign Setting: The Land of Barovia",
+            "file": "Campaign Setting: The Land of Barovia",
             "content": "Don't forget — Barovia is a demiplane, no escape without defeating Strahd.",
         },
         {
             "author": "Elara Moonwhisper",
-            "document": "Tarokka Card Reading Results",
+            "file": "Tarokka Card Reading Results",
             "content": "We should head to the Amber Temple first. The Sunsword is our "
             "highest priority.",
         },
@@ -99,7 +99,7 @@ COMMENTS: dict[str, list[dict]] = {
         },
         {
             "author": "Elara Moonwhisper",
-            "document": "Setting Bible: The Exodus Protocol",
+            "file": "Setting Bible: The Exodus Protocol",
             "content": "We should add a section on the cryosleep rotation schedule — it "
             "came up last session.",
         },
@@ -152,13 +152,13 @@ COMMENTS: dict[str, list[dict]] = {
         },
         {
             "author": "Dungeon Master",
-            "document": "Intelligence Report: Admiral Blackwood",
+            "file": "Intelligence Report: Admiral Blackwood",
             "content": "Updated: Ironclad confirmed sunk. Blackwood is furious. Expect "
             "retaliation.",
         },
         {
             "author": "Thorn Ironforge",
-            "document": "Crew Manifest: The Crimson Maiden",
+            "file": "Crew Manifest: The Crimson Maiden",
             "content": "We lost 6 crew in the kraken fight. Need to update the manifest "
             "and recruit in Port Havoc.",
         },
@@ -172,7 +172,7 @@ async def seed(c: Community) -> None:
             content=d["content"],
             created_by=c.users[d["author"]].id,
             task_id=c.tasks[d["task"]].id if "task" in d else None,
-            document_id=c.docs[d["document"]].id if "document" in d else None,
+            file_id=c.files[d["file"]].id if "file" in d else None,
         )
         c.session.add(comment)
         await c.session.flush()

@@ -26,7 +26,7 @@ export const useCommentReferences = () => useContext(CommentReferencesContext);
  * rename reaches all forty without any of them being edited.
  *
  * The people it names are resolved the same way, but by `MentionedPeopleScope`
- * — the same scope a document's mentions read from, so a mention is the same
+ * — the same scope a file's mentions read from, so a mention is the same
  * chip wherever it is written.
  */
 export function CommentReferences({

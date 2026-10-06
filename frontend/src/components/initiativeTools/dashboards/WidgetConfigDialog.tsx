@@ -55,7 +55,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useDocumentsList } from "@/hooks/useDocuments";
+import { useFilesList } from "@/hooks/useFiles";
 import { usePluginParamOptions, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useQueryBuilder } from "@/hooks/useQueryBuilder";
 import { useQueryShape } from "@/hooks/useQueryShape";
@@ -203,19 +203,19 @@ export function WidgetConfigDialog({
   const needs = (kind: EntityKind) =>
     open && params.some((p) => p.kind === "entity" && p.entity === kind);
 
-  const documents = useDocumentsList(
-    { document_type: "spreadsheet", initiative_id: initiativeId },
-    { enabled: needs("document") }
+  const files = useFilesList(
+    { file_type: "spreadsheet", initiative_id: initiativeId },
+    { enabled: needs("file") }
   );
 
   const entityOptions = useMemo(
     (): Record<EntityKind, { value: string; label: string }[]> => ({
-      document: (documents.data?.items ?? []).map((document) => ({
-        value: String(document.id),
-        label: document.name,
+      file: (files.data?.items ?? []).map((file) => ({
+        value: String(file.id),
+        label: file.name,
       })),
     }),
-    [documents.data]
+    [files.data]
   );
 
   // A binding for a plug-in widget names its install. Filled in from the type
@@ -358,7 +358,7 @@ export function WidgetConfigDialog({
                 value={source}
                 onValueChange={(next) =>
                   // Changing the source drops the old source's ids rather than
-                  // carrying a counter id onto a document binding.
+                  // carrying a counter id onto a file binding.
                   setBinding({ source: next as WidgetBinding["source"] })
                 }
               >

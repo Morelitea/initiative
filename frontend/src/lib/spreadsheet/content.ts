@@ -1,11 +1,11 @@
 /**
- * The persisted shape of a spreadsheet document, and the parser that
+ * The persisted shape of a spreadsheet file, and the parser that
  * hydrates it.
  *
- * ``Document.content`` holds a JSON snapshot of the whole workbook — the
+ * ``File.content`` holds a JSON snapshot of the whole workbook — the
  * live state is a set of Y.Maps synced over the collaboration provider, and
  * this is what the autosave PATCH writes. The backend normalizer in
- * ``backend/app/services/tenant/documents_spreadsheet.py`` validates the
+ * ``backend/app/services/tenant/files_spreadsheet.py`` validates the
  * same shape; keep the two in step.
  *
  * Schema versions
@@ -19,7 +19,7 @@
  *   and a ``name``.
  *
  * {@link parseSpreadsheetContent} accepts all three and always returns v3,
- * so a document written before multi-sheet opens as a one-sheet workbook
+ * so a file written before multi-sheet opens as a one-sheet workbook
  * with no migration step.
  */
 
@@ -44,7 +44,7 @@ import {
 export const SPREADSHEET_SCHEMA_VERSION = 3;
 
 /** One sheet's persisted content: identity, canvas size, and the same
- *  sparse structures a v2 document stored at its top level. */
+ *  sparse structures a v2 file stored at its top level. */
 export interface SpreadsheetSheetContent {
   id: SheetId;
   name: string;
@@ -103,7 +103,7 @@ const boundsOf = (cells: Record<string, CellValue>): { rows: number; cols: numbe
 
 /**
  * Read one sheet out of a payload slice — the same call handles a v3
- * ``sheets[i]`` entry and a v1/v2 document's top level, which is exactly
+ * ``sheets[i]`` entry and a v1/v2 file's top level, which is exactly
  * the upcast: the old shape *is* a sheet, it just never said so.
  */
 const parseSheet = (
@@ -140,7 +140,7 @@ export const emptySpreadsheetContent = (): SpreadsheetContent => ({
 });
 
 /**
- * Coerce an arbitrary ``document.content`` blob into the canonical v3
+ * Coerce an arbitrary ``file.content`` blob into the canonical v3
  * workbook. Never throws — the backend is the authority on hard rejects,
  * the client stays forgiving — and never returns zero sheets, because an
  * editor with no sheet to show has nothing to render.
@@ -152,7 +152,7 @@ export const emptySpreadsheetContent = (): SpreadsheetContent => ({
 export const parseSpreadsheetContent = (raw: unknown): SpreadsheetContent => {
   const src = isRecord(raw) ? raw : {};
   const rawSheets = Array.isArray(src.sheets) ? src.sheets.slice(0, MAX_SHEETS) : null;
-  // v1 / v2: the document's top level is the one and only sheet.
+  // v1 / v2: the file's top level is the one and only sheet.
   const entries = rawSheets && rawSheets.length > 0 ? rawSheets : [src];
 
   const seenIds = new Set<SheetId>();

@@ -21,7 +21,7 @@ import type { ExportExtraAction, ExportFormatOption } from "@/components/exports
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
- * counter groups, calendars, dashboards, projects, and documents — satisfies
+ * counter groups, calendars, dashboards, projects, and files — satisfies
  * it as-is.
  */
 export interface ToolSettingsEntity {
@@ -37,7 +37,7 @@ export interface ToolSettingsEntity {
   archived_at: string | null;
   /** What this viewer may do to it, as the server answers it. */
   can: ToolCan;
-  /** Projects and documents only: a template, which read is enough to copy. */
+  /** Projects and files only: a template, which read is enough to copy. */
   is_template?: boolean;
   /**
    * Posts only: reactions hang off comments and off posts and off nothing
@@ -47,7 +47,7 @@ export interface ToolSettingsEntity {
   reactions_enabled?: boolean;
   /**
    * The installed plug-in that owns it, where the tool's read model names one
-   * (projects and documents). Elsewhere the sharing control finds the plug-in
+   * (projects and files). Elsewhere the sharing control finds the plug-in
    * from the owner grant.
    */
   owner_plugin?: OwnerPluginSummary | null;
@@ -55,7 +55,7 @@ export interface ToolSettingsEntity {
 
 /**
  * What a tool's export card offers when the tool's registry formats are not
- * the whole answer — a document's formats follow its type, and a whiteboard
+ * the whole answer — a file's formats follow its type, and a whiteboard
  * adds pictures only the browser can draw.
  */
 export interface ToolExportOptions {
@@ -76,7 +76,7 @@ export interface ToolSettingsContextValue {
   /** Always loaded: the layout renders no section until the entity is in hand. */
   entity: ToolSettingsEntity;
   /**
-   * The rename/describe mutation. Absent for a document, whose name is edited
+   * The rename/describe mutation. Absent for a file, whose name is edited
    * in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;

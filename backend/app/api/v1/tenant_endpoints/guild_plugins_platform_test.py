@@ -1579,3 +1579,123 @@ class TestUninstallStopsDeliveries:
         await session.rollback()
         await session.refresh(sub)
         assert sub.active is True
+
+
+# ---------------------------------------------------------------------------
+# A plug-in's minimum age, per person
+# ---------------------------------------------------------------------------
+
+
+class TestMinimumAge:
+    """Who may use an age-limited plug-in is decided per person, against their
+    kept date of birth and the country their request comes from. Installs are
+    never refused for it."""
+
+    @pytest.fixture(autouse=True)
+    def signing_key(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _SIGNING_KEY_PEM
+        )
+        monkeypatch.setattr(settings, "PLUGIN_PLATFORM_SIGNING_KEY_ID", "test-key")
+        monkeypatch.setattr(settings, "CLIENT_COUNTRY_HEADER", "CF-IPCountry")
+
+    async def _aged(self, session: AsyncSession, actor, years: int | None):
+        """An age-limited install, and ``actor`` with a date of birth ``years``
+        ago (or none)."""
+        from datetime import datetime, timezone
+
+        from app.db.session import SystemSessionLocal
+        from app.services.platform import users as users_service
+
+        plugin = await create_guild_plugin(
+            session,
+            actor.guild,
+            actor.user,
+            definition=_service_definition(minimum_age={"default": 16, "US": 13}),
+            listing_uid=SERVICE_UID,
+            name="WidgetCo",
+        )
+        if years is not None:
+            today = datetime.now(timezone.utc).date()
+            async with SystemSessionLocal() as system_session:
+                await users_service.keep_birthdate(
+                    system_session,
+                    user_id=actor.user.id,
+                    birthdate=today.replace(year=today.year - years),
+                )
+                await system_session.commit()
+        return plugin
+
+    async def _open(self, client: AsyncClient, actor, plugin, country: str | None):
+        headers = dict(actor.headers)
+        if country is not None:
+            headers["CF-IPCountry"] = country
+        return await client.post(
+            actor.g(f"/plugins/{plugin.id}/handoff/board"), headers=headers
+        )
+
+    async def test_old_enough_where_they_are_opens(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await self._aged(session, a, 14)
+
+        response = await self._open(client, a, plugin, "US")
+
+        assert response.status_code == 200, response.text
+
+    @pytest.mark.parametrize(
+        "country",
+        ["DE", None, "XX"],
+        ids=["a stricter country", "no header", "unknown"],
+    )
+    async def test_too_young_where_they_are_is_refused(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        registration,
+        country,
+    ):
+        """An admin too, since an age limit is about the person; and where the
+        country is not known, the plug-in's highest age applies."""
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await self._aged(session, a, 14)
+
+        response = await self._open(client, a, plugin, country)
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == GuildPluginMessages.AGE_RESTRICTED
+
+    async def test_no_date_on_file_is_refused(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await self._aged(session, a, None)
+
+        response = await self._open(client, a, plugin, "US")
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == GuildPluginMessages.AGE_RESTRICTED
+
+    async def test_the_read_does_not_offer_what_the_handoff_refuses(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await self._aged(session, a, 14)
+        headers = {**a.headers, "CF-IPCountry": "DE"}
+
+        read = (await client.get(a.g(f"/plugins/{plugin.id}"), headers=headers)).json()
+
+        board = next(s for s in read["surface_access"] if s["surface_id"] == "board")
+        assert board["openable_community_wide"] is False
+
+    async def test_a_plugin_declaring_no_age_opens_without_a_date(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await _installed(session, a)
+
+        response = await self._open(client, a, plugin, None)
+
+        assert response.status_code == 200, response.text

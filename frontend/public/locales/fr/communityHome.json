@@ -13,8 +13,8 @@
   "emptyState": {
     "title": "Vous n’avez rejoint aucune initiative",
     "adminTitle": "Cette communauté n’a encore aucune initiative",
-    "description": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, documents et le reste. Rejoignez-en une pour voir son travail.",
-    "adminDescription": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, documents et le reste. Créez la première pour dire à quoi sert cette communauté.",
+    "description": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, fichiers et le reste. Rejoignez-en une pour voir son travail.",
+    "adminDescription": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, fichiers et le reste. Créez la première pour dire à quoi sert cette communauté.",
     "nothingListedTitle": "Rien à rejoindre pour l’instant",
     "adminNothingListedTitle": "Créez la première initiative",
     "nothingListedDescription": "Aucune initiative de cette communauté n’est ouverte pour le moment. Un administrateur de communauté ou un chef de projet peut vous ajouter.",
@@ -53,7 +53,7 @@
     "updated": "Dernière mise à jour",
     "detail": {
       "projects": "Progression",
-      "documents": "Type",
+      "files": "Type",
       "calendars": "Description",
       "dashboards": "Origine",
       "posts": "Aperçu"
@@ -63,8 +63,8 @@
     "tasksDone": "{{completed}} tâches sur {{total}}",
     "fromMarketplace": "Place de marché",
     "builtHere": "Créé ici",
-    "documentType": {
-      "native": "Document",
+    "fileType": {
+      "native": "Document texte",
       "file": "Fichier",
       "whiteboard": "Tableau blanc",
       "smart_link": "Lien",

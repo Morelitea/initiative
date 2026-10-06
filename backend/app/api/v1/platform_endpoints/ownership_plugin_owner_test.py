@@ -22,7 +22,7 @@ from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import ownership as ownership_service
 from app.testing import (
-    create_document,
+    create_file,
     create_guild_plugin,
     create_initiative,
     create_project,
@@ -333,16 +333,14 @@ async def test_the_read_models_name_the_owning_plugin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    plugin = await _plugin(
-        session, admin, granted=["projects:write", "documents:write"]
-    )
+    plugin = await _plugin(session, admin, granted=["projects:write", "files:write"])
     project = await _owned_by_plugin(session, admin, plugin)
-    document = await create_document(session, admin.initiative, admin.user)
+    file = await create_file(session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
         session,
-        tool=Tool.document,
-        row=document,
+        tool=Tool.file,
+        row=file,
         new_owner=ownership_service.Owner(plugin_install_id=plugin.id),
     )
     await session.commit()
@@ -361,16 +359,16 @@ async def test_the_read_models_name_the_owning_plugin(
     row = next(p for p in listed.json()["items"] if p["id"] == project.id)
     assert row["owner_plugin"] == owning_plugin
 
-    doc = await client.get(admin.g(f"/documents/{document.id}"), headers=admin.headers)
+    doc = await client.get(admin.g(f"/files/{file.id}"), headers=admin.headers)
     assert doc.status_code == 200, doc.text
     assert doc.json()["owner_plugin"] == owning_plugin
     assert doc.json()["owner"] is None
 
     docs = await client.get(
-        admin.g(f"/documents/?initiative_id={admin.initiative.id}"),
+        admin.g(f"/files/?initiative_id={admin.initiative.id}"),
         headers=admin.headers,
     )
-    row = next(d for d in docs.json()["items"] if d["id"] == document.id)
+    row = next(d for d in docs.json()["items"] if d["id"] == file.id)
     assert row["owner_plugin"] == owning_plugin
 
 
@@ -378,9 +376,9 @@ async def test_a_person_owner_is_named_and_no_plugin_is(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    document = await create_document(session, admin.initiative, admin.user)
+    file = await create_file(session, admin.initiative, admin.user)
 
-    doc = await client.get(admin.g(f"/documents/{document.id}"), headers=admin.headers)
+    doc = await client.get(admin.g(f"/files/{file.id}"), headers=admin.headers)
     assert doc.status_code == 200, doc.text
     assert doc.json()["owner"]["id"] == admin.user.id
     assert doc.json()["owner_plugin"] is None

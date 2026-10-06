@@ -83,7 +83,7 @@ describe("picking a chip in two steps", () => {
     // A task is the one with a choice to make; a counter has nothing to ask.
     expect(chipKindsFor(SearchEntityType.task).length).toBeGreaterThan(1);
     expect(chipKindsFor(SearchEntityType.counter)).toEqual([SmartChipKind["counter:value"]]);
-    expect(chipKindsFor(SearchEntityType.document)).toEqual([]);
+    expect(chipKindsFor(SearchEntityType.file)).toEqual([]);
   });
 
   it("covers every kind between them, so none is unreachable from the toolbar", () => {

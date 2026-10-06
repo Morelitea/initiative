@@ -21,8 +21,8 @@ class GenerateDescriptionResponse(SanitizedBaseModel):
     description: RawTextStr
 
 
-class GenerateDocumentSummaryResponse(SanitizedBaseModel):
-    """Response schema for document summarization."""
+class GenerateFileSummaryResponse(SanitizedBaseModel):
+    """Response schema for file summarization."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

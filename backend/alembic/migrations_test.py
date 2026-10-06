@@ -447,7 +447,7 @@ class TestMigrationsAgainstDatabase:
         # set, not a sample: public holding one is the bug 20260811_0163 ended.
         for table in ("users", "guilds", "access_grants", "alembic_version"):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
-        for table in ("initiatives", "projects", "tasks", "documents"):
+        for table in ("initiatives", "projects", "tasks", "files"):
             assert _table_exists(table, schema="guild_template"), (
                 f"expected table {table!r} in guild_template after upgrade head"
             )

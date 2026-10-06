@@ -236,9 +236,9 @@
         "read": "Leer proyectos",
         "write": "Leer y cambiar proyectos"
       },
-      "documents": {
-        "read": "Leer documentos",
-        "write": "Leer y cambiar documentos"
+      "files": {
+        "read": "Leer archivos",
+        "write": "Leer y cambiar archivos"
       },
       "queues": {
         "read": "Leer colas",

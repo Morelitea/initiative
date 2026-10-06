@@ -41,7 +41,7 @@ from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.db.initiative_rls import COMMENT_PARENT_COLUMNS
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.post import Post
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task
@@ -55,7 +55,7 @@ from app.services.tenant.relationships import Endpoint
 #: :func:`references_in` reads either. A kind absent from this map contributes
 #: nothing but its comments.
 BODY_COLUMNS: dict[SearchEntityType, tuple[type, str]] = {
-    SearchEntityType.document: (Document, "content"),
+    SearchEntityType.file: (File, "content"),
     SearchEntityType.post: (Post, "body"),
     SearchEntityType.task: (Task, "description"),
     SearchEntityType.wiki_page: (WikiPage, "content"),
@@ -102,11 +102,11 @@ async def sync_for_entity(
 
     if not fix_content or not isinstance(body, dict):
         return None
-    live_documents = {
-        entity_id for kind, entity_id in live if kind is SearchEntityType.document
+    live_files = {
+        entity_id for kind, entity_id in live if kind is SearchEntityType.file
     }
     repaired = deepcopy(body)
-    if not unresolve_missing_wikilinks(repaired, live_documents):
+    if not unresolve_missing_wikilinks(repaired, live_files):
         return None
     return repaired
 
@@ -138,28 +138,26 @@ async def sync_for_comment(
     )
 
 
-async def referencing_documents(
-    session: AsyncSession, document_id: int
-) -> list[Document]:
-    """Documents whose content points at this one, trashed ones included.
+async def referencing_files(session: AsyncSession, file_id: int) -> list[File]:
+    """Files whose content points at this one, trashed ones included.
 
-    The purge path asks this: a ``[[ ]]`` in a document that is only in the
+    The purge path asks this: a ``[[ ]]`` in a file that is only in the
     trash still has to be blanked, or restoring it later brings a dangling link
     back with it.
     """
     from app.db.soft_delete_filter import select_including_deleted
 
-    target = Endpoint(SearchEntityType.document, document_id)
+    target = Endpoint(SearchEntityType.file, file_id)
     sources = select(EntityRelationship.source_id).where(
         EntityRelationship.target_node == target.node,
-        EntityRelationship.source_type == SearchEntityType.document.value,
+        EntityRelationship.source_type == SearchEntityType.file.value,
         EntityRelationship.relationship_type == RelationshipType.references.value,
         EntityRelationship.removed_at.is_(None),  # type: ignore[union-attr]
     )
     rows = await session.exec(
-        select_including_deleted(Document)
-        .where(Document.id.in_(sources))  # type: ignore[attr-defined]
-        .options(undefer(Document.content))
+        select_including_deleted(File)
+        .where(File.id.in_(sources))  # type: ignore[attr-defined]
+        .options(undefer(File.content))
     )
     return list(rows.all())
 

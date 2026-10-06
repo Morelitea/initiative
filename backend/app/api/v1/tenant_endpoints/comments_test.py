@@ -108,7 +108,7 @@ class TestToolComments:
     async def test_any_grant_level_joins_the_discussion(
         self, client, session, acting_user, tool
     ):
-        # The rule tasks and documents have always had: any grant level on the
+        # The rule tasks and files have always had: any grant level on the
         # parent (read included) lets a member read AND post to its thread.
         a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)

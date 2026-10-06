@@ -150,6 +150,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # that stand in for it. All app_admin-only: presented while signing in.
         "user_totp",
         "user_totp_secrets",
+        # An account's date of birth, encrypted. app_admin-only: checked
+        # against a plug-in's minimum age on the system engine.
+        "user_birthdates",
         "mfa_recovery_codes",
         "auth_challenges",  # a sign-in between its password and its code
         # WebAuthn credentials. app_admin-only for the same reason as the rest

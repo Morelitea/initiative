@@ -67,7 +67,7 @@ _ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admi
 @dataclass(frozen=True)
 class Governing:
     """The tool row whose sharing decides who may be named on content inside
-    it: a task's project, an event's calendar, a document itself."""
+    it: a task's project, an event's calendar, a file itself."""
 
     tool: Tool
     resource_id: int

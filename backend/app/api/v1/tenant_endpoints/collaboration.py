@@ -1,5 +1,5 @@
 """
-Live editing of a collaborative body (a document, a wiki page).
+Live editing of a collaborative body (a file, a wiki page).
 
 The socket carries the Yjs sync protocol, updates and awareness; entry and
 continuous re-authorization are ``app.api.content_socket``'s. The POST beside
@@ -31,7 +31,7 @@ from app.api.deps import (
     GuildAccessError,
     raise_for_guild_access,
 )
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.models.platform.user import User
 from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -115,7 +115,7 @@ class _Editing:
         elif self.can_write and not writes:
             return None
         # The body's room, and the room of the row whose sharing governs it —
-        # the same room for a document, the wiki's for a page — so a change
+        # the same room for a file, the wiki's for a page — so a change
         # to that sharing re-checks this socket at once.
         return frozenset(
             {
@@ -283,7 +283,7 @@ async def _collaborate(
 
         # Tell the rest of the room only when this was the account's last
         # connection: the others keep a roster of people, and one of somebody's
-        # two tabs closing does not take them out of the document.
+        # two tabs closing does not take them out of the file.
         if not user_has_connection(guild_id, spec.resource_type, resource_id, user.id):
             broadcast_awareness(
                 guild_id,
@@ -342,7 +342,7 @@ async def _hand_over(
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
+                detail=FileMessages.COLLABORATION_UPDATE_INVALID,
             ) from None
         sockets.emit_bytes(
             resource_room(guild_id, spec.resource_type, resource_id),
@@ -368,7 +368,7 @@ def _mount(spec: CollaborativeResource) -> None:
         int, Path(alias=id_param, title=id_param.replace("_", " ").title())
     ]
     path = f"/{spec.route_segment}/{{{id_param}}}/collaborate"
-    # What the body is called: ``document_id`` names a document, ``page_id`` a page.
+    # What the body is called: ``file_id`` names a file, ``page_id`` a page.
     name = id_param.removesuffix("_id").replace("_", " ")
 
     async def collaborate(

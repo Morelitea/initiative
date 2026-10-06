@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.schema_provisioning import guild_schema_name
 from app.db.session import set_rls_context
 from app.models.tenant.counter import CounterGroup
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.testing import (
@@ -49,7 +49,7 @@ async def test_pam_read_grant_sees_only_granted_guild(
     guild_a = await create_guild(session, creator=owner)
     init_a = await create_initiative(session, guild_a, owner)
     proj_a = await create_project(session, init_a, owner, name="Alpha")
-    doc_a = Document(
+    doc_a = File(
         initiative_id=init_a.id,
         name="Alpha Doc",
         content={},
@@ -101,16 +101,14 @@ async def test_pam_read_grant_sees_only_granted_guild(
         ).all()
         assert len(visible_a) == 1, "read grant should see the granted guild's project"
 
-        # Documents must be visible too — the collaboration WebSocket loads the
-        # document under this exact pam_read context before authorizing.
+        # Files must be visible too — the collaboration WebSocket loads the
+        # file under this exact pam_read context before authorizing.
         visible_doc = (
             await session.exec(
-                text("SELECT id FROM documents WHERE id = :d"), params={"d": doc_a.id}
+                text("SELECT id FROM files WHERE id = :d"), params={"d": doc_a.id}
             )
         ).all()
-        assert len(visible_doc) == 1, (
-            "read grant should see the granted guild's documents"
-        )
+        assert len(visible_doc) == 1, "read grant should see the granted guild's files"
 
         # Cross-guild isolation: guild B's project lives in another schema, so it
         # is invisible here. (Query by name — its per-schema id collides with A's.)

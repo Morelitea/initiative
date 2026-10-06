@@ -525,7 +525,7 @@ class TestWhatANewStatementLeavesOut:
         from app.schemas.query import FilterOp
         from app.services.query.build import Column, Condition, QuerySpec, build
 
-        for name in ("tasks", "projects", "documents"):
+        for name in ("tasks", "projects", "files"):
             spec = QuerySpec(
                 dataset=name,
                 columns=(Column(field="*", aggregate="count", alias="count"),),

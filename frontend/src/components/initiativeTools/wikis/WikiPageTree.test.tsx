@@ -149,16 +149,16 @@ describe("arriving at a page that is filed inside something", () => {
   });
 });
 
-describe("documents filed under pages", () => {
-  it("draws a document inside the page it is filed under", async () => {
+describe("files filed under pages", () => {
+  it("draws a file inside the page it is filed under", async () => {
     const user = userEvent.setup();
     const filed = buildWikiPage({
       id: 30,
       wiki_id: 3,
-      kind: WikiPageKind.document,
+      kind: WikiPageKind.file,
       parent_page_id: 11,
       title: "Rulebook.pdf",
-      document_type: "file",
+      file_type: "file",
       file_content_type: "application/pdf",
       original_filename: "Rulebook.pdf",
     });
@@ -170,11 +170,11 @@ describe("documents filed under pages", () => {
     expect(await screen.findByText("Rulebook.pdf")).toBeInTheDocument();
   });
 
-  it("does not draw a page's children under a document that shares its number", async () => {
+  it("does not draw a page's children under a file that shares its number", async () => {
     const sameNumber = buildWikiPage({
       id: 11,
       wiki_id: 3,
-      kind: WikiPageKind.document,
+      kind: WikiPageKind.file,
       title: "Borrowed",
     });
     setup([page, child, sameNumber], 99);
@@ -191,25 +191,25 @@ describe("what a drag may land on", () => {
   const none = new Set<number>();
   const asPage = { id: 11, kind: WikiPageKind.page, parent_page_id: null };
   const nestedPage = { id: 12, kind: WikiPageKind.page, parent_page_id: 11 };
-  const borrowed = { id: 7, kind: WikiPageKind.document, parent_page_id: null };
+  const borrowed = { id: 7, kind: WikiPageKind.file, parent_page_id: null };
 
-  it("files a borrowed document under a page, or beside one at any depth", () => {
+  it("files a borrowed file under a page, or beside one at any depth", () => {
     expect(dropIntents(borrowed, asPage, none)).toEqual(["before", "into", "after"]);
     expect(dropIntents(borrowed, nestedPage, none)).toEqual(["before", "into", "after"]);
   });
 
-  it("files nothing inside a document", () => {
-    const other = { id: 8, kind: WikiPageKind.document, parent_page_id: 11 };
+  it("files nothing inside a file", () => {
+    const other = { id: 8, kind: WikiPageKind.file, parent_page_id: 11 };
     expect(dropIntents(borrowed, other, none)).toEqual(["before", "after"]);
   });
 
-  it("does not mistake a document for a page that shares its number", () => {
-    // Page 12 is under the dragged page; document 12 is not.
-    const sameNumber = { id: 12, kind: WikiPageKind.document, parent_page_id: null };
+  it("does not mistake a file for a page that shares its number", () => {
+    // Page 12 is under the dragged page; file 12 is not.
+    const sameNumber = { id: 12, kind: WikiPageKind.file, parent_page_id: null };
     expect(dropIntents(asPage, sameNumber, new Set([12]))).toEqual(["before", "after"]);
   });
 
-  it("offers a page the middle of another page, and only the edges of a document", () => {
+  it("offers a page the middle of another page, and only the edges of a file", () => {
     expect(dropIntents(asPage, nestedPage, none)).toEqual(["before", "into", "after"]);
     expect(dropIntents(asPage, borrowed, none)).toEqual(["before", "after"]);
   });

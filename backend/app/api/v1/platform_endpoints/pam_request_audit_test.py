@@ -2,7 +2,7 @@
 
 The grant itself is recorded when it is issued. These pin the other half: one
 line per request served through it, so "an operator held this community for an
-hour" and "an operator opened four hundred documents" read differently.
+hour" and "an operator opened four hundred files" read differently.
 """
 
 import pytest

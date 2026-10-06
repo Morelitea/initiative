@@ -364,7 +364,7 @@ async def _open_stream(
     """Authenticate the way a socket's handshake does, then join a room."""
     user = await authenticate_ws_token(token, session)
     assert user is not None
-    room = frozenset({resource_room(1, "document", 1)})
+    room = frozenset({resource_room(1, "file", 1)})
 
     async def _readable(_session, _user):
         return room

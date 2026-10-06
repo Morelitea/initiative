@@ -412,7 +412,7 @@ _NO_SINGLE_PARENT = {
     "recent_views": "one of eight tools, per row",
     "property_values": "any tool or sub-tool, per row: read through its own table, written through entity_access",
     "search_entries": "names its tool in dac_tool",
-    # One tool, two parents: a link must clear the gate on BOTH documents, so
+    # One tool, two parents: a link must clear the gate on BOTH files, so
     # there is no single row to authorize against.
     # Two parents of any kind: an edge clears the gate on each end through
     # entity_access, which asks each end's own entry here.

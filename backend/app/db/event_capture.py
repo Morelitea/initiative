@@ -40,7 +40,7 @@ the owner from the FK, the label by stripping the owner's singular stem from the
 junction's name — so a new junction is covered by construction.
 
 The same shape covers sub-resources that DO have an id of their own but are
-still a facet of something else (a project's statuses, a document's versions, an
+still a facet of something else (a project's statuses, a file's versions, an
 initiative's roles, a resource's sharing). Derivation cannot see that, so those
 say it once in ``EVENT_SOURCES`` as a ``ReportsAs``. Either way the resource an
 event names is one that already has a detail route, which is what keeps every
