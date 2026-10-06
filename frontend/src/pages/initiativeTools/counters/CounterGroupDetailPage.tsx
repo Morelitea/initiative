@@ -121,7 +121,7 @@ export function CounterGroupDetailPage() {
   }, [group?.counters]);
 
   // Track recently viewed counter groups for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("counter_group", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.counter_group, Number(communityId));
   const viewedGroupId = group?.id;
   useReadOnOpen(Tool.counter_group, viewedGroupId);
   useEffect(() => {

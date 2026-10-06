@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  SearchEntityType,
   Tool,
   type WikiPageHeading,
   WikiPageKind,
@@ -294,7 +295,11 @@ const WikiPageRow = ({
                   {page.title || t("pages.untitled")}
                 </span>
                 {/* A borrowed file is read as the file it is. */}
-                {unread.hasSubject(page.community_id, isFile ? Tool.file : "wiki_page", page.id) ? (
+                {unread.hasSubject(
+                  page.community_id,
+                  isFile ? Tool.file : SearchEntityType.wiki_page,
+                  page.id
+                ) ? (
                   <UnreadDot />
                 ) : null}
                 {page.is_draft ? (

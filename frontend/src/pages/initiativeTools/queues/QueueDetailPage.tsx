@@ -67,7 +67,7 @@ export function QueueDetailPage() {
   const initiativeId = useCanonicalInitiativeId(queue?.initiative_id);
 
   // Track recently viewed queues for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("queue", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.queue, Number(communityId));
   const viewedQueueId = queue?.id;
   useReadOnOpen(Tool.queue, viewedQueueId);
   useEffect(() => {

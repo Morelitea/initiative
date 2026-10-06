@@ -131,7 +131,7 @@ export const FileDetailPage = () => {
 
   // Track recently viewed files so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
-  const recordViewMutation = useRecordRecentView("file", communityId);
+  const recordViewMutation = useRecordRecentView(Tool.file, communityId);
   const viewedFileId = fileQuery.data?.id;
   useReadOnOpen(Tool.file, viewedFileId);
   useEffect(() => {

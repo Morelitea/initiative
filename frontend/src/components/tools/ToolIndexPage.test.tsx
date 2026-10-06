@@ -30,7 +30,7 @@ import { toolTableStorageKey } from "@/components/tools/ToolIndexTable";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { queryClient } from "@/lib/queryClient";
 import { setItem } from "@/lib/storage";
-import { TOOLS, toolRouteSegment, toolViews } from "@/lib/tools";
+import { TOOLS, toolCamelPlural, toolRouteSegment, toolViews } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 const INITIATIVE_ID = 1;
@@ -45,8 +45,8 @@ const CASES = TOOLS.flatMap((tool) => {
 const translate = i18n.t.bind(i18n) as TranslateFn;
 
 /** One of the tool's own strings, read through the key the table declares. */
-const copy = (entry: ToolIndexEntry, key: Exclude<keyof ToolIndexEntry["text"], "ns">) =>
-  translate(entry.text[key] ?? "", { ns: entry.text.ns });
+const copy = (tool: Tool, key: keyof ToolIndexEntry["text"]) =>
+  translate(toolIndexEntry(tool)?.text[key] ?? "", { ns: toolCamelPlural(tool) });
 
 /** A string from the shared toolbar/panel chrome. */
 const shared = (key: string) => translate(key, { ns: "common" });
@@ -132,16 +132,16 @@ const renderIndex = (tool: Tool, routerSearch?: Record<string, unknown>) =>
   });
 
 describe("the tool index page", () => {
-  it.each(CASES)("$tool names its own empty shelf", async ({ tool, entry }) => {
+  it.each(CASES)("$tool names its own empty shelf", async ({ tool }) => {
     stubList(tool, []);
 
     renderIndex(tool);
 
-    expect(await screen.findByText(copy(entry, "emptyTitle"))).toBeInTheDocument();
-    expect(screen.getByText(copy(entry, "emptyBody"))).toBeInTheDocument();
+    expect(await screen.findByText(copy(tool, "emptyTitle"))).toBeInTheDocument();
+    expect(screen.getByText(copy(tool, "emptyBody"))).toBeInTheDocument();
   });
 
-  it.each(CASES)("$tool reaches its archived rows from the toolbar", async ({ tool, entry }) => {
+  it.each(CASES)("$tool reaches its archived rows from the toolbar", async ({ tool }) => {
     const requests = stubList(tool, [
       row(tool, { id: 1, name: "Still in use" }),
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
@@ -169,14 +169,14 @@ describe("the tool index page", () => {
     expect(await screen.findByText("Put away")).toBeInTheDocument();
     await waitFor(() => expect(requests.at(-1)?.get("archived")).toBe("true"));
     // Nothing is made into the archive.
-    expect(screen.queryByRole("button", { name: copy(entry, "create") })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: copy(tool, "create") })).not.toBeInTheDocument();
   });
 
-  it.each(CASES)("$tool opens its filters from the toolbar", async ({ tool, entry }) => {
+  it.each(CASES)("$tool opens its filters from the toolbar", async ({ tool }) => {
     stubList(tool, []);
 
     renderIndex(tool);
-    await screen.findByText(copy(entry, "emptyTitle"));
+    await screen.findByText(copy(tool, "emptyTitle"));
 
     const button = screen.getByRole("button", { name: shared("toolbar.filters") });
     expect(button).toHaveAttribute("aria-expanded", "false");
@@ -188,20 +188,20 @@ describe("the tool index page", () => {
 
   it.each(CASES)(
     "$tool searches on the server, and says so when nothing matches",
-    async ({ tool, entry }) => {
+    async ({ tool }) => {
       const requests = stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
 
       renderIndex(tool);
       expect(await screen.findByText("Findable")).toBeInTheDocument();
 
       await userEvent.type(
-        screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
+        screen.getByLabelText(translate("filters.searchLabel", { ns: toolCamelPlural(tool) })),
         "nothing here"
       );
 
       // Not the empty shelf: the tool has rows, they are just not these.
-      expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
-      expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
+      expect(await screen.findByText(copy(tool, "noMatches"))).toBeInTheDocument();
+      expect(screen.queryByText(copy(tool, "emptyTitle"))).not.toBeInTheDocument();
       // Sent once, after the typing stopped, rather than once a keystroke.
       expect(requests.map((params) => params.get("search")).filter(Boolean)).toEqual([
         "nothing here",
@@ -211,7 +211,7 @@ describe("the tool index page", () => {
 
   it.each(CASES.filter(({ entry }) => !entry.CreateDialog))(
     "$tool is created from the shared dialog",
-    async ({ tool, entry }) => {
+    async ({ tool }) => {
       stubList(tool, []);
       let sent: unknown;
       server.use(
@@ -222,15 +222,15 @@ describe("the tool index page", () => {
       );
 
       renderIndex(tool);
-      await userEvent.click(await screen.findByRole("button", { name: copy(entry, "create") }));
+      await userEvent.click(await screen.findByRole("button", { name: copy(tool, "create") }));
 
       const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByText(copy(entry, "createDescription"))).toBeInTheDocument();
+      expect(within(dialog).getByText(copy(tool, "createDescription"))).toBeInTheDocument();
       await userEvent.type(
-        within(dialog).getByLabelText(translate("name", { ns: entry.text.ns })),
+        within(dialog).getByLabelText(translate("name", { ns: toolCamelPlural(tool) })),
         "Fresh"
       );
-      await userEvent.click(within(dialog).getByRole("button", { name: copy(entry, "create") }));
+      await userEvent.click(within(dialog).getByRole("button", { name: copy(tool, "create") }));
 
       await waitFor(() =>
         expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
@@ -344,11 +344,11 @@ describe("the queue index page", () => {
 describe("the tool index page's templates", () => {
   it.each(CASES.filter(({ tool }) => toolViews(tool).includes("templates")))(
     "$tool keeps its templates in a view of their own, with nothing to create there",
-    async ({ tool, entry }) => {
+    async ({ tool }) => {
       const requests = stubList(tool, []);
 
       renderIndex(tool);
-      await screen.findByText(copy(entry, "emptyTitle"));
+      await screen.findByText(copy(tool, "emptyTitle"));
       expect(requests.at(-1)?.get("is_template")).toBe("false");
 
       await userEvent.click(
@@ -358,7 +358,9 @@ describe("the tool index page's templates", () => {
       await waitFor(() => expect(requests.at(-1)?.get("is_template")).toBe("true"));
       expect(await screen.findByText(shared("toolIndex.emptyTemplatesTitle"))).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: translate("createFirst", { ns: entry.text.ns }) })
+        screen.queryByRole("button", {
+          name: translate("createFirst", { ns: toolCamelPlural(tool) }),
+        })
       ).not.toBeInTheDocument();
     }
   );
@@ -465,7 +467,6 @@ describe("the tool index page's bulk actions", () => {
 });
 
 describe("the file index page", () => {
-  const entry = toolIndexEntry(Tool.file) as ToolIndexEntry;
   const files = (key: string) => translate(key, { ns: "files" });
 
   /** Rendered in the layout a reader left the list in. */
@@ -486,7 +487,7 @@ describe("the file index page", () => {
     const requests = stubList(Tool.file, []);
 
     renderIndex(Tool.file);
-    await screen.findByText(copy(entry, "emptyTitle"));
+    await screen.findByText(copy(Tool.file, "emptyTitle"));
     expect(requests.at(-1)?.get("file_type")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
@@ -503,7 +504,7 @@ describe("the file index page", () => {
     stubList(Tool.file, []);
 
     renderIndex(Tool.file);
-    await userEvent.click(await screen.findByRole("button", { name: copy(entry, "create") }));
+    await userEvent.click(await screen.findByRole("button", { name: copy(Tool.file, "create") }));
 
     const dialog = await screen.findByRole("dialog");
     expect(

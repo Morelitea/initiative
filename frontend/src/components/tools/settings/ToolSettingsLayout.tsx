@@ -4,8 +4,8 @@
  * Rename, describe, tag, share, and delete are identical for all six tools, so
  * they live here once. Everything the frame needs is derived from the `tool`
  * value — breadcrumb labels, section routes, the tag mutation — and all of its
- * copy comes from the shared `common:toolSettings.*` namespace, so adding a
- * tool costs a wrapper that names its data hooks and nothing else.
+ * copy comes from the shared `common:toolSettings.*` namespace, so a tool with
+ * nothing of its own is mounted as `ToolSettingsPage`, over its `TOOL_HOOKS`.
  *
  * The sections are real routes — `/settings/access` is a place, not a piece of
  * component state — so sharing can be linked to, and the back button walks

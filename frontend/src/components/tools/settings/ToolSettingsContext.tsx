@@ -40,12 +40,6 @@ export interface ToolSettingsEntity {
   /** Projects and files only: a template, which read is enough to copy. */
   is_template?: boolean;
   /**
-   * Posts only: reactions hang off comments and off posts and off nothing
-   * else, so this is the one tool with a switch of its own for them. Absent
-   * on every other entity, which is why it is optional rather than a union.
-   */
-  reactions_enabled?: boolean;
-  /**
    * The installed plug-in that owns it, where the tool's read model names one
    * (projects and files). Elsewhere the sharing control finds the plug-in
    * from the owner grant.
