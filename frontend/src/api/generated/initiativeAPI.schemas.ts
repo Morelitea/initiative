@@ -6344,6 +6344,7 @@ export interface OperatorUserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  birthdate_on_file: boolean;
   cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;
@@ -9393,6 +9394,7 @@ export interface UserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  birthdate_on_file: boolean;
   cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;

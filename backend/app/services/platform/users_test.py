@@ -1049,6 +1049,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
     from app.models.platform.email_outbox import EmailOutboxItem
     from app.models.platform.notification import Notification
     from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_birthdate import UserBirthdate
     from app.models.platform.user_cookie_consent import UserCookieConsent
     from app.models.platform.user_decoration import UserDecoration
     from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -1088,6 +1089,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
             ),
             AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
             UserCookieConsent(user_id=user.id, version=1),
+            UserBirthdate(user_id=user.id, birthdate_encrypted="sealed"),
             DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
             DmConversationMember(conversation_id=conversation.id, user_id=user.id),
             DmConversationMember(conversation_id=conversation.id, user_id=other.id),
@@ -1120,6 +1122,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
         (EmailOutboxItem, EmailOutboxItem.user_id),
         (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
         (UserCookieConsent, UserCookieConsent.user_id),
+        (UserBirthdate, UserBirthdate.user_id),
         (DmDevice, DmDevice.user_id),
         (DmConversationMember, DmConversationMember.user_id),
         (UserDmSettings, UserDmSettings.user_id),
@@ -1200,3 +1203,50 @@ async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypat
     session.expire_all()
     after = await session.get(type(user), user_id)
     assert after.status == UserStatus.anonymized
+
+
+async def test_a_kept_birthdate_is_never_replaced(session: AsyncSession):
+    """Keeping is one insert: of two answers, exactly one is kept, and a second
+    leaves the first as it is."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        first = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        second = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(2015, 1, 1)
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert first is not None and second is None
+    assert kept == date(1990, 5, 4)
+
+
+async def test_taking_back_a_date_leaves_a_newer_one(session: AsyncSession):
+    """A failed answer takes back only the date it kept, never one a later
+    answer kept after a reset."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        failed = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        await user_service.forget_birthdate(system_session, user_id=user.id)
+        await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1991, 6, 5)
+        )
+        await user_service.forget_birthdate(
+            system_session, user_id=user.id, only=failed
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert kept == date(1991, 6, 5)

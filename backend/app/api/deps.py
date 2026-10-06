@@ -19,6 +19,8 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
+from app.services.tenant import plugin_age
+from app.services.tenant.plugin_age import AgeViewer
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
 from app.core.identify import (
@@ -386,6 +388,15 @@ async def get_active_user_exempt_from_factor(
 
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+
+
+async def get_age_viewer(request: Request, current_user: CurrentUser) -> AgeViewer:
+    """The person making the request, as a plug-in's minimum age reads them:
+    their age from the kept date of birth, their country from the request."""
+    return await plugin_age.viewer_for(request, current_user.id)
+
+
+AgeViewerDep = Annotated[AgeViewer, Depends(get_age_viewer)]
 #: For the handful of routes above. Everything else takes ``CurrentUser``.
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 

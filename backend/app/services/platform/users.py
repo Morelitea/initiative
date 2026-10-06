@@ -13,7 +13,12 @@ from app.core.messages import AuthMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
-from app.core.encryption import hash_email
+from app.core.encryption import (
+    SALT_BIRTHDATE,
+    decrypt_field,
+    encrypt_field,
+    hash_email,
+)
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.user import (
@@ -22,6 +27,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
+from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, CommunityRole
@@ -459,6 +465,8 @@ async def _erase_personal_rows(session: AsyncSession, *, user_id: int) -> None:
     from app.models.platform.user_ignore import UserIgnore
     from app.models.platform.user_passkey import UserPasskey
 
+    # The date of birth kept for age limits, which is about nobody else.
+    await session.exec(delete(UserBirthdate).where(UserBirthdate.user_id == user_id))
     # What the profile was dressed in: every decoration an installed pack
     # granted. What it was wearing is on the ``users`` row, cleared by the caller.
     await session.exec(delete(UserDecoration).where(UserDecoration.user_id == user_id))
@@ -1117,7 +1125,34 @@ async def to_self_read(user: User) -> "UserRead":
     payload = UserRead.model_validate(user)
     payload.email = primary.get(user.id)
     payload.email_verified = user.id in proven
+    payload.birthdate_on_file = await _birthdate_on_file(user.id)
     return payload
+
+
+async def _birthdates_on_file(user_ids: List[int]) -> set[int]:
+    """Which of these accounts have a date of birth kept. One query for the
+    page, on the system engine, and never the dates."""
+    from app.db.session import SystemSessionLocal
+
+    if not user_ids:
+        return set()
+    async with SystemSessionLocal() as system_session:
+        rows = await system_session.exec(
+            select(UserBirthdate.user_id).where(UserBirthdate.user_id.in_(user_ids))
+        )
+        return set(rows.all())
+
+
+async def _birthdate_on_file(user_id: int) -> bool:
+    """Whether this account's date of birth is kept — never the date itself.
+
+    On its own system-engine session, like :func:`_reach`: ``user_birthdates``
+    carries no request-path grants.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await birthdate_of(system_session, user_id=user_id) is not None
 
 
 async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
@@ -1136,11 +1171,13 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         if any(u.status == UserStatus.deleted for u in users)
         else None
     )
+    dated = await _birthdates_on_file([u.id for u in users])
     out: List[OperatorUserRead] = []
     for user in users:
         payload = OperatorUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
+        payload.birthdate_on_file = user.id in dated
         payload.purge_at = _erase_at(user, retention)
         payload.second_factor_enrolled = user.id in enrolled
         payload.api_key_count = key_counts.get(user.id, 0)
@@ -1222,13 +1259,81 @@ def record_age_answer(user: User, birthdate: date) -> bool:
     """Write onto the account what a birthdate says about it, and whether it
     is old enough.
 
-    The date itself is not kept: only when the question was first answered,
-    or that it was answered under age.
+    Records when the question was first answered, or that it was answered
+    under age. The date itself is kept beside it by :func:`keep_birthdate`, on
+    the system engine.
     """
     check_birthdate(birthdate)
     if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
         user.age_below_minimum_at = datetime.now(timezone.utc)
+        # One question, one answer (``ck_users_age_answer``): an under-age
+        # answer replaces any confirmation.
+        user.age_confirmed_at = None
         return False
     if user.age_confirmed_at is None:
         user.age_confirmed_at = datetime.now(timezone.utc)
     return True
+
+
+async def keep_birthdate(
+    session: AsyncSession, *, user_id: int, birthdate: date
+) -> str | None:
+    """Keep this account's date of birth, encrypted. The stored ciphertext when
+    it was kept — unique to this keeping, so :func:`forget_birthdate` can take
+    back exactly this one — or ``None`` when one is already on file, which is
+    left as it is.
+
+    A plug-in's minimum age differs by country, so one "old enough" answer
+    cannot say whether somebody may use a given plug-in; the date can. One
+    insert, so of two answers arriving together exactly one is kept. On the
+    system engine — ``user_birthdates`` has no request-path grants — and the
+    caller commits. Checked first with :func:`check_birthdate`, like the answer
+    it accompanies.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    check_birthdate(birthdate)
+    now = datetime.now(timezone.utc)
+    ciphertext = encrypt_field(birthdate.isoformat(), SALT_BIRTHDATE)
+    kept = await session.exec(
+        pg_insert(UserBirthdate)
+        .values(
+            user_id=user_id,
+            birthdate_encrypted=ciphertext,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_nothing(index_elements=["user_id"])
+        .returning(UserBirthdate.user_id)
+    )
+    return ciphertext if kept.first() is not None else None
+
+
+async def birthdate_of(session: AsyncSession, *, user_id: int) -> date | None:
+    """The kept date of birth, or None. System engine only; it decides nothing
+    about who may know it, so it is read to check an age and never handed out."""
+    stored = (
+        await session.exec(
+            select(UserBirthdate).where(UserBirthdate.user_id == user_id)
+        )
+    ).first()
+    if stored is None:
+        return None
+    return date.fromisoformat(decrypt_field(stored.birthdate_encrypted, SALT_BIRTHDATE))
+
+
+async def forget_birthdate(
+    session: AsyncSession, *, user_id: int, only: str | None = None
+) -> None:
+    """Drop the kept date of birth, so the account answers again. With ``only``
+    (what :func:`keep_birthdate` returned), drop it only if it is still that
+    one. System engine; the caller commits."""
+    statement = delete(UserBirthdate).where(UserBirthdate.user_id == user_id)
+    if only is not None:
+        statement = statement.where(UserBirthdate.birthdate_encrypted == only)
+    await session.exec(statement)
+
+
+def years_old(birthdate: date) -> int:
+    """Whole years since ``birthdate`` as of today (UTC)."""
+    return _years_since(birthdate, datetime.now(timezone.utc).date())

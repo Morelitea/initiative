@@ -464,6 +464,7 @@
   "COMMUNITY_PLUGIN_SURFACE_NOT_FOUND": "Este complemento no tiene ninguna pantalla con ese nombre.",
   "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY": "Solo los administradores de la comunidad pueden abrir esta parte del complemento.",
   "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED": "Tu rol en esta iniciativa no puede abrir esta parte del complemento.",
+  "COMMUNITY_PLUGIN_AGE_RESTRICTED": "Aún no tienes la edad necesaria para usar este complemento donde estás.",
   "PLUGIN_CHANNEL_INSTALL_NOT_FOUND": "Ese complemento no está instalado en esa comunidad.",
   "PLUGIN_CHANNEL_INSTALL_DISABLED": "Esa comunidad ha desactivado este complemento.",
   "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY": "Esa comunidad está congelado, así que ahora mismo no se puede escribir nada en él.",
