@@ -916,10 +916,10 @@ async def check_user_deletion_eligibility(
 ) -> OperatorDeletionEligibilityResponse:
     """Check if a user can be deleted (``users.delete``).
 
-    Returns the blockers: the communities the user holds the only superadmin
-    seat of. That is the only one: owning content does not stop a deletion,
-    because ownership is released on the way out and the content is left
-    unowned for a guild admin to claim.
+    Returns the blockers ``delete_user`` refuses on: being the last platform
+    owner, and the communities the user holds the only superadmin seat of.
+    Owning content does not stop a deletion, because ownership is released on
+    the way out and the content is left unowned for a guild admin to claim.
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -929,6 +929,9 @@ async def check_user_deletion_eligibility(
 
     await _account_within_rank(session, user_id, current_user)
 
+    last_owner = await users_service.is_last_capability_holder(
+        session, user_id, Capability.CONFIG_MANAGE
+    )
     community_blockers = [
         CommunityBlockerInfo(community_id=guild_id, community_name=guild_name)
         for guild_id, guild_name in await guilds_service.stranded_seats(
@@ -936,7 +939,9 @@ async def check_user_deletion_eligibility(
         )
     ]
     return OperatorDeletionEligibilityResponse(
-        can_delete=not community_blockers, community_blockers=community_blockers
+        can_delete=not last_owner and not community_blockers,
+        last_owner=last_owner,
+        community_blockers=community_blockers,
     )
 
 

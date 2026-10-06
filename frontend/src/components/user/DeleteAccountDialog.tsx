@@ -49,7 +49,7 @@ export function DeleteAccountDialog({
   user,
   initialAction,
 }: DeleteAccountDialogProps) {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "errors"]);
   const initialStep: DeletionStep = initialAction ? "check-blockers" : "choose-type";
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>(initialStep);
   const [action, setAction] = useState<SelfAction>(initialAction ?? "deactivate");
@@ -229,9 +229,12 @@ export function DeleteAccountDialog({
           <EligibilityStep
             checking={isCheckingEligibility}
             canDelete={eligibility?.can_delete}
-            blockers={(eligibility?.sole_superadmin_communities ?? []).map((communityName) =>
-              t("deleteAccount.soleSuperadminBlocker", { communityName })
-            )}
+            blockers={[
+              ...(eligibility?.last_owner ? [t("errors:USER_CANNOT_DELETE_LAST_OWNER")] : []),
+              ...(eligibility?.sole_superadmin_communities ?? []).map((communityName) =>
+                t("deleteAccount.soleSuperadminBlocker", { communityName })
+              ),
+            ]}
             blockedTitle={t(
               action === "deactivate"
                 ? "deleteAccount.cannotDeactivate"

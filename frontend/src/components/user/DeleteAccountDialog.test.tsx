@@ -25,8 +25,12 @@ const renderDialog = () =>
   );
 
 describe("DeleteAccountDialog", () => {
-  it("names each community the account is the only superadmin of", async () => {
-    answer({ can_delete: false, sole_superadmin_communities: ["Lone Community"] });
+  it("names the last owner and each community the account is the only superadmin of", async () => {
+    answer({
+      can_delete: false,
+      last_owner: true,
+      sole_superadmin_communities: ["Lone Community"],
+    });
     renderDialog();
 
     expect(
@@ -34,12 +38,13 @@ describe("DeleteAccountDialog", () => {
         "You are the only superadmin of Lone Community. Make another member superadmin, or delete the community, first."
       )
     ).toBeInTheDocument();
+    expect(screen.getByText("Cannot delete the last platform owner account")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
   });
 
   it("goes on to the typed phrase once nothing is in the way", async () => {
     const user = userEvent.setup();
-    answer({ can_delete: true, sole_superadmin_communities: [] });
+    answer({ can_delete: true, last_owner: false, sole_superadmin_communities: [] });
     renderDialog();
 
     const phrase = await screen.findByLabelText(/DELETE MY ACCOUNT/);

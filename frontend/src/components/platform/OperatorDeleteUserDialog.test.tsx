@@ -24,11 +24,13 @@ const targetUser: OperatorUserRead = {
 
 const eligibilityWithCommunityBlocker: OperatorDeletionEligibilityResponse = {
   can_delete: false,
+  last_owner: false,
   community_blockers: [{ community_id: 77, community_name: "Lone Community" }],
 };
 
 const eligibilityClear: OperatorDeletionEligibilityResponse = {
   can_delete: true,
+  last_owner: false,
   community_blockers: [],
 };
 

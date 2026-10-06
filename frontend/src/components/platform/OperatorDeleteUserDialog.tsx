@@ -93,7 +93,7 @@ export function OperatorDeleteUserDialog({
   onSuccess,
   targetUser,
 }: OperatorDeleteUserDialogProps) {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "errors"]);
   const validActions = validActionsFor(targetUser.status);
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>("choose-type");
   const [action, setAction] = useState<OperatorAction>(validActions[0]);
@@ -255,9 +255,12 @@ export function OperatorDeleteUserDialog({
             <EligibilityStep
               checking={isCheckingEligibility}
               canDelete={eligibility?.can_delete}
-              blockers={(eligibility?.community_blockers ?? []).map(({ community_name }) =>
-                t("operatorDeleteUser.communityBlockerTitle", { communityName: community_name })
-              )}
+              blockers={[
+                ...(eligibility?.last_owner ? [t("errors:OPERATOR_CANNOT_DELETE_LAST_OWNER")] : []),
+                ...(eligibility?.community_blockers ?? []).map(({ community_name }) =>
+                  t("operatorDeleteUser.communityBlockerTitle", { communityName: community_name })
+                ),
+              ]}
               blockedTitle={t("operatorDeleteUser.blockersTitle")}
               blockedHint={t("operatorDeleteUser.blockersDescription")}
               eligibleText={t("operatorDeleteUser.confirmDescription")}

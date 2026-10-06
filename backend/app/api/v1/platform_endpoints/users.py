@@ -1625,10 +1625,16 @@ async def check_deletion_eligibility(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
-    """Check if the current user can be deleted and what blockers exist."""
+    """Check if the current user can be deleted and what blockers exist:
+    the ones ``delete_own_account`` refuses on."""
+    last_owner = await users_service.is_last_capability_holder(
+        session, current_user.id, Capability.CONFIG_MANAGE
+    )
     sole_seats = await users_service.is_last_guild_superadmin(session, current_user.id)
     return DeletionEligibilityResponse(
-        can_delete=not sole_seats, sole_superadmin_communities=sole_seats
+        can_delete=not last_owner and not sole_seats,
+        last_owner=last_owner,
+        sole_superadmin_communities=sole_seats,
     )
 
 
