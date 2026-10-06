@@ -1322,6 +1322,9 @@ export const useImportSpreadsheetFile = <
  * Replace the document's entire sharing state in one call — the body is the
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the document is taken off
+ * whatever in it names them.
  * @summary Set Document Grants
  */
 export const setDocumentGrants = (

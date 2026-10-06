@@ -402,8 +402,8 @@ class ToolListSpec:
     #: tool's own re-read-and-serialize, which the shared sharing route
     #: (``tool_grants.py``) answers with.
     read_row: Callable[..., Awaitable[Any]]
-    #: The sharing route's published description, per tool.
-    grants_doc: Optional[str] = None
+    #: What the sharing route's published description adds for this tool.
+    grants_note: Optional[str] = None
     #: async (spec, req) -> the whole WHERE. Defaults to the shared set.
     conditions: Optional[Callable[..., Awaitable[list]]] = None
     #: Rows belonging to the guild rather than to an initiative (guild calendars).
@@ -738,14 +738,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.project,
         read_model=ProjectRead,
         read_row=projects_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the project's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
-            "Anyone the new grants drop below write access is unassigned from the project's\n"
-            "tasks (you can't be assigned to tasks you can't edit)."
-        ),
         model=Project,
         enabled_column=Initiative.projects_enabled,
         response_model=ProjectListResponse,
@@ -807,11 +799,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.document,
         read_model=DocumentRead,
         read_row=documents_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the document's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Document,
         enabled_column=Initiative.documents_enabled,
         response_model=DocumentListResponse,
@@ -879,11 +866,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.queue,
         read_model=QueueRead,
         read_row=queues_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the queue's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Queue,
         enabled_column=Initiative.queues_enabled,
         response_model=QueueListResponse,
@@ -927,11 +909,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.counter_group,
         read_model=CounterGroupRead,
         read_row=counters_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the counter group's entire sharing state in one call — the body\n"
-            "is the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=CounterGroup,
         enabled_column=Initiative.counter_groups_enabled,
         response_model=CounterGroupListResponse,
@@ -963,11 +940,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.calendar,
         read_model=CalendarRead,
         read_row=calendars_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the calendar's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Calendar,
         enabled_column=Initiative.calendars_enabled,
         response_model=CalendarListResponse,
@@ -1008,11 +980,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serves_apps=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the dashboard's entire sharing state in one call — the body is\n"
-            "the full list of grants (all-initiative-members / per-user / per-role).\n"
-            "Every non-owner grant is rebuilt from it; the owner is always preserved.\n"
-            "\n"
+        grants_note=(
             "This shares the canvas, not its data: each widget still resolves against\n"
             "the viewer's own access to the sources it binds."
         ),
@@ -1040,11 +1008,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.post,
         read_model=PostRead,
         read_row=posts_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the post's entire sharing state in one call — the body is the\n"
-            "full list of grants (all-initiative-members / per-user / per-role). Every\n"
-            "non-owner grant is rebuilt from it; the owner is always preserved."
-        ),
         model=Post,
         enabled_column=Initiative.posts_enabled,
         response_model=PostListResponse,
@@ -1116,11 +1079,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tool=Tool.gallery,
         read_model=GalleryRead,
         read_row=galleries_endpoints.read_after_write,
-        grants_doc=(
-            "Replace the gallery's entire sharing state in one call — the body is\n"
-            "the full list of grants. Every non-owner grant is rebuilt from it; the\n"
-            "owner is always preserved."
-        ),
         model=Gallery,
         enabled_column=Initiative.galleries_enabled,
         response_model=GalleryListResponse,

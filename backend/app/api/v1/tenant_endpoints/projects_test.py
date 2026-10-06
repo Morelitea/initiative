@@ -1,7 +1,7 @@
 """
 Integration tests for the project endpoints: listing, creating (blank and from
-a template), duplicating, updating, deleting, favorites, the assignable
-roster, and what a grant change does to a project's task assignees.
+a template), duplicating, updating, deleting, favorites and the assignable
+roster.
 
 Sharing and archiving are proved for every tool in ``tool_grants_test`` and
 ``archive_test``.
@@ -12,7 +12,7 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from httpx import AsyncClient
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -24,7 +24,6 @@ from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import tags as tags_service
-from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_comment,
     create_document,
@@ -1209,57 +1208,6 @@ async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
     )
     assert kept.status_code == 204, kept.text
     assert await listed() == [third.id, first.id, second.id]
-
-
-async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
-    """Read task_assignees straight from the guild schema (superuser session)."""
-    await session.commit()
-    await route_session_to_guild(session, guild_id)
-    return set(
-        (
-            await session.exec(
-                text("SELECT user_id FROM task_assignees WHERE task_id = :tid"),
-                params={"tid": task_id},
-            )
-        ).scalars()
-    )
-
-
-async def test_a_grant_change_unassigns_only_who_can_no_longer_open_it(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Nobody stays assigned to a project they can no longer open, and the
-    cleanup reads effective access: a lower level, or access through another
-    grant, keeps the assignment."""
-    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    member = await acting_user(
-        guild_role=CommunityRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
-    project = await create_project(session, owner.initiative, owner.user)
-    await create_resource_grant(
-        session, project, user=member.user, level=ResourceAccessLevel.write
-    )
-    task = await create_task(session, project, assignees=[member.user])
-    url = owner.g(f"/projects/{project.id}/grants")
-
-    # The per-user grant swapped for an all-members read grant: still opens it.
-    r = await client.put(
-        url,
-        headers=owner.headers,
-        json=[{"all_initiative_members": True, "level": "read"}],
-    )
-    assert r.status_code == 200
-    assert member.user.id in await _task_assignee_ids(session, owner.guild.id, task.id)
-
-    # Every grant removed: the member can no longer open it and is unassigned.
-    r = await client.put(url, headers=owner.headers, json=[])
-    assert r.status_code == 200
-    assert member.user.id not in await _task_assignee_ids(
-        session, owner.guild.id, task.id
-    )
 
 
 async def test_project_guild_isolation(

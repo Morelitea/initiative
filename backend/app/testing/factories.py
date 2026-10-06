@@ -54,7 +54,7 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_secret import GuildAppSecret
-from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
@@ -1780,10 +1780,12 @@ async def create_calendar_event(
     creator: User,
     *,
     title: str | None = None,
+    attendees: list[User] | None = None,
     commit: bool = True,
     **overrides: Any,
 ) -> CalendarEvent:
-    """Create a test calendar event with sensible defaults.
+    """Create a test calendar event with sensible defaults, and optional
+    attendees.
 
     Defaults to a one-hour event starting "now"; callers that care about
     the timing should override ``start_at`` / ``end_at``. Events carry no
@@ -1808,6 +1810,11 @@ async def create_calendar_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+
+    for user in attendees or []:
+        session.add(CalendarEventAttendee(calendar_event_id=event.id, user_id=user.id))
+    if commit and attendees:
+        await session.commit()
 
     return event
 

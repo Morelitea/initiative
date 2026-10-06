@@ -1540,9 +1540,12 @@ export const useResetCounter = <TError = ErrorType<HTTPValidationError>, TContex
   return useMutation(getResetCounterMutationOptions(options), queryClient);
 };
 /**
- * Replace the counter group's entire sharing state in one call — the body
- * is the full list of grants (all-initiative-members / per-user / per-role).
- * Every non-owner grant is rebuilt from it; the owner is always preserved.
+ * Replace the counter group's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the counter group is taken off
+ * whatever in it names them.
  * @summary Set Counter Group Grants
  */
 export const setCounterGroupGrants = (

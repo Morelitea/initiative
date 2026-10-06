@@ -100,7 +100,6 @@
   "RESERVED_SIGIL_IN_NAME": "Namen und Titel dürfen kein # oder @ enthalten.",
   "FIELD_CANNOT_BE_NULL": "Dieses Feld darf nicht leer bleiben.",
   "PROJECT_NOT_FOUND": "Projekt nicht gefunden",
-  "PROJECT_IS_ARCHIVED": "Projekt ist archiviert",
   "CONTENT_IS_FROZEN": "Dies ist archiviert oder im Papierkorb. Stelle es wieder her, bevor du Änderungen vornimmst.",
   "PARENT_IS_FROZEN": "Das übergeordnete Element ist archiviert oder im Papierkorb. Stelle es zuerst wieder her.",
   "PROJECT_OWNER_REQUIRED": "Eigentümerberechtigung für das Projekt erforderlich",

@@ -323,7 +323,6 @@ class FilterPresetMessages:
 
 
 class ProjectMessages:
-    IS_ARCHIVED = "PROJECT_IS_ARCHIVED"
     INVALID_TEMPLATE = "PROJECT_INVALID_TEMPLATE"
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
     # Configuring the project itself (pinning, default view, filter

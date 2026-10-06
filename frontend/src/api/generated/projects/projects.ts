@@ -1132,8 +1132,8 @@ export const useReorderProjects = <TError = ErrorType<HTTPValidationError>, TCon
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
  *
- * Anyone the new grants drop below write access is unassigned from the project's
- * tasks (you can't be assigned to tasks you can't edit).
+ * Anyone the new sharing no longer lets open the project is taken off
+ * whatever in it names them.
  * @summary Set Project Grants
  */
 export const setProjectGrants = (

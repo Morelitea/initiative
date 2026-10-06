@@ -46,10 +46,9 @@ from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.queue import QueueItem
 from app.models.tenant.wiki import WikiPage
 from app.models.tenant.resource_grant import ResourceAccessLevel
-from app.models.tenant.task import Task, TaskAssignee
+from app.models.tenant.task import Task
 from app.models.platform.user import User
 from sqlalchemy import inspect
-from sqlmodel import select
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
@@ -606,47 +605,7 @@ def _missing(model: type) -> HTTPException:
 
 # ── Unified grant-set flow ───────────────────────────────────────────────────
 # One code path for replacing a resource's sharing — used by every per-resource
-# ``PUT /{id}/grants`` endpoint and by the bulk endpoint. The only per-kind
-# variation is an optional post-change side effect (projects unassign anyone
-# who can no longer open the project from its tasks).
-
-
-@dataclass(frozen=True)
-class GrantHooks:
-    # raise to reject the change (e.g. archived project) — runs after authorization
-    precheck: Optional[Callable[[Any], None]] = None
-    # post-change hook: (session, reloaded_row) -> None
-    on_changed: Optional[Callable[..., Awaitable[None]]] = None
-
-
-async def _project_on_grants_changed(session: Any, row: Any) -> None:
-    """Unassign anyone the grant change left unable to open the project: only
-    people who can open it are named on its tasks. Commits only when something
-    changed."""
-    assigned = set(
-        (
-            await session.exec(
-                select(TaskAssignee.user_id)
-                .join(Task, Task.id == TaskAssignee.task_id)
-                .where(Task.project_id == row.id)
-                .distinct()
-            )
-        ).all()
-    )
-    gone = assigned - await named_people.readers(
-        session, named_people.Governing.of(Tool.project, row), assigned
-    )
-    if gone:
-        await project_grants.remove_user_task_assignments(session, row.id, gone)
-        await session.commit()
-
-
-GRANT_HOOKS: dict[Tool, GrantHooks] = {
-    Tool.project: GrantHooks(
-        precheck=project_grants.ensure_grantable,
-        on_changed=_project_on_grants_changed,
-    ),
-}
+# ``PUT /{id}/grants`` endpoint and by the bulk endpoint.
 
 
 async def set_resource_grants(
@@ -659,10 +618,11 @@ async def set_resource_grants(
 ) -> None:
     """Replace one resource's sharing the unified way: load + 404, authorize
     the share action (``Action.share``), rebuild every non-owner grant from
-    ``grants`` (owner preserved), then run the resource's optional post-change side
-    effect. Commits. Raises ``HTTPException`` 404 (missing) / 403 (no manage
-    access). The single source of truth behind the per-resource grant endpoints and
-    the bulk endpoint.
+    ``grants`` (owner preserved), then take anyone the new sharing does not
+    reach off the content inside it (``named_people.sweep``). Commits. Raises
+    ``HTTPException`` 404 (missing) / 403 (no manage access) / 409 (archived or
+    trashed). The single source of truth behind the per-resource grant
+    endpoints and the bulk endpoint.
 
     An installed app changes sharing where a person with its rung could, and
     only with ``sharing:write`` and the tool's write scope
@@ -677,9 +637,7 @@ async def set_resource_grants(
         action=Action.share,
     )
     refuse_install_community_share(guild_context, row.initiative_id)
-    hooks = GRANT_HOOKS.get(kind)
-    if hooks and hooks.precheck:
-        hooks.precheck(row)
+    settled = named_people.Governing.of(kind, row)
     await permissions_service.replace_resource_grants(
         session,
         resource_type=kind,
@@ -692,10 +650,7 @@ async def set_resource_grants(
         by_install=isinstance(guild_context, InstallContext),
     )
     await session.commit()
-
-    if hooks and hooks.on_changed:
-        # replace_resource_grants rewrites resource_grants rows directly (by
-        # resource_type/resource_id), so ``row.grants`` in the identity map is now
-        # stale — refresh just that one collection rather than the whole graph.
-        await session.refresh(row, attribute_names=["grants"])
-        await hooks.on_changed(session, row)
+    # Only people who can open the resource are named inside it: those the new
+    # sharing does not reach are let go, once that sharing is committed.
+    if await named_people.sweep(session, settled):
+        await session.commit()
