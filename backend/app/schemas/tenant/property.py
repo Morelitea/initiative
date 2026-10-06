@@ -13,6 +13,7 @@ from pydantic import (
 )
 
 from app.core.identity_boundary import responding_to_install
+from app.core.messages import PropertyMessages
 from app.core.tools import PROPERTY_TARGETS
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.platform.user import PluginPerson
@@ -60,10 +61,10 @@ class PropertyDefinitionBase(SanitizedBaseModel):
     def _validate_options(self) -> "PropertyDefinitionBase":
         if self.type in _SELECT_TYPES:
             if not self.options:
-                raise ValueError("PROPERTY_OPTIONS_REQUIRED")
+                raise ValueError(PropertyMessages.OPTIONS_REQUIRED)
             slugs = [opt.value for opt in self.options]
             if len(slugs) != len(set(slugs)):
-                raise ValueError("PROPERTY_DUPLICATE_OPTION_VALUE")
+                raise ValueError(PropertyMessages.DUPLICATE_OPTION_VALUE)
         else:
             # Silently coerce away options on non-select types so create
             # calls from the client don't trip confusing errors.
@@ -105,7 +106,7 @@ class PropertyDefinitionUpdate(SanitizedBaseModel):
             return v
         slugs = [opt.value for opt in v]
         if len(slugs) != len(set(slugs)):
-            raise ValueError("PROPERTY_DUPLICATE_OPTION_VALUE")
+            raise ValueError(PropertyMessages.DUPLICATE_OPTION_VALUE)
         return v
 
 

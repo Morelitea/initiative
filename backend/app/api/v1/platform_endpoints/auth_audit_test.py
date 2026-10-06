@@ -291,7 +291,6 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     Where the account had not proved the address, the provider's word is its
     first proof, what the account held before it is retired, and the account's
     open connections are rechecked once that commits."""
-    import asyncio
 
     from sqlmodel import select
 
@@ -302,7 +301,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     from app.services import content_sockets
     from app.services.auth import addresses
     from app.services.auth import totp as totp_service
-    from app.services.platform import user_stream
+    from app.db import post_commit
     from app.testing.oidc import FakeIdp
 
     rechecked: list[int] = []
@@ -344,7 +343,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
         },
     )
     assert response.status_code in (302, 307)
-    await asyncio.gather(*user_stream._inflight)
+    await post_commit.settle_all()
 
     events = emitted(capfd)
     rows = [r for r in events if r["event_type"] == "auth.identity_linked"]

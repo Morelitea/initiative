@@ -10,9 +10,8 @@ literal route MUST stay declared before the parametric ones.
 
 import asyncio
 import logging
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Iterator, Optional
+from typing import Annotated, Optional
 
 from fastapi import (
     APIRouter,
@@ -63,7 +62,6 @@ from app.services.import_engine import engine as import_engine
 from app.services.import_engine import envelope_archive
 from app.services.import_engine import foreign as foreign_service
 from app.services.import_engine.contract import (
-    ImportEngineError,
     InlineImport,
 )
 from app.services.import_engine.engine import (
@@ -100,16 +98,6 @@ def _upload_bytes() -> int:
     return import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + MULTIPART_SLACK_BYTES
 
 
-@contextmanager
-def _engine_errors() -> Iterator[None]:
-    """Answer an :class:`ImportEngineError` raised in the block with its own
-    status and code."""
-    try:
-        yield
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
-
-
 def _require_writable(guild_context: GuildContext) -> None:
     """Imports are writes, always — no inline carve-out for read-only actors
     (the inverse of the export engine's read-friendly inline path). A guild in
@@ -144,14 +132,13 @@ async def import_envelope(
     # check would run only after FastAPI had already buffered and parsed the
     # body.
     _require_writable(guild_context)
-    with _engine_errors():
-        outcome = await import_engine.start_envelope_import(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=payload.initiative_id,
-            envelope=payload.envelope,
-        )
+    outcome = await import_engine.start_envelope_import(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        initiative_id=payload.initiative_id,
+        envelope=payload.envelope,
+    )
 
     if isinstance(outcome, InlineImport):
         return JSONResponse(
@@ -190,18 +177,17 @@ async def import_envelope_archive(
     envelope imports exactly as ``POST /imports/envelope`` imports one, with
     the same responses."""
     _require_writable(guild_context)
-    with _engine_errors():
-        async with spooled_upload(
-            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        ) as payload:
-            outcome = await envelope_archive.start_envelope_archive_import(
-                session,
-                user=current_user,
-                guild_id=guild_context.guild_id,
-                initiative_id=initiative_id,
-                payload=payload,
-                expected_type=envelope_type,
-            )
+    async with spooled_upload(
+        file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+    ) as payload:
+        outcome = await envelope_archive.start_envelope_archive_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            expected_type=envelope_type,
+        )
 
     if isinstance(outcome, InlineImport):
         return JSONResponse(
@@ -243,9 +229,8 @@ async def preview_foreign_import(
     write to has nothing to read it for.
     """
     _require_writable(guild_context)
-    with _engine_errors():
-        foreign_source = foreign_service.get_source(source)
-        options = foreign_service.read_preview(foreign_source, content)
+    foreign_source = foreign_service.get_source(source)
+    options = foreign_service.read_preview(foreign_source, content)
     return ForeignPreview(
         source=foreign_source.key,
         picks_one=foreign_source.picks_one,
@@ -280,21 +265,20 @@ async def import_foreign(
     it applied in the request, 202 with the job when it did not.
     """
     _require_writable(guild_context)
-    with _engine_errors():
-        foreign_source = foreign_service.get_source(source)
-        mapped = foreign_service.build(
-            foreign_source,
-            payload.content,
-            selection=payload.selection,
-            app_version=get_version(),
-        )
-        started = await import_engine.start_envelope_import(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=payload.initiative_id,
-            envelope=mapped.envelope,
-        )
+    foreign_source = foreign_service.get_source(source)
+    mapped = foreign_service.build(
+        foreign_source,
+        payload.content,
+        selection=payload.selection,
+        app_version=get_version(),
+    )
+    started = await import_engine.start_envelope_import(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        initiative_id=payload.initiative_id,
+        envelope=mapped.envelope,
+    )
 
     if isinstance(started, InlineImport):
         return JSONResponse(
@@ -348,13 +332,12 @@ async def connect_atlassian(
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
 
-    with _engine_errors():
-        credential = atlassian_service.AtlassianCredential(
-            site_url=atlassian_service.normalize_site_url(payload.site_url),
-            email=payload.email.strip(),
-            api_token=payload.api_token,
-        )
-        jira, confluence = await atlassian_service.probe_site(credential)
+    credential = atlassian_service.AtlassianCredential(
+        site_url=atlassian_service.normalize_site_url(payload.site_url),
+        email=payload.email.strip(),
+        api_token=payload.api_token,
+    )
+    jira, confluence = await atlassian_service.probe_site(credential)
 
     return AtlassianConnectResponse(
         site_url=credential.site_url,
@@ -397,22 +380,21 @@ async def start_atlassian_import(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
-    with _engine_errors():
-        job = await atlassian_job.start_import(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            credential=atlassian_service.AtlassianCredential(
-                site_url=atlassian_service.normalize_site_url(payload.site_url),
-                email=payload.email.strip(),
-                api_token=payload.api_token,
-            ),
-            initiative_id=payload.initiative_id,
-            project_keys=payload.project_keys,
-            space_keys=payload.space_keys,
-            include_comments=payload.include_comments,
-            include_attachments=payload.include_attachments,
-        )
+    job = await atlassian_job.start_import(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        credential=atlassian_service.AtlassianCredential(
+            site_url=atlassian_service.normalize_site_url(payload.site_url),
+            email=payload.email.strip(),
+            api_token=payload.api_token,
+        ),
+        initiative_id=payload.initiative_id,
+        project_keys=payload.project_keys,
+        space_keys=payload.space_keys,
+        include_comments=payload.include_comments,
+        include_attachments=payload.include_attachments,
+    )
     return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
@@ -444,18 +426,17 @@ async def start_confluence_export_import(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
-    with _engine_errors():
-        async with spooled_upload(
-            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        ) as payload:
-            job = await atlassian_job.start_export(
-                session,
-                user=current_user,
-                guild_id=guild_context.guild_id,
-                initiative_id=initiative_id,
-                payload=payload,
-                include_attachments=include_attachments,
-            )
+    async with spooled_upload(
+        file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+    ) as payload:
+        job = await atlassian_job.start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            include_attachments=include_attachments,
+        )
     return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
@@ -558,27 +539,26 @@ async def upload_backup(
     # Byte cap: BodySizeLimitMiddleware already rejected an oversized or
     # chunked-over-cap request at the ASGI seam; the bounded copy to a
     # temporary file is the in-process backstop.
-    with _engine_errors():
-        async with spooled_upload(
-            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        ) as payload:
-            existing_names = {
-                row for row in (await session.exec(select(Initiative.name))).all()
-            }
-            # The guild's own roster, so the plan can suggest who each name in
-            # the archive is. Read on the request's routed session, so it is
-            # the roster this user can actually see.
-            roster = await _guild_member_ids_by_handle(session, guild_id)
-            plan = await asyncio.to_thread(
-                backup_service.plan_backup,
-                payload,
-                existing_initiative_names=existing_names,
-                member_ids_by_handle=roster,
-            )
-            await count_active_jobs_locked(session, user=current_user)
-            payload_ref = await asyncio.to_thread(
-                stage_payload_file, guild_id, payload, suffix="zip"
-            )
+    async with spooled_upload(
+        file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+    ) as payload:
+        existing_names = {
+            row for row in (await session.exec(select(Initiative.name))).all()
+        }
+        # The guild's own roster, so the plan can suggest who each name in
+        # the archive is. Read on the request's routed session, so it is
+        # the roster this user can actually see.
+        roster = await _guild_member_ids_by_handle(session, guild_id)
+        plan = await asyncio.to_thread(
+            backup_service.plan_backup,
+            payload,
+            existing_initiative_names=existing_names,
+            member_ids_by_handle=roster,
+        )
+        await count_active_jobs_locked(session, user=current_user)
+        payload_ref = await asyncio.to_thread(
+            stage_payload_file, guild_id, payload, suffix="zip"
+        )
 
     job = ImportJob(
         created_by=current_user.id,

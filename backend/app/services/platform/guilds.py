@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.guild_auth_options import CommunityAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, normalize_email, SALT_EMAIL
+from app.core.errors import CodedError
 from app.core.messages import GuildMessages
 from app.db import cohorts, post_commit
 from app.db.advisory_locks import LockNamespace, advisory_lock
@@ -62,35 +63,43 @@ DEFAULT_INVITE_EXPIRATION_DAYS = 7
 INVITE_CODE_BYTES = 16
 
 
-class GuildInviteError(Exception):
+class GuildInviteError(CodedError):
     """Raised when an invite cannot be redeemed."""
 
 
-class GuildCapacityError(Exception):
+class GuildCapacityError(CodedError):
     """Raised when adding a member would exceed the guild's ``max_users`` cap."""
 
+    status_code = 403
 
-class CommunityJoinError(Exception):
+
+class CommunityJoinError(CodedError):
     """Raised when a guild cannot be joined from the community directory."""
 
+    status_code = 404
 
-class CommunityListingError(Exception):
+
+class CommunityListingError(CodedError):
     """Raised when a guild does not qualify to be listed in the directory."""
 
 
-class CommunityDirectoryDisabledError(Exception):
+class CommunityDirectoryDisabledError(CodedError):
     """Raised when the deployment runs no community directory at all."""
 
+    status_code = 403
 
-class AgeConfirmationRequiredError(Exception):
+
+class AgeConfirmationRequiredError(CodedError):
     """The caller has not confirmed their age and asked to join a listed guild."""
 
+    status_code = 403
 
-class BannerColorError(Exception):
+
+class BannerColorError(CodedError):
     """Raised when a banner colour is not a ``#rrggbb`` value."""
 
 
-class SupportIntakeMissingError(Exception):
+class SupportIntakeMissingError(CodedError):
     """Raised when help requests are switched on with nowhere to send them."""
 
 

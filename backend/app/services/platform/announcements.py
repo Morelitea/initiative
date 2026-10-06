@@ -35,6 +35,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, BuiltinAnnouncement
 from app.core.capabilities import role_rank
 from app.core.image_headers import read_image_header
@@ -74,7 +75,7 @@ ORPHAN_IMAGE_GRACE = timedelta(days=1)
 IMAGE_PURGE_POLL_SECONDS = 3600
 
 
-class AnnouncementImageError(Exception):
+class AnnouncementImageError(CodedError):
     """An uploaded picture is not usable. Carries a message constant."""
 
 

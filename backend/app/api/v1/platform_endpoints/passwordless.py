@@ -31,7 +31,7 @@ from app.core.audit_events import AuditEventType
 from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.password_policy import enforce_password_policy
+from app.core.password_policy import validate_new_password
 from app.core.rate_limit import SIGN_IN_FAILURES, limiter
 from app.core.security import has_usable_password
 from app.db.session import get_session
@@ -181,7 +181,7 @@ async def recover_with_code(
     await require_login_method(session, LoginMethod.password)
     # The policy runs before anything is spent: a candidate this deployment
     # would not take must not cost the account one of its codes.
-    await enforce_password_policy(payload.password)
+    await validate_new_password(payload.password)
 
     # Counted by the address typed in as well as by the account, the same way
     # a password is, so an address nobody holds runs out like one somebody does.

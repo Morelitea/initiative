@@ -49,7 +49,7 @@ from app.core.messages import (
     OidcMessages,
     UserMessages,
 )
-from app.core.password_policy import enforce_password_policy
+from app.core.password_policy import validate_new_password
 from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.identify import identify
@@ -258,7 +258,7 @@ async def register_user(
     await require_login_method(session, LoginMethod.password)
     # Enforce password policy (NIST 800-63B: length + HIBP breach check) before
     # we hash. Raises 422 PASSWORD_TOO_SHORT / PASSWORD_BREACHED on failure.
-    await enforce_password_policy(user_in.password)
+    await validate_new_password(user_in.password)
     registered = await _register_account(
         request,
         session,
@@ -427,14 +427,9 @@ async def _register_account(
         # the address joins the guild.
         awaiting_invite_id: int | None = None
         if normalized_invite and not address_confirmed:
-            try:
-                awaiting = await guilds_service.invite_awaiting_address(
-                    session, code=normalized_invite, email=normalized_email
-                )
-            except guilds_service.GuildInviteError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
+            awaiting = await guilds_service.invite_awaiting_address(
+                session, code=normalized_invite, email=normalized_email
+            )
             awaiting_invite_id = awaiting.id if awaiting is not None else None
         user_kwargs: dict[str, Any] = dict(
             # Filled in by ``insert_with_handle`` below, which owns the insert
@@ -460,17 +455,12 @@ async def _register_account(
         # The handle: the name part as typed, and the number the name check
         # showed while it is still free. Registering is where an account picks
         # one, so it counts as chosen and its owner never meets the pick screen.
-        try:
-            await username_service.insert_with_handle(
-                session,
-                user=user,
-                name=details.username,
-                prefer=read_handle_offer(details.username_offer, details.username),
-            )
-        except UsernameError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-            ) from exc
+        await username_service.insert_with_handle(
+            session,
+            user=user,
+            name=details.username,
+            prefer=read_handle_offer(details.username_offer, details.username),
+        )
 
         address = addresses.record_address(
             session,
@@ -530,20 +520,11 @@ async def _register_account(
             # The guild is joined when the address is confirmed.
             await session.commit()
         elif normalized_invite:
-            try:
-                guild = await guilds_service.redeem_invite_for_user(
-                    session,
-                    code=normalized_invite,
-                    user=user,
-                )
-            except guilds_service.GuildInviteError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
-            except guilds_service.GuildCapacityError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-                ) from exc
+            guild = await guilds_service.redeem_invite_for_user(
+                session,
+                code=normalized_invite,
+                user=user,
+            )
             # Joining an existing (already-provisioned) guild — just record membership.
             await guilds_service.ensure_membership(
                 session,
@@ -1898,7 +1879,7 @@ async def confirm_verification(
                 address_id=record.user_email_id,
                 now=proved_at,
             )
-        except addresses.AddressError as exc:
+        except addresses.AddressError:
             # Somebody else proved the same address first. The claim is over,
             # and the token that carried it is spent either way. The rollback
             # expired ``record``, so it is spent by its value.
@@ -1908,9 +1889,7 @@ async def confirm_verification(
                 token=payload.token,
                 purpose=UserTokenPurpose.email_verification,
             )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-            ) from exc
+            raise
         if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
             proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
             proved_id = row.id
@@ -2034,7 +2013,7 @@ async def reset_password(
     await require_login_method(session, LoginMethod.password)
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
-    await enforce_password_policy(payload.password)
+    await validate_new_password(payload.password)
     record = await user_tokens.consume_token(
         system_session,
         token=payload.token,

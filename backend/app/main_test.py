@@ -17,9 +17,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.main as main_module
 from app.core.config import API_V1_STR, Settings, settings
+from app.core.errors import CodedError
 from app.main import (
     McpBarePathMiddleware,
     SecurityHeadersMiddleware,
+    coded_error_handler,
     validation_exception_handler,
 )
 from app.testing import captcha_switched_on, create_plugin_service_registration
@@ -57,6 +59,15 @@ async def test_validation_handler_strips_input_and_url() -> None:
     # The echoed secret and the pydantic docs URL must be gone entirely.
     assert "do not echo" not in response.body.decode()
     assert "errors.pydantic.dev" not in response.body.decode()
+
+
+async def test_coded_error_is_answered_with_its_code_and_status() -> None:
+    assert main_module.app.exception_handlers[CodedError] is coded_error_handler
+
+    response = await coded_error_handler(None, CodedError("SOME_REFUSAL", 409))
+
+    assert response.status_code == 409
+    assert json.loads(response.body) == {"detail": "SOME_REFUSAL"}
 
 
 async def test_responses_carry_content_security_policy(client: AsyncClient) -> None:

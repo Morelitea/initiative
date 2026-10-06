@@ -54,7 +54,6 @@ from app.schemas.platform.marketplace import (
 )
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
-from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
     count_install,
@@ -275,20 +274,17 @@ async def install_marketplace_listing(
             detail=MarketplaceMessages.LISTING_HAS_NO_EXAMPLE,
         )
 
-    try:
-        result = await install_tool_listing(
-            session,
-            tool=tool,
-            listing=listing,
-            version=version,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=payload.initiative_id,
-            start_from=payload.start_from.value,
-            starts_on=payload.starts_on,
-        )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    result = await install_tool_listing(
+        session,
+        tool=tool,
+        listing=listing,
+        version=version,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        initiative_id=payload.initiative_id,
+        start_from=payload.start_from.value,
+        starts_on=payload.starts_on,
+    )
     await session.commit()
     await count_install(guild_context.guild_id, listing.id)
     return MarketplaceInstallResult(
@@ -412,33 +408,23 @@ async def share_to_marketplace(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
             ) from exc
-        try:
-            listing, version = await local_listings.submit_share(
-                system,
-                tool=tool,
-                envelope=envelope,
-                example=example,
-                name=payload.name,
-                description=payload.description,
-                long_description=payload.long_description,
-                release_notes=payload.release_notes,
-                # The handle, which names the account the same way on every
-                # shelf; a real name is each community's to show or not.
-                publisher=handle_of(current_user),
-                submitter_id=current_user.id,
-                listing_uid=payload.listing_uid,
-                images=image_paths,
-                hold_for_review=hold,
-            )
-        except local_listings.LocalListingError as exc:
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_404_NOT_FOUND
-                    if exc.not_found
-                    else status.HTTP_422_UNPROCESSABLE_CONTENT
-                ),
-                detail=exc.code,
-            ) from exc
+        listing, version = await local_listings.submit_share(
+            system,
+            tool=tool,
+            envelope=envelope,
+            example=example,
+            name=payload.name,
+            description=payload.description,
+            long_description=payload.long_description,
+            release_notes=payload.release_notes,
+            # The handle, which names the account the same way on every
+            # shelf; a real name is each community's to show or not.
+            publisher=handle_of(current_user),
+            submitter_id=current_user.id,
+            listing_uid=payload.listing_uid,
+            images=image_paths,
+            hold_for_review=hold,
+        )
         await audit_service.record(
             system,
             event_type=AuditEventType.MARKETPLACE_LISTING_SHARED,

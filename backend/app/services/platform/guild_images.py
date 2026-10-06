@@ -32,6 +32,7 @@ from sqlalchemy import insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.image_headers import read_image_header
 from app.core.messages import GuildMessages
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
@@ -48,7 +49,7 @@ from app.models.platform.guild_image import (
 _RATIO_TOLERANCE = 0.02
 
 
-class GuildImageError(Exception):
+class GuildImageError(CodedError):
     """An uploaded image is not what it claims. Carries a message constant."""
 
 

@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
+from app.core.errors import CodedError
 from app.core.messages import InitiativeMessages
 from app.db.session import routed_context
 from app.models.tenant.initiative import (
@@ -344,7 +345,7 @@ async def ensure_managers_remain(
         membership for membership in result.all() if membership.user_id not in excluded
     ]
     if not managers:
-        raise ValueError(InitiativeMessages.MUST_HAVE_PM)
+        raise CodedError(InitiativeMessages.MUST_HAVE_PM)
 
 
 async def remove_user_from_guild_initiatives(
@@ -495,14 +496,14 @@ async def delete_role(
 ) -> None:
     """Delete a custom role. Cannot delete built-in roles."""
     if role.is_builtin:
-        raise ValueError(InitiativeMessages.CANNOT_DELETE_BUILTIN)
+        raise CodedError(InitiativeMessages.CANNOT_DELETE_BUILTIN)
 
     # Check if any members use this role
     stmt = select(func.count()).where(InitiativeMember.role_id == role.id)
     result = await session.exec(stmt)
     member_count = result.one()
     if member_count > 0:
-        raise ValueError(InitiativeMessages.ROLE_HAS_MEMBERS)
+        raise CodedError(InitiativeMessages.ROLE_HAS_MEMBERS)
 
     await session.delete(role)
     await session.flush()

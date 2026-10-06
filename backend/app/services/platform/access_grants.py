@@ -16,10 +16,13 @@ import logging
 from datetime import timedelta
 from typing import Optional, Sequence, cast
 
+from fastapi import status
 from sqlalchemy import or_, update as sa_update
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
+from app.core.messages import AccessGrantMessages
 from app.core.capabilities import (
     ROLE_MAX_GRANT_MINUTES,
     Capability,
@@ -58,13 +61,8 @@ from app.core.clock import utcnow
 logger = logging.getLogger(__name__)
 
 
-class AccessGrantError(Exception):
-    """Raised for PAM rule violations; carries a machine-readable code that the
-    endpoint maps to an HTTP status + ``AccessGrantMessages`` detail."""
-
-    def __init__(self, code: str):
-        self.code = code
-        super().__init__(code)
+class AccessGrantError(CodedError):
+    """Raised for PAM rule violations, with an ``AccessGrantMessages`` code."""
 
 
 async def _lock_user_guild_grants(
@@ -97,7 +95,7 @@ def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     cap = max_minutes_for_role(role)
     minutes = requested if requested is not None else min(DEFAULT_DURATION_MINUTES, cap)
     if minutes > cap:
-        raise AccessGrantError("DURATION_TOO_LONG")
+        raise AccessGrantError(AccessGrantMessages.DURATION_TOO_LONG)
     return minutes
 
 
@@ -116,7 +114,7 @@ def _break_glass_duration(requested: Optional[int], role: UserRole) -> int:
         requested if requested is not None else min(BREAK_GLASS_DEFAULT_MINUTES, cap)
     )
     if minutes > cap:
-        raise AccessGrantError("DURATION_TOO_LONG")
+        raise AccessGrantError(AccessGrantMessages.DURATION_TOO_LONG)
     return minutes
 
 
@@ -245,14 +243,16 @@ async def request_grants(
     )
     guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("COMMUNITY_NOT_FOUND")
+        raise AccessGrantError(
+            AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
+        )
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
         session, guild_id=payload.community_id, user_id=requester.id
     )
     if membership is not None:
-        raise AccessGrantError("ALREADY_MEMBER")
+        raise AccessGrantError(AccessGrantMessages.ALREADY_MEMBER)
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
@@ -272,7 +272,9 @@ async def request_grants(
             if grant.status == AccessGrantStatus.pending.value or grant.is_live(
                 now=utcnow()
             ):
-                raise AccessGrantError("OVERLAPPING_GRANT")
+                raise AccessGrantError(
+                    AccessGrantMessages.OVERLAPPING_GRANT, status.HTTP_409_CONFLICT
+                )
 
     created: list[AccessGrant] = []
     for purpose, level in asks:
@@ -388,14 +390,16 @@ async def break_glass(
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("COMMUNITY_NOT_FOUND")
+        raise AccessGrantError(
+            AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
+        )
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(
         session, guild_id=payload.community_id, user_id=actor.id
     )
     if membership is not None and not allow_member:
-        raise AccessGrantError("ALREADY_MEMBER")
+        raise AccessGrantError(AccessGrantMessages.ALREADY_MEMBER)
 
     # Serialize concurrent self-issues for this (actor, guild) so the
     # read-then-insert anti-stacking check below can't be raced into two live
@@ -421,9 +425,13 @@ async def break_glass(
     now = utcnow()
     for grant in existing.all():
         if grant.status == AccessGrantStatus.pending.value:
-            raise AccessGrantError("OVERLAPPING_GRANT")
+            raise AccessGrantError(
+                AccessGrantMessages.OVERLAPPING_GRANT, status.HTTP_409_CONFLICT
+            )
         if grant.is_live(now=now):
-            raise AccessGrantError("ALREADY_LIVE")
+            raise AccessGrantError(
+                AccessGrantMessages.ALREADY_LIVE, status.HTTP_409_CONFLICT
+            )
 
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(
@@ -516,9 +524,9 @@ async def approve(
     duration_minutes: Optional[int] = None,
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     if approver.id == grant.requested_by_id or approver.id == grant.user_id:
-        raise AccessGrantError("CANNOT_APPROVE_OWN")
+        raise AccessGrantError(AccessGrantMessages.CANNOT_APPROVE_OWN)
 
     # Cap by the GRANTEE's role (an approver shortening/extending can't exceed
     # the recipient's tier).
@@ -530,7 +538,9 @@ async def approve(
         or grantee.status != UserStatus.active
         or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
     ):
-        raise AccessGrantError("GRANTEE_INELIGIBLE")
+        raise AccessGrantError(
+            AccessGrantMessages.GRANTEE_INELIGIBLE, status.HTTP_409_CONFLICT
+        )
     grantee_role = grantee.role
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
@@ -563,7 +573,7 @@ async def deny(
     session: AsyncSession, *, grant: AccessGrant, approver: User
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     now = utcnow()
     grant.status = AccessGrantStatus.denied.value
     grant.approved_by_id = approver.id
@@ -593,7 +603,7 @@ async def revoke(
     # Revoke is only meaningful for an approved grant (live or not-yet-expired);
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
-        raise AccessGrantError("NOT_ACTIVE")
+        raise AccessGrantError(AccessGrantMessages.NOT_ACTIVE)
     now = utcnow()
     grant.status = AccessGrantStatus.revoked.value
     grant.revoked_by_id = revoker.id
@@ -622,9 +632,11 @@ async def cancel_own_pending(
 ) -> None:
     """A requester withdraws their own still-pending request."""
     if grant.requested_by_id != user.id:
-        raise AccessGrantError("CANNOT_CANCEL_OTHERS")
+        raise AccessGrantError(
+            AccessGrantMessages.CANNOT_CANCEL_OTHERS, status.HTTP_403_FORBIDDEN
+        )
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     await session.delete(grant)
     await session.flush()
 

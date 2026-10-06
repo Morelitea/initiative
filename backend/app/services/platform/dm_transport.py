@@ -30,7 +30,9 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from fastapi import status
 
+from app.core.errors import CodedError
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.transitions import DM_SIGNED_DEVICES
 from app.db.advisory_locks import LockNamespace, advisory_lock
@@ -98,12 +100,34 @@ class DmSendOutcome:
     group: bool = False
 
 
-class DmTransportError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+#: Every refusal that is about the pair answers the same way, so the endpoint is
+#: not a way to learn which of them it was.
+_STATUS: dict[str, int] = {
+    Messages.DEVICE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    Messages.CONVERSATION_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    Messages.MALFORMED_KEY: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    Messages.INVALID_SIGNATURE: status.HTTP_400_BAD_REQUEST,
+    Messages.DUPLICATE_KEY_ID: status.HTTP_409_CONFLICT,
+    Messages.TOO_MANY_KEYS: status.HTTP_409_CONFLICT,
+    Messages.NOT_REACHABLE: status.HTTP_409_CONFLICT,
+    Messages.CANNOT_MESSAGE_SELF: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_NOT_REACHABLE: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_TOO_LARGE: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_TOO_SMALL: status.HTTP_409_CONFLICT,
+    Messages.NO_INVITATION: status.HTTP_404_NOT_FOUND,
+    Messages.MESSAGE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,
+    Messages.RECIPIENT_QUEUE_FULL: status.HTTP_507_INSUFFICIENT_STORAGE,
+    Messages.VERIFY_SAME_DEVICE: status.HTTP_409_CONFLICT,
+    Messages.TOO_MANY_VERIFICATIONS: status.HTTP_429_TOO_MANY_REQUESTS,
+}
+
+
+class DmTransportError(CodedError):
+    """A refused transport call, answered at its code's status (409 unless
+    :data:`_STATUS` names another)."""
 
     def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+        super().__init__(code, _STATUS.get(code, status.HTTP_409_CONFLICT))
 
 
 def _decode(value: str, *, expect: int | None = None) -> bytes:

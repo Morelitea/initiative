@@ -256,7 +256,7 @@ export function OperatorDeleteUserDialog({
               checking={isCheckingEligibility}
               canDelete={eligibility?.can_delete}
               blockers={[
-                ...(eligibility?.last_owner ? [t("errors:OPERATOR_CANNOT_DELETE_LAST_OWNER")] : []),
+                ...(eligibility?.last_owner ? [t("errors:USER_CANNOT_REMOVE_LAST_OWNER")] : []),
                 ...(eligibility?.community_blockers ?? []).map(({ community_name }) =>
                   t("operatorDeleteUser.communityBlockerTitle", { communityName: community_name })
                 ),

@@ -9,7 +9,8 @@ from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import AuthMessages
+from app.core.errors import CodedError
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
@@ -65,7 +66,7 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.request_context import SystemGuild, SystemMaintenance
 
 
-class SeatWouldBeEmptied(Exception):
+class SeatWouldBeEmptied(CodedError):
     """Removing this account would leave a community with no superadmin.
 
     Raised from the membership drop rather than from an eligibility check,
@@ -75,8 +76,8 @@ class SeatWouldBeEmptied(Exception):
     """
 
     def __init__(self, guild_names: List[str]) -> None:
+        super().__init__(GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN)
         self.guild_names = guild_names
-        super().__init__(", ".join(guild_names))
 
 
 async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
@@ -801,6 +802,17 @@ async def is_last_capability_holder(
         User.id != user_id,
     )
     return (await session.exec(others_stmt)).one() == 0
+
+
+async def ensure_config_manager_remains(
+    session: AsyncSession, user_id: int, *, for_update: bool = False
+) -> None:
+    """Refuse a change that takes ``config.manage`` from its last active
+    holder, so the platform keeps somebody who can configure it."""
+    if await is_last_capability_holder(
+        session, user_id, Capability.CONFIG_MANAGE, for_update=for_update
+    ):
+        raise CodedError(UserMessages.CANNOT_REMOVE_LAST_OWNER)
 
 
 async def hard_delete_user(

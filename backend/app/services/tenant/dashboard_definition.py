@@ -34,6 +34,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+from app.core.errors import CodedError
 from app.core.messages import DashboardMessages, QueryMessages
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
 from app.services.marketplace.manifest_values import (
@@ -64,9 +65,11 @@ MAX_TITLE_LENGTH = 200
 MAX_SQL_LENGTH = 20_000
 
 
-class DashboardDefinitionError(ValueError):
-    """Raised when a definition cannot be normalized. The message is a stable
-    machine code from ``app.core.messages``; endpoints surface it as a 422."""
+class DashboardDefinitionError(CodedError, ValueError):
+    """Raised when a definition cannot be normalized, with a stable machine
+    code from ``app.core.messages``; answered as a 422."""
+
+    status_code = 422
 
 
 def _fail(code: str) -> None:

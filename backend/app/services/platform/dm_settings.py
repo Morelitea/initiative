@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlmodel import col, select
 
+from app.core.errors import CodedError
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -142,12 +143,10 @@ async def read_settings(
     )
 
 
-class DirectMessageSettingsError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+class DirectMessageSettingsError(CodedError):
+    """A settings write refused with a message code."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 422
 
 
 async def update_settings(

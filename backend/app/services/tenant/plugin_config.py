@@ -41,6 +41,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from app.core.errors import CodedError
 from app.core.encryption import SALT_PLUGIN_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import GuildPluginMessages
 
@@ -100,12 +101,8 @@ def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:
     return {k: v for k, v in (values or {}).items() if k not in RESERVED_TOKEN_KEYS}
 
 
-class PluginConfigError(Exception):
+class PluginConfigError(CodedError):
     """A configuration write this build will not store, as a message code."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
 
 
 @dataclass(frozen=True)

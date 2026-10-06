@@ -59,34 +59,6 @@ user_router = APIRouter()
 
 TargetUserId = Annotated[int, Path(ge=1)]
 
-#: Every refusal that is about the pair answers the same way, so the endpoint is
-#: not a way to learn which of them it was.
-_STATUS = {
-    Messages.DEVICE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
-    Messages.CONVERSATION_NOT_FOUND: status.HTTP_404_NOT_FOUND,
-    Messages.MALFORMED_KEY: status.HTTP_422_UNPROCESSABLE_CONTENT,
-    Messages.INVALID_SIGNATURE: status.HTTP_400_BAD_REQUEST,
-    Messages.DUPLICATE_KEY_ID: status.HTTP_409_CONFLICT,
-    Messages.TOO_MANY_KEYS: status.HTTP_409_CONFLICT,
-    Messages.NOT_REACHABLE: status.HTTP_409_CONFLICT,
-    Messages.CANNOT_MESSAGE_SELF: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_NOT_REACHABLE: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_TOO_LARGE: status.HTTP_409_CONFLICT,
-    Messages.ROSTER_TOO_SMALL: status.HTTP_409_CONFLICT,
-    Messages.NO_INVITATION: status.HTTP_404_NOT_FOUND,
-    Messages.MESSAGE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,
-    Messages.RECIPIENT_QUEUE_FULL: status.HTTP_507_INSUFFICIENT_STORAGE,
-    Messages.VERIFY_SAME_DEVICE: status.HTTP_409_CONFLICT,
-    Messages.TOO_MANY_VERIFICATIONS: status.HTTP_429_TOO_MANY_REQUESTS,
-}
-
-
-def _error(exc: service.DmTransportError) -> HTTPException:
-    return HTTPException(
-        status_code=_STATUS.get(exc.code, status.HTTP_409_CONFLICT),
-        detail=exc.code,
-    )
-
 
 def _session_id() -> uuid.UUID | None:
     """The sign-in this request is on, which a key store is linked to."""
@@ -107,20 +79,17 @@ async def register_device(
     The device's label comes from the request's user-agent rather than the body:
     a device list is more use when it says what actually connected.
     """
-    try:
-        device = await service.register_device(
-            session,
-            user_id=current_user.id,
-            identity_key=body.identity_key,
-            fingerprint_key=body.fingerprint_key,
-            signature=body.signature,
-            fallback_key=body.fallback_key,
-            one_time_keys=body.one_time_keys,
-            label=(audit_context.client_user_agent() or "")[:200] or None,
-            session_id=_session_id(),
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    device = await service.register_device(
+        session,
+        user_id=current_user.id,
+        identity_key=body.identity_key,
+        fingerprint_key=body.fingerprint_key,
+        signature=body.signature,
+        fallback_key=body.fallback_key,
+        one_time_keys=body.one_time_keys,
+        label=(audit_context.client_user_agent() or "")[:200] or None,
+        session_id=_session_id(),
+    )
     device_id = device.id
     await session.commit()
     return DmDevicesResponse(
@@ -138,17 +107,14 @@ async def sign_device(
 ) -> DmDevicesResponse:
     """Sign a device registered before signing, once, and replace the keys it
     published with signed ones."""
-    try:
-        await service.sign_device(
-            session,
-            user_id=current_user.id,
-            device_id=device_id,
-            signature=body.signature,
-            fallback_key=body.fallback_key,
-            one_time_keys=body.one_time_keys,
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.sign_device(
+        session,
+        user_id=current_user.id,
+        device_id=device_id,
+        signature=body.signature,
+        fallback_key=body.fallback_key,
+        one_time_keys=body.one_time_keys,
+    )
     await session.commit()
     return DmDevicesResponse(
         devices=await service.list_devices(session, user_id=current_user.id)
@@ -175,12 +141,7 @@ async def remove_device(
     Takes its queued messages with it, which is the one thing that removes an
     undelivered message and is a visible act by the person who owns it.
     """
-    try:
-        await service.remove_device(
-            session, user_id=current_user.id, device_id=device_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.remove_device(session, user_id=current_user.id, device_id=device_id)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -191,15 +152,12 @@ async def top_up_keys(
     session: UserSessionDep,
     current_user: CurrentUser,
 ) -> DmDevicesResponse:
-    try:
-        await service.add_one_time_keys(
-            session,
-            user_id=current_user.id,
-            device_id=body.device_id,
-            keys=body.one_time_keys,
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.add_one_time_keys(
+        session,
+        user_id=current_user.id,
+        device_id=body.device_id,
+        keys=body.one_time_keys,
+    )
     await session.commit()
     return DmDevicesResponse(
         devices=await service.list_devices(session, user_id=current_user.id)
@@ -250,12 +208,9 @@ async def claim_session_keys(
             status_code=status.HTTP_409_CONFLICT,
             detail=Messages.CANNOT_MESSAGE_SELF,
         )
-    try:
-        devices = await service.claim_session_keys(
-            session, target_id=user_id, only=body.device_ids if body else None
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    devices = await service.claim_session_keys(
+        session, target_id=user_id, only=body.device_ids if body else None
+    )
     await session.commit()
     return DmSessionKeysResponse(user_id=user_id, devices=devices)
 
@@ -274,10 +229,7 @@ async def read_directory(
     describes. Separate from the claim above because claiming spends a prekey,
     and answering a message should not cost one.
     """
-    try:
-        devices = await service.directory(session, target_id=user_id)
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    devices = await service.directory(session, target_id=user_id)
     return DmSessionKeysResponse(user_id=user_id, devices=devices)
 
 
@@ -291,12 +243,9 @@ async def create_conversation(
     session: UserSessionDep,
     current_user: CurrentUser,
 ) -> DmConversationRead:
-    try:
-        conversation = await service.create_conversation(
-            session, actor_id=current_user.id, other_id=body.user_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    conversation = await service.create_conversation(
+        session, actor_id=current_user.id, other_id=body.user_id
+    )
     await session.commit()
     return DmConversationRead(
         id=conversation.id,
@@ -348,12 +297,9 @@ async def create_group_conversation(
     Proposing the same roster again asks whoever is not on it — somebody who
     declined or left may have changed their mind, or their settings.
     """
-    try:
-        conversation, invited, roster = await service.create_group_conversation(
-            session, actor_id=current_user.id, member_ids=body.user_ids
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    conversation, invited, roster = await service.create_group_conversation(
+        session, actor_id=current_user.id, member_ids=body.user_ids
+    )
     await session.commit()
     for recipient_id in invited:
         await dm_stream.signal_dm(recipient_id)
@@ -385,12 +331,9 @@ async def accept_invitation(
     invitation refused and a conversation left both come to "not on it", and
     both are answered by being asked again if anybody proposes that roster.
     """
-    try:
-        joined = await service.accept_invitation(
-            session, user_id=current_user.id, conversation_id=conversation_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    joined = await service.accept_invitation(
+        session, user_id=current_user.id, conversation_id=conversation_id
+    )
     await session.commit()
     await dm_stream.signal_dm(current_user.id)
     for member_id in joined:
@@ -415,12 +358,9 @@ async def leave_conversation(
     session: UserSessionDep,
     current_user: CurrentUser,
 ) -> Response:
-    try:
-        await service.leave_conversation(
-            session, user_id=current_user.id, conversation_id=conversation_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.leave_conversation(
+        session, user_id=current_user.id, conversation_id=conversation_id
+    )
     await dm_notifications.forget_conversation(
         session, user_id=current_user.id, conversation_id=conversation_id
     )
@@ -463,15 +403,12 @@ async def send_messages(
     current_user: CurrentUser,
 ) -> DmSendResponse:
     """Hand the server one already-encrypted copy per destination device."""
-    try:
-        outcome = await service.send(
-            session,
-            user_id=current_user.id,
-            conversation_id=conversation_id,
-            messages=body.messages,
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    outcome = await service.send(
+        session,
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+        messages=body.messages,
+    )
     await session.commit()
 
     # The sender's own tabs always have something to collect; a recipient only
@@ -509,15 +446,12 @@ async def collect_queue(
     current_user: CurrentUser,
 ) -> DmQueueResponse:
     """Everything waiting for one device, oldest first."""
-    try:
-        items = await service.collect(
-            session,
-            user_id=current_user.id,
-            device_id=device_id,
-            session_id=_session_id(),
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    items = await service.collect(
+        session,
+        user_id=current_user.id,
+        device_id=device_id,
+        session_id=_session_id(),
+    )
     await session.commit()
     return DmQueueResponse(items=items)
 
@@ -529,15 +463,12 @@ async def acknowledge_queue(
     current_user: CurrentUser,
 ) -> Response:
     """Delete what this device has taken."""
-    try:
-        await service.acknowledge(
-            session,
-            user_id=current_user.id,
-            device_id=body.device_id,
-            message_ids=body.message_ids,
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.acknowledge(
+        session,
+        user_id=current_user.id,
+        device_id=body.device_id,
+        message_ids=body.message_ids,
+    )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -550,16 +481,13 @@ async def send_verification(
 ) -> Response:
     """Relay one message of a verification to another of this account's
     devices. The body is the client's own and is not read here."""
-    try:
-        await service.send_verification(
-            session,
-            user_id=current_user.id,
-            device_id=body.device_id,
-            to_device_id=body.to_device_id,
-            body=body.body,
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    await service.send_verification(
+        session,
+        user_id=current_user.id,
+        device_id=body.device_id,
+        to_device_id=body.to_device_id,
+        body=body.body,
+    )
     await session.commit()
     await dm_stream.signal_dm(current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -573,11 +501,8 @@ async def collect_verification(
 ) -> DmVerificationInbox:
     """Verification messages waiting for one device, oldest first. Collecting
     deletes them."""
-    try:
-        items = await service.collect_verification(
-            session, user_id=current_user.id, device_id=device_id
-        )
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
+    items = await service.collect_verification(
+        session, user_id=current_user.id, device_id=device_id
+    )
     await session.commit()
     return DmVerificationInbox(items=items)

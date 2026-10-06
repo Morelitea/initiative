@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.encryption import (
     SALT_EMAIL,
     decrypt_field,
@@ -445,12 +446,8 @@ async def replace_all(
     )
 
 
-class AddressError(Exception):
+class AddressError(CodedError):
     """A refused address operation, carrying the code the endpoint reports."""
-
-    def __init__(self, code: str) -> None:
-        self.code = code
-        super().__init__(code)
 
 
 async def list_for_user(session: AsyncSession, *, user_id: int) -> list[UserEmail]:
@@ -662,7 +659,7 @@ async def primary_candidate(
 async def _owned(session: AsyncSession, *, user_id: int, address_id: int) -> UserEmail:
     row = await session.get(UserEmail, address_id)
     if row is None or row.user_id != user_id or row.source == SOURCE_SYNTHETIC:
-        raise AddressError(AddressMessages.ADDRESS_NOT_FOUND)
+        raise AddressError(AddressMessages.ADDRESS_NOT_FOUND, 404)
     return row
 
 
@@ -757,7 +754,8 @@ async def prove_at_sign_in(
     from app.services import audit as audit_service
     from app.services import content_sockets
     from app.services.auth import totp as totp_service
-    from app.services.platform import user_stream, user_tokens
+    from app.db import post_commit
+    from app.services.platform import user_tokens
 
     result = await session.exec(
         update(UserEmail)
@@ -783,9 +781,9 @@ async def prove_at_sign_in(
         detail={"reason": "address_first_proved"},
     )
     user_id = user.id
-    user_stream.after_commit(
+    post_commit.after_commit(
         session,
-        ("content_sockets", "recheck_user", user_id),
         lambda: content_sockets.sockets.revoke_user_everywhere(user_id),
+        key=("content_sockets", "recheck_user", user_id),
     )
     return True

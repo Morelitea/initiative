@@ -230,7 +230,7 @@ export function DeleteAccountDialog({
             checking={isCheckingEligibility}
             canDelete={eligibility?.can_delete}
             blockers={[
-              ...(eligibility?.last_owner ? [t("errors:USER_CANNOT_DELETE_LAST_OWNER")] : []),
+              ...(eligibility?.last_owner ? [t("errors:USER_CANNOT_REMOVE_LAST_OWNER")] : []),
               ...(eligibility?.sole_superadmin_communities ?? []).map((communityName) =>
                 t("deleteAccount.soleSuperadminBlocker", { communityName })
               ),

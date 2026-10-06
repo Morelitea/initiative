@@ -18,10 +18,9 @@ What the statement may say, and what running it may cost, are answered in
 
 from typing import Annotated, Iterable
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
-from app.core.messages import QueryMessages
 from app.db.session import routed_context
 from app.schemas.sql_query import (
     QueryBuildRequest,
@@ -38,17 +37,6 @@ from app.services.query import build as query_builder
 
 router = APIRouter()
 
-#: What each refusal is, as HTTP. Everything not named here is something the
-#: reader can fix in the statement.
-#:
-#: Public, because the dashboard path runs statements too and a refusal should
-#: not be one status here and another there.
-REFUSAL_STATUS = {
-    QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
-    QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
-    QueryMessages.INTERRUPTED: status.HTTP_503_SERVICE_UNAVAILABLE,
-}
-
 
 @router.post("/query/describe", response_model=QueryShapeResponse)
 async def describe_query(
@@ -60,17 +48,11 @@ async def describe_query(
 
     Costs a plan and no rows, so a builder may ask as often as it likes.
     """
-    try:
-        columns, relations = await query_service.describe(
-            payload.sql,
-            context=routed_context(session),
-            initiative_id=payload.initiative_id,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    columns, relations = await query_service.describe(
+        payload.sql,
+        context=routed_context(session),
+        initiative_id=payload.initiative_id,
+    )
     return QueryShapeResponse(columns=_described(columns), relations=list(relations))
 
 
@@ -91,17 +73,11 @@ async def run_query(
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> QueryResponse:
     """Read one statement and return its rows."""
-    try:
-        result = await query_service.run(
-            payload.sql,
-            context=routed_context(session),
-            initiative_id=payload.initiative_id,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    result = await query_service.run(
+        payload.sql,
+        context=routed_context(session),
+        initiative_id=payload.initiative_id,
+    )
     return QueryResponse(
         columns=_described(result.columns),
         rows=[list(row) for row in result.rows],
@@ -122,18 +98,12 @@ async def build_query(
     SQL to store, and the columns to offer its slot pickers. Describing costs a
     plan and no rows, so asking on each click is affordable.
     """
-    try:
-        sql = query_builder.build(_spec(payload))
-        columns, relations = await query_service.describe(
-            sql,
-            context=routed_context(session),
-            initiative_id=payload.initiative_id,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=REFUSAL_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    sql = query_builder.build(_spec(payload))
+    columns, relations = await query_service.describe(
+        sql,
+        context=routed_context(session),
+        initiative_id=payload.initiative_id,
+    )
     return QueryBuildResponse(
         sql=sql, columns=_described(columns), relations=list(relations)
     )

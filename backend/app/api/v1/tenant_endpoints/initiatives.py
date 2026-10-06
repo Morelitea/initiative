@@ -264,23 +264,6 @@ async def _guard_full_access_role(
     )
 
 
-async def _ensure_remaining_manager(
-    session: SessionDep,
-    initiative: Initiative,
-    *,
-    exclude_user_ids: set[int] | None = None,
-) -> None:
-    """Ensure at least one manager remains after excluding certain users."""
-    try:
-        await initiatives_service.ensure_managers_remain(
-            session,
-            initiative_id=initiative.id,
-            excluded_user_ids=exclude_user_ids,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
 # ============================================================================
 # Initiative CRUD
 # ============================================================================
@@ -1162,20 +1145,17 @@ async def delete_initiative_role(
         )
 
     role_name = role.name
-    try:
-        await initiatives_service.delete_role(session, role=role)
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.INITIATIVE_ROLE_DELETED,
-            actor_user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            target_type="initiative_role",
-            target_id=role_id,
-            detail={"initiative_id": initiative_id, "name": role_name},
-        )
-        await session.commit()
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await initiatives_service.delete_role(session, role=role)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.INITIATIVE_ROLE_DELETED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="initiative_role",
+        target_id=role_id,
+        detail={"initiative_id": initiative_id, "name": role_name},
+    )
+    await session.commit()
 
 
 # ============================================================================
@@ -1457,8 +1437,10 @@ async def add_initiative_member(
                 and old_role.is_manager
                 and (not new_role or not new_role.is_manager)
             ):
-                await _ensure_remaining_manager(
-                    session, initiative, exclude_user_ids={membership.user_id}
+                await initiatives_service.ensure_managers_remain(
+                    session,
+                    initiative_id=initiative.id,
+                    excluded_user_ids={membership.user_id},
                 )
             from_role_id = membership.role_id
             membership.role_id = role_id
@@ -1657,8 +1639,8 @@ async def update_initiative_member(
             and membership.role_ref.is_manager
             and not new_role.is_manager
         ):
-            await _ensure_remaining_manager(
-                session, initiative, exclude_user_ids={user_id}
+            await initiatives_service.ensure_managers_remain(
+                session, initiative_id=initiative.id, excluded_user_ids={user_id}
             )
         from_role_id = membership.role_id
         from_role_name = membership.role_ref.name if membership.role_ref else None

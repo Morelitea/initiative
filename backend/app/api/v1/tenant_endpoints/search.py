@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -171,21 +171,16 @@ async def suggest_community(
     for kinds it holds no read scope for is 403 (``PLUGIN_SCOPE_REQUIRED``).
     """
     install = guild_context if isinstance(guild_context, InstallContext) else None
-    try:
-        return await search_service.suggest(
-            session,
-            query=search,
-            user_id=guild_context.user_id,
-            filters=search_service.Filters(
-                types=types,
-                initiative_id=initiative_id,
-                template=is_template,
-                subject=parse_ref(subject) if subject else None,
-            ),
-            limit=limit,
-            install=install,
-        )
-    except search_service.SearchScopeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
-        ) from exc
+    return await search_service.suggest(
+        session,
+        query=search,
+        user_id=guild_context.user_id,
+        filters=search_service.Filters(
+            types=types,
+            initiative_id=initiative_id,
+            template=is_template,
+            subject=parse_ref(subject) if subject else None,
+        ),
+        limit=limit,
+        install=install,
+    )

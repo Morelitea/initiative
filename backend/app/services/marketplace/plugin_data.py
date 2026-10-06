@@ -65,6 +65,7 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.db.session import routed_guild_id
 from app.core.messages import (
     PluginDataMessages,
@@ -154,13 +155,16 @@ MAX_CACHE_TTL_SECONDS = 300
 MAX_CACHE_ENTRIES = 2048
 
 
-class PluginDataError(Exception):
-    """A refusal with the message code and status the endpoint should answer."""
+class PluginDataError(CodedError):
+    """A refusal with the message code and status the endpoint should answer,
+    and ``detail`` for the log."""
 
     def __init__(self, code: str, status_code: int, detail: str = "") -> None:
-        super().__init__(detail or code)
-        self.code = code
-        self.status_code = status_code
+        super().__init__(code, status_code)
+        self.detail = detail
+
+    def __str__(self) -> str:
+        return self.detail or self.code
 
 
 @dataclass(frozen=True)
