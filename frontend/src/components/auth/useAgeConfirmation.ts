@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { confirmMyAge } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
@@ -34,7 +34,7 @@ export const useAgeConfirmation = (onConfirmed?: () => void) => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.post("/me/age-confirmation", { birthdate });
+      await confirmMyAge({ birthdate });
       await refreshUser();
       // The answer is a gate rather than a preference: who may reach this
       // account, who it may reach, and whether it has a messaging policy at

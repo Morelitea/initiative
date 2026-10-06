@@ -19,12 +19,19 @@ import {
   WebAuthnError,
 } from "@simplewebauthn/browser";
 
-import { apiClient } from "@/api/client";
+import { beginBreakGlassPasskey } from "@/api/generated/access-grants/access-grants";
+import {
+  beginPasskeySignIn,
+  beginPasskeySignUp,
+  beginPasskeyStepUp,
+  finishPasskeySignIn,
+  finishPasskeySignUp,
+  finishPasskeyStepUp,
+} from "@/api/generated/auth/auth";
 import type {
-  PasskeyAuthenticationOptions,
-  PasskeyRegistrationOptions,
   PasskeySignInFinishCredential,
   PasskeySignInResult,
+  PasskeySignUpFinishCredential,
   PasskeySignUpResult,
   PasskeySignUpStart,
   PasskeyStepUpFinishCredential,
@@ -67,24 +74,20 @@ export const signInWithPasskey = async ({
   // Nothing to say at the start: the options are the same whoever asked and
   // whatever they are asking for. Where the answer goes — a session for this
   // browser, or a way back to the app that sent it — is settled at the finish.
-  const begun = await apiClient.post<PasskeyAuthenticationOptions>(
-    "/auth/passkeys/authenticate/begin",
-    {}
-  );
+  const begun = await beginPasskeySignIn({});
   // The server renders the options the way the credential API wants them, and
   // the browser's answer goes back as it came; the generated schema carries
   // both as open objects, so this is the one place the shapes are named.
   const credential = await startAuthentication({
-    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
     useBrowserAutofill: conditional,
   });
-  const finished = await apiClient.post<PasskeySignInResult>("/auth/passkeys/authenticate/finish", {
+  return finishPasskeySignIn({
     credential: credential as unknown as PasskeySignInFinishCredential,
     mobile,
     device_name: deviceName ?? "",
     code_challenge: codeChallenge ?? "",
   });
-  return finished.data;
 };
 
 /**
@@ -97,14 +100,13 @@ export const signInWithPasskey = async ({
  * authenticator-code step-up gives, applied the same way.
  */
 export const stepUpWithPasskey = async (): Promise<Token> => {
-  const begun = await apiClient.post<PasskeyAuthenticationOptions>("/auth/step-up/passkey/begin");
+  const begun = await beginPasskeyStepUp();
   const credential = await startAuthentication({
-    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
   });
-  const finished = await apiClient.post<Token>("/auth/step-up/passkey/finish", {
+  return finishPasskeyStepUp({
     credential: credential as unknown as PasskeyStepUpFinishCredential,
   });
-  return finished.data;
 };
 
 /**
@@ -120,19 +122,15 @@ export const signUpWithPasskey = async (
   details: PasskeySignUpStart,
   inviteCode?: string
 ): Promise<PasskeySignUpResult> => {
-  const query = inviteCode ? `?invite_code=${encodeURIComponent(inviteCode)}` : "";
-  const begun = await apiClient.post<PasskeyRegistrationOptions>(
-    `/auth/register/passkey/begin${query}`,
-    details
-  );
+  const params = inviteCode ? { invite_code: inviteCode } : undefined;
+  const begun = await beginPasskeySignUp(details, params);
   const credential = await startRegistration({
-    optionsJSON: begun.data.options as unknown as PublicKeyCredentialCreationOptionsJSON,
+    optionsJSON: begun.options as unknown as PublicKeyCredentialCreationOptionsJSON,
   });
-  const finished = await apiClient.post<PasskeySignUpResult>(
-    `/auth/register/passkey/finish${query}`,
-    { ...details, credential }
+  return finishPasskeySignUp(
+    { ...details, credential: credential as unknown as PasskeySignUpFinishCredential },
+    params
   );
-  return finished.data;
 };
 
 /**
@@ -144,11 +142,9 @@ export const signUpWithPasskey = async (
  * goes back in the break-glass body, beside the reason and the community.
  */
 export const assertForBreakGlass = async (): Promise<Record<string, unknown>> => {
-  const begun = await apiClient.post<PasskeyAuthenticationOptions>(
-    "/access-grants/break-glass/passkey"
-  );
+  const begun = await beginBreakGlassPasskey();
   const credential = await startAuthentication({
-    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+    optionsJSON: begun.options as unknown as PublicKeyCredentialRequestOptionsJSON,
   });
   return credential as unknown as Record<string, unknown>;
 };

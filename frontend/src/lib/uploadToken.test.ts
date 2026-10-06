@@ -1,23 +1,20 @@
 import { Capacitor } from "@capacitor/core";
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiClient } from "@/api/client";
+const issueUploadToken = vi.fn();
+vi.mock("@/api/generated/auth/auth", () => ({
+  issueUploadToken: () => issueUploadToken(),
+}));
 
 import { clearUploadToken, getUploadToken, refreshUploadToken } from "./uploadToken";
 
 // The scoped upload token is a NATIVE-only concern: on web, media loads use the
 // HttpOnly session cookie, so getUploadToken() must stay a no-op there.
 
-// Re-spy per test: every spy is restored when a test ends (restoreMocks in
-// vitest.config.ts), so a module-level spy would only intercept the first
-// test's calls.
-let postMock: MockInstance;
-
 describe("uploadToken", () => {
   beforeEach(() => {
     clearUploadToken();
-    postMock = vi.spyOn(apiClient, "post");
-    postMock.mockReset();
+    issueUploadToken.mockReset();
   });
 
   afterEach(() => {
@@ -27,25 +24,21 @@ describe("uploadToken", () => {
   it("returns null on web without hitting the network", () => {
     // Capacitor.isNativePlatform() is mocked to false globally.
     expect(getUploadToken()).toBeNull();
-    expect(postMock).not.toHaveBeenCalled();
+    expect(issueUploadToken).not.toHaveBeenCalled();
   });
 
   it("refreshUploadToken posts to the mint endpoint and caches the token", async () => {
-    postMock.mockResolvedValueOnce({
-      data: { upload_token: "scoped-abc", expires_in: 600 },
-    });
+    issueUploadToken.mockResolvedValueOnce({ upload_token: "scoped-abc", expires_in: 600 });
 
     const token = await refreshUploadToken();
 
     expect(token).toBe("scoped-abc");
-    expect(postMock).toHaveBeenCalledWith("/auth/upload-token");
+    expect(issueUploadToken).toHaveBeenCalled();
   });
 
   it("getUploadToken serves the cached token on native and refreshes in the background", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    postMock.mockResolvedValue({
-      data: { upload_token: "scoped-xyz", expires_in: 600 },
-    });
+    issueUploadToken.mockResolvedValue({ upload_token: "scoped-xyz", expires_in: 600 });
 
     // First call has no cache yet → returns null but kicks off a refresh.
     expect(getUploadToken()).toBeNull();
@@ -57,25 +50,21 @@ describe("uploadToken", () => {
 
   it("concurrent refreshes share a single in-flight request", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    postMock.mockResolvedValue({
-      data: { upload_token: "scoped-shared", expires_in: 600 },
-    });
+    issueUploadToken.mockResolvedValue({ upload_token: "scoped-shared", expires_in: 600 });
 
     const [a, b] = await Promise.all([refreshUploadToken(), refreshUploadToken()]);
 
     expect(a).toBe("scoped-shared");
     expect(b).toBe("scoped-shared");
-    expect(postMock).toHaveBeenCalledTimes(1);
+    expect(issueUploadToken).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the previous token when a refresh fails", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    postMock.mockResolvedValueOnce({
-      data: { upload_token: "scoped-first", expires_in: 600 },
-    });
+    issueUploadToken.mockResolvedValueOnce({ upload_token: "scoped-first", expires_in: 600 });
     await refreshUploadToken();
 
-    postMock.mockRejectedValueOnce(new Error("network"));
+    issueUploadToken.mockRejectedValueOnce(new Error("network"));
     const token = await refreshUploadToken();
 
     // Transient failure must not blank out a token currently in use.
@@ -84,9 +73,7 @@ describe("uploadToken", () => {
 
   it("clearUploadToken drops the cached token", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    postMock.mockResolvedValue({
-      data: { upload_token: "scoped-clear", expires_in: 600 },
-    });
+    issueUploadToken.mockResolvedValue({ upload_token: "scoped-clear", expires_in: 600 });
     await refreshUploadToken();
     expect(getUploadToken()).toBe("scoped-clear");
 
@@ -104,9 +91,9 @@ describe("uploadToken logout race", () => {
     const gate = new Promise((resolve) => {
       release = resolve;
     });
-    const postMock = vi.spyOn(apiClient, "post").mockImplementation(async () => {
+    issueUploadToken.mockImplementation(async () => {
       await gate;
-      return { data: { upload_token: "post-logout", expires_in: 600 } };
+      return { upload_token: "post-logout", expires_in: 600 };
     });
 
     const pending = refreshUploadToken();
@@ -117,6 +104,6 @@ describe("uploadToken logout race", () => {
     expect(await pending).toBeNull();
     // The orphaned response must not have re-entered the cache.
     expect(getUploadToken()).toBeNull();
-    expect(postMock).toHaveBeenCalled();
+    expect(issueUploadToken).toHaveBeenCalled();
   });
 });

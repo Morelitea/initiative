@@ -2,8 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import { recoverWithCode } from "@/api/generated/auth/auth";
+import { recoverWithCode, requestPasswordReset } from "@/api/generated/auth/auth";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -49,7 +48,7 @@ export const ForgotPasswordPage = () => {
     setStatus("sending");
     setError(null);
     try {
-      await apiClient.post("/auth/password/forgot", { email: email.toLowerCase().trim() });
+      await requestPasswordReset({ email: email.toLowerCase().trim() });
       setStatus("sent");
     } catch (err) {
       console.error(err);

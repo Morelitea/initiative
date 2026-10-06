@@ -53,10 +53,10 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-// The bootstrap probe and the provider list, answered by path through one mock.
+// The provider list. The bootstrap probe is the default handler's: a server
+// that already has users, so the page shows the sign-in card.
 vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
-  bootstrapStatus: () => mocks.get("/auth/bootstrap").then((r: { data: unknown }) => r.data),
   listLoginProviders: () => mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
 }));
 
@@ -141,13 +141,8 @@ const watchWhereItLeavesFor = () => {
   };
 };
 
-/** The bootstrap probe and the provider list share one client. */
 const offering = (providers: unknown[]) => {
-  mocks.get.mockImplementation((url: string) =>
-    Promise.resolve(
-      url === "/auth/providers" ? { data: { providers } } : { data: { has_users: true } }
-    )
-  );
+  mocks.get.mockResolvedValue({ data: { providers } });
 };
 
 const passkeyButton = () => screen.findByRole("button", { name: /sign in with a passkey/i });
@@ -191,9 +186,7 @@ const resetLoginMocks = () => {
   mocks.config = { passwordLoginEnabled: true, passkeyLoginEnabled: true };
   mocks.server = { isNativePlatform: false };
   vi.mocked(Browser.open).mockClear();
-  // The bootstrap probe and the provider list both go through mocks.get.
-  // has_users false would send the page to first-run registration instead.
-  mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+  mocks.get.mockReset().mockResolvedValue({ data: { providers: [] } });
 };
 
 /** Put a value in a field the way an autofill can: in the field, with no
