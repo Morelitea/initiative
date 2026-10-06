@@ -27,6 +27,7 @@ from app.testing import (
     create_guild,
     create_guild_plugin,
     create_initiative,
+    create_marketplace_listing,
     create_plugin_service_registration,
     create_project,
     create_property_definition,
@@ -52,8 +53,11 @@ async def _rows(session, sql: str, **params: Any) -> list[tuple]:
     return [tuple(row) for row in result.all()]
 
 
-_OLD_STATEMENT = "SELECT f.name, f.document_type FROM documents f"
-_NEW_STATEMENT = "SELECT f.name, f.file_type FROM files f"
+# A string value is left as written: only the names a statement reads move.
+_OLD_STATEMENT = (
+    "SELECT f.name, f.document_type FROM documents f WHERE f.name <> 'documents'"
+)
+_NEW_STATEMENT = "SELECT f.name, f.file_type FROM files f WHERE f.name <> 'documents'"
 
 
 async def _guild_values(session, schema: str, ids: dict[str, int]) -> dict:
@@ -98,7 +102,7 @@ async def _guild_values(session, schema: str, ids: dict[str, int]) -> dict:
         ),
         "dashboard": await _rows(
             session,
-            f"SELECT definition FROM {s}.dashboards WHERE id = :id",
+            f"SELECT definition, config FROM {s}.dashboards WHERE id = :id",
             id=ids["dashboard"],
         ),
         "export": await _rows(
@@ -144,6 +148,7 @@ async def test_guild_values_say_file_and_back(session) -> None:
                 {"binding": {"entity": "document"}},
             ]
         },
+        config={"widgets": {"w2": {"document_id": file.id, "range": "A1:B2"}}},
     )
     job = await create_export_job(
         session,
@@ -240,6 +245,7 @@ async def test_guild_values_say_file_and_back(session) -> None:
                         {"binding": {"entity": "file"}},
                     ]
                 },
+                {"widgets": {"w2": {"file_id": file.id, "range": "A1:B2"}}},
             )
         ]
         assert new["export"] == [
@@ -274,6 +280,13 @@ async def _public_values(session, user_id: int, registration_id: int) -> dict:
             "SELECT scope_ceiling FROM public.plugin_service_registrations "
             "WHERE id = :id",
             id=registration_id,
+        ),
+        "listings": await _rows(
+            session,
+            "SELECT l.public_id, l.kind, v.definition "
+            "FROM public.marketplace_listings l "
+            "JOIN public.marketplace_listing_versions v ON v.listing_id = l.id "
+            "WHERE l.public_id LIKE 'rename.%' ORDER BY l.public_id",
         ),
     }
 
@@ -328,6 +341,38 @@ async def test_public_values_say_file_and_back(session) -> None:
         ),
         {"u": user.id},
     )
+    # Published before the rename: a dashboard, a file listing and a plug-in.
+    # Built valid, then written back the way the old build stored them.
+    old_sheet = {"source": "sheet_range", "document_id": None, "range": "A1:B2"}
+    dashboard_definition = {
+        "widgets": [
+            {"binding": {"source": "query", "sql": _OLD_STATEMENT}},
+            {"binding": old_sheet},
+        ]
+    }
+    file_definition = {
+        "type": "initiative-document",
+        "document_type": "native",
+        "external_ref": "document:4",
+    }
+    plugin_definition = {"service": {"scopes": ["documents:read"]}}
+    for uid, name, kind, body in (
+        ("RENAMETEST0001", "rename.dashboard", "dashboard", dashboard_definition),
+        ("RENAMETEST0002", "rename.file", "document", file_definition),
+        ("RENAMETEST0003", "rename.plugin", "plugin", plugin_definition),
+    ):
+        listing = await create_marketplace_listing(session, uid=uid, public_id=name)
+        await (await session.connection()).execute(
+            text("UPDATE public.marketplace_listings SET kind = :k WHERE id = :id"),
+            {"k": kind, "id": listing.id},
+        )
+        await (await session.connection()).execute(
+            text(
+                "UPDATE public.marketplace_listing_versions "
+                "SET definition = CAST(:d AS jsonb) WHERE listing_id = :id"
+            ),
+            {"d": json.dumps(body), "id": listing.id},
+        )
     for key in ("documents:view-mode", "my-tasks"):
         await (await session.connection()).execute(
             text(
@@ -384,6 +429,35 @@ async def test_public_values_say_file_and_back(session) -> None:
                 )
             ],
             "ceiling": [(["files:read", "tasks:read"],)],
+            "listings": [
+                (
+                    "rename.dashboard",
+                    "dashboard",
+                    {
+                        "widgets": [
+                            {"binding": {"source": "query", "sql": _NEW_STATEMENT}},
+                            {
+                                "binding": {
+                                    "source": "sheet_range",
+                                    "file_id": None,
+                                    "range": "A1:B2",
+                                }
+                            },
+                        ]
+                    },
+                ),
+                (
+                    "rename.file",
+                    "file",
+                    {
+                        "type": "initiative-file",
+                        "file_type": "native",
+                        "external_ref": "file:4",
+                    },
+                ),
+                # A plug-in manifest is its publisher's: refused, not rewritten.
+                ("rename.plugin", "plugin", plugin_definition),
+            ],
         }
         kept = await _rows(
             session,

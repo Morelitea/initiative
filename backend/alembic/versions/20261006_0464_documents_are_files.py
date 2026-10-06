@@ -25,8 +25,10 @@ The documents tool is the files tool. In ``guild_template`` and every
   (an install's grant and its definition); the role permissions
   ``documents_enabled``/``create_documents`` are ``files_enabled``/
   ``create_files``; a dashboard's statements read the datasets ``files`` and
-  ``file_versions`` and the columns ``file_type`` and ``file_id``, and a
-  binding names its spreadsheet as ``file_id`` and its kind as ``file``; a queued export or import names
+  ``file_versions`` and the columns ``file_type`` and ``file_id`` (a string
+  value in one is left as written), and a binding, and the config filling its
+  slots, names its spreadsheet as ``file_id`` and its kind as ``file``; a
+  queued export or import names
   the tool ``file``. A role missing either permission row gets it at its
   default, as each tool's backfill does. The CHECK constraints holding the kind are restated for
   the writes; ``ck_comments_single_parent`` follows its column on its own.
@@ -475,10 +477,23 @@ def _respell_json(
     _writable(bind, table, run)
 
 
+#: A statement's string values, single- or dollar-quoted: left as written, so
+#: a value a query compares against is never respelled.
+_QUOTED = re.compile(r"'(?:[^']|'')*'|\$(\w*)\$.*?\$\1\$", re.S)
+
+
 def _statement(sql: str, words: Mapping[str, str]) -> str:
-    for old, new in words.items():
-        sql = re.sub(rf"\b{re.escape(old)}\b", new, sql)
-    return sql
+    def respell(part: str) -> str:
+        for old, new in words.items():
+            part = re.sub(rf"\b{re.escape(old)}\b", new, part)
+        return part
+
+    parts: list[str] = []
+    last = 0
+    for quoted in _QUOTED.finditer(sql):
+        parts += [respell(sql[last : quoted.start()]), quoted.group(0)]
+        last = quoted.end()
+    return "".join(parts) + respell(sql[last:])
 
 
 def _definition_respeller(forward: bool) -> Callable[[Any], Any]:
@@ -507,6 +522,30 @@ def _definition_respeller(forward: bool) -> Callable[[Any], Any]:
         if out.get("entity") in kinds:
             out["entity"] = kinds[out["entity"]]
         return out
+
+    return respell
+
+
+def _config_respeller(forward: bool) -> Callable[[Any], Any]:
+    """A dashboard's config: the file each widget's slot names."""
+    sheet_old, sheet_new = next(iter(_flip(_SHEET_KEY, forward).items()))
+
+    def respell(value: Any) -> Any:
+        widgets = value.get("widgets") if isinstance(value, dict) else None
+        if not isinstance(widgets, dict):
+            return value
+        return {
+            **value,
+            "widgets": {
+                widget_id: {
+                    (sheet_new if key == sheet_old else key): item
+                    for key, item in slots.items()
+                }
+                if isinstance(slots, dict)
+                else slots
+                for widget_id, slots in widgets.items()
+            },
+        }
 
     return respell
 
@@ -588,6 +627,7 @@ def _respell_values(bind: Connection, forward: bool) -> None:
     definitions = _definition_respeller(forward)
     _respell_json(bind, "guild_plugins", "definition", definitions)
     _respell_json(bind, "dashboards", "definition", definitions)
+    _respell_json(bind, "dashboards", "config", _config_respeller(forward))
 
     jobs = _job_respeller(forward)
     _set_values(bind, "export_jobs", ("source",), kind)
