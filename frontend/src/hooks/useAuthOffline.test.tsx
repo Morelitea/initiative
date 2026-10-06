@@ -33,6 +33,16 @@ vi.mock("@/api/client", () => ({
   forgetSessionActivity: vi.fn(),
 }));
 
+// Generated calls arrive here: the account read answers from `get`, every POST
+// is recorded on `post`, and nothing else answers.
+vi.mock("@/api/mutator", () => ({
+  apiMutator: async ({ method, url, data }: { method: string; url: string; data?: unknown }) => {
+    if (url === "/api/v1/me") return (await get(url)).data;
+    if (method === "POST") return (await post(url, data)).data;
+    throw new Error(`No answer for ${url}`);
+  },
+}));
+
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: vi.fn(),
   serveAccount: vi.fn(),

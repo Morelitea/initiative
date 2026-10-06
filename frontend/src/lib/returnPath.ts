@@ -20,3 +20,9 @@ export const returnPath = (next: string | null | undefined): string | null => {
     return null;
   }
 };
+
+/** Where a provider's sign-in starts, carrying the path to land on after it. */
+export const providerSignInHref = (loginUrl: string, next: string | null | undefined): string => {
+  const path = returnPath(next);
+  return path ? `${loginUrl}?next=${encodeURIComponent(path)}` : loginUrl;
+};

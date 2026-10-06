@@ -32,14 +32,16 @@ from app.testing.sockets import settle
 
 @pytest.fixture
 def fcm(monkeypatch):
-    """FCM, answering however the test says, and what was put on the wire."""
+    """FCM, answering however the test says, and what was put on the wire:
+    each title, and each data payload under ``answer["data"]``."""
     calls: list[str] = []
-    answer = {"now": (True, False)}
+    answer: dict = {"now": (True, False), "data": []}
 
     async def _send(
         client, push_token, title, body, data=None, channel_id=None, platform=None
     ):
         calls.append(title)
+        answer["data"].append(data)
         return answer["now"]
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
@@ -132,40 +134,52 @@ async def test_a_redacting_community_writes_down_no_more_than_it_will_say(
     await session.commit()
 
     [row] = await _waiting(session)
-    title, body = notification_policy.redacted_push(NotificationType.mention, "en")
-    assert (row.push_title, row.push_body) == (title, body)
-    assert row.email_subject == notification_policy.redacted_subject(
+    title, body = notification_policy.redacted_line(
         category_of(NotificationType.mention), "en"
     )
+    assert (row.push_title, row.push_body) == (title, body)
+    assert row.email_subject == title
     assert "Q3 budget" not in f"{row.push_body} {row.email_body} {row.email_subject}"
 
 
 async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
     """A digest or a hold summary is a push and nothing else: the bell already
-    holds what it counts."""
-    pushed, _answer = fcm
+    holds what it counts. It goes under the switches of the communities it
+    gathers from as they stand when it is sent: while one of them still sends
+    push it goes, saying only the kind of thing once another has stopped, and
+    carrying no more data than where tapping it opens."""
+    pushed, answer = fcm
     recipient = await create_user(session)
+    guild = await create_guild(session, creator=recipient)
+    sending = await create_guild(session, creator=recipient)
     await create_push_token(session, recipient)
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(
-                recipient.id,
-                None,
+            await notice_outbox.notice(
+                session,
+                recipient,
                 NotificationType.overdue_tasks,
                 {},
+                guild_id=None,
+                push=("2 tasks overdue", "Q3 budget and 1 more"),
+                push_data={"target_path": "/", "count": "2"},
+                communities={guild.id, sending.id},
                 kind="push",
-                push_title="2 tasks overdue",
-                push_body="Q3 budget and 1 more",
-                push_data={"target_path": "/"},
             )
         ],
     )
+    guild.allow_push_notifications = False
+    session.add(guild)
     await session.commit()
 
     await _deliver(session, datetime.now(timezone.utc))
 
-    assert pushed == ["2 tasks overdue"]
+    title, _body = notification_policy.redacted_line(
+        category_of(NotificationType.overdue_tasks), "en"
+    )
+    assert pushed == [title]
+    assert answer["data"] == [{"target_path": "/"}]
     assert await _lines(session, recipient.id) == []
     assert await _waiting(session) == []
 
@@ -232,7 +246,9 @@ async def test_a_retry_follows_the_communitys_switches_as_they_stand_then(
     await session.commit()
     answer["now"] = (True, False)
     await _deliver(session, start + timedelta(seconds=31))
-    title, _body = notification_policy.redacted_push(NotificationType.mention, "en")
+    title, _body = notification_policy.redacted_line(
+        category_of(NotificationType.mention), "en"
+    )
     assert pushed[2:] == [title, title]
 
     answer["now"] = (False, False)

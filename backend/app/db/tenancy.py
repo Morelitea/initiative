@@ -8,7 +8,9 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 - **Shared tables** stay in the ``public`` schema — identity, the tenancy
   roster, platform config, and per-user / cross-guild concerns read *without* a
   guild context (login, "list my guilds", platform staff, SSO auto-join, the
-  notification inbox). Listed explicitly in ``SHARED_TABLES``.
+  notification inbox). ``SHARED_TABLES`` is *derived* from
+  ``app.db.public_rls.SHARED_TABLE_REGISTRY``, where each one is declared with
+  its row security and grants.
 - **Guild-scoped tables** move into a per-guild schema (``guild_<id>``) — the
   actual tenant content. ``GUILD_SCOPED_TABLES`` is *derived* as
   ``INITIATIVE_SCOPED_TABLES | GUILD_LEVEL_TABLES`` (level 2), so a guild table
@@ -37,8 +39,10 @@ decision.
 from __future__ import annotations
 
 from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
+from app.db.public_rls import SHARED_TABLE_REGISTRY
 
 __all__ = [
+    "NON_MODEL_SHARED_TABLES",
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "MANAGED_TABLES",
@@ -55,157 +59,18 @@ __all__ = [
 # --- Shared (stay in the ``public`` schema) ---------------------------------
 # Read without a guild context, or inherently cross-guild. Must never be
 # duplicated per schema.
-SHARED_TABLES: frozenset[str] = frozenset(
-    {
-        # Identity & per-user auth/devices (one user spans many guilds)
-        "users",
-        "user_api_keys",
-        "user_tokens",
-        "push_tokens",
-        "user_view_preferences",  # personal UI state (filters/sort/view-mode)
-        # What one account wants to be told about. Off ``users`` on purpose:
-        # that table is read whole by the platform tiers.
-        "user_notification_prefs",
-        # Notification email waiting to go out. Per-account and cross-guild
-        # like the settings above: one message can gather rows from every
-        # community somebody is in, so it belongs to none of them.
-        "email_outbox",
-        # A notice waiting to be delivered to one account, from whichever
-        # community it happened in. Per-account for the same reason.
-        "notice_outbox",
-        # The picture on a user's profile. Public-plane identity like the row
-        # it hangs off: one user spans guilds, and the bytes are served to
-        # anyone holding the URL.
-        "user_avatars",
-        # What one account may dress its profile in beyond what ships with the
-        # app. Personal and cross-guild, like the row it hangs off.
-        "user_decorations",
-        # Who one account has starred on My Contacts. Personal, cross-guild
-        # and one-directional: the list is the holder's, and it may name
-        # people they share no guild with.
-        "profile_favorites",
-        # What an account agreed to when it was created. A deployment's terms
-        # are the platform's, not any one community's, so the record of
-        # accepting them belongs beside the account rather than in a schema.
-        "legal_acceptances",
-        # Who may ask to message an account, who it has agreed something with,
-        # and who it has chosen not to hear from. All three are per-account and
-        # cross-guild, like the starred list above, and none of them is any
-        # guild's business.
-        "user_dm_settings",
-        # What an account allows to be kept in a browser. Per-account and
-        # cross-guild like the rest here: the question is about the deployment,
-        # not about any one community.
-        "user_cookie_consent",
-        "user_dm_guild_optouts",
-        "contact_grants",
-        "user_ignores",
-        # The transport those four gate: a directory of public keys, a
-        # roster of who is talking to whom, and ciphertext waiting to be
-        # collected. Per-account and cross-guild like the rest, and not one
-        # of them holds anything a reader could open.
-        "dm_devices",
-        "dm_one_time_keys",
-        "dm_conversations",
-        "dm_conversation_members",
-        "dm_queue",
-        # The verification relay between one account's own devices: public
-        # keys and MACs, deleted when collected or ten minutes after writing.
-        "dm_verification_messages",
-        # What a moderator did, and to whom. Cross-guild platform security
-        # that has to outlive any guild — and every reference in it is a plain
-        # integer, so it outlives the accounts it names too.
-        # What outside parties — a payment processor, an installed plug-in —
-        # call a user or a guild. One per purpose, so no two parties hold
-        # the same value for the same entity. Cross-guild and pre-routing,
-        # like the accounts and guilds it names.
-        "identity_refs",
-        # Tenancy roster — must be readable *before* a request is routed
-        "guilds",
-        # The operator-set half of a guild (caps / plan label / sign-in
-        # entitlement), split off ``guilds`` so identity and administration
-        # carry different grants. Shared, like the guild row it hangs off.
-        "guild_administration",
-        # The pictures a guild is known by — its icon, and the two renditions
-        # of its banner. Identity, like the name and description they sit
-        # beside, and read by strangers browsing the directory, who hold no
-        # role that could reach a guild schema.
-        "guild_images",
-        "guild_memberships",
-        # Consumed pre-membership / pre-routing
-        "guild_invites",  # looked up by token before the user is a member
-        "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
-        # Auth/login foundation — one user's identities span guilds; provider
-        # registry is read pre-routing at login.
-        "auth_providers",  # login provider registry; every row is the operator's
-        "auth_provider_secrets",  # provider client secret; app_admin-only companion
-        "federated_identities",  # (provider, subject) -> user links
-        "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
-        "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
-        "user_emails",  # the addresses an account signs in with; app_admin-only
-        "user_email_assertions",  # which providers assert them; app_admin-only
-        "sign_in_locks",  # recent wrong answers per account; app_admin-only
-        "account_change_holds",  # account changes waiting to apply; app_admin-only
-        # The account's own second factor, the seed behind it, and the codes
-        # that stand in for it. All app_admin-only: presented while signing in.
-        "user_totp",
-        "user_totp_secrets",
-        # An account's date of birth, encrypted. app_admin-only: checked
-        # against a plug-in's minimum age on the system engine.
-        "user_birthdates",
-        "mfa_recovery_codes",
-        "auth_challenges",  # a sign-in between its password and its code
-        # WebAuthn credentials. app_admin-only for the same reason as the rest
-        # of this group: an assertion arrives before any account is known.
-        "user_passkeys",
-        "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
-        # Which of the platform's providers a community signs in through, and
-        # the tenant it narrows one to. Read at login on the system engine.
-        "guild_provider_connections",
-        # The same arrangement, answered once for a community that has not.
-        # Read by the gate on the request path, like the connections it
-        # stands in for.
-        "platform_provider_defaults",
-        # Platform-wide
-        "app_settings",  # OIDC / SMTP / branding config
-        "app_setting_secrets",  # the settings' stored credentials; app_admin-only
-        # Deployment-wide notices and what each person has done with them. One
-        # announcement is shown in every guild and read by an account, not by a
-        # membership, so none of the three has a guild to live in.
-        "announcements",
-        "announcement_reads",
-        "announcement_images",
-        # Marketplace catalog: what is installable, platform-wide. Holds no
-        # guild_id by design — the catalog never records who installed what.
-        "marketplace_listings",
-        "marketplace_listing_versions",
-        # Deployment-level wiring for external plug-in services (listing, URL,
-        # public keys, operator-conferred grants). Platform-wide by definition —
-        # one row per plug-in, never per guild — and owner-managed.
-        "plugin_service_registrations",
-        # Who publishes those plug-ins: one row per public_id prefix, with the
-        # switch that stops every plug-in under it. Deployment configuration.
-        "publishers",
-        # Spent client-assertion jtis from the plug-in token endpoint. Hangs off a
-        # registration, which is platform-wide.
-        "plugin_assertion_jtis",
-        # Which community holds which install, and the value a vendor webhook
-        # routes to it by. An index over the guild schemas, holding no content.
-        "plugin_installs",
-        # Registry client state: the TUF metadata this deployment last
-        # verified, how the last refresh went, and the artwork its listings
-        # named, kept locally so listing media is served from here.
-        # Operator/system state, no guild.
-        "marketplace_tuf_metadata",
-        "marketplace_registry_status",
-        "marketplace_media",
-        "platform_ai_connections",  # operator AI connections (platform config mode)
-        "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
-        "notifications",  # per-user inbox spanning guilds; carries its own place
-        # Billing write boundary (external billing service, initiative_billing role)
-        "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
-        "billing_jti_blocklist",  # one-shot billing service-JWT redemption
-    }
+
+#: The ``public`` tables no model maps: Alembic's own, and
+#: ``storage_backfill_state``, which ``app.services.storage_backfill`` creates
+#: at runtime. Each still has a registry record for its grants.
+NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset(
+    {"alembic_version", "storage_backfill_state"}
+)
+
+#: Every shared table a model maps: the shared-table registry, which records
+#: why each one is shared, less the tables no model maps.
+SHARED_TABLES: frozenset[str] = (
+    frozenset(SHARED_TABLE_REGISTRY) - NON_MODEL_SHARED_TABLES
 )
 
 # --- Guild-scoped, NOT initiative-scoped (level 2 exemptions) ----------------

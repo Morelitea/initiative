@@ -18,6 +18,8 @@ from sqlalchemy.sql import text
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
+from app.core.encryption import FERNET_SALT, SALT_EMAIL, decrypt_field
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
     from app.models.platform.guild_administration import GuildAdministration
@@ -52,7 +54,7 @@ class CommunityStatus(str, Enum):
     The fifth is not:
 
     - ``deleted``: the guild has been deleted and is being retained for
-      :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
+      :data:`~app.services.platform.retention.COMMUNITY_DELETION` before
       it is destroyed. Nobody in the guild reaches it, its admins included,
       and it is absent from every member's guild list.
 
@@ -579,7 +581,8 @@ class GuildInvite(SQLModel, table=True):
     max_uses: Optional[int] = Field(default=1, nullable=True)
     uses: int = Field(default=0, nullable=False)
     invitee_email_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
+        default=None,
+        sa_column=Column(String(2000), nullable=True, info={FERNET_SALT: SALT_EMAIL}),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -591,8 +594,6 @@ class GuildInvite(SQLModel, table=True):
         """Return the decrypted invitee email, or None if not set."""
         if not self.invitee_email_encrypted:
             return None
-        from app.core.encryption import decrypt_field, SALT_EMAIL
-
         return decrypt_field(self.invitee_email_encrypted, SALT_EMAIL)
 
     guild: Optional[Guild] = Relationship()

@@ -36,11 +36,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import set_rls_context
 from app.models.platform.notification import NotificationType
 from app.services import guild_work
@@ -88,7 +89,7 @@ class Dispatcher(Generic[JobT]):
     name: str
     model: type[JobT]
     #: The advisory-lock namespace this job type claims under.
-    lock_namespace: int
+    lock_namespace: LockNamespace
     queued: str
     active: tuple[str, ...]
     kinds: tuple[str, ...]
@@ -194,10 +195,7 @@ class Dispatcher(Generic[JobT]):
         queued one that looks untouched.
         """
         model: Any = self.model
-        await session.exec(
-            text("SELECT pg_advisory_xact_lock(:ns, :guild)"),
-            params={"ns": self.lock_namespace, "guild": guild_id},
-        )
+        await advisory_lock(session, self.lock_namespace, guild_id)
         active = (
             await session.exec(
                 select(func.count())

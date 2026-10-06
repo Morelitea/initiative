@@ -10,7 +10,8 @@ import json
 
 import pytest
 
-from app.services.platform import notify_bus, user_stream
+from app.db import post_commit
+from app.services.platform import notification_stream, notify_bus, user_stream
 from app.testing.sockets import FakeWebSocket, settle
 
 
@@ -108,11 +109,45 @@ async def test_one_transaction_is_one_notice_per_kind_of_frame(
     user_stream.queue_frame(session, 2, user_stream.build_frame("account", "changed"))
 
     await session.commit()
-    await asyncio.gather(*user_stream._inflight)
+    await post_commit.settle(session)
 
     assert sorted(
         (notice["frame"]["resource"], notice["user_ids"]) for notice in notices
     ) == [("account", [2]), ("notification", [1, 2, 3])]
+
+
+async def test_a_savepoint_takes_only_its_own_frames(session, notices) -> None:
+    """A rolled-back savepoint drops the frames queued inside it and keeps the
+    transaction's others; a released one keeps its frames for the commit, in
+    the transaction's one notice per kind of frame, naming what both name."""
+    user_stream.queue_frame(session, 1, _frame())
+    notification_stream.queue_alert(session, 1, 10)
+    savepoint = await session.begin_nested()
+    user_stream.queue_frame(session, 2, _frame())
+    notification_stream.queue_alert(session, 1, 12)
+    await savepoint.rollback()
+    savepoint = await session.begin_nested()
+    user_stream.queue_frame(session, 1, _frame())
+    user_stream.queue_frame(session, 3, _frame())
+    notification_stream.queue_alert(session, 1, 11)
+    await savepoint.commit()
+    await settle()
+    assert notices == []
+
+    await session.commit()
+    await post_commit.settle(session)
+
+    assert sorted(
+        (
+            notice["frame"]["resource"],
+            sorted(notice["user_ids"]),
+            notice["frame"]["ids"],
+        )
+        for notice in notices
+    ) == [
+        ("alert", [1], {"notifications": [10, 11]}),
+        ("notification", [1, 3], {}),
+    ]
 
 
 async def test_a_large_audience_is_split_across_notices(
@@ -123,6 +158,6 @@ async def test_a_large_audience_is_split_across_notices(
         user_stream.queue_frame(session, user_id, _frame())
 
     await session.commit()
-    await asyncio.gather(*user_stream._inflight)
+    await post_commit.settle(session)
 
     assert [notice["user_ids"] for notice in notices] == [[1, 2], [3, 4], [5]]

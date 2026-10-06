@@ -38,10 +38,6 @@ logger = logging.getLogger(__name__)
 # IdP-registered callback URL.
 PLATFORM_OIDC_SLUG = "oidc"
 
-# Presented when no provider row exists yet (mirrors the historical env-seed
-# fallback), and used by the env seed when OIDC_SCOPES is unset.
-DEFAULT_OIDC_SCOPES = ["openid", "profile", "email", "offline_access"]
-
 
 def is_login_ready(row: AuthProvider) -> bool:
     """Whether a registry row can serve a login: enabled, OIDC, and carrying
@@ -225,14 +221,13 @@ async def seed_platform_provider_from_env(session: AsyncSession) -> bool:
         return False
     if await get_platform_provider(session) is not None:
         return False
-    scopes = app_config.OIDC_SCOPES or DEFAULT_OIDC_SCOPES
     provider = await upsert_platform_provider(
         session,
         enabled=bool(app_config.OIDC_ENABLED),
         issuer=issuer,
         client_id=client_id,
         provider_name=app_config.OIDC_PROVIDER_NAME,
-        scopes=list(scopes),
+        scopes=app_config.OIDC_SCOPES,
         client_secret=app_config.OIDC_CLIENT_SECRET or None,
     )
     logger.info(

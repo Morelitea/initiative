@@ -112,7 +112,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     assert deleted_at is not None
     assert (
         await guild_purge.purge_due_guilds(
-            session, now=guild_purge.purge_at(deleted_at, RETENTION) - timedelta(days=1)
+            session, now=(deleted_at + timedelta(days=RETENTION)) - timedelta(days=1)
         )
         == 0
     )
@@ -122,7 +122,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     assert (
         await guild_purge.purge_due_guilds(
             session,
-            now=guild_purge.purge_at(deleted_at, RETENTION) + timedelta(seconds=1),
+            now=(deleted_at + timedelta(days=RETENTION)) + timedelta(seconds=1),
         )
         == 1
     )

@@ -109,6 +109,7 @@ function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["
     stepUpWithEmailCode: vi.fn(),
     logout: vi.fn(),
     refreshUser: vi.fn(),
+    acceptUser: vi.fn(),
     applyEmailOtpSignIn: vi.fn(),
   };
 }

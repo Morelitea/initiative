@@ -34,6 +34,7 @@ from app.api.deps import (
     require_seat,
     GuildContextDep,
 )
+from app.core.body_limit import MULTIPART_SLACK_BYTES, max_body
 from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
 from app.models.platform.user import User
@@ -80,6 +81,22 @@ _LIST_LIMIT = 50
 #: The most property names one confirm may untick.
 _MAX_EXCLUDED_PROPERTIES = 500
 
+#: The most an Atlassian connect or import request may carry. A connect is a
+#: site URL, an account's address and an API token; a start is a credential
+#: id, an initiative and at most 200 short project keys. Generous for either
+#: and still far too small to be worth anybody's while as a buffer.
+ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
+
+
+def _envelope_bytes() -> int:
+    return import_limits.IMPORT_MAX_ENVELOPE_BYTES
+
+
+def _upload_bytes() -> int:
+    """A backup, a Confluence space's HTML export, or one tool's export zipped
+    with its files, and the framing multipart adds around it."""
+    return import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + MULTIPART_SLACK_BYTES
+
 
 def _require_writable(guild_context: GuildContext) -> None:
     """Imports are writes, always — no inline carve-out for read-only actors
@@ -94,6 +111,7 @@ def _require_writable(guild_context: GuildContext) -> None:
 
 
 @router.post("/envelope", response_model=None, status_code=status.HTTP_201_CREATED)
+@max_body(_envelope_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def import_envelope(
     payload: EnvelopeImportRequest,
     session: RLSSessionDep,
@@ -109,9 +127,10 @@ async def import_envelope(
     merely large, or ``staged`` for one quoting people nobody here can place,
     whose ``plan`` names them and which starts on
     ``POST /imports/jobs/{id}/confirm``."""
-    # Byte bound (IMPORT_MAX_ENVELOPE_BYTES) is enforced by
-    # BodySizeLimitMiddleware at the ASGI seam — a handler-level check would
-    # run only after FastAPI had already buffered and parsed the body.
+    # Byte bound (IMPORT_MAX_ENVELOPE_BYTES, declared by ``max_body``) is
+    # enforced by BodySizeLimitMiddleware at the ASGI seam — a handler-level
+    # check would run only after FastAPI had already buffered and parsed the
+    # body.
     _require_writable(guild_context)
     outcome = await import_engine.start_envelope_import(
         session,
@@ -139,6 +158,7 @@ async def import_envelope(
 @router.post(
     "/envelope/archive", response_model=None, status_code=status.HTTP_201_CREATED
 )
+@max_body(_upload_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def import_envelope_archive(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -190,6 +210,7 @@ async def import_envelope_archive(
 
 
 @router.post("/foreign/{source}/preview", response_model=ForeignPreview)
+@max_body(_envelope_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def preview_foreign_import(
     source: str,
     content: Annotated[str, Body(media_type="text/plain")],
@@ -225,6 +246,7 @@ async def preview_foreign_import(
 @router.post(
     "/foreign/{source}", response_model=None, status_code=status.HTTP_201_CREATED
 )
+@max_body(_envelope_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def import_foreign(
     source: str,
     payload: ForeignImportRequest,
@@ -278,6 +300,7 @@ async def import_foreign(
     response_model=AtlassianConnectResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@max_body(lambda: ATLASSIAN_MAX_REQUEST_BYTES, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def connect_atlassian(
     payload: AtlassianConnectRequest,
     session: RLSSessionDep,
@@ -328,6 +351,7 @@ async def connect_atlassian(
     response_model=ImportJobRead,
     status_code=status.HTTP_202_ACCEPTED,
 )
+@max_body(lambda: ATLASSIAN_MAX_REQUEST_BYTES, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def start_atlassian_import(
     payload: AtlassianImportRequest,
     session: RLSSessionDep,
@@ -379,6 +403,7 @@ async def start_atlassian_import(
     response_model=ImportJobRead,
     status_code=status.HTTP_202_ACCEPTED,
 )
+@max_body(_upload_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def start_confluence_export_import(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -496,6 +521,7 @@ async def cancel_import_job(
 @router.post(
     "/backup", response_model=ImportJobRead, status_code=status.HTTP_201_CREATED
 )
+@max_body(_upload_bytes, ImportEngineMessages.IMPORT_TOO_LARGE)
 async def upload_backup(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

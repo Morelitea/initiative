@@ -39,7 +39,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.api import content_socket
 from app.core.rate_limit import limiter
-from app.db import cohorts
+from app.db import cohorts, post_commit
+from app.db.advisory_locks import LockNamespace
 from app.db.session import (
     clear_rls_context,
     get_system_session,
@@ -277,10 +278,9 @@ async def _set_db_statement_timeout() -> None:
 # ONE cluster-wide key space across the per-worker databases, so every worker
 # serializes on the same key. Each worker still migrates its OWN DB; only the
 # shared role operations are serialized.
-# Arbitrary and suite-specific, and deliberately not the app's own
-# (``session.MIGRATION_LOCK_KEY``): this one is taken on the ``postgres``
-# database, across workers, for DDL that is cluster-global.
-_MIGRATION_LOCK_KEY = 0x1417A7E5
+# ``LockNamespace.TEST_SUITE_MIGRATION``, apart from the app's own migration
+# lock: this one is taken on the ``postgres`` database, across workers, for DDL
+# that is cluster-global.
 
 
 def _alembic_config() -> Config:
@@ -308,7 +308,9 @@ async def _migrate_under_lock() -> None:
     connection — and thus the lock — alive."""
     lock_conn = await connect_su_postgres()
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _ensure_test_database()
         await asyncio.to_thread(_alembic_upgrade_head)
     finally:
@@ -327,7 +329,9 @@ async def _bootstrap_under_lock() -> None:
     """
     lock_conn = await connect_su_postgres()
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _ensure_test_database()
         await _bootstrap_test_database()
     finally:
@@ -875,8 +879,9 @@ async def _schema_test_harness(engine, _worker_engines, monkeypatch, request):
     )
     yield
     try:
-        # Community steps a commit started finish before the pools close.
-        await cohorts.settle_all()
+        # Work a commit started, and every task spawned beside it, finishes
+        # before the pools close.
+        await post_commit.settle_all()
     finally:
         for worker_engine in engines.app_engines():
             await worker_engine.dispose()
@@ -951,7 +956,7 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # auto-join initiatives, say) finishes before the tables it reads are
     # emptied or dropped below. After the rollback, so that work is not left
     # waiting on a lock the test's own transaction held.
-    await cohorts.settle_all()
+    await post_commit.settle_all()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh

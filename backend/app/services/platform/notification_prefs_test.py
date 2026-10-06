@@ -3,8 +3,7 @@
 from datetime import datetime, timezone
 
 
-from app.core.notification_categories import Channel
-from app.models.platform.notification import NotificationType
+from app.core.notification_categories import Channel, NotificationCategory
 from app.models.platform.user_notification_prefs import NotificationLevel
 from app.services.platform.notification_prefs import (
     in_quiet_hours,
@@ -16,25 +15,21 @@ from app.services.platform.notification_prefs import (
 
 def test_empty_prefs_take_every_default():
     for channel in Channel:
-        assert wants({}, notification_type=NotificationType.mention, channel=channel)
-        assert wants(None, notification_type=NotificationType.mention, channel=channel)
+        assert wants({}, category=NotificationCategory.mentions, channel=channel)
+        assert wants(None, category=NotificationCategory.mentions, channel=channel)
 
 
 def test_account_override_beats_the_default():
     prefs = {"categories": {"comments": {"in_app": False}}}
     assert not wants(
         prefs,
-        notification_type=NotificationType.comment_on_task,
+        category=NotificationCategory.comments,
         channel=Channel.in_app,
     )
     # Only the channel named moves.
-    assert wants(
-        prefs, notification_type=NotificationType.comment_on_task, channel=Channel.email
-    )
+    assert wants(prefs, category=NotificationCategory.comments, channel=Channel.email)
     # And only the category named — the split from mentions is the whole point.
-    assert wants(
-        prefs, notification_type=NotificationType.mention, channel=Channel.in_app
-    )
+    assert wants(prefs, category=NotificationCategory.mentions, channel=Channel.in_app)
 
 
 def test_community_override_beats_the_account_default():
@@ -44,14 +39,14 @@ def test_community_override_beats_the_account_default():
     }
     assert not wants(
         prefs,
-        notification_type=NotificationType.comment_reaction,
+        category=NotificationCategory.reactions,
         channel=Channel.push,
         guild_id=7,
     )
     # A different community keeps the account default.
     assert wants(
         prefs,
-        notification_type=NotificationType.comment_reaction,
+        category=NotificationCategory.reactions,
         channel=Channel.push,
         guild_id=8,
     )
@@ -62,7 +57,7 @@ def test_the_bell_is_gateable():
     prefs = {"categories": {"reactions": {"in_app": False}}}
     assert not wants(
         prefs,
-        notification_type=NotificationType.comment_reaction,
+        category=NotificationCategory.reactions,
         channel=Channel.in_app,
     )
 
@@ -71,13 +66,13 @@ def test_level_personal_keeps_only_what_names_you():
     prefs = {"guilds": {"7": {"level": NotificationLevel.personal.value}}}
     assert wants(
         prefs,
-        notification_type=NotificationType.mention,
+        category=NotificationCategory.mentions,
         channel=Channel.in_app,
         guild_id=7,
     )
     assert not wants(
         prefs,
-        notification_type=NotificationType.comment_on_task,
+        category=NotificationCategory.comments,
         channel=Channel.in_app,
         guild_id=7,
     )
@@ -85,16 +80,16 @@ def test_level_personal_keeps_only_what_names_you():
 
 def test_level_nothing_means_nothing_including_a_mention():
     prefs = {"guilds": {"7": {"level": NotificationLevel.nothing.value}}}
-    for notification_type in (
-        NotificationType.mention,
-        NotificationType.comment_reply,
-        NotificationType.task_assignment,
-        NotificationType.comment_on_task,
+    for category in (
+        NotificationCategory.mentions,
+        NotificationCategory.replies,
+        NotificationCategory.assignments,
+        NotificationCategory.comments,
     ):
         for channel in Channel:
             assert not wants(
                 prefs,
-                notification_type=notification_type,
+                category=category,
                 channel=channel,
                 guild_id=7,
             )
@@ -105,13 +100,13 @@ def test_a_level_cannot_reach_a_notification_that_has_no_community():
     prefs = {"guilds": {"7": {"level": NotificationLevel.nothing.value}}}
     assert wants(
         prefs,
-        notification_type=NotificationType.account_suspended,
+        category=NotificationCategory.account,
         channel=Channel.in_app,
         guild_id=7,
     )
     assert wants(
         prefs,
-        notification_type=NotificationType.direct_message,
+        category=NotificationCategory.direct_messages,
         channel=Channel.in_app,
         guild_id=None,
     )
@@ -121,13 +116,13 @@ def test_non_mutable_channels_ignore_overrides():
     prefs = {"categories": {"account": {"in_app": False}}}
     assert wants(
         prefs,
-        notification_type=NotificationType.account_suspended,
+        category=NotificationCategory.account,
         channel=Channel.in_app,
     )
     # The reachable channels are still the account's own choice.
     assert not wants(
         {"categories": {"account": {"email": False}}},
-        notification_type=NotificationType.account_suspended,
+        category=NotificationCategory.account,
         channel=Channel.email,
     )
 

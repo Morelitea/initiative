@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
-from functools import lru_cache
 from pathlib import Path
 
 from typing import Annotated, Any
@@ -19,7 +18,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_limits
-from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError
 
@@ -32,7 +30,7 @@ from app.api.deps import (
     raise_for_guild_access,
 )
 from app.api.plugin_openapi import build_plugin_openapi, mark_plugin_scopes
-from app.api.embed_csp import plugin_frame_policy
+from app.api.embed_csp import content_security_policy, plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
@@ -48,6 +46,7 @@ from app.core.security import (
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
+from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -217,10 +216,11 @@ async def lifespan(app: FastAPI):
         from app.services.data_jobs import cancel_running_jobs
 
         await cancel_running_jobs()
-        # Community steps a commit started finish before the pools close.
-        from app.db import cohorts
+        # Work a commit started, and every task spawned beside it, finishes
+        # before the pools close.
+        from app.db import post_commit
 
-        await cohorts.settle_all()
+        await post_commit.settle_all()
         # The expression evaluators of declarative plug-ins and the document
         # editor, if either started.
         from app.services import editor_engine
@@ -294,25 +294,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
 
-#: Stands in for a request that lands on a mounted sub-app. A mount has no
-#: endpoint to read a marker off, which is a different answer from "no route
-#: matched" and gets different treatment below.
-_MOUNTED = object()
-
-
-def _route_endpoint(request: Request) -> object | None:
-    """The endpoint the router will run for this request.
-
-    Starlette dispatches to the FIRST route that fully matches, so this stops
-    there rather than reading on.
-    """
-    for route in request.app.routes:
-        match, _ = route.matches(request.scope)
-        if match == Match.FULL:
-            endpoint = getattr(route, "endpoint", None)
-            return _MOUNTED if endpoint is None else endpoint
-    return None
-
 
 class _DefaultRateLimit(SlowAPIMiddleware):
     """The global default limit, applied against the route that will run.
@@ -328,9 +309,9 @@ class _DefaultRateLimit(SlowAPIMiddleware):
       set deliberately ABOVE the default is silently held down to it.
     * Every request pays a full scan of all 600 routes — ~430µs, measured.
 
-    Resolving the way the router itself does settles all three, so this
-    replaces ``dispatch`` rather than wrapping it: delegating upward would run
-    the scan it is here to avoid.
+    Resolving the way the router itself does (``app.core.routing``) settles
+    all three, so this replaces ``dispatch`` rather than wrapping it:
+    delegating upward would run the scan it is here to avoid.
     """
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -338,8 +319,8 @@ class _DefaultRateLimit(SlowAPIMiddleware):
         if not request_limiter.enabled:
             return await call_next(request)
 
-        endpoint = _route_endpoint(request)
-        if endpoint is _MOUNTED:
+        endpoint = route_endpoint(request.scope)
+        if endpoint is MOUNTED:
             # Nothing to read a marker off, so a mount is limited like any
             # undecorated route — by the URL it was asked for.
             handler = None
@@ -445,18 +426,6 @@ async def insufficient_privilege_handler(
     raise exc
 
 
-@lru_cache(maxsize=8)
-def _content_security_policy(captcha_provider: str | None) -> str:
-    """The app-wide CSP, built once per captcha provider.
-
-    The provider lives in the settings row, so it can change while the process
-    runs; everything else in the header is fixed for the process lifetime.
-    """
-    return settings.content_security_policy_with_frames(
-        (), captcha_provider=captcha_provider
-    )
-
-
 # The three WebAssembly workers — the dashboard widget sandbox, the direct
 # message ratchet and the PDF viewer's pdf.js worker — and only they, are served
 # with a policy that admits WebAssembly. Vite emits worker bundles into
@@ -510,7 +479,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # route's `script-src 'none'`) instead of overriding it.
         response.headers.setdefault(
             "Content-Security-Policy",
-            _content_security_policy(captcha_config.current_captcha_config().provider),
+            content_security_policy(captcha_config.current_captcha_config().provider),
         )
         if _STRICT_TRANSPORT_SECURITY is not None:
             # Unconditional (not setdefault): unlike CSP there is no legitimate

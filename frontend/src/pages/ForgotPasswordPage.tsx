@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import { recoverWithCode } from "@/api/generated/auth/auth";
+import { recoverWithCode, requestPasswordReset } from "@/api/generated/auth/auth";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { checkNewPassword } from "@/lib/passwordPolicy";
 
 /**
  * Two ways back in, on one card.
@@ -49,7 +49,7 @@ export const ForgotPasswordPage = () => {
     setStatus("sending");
     setError(null);
     try {
-      await apiClient.post("/auth/password/forgot", { email: email.toLowerCase().trim() });
+      await requestPasswordReset({ email: email.toLowerCase().trim() });
       setStatus("sent");
     } catch (err) {
       console.error(err);
@@ -60,13 +60,9 @@ export const ForgotPasswordPage = () => {
 
   const handleRecover = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (password !== confirmPassword) {
-      setError(t("resetPassword.passwordMismatch"));
-      return;
-    }
-    const policyError = validatePasswordLocal(password);
-    if (policyError) {
-      setError(policyError);
+    const passwordError = checkNewPassword(password, confirmPassword);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     setRecoverStatus("submitting");
@@ -183,40 +179,14 @@ export const ForgotPasswordPage = () => {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recover-password">{t("resetPassword.newPasswordLabel")}</Label>
-                  <Input
-                    id="recover-password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete="new-password"
-                    minLength={PASSWORD_MIN_LENGTH}
-                    required
-                  />
-                  <p
-                    className={
-                      password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                        ? "text-destructive text-xs"
-                        : "text-muted-foreground text-xs"
-                    }
-                  >
-                    {t("passwordPolicy.minLengthHelp")}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recover-confirm-password">
-                    {t("resetPassword.confirmPasswordLabel")}
-                  </Label>
-                  <Input
-                    id="recover-confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    autoComplete="new-password"
-                    required
-                  />
-                </div>
+                <NewPasswordFields
+                  id="recover-password"
+                  label={t("resetPassword.newPasswordLabel")}
+                  password={password}
+                  confirm={confirmPassword}
+                  onPasswordChange={setPassword}
+                  onConfirmChange={setConfirmPassword}
+                />
                 <Button className="w-full" type="submit" disabled={recoverStatus === "submitting"}>
                   {recoverStatus === "submitting"
                     ? t("forgotPassword.recovering")

@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.search import SearchEntityType
+from app.core.body_limit import max_document_body
 from app.services.permissions import Action
 from app.services.tenant import content_references
 from app.services.tenant.relationships import Endpoint
@@ -220,6 +221,7 @@ async def serialize_file_page(
 
 
 @router.post("/", response_model=FileRead, status_code=status.HTTP_201_CREATED)
+@max_document_body
 async def create_file(
     file_in: FileCreate,
     session: ActorSessionDep,
@@ -573,6 +575,7 @@ async def read_file(
 
 
 @router.patch("/{file_id}", response_model=FileRead)
+@max_document_body
 async def update_file(
     file_id: int,
     file_in: FileUpdate,

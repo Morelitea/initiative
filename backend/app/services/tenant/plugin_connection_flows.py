@@ -57,6 +57,7 @@ from app.core.encryption import SALT_PLUGIN_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import PluginChannelMessages, GuildPluginMessages
 from app.core.security import PluginPlatformSigningNotConfiguredError
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
@@ -1237,14 +1238,8 @@ async def _hold_renewal(
     stores what the vendor answered. Keyed by guild as well as install, because
     install ids repeat across guild schemas.
     """
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(
-                    f"plugin_token:{guild_id}:{install_id}:{connection}", 0
-                )
-            )
-        )
+    await advisory_lock(
+        session, LockNamespace.PLUGIN_TOKEN, f"{guild_id}:{install_id}:{connection}"
     )
 
 

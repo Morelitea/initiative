@@ -43,15 +43,22 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import DATABASE_LOGINS, settings
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_OR_TEMPLATE_SCHEMA_REGEX
-from app.db.public_rls import SHARED_ROLES, role_name
-from app.db.system_grants import GRANTABLE_SHARED_TABLES
+from app.db.public_rls import (
+    PLATFORM_ROUTES,
+    SHARED_ROLES,
+    SHARED_TABLE_REGISTRY,
+    platform_tier,
+    role_name,
+)
 
 logger = logging.getLogger(__name__)
 
-#: Serializes the bootstrap across processes. Role DDL writes shared catalogs,
-#: so two starts at once can collide there.
+#: Tried in order for the cluster-wide bootstrap lock. Both are conventionally
+#: present; a provider that exposes neither falls back to the per-database lock.
 #:
+#: Role DDL writes shared catalogs, so two starts at once can collide there.
 #: An advisory lock's key space is per-database, which is enough for replicas of
 #: one deployment (they share a database) but not for two deployments on one
 #: cluster. So the lock is taken on the cluster's maintenance database when that
@@ -60,10 +67,6 @@ logger = logging.getLogger(__name__)
 #:
 #: Two deployments sharing a cluster should not share login-role names; the
 #: names come from the connection URLs precisely so they need not.
-_BOOTSTRAP_LOCK_KEY = 0x1417B007
-
-#: Tried in order for the cluster-wide lock. Both are conventionally present;
-#: a provider that exposes neither falls back to the per-database lock.
 _MAINTENANCE_DATABASES = ("postgres", "template1")
 
 #: Clauses that take a privilege away from a role that already holds it. The
@@ -234,15 +237,11 @@ def _administer_existing_roles() -> str:
     (implicitly, PG16+), so the ones that already exist are granted here.
     Rendered at call time, under the configured role prefixes.
     """
-    from app.db.schema_provisioning import (
-        PLATFORM_ROUTES,
-        guild_role_regex,
-        platform_role_name,
-    )
+    from app.db.schema_provisioning import guild_role_regex
 
     names = sorted(
         {role_name(r) for r in SHARED_ROLES}
-        | {platform_role_name(r) for r in PLATFORM_ROUTES}
+        | {role_name(platform_tier(r)) for r in PLATFORM_ROUTES}
     )
     listed = ", ".join(f"'{n}'" for n in names)
     return f"""
@@ -392,6 +391,7 @@ END
 $$;
 """
 
+
 # Tables created by future provisioner-run migrations reach the routed roles
 # through the two shared floors. The login roles are deliberately absent: a new
 # shared table grants them nothing until a migration decides, from the audited
@@ -405,24 +405,30 @@ $$;
 # configuration and nothing else until the registry in system_grants.py says
 # otherwise. Nor does plugin_install_base, the floor an installed plug-in's routed
 # role inherits.
-_DEFAULT_PRIVILEGES = """
+def _default_privileges() -> str:
+    """Rendered at call time, under the configured role prefix."""
+    guild_floor, platform_floor = (
+        role_name(floor) for floor in ("app_guild_base", "platform_base")
+    )
+    return f"""
 DO $$
 DECLARE
     provisioner text := current_setting('app._bootstrap_role');
+    guild_floor text := '{guild_floor}';
+    platform_floor text := '{platform_floor}';
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base')
-       OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'platform_base') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = guild_floor)
+       OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = platform_floor) THEN
         RETURN;
     END IF;
     EXECUTE format(
         'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
-        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES '
-        'TO app_guild_base, platform_base',
-        provisioner);
+        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I, %I',
+        provisioner, guild_floor, platform_floor);
     EXECUTE format(
         'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
-        'GRANT SELECT, USAGE ON SEQUENCES TO app_guild_base, platform_base',
-        provisioner);
+        'GRANT SELECT, USAGE ON SEQUENCES TO %I, %I',
+        provisioner, guild_floor, platform_floor);
 END
 $$;
 """
@@ -532,38 +538,69 @@ async def _set_local(conn, key: str, value: str) -> None:
     await conn.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
 
 
-async def _ensure_role(conn, role: LoginRole) -> None:
+#: One step of the bootstrap: a ``(key, value)`` session setting the next
+#: statements read, or a statement to run.
+_Step = tuple[str, str] | str
+
+
+def _ensure_role_steps(role: LoginRole) -> list[_Step]:
     """Create the login, or bring an existing one to this shape."""
-    await _set_local(conn, "app._bootstrap_role", role.name)
-    await _set_local(conn, "app._bootstrap_attrs", role.attributes)
-    await _set_local(
-        conn, "app._bootstrap_attrs_superuser", role.attributes_if_superuser
-    )
-    await _set_local(conn, "app._bootstrap_pw", role.password or "")
-    await conn.execute(text(_ENSURE_ROLE))
+    return [
+        ("app._bootstrap_role", role.name),
+        ("app._bootstrap_attrs", role.attributes),
+        ("app._bootstrap_attrs_superuser", role.attributes_if_superuser),
+        ("app._bootstrap_pw", role.password or ""),
+        _ENSURE_ROLE,
+    ]
 
 
-async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
+def _role_steps(roles: tuple[LoginRole, ...]) -> list[_Step]:
+    """The logins, the database and the handover, in the order they apply.
+
+    The app runs these over its owner connection (:func:`_run_steps`) and
+    ``--print-sql`` prints them (:func:`bootstrap_sql`), so both do the same
+    work in the same order.
+    """
     provisioner = roles[0]
-    for role in roles:
-        await _ensure_role(conn, role)
-    await _set_local(conn, "app._bootstrap_pw", "")
-
+    steps: list[_Step] = [step for role in roles for step in _ensure_role_steps(role)]
     # Everything below acts for the provisioning role.
-    await _set_local(conn, "app._bootstrap_role", provisioner.name)
-    await conn.execute(text(_GRANT_DATABASE))
-    await conn.execute(text(_REVOKE_TEMPORARY))
-    await conn.execute(text(_VERIFY_TEMPORARY_REVOKED))
-    await conn.execute(text(_OWN_PUBLIC_SCHEMA))
+    steps += [
+        ("app._bootstrap_pw", ""),
+        ("app._bootstrap_role", provisioner.name),
+        _GRANT_DATABASE,
+        _REVOKE_TEMPORARY,
+        _VERIFY_TEMPORARY_REVOKED,
+        _OWN_PUBLIC_SCHEMA,
+    ]
     for role in roles:
         if role.name == provisioner.name:
             continue
-        await _set_local(conn, "app._bootstrap_grantee", role.name)
-        await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
-        await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
-    await conn.execute(text(_administer_existing_roles()))
-    await _transfer_ownership(conn)
-    await conn.execute(text(_DEFAULT_PRIVILEGES))
+        steps += [
+            ("app._bootstrap_grantee", role.name),
+            _ADMINISTER_LOGIN_ROLE,
+            _REVOKE_LOGIN_DEFAULT_PRIVILEGES,
+        ]
+    steps += [
+        _administer_existing_roles(),
+        ("app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY))),
+        ("app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))),
+        ("app._bootstrap_kept_owners", _kept_owners()),
+        _TRANSFER_STATEMENTS,
+        _default_privileges(),
+    ]
+    return steps
+
+
+async def _run_steps(conn, steps: list[_Step]) -> None:
+    """Apply the steps over ``conn``. The handover query returns the statements
+    to run, so it is run through :func:`_transfer_ownership`."""
+    for step in steps:
+        if isinstance(step, tuple):
+            await _set_local(conn, *step)
+        elif step is _TRANSFER_STATEMENTS:
+            await _transfer_ownership(conn)
+        else:
+            await conn.execute(text(step))
 
 
 @asynccontextmanager
@@ -585,9 +622,7 @@ async def _bootstrap_lock(url: str):
             await engine.dispose()
             continue
         try:
-            await conn.execute(
-                text("SELECT pg_advisory_lock(:key)"), {"key": _BOOTSTRAP_LOCK_KEY}
-            )
+            await advisory_lock(conn, LockNamespace.DATABASE_BOOTSTRAP, xact=False)
             yield
             return
         finally:
@@ -614,13 +649,6 @@ async def _transfer_ownership(conn) -> None:
     which is why this runs from the bootstrap connection and not from the
     provisioning one.
     """
-    await _set_local(
-        conn, "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
-    )
-    await _set_local(
-        conn, "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
-    )
-    await _set_local(conn, "app._bootstrap_kept_owners", _kept_owners())
     rows = (await conn.execute(text(_TRANSFER_STATEMENTS))).all()
     if not rows:
         return
@@ -694,7 +722,7 @@ async def warn_if_ownership_was_never_handed_over() -> None:
                         _FOREIGN_OWNERS,
                         {
                             "owner": provisioner.name,
-                            "tables": sorted(GRANTABLE_SHARED_TABLES),
+                            "tables": sorted(SHARED_TABLE_REGISTRY),
                         },
                     )
                 ).all()
@@ -776,59 +804,24 @@ def _executing(query: str) -> str:
 def bootstrap_sql() -> str:
     """The whole bootstrap as runnable SQL, for an operator applying it by hand.
 
-    The role name and password GUCs the statements read are emitted as
-    ``set_config`` calls ahead of them, so the output runs as-is under ``psql``.
+    The settings the statements read are emitted as ``set_config`` calls ahead
+    of them, so the output runs as-is under ``psql``.
     """
-    provisioner, app_login, system = login_roles()
     out: list[str] = [
         "-- Initiative database bootstrap. Run as the database owner",
         "-- (a superuser, for the search operator's LEAKPROOF function).",
         "BEGIN;",
-    ]
-
-    def setting(key: str, value: str) -> str:
-        return f"SELECT set_config('{key}', {_sql_literal(value)}, true);"
-
-    for role in (provisioner, app_login, system):
-        out += [
-            "",
-            f"-- {role.name}",
-            setting("app._bootstrap_role", role.name),
-            setting("app._bootstrap_attrs", role.attributes),
-            setting("app._bootstrap_attrs_superuser", role.attributes_if_superuser),
-            setting("app._bootstrap_pw", role.password or ""),
-            _ENSURE_ROLE.strip(),
-        ]
-    out += [
         "",
-        "-- Database, schema ownership and role administration",
-        setting("app._bootstrap_pw", ""),
-        setting("app._bootstrap_role", provisioner.name),
-        _GRANT_DATABASE.strip(),
-        _REVOKE_TEMPORARY.strip(),
-        _VERIFY_TEMPORARY_REVOKED.strip(),
-        _OWN_PUBLIC_SCHEMA.strip(),
     ]
-    for role in (app_login, system):
-        out += [
-            setting("app._bootstrap_grantee", role.name),
-            _ADMINISTER_LOGIN_ROLE.strip(),
-            _REVOKE_LOGIN_DEFAULT_PRIVILEGES.strip(),
-        ]
-    out += [
-        _administer_existing_roles().strip(),
-        "-- Ownership handover, for a database already running under another",
-        "-- login. Nothing to do on a fresh install.",
-        setting("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
-        setting(
-            "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
-        ),
-        setting("app._bootstrap_kept_owners", _kept_owners()),
-        _executing(_TRANSFER_STATEMENTS),
-        _DEFAULT_PRIVILEGES.strip(),
-        "",
-        "-- Guild search match operator",
-    ]
+    for step in _role_steps(login_roles()):
+        if isinstance(step, tuple):
+            key, value = step
+            out.append(f"SELECT set_config('{key}', {_sql_literal(value)}, true);")
+        elif step is _TRANSFER_STATEMENTS:
+            out.append(_executing(step))
+        else:
+            out.append(step.strip())
+    out += ["", "-- Guild search match operator"]
     out += [statement.strip() for _label, statement in _SEARCH_OPERATOR_STEPS]
     out += ["", "COMMIT;"]
     return "\n".join(out) + "\n"
@@ -912,12 +905,9 @@ async def ensure_database_bootstrap(
     engine = create_async_engine(url, poolclass=NullPool, echo=False)
     try:
         async with _bootstrap_lock(url), engine.begin() as conn:
-            await conn.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": _BOOTSTRAP_LOCK_KEY},
-            )
+            await advisory_lock(conn, LockNamespace.DATABASE_BOOTSTRAP)
             try:
-                await _apply_roles(conn, roles)
+                await _run_steps(conn, _role_steps(roles))
             except Exception as exc:
                 raise RuntimeError(
                     f"{owner_setting()} could not apply the database "

@@ -46,13 +46,11 @@
     "currentPasswordLabel": "Contraseña actual",
     "currentPasswordRequired": "Introduce tu contraseña actual para establecer una nueva.",
     "newPasswordLabel": "Nueva contraseña",
-    "confirmPasswordLabel": "Confirmar contraseña",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Subir",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://ejemplo.com/avatar.jpg",
     "removeUploadedAvatar": "Eliminar avatar subido",
-    "passwordsMismatch": "Las contraseñas no coinciden",
     "saveChanges": "Guardar cambios",
     "saving": "Guardando…",
     "updateError": "No se pudo actualizar el perfil",
@@ -492,6 +490,10 @@
     "deleteButton": "Eliminar cuenta",
     "title": "Cerrar tu cuenta"
   },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Escribe",
+    "typeToConfirmSuffix": "para confirmar"
+  },
   "deleteAccount": {
     "title": "Eliminar cuenta",
     "deactivateTitle": "Desactivar cuenta",
@@ -509,6 +511,7 @@
     "softDeleteRadioDescription": "No podrás iniciar sesión, pero todos los datos se conservarán. Un administrador puede reactivar tu cuenta más tarde.",
     "cannotDelete": "No se puede eliminar la cuenta:",
     "cannotDeactivate": "No se puede desactivar la cuenta:",
+    "soleSuperadminBlocker": "Eres el único superadministrador de {{communityName}}. Primero nombra superadministrador a otro miembro o elimina la comunidad.",
     "resolveIssues": "Por favor resuelve estos problemas antes de eliminar tu cuenta.",
     "resolveIssuesDeactivate": "Por favor resuelve estos problemas antes de desactivar tu cuenta.",
     "eligible": "Tu cuenta es elegible para eliminación.",
@@ -516,8 +519,6 @@
     "actionSerious": "Esta acción es seria:",
     "confirmPasswordLabel": "Confirma tu contraseña",
     "enterPassword": "Ingresa tu contraseña",
-    "typeToConfirmPrefix": "Escribe",
-    "typeToConfirmSuffix": "para confirmar",
     "deactivateAccount": "Desactivar cuenta",
     "deleteAccountButton": "Eliminar cuenta",
     "checking": "Verificando…",

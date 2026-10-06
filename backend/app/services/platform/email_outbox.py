@@ -31,11 +31,7 @@ from sqlalchemy import insert, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import (
-    Channel,
-    NotificationCategory,
-    sample_type,
-)
+from app.core.notification_categories import Channel, NotificationCategory
 from app.core.email_i18n import email_t
 from app.core.encryption import (
     SALT_EMAIL,
@@ -99,21 +95,24 @@ async def enqueue(
     request, usually — and appends to ``public.email_outbox``. An append, and
     only that: the row is the worker's from here on.
 
-    Every notification email in the app is written here, which is where the
-    deployment's and the community's answers about what may reach a mailbox are
-    applied: one of them declining writes nothing, and either of them asking for
-    a redacted notification stores the kind of thing that happened instead of
-    what it was about — so the row carries no more than the mail will.
+    The deployment's and the community's switches are applied here as well as
+    at send: one of them declining writes nothing, and either of them asking
+    for a redacted notification stores the kind of thing that happened instead
+    of what it was about — so the row carries no more than the mail will.
 
     ``prefs`` is the recipient's settings document, which the caller has
     already loaded to decide the email was wanted at all. The switches are read
     once per transaction of ``session``, so a fan-out asks once.
     """
-    policy = await notification_policy.for_send(session, guild_id)
-    if not policy.email:
+    shown = notification_policy.apply(
+        await notification_policy.for_send(session, guild_id),
+        pieces,
+        category=category,
+        locale=getattr(recipient, "locale", None) or "en",
+    )
+    if shown is None:
         return False
-    if policy.redact:
-        pieces = redacted(pieces, category, getattr(recipient, "locale", None) or "en")
+    pieces = shown
     if not await email_service.email_configured(session):
         # Nothing to drain it, so nothing is written. A caller holding a queue
         # keeps it rather than treating this as delivered.
@@ -123,7 +122,7 @@ async def enqueue(
 
     due = notification_prefs.email_due_at(
         prefs,
-        notification_type=sample_type(category),
+        category=category,
         tz_name=recipient.timezone,
         last_active_at=getattr(recipient, "last_active_at", None),
     )
@@ -148,19 +147,6 @@ async def enqueue(
         .inline()
     )
     return True
-
-
-def redacted(
-    pieces: email_service.EmailPieces, category: NotificationCategory, locale: str
-) -> email_service.EmailPieces:
-    """What a notification email says where content is redacted: the kind of
-    thing that happened, and the link to it."""
-    return email_service.EmailPieces(
-        subject=notification_policy.redacted_subject(category, locale),
-        headline=notification_policy.redacted_subject(category, locale),
-        body=notification_policy.redacted_body(category, locale),
-        link=pieces.link,
-    )
 
 
 async def enqueue_account_letter(
@@ -253,7 +239,7 @@ async def recompute_pending(
             continue
         due = notification_prefs.email_due_at(
             prefs,
-            notification_type=sample_type(category),
+            category=category,
             tz_name=tz_name,
             last_active_at=last_active_at,
             now=now,
@@ -422,30 +408,63 @@ async def _back_off(
 
 
 async def _send_one(
-    session: AsyncSession, *, user: User, rows: list[EmailOutboxItem], now: datetime
+    session: AsyncSession,
+    *,
+    user: User,
+    rows: list[EmailOutboxItem],
+    now: datetime,
 ) -> None:
     """Compose and send one account's due mail, then settle it.
 
     A security letter goes on its own, to every address the account has proved,
     and nothing drops it. The rest is notification mail: anything read in the
-    app on the way here, or switched off since it was written, is dropped, and
-    what is left goes as one message or one digest.
+    app on the way here, or switched off since it was written — by the
+    recipient, the deployment or its community — is dropped, a row whose
+    community has started redacting since says the kind of thing that
+    happened, and what is left goes as one message or one digest.
     """
     letters = [row for row in rows if row.security]
     rows = [row for row in rows if not row.security]
     prefs = await notification_prefs.load_prefs(session, user.id)
+    locale = getattr(user, "locale", None) or "en"
     if rows:
         stale = await _already_read(session, rows)
-        refused = {
-            row.id
-            for row in rows
-            if row.id not in stale and not _still_wanted(prefs, row)
-        }
+        policies = await notification_policy.for_send_many(
+            session, {row.guild_id for row in rows}
+        )
+        refused = set()
+        for row in rows:
+            if row.id in stale:
+                continue
+            shown = (
+                notification_policy.apply(
+                    policies[row.guild_id],
+                    email_service.EmailPieces(
+                        subject=row.subject,
+                        headline=row.headline,
+                        body=row.body,
+                        link=row.link,
+                        link_label=row.link_label,
+                    ),
+                    category=NotificationCategory(row.category),
+                    locale=row.locale or locale,
+                )
+                if _still_wanted(prefs, row)
+                else None
+            )
+            if shown is None:
+                refused.add(row.id)
+                continue
+            row.subject, row.headline, row.body, row.link_label = (
+                shown.subject,
+                shown.headline,
+                shown.body,
+                shown.link_label,
+            )
         await _discard(session, sorted(stale | refused))
         rows = [row for row in rows if row.id not in stale and row.id not in refused]
 
     _settings, accent = await email_service.email_context(session)
-    locale = getattr(user, "locale", None) or "en"
     for batch in [[letter] for letter in letters] + ([rows] if rows else []):
         ids = [row.id for row in batch]
         try:
@@ -579,7 +598,7 @@ def _still_wanted(prefs: Mapping[str, Any], row: EmailOutboxItem) -> bool:
         return False
     return notification_prefs.wants(
         prefs,
-        notification_type=sample_type(category),
+        category=category,
         channel=Channel.email,
         guild_id=row.guild_id,
     )

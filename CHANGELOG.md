@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Account deletion API.** `GET /me/deletion-eligibility` and the operator eligibility check no longer return `blockers` text; read `last_owner`, `sole_superadmin_communities` (and, for operators, `community_blockers`). Refusing to delete a community's only seat holder answers `CANNOT_VACATE_LAST_SUPERADMIN`.
 - **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
 - **Documents are now called Files.** Text documents, whiteboards, spreadsheets, links and uploads live in the Files tool, and the API says so: `/api/v1/c/{community_id}/files/…`, `file_id`, `file_type` and `files_enabled`, webhook events `files.*`, plug-in scopes `files:read` and `files:write`, and the export type `initiative-file`. Upgrading moves what is already stored, including plug-in grants, webhook subscriptions and the SQL in dashboards. A plug-in manifest that still asks for `documents:read` or `documents:write` is refused until it is republished with plug-in kit 3.0.0. Links to the old `/documents/…` pages and `/go/document/…` no longer open, and saved list layouts for the tool start fresh. Backups made before the rename still restore.
 - **Queue API.** A queue reports `current_item_id` instead of the whole `current_item`, and queue items no longer carry `tasks` (read an item's links from the relationships API). Queue item routes sit under the `queues` tag, so an agent can read a queue item back. Plug-ins with a queue's or counter group's write scope can now add its items and counters, edit counters, reset all counters and sort them.
@@ -79,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Notifications inbox.** Clicking a finished export now downloads it, as the bell does, and items are grouped under the day they happened where you are.
+- **Notification switches reach queued email.** Turning email off for a community or the server, or hiding notification content, now also applies to emails already waiting to go out, such as a digest held for its next send.
 - **An imported dashboard keeps its tags**, as other tools do.
 - **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
 - **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.

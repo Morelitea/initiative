@@ -1,4 +1,5 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import type {
   AccountDeletionResponse,
@@ -62,9 +63,16 @@ export const usePlatformUsers = (
  * Check whether a specific user can be deleted (operator endpoint).
  *
  * Disabled by default -- call `refetch()` to trigger the eligibility check
- * on demand.
+ * on demand. The answer is cleared while `open` is false, so a dialog opened
+ * again starts without the last one.
  */
-export const useUserDeletionEligibility = (userId: number) => {
+export const useUserDeletionEligibility = (userId: number, open: boolean) => {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!open) {
+      void queryClient.resetQueries({ queryKey: getCheckUserDeletionEligibilityQueryKey(userId) });
+    }
+  }, [open, queryClient, userId]);
   return useQuery<OperatorDeletionEligibilityResponse>({
     queryKey: getCheckUserDeletionEligibilityQueryKey(userId),
     queryFn: () => checkUserDeletionEligibility(userId),
@@ -76,9 +84,16 @@ export const useUserDeletionEligibility = (userId: number) => {
  * Check whether the current (logged-in) user can delete their own account.
  *
  * Disabled by default -- call `refetch()` to trigger the eligibility check
- * on demand.
+ * on demand. The answer is cleared while `open` is false, so a dialog opened
+ * again starts without the last one.
  */
-export const useMyDeletionEligibility = () => {
+export const useMyDeletionEligibility = (open: boolean) => {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!open) {
+      void queryClient.resetQueries({ queryKey: getCheckDeletionEligibilityQueryKey() });
+    }
+  }, [open, queryClient]);
   return useQuery<DeletionEligibilityResponse>({
     queryKey: getCheckDeletionEligibilityQueryKey(),
     queryFn: () => checkDeletionEligibility(),

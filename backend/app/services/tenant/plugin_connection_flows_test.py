@@ -1357,18 +1357,22 @@ class TestVendorWebhooks:
         from starlette.requests import Request
 
         from app.api.v1.platform_endpoints.plugin_hooks import _per_plugin_and_sender
+        from app.core import audit_context
 
         def _key(address: str) -> str:
-            return _per_plugin_and_sender(
-                Request(
-                    {
-                        "type": "http",
-                        "headers": [],
-                        "client": (address, 443),
-                        "path_params": {"public_id": PUBLIC_ID},
-                    }
+            _, token = audit_context.begin(request_id="x", source_ip=address)
+            try:
+                return _per_plugin_and_sender(
+                    Request(
+                        {
+                            "type": "http",
+                            "headers": [],
+                            "path_params": {"public_id": PUBLIC_ID},
+                        }
+                    )
                 )
-            )
+            finally:
+                audit_context.end(token)
 
         assert _key("203.0.113.7") != _key("198.51.100.9")
         assert _key("203.0.113.7") == _key("203.0.113.7")

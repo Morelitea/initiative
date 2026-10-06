@@ -46,13 +46,11 @@
     "currentPasswordLabel": "Aktuelles Passwort",
     "currentPasswordRequired": "Gib dein aktuelles Passwort ein, um ein neues festzulegen.",
     "newPasswordLabel": "Neues Passwort",
-    "confirmPasswordLabel": "Passwort bestätigen",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Hochladen",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.jpg",
     "removeUploadedAvatar": "Hochgeladenen Avatar entfernen",
-    "passwordsMismatch": "Passwörter stimmen nicht überein",
     "saveChanges": "Änderungen speichern",
     "saving": "Speichern…",
     "updateError": "Profil konnte nicht aktualisiert werden",
@@ -492,6 +490,10 @@
     "deleteButton": "Konto löschen",
     "title": "Konto schließen"
   },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Tippe",
+    "typeToConfirmSuffix": "zum Bestätigen"
+  },
   "deleteAccount": {
     "title": "Konto löschen",
     "deactivateTitle": "Konto deaktivieren",
@@ -511,6 +513,7 @@
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
     "cannotDeactivate": "Konto kann nicht deaktiviert werden:",
+    "soleSuperadminBlocker": "Du bist der einzige Superadmin von {{communityName}}. Mach zuerst ein anderes Mitglied zum Superadmin oder lösche die Community.",
     "resolveIssues": "Bitte behebe diese Probleme, bevor du dein Konto löschst.",
     "resolveIssuesDeactivate": "Bitte behebe diese Probleme, bevor du dein Konto deaktivierst.",
     "eligible": "Dein Konto ist zum Löschen berechtigt.",
@@ -520,8 +523,6 @@
     "softDeleteConfirmDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt. Du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "confirmPasswordLabel": "Bestätige dein Passwort",
     "enterPassword": "Gib dein Passwort ein",
-    "typeToConfirmPrefix": "Tippe",
-    "typeToConfirmSuffix": "zum Bestätigen",
     "deactivateAccount": "Konto deaktivieren",
     "deleteAccountButton": "Konto löschen",
     "checking": "Wird geprüft…",

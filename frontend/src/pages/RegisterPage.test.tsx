@@ -1,5 +1,5 @@
 /**
- * The first-owner registration card's second door.
+ * The first-owner registration card, which asks the start flow's account step.
  *
  * An account can be made with a key instead of a password, which is what a
  * deployment that has withdrawn passwords needs to take a registration at
@@ -13,6 +13,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +59,7 @@ beforeEach(() => {
   mocks.browserOffersPasskeys.mockReturnValue(true);
   mocks.signUpWithPasskey.mockReset();
   mocks.applyPasskeySignIn.mockReset();
+  mocks.register.mockReset();
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -112,4 +114,26 @@ it("shows the recovery codes a key registration comes back with", async () => {
   expect(mocks.applyPasskeySignIn).toHaveBeenCalledWith({ access_token: "a-session" });
   expect(await screen.findByText("aaaa-1111")).toBeInTheDocument();
   expect(screen.getByText("bbbb-2222")).toBeInTheDocument();
+});
+
+it("says what a password registration waits on, in place of the form", async () => {
+  const user = userEvent.setup();
+  mocks.register.mockResolvedValue(buildUser({ status: "active", email_verified: false }));
+  renderPage(RegisterPage, { initialRoute: "/login" });
+  await fillIn(user);
+  await user.type(screen.getByLabelText(/^password/i), "a-long-enough-password");
+  await user.type(screen.getByLabelText(/confirm password/i), "a-long-enough-password");
+  await user.click(screen.getByRole("button", { name: "Sign up" }));
+
+  expect(await screen.findByText(/check your inbox/i)).toBeInTheDocument();
+  expect(mocks.register).toHaveBeenCalledWith(
+    expect.objectContaining({
+      email: "keys@example.com",
+      username: "keys",
+      password: "a-long-enough-password",
+    })
+  );
+  // Not signed in until the address is verified; the message replaces the form.
+  expect(mocks.login).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText(/^password/i)).not.toBeInTheDocument();
 });

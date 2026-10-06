@@ -20,7 +20,8 @@ from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, normalize_email, SALT_EMAIL
 from app.core.errors import CodedError
 from app.core.messages import GuildMessages
-from app.db import cohorts
+from app.db import cohorts, post_commit
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.query import apply_pagination
 from app.models.platform.guild import (
@@ -50,6 +51,7 @@ from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
+from app.services.platform.retention import COMMUNITY_DELETION, COMMUNITY_HOLD
 from app.db.request_context import Platform, SystemGuild, Unattributed
 
 if TYPE_CHECKING:
@@ -444,7 +446,7 @@ def enroll_new_member_in_auto_join_initiatives(
             )
             await guild_session.commit()
 
-    cohorts.after_commit(session, enroll_in_auto_join_initiatives)
+    post_commit.after_commit(session, enroll_in_auto_join_initiatives)
 
 
 def align_admin_initiative_roles(
@@ -482,13 +484,7 @@ def align_admin_initiative_roles(
             )
             await guild_session.commit()
 
-    cohorts.after_commit(session, align_guild_admin_membership_roles)
-
-
-# Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
-# tag ("USER") so the two-int key (namespace, guild_id) can't collide with the
-# storage-quota ("STOR") or (user_id, guild_id) advisory locks used elsewhere.
-_MEMBER_CAP_LOCK_NAMESPACE = 0x55534552  # 1431193938
+    post_commit.after_commit(session, align_guild_admin_membership_roles)
 
 
 async def _assert_member_capacity(
@@ -518,10 +514,7 @@ async def _assert_member_capacity(
     if administration.max_users is None:
         return
     if claiming_seat:
-        await session.exec(
-            text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-            params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
-        )
+        await advisory_lock(session, LockNamespace.MEMBER_CAP, guild_id)
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
         raise GuildCapacityError(GuildMessages.COMMUNITY_USER_LIMIT_REACHED)
 
@@ -787,9 +780,6 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
-_GUILD_CREATION_LOCK_NAMESPACE = 0x47435245  # 1195594309
-
-
 async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
     """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
     communities in the last day?
@@ -802,10 +792,7 @@ async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bo
     limit = settings.GUILD_CREATION_DAILY_LIMIT
     if not limit:
         return True
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _GUILD_CREATION_LOCK_NAMESPACE, "uid": int(user_id)},
-    )
+    await advisory_lock(session, LockNamespace.GUILD_CREATION, user_id)
     since = datetime.now(timezone.utc) - timedelta(days=1)
     created = await session.scalar(
         select(func.count())
@@ -1469,9 +1456,9 @@ async def delete_guild(
 class CommunityDeletionNotice:
     """What to write to whom after a community is deleted.
 
-    Gathered before the deletion rather than after: a community of one loses
-    its roster on the way out, so the people to tell have to be read while
-    they are still there.
+    Its recipients are gathered before the deletion rather than after: a
+    community of one loses its roster on the way out, so the people to tell
+    have to be read while they are still there.
 
     ``purge_at`` is ``None`` where the deployment keeps deleted communities
     indefinitely — then there is no date to name, only the fact that an
@@ -1483,19 +1470,17 @@ class CommunityDeletionNotice:
     purge_at: datetime | None
 
 
-async def _deletion_notice(
-    session: AsyncSession, guild: Guild
-) -> CommunityDeletionNotice:
-    """Who to tell that this community is gone, and by when it stops being
-    recoverable.
+async def _deletion_recipients(session: AsyncSession, guild: Guild) -> list[str]:
+    """Who to tell that this community is gone.
 
     The people who run it. They are the ones who can ask an operator to put it
     back, and the ones a community's own news belongs to; its members are told
     by the community disappearing from their lists, which is what they can act
-    on. Proved addresses only, as account mail is.
+    on. Proved addresses only, as account mail is. Sorted and de-duplicated:
+    somebody holding two addresses gets one letter at each, and two admins are
+    not two letters to the same box.
     """
     from app.services.auth import addresses
-    from app.services.platform import guild_purge
 
     running_it = (
         await session.exec(
@@ -1508,16 +1493,7 @@ async def _deletion_notice(
     recipients: list[str] = []
     for user_id in running_it:
         recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
-
-    days = await guild_purge.retention_days(session)
-    deleted_at = datetime.now(timezone.utc)
-    return CommunityDeletionNotice(
-        community_name=guild.name,
-        # Sorted and de-duplicated: somebody holding two addresses gets one
-        # letter at each, and two admins are not two letters to the same box.
-        recipients=sorted(set(recipients)),
-        purge_at=guild_purge.purge_at(deleted_at, days) if days else None,
-    )
+    return sorted(set(recipients))
 
 
 async def _seat_letters(
@@ -1572,7 +1548,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
-    from app.services.platform import guild_purge
+    from app.services.platform import app_settings as app_settings_service
     from app.services.platform import intake as intake_service
     from app.services.platform import notice_outbox
 
@@ -1583,11 +1559,8 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     if guild is None or guild.status != CommunityStatus.on_hold.value:
         return
     contact = await intake_service.contact_for(session, IntakeStream.support)
-    days = await guild_purge.hold_deletion_days(session)
-    delete_at = (
-        guild_purge.hold_deletes_at(guild.status_changed_at, days)
-        if days is not None and guild.status_changed_at is not None
-        else None
+    delete_at = COMMUNITY_HOLD.ends_at(
+        guild, await app_settings_service.get_app_settings(session)
     )
     seat_holders = await _superadmin_ids(session, guild_id)
     data: dict = {"community": guild.name, "contact": contact, "target_path": "/"}
@@ -1833,9 +1806,11 @@ async def soft_delete_guild(
     by the time this returns, every one of those people has an account that
     says something different.
     """
+    from app.services.platform import app_settings as app_settings_service
+
     guild_id = guild.id
     # Read while the roster is still there: a community of one loses it below.
-    notice = await _deletion_notice(session, guild)
+    recipients = await _deletion_recipients(session, guild)
     await _signal_members_present(session, guild_id=guild_id, action="membership")
     members = await count_members(session, guild_id=guild_id)
     clear_roster = not keep_roster and members <= 1
@@ -1857,7 +1832,13 @@ async def soft_delete_guild(
     guild.status_changed_at = datetime.now(timezone.utc)
     session.add(guild)
     await session.flush()
-    return notice
+    return CommunityDeletionNotice(
+        community_name=guild.name,
+        recipients=recipients,
+        purge_at=COMMUNITY_DELETION.ends_at(
+            guild, await app_settings_service.get_app_settings(session)
+        ),
+    )
 
 
 async def guild_has_seat(session: AsyncSession, *, guild_id: int) -> bool:
@@ -2450,11 +2431,6 @@ async def describe_invite_code(
     return invite, guild, False, reason
 
 
-#: Namespace for the per-guild advisory lock below, so the key cannot collide
-#: with another feature's advisory lock on the same guild id.
-SEAT_LOCK_NAMESPACE = 8471
-
-
 async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     """Order the changes that could leave a guild's sign-in rule unliftable.
 
@@ -2469,10 +2445,7 @@ async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     this first, so they order rather than interleave. Held to the end of the
     transaction; the caller does not release it.
     """
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-        params={"ns": SEAT_LOCK_NAMESPACE, "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.GUILD_SEATS, guild_id)
 
 
 def _sole_seats(user_id: int):

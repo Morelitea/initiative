@@ -46,13 +46,11 @@
     "currentPasswordLabel": "Current password",
     "currentPasswordRequired": "Enter your current password to set a new one.",
     "newPasswordLabel": "New password",
-    "confirmPasswordLabel": "Confirm password",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Upload",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.jpg",
     "removeUploadedAvatar": "Remove uploaded avatar",
-    "passwordsMismatch": "Passwords do not match",
     "saveChanges": "Save changes",
     "saving": "Saving…",
     "updateError": "Unable to update profile",
@@ -492,6 +490,10 @@
     "deleteButton": "Delete account",
     "title": "Close your account"
   },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Type",
+    "typeToConfirmSuffix": "to confirm"
+  },
   "deleteAccount": {
     "title": "Delete Account",
     "deactivateTitle": "Deactivate Account",
@@ -511,6 +513,7 @@
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
     "cannotDeactivate": "Cannot deactivate account:",
+    "soleSuperadminBlocker": "You are the only superadmin of {{communityName}}. Make another member superadmin, or delete the community, first.",
     "resolveIssues": "Please resolve these issues before deleting your account.",
     "resolveIssuesDeactivate": "Please resolve these issues before deactivating your account.",
     "eligible": "Your account is eligible for deletion.",
@@ -520,8 +523,6 @@
     "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
-    "typeToConfirmPrefix": "Type",
-    "typeToConfirmSuffix": "to confirm",
     "deactivateAccount": "Deactivate Account",
     "deleteAccountButton": "Delete Account",
     "checking": "Checking…",

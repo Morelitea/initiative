@@ -17,7 +17,7 @@ from datetime import timedelta
 from typing import Optional, Sequence, cast
 
 from fastapi import status
-from sqlalchemy import or_, text, update as sa_update
+from sqlalchemy import or_, update as sa_update
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,6 +30,7 @@ from app.core.capabilities import (
     roles_with_capability,
 )
 from app.core.login_methods import LoginMethod
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.query import paginated_query
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
@@ -68,10 +69,7 @@ async def _lock_user_guild_grants(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
     """Serialize grant changes for one user and guild until transaction end."""
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
-        params={"uid": int(user_id), "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.ACCESS_GRANT, f"{user_id}:{guild_id}")
 
 
 #: The window a grant gets when the request names none.
@@ -407,8 +405,7 @@ async def break_glass(
     # read-then-insert anti-stacking check below can't be raced into two live
     # grants. A transaction-scoped advisory lock on the (user_id, guild_id) pair
     # makes a second concurrent request wait, then see the first's grant and hit
-    # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
-    # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
+    # ALREADY_LIVE; the lock auto-releases on commit/rollback.
     await _lock_user_guild_grants(
         session, user_id=actor.id, guild_id=payload.community_id
     )

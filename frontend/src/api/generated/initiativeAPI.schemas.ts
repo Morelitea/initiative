@@ -204,7 +204,7 @@ export const AccessGrantStatus = {
  * The fifth is not:
  *
  * - ``deleted``: the guild has been deleted and is being retained for
- *   :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
+ *   :data:`~app.services.platform.retention.COMMUNITY_DELETION` before
  *   it is destroyed. Nobody in the guild reaches it, its admins included,
  *   and it is absent from every member's guild list.
  *
@@ -3760,7 +3760,7 @@ export interface DefaultFilter {
  */
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
-  blockers: string[];
+  last_owner: boolean;
   sole_superadmin_communities: string[];
 }
 
@@ -6293,7 +6293,7 @@ export interface OperatorCatalogScanResult {
  */
 export interface OperatorDeletionEligibilityResponse {
   can_delete: boolean;
-  blockers: string[];
+  last_owner: boolean;
   community_blockers: CommunityBlockerInfo[];
 }
 

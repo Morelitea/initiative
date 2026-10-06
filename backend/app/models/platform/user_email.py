@@ -26,6 +26,8 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Index, SQLModel
 
+from app.core.encryption import EMAIL_HASH_COLUMN, FERNET_SALT, SALT_EMAIL
+
 
 class UserEmail(SQLModel, table=True):
     """One address belonging to one account."""
@@ -65,9 +67,15 @@ class UserEmail(SQLModel, table=True):
     # Keyed HMAC of the normalised address (app.core.encryption.hash_email) —
     # what an equality lookup and the unique constraint run on.
     email_hash: str = Field(sa_column=Column(String(64), nullable=False))
-    # Fernet ciphertext under SALT_EMAIL. Rotated with the users copy, in the
+    # Fernet ciphertext under SALT_EMAIL. Re-keyed with email_hash, in the
     # same statement, so the hash and the ciphertext never disagree.
-    email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
+    email_encrypted: str = Field(
+        sa_column=Column(
+            String(2000),
+            nullable=False,
+            info={FERNET_SALT: SALT_EMAIL, EMAIL_HASH_COLUMN: "email_hash"},
+        )
+    )
 
     # When the holder proved they hold it. NULL means unproven.
     verified_at: Optional[datetime] = Field(

@@ -76,6 +76,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_PLUGIN_VENDOR
 from app.models.platform.identity_ref import IdentityPurpose
 
 __all__ = [
@@ -277,7 +278,12 @@ class PluginServiceRegistration(SQLModel, table=True):
     # ciphertext under ``SALT_PLUGIN_VENDOR``, secret or not.
     vendor_values: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+        sa_column=Column(
+            JSONB,
+            nullable=False,
+            server_default=text("'{}'::jsonb"),
+            info={FERNET_SALT: SALT_PLUGIN_VENDOR},
+        ),
     )
     # The keys the listing's manifest marks required, kept in step whenever the
     # registration or its listing is written.

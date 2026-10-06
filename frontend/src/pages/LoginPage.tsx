@@ -5,10 +5,7 @@ import { KeyRound, Mail } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  bootstrapStatus as bootstrapStatusRequest,
-  listLoginProviders,
-} from "@/api/generated/auth/auth";
+import { useBootstrapStatus } from "@/api/generated/auth/auth";
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
@@ -28,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
+import { useLoginProviders } from "@/hooks/useCommunityAuthPolicy";
 import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 import { useServer } from "@/hooks/useServer";
 import { getErrorCode } from "@/lib/errorMessage";
@@ -39,7 +37,7 @@ import {
   cancelPendingPasskeyPrompt,
   signInWithPasskey,
 } from "@/lib/passkeys";
-import { returnPath } from "@/lib/returnPath";
+import { providerSignInHref } from "@/lib/returnPath";
 import { compactCode } from "@/lib/secondFactorAnswer";
 
 import { RegisterPage } from "./RegisterPage";
@@ -83,7 +81,7 @@ const SignInCard = () => {
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
-  const { isNativePlatform, isServerConfigured, getServerOrigin } = useServer();
+  const { isNativePlatform, getServerOrigin } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -98,11 +96,14 @@ const SignInCard = () => {
   // The emailed-code card takes the whole frame while it is open: it asks for
   // one thing at a time, and the other ways in are not among them.
   const [emailOtpOpen, setEmailOtpOpen] = useState(false);
-  const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
-  const [providersLoaded, setProvidersLoaded] = useState(false);
-  const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
-    "loading"
-  );
+  // The sign-in providers the server offers, one button each. Only an answer
+  // says nothing is offered; a failed request says nothing at all.
+  const providersQuery = useLoginProviders();
+  const providers = providersQuery.data?.providers ?? [];
+  const providersLoaded = providersQuery.data !== undefined;
+  // A server nobody has signed up to yet opens on first-run registration. A
+  // probe that fails leaves the sign-in card up.
+  const bootstrap = useBootstrapStatus({ query: { retry: false } });
   const inviteCodeParam = useMemo(() => {
     const code = searchParams.invite_code;
     return code && code.trim().length > 0 ? code.trim() : null;
@@ -119,24 +120,6 @@ const SignInCard = () => {
   // A phone's Add-a-passkey equivalent: the browser decides which site it is
   // on, so on native the button opens one rather than prompting in the webview.
   const passkeyOffered = passkeyLoginEnabled && (isNativePlatform || browserOffersPasskeys());
-
-  // Fetch the sign-in providers the server offers (one button per provider).
-  // Re-runs when the server becomes configured: on native the base URL is
-  // hydrated after mount, and a fetch before that returns nothing.
-  useEffect(() => {
-    const fetchProviders = async () => {
-      try {
-        const response = await listLoginProviders();
-        setProviders(response.providers);
-        // Only an answer says nothing is offered; a failed request says
-        // nothing at all.
-        setProvidersLoaded(true);
-      } catch {
-        setProviders([]);
-      }
-    };
-    void fetchProviders();
-  }, [isServerConfigured]);
 
   const resolveDeviceName = async (): Promise<string> => {
     try {
@@ -163,25 +146,9 @@ const SignInCard = () => {
       // On web, redirect directly — carrying where they were headed, so an
       // account that only signs in through a provider finishes the trip it
       // started. The server reads `next` back on its callback.
-      const next = returnPath(searchParams.next);
-      window.location.href = next
-        ? `${provider.login_url}?next=${encodeURIComponent(next)}`
-        : provider.login_url;
+      window.location.href = providerSignInHref(provider.login_url, searchParams.next);
     }
   };
-
-  // Fetch bootstrap status
-  useEffect(() => {
-    const fetchBootstrapStatus = async () => {
-      try {
-        const response = await bootstrapStatusRequest();
-        setBootstrapStatus(response.has_users ? "ready" : "required");
-      } catch {
-        setBootstrapStatus("ready");
-      }
-    };
-    void fetchBootstrapStatus();
-  }, [isServerConfigured]);
 
   // Memoized, along with the two below it: the autofill ceremony is started
   // from an effect, and a handler that is a new function every render would
@@ -386,7 +353,7 @@ const SignInCard = () => {
     );
   }
 
-  if (bootstrapStatus === "loading") {
+  if (bootstrap.isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
         <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
@@ -394,7 +361,7 @@ const SignInCard = () => {
     );
   }
 
-  if (bootstrapStatus === "required") {
+  if (bootstrap.data?.has_users === false) {
     return <RegisterPage />;
   }
 

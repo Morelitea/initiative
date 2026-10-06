@@ -24,7 +24,6 @@ secret), so billing can authenticate the nudge without a second credential.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -39,6 +38,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
+from app.db import post_commit
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform.identity_refs import billing_guild_ref, existing_ref
 
@@ -55,10 +55,6 @@ _PING_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
 _PAYMENT_ISSUE_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
 _PAYMENT_ISSUE_MAX_BYTES = 256
 _PLAN_SUMMARY_MAX_BYTES = 1024
-
-# Strong references so in-flight pings aren't garbage-collected mid-send
-# (asyncio keeps only weak refs to tasks).
-_pending_pings: set[asyncio.Task] = set()
 
 
 def billing_ping_enabled() -> bool:
@@ -147,9 +143,7 @@ async def _send_lifecycle_ping(guild_id: int) -> None:
 def _dispatch(send, guild_id: int) -> None:
     if not billing_ping_enabled():
         return
-    task = asyncio.create_task(send(int(guild_id)))
-    _pending_pings.add(task)
-    task.add_done_callback(_pending_pings.discard)
+    post_commit.spawn(send(int(guild_id)))
 
 
 def notify_membership_changed(guild_id: int) -> None:

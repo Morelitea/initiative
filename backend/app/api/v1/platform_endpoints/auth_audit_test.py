@@ -17,7 +17,7 @@ from app.api.v1.platform_endpoints.auth_test import (
     _run_oidc_flow,
     _wire_fake_idp,
 )
-from app.core.audit_events import AuditCategory, AuditEventType, meta_for
+from app.core.audit_events import AuditCategory, AuditEventType
 from app.models.platform.user import UserStatus
 from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
@@ -43,7 +43,7 @@ async def test_a_sign_in_is_recorded_with_its_method(
     rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
     assert [r["actor_user_id"] for r in rows] == [user_id]
     assert rows[0]["detail"] == {"method": "password"}
-    assert rows[0]["tier"] == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
+    assert rows[0]["tier"] == AuditEventType.AUTH_SIGNED_IN.tier
 
 
 async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
@@ -181,7 +181,7 @@ async def test_every_auth_event_is_filed_under_authentication():
     auth_events = [e for e in AuditEventType if e.value.startswith("auth.")]
     assert auth_events
     for event_type in auth_events:
-        assert meta_for(event_type).category is AuditCategory.AUTHENTICATION
+        assert event_type.category is AuditCategory.AUTHENTICATION
 
 
 async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
@@ -291,7 +291,6 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     Where the account had not proved the address, the provider's word is its
     first proof, what the account held before it is retired, and the account's
     open connections are rechecked once that commits."""
-    import asyncio
 
     from sqlmodel import select
 
@@ -302,7 +301,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     from app.services import content_sockets
     from app.services.auth import addresses
     from app.services.auth import totp as totp_service
-    from app.services.platform import user_stream
+    from app.db import post_commit
     from app.testing.oidc import FakeIdp
 
     rechecked: list[int] = []
@@ -344,7 +343,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
         },
     )
     assert response.status_code in (302, 307)
-    await asyncio.gather(*user_stream._inflight)
+    await post_commit.settle_all()
 
     events = emitted(capfd)
     rows = [r for r in events if r["event_type"] == "auth.identity_linked"]

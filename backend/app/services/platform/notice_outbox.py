@@ -23,7 +23,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlmodel import select
@@ -36,7 +36,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.services import email as email_service
 from app.services.platform import (
-    email_outbox,
     notification_policy,
     notification_prefs,
     push_config,
@@ -110,6 +109,32 @@ def row(
     }
 
 
+def _policy_of(
+    policies: Mapping[int | None, notification_policy.NotificationPolicy],
+    guild_id: int | None,
+    data: Mapping[str, Any],
+) -> notification_policy.NotificationPolicy:
+    """The answer a row is sent under: its community's, joined with every
+    community a push of its own gathers from.
+
+    Such a push goes while any of them still sends push. Once one of them has
+    stopped, or any redacts, it says only the kind of thing that happened.
+    """
+    policy = policies[guild_id]
+    gathered = [policies[gid] for gid in data.get("communities", ())]
+    if not gathered:
+        return policy
+    sending = [answer for answer in gathered if answer.push]
+    return policy.stricter_than(
+        notification_policy.NotificationPolicy(
+            push=bool(sending),
+            email=all(answer.email for answer in gathered),
+            redact=len(sending) < len(gathered)
+            or any(answer.redact for answer in gathered),
+        )
+    )
+
+
 async def notice(
     session: AsyncSession,
     recipient: User,
@@ -120,27 +145,39 @@ async def notice(
     push: tuple[str, str] | None = None,
     push_data: Mapping[str, Any] | None = None,
     email: email_service.EmailPieces | None = None,
+    communities: Iterable[int | None] = (),
     **fields: Any,
 ) -> dict[str, Any]:
     """One recipient's row, holding no more than the notice may say.
 
-    The deployment's and the community's switches are applied here: a channel
-    either has switched off is left empty, and where either redacts, the push
-    and the email say the kind of thing that happened rather than what it was
-    about. Whether the recipient wants each channel is the worker's question.
+    The deployment's and the community's switches are applied here as well as
+    at send: a channel either has switched off is left empty, and where either
+    redacts, the push and the email say the kind of thing that happened rather
+    than what it was about. Whether the recipient wants each channel is the
+    worker's question.
+
+    ``communities`` are the ones a push of its own gathers from — a digest's,
+    a hold summary's. The row keeps them, and each one's switches are applied
+    alongside, here and at send.
     """
-    policy = await notification_policy.for_send(session, guild_id)
+    gathered = sorted({gid for gid in communities if gid is not None})
+    if gathered:
+        data = {**data, "communities": gathered}
+    policy = _policy_of(
+        await notification_policy.for_send_many(session, {guild_id, *gathered}),
+        guild_id,
+        data,
+    )
+    category = category_of(notification_type)
     locale = getattr(recipient, "locale", None) or "en"
-    if push is not None and not (
-        policy.push and (await push_config.ensure_push_config_fresh()).enabled
-    ):
+    if push is not None:
+        push = notification_policy.apply(policy, push, category=category, locale=locale)
+    if push is not None and not (await push_config.ensure_push_config_fresh()).enabled:
         push = None
-    if push is not None and policy.redact:
-        push = notification_policy.redacted_push(notification_type, locale)
-    if email is not None and not policy.email:
-        email = None
-    if email is not None and policy.redact:
-        email = email_outbox.redacted(email, category_of(notification_type), locale)
+    if email is not None:
+        email = notification_policy.apply(
+            policy, email, category=category, locale=locale
+        )
     return row(
         cast(int, recipient.id),
         guild_id,
@@ -148,7 +185,7 @@ async def notice(
         data,
         push_title=push[0] if push else None,
         push_body=push[1] if push else None,
-        push_data=dict(push_data or {}) if push else None,
+        push_data=notification_policy.push_data(policy, push_data) if push else None,
         email_subject=email.subject if email else None,
         email_headline=email.headline if email else None,
         email_body=email.body if email else None,
@@ -364,23 +401,31 @@ async def _push(
     stand now: a community that has turned push off since sends nothing, and
     one that has started redacting sends the kind of thing that happened."""
     policies = await notification_policy.for_send_many(
-        session, {row.guild_id for row in rows}
+        session,
+        {row.guild_id for row in rows}
+        | {gid for row in rows for gid in row.data.get("communities", ())},
     )
-    allowed = [row for row in rows if policies[row.guild_id].push]
-    pushes = []
-    for row in allowed:
+    allowed: list[NoticeOutboxItem] = []
+    pushes: list[push_notifications.Push] = []
+    for row in rows:
         notification_type = NotificationType(row.type)
-        title, body = row.push_title or "", row.push_body or ""
-        if policies[row.guild_id].redact:
-            locale = getattr(accounts.get(row.user_id), "locale", None) or "en"
-            title, body = notification_policy.redacted_push(notification_type, locale)
+        policy = _policy_of(policies, row.guild_id, row.data)
+        shown = notification_policy.apply(
+            policy,
+            (row.push_title or "", row.push_body or ""),
+            category=category_of(notification_type),
+            locale=getattr(accounts.get(row.user_id), "locale", None) or "en",
+        )
+        if shown is None:
+            continue
+        allowed.append(row)
         pushes.append(
             push_notifications.Push(
                 user_id=row.user_id,
                 notification_type=notification_type,
-                title=title,
-                body=body,
-                data=dict(row.push_data or {}),
+                title=shown[0],
+                body=shown[1],
+                data=notification_policy.push_data(policy, row.push_data),
             )
         )
     again = await push_notifications.send_pushes(session, pushes)
