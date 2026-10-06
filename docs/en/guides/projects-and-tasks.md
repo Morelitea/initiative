@@ -178,7 +178,7 @@ Your choice is yours alone and it's remembered, so you can settle into one witho
 ## Project settings
 
 - **Details** — icon, name, description, dates, tags.
-- **Access** — who can see or edit it. See [Sharing](../sharing/sharing-projects-and-documents.md).
+- **Access** — who can see or edit it. See [Sharing](../sharing/sharing-projects-and-files.md).
 - **Views** — the saved filter sets everyone in the project can pick from, and which view it opens on.
 - **Task statuses** — your workflow.
 - **Advanced** — save as a template, [duplicate](tools.md#duplicating) it here or into another initiative, export, archive, delete.

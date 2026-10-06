@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -40,10 +39,8 @@ from app.schemas.tenant.calendar import (
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
-from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_plugins as guild_plugins_service
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
@@ -51,23 +48,6 @@ router = APIRouter(route_class=ActorRoute)
 #: The routes an installed plug-in may call, under the calendars scopes.
 CalendarsRead = Annotated[ActorContext, Depends(plugin_scope("calendars:read"))]
 CalendarsWrite = Annotated[ActorContext, Depends(plugin_scope("calendars:write"))]
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def _refetch_calendar(session: AsyncSession, calendar_id: int) -> Calendar:
-    calendar = await calendars_service.get_calendar(
-        session, calendar_id, populate_existing=True
-    )
-    if not calendar:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.calendar.not_found_code,
-        )
-    return calendar
 
 
 # ---------------------------------------------------------------------------
@@ -162,23 +142,12 @@ async def create_calendar(
             grants=calendar_in.grants,
         )
     else:
-        # The plug-in is the container, so it owns this: uninstalling trashes what
-        # the install owns. The owner grant names the install row, so an
-        # uninstall holding that row finishes first and this insert fails.
-        await ownership_service.set_resource_owner(
+        # The plug-in is the container, so it owns this.
+        await calendars_service.give_to_install(
             session,
-            tool=Tool.calendar,
-            row=calendar,
-            new_owner=ownership_service.Owner(plugin_install_id=plugin.id),
-        )
-        # The default sharing, at guild scope, reads as every member of the guild.
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type=Tool.calendar.value,
-            resource_id=calendar.id,
+            calendar,
+            install_id=plugin.id,
             guild_id=guild_context.guild_id,
-            initiative_id=None,
-            owner_id=None,
             grants=calendar_in.grants,
             actor_user_id=guild_context.user_id,
         )
@@ -195,10 +164,7 @@ async def create_calendar(
     await attachments_service.claim_uploads(session, calendar)
     await properties_service.write_on_create(session, calendar, calendar_in.properties)
     await session.commit()
-    hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, calendar.id, current_user, guild_context)
 
 
 @router.patch("/{calendar_id}", response_model=CalendarRead)
@@ -227,11 +193,7 @@ async def update_calendar(
         session.add(calendar)
         await attachments_service.claim_uploads(session, calendar)
         await session.commit()
-
-    hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, calendar_id, current_user, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +212,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_calendar(session, calendar_id)
+    calendar = await calendars_service.get_calendar(
+        session, calendar_id, populate_existing=True
+    )
+    if not calendar:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.calendar.not_found_code,
+        )
     return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
+        CalendarRead, calendar, user_id=guild_context.user_id, context=guild_context
     )

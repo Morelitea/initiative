@@ -1,6 +1,6 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentEntityType, RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   clearRecent,
   getListRecentsQueryKey,
@@ -8,8 +8,6 @@ import {
   recordRecent,
 } from "@/api/generated/recents/recents";
 import { invalidate, q } from "@/api/query-keys";
-
-export type RecentEntityType = RecentItemRead["entity_type"];
 
 type QueryOpts<TData> = Omit<UseQueryOptions<TData>, "queryKey" | "queryFn">;
 
@@ -39,7 +37,7 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
  * storage events), so recording with it tags the view under the wrong community
  * when another tab is in a different community; the URL path is per-tab.
  */
-export const useRecordRecentView = (entityType: RecentEntityType, communityId: number) => {
+export const useRecordRecentView = (entityType: Tool, communityId: number) => {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (entityId: number) => recordRecent(communityId, entityType, entityId),

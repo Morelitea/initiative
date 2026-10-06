@@ -13,7 +13,10 @@ import { EditQueueItemDialog } from "@/components/initiativeTools/queues/EditQue
 import { QueueControls } from "@/components/initiativeTools/queues/QueueControls";
 import { QueueItemRow } from "@/components/initiativeTools/queues/QueueItemRow";
 import { QueueTimeline } from "@/components/initiativeTools/queues/QueueTimeline";
-import { QueueViewToggle } from "@/components/initiativeTools/queues/QueueViewToggle";
+import {
+  type QueueView,
+  QueueViewToggle,
+} from "@/components/initiativeTools/queues/QueueViewToggle";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import {
   DetailPageSkeleton,
@@ -39,11 +42,12 @@ import {
   useStopQueue,
   useUpdateQueue,
 } from "@/hooks/useQueues";
-import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useQueueRealtime } from "@/hooks/useResourceRealtime";
+import { useToolRealtime } from "@/hooks/useResourceRealtime";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
+import { getItem } from "@/lib/storage";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
@@ -63,7 +67,7 @@ export function QueueDetailPage() {
   const initiativeId = useCanonicalInitiativeId(queue?.initiative_id);
 
   // Track recently viewed queues for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("queue", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.queue, Number(communityId));
   const viewedQueueId = queue?.id;
   useReadOnOpen(Tool.queue, viewedQueueId);
   useEffect(() => {
@@ -71,8 +75,13 @@ export function QueueDetailPage() {
     recordViewMutation.mutate(viewedQueueId);
   }, [viewedQueueId, recordViewMutation.mutate]);
 
-  // Per-queue view preference (list vs. on-deck), persisted to local storage.
-  const [view, setView] = useQueueView(parsedId);
+  // Per-queue view preference (list vs. on-deck). Falls back to the choice
+  // this device stored before the preference moved to the account.
+  const [storedView, setView] = useViewPreference<QueueView>(
+    `queue-${parsedId}-view`,
+    getItem(`queues.view.${parsedId}`) === "list" ? "list" : "on-deck"
+  );
+  const view: QueueView = storedView === "list" ? "list" : "on-deck";
 
   // Turn controls just fire the mutation. The optimistic cache write happens
   // synchronously in the hook's `onMutate`; the On Deck component watches
@@ -82,7 +91,7 @@ export function QueueDetailPage() {
   // another user advances the queue.
 
   // Connect WebSocket for live updates
-  useQueueRealtime(Number.isFinite(parsedId) ? parsedId : null);
+  useToolRealtime(Tool.queue, Number.isFinite(parsedId) ? parsedId : null);
 
   const updateQueue = useUpdateQueue(parsedId, {
     onSuccess: () => toast.success(t("queueUpdated")),

@@ -4,7 +4,7 @@ icon: lucide/folders
 
 # Working with initiatives
 
-An **initiative** is a folder for one big effort inside your community. It holds that effort's projects, documents and tools, and it's where you decide who's actually involved in it.
+An **initiative** is a folder for one big effort inside your community. It holds that effort's projects, files and other tools, and it's where you decide who's actually involved in it.
 
 New to the idea? [How Initiative is organized](../concepts/index.md) explains the shape first.
 
@@ -13,7 +13,7 @@ New to the idea? [How Initiative is organized](../concepts/index.md) explains th
 In the sidebar, find **Initiatives** and choose **Add initiative**. **New initiative** walks you through four questions:
 
 1. **What is it called?** Name it after the effort — "Spring Play", "2026 Budget", "Onboarding" — and pick a **colour**. The colour follows its tools around, so you can tell at a glance what belongs to what without reading a single word. A description is optional.
-2. **What is it made of?** Pick the [tools](tools.md) it needs. Projects and documents start ticked; at least one has to stay.
+2. **What is it made of?** Pick the [tools](tools.md) it needs. Projects and files start ticked; at least one has to stay.
 3. **Who can get in?** Invite only, by request, or anyone in the community. See [How people join an initiative](#how-people-join-an-initiative).
 4. **What can they do?** What an ordinary member may do with those tools: **Make things**, **See things**, or **Managers only**, for work that should stay with a few people until you say otherwise.
 
@@ -46,7 +46,7 @@ Here's the important bit: an invite-only initiative isn't merely closed to peopl
 
 That's how an initiative keeps sensitive work with the people involved — even from other members of the same community — without anybody ever having to be told they're on the outside of something.
 
-An initiative that opens itself up (below) shows its name, description and size so people can find it. That's all a non-member gets. The projects and documents stay out of reach until they actually join.
+An initiative that opens itself up (below) shows its name, description and size so people can find it. That's all a non-member gets. The projects and files stay out of reach until they actually join.
 
 ## How people join an initiative
 
@@ -64,7 +64,7 @@ Anything that isn't invite-only appears in the **Initiatives** section of the co
 
 ![The initiative list on a community's front page](../images/initiatives/community-home-initiatives.png)
 
-However somebody arrives, they land on the built-in **Member** role, and sharing still decides each individual project and document inside.
+However somebody arrives, they land on the built-in **Member** role, and sharing still decides each individual project and file inside.
 
 So opening an initiative up doesn't suddenly expose anything that was private within it. It only changes who's allowed to walk in.
 
@@ -114,14 +114,14 @@ Every initiative comes with three: **Manager** (think project lead) and **Modera
 
 Name them after how your group actually talks about itself, not after anything Initiative expects. Nobody has ever introduced themselves at a committee meeting as a view-only contributor.
 
-Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards**, **Posts**, **Galleries**, **Wikis** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
+Permissions are grouped by tool — **Projects**, **Files**, **Queues**, **Counters**, **Events**, **Dashboards**, **Posts**, **Galleries**, **Wikis** — each offering **View** and **Create**. So "Volunteer" might view projects and files but create nothing, while "Coordinator" creates everything.
 
 ![Setting permissions for an initiative role](../images/initiatives/roles.png)
 
 There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md).
 
 !!! warning "Moderators see absolutely everything"
-    The built-in **Moderator** role reaches every project and document in the initiative, whether or not it was ever shared with them. That's unique to Moderator — no other role gets it, or can be given it however much you'd like. A community admin hands it out, and arrives on it themselves.
+    The built-in **Moderator** role reaches every project and file in the initiative, whether or not it was ever shared with them. That's unique to Moderator — no other role gets it, or can be given it however much you'd like. A community admin hands it out, and arrives on it themselves.
 
     So hand it to the people who genuinely need the whole picture. Not as a thank-you for being helpful, and not because somebody's been around a long time and it felt rude not to.
 
@@ -158,5 +158,5 @@ When in doubt, archive. Archiving has never once ruined anybody's week.
 ## Related
 
 - [Projects & tasks](projects-and-tasks.md) — the work inside an initiative.
-- [Documents](documents.md) — the writing inside an initiative.
+- [Files](files.md) — the writing inside an initiative, and everything it's been sent.
 - [Initiative roles](../sharing/initiative-roles.md) — roles and sharing in depth.

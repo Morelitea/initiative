@@ -62,7 +62,7 @@ export const ProjectDetailPage = () => {
     Number.isFinite(parsedProjectId) ? parsedProjectId : null
   );
 
-  const recordViewMutation = useRecordRecentView("project", Number(communityId));
+  const recordViewMutation = useRecordRecentView(Tool.project, Number(communityId));
   const viewedProjectId = projectQuery.data?.id;
   useReadOnOpen(Tool.project, viewedProjectId);
   useEffect(() => {

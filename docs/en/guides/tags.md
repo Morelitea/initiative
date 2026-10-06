@@ -42,4 +42,4 @@ You can also **add or remove tags on lots of things at once**: select several ta
 ## Related
 
 - [Projects & tasks](projects-and-tasks.md) — tagging and filtering tasks.
-- [Documents](documents.md) — tagging documents.
+- [Files](files.md) — tagging files.

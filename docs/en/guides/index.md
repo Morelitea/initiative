@@ -28,11 +28,11 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
     [:octicons-arrow-right-24: Projects & tasks](projects-and-tasks.md)
 
--   :material-file-document-edit-outline: __Documents__
+-   :material-file-document-edit-outline: __Files__
 
-    Text, spreadsheets and whiteboards, written together in real time.
+    Text, spreadsheets and whiteboards written together in real time, and everything you've been sent.
 
-    [:octicons-arrow-right-24: Documents](documents.md)
+    [:octicons-arrow-right-24: Files](files.md)
 
 -   :material-toolbox-outline: __Tools__
 
@@ -114,7 +114,7 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
 -   :material-at: __Mentions & links__
 
-    Point at people and other work from a comment or a document.
+    Point at people and other work from a comment or a text document.
 
     [:octicons-arrow-right-24: Mentions & links](mentions-and-links.md)
 

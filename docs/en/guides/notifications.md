@@ -23,7 +23,7 @@ All of them are yours, category by category, with no minimum — the bell includ
 
 The **bell** holds everything you haven't read. Not the last twenty — the lot. The number says how many; opening it says what.
 
-Everywhere else you get a **dot**: on the community in the left rail, then the initiative, then the tool, then the project or document in that tool's list, then the task, event or page inside it. Follow the dots inward and you land on the thing, instead of opening five communities to work out which one was buzzing.
+Everywhere else you get a **dot**: on the community in the left rail, then the initiative, then the tool, then the project or file in that tool's list, then the task, event or page inside it. Follow the dots inward and you land on the thing, instead of opening five communities to work out which one was buzzing.
 
 Open it and the comments you haven't read are picked out, with the page scrolled to the first. Opening it also reads everything about it — the dots clear and the bell counts down, without you going back to click the notification.
 
@@ -106,7 +106,7 @@ Two things soften the edges of that:
 ## Other timings worth knowing
 
 - **Comments** on the same thing arrive as **one line**, however many there are. Twenty comments on a task you're on is one notification naming who commented and how many — not twenty. Once you've read it, the next comment starts a fresh one, so new activity is still news.
-- **Mentions in a document** arrive as one line too. Somebody tidying a page that names you in four places tells you once, until you've read it.
+- **Mentions in a text document** arrive as one line too. Somebody tidying a page that names you in four places tells you once, until you've read it.
 - **Task assignments** arrive as one summary once the dust has settled. Somebody assigning you ten things reaches you as one message rather than ten.
 - **Reactions** work the same way, for the same reason: they arrive in flurries.
 - **Overdue tasks** ride along with your scheduled email. Chose weekly? You hear about them weekly, rather than being chased daily about the same list.

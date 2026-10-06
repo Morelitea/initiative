@@ -1,7 +1,6 @@
 """Counter group endpoints — CRUD, value operations, permissions, WebSocket."""
 
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Annotated, Optional
 
 import logging
@@ -31,7 +30,6 @@ from app.api.deps import (
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
-    CounterViewMode,
 )
 from app.models.platform.user import User
 from app.schemas.tenant.counter import (
@@ -81,7 +79,19 @@ CounterGroupsWrite = Annotated[
 # ---------------------------------------------------------------------------
 
 
-async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
+async def read_after_write(
+    session: RLSSessionDep,
+    group_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+) -> CounterGroupRead:
+    """The counter group a write answers with: re-read after the commit,
+    serialized.
+
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape. ``populate_existing``
+    because the session keeps what it loaded before the commit.
+    """
     group = await counters_service.get_counter_group(
         session, group_id, populate_existing=True
     )
@@ -90,7 +100,35 @@ async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.counter_group.not_found_code,
         )
-    return group
+    return serialize_tool(
+        CounterGroupRead, group, user_id=guild_context.user_id, context=guild_context
+    )
+
+
+async def _group_committed(
+    session: RLSSessionDep,
+    group_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+    event: str,
+) -> CounterGroupRead:
+    """Commit a write to the group, tell its room ``event``, and answer with it."""
+    await session.commit()
+    sockets.signal(routed_guild_id(session), Tool.counter_group, group_id, event)
+    return await read_after_write(session, group_id, user, guild_context)
+
+
+async def _counter_committed(
+    session: RLSSessionDep, counter: Counter, event: str, *, context: ActorContext
+) -> CounterRead:
+    """Commit a write to a counter, tell its group's room ``event``, and
+    answer with the counter re-read."""
+    await session.commit()
+    sockets.signal(
+        routed_guild_id(session), Tool.counter_group, counter.counter_group_id, event
+    )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
+    return serialize_counter(hydrated, context=context)
 
 
 # ---------------------------------------------------------------------------
@@ -150,14 +188,7 @@ async def create_counter_group(
     await attachments_service.claim_uploads(session, group)
     await properties_service.write_on_create(session, group, group_in.properties)
     await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    return serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=guild_context.user_id,
-        context=guild_context,
-    )
+    return await read_after_write(session, group.id, current_user, guild_context)
 
 
 @router.patch("/{group_id}", response_model=CounterGroupRead)
@@ -176,34 +207,14 @@ async def update_counter_group(
         guild_context,
         access="write",
     )
-    updated = False
-    update_data = group_in.model_dump(exclude_unset=True)
-
-    if "name" in update_data:
-        group.name = update_data["name"]
-        updated = True
-    if "description" in update_data:
-        group.description = update_data["description"]
-        updated = True
-
-    if updated:
-        group.updated_at = datetime.now(timezone.utc)
-        session.add(group)
-        await attachments_service.claim_uploads(session, group)
-        await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    result = serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=guild_context.user_id,
-        context=guild_context,
+    for field, value in group_in.model_dump(exclude_unset=True).items():
+        setattr(group, field, value)
+    group.updated_at = datetime.now(timezone.utc)
+    session.add(group)
+    await attachments_service.claim_uploads(session, group)
+    return await _group_committed(
+        session, group_id, current_user, guild_context, "group_updated"
     )
-    if updated:
-        sockets.signal(
-            routed_guild_id(session), Tool.counter_group, group_id, "group_updated"
-        )
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -251,14 +262,9 @@ async def add_counter(
     )
     session.add(counter)
     await properties_service.write_on_create(session, counter, counter_in.properties)
-    await session.commit()
-
-    hydrated = await resource_access.reload_child(session, Counter, counter.id)
-    result = serialize_counter(hydrated, context=guild_context)
-    sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counter_added"
+    return await _counter_committed(
+        session, counter, "counter_added", context=guild_context
     )
-    return result
 
 
 @counters_router.patch("/counters/{counter_id}", response_model=CounterRead)
@@ -274,25 +280,11 @@ async def update_counter(
     )
 
     update_data = counter_in.model_dump(exclude_unset=True)
-
-    # Compute the prospective new state
-    new_min: Optional[Decimal] = (
-        update_data["min"] if "min" in update_data else counter.min
-    )
-    new_max: Optional[Decimal] = (
-        update_data["max"] if "max" in update_data else counter.max
-    )
-    new_step: Decimal = update_data["step"] if "step" in update_data else counter.step
-    new_view_mode: CounterViewMode = (
-        update_data["view_mode"] if "view_mode" in update_data else counter.view_mode
-    )
-
     try:
         _validate_counter_constraints(
-            view_mode=new_view_mode,
-            min_value=new_min,
-            max_value=new_max,
-            step=new_step,
+            view_mode=update_data.get("view_mode", counter.view_mode),
+            min_value=update_data.get("min", counter.min),
+            max_value=update_data.get("max", counter.max),
         )
     except ValueError as exc:
         raise HTTPException(
@@ -300,41 +292,18 @@ async def update_counter(
             detail=str(exc),
         )
 
-    updated = False
-    for field in (
-        "name",
-        "color",
-        "min",
-        "max",
-        "step",
-        "initial_count",
-        "view_mode",
-        "position",
-    ):
-        if field in update_data:
-            setattr(counter, field, update_data[field])
-            updated = True
-
+    for field, value in update_data.items():
+        setattr(counter, field, value)
     # Re-clamp count and initial_count to the new bounds
     counter.count = counters_service.clamp(counter.count, counter.min, counter.max)
     counter.initial_count = counters_service.clamp(
         counter.initial_count, counter.min, counter.max
     )
-
-    if updated:
-        counter.updated_at = datetime.now(timezone.utc)
-        session.add(counter)
-        await session.commit()
-
-    hydrated = await resource_access.reload_child(session, Counter, counter.id)
-    result = serialize_counter(hydrated, context=guild_context)
-    sockets.signal(
-        routed_guild_id(session),
-        Tool.counter_group,
-        counter.counter_group_id,
-        "counter_updated",
+    counter.updated_at = datetime.now(timezone.utc)
+    session.add(counter)
+    return await _counter_committed(
+        session, counter, "counter_updated", context=guild_context
     )
-    return result
 
 
 @counters_router.delete(
@@ -364,22 +333,6 @@ async def delete_counter(
 # ---------------------------------------------------------------------------
 # Counter value operations
 # ---------------------------------------------------------------------------
-
-
-async def _commit_and_broadcast_count(
-    session: RLSSessionDep,
-    group_id: int,
-    counter: Counter,
-    *,
-    context: ActorContext,
-) -> CounterRead:
-    await session.commit()
-    hydrated = await resource_access.reload_child(session, Counter, counter.id)
-    result = serialize_counter(hydrated, context=context)
-    sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "count_changed"
-    )
-    return result
 
 
 @counters_router.get("/counters/{counter_id}", response_model=CounterRead)
@@ -413,7 +366,7 @@ async def duplicate_counter(
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     """Copy the counter to the end of its group as "<name> (Copy)", with its
-    count, tags and properties."""
+    count and properties."""
     counter = await resource_access.load_child(
         session, Counter, counter_id, access="write"
     )
@@ -424,16 +377,9 @@ async def duplicate_counter(
             session, counter.counter_group_id
         ),
     )
-    await session.commit()
-    hydrated = await resource_access.reload_child(session, Counter, copy.id)
-    result = serialize_counter(hydrated, context=guild_context)
-    sockets.signal(
-        routed_guild_id(session),
-        Tool.counter_group,
-        counter.counter_group_id,
-        "counter_added",
+    return await _counter_committed(
+        session, copy, "counter_added", context=guild_context
     )
-    return result
 
 
 @counters_router.post("/counters/{counter_id}/set", response_model=CounterRead)
@@ -449,8 +395,8 @@ async def set_counter_count(
         session, Counter, counter_id, access="write"
     )
     await counters_service.set_count(session, counter, payload.count)
-    return await _commit_and_broadcast_count(
-        session, counter.counter_group_id, counter, context=guild_context
+    return await _counter_committed(
+        session, counter, "count_changed", context=guild_context
     )
 
 
@@ -470,8 +416,8 @@ async def step_counter(
     await counters_service.step_counter(
         session, counter.id, up=payload.direction == "up", amount=payload.amount
     )
-    return await _commit_and_broadcast_count(
-        session, counter.counter_group_id, counter, context=guild_context
+    return await _counter_committed(
+        session, counter, "count_changed", context=guild_context
     )
 
 
@@ -487,8 +433,8 @@ async def reset_counter(
         session, Counter, counter_id, access="write"
     )
     await counters_service.reset_counter(session, counter)
-    return await _commit_and_broadcast_count(
-        session, counter.counter_group_id, counter, context=guild_context
+    return await _counter_committed(
+        session, counter, "count_changed", context=guild_context
     )
 
 
@@ -508,19 +454,9 @@ async def reset_all_counters(
         access="write",
     )
     await counters_service.reset_all_counters(session, group)
-    await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    result = serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=guild_context.user_id,
-        context=guild_context,
+    return await _group_committed(
+        session, group_id, current_user, guild_context, "counters_reset"
     )
-    sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counters_reset"
-    )
-    return result
 
 
 @router.post("/{group_id}/sort", response_model=CounterGroupRead)
@@ -542,41 +478,8 @@ async def sort_counters(
     await counters_service.sort_counters(
         session, group, field=payload.field, direction=payload.direction
     )
-    await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    result = serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=guild_context.user_id,
-        context=guild_context,
-    )
-    sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counters_reordered"
-    )
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Sharing (resource grants)
-# ---------------------------------------------------------------------------
-
-
-async def read_after_write(
-    session: RLSSessionDep,
-    group_id: int,
-    user: Optional[User],
-    guild_context: ActorContext,
-) -> CounterGroupRead:
-    """The counter group a write answers with: re-read after the commit,
-    serialized.
-
-    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
-    (``tool_grants.py``) answers in this tool's own shape.
-    """
-    hydrated = await _refetch_group(session, group_id)
-    return serialize_tool(
-        CounterGroupRead, hydrated, user_id=guild_context.user_id, context=guild_context
+    return await _group_committed(
+        session, group_id, current_user, guild_context, "counters_reordered"
     )
 
 

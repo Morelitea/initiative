@@ -34,7 +34,7 @@
  * `matches()` below, the only code in the app that decides whether a cached key
  * belongs to the current community.
  */
-import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 import { PARENT_TOOL, TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
@@ -467,7 +467,7 @@ const communityInvites = (communityId: number): Spec => ({
 const allCalendarEntries = (): Spec => resourceAndMe("calendar-entries");
 
 const allCalendarEvents = (): Spec =>
-  compose(resourceAndMe("calendar-events"), allCalendarEntries());
+  compose({ communityPrefix: ["/api/v1/calendar-events"] }, allCalendarEntries());
 
 const calendarEvent = (eventId: number): Spec => ({
   communityExact: [`/api/v1/calendar-events/${eventId}`],
@@ -485,14 +485,6 @@ const calendarEvent = (eventId: number): Spec => ({
  * This names that one query and nothing else.
  */
 const postTimeline = (): Spec => ({ communityPrefix: ["/api/v1/posts/timeline"] });
-
-// ── Galleries (community) ────────────────────────────────────────────────────────
-
-/** A gallery's pictures — every page of the list, the timeline rail, and
- *  each picture's own reads and versions — without the gallery row itself. */
-const galleryImages = (galleryId: number): Spec => ({
-  communityPrefix: [`/api/v1/galleries/${galleryId}/images`],
-});
 
 // ── Wikis (community) ────────────────────────────────────────────────────────────
 
@@ -566,7 +558,6 @@ const project = (id: number): Spec => toolEntity(Tool.project, id);
 const allFiles = (): Spec => toolList(Tool.file);
 const file = (id: number): Spec => toolEntity(Tool.file, id);
 const allQueues = (): Spec => toolList(Tool.queue);
-const queue = (id: number): Spec => toolEntity(Tool.queue, id);
 const allCounterGroups = (): Spec => toolList(Tool.counter_group);
 const counterGroup = (id: number): Spec => toolEntity(Tool.counter_group, id);
 const allCalendars = (): Spec => toolList(Tool.calendar);
@@ -677,7 +668,6 @@ export const q = {
   platformAIMode,
   platformCommunities,
   gallery,
-  galleryImages,
   post,
   postTimeline,
   project,
@@ -685,7 +675,6 @@ export const q = {
   projectTaskStatuses,
   propertyHolder,
   pushSettings,
-  queue,
   recentComments,
   recents,
   relationships,
@@ -733,8 +722,7 @@ export const resetCommunityScopedQueries = (arrivingCommunityId?: number | null)
 
 // ── Rewriting a cached post in place (not an invalidation) ───────────────────
 
-type CachedPost = Record<string, unknown>;
-type CachedPage = { items?: CachedPost[] };
+type CachedPage = { items?: PostRead[] };
 
 /**
  * One page of posts, with this post rewritten. Returns the SAME object when
@@ -744,7 +732,7 @@ type CachedPage = { items?: CachedPost[] };
 const patchPostPage = (
   page: unknown,
   postId: number,
-  update: (post: CachedPost) => CachedPost
+  update: (post: PostRead) => PostRead
 ): unknown => {
   const asList = page as CachedPage;
   if (!Array.isArray(asList.items)) return page;
@@ -769,7 +757,7 @@ const patchPostPage = (
  * other two would leave every optimistic update invisible on the surface it
  * was made from.
  */
-export const patchCachedPost = (postId: number, update: (post: CachedPost) => CachedPost) => {
+export const patchCachedPost = (postId: number, update: (post: PostRead) => PostRead) => {
   const matcher = merge([allPosts()]);
   queryClient.setQueriesData<unknown>(
     { predicate: (query) => matches(matcher, query.queryKey) },
@@ -786,7 +774,7 @@ export const patchCachedPost = (postId: number, update: (post: CachedPost) => Ca
       const patched = patchPostPage(data, postId, update);
       if (patched !== data) return patched;
 
-      const asPost = data as CachedPost;
+      const asPost = data as PostRead;
       return asPost.id === postId ? update(asPost) : data;
     }
   );

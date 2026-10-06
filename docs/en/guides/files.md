@@ -2,15 +2,15 @@
 icon: lucide/file-text
 ---
 
-# Documents
+# Files
 
-A **document** is where your group writes things down — notes, plans, scripts, budgets — and keeps its files.
+**Files** is where your group writes things down — notes, plans, scripts, budgets — and keeps the things it's been sent.
 
-Documents live inside an initiative, and most kinds can be edited by several people **at the same time**, live.
+Files live inside an initiative, and most kinds can be edited by several people **at the same time**, live.
 
 No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whether Dave is working on the old one.
 
-## Kinds of document
+## Kinds of file
 
 | Type | What it's for |
 |---|---|
@@ -18,10 +18,10 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 | **Spreadsheet** | A grid with formulas. Numbers, lists, tables. |
 | **Whiteboard** | A blank canvas for sketching things out. |
 | **Smart link** | An embedded view of something that lives somewhere else — a video, a shared file. |
-| **Upload** | An actual file: PDF, Word, Excel, PowerPoint, images, and more. |
+| **Upload** | Something from your computer: PDF, Word, Excel, PowerPoint, images, and more. |
 
-Got the file on your desktop already? Drag it anywhere onto the documents
-page — any view — and **New document** opens on the **Upload file** tab with it
+Got the file on your desktop already? Drag it anywhere onto the files
+page — any view — and **New file** opens on the **Upload file** tab with it
 ready to go. Or drop it on the box in that tab instead of hunting for it in a
 file picker.
 
@@ -30,13 +30,13 @@ file picker.
 
 ## Making one
 
-1. In an initiative, choose **New document**.
+1. In an initiative, choose **New file**.
 2. Pick the **type** — or the **Upload file** or **Smart link** tab.
 3. Give it a **title** and confirm which **initiative** it belongs to.
 4. Optionally start from a **template**.
 5. Write. Or upload. Or draw.
 
-![Creating a document](../images/documents/create-document.png)
+![Creating a file](../images/files/create-document.png)
 
 ## Writing a text document
 
@@ -48,11 +48,11 @@ A few keys do more than they look like they do:
 
 - `@` mentions a person.
 - `#` links to anything in the initiative. See [Mentions & links](mentions-and-links.md).
-- `[[` links to another document — and offers to make one if the name is new.
+- `[[` links to another file — and offers to make one if the name is new.
 - `![[` shows a thing in full, right there in the page. See [Embeds](#embeds).
 - `/` opens the insert menu: images, tables, callouts, statuses, drawings, diagrams, embeds, and [smart chips](#smart-chips).
 
-![The document editor](../images/documents/editor.png)
+![The text editor](../images/files/editor.png)
 
 A few pieces are worth knowing by name:
 
@@ -64,22 +64,22 @@ A few pieces are worth knowing by name:
 | **Drawings** | A small whiteboard inside the page. Draw it, save it, and it sits there as a picture. **Edit drawing** opens it again. |
 | **Diagrams** | Flowcharts, sequence diagrams and friends, written as text in [Mermaid](https://mermaid.js.org/) and drawn as you type. **Diagram** in the `/` menu starts one; any code block set to Mermaid is drawn the same way. Someone reading the page sees the picture, and the code stays out of their way. |
 
-The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`, and `> [!warning]-` when folded), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), a drawing as its scene in an `excalidraw` code block, a `#` link as `[[task:12|Roll call]]`, a smart chip as the same with the fact it shows (`[[task:12:status|Roll call]]`) and a mention as `@[Ada](4)`, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
+The **Markdown** button at the bottom of the editor shows the whole page as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`, and `> [!warning]-` when folded), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), a drawing as its scene in an `excalidraw` code block, a `#` link as `[[task:12|Roll call]]`, a smart chip as the same with the fact it shows (`[[task:12:status|Roll call]]`) and a mention as `@[Ada](4)`, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
 
 !!! note "Drawings in exports"
     A Markdown export keeps each drawing the same way. Word and PDF leave drawings out: a drawing is redrawn by the browser every time it's shown, and a printed page has no browser in it.
 
-A long document has a **Contents** list of its headings, nested the way you wrote them. Pick one and the page scrolls there; it marks where you are as you read. It's closed until you open it, and then it stays open.
+A long text document has a **Contents** list of its headings, nested the way you wrote them. Pick one and the page scrolls there; it marks where you are as you read. It's closed until you open it, and then it stays open.
 
 Pictures keep their captions. Click a picture to see it full size, and zoom in with a pinch, a double-tap, ++ctrl++ and the scroll wheel, or the buttons along the top.
 
-Files in a document belong to its initiative, and open for anybody in it. Paste a picture from another initiative's document and this one keeps its own copy.
+Pictures in a text document belong to its initiative, and open for anybody in it. Paste a picture from another initiative's file and this one keeps its own copy.
 
 ### The featured image
 
-A document can lead with a **featured image**, running across the top. Anyone who can edit the document can **Replace** or **Remove** it, and a document without one has a row at the top to add one with **Upload image**.
+A file can lead with a **featured image**, running across the top. Anyone who can edit the file can **Replace** or **Remove** it, and a file without one has a row at the top to add one with **Upload image**.
 
-Already have the picture in the document? Select it and choose **Make this the featured image**. Uploading a picture with **Insert › Image** offers a box that does the same.
+Already have the picture in the page? Select it and choose **Make this the featured image**. Uploading a picture with **Insert › Image** offers a box that does the same.
 
 ## Smart chips
 
@@ -103,7 +103,7 @@ The chip carries the reading itself, so your sentence keeps its shape:
 
 Hover it to see what the thing is called now and what kind of thing it is. Click it to go there.
 
-Move that task to Done and the chip turns green — here, and in every other document that mentions it, with nobody editing a word. Meeting notes that are still accurate a month later, more or less for free.
+Move that task to Done and the chip turns green — here, and in every other file that mentions it, with nobody editing a word. Meeting notes that are still accurate a month later, more or less for free.
 
 A task checkbox is the one chip you can *use*. The box is only offered to people who can edit the task; everybody else sees it ticked or not.
 
@@ -112,14 +112,14 @@ An ordinary checklist ticks a line on this page and nothing else, which is what 
 Smart chips are a text-document thing. A whiteboard holds shapes and a spreadsheet holds cells, so there's nowhere for a chip to sit.
 
 !!! note "What other people see"
-    A chip shows what *you* can see. If a document mentions a task in a project nobody's shared with you, the chip just shows the name it had when it was written, and nothing about its state.
+    A chip shows what *you* can see. If a page mentions a task in a project nobody's shared with you, the chip just shows the name it had when it was written, and nothing about its state.
 
 !!! tip "Exports show the words, not the chip"
     A chip can't keep itself up to date inside a PDF or a Word file, so an export shows the name the thing had when the chip was written.
 
 ## Embeds
 
-A chip shows one fact. An **embed** shows the whole thing: its name, and underneath it whatever description somebody wrote for it — a task's notes, a project's summary, what the calendar is for — in a panel of its own. Embed a text document or a wiki page and you get the page itself, read-only, in a scrolling pane. A spreadsheet, a whiteboard or a file shows its name.
+A chip shows one fact. An **embed** shows the whole thing: its name, and underneath it whatever description somebody wrote for it — a task's notes, a project's summary, what the calendar is for — in a panel of its own. Embed a text document or a wiki page and you get the page itself, read-only, in a scrolling pane. A spreadsheet, a whiteboard or an upload shows its name.
 
 Type `![[` and pick something, or choose **Embed** from the `/` menu. Hover any `#` link while you're writing and **Show in full** turns it into an embed; the link icon in the embed's corner turns it back.
 
@@ -137,7 +137,7 @@ An embedded page's own embeds show as names only, so two pages embedding each ot
 The everyday essentials, and not much more:
 
 - **Formulas** — start a cell with `=`. The usual functions are there: `SUM`, `AVERAGE`, `IF`, `ROUND`, `MEDIAN`, `MATCH`, `TEXTJOIN` and plenty more. Click a cell while you type to point at it.
-- **Several sheets** in one document, as tabs along the bottom. A formula can read another sheet: `=SUM(Data!A1:A20)`.
+- **Several sheets** in one spreadsheet, as tabs along the bottom. A formula can read another sheet: `=SUM(Data!A1:A20)`.
 - **Formatting** — fonts, colours, borders, alignment, and number formats (number, currency, percent, date).
 - **Freeze** rows or columns so the headers stay put while you scroll, and **hide** a row, column or whole tab you're not looking at.
 - **Find and replace** with ++ctrl+f++.
@@ -152,11 +152,11 @@ A blank canvas for the thinking that flatly refuses to become a paragraph. A flo
 - **Go fullscreen** when the canvas wants the whole window.
 - **Export as a picture** — PNG or SVG, for a slide deck, an email, or a printout. It's in the whiteboard's **Settings → Advanced**, with its other exports.
 
-Whiteboards autosave like everything else, and are shared, tagged and commented on exactly like any other document.
+Whiteboards autosave like everything else, and are shared, tagged and commented on exactly like any other file.
 
 ## Working on something together
 
-- **Real-time editing** — open the same document as somebody else and you'll see their changes appear as they type.
+- **Real-time editing** — open the same file as somebody else and you'll see their changes appear as they type.
 - **Autosave** keeps it current without anyone doing anything.
 - **Offline-friendly** — if your connection drops you can keep working, and it syncs up when you're back.
 
@@ -165,7 +165,7 @@ Whiteboards autosave like everything else, and are shared, tagged and commented 
 
 ## Comments and mentions
 
-Open a document's **Comments** to talk about it without touching the actual content. Reply to build a thread; edit or delete your own.
+Open a file's **Comments** to talk about it without touching the actual content. Reply to build a thread; edit or delete your own.
 
 To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick anything in the initiative. See [Mentions & links](mentions-and-links.md).
 
@@ -186,31 +186,31 @@ Anyone who can reply can react. The author gets told — as a periodic summary, 
 
     Tasks are unaffected. A task keeps its own comments whatever its project says.
 
-## Uploaded files and version history
+## Uploads and version history
 
-Uploaded files keep a **version history**. Upload a new version and the older ones stay put, each marked with its date.
+An upload keeps a **version history**. Upload a new version and the older ones stay put, each marked with its date.
 
 So you can always get back to the copy from before somebody helpfully reorganised it.
 
-## Attaching documents to a project
+## Attaching files to a project
 
-A document can be **attached** to a project so the relevant reference sits right next to the work. Add it from the project's **Connections** section, where it sits under **Attached** — or drop a file there and it becomes a new document, already attached. See [Mentions & links](mentions-and-links.md#connections).
+A file can be **attached** to a project so the relevant reference sits right next to the work. Add it from the project's **Connections** section, where it sits under **Attached** — or drop something from your computer there and it becomes a new file, already attached. See [Mentions & links](mentions-and-links.md#connections).
 
-## Document settings
+## File settings
 
 - **Details** — tags, properties, the comment switch, and whether it's a template.
-- **Access** — who can view, edit or own it. Levels are **Viewer**, **Editor**, **Owner**. See [Sharing](../sharing/sharing-projects-and-documents.md).
+- **Access** — who can view, edit or own it. Levels are **Viewer**, **Editor**, **Owner**. See [Sharing](../sharing/sharing-projects-and-files.md).
 - **Advanced** — [duplicate](tools.md#duplicating) it here or into another initiative, export, archive, delete.
 
 ## Templates
 
-Made a layout you'll use again — a meeting-notes format, a project brief? Make it a **template**, from **Status** at the top of the document, and start fresh copies from it whenever.
+Made a layout you'll use again — a meeting-notes format, a project brief? Make it a **template**, from **Status** at the top of the file, and start fresh copies from it whenever.
 
 Templates get copied rather than edited, so the original stays pristine no matter what anyone does to their copy.
 
 ## Related
 
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — who sees each one.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — who sees each one.
 - [Tags](tags.md) — labelling so you can find things later.
 - [Mentions & links](mentions-and-links.md) — pointing at people and other work.
-- [Your space](your-space.md#my-tools) — every document that's reached you, from every community, in one list.
+- [Your space](your-space.md#my-tools) — every file that's reached you, from every community, in one list.

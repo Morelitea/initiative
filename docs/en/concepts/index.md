@@ -14,7 +14,7 @@ graph TD
   I1["Initiative<br/>(a big effort)"]
   I2["Initiative"]
   P1["Project<br/>(a task board)"]
-  D1["Document"]
+  D1["File"]
   T1["Calendar · Queue · Counter<br/>Dashboard · Posts · Gallery · Wiki"]
   TASK["Tasks"]
 
@@ -78,7 +78,7 @@ Learn how one works and you've learned how the next one works. That's the whole 
 
 A **task** carries a description, a status, a priority, dates, the people doing it, a checklist and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
-**Documents** hold the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described. Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can upload files as documents too. See [Documents](../guides/documents.md).
+**Files** hold the knowledge: meeting notes, a plan, a script, a budget, a **whiteboard** for the things that are far easier drawn than described, and the PDF somebody sent round in March. Most kinds can be edited by several people at once, live, so there's no emailing versions around. See [Files](../guides/files.md).
 
 ### The rest, when you grow into them
 
@@ -112,9 +112,9 @@ Everything above is about *where things live*. The other half is *who's allowed 
 | **Community** | Are you in this group at all? |
 | **Initiative** | Are you part of this particular effort? |
 | **Initiative role** | Which kinds of tools may you use here? |
-| **Sharing** | For *this specific* project or document — look, edit, or own? |
+| **Sharing** | For *this specific* project or file — look, edit, or own? |
 
-Each layer sits inside the one above it. You reach a document only if you're in its community, **and** its initiative, **and** it's been shared with you.
+Each layer sits inside the one above it. You reach a file only if you're in its community, **and** its initiative, **and** it's been shared with you.
 
 Which sounds like a lot of gates until you notice what they buy you: you never have to think about any of this again. The only people who see a thing are the people you put in front of it, and that stays true whether or not you're paying attention.
 

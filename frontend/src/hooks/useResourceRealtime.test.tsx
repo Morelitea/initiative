@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { setAuthToken } from "@/api/client";
-import { useQueueRealtime } from "@/hooks/useResourceRealtime";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { useToolRealtime } from "@/hooks/useResourceRealtime";
 
 const COMMUNITY = 5;
 const QUEUE = 7;
@@ -22,7 +23,7 @@ vi.mock("@/hooks/useCommunities", () => ({
   useCommunities: () => ({ activeCommunityId: COMMUNITY }),
 }));
 
-describe("useQueueRealtime", () => {
+describe("useToolRealtime", () => {
   beforeEach(() => {
     setAuthToken("test-token");
     MockWebSocket.instances = [];
@@ -38,7 +39,7 @@ describe("useQueueRealtime", () => {
   });
 
   it("authenticates in its first frame and refetches on a change", () => {
-    renderHook(() => useQueueRealtime(QUEUE));
+    renderHook(() => useToolRealtime(Tool.queue, QUEUE));
     const socket = latestSocket();
     socket.open();
 
@@ -51,7 +52,7 @@ describe("useQueueRealtime", () => {
   });
 
   it("takes a beat as proof of life and nothing more", () => {
-    renderHook(() => useQueueRealtime(QUEUE));
+    renderHook(() => useToolRealtime(Tool.queue, QUEUE));
     const socket = latestSocket();
     socket.open();
 
@@ -61,7 +62,7 @@ describe("useQueueRealtime", () => {
   });
 
   it("reconnects after a drop and refetches what it may have missed", async () => {
-    renderHook(() => useQueueRealtime(QUEUE));
+    renderHook(() => useToolRealtime(Tool.queue, QUEUE));
     const first = latestSocket();
     first.open();
     first.serverClose(1006);
@@ -75,7 +76,7 @@ describe("useQueueRealtime", () => {
   });
 
   it("closes its socket on unmount and does not come back", async () => {
-    const { unmount } = renderHook(() => useQueueRealtime(QUEUE));
+    const { unmount } = renderHook(() => useToolRealtime(Tool.queue, QUEUE));
     const socket = latestSocket();
     socket.open();
 

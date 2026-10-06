@@ -26,9 +26,7 @@ import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { cn } from "@/lib/utils";
 
-import { CounterNumberView } from "./views/CounterNumberView";
-import { CounterProgressBarView } from "./views/CounterProgressBarView";
-import { CounterSegmentedClockView } from "./views/CounterSegmentedClockView";
+import { CounterView } from "./views/CounterView";
 
 export type CounterLayout = "row" | "grid";
 
@@ -78,51 +76,15 @@ export const CounterRow = ({
     color: fg,
   };
 
-  const hasBounds = counter.min !== null && counter.max !== null;
-  const viewSize = layout === "grid" ? "xl" : "lg";
-  const clockSize = layout === "grid" ? "lg" : "md";
-  let viewElement: React.ReactNode;
-  if (counter.view_mode === "progress_bar" && hasBounds) {
-    viewElement = (
-      <CounterProgressBarView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={viewSize}
-      />
-    );
-  } else if (counter.view_mode === "segmented_clock" && hasBounds) {
-    viewElement = (
-      <CounterSegmentedClockView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={clockSize}
-      />
-    );
-  } else {
-    viewElement = (
-      <CounterNumberView
-        count={counter.count}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={viewSize}
-      />
-    );
-  }
+  const viewElement = (
+    <CounterView
+      counter={counter}
+      disabled={!canWrite}
+      textColor={fg}
+      onCommit={onSetCount}
+      size={layout === "grid" ? "xl" : "lg"}
+    />
+  );
 
   // Tinted backgrounds for +/- buttons that contrast clearly against the
   // card color — darker overlay on light cards, lighter overlay on dark.

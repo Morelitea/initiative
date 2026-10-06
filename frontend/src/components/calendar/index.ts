@@ -4,6 +4,7 @@ export {
   allDayRange,
   buildEventCalendarEntry,
   DEFAULT_CALENDAR_COLOR,
+  type EventEntryMeta,
 } from "./eventCalendarEntry";
 export {
   buildTaskCalendarEntries,

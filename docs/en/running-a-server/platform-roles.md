@@ -85,7 +85,7 @@ A request names **what it reaches**, and the two halves are asked for separately
 | | What it reaches |
 |---|---|
 | **Content** | What the community holds — read-only, or read-and-write. A read-write grant edits existing material; it doesn't author new material or manage members. |
-| **Settings** | The community's configuration and nothing inside it, held at **admin** or **superadmin** — the community's own two rungs. Somebody helping with a moderation setting has no business in anybody's documents, and this is how they don't end up there. |
+| **Settings** | The community's configuration and nothing inside it, held at **admin** or **superadmin** — the community's own two rungs. Somebody helping with a moderation setting has no business in anybody's files, and this is how they don't end up there. |
 
 Ask for one, the other, or both. Each is approved and recorded on its own.
 

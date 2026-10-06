@@ -12,7 +12,7 @@ Neither is hard. Both matter far more than they feel like they do, right up unti
 
 There are exactly **two** things to back up:
 
-1. **The database** — every project, task, document, comment and setting.
+1. **The database** — every project, task, comment and setting, and everything written in Files.
 2. **The uploads** — the files people attached, at `/app/uploads` unless you've moved them to [object storage](object-storage.md).
 
 Back up both **together and regularly**, and keep copies somewhere that isn't the server.

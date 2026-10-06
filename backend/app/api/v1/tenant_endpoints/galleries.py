@@ -58,6 +58,7 @@ from app.core.tools import Tool
 from app.db.query import apply_pagination, build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.schemas.base import MentionStr
 from app.schemas.tenant.gallery import (
     GalleryCreate,
     GalleryImageBulkDelete,
@@ -514,7 +515,7 @@ async def upload_gallery_image(
     guild_context: GalleriesWrite,
     file: UploadFile = File(...),
     title: Optional[str] = Form(default=None),
-    caption: Optional[str] = Form(default=None),
+    caption: Annotated[Optional[MentionStr], Form()] = None,
 ) -> GalleryImageRead:
     """Add one picture to a gallery. Requires write access.
 

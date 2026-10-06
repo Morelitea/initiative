@@ -110,7 +110,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
 ## Finding things
 
-??? question "I can't find a project or document I know exists"
+??? question "I can't find a project or file I know exists"
     Two likely reasons: you're in a **different community** (check the rail down the far-left edge), or it hasn't been **shared** with you. Fastest way to check is search — ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](guides/search-and-shortcuts.md).
 
 ??? question "A link to something says 'not found' and I know it's there"
@@ -176,12 +176,12 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Can everyone in my community see everything in it?"
     No. Being in a community doesn't hand you its contents.
 
-    An **initiative** is only visible to the people added to it, and individual projects and documents narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
+    An **initiative** is only visible to the people added to it, and individual projects and files narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
 
 ??? question "How do I keep something visible to just two or three people?"
     Put it in an initiative with only those people in it.
 
-    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or document.
+    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or file.
 
 ??? question "Can other groups on the same server see our stuff?"
     No. Each community's data is separated at the database level. See [How your data is kept separate](security/how-your-data-is-kept-separate.md).

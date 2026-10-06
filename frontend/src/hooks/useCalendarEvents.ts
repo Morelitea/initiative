@@ -68,25 +68,9 @@ export const useCreateCalendarEvent = (
     options
   );
 
+/** Update an event, named per call so one hook serves any event on a page —
+ *  the calendar's drag-to-reschedule does not know it until the drop. */
 export const useUpdateCalendarEvent = (
-  eventId: number,
-  options?: MutationOpts<CalendarEventRead, CalendarEventUpdate>
-) =>
-  useCommunityMutation<CalendarEventRead, CalendarEventUpdate>(
-    {
-      mutationFn: (communityId, data) => updateCalendarEvent(communityId, eventId, withZone(data)),
-      invalidate: () => invalidate(q.allCalendarEvents()),
-      errorKey: "calendars:error",
-    },
-    options
-  );
-
-/**
- * Update an event identified per-call (the event id travels in the mutation
- * variables) rather than bound at hook construction. Used by the calendar
- * drag-to-reschedule flow, where the target event isn't known until drop time.
- */
-export const useRescheduleCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
 ) =>
   useCommunityMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
@@ -129,7 +113,7 @@ export const useDuplicateCalendarEvent = (
           occurrence,
         }),
       invalidate: () => invalidate(q.allCalendarEvents()),
-      errorKey: "common:error",
+      errorKey: "calendars:error",
     },
     options
   );

@@ -15,7 +15,7 @@ A document will hold pictures, and that works right up until there are forty of 
 One gallery per *thing*: "Store assets", "Live screen, round 4", "Fete 2026 photos". Galleries are cheap and the list of them is itself visual — each card shows its cover — so a gallery with six pictures in it is a perfectly good gallery.
 
 !!! tip "Galleries are off until you turn them on"
-    Like every tool that isn't projects or documents, an initiative's manager switches them on in the **Tools** card under **Initiative settings → Details**. Nothing appears in the sidebar until then.
+    Like every tool that isn't projects or files, an initiative's manager switches them on in the **Tools** card under **Initiative settings → Details**. Nothing appears in the sidebar until then.
 
 ## Putting pictures in
 
@@ -64,6 +64,6 @@ Every gallery has its own comment thread, under the wall. Switch it off under **
 ## Related
 
 - [Tools](tools.md) — the other tools an initiative can turn on.
-- [Documents](documents.md) — for the files that are read rather than looked at.
+- [Files](files.md) — for the things that are read rather than looked at.
 - [Tags](tags.md) — grouping and filtering, across every tool.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — the access levels in full.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — the access levels in full.
