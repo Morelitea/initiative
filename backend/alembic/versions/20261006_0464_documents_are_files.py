@@ -478,10 +478,12 @@ def _respell_json(
     _writable(bind, table, run)
 
 
-#: What a statement quotes — a string value, single- or dollar-quoted, and a
-#: double-quoted name — is left as written: a value a query compares against
-#: and a column name it answers with are its author's, not the dataset's.
-_QUOTED = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|\$(\w*)\$.*?\$\1\$", re.S)
+#: What a statement quotes. A string value (single- or dollar-quoted) is left
+#: as written, and so is a double-quoted name right after ``AS`` — a column
+#: name the statement answers with is its author's. Any other quoted name is a
+#: reference, respelled as a bare one is.
+_QUOTED = re.compile(r"'(?:[^']|'')*'|\$(\w*)\$.*?\$\1\$|\"((?:[^\"]|\"\")*)\"", re.S)
+_ALIAS = re.compile(r"\bAS\s*$", re.I)
 
 
 def _statement(sql: str, words: Mapping[str, str]) -> str:
@@ -493,7 +495,11 @@ def _statement(sql: str, words: Mapping[str, str]) -> str:
     parts: list[str] = []
     last = 0
     for quoted in _QUOTED.finditer(sql):
-        parts += [respell(sql[last : quoted.start()]), quoted.group(0)]
+        name = quoted.group(2)
+        kept = quoted.group(0)
+        if name in words and not _ALIAS.search(sql[: quoted.start()]):
+            kept = f'"{words[name]}"'
+        parts += [respell(sql[last : quoted.start()]), kept]
         last = quoted.end()
     return "".join(parts) + respell(sql[last:])
 

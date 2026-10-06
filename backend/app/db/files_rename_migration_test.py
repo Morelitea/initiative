@@ -53,15 +53,15 @@ async def _rows(session, sql: str, **params: Any) -> list[tuple]:
     return [tuple(row) for row in result.all()]
 
 
-# What a statement quotes is left as written — a string value and a column
-# name it answers with: only the names it reads move.
+# A statement's quoted values and its output aliases are left as written; the
+# names it reads move, quoted or not.
 _OLD_STATEMENT = (
-    'SELECT f.name AS "documents", f.document_type FROM documents f '
-    "WHERE f.name <> 'documents'"
+    'SELECT f.name AS "documents", f."document_type" FROM "documents" f '
+    "JOIN documents d ON d.id = f.id WHERE f.name <> 'documents'"
 )
 _NEW_STATEMENT = (
-    'SELECT f.name AS "documents", f.file_type FROM files f '
-    "WHERE f.name <> 'documents'"
+    'SELECT f.name AS "documents", f."file_type" FROM "files" f '
+    "JOIN files d ON d.id = f.id WHERE f.name <> 'documents'"
 )
 #: A plug-in widget's parameters are the plug-in's, whatever they are called.
 _PLUGIN_BINDING = {"source": "plugin", "params": {"document_id": 5}}
