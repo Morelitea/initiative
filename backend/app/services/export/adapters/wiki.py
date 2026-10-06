@@ -49,9 +49,11 @@ from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.file import File, FileType
 from app.models.tenant.wiki import Wiki, WikiPage
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
+    asset_item,
     envelope_key,
     export_stem,
 )
@@ -346,28 +348,18 @@ def filed_file_records(
         doc_type = getattr(file.file_type, "value", file.file_type)
         if doc_type == FileType.file.value:
             version = file.current_version
-            key = version.file_url.split("/")[-1] if version is not None else ""
-            if version is None or not key or not storage.exists(key):
+            asset = asset_item(storage, version)
+            if version is None or asset is None:
                 continue
             record["upload"] = {
                 "name": file.name,
-                "storage_key": key,
+                "storage_key": asset.key,
                 "original_filename": version.original_filename,
                 "content_type": version.file_content_type,
-                "tags": sorted(tag.name for tag in file.tags or []),
+                "tags": sorted(tag.name for tag in annotated_tags(file)),
                 "properties": exported_properties(file),
             }
-            uploads.append(
-                RenderItem(
-                    key=key,
-                    data={
-                        "storage_key": key,
-                        "content_type": version.file_content_type,
-                    },
-                    filename=f"assets/{key}",
-                    format="file",
-                )
-            )
+            uploads.append(asset)
         else:
             record["envelope"] = build_file_item(
                 file, "json", guild_id=ctx.guild_id, date=ctx.date, loc=loc
@@ -393,7 +385,7 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "show_updated_at": wiki.show_updated_at,
         "reading_width": wiki.reading_width,
         "accent_color": wiki.accent_color,
-        "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(wiki)),
         "properties": exported_properties(wiki),
         "pages": [_page_envelope(page, by_id) for page in pages],
     }
@@ -412,7 +404,7 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         # anyone yet, and a restore is not the moment to publish it for them.
         "is_draft": page.is_draft,
         "content": page.content or {},
-        "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(page)),
         "properties": exported_properties(page),
         # When it was written, and when it was last edited. A restore that
         # dated every page to the day it was restored lost the one thing a

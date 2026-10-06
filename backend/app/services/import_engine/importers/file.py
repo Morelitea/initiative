@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
@@ -19,9 +18,8 @@ from app.models.tenant.file import File, FileType
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import FileEnvelope
 from app.services.import_engine.common import (
-    ensure_tag,
     load_initiative_member_handles,
-    unique_name,
+    unique_name_in_initiative,
 )
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
@@ -34,10 +32,10 @@ from app.services.import_engine.people import PeopleMap
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
-from app.services.tenant import tags as tags_service
 from app.services.tenant.files import (
     FileContentError,
     normalize_file_content,
@@ -96,18 +94,10 @@ class FileImporter(NamesPeopleInPassing):
                 member_handles=member_handles,
             )
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(File.name).where(File.initiative_id == target_initiative.id)
-                )
-            ).all()
-        }
-        name = unique_name(existing_names, env.name)
-
         file = File(
-            name=name,
+            name=await unique_name_in_initiative(
+                session, File, target_initiative.id, env.name
+            ),
             file_type=FileType(env.file_type),
             content=content,
             initiative_id=target_initiative.id,
@@ -128,22 +118,8 @@ class FileImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
-        tags_created = 0
-        tags_matched = 0
-        for tag_name in env.tags:
-            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-            if resolved.created:
-                tags_created += 1
-            else:
-                tags_matched += 1
-            session.add(
-                tags_service.tag_edge(
-                    tags_service.TOOL_TAG_LINKS[Tool.file],
-                    file.id,
-                    resolved.id,
-                )
-            )
-
+        tags = TagRestore(session)
+        await tags.attach(file, env.tags)
         props = PropertyRestore(
             session,
             initiative_id=target_initiative.id,
@@ -155,11 +131,11 @@ class FileImporter(NamesPeopleInPassing):
             entity_id=file.id,
             entity_title=file.name,
             created={
-                "files": 1,
-                "tags": tags_created,
+                Tool.file.plural: 1,
+                "tags": tags.created,
                 "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(file),
             warnings=warnings,
         )

@@ -74,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An imported dashboard keeps its tags**, as other tools do.
 - **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
 - **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.
 - **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.

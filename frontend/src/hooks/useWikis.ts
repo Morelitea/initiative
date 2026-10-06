@@ -106,8 +106,8 @@ export const useDuplicateWikiPage = (
  * changes is what the wiki contains — which is why both invalidate the page
  * list, and nothing belonging to the file itself.
  */
-export const useAddWikiFile = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
-  useCommunityMutation<WikiPageTree, number>(
+export const useAddWikiFile = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useCommunityMutation<void, number>(
     {
       mutationFn: (communityId, fileId) => addFileToWiki(communityId, wikiId, fileId),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
@@ -165,11 +165,8 @@ export type MoveWikiFileVars = WikiPageMove & { fileId: number };
 
 /** A borrowed file is a row of the same list, so it moves the same way —
  *  the wiki records where it put it, and the file is not touched. */
-export const useMoveWikiFile = (
-  wikiId: number,
-  options?: MutationOpts<WikiPageTree, MoveWikiFileVars>
-) =>
-  useCommunityMutation<WikiPageTree, MoveWikiFileVars>(
+export const useMoveWikiFile = (wikiId: number, options?: MutationOpts<void, MoveWikiFileVars>) =>
+  useCommunityMutation<void, MoveWikiFileVars>(
     {
       mutationFn: (communityId, { fileId, ...move }) =>
         moveWikiFile(communityId, wikiId, fileId, move),

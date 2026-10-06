@@ -123,6 +123,7 @@ from app.schemas.tenant.wiki import (
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
+from app.services.tenant import comments as comments_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
@@ -464,13 +465,18 @@ PreviewLoader = Callable[[AsyncSession, int, list], Awaitable[Mapping[int, Any]]
 def _summaries(
     schema: type[ToolSummaryBase], preview: Optional[PreviewLoader] = None
 ) -> Callable[..., Awaitable[list]]:
-    """The ordinary page: tag the rows, then turn each into its summary. A tool
-    whose card previews what is inside it reads every row's preview for the
-    page at once, and only when the list was asked for them."""
+    """The ordinary page: tag the rows, count their comments where the summary
+    reports them, then turn each into its summary. A tool whose card previews
+    what is inside it reads every row's preview for the page at once, and only
+    when the list was asked for them."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         await properties_service.annotate_properties(req.session, rows)
+        if "comment_count" in schema.model_fields:
+            await comments_service.annotate_comment_counts(
+                req.session, rows, column=f"{spec.tool.value}_id"
+            )
         items = [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
@@ -654,31 +660,6 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     return [
         serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Galleries and wikis
-# ---------------------------------------------------------------------------
-
-
-async def _serialize_galleries(
-    spec: ToolListSpec, req: ListRequest, rows: list
-) -> list:
-    await galleries_endpoints.annotate_gallery_rows(req.session, rows)
-    return [
-        serialize_tool(
-            GallerySummary, row, context=req.guild_context, user_id=req.user_id
-        )
-        for row in rows
-    ]
-
-
-async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
-    await wikis_endpoints.annotate_wiki_rows(req.session, rows)
-    return [
-        serialize_tool(WikiSummary, row, context=req.guild_context, user_id=req.user_id)
-        for row in rows
     ]
 
 
@@ -1014,7 +995,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=GalleryListResponse,
         loader_options=_loads(galleries_service.list_loader_options),
         default_order=_order(Gallery.updated_at.desc(), Gallery.id.desc()),
-        serialize=_serialize_galleries,
+        serialize=_summaries(
+            GallerySummary,
+            preview=lambda session, _guild_id, rows: galleries_service.list_previews(
+                session, rows
+            ),
+        ),
         params=(
             _initiative_id(),
             search_param(
@@ -1028,6 +1014,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.gallery),
             _property_filters(),
             _archived(),
+            _include_preview(),
             page_param(),
             page_size_param(100, ge=0, le=500),
         ),
@@ -1041,7 +1028,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=WikiListResponse,
         loader_options=_loads(wikis_service.list_loader_options),
         default_order=_order(Wiki.updated_at.desc(), Wiki.id.desc()),
-        serialize=_serialize_wikis,
+        serialize=_summaries(WikiSummary),
         params=(
             _initiative_id(),
             search_param(

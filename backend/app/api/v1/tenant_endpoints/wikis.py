@@ -66,7 +66,6 @@ from app.services.tenant.collaboration import (
     versioned,
     written_into,
 )
-from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant import soft_delete as soft_delete_service
@@ -90,14 +89,6 @@ WikisWrite = Annotated[ActorContext, Depends(plugin_scope("wikis:write"))]
 # ---------------------------------------------------------------------------
 
 
-async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
-    """Everything a wiki row carries beyond its columns, one grouped query
-    each for the page."""
-    await tags_service.annotate_tags(session, wikis)
-    await properties_service.annotate_properties(session, wikis)
-    await comments_service.annotate_comment_counts(session, wikis, column="wiki_id")
-
-
 async def _serialized_page(
     session: AsyncSession, page: WikiPage, guild_context: ActorContext
 ) -> WikiPageRead:
@@ -110,19 +101,6 @@ async def _serialized_page(
         guild_context.guild_id,
         SearchEntityType.wiki_page.value,
     )
-
-
-async def _refetch_wiki(
-    session: RLSSessionDep, wiki_id: int, *, user_id: int | None
-) -> Wiki:
-    wiki = await wikis_service.get_wiki(session, wiki_id, populate_existing=True)
-    if not wiki:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.wiki.not_found_code,
-        )
-    await annotate_wiki_rows(session, [wiki])
-    return wiki
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +116,8 @@ async def read_wiki(
     guild_context: WikisRead,
 ) -> WikiRead:
     wiki = await resource_access.load_authorized(
-        session, Tool.wiki, wiki_id, current_user, guild_context
+        session, Tool.wiki, wiki_id, current_user, guild_context, hydrated=True
     )
-    await annotate_wiki_rows(session, [wiki])
     return serialize_tool(
         WikiRead, wiki, user_id=guild_context.user_id, context=guild_context
     )
@@ -190,10 +167,7 @@ async def create_wiki(
     await attachments_service.claim_uploads(session, wiki)
     await properties_service.write_on_create(session, wiki, wiki_in.properties)
     await session.commit()
-    hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
-    return serialize_tool(
-        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, wiki.id, current_user, guild_context)
 
 
 @router.patch("/{wiki_id}", response_model=WikiRead)
@@ -249,10 +223,7 @@ async def update_wiki(
     session.add(wiki)
     await attachments_service.claim_uploads(session, wiki)
     await session.commit()
-    hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
-    return serialize_tool(
-        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, wiki.id, current_user, guild_context)
 
 
 async def read_after_write(
@@ -266,7 +237,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
+    hydrated = await wikis_service.get_wiki_hydrated(
+        session, wiki_id, populate_existing=True
+    )
+    if hydrated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.wiki.not_found_code,
+        )
     return serialize_tool(
         WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
@@ -316,17 +294,14 @@ async def list_wiki_pages(
     return WikiPageTree(items=items)
 
 
-@router.put(
-    "/{wiki_id}/files/{file_id}",
-    response_model=WikiPageTree,
-)
+@router.put("/{wiki_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def add_file_to_wiki(
     wiki_id: int,
     file_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-) -> WikiPageTree:
+) -> None:
     """Put an existing file in this wiki.
 
     Two gates, because two things are involved: write on the wiki, because the
@@ -352,10 +327,9 @@ async def add_file_to_wiki(
         created_by=current_user.id,
     )
     await session.commit()
-    return await list_wiki_pages(wiki_id, session, current_user, guild_context)
 
 
-@router.post("/{wiki_id}/files/{file_id}/move", response_model=WikiPageTree)
+@router.post("/{wiki_id}/files/{file_id}/move", status_code=status.HTTP_204_NO_CONTENT)
 async def move_wiki_file(
     wiki_id: int,
     file_id: int,
@@ -363,7 +337,7 @@ async def move_wiki_file(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-) -> WikiPageTree:
+) -> None:
     """File a borrowed file under a page of this wiki, or at its top, and
     put it in order there.
 
@@ -396,7 +370,6 @@ async def move_wiki_file(
         session, wiki, file, move.position, move.parent_page_id
     )
     await session.commit()
-    return await list_wiki_pages(wiki_id, session, current_user, guild_context)
 
 
 @router.delete("/{wiki_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)

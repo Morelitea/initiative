@@ -34,6 +34,7 @@ from app.core.messages import ExportMessages
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
@@ -121,6 +122,6 @@ def _envelope(dashboard: Dashboard) -> dict[str, Any]:
         "listing_version": dashboard.listing_version,
         "definition": dict(dashboard.definition or {}),
         "config": dict(dashboard.config or {}),
-        "tags": sorted(tag.name for tag in getattr(dashboard, "tags", None) or []),
+        "tags": sorted(tag.name for tag in annotated_tags(dashboard)),
         "properties": exported_properties(dashboard),
     }

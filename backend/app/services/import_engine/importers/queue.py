@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
@@ -17,16 +16,16 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.queue import Queue, QueueItem
 from app.schemas.tenant.import_envelopes import QueueEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import unique_name_in_initiative
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
-from app.services.tenant import tags as tags_service
 
 
 class QueueImporter(NamesPeopleInPassing):
@@ -52,18 +51,10 @@ class QueueImporter(NamesPeopleInPassing):
         env: QueueEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         warnings: list[str] = []
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Queue.name).where(
-                        Queue.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        }
         queue = Queue(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, Queue, target_initiative.id, env.name
+            ),
             description=env.description,
             is_active=env.is_active,
             current_round=env.current_round,
@@ -81,29 +72,8 @@ class QueueImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
-        tags_created = 0
-        tags_matched = 0
-
-        async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
-            nonlocal tags_created, tags_matched
-            # A name listed twice (or in another case) is one tag, attached once.
-            attached: set[int] = set()
-            for tag_name in names:
-                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-                if resolved.id in attached:
-                    continue
-                attached.add(resolved.id)
-                if resolved.created:
-                    tags_created += 1
-                else:
-                    tags_matched += 1
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TAG_LINKS[surface], entity_id, resolved.id
-                    )
-                )
-
-        await attach_tags("queue", queue.id, env.tags)
+        tags = TagRestore(session)
+        await tags.attach(queue, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -131,7 +101,7 @@ class QueueImporter(NamesPeopleInPassing):
                 current_item_id = row.id
             if item.member:
                 dropped_members += 1
-            await attach_tags("queue_item", row.id, item.tags)
+            await tags.attach(row, item.tags)
             await props.attach(row, item.properties)
 
         if current_item_id is not None:
@@ -144,12 +114,12 @@ class QueueImporter(NamesPeopleInPassing):
             entity_id=queue.id,
             entity_title=queue.name,
             created={
-                "queues": 1,
+                Tool.queue.plural: 1,
                 "items": len(env.items),
-                "tags": tags_created,
+                "tags": tags.created,
                 "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(queue),
             warnings=warnings,
         )
