@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import routed_guild_id
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.tenant.task import Task
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
@@ -33,8 +32,6 @@ from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     plugin_scope,
-    get_current_active_user,
-    GuildContextDep,
 )
 from app.models.tenant.queue import (
     Queue,
@@ -49,6 +46,7 @@ from app.schemas.tenant.queue import (
     QueueItemUpdate,
     QueueItemRead,
     QueueReleaseRequest,
+    active_items,
     serialize_queue,
     serialize_queue_item,
 )
@@ -65,37 +63,18 @@ from app.api.content_socket import serve_tool_stream
 async def _serialized_queue(
     session: AsyncSession, queue: Queue, *, user_id: int | None
 ) -> QueueRead:
-    """A queue and its items, each with what is pinned to it.
-
-    ``serialize_queue`` takes no session, so nothing fetched the attachments for
-    a queue read as a whole and every item came back with none — which is what
-    a reader sees when they open a queue rather than one item of it.
-
-    Batched rather than per item: two queries for the tasks on the whole page,
-    however many items the queue holds.
-    """
-    items = getattr(queue, "items", None) or []
-    item_ids = [item.id for item in items]
-    tasks = await relationships.related_for_many(
-        session,
-        SearchEntityType.queue_item,
-        item_ids,
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.task,
-        model=Task,
-    )
-    # Counted over every kind an item may be pinned to.
+    """A queue and its items, each with how many things are pinned to it,
+    counted for the whole page in one query."""
     counts = await relationships.counts_for_many(
         session,
         SearchEntityType.queue_item,
-        item_ids,
+        [item.id for item in active_items(queue)],
         relationship_type=RelationshipType.attached,
     )
     return serialize_queue(
         queue,
         context=require_actor_context(session),
         user_id=user_id,
-        tasks=tasks,
         attachment_counts=counts,
     )
 
@@ -103,24 +82,13 @@ async def _serialized_queue(
 async def _serialized_queue_item(
     session: AsyncSession, item: QueueItem
 ) -> QueueItemRead:
-    tasks = await relationships.related_for(
-        session,
-        relationships.Endpoint(SearchEntityType.queue_item, item.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.task,
-        model=Task,
-    )
     counts = await relationships.counts_for_many(
         session,
         SearchEntityType.queue_item,
         [item.id],
         relationship_type=RelationshipType.attached,
     )
-    return serialize_queue_item(
-        item,
-        tasks=tasks,
-        attachment_count=counts.get(item.id, 0),
-    )
+    return serialize_queue_item(item, attachment_count=counts.get(item.id, 0))
 
 
 router = APIRouter(route_class=ActorRoute)
@@ -248,7 +216,7 @@ async def create_queue(
     queue = Queue(
         initiative_id=initiative.id,
         created_by=guild_context.user_id,
-        name=queue_in.name.strip(),
+        name=queue_in.name,
         description=queue_in.description,
     )
     session.add(queue)
@@ -287,8 +255,8 @@ async def update_queue(
     updated = False
     update_data = queue_in.model_dump(exclude_unset=True)
 
-    if "name" in update_data and update_data["name"] is not None:
-        queue.name = update_data["name"].strip()
+    if "name" in update_data:
+        queue.name = update_data["name"]
         updated = True
     if "description" in update_data:
         queue.description = update_data["description"]
@@ -320,9 +288,9 @@ async def update_queue(
 async def add_queue_item(
     queue_id: int,
     item_in: QueueItemCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueItemRead:
     """Add an item to a queue. Requires write access."""
     queue = await resource_access.load_authorized(
@@ -362,7 +330,7 @@ async def add_queue_item(
             relationship_type=RelationshipType.attached,
             other_kind=SearchEntityType.task,
             ids=item_in.task_ids,
-            user_id=current_user.id,
+            user_id=guild_context.user_id,
         )
 
     await attachments_service.claim_uploads(session, item)
@@ -427,9 +395,9 @@ async def update_queue_item(
 @items_router.delete("/queue-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_queue_item(
     item_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> None:
     """Soft-delete a queue item. Requires write access on the parent queue."""
     from app.services.tenant.soft_delete import trash
@@ -441,11 +409,7 @@ async def delete_queue_item(
         queue.current_item_id = None
         session.add(queue)
 
-    await trash(
-        session,
-        item,
-        deleted_by_user_id=current_user.id,
-    )
+    await trash(session, item, deleted_by_user_id=guild_context.user_id)
     await session.commit()
     sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_removed")
 

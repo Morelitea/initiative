@@ -1,5 +1,5 @@
 """``initiative-calendar`` importer: one envelope holds a whole calendar —
-the calendar row (the shareable container) plus its events. The importer
+the calendar row (the shareable container) and its tags, plus its events. The importer
 becomes the calendar's owner; events apply in per-event savepoints (the ICS
 import's partial-success pattern) so a malformed event fails alone, never the
 batch.
@@ -133,6 +133,19 @@ class CalendarImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags_created = 0
+        tags_matched = 0
+        for tag_name in env.tags:
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
+            if resolved.created:
+                tags_created += 1
+            else:
+                tags_matched += 1
+            session.add(
+                tags_service.tag_edge(
+                    tags_service.TOOL_TAG_LINKS[Tool.calendar], calendar.id, resolved.id
+                )
+            )
         props = PropertyRestore(
             session,
             initiative_id=target_initiative.id,
@@ -143,8 +156,6 @@ class CalendarImporter(NamesPeopleInPassing):
 
         created = 0
         failed = 0
-        tags_created = 0
-        tags_matched = 0
         props_created = props.created
         props_matched = props.matched
         attendees_matched = 0

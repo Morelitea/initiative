@@ -152,6 +152,11 @@ def test_title_str_allows_ordinary_punctuation() -> None:
     assert m.display == "Q3 Report (final) & notes — v2"
 
 
+def test_title_str_is_trimmed() -> None:
+    assert _Model(name="  x  ", display="  Q3 Report  ").display == "Q3 Report"
+    assert _Model(name="  x  ").name == "  x  "
+
+
 def test_title_str_none_passes_through() -> None:
     assert _Model(name="x", display=None).display is None
 

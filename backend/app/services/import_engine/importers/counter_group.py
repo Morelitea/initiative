@@ -1,5 +1,5 @@
-"""``initiative-counter-group`` importer: the group and its counters with
-configuration and current values."""
+"""``initiative-counter-group`` importer: the group with its tags, and its
+counters with configuration and current values."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup, CounterViewMode
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import CounterGroupEnvelope
-from app.services.import_engine.common import unique_name
+from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
@@ -25,6 +25,7 @@ from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
 )
+from app.services.tenant import tags as tags_service
 
 
 class CounterGroupImporter(NamesPeopleInPassing):
@@ -76,6 +77,21 @@ class CounterGroupImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags_created = 0
+        tags_matched = 0
+        for tag_name in env.tags:
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
+            if resolved.created:
+                tags_created += 1
+            else:
+                tags_matched += 1
+            session.add(
+                tags_service.tag_edge(
+                    tags_service.TOOL_TAG_LINKS[Tool.counter_group],
+                    group.id,
+                    resolved.id,
+                )
+            )
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -112,9 +128,10 @@ class CounterGroupImporter(NamesPeopleInPassing):
             created={
                 "counter_groups": 1,
                 "counters": len(env.counters),
+                "tags": tags_created,
                 "properties": props.created,
             },
-            matched={"properties": props.matched},
+            matched={"tags": tags_matched, "properties": props.matched},
             unmatched_handles=await props.settle(group),
         )
 

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Queue API.** A queue reports `current_item_id` instead of the whole `current_item`, and queue items no longer carry `tasks` (read an item's links from the relationships API). Queue item routes sit under the `queues` tag, so an agent can read a queue item back. Plug-ins with a queue's or counter group's write scope can now add and delete its items and counters, reset all counters and sort them.
 - **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do. The API drops what nothing read: document list `projects`, `yjs_updated_at`, `sort_by`/`sort_dir` and the `ids` filter, and the attached-document fields on queue items and calendar events (link them as relationships).
 - **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
 - **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
@@ -68,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
 - **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.
 - **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.
 - **Someone who loses access to a calendar, queue or other tool is taken off what is in it.** Event attendees, people on queue items and person fields now let go of them when sharing changes, as task assignees already did.

@@ -248,6 +248,7 @@ class QueueEnvelope(_EnvelopeBase):
     description: Optional[str] = None
     is_active: bool = False
     current_round: int = 1
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     items: list[QueueEnvelopeItem] = []
 
@@ -274,6 +275,7 @@ class CounterGroupEnvelope(_EnvelopeBase):
     type: Literal["initiative-counter-group"]
     name: str
     description: Optional[str] = None
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     counters: list[CounterEnvelopeItem] = []
 
@@ -428,5 +430,6 @@ class CalendarEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     color: Optional[str] = None
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     events: list[EventEnvelopeItem] = []

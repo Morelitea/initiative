@@ -7988,12 +7988,6 @@ export interface QueueItemCreate {
   task_ids?: number[] | null;
 }
 
-export interface QueueItemTaskRead {
-  task_id: number;
-  title?: string;
-  attached_at: string;
-}
-
 export interface QueueItemRead {
   /**
    * @minLength 1
@@ -8010,7 +8004,6 @@ export interface QueueItemRead {
   user: UserPublic | null;
   tags: TagSummary[];
   properties: PropertySummary[];
-  tasks: QueueItemTaskRead[];
   attachment_count: number;
   held_at_round: number | null;
   created_at: string;
@@ -8094,7 +8087,7 @@ export interface QueueRead {
   is_active: boolean;
   preview: QueueTurnPreview[] | null;
   items: QueueItemRead[];
-  current_item: QueueItemRead | null;
+  current_item_id: number | null;
 }
 
 /**
