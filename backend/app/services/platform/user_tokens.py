@@ -186,30 +186,23 @@ async def revoke_user_sessions(
     system_session: AsyncSession,
     *,
     user: User,
-    commit: bool = True,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
     change.
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
     invalidating any still-unexpired access token), deactivates their API keys,
-    and revokes their
-    rotating **refresh sessions** — a refresh would otherwise keep minting access
-    tokens *at the new ``token_version``* after the reset. Shared by
-    the self-service password change, the forgot-password reset, and the operator
-    password reset so the three paths can't drift.
+    and revokes their rotating **refresh sessions**, so no refresh mints an
+    access token at the new ``token_version`` either. Shared by every
+    password write (``set_password``), the credentials retired when an address
+    is first proved, and the sign-out an account notice answers.
 
     Every table this writes is the system engine's, so the revocations share
     ``system_session``'s transaction. ``token_version`` is bumped on ``user``
-    wherever it is bound, and whoever holds that session commits it. The
-    revocations are committed here by default so they can't be forgotten by a
-    caller — revoking ahead of a password write that later fails just logs the
-    user out, which is the fail-safe direction.
-
-    ``commit=False`` leaves them staged, for the callers that open a
-    replacement session immediately afterwards: staged together, the
-    revocations and their replacement land in one transaction, so a failure to
-    open the replacement leaves the account holding everything it had.
+    wherever it is bound. Nothing is committed here: the caller commits the
+    revocations with the change they follow, and with the session that
+    replaces the caller's where it opens one, so a failure leaves the account
+    holding everything it had.
     """
     user.token_version += 1
     await api_keys_service.deactivate_user_api_keys(system_session, user_id=user.id)
@@ -217,5 +210,3 @@ async def revoke_user_sessions(
     # A sign-in part-way through rests on the password it proved, so it goes
     # with the rest rather than standing until it expires.
     await challenge_service.revoke_for_user(system_session, user_id=user.id)
-    if commit:
-        await system_session.commit()

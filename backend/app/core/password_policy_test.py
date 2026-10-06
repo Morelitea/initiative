@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
 
 from app.core.messages import PasswordMessages
 from app.core.password_policy import (
     PASSWORD_MIN_LENGTH,
     PasswordPolicyError,
-    enforce_password_policy,
     validate_new_password,
 )
 from app.services import hibp
@@ -30,6 +28,7 @@ class TestValidateNewPassword:
         with pytest.raises(PasswordPolicyError) as excinfo:
             await validate_new_password("a" * (PASSWORD_MIN_LENGTH - 1))
         assert excinfo.value.code == PasswordMessages.TOO_SHORT
+        assert excinfo.value.status_code == 422
 
     async def test_rejects_empty_password(self):
         with pytest.raises(PasswordPolicyError) as excinfo:
@@ -69,18 +68,3 @@ class TestValidateNewPassword:
         with pytest.raises(PasswordPolicyError):
             await validate_new_password("short")
         assert called is False
-
-
-class TestEnforcePasswordPolicy:
-    async def test_raises_http_422_on_policy_failure(self):
-        with pytest.raises(HTTPException) as excinfo:
-            await enforce_password_policy("short")
-        assert excinfo.value.status_code == 422
-        assert excinfo.value.detail == PasswordMessages.TOO_SHORT
-
-    async def test_returns_silently_on_valid_password(self, monkeypatch):
-        async def _not_breached(_pw: str) -> bool:
-            return False
-
-        monkeypatch.setattr(hibp, "is_password_breached", _not_breached)
-        await enforce_password_policy("a" * PASSWORD_MIN_LENGTH)

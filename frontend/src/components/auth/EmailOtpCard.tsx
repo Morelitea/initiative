@@ -18,6 +18,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { registerWithCode, sendSignInCode } from "@/api/generated/auth/auth";
 import type { EmailOtpRegister, Token } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LegalNotice } from "@/components/auth/LegalNotice";
@@ -36,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { browserTimezone } from "@/lib/timezones";
 
 type Step = "address" | "code" | "handle";
 
@@ -83,12 +85,12 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
     setBusy(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
+      const sent = await sendSignInCode({
         email: email.toLowerCase().trim(),
         ...(inviteCode ? { invite_code: inviteCode } : {}),
         ...(captcha ? { captcha_token: captchaToken } : {}),
       });
-      setChallenge(data.challenge);
+      setChallenge(sent.challenge);
       setStep("code");
     } catch (err) {
       setError(getErrorMessage(err, "auth:emailOtp.sendError"));
@@ -136,14 +138,14 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
     setBusy(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<Token>("/auth/email-otp/register", {
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      const token = await registerWithCode({
+        timezone: browserTimezone(),
         ...registration,
         registration_ticket: ticket,
         username: username.trim(),
         ...(inviteCode ? { invite_code: inviteCode } : {}),
       });
-      await applyEmailOtpSignIn(data);
+      await applyEmailOtpSignIn(token);
       onSignedIn(true);
     } catch (err) {
       setError(getErrorMessage(err, "auth:emailOtp.registerError"));

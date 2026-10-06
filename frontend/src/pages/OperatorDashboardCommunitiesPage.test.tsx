@@ -118,23 +118,13 @@ vi.mock("@/api/generated/settings/settings", () => ({
     answer ? mintHandoff(communityId, answer) : mintHandoff(communityId),
 }));
 
-// Captured so a test can fire the save's own callbacks and check what the
-// boxes do with a refusal.
-let updateCallbacks: {
-  onSuccess?: (row: (typeof communitiesData)[number]) => void;
-  onError?: (err: unknown) => void;
-} = {};
-
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformCommunities: () => ({
     data: { ...buildPage(communitiesData), support_bound: supportBound },
     isLoading: false,
     isError: false,
   }),
-  useUpdateCommunityStorage: (options: typeof updateCallbacks) => {
-    updateCallbacks = options ?? {};
-    return { mutate, isPending: false };
-  },
+  useUpdateCommunityStorage: () => ({ mutate, isPending: false }),
   useRestoreCommunity: () => ({ mutate: restore, isPending: false }),
   useCommunityNarrowings: () => ({ data: narrowings, isLoading: false }),
   useAgreeCommunityNarrowing: () => ({ mutate: agreeNarrowing, isPending: false }),
@@ -252,7 +242,7 @@ describe("OperatorDashboardCommunitiesPage", () => {
       expect(input().value).toBe(""); // blank meaning unlimited
       typeAndLeave(input(), typed);
 
-      expect(mutate).toHaveBeenCalledWith({ communityId: 8, data: saves });
+      expect(mutate).toHaveBeenCalledWith({ communityId: 8, data: saves }, expect.anything());
     });
 
     it("does not save when the value is left unchanged", async () => {
@@ -268,7 +258,7 @@ describe("OperatorDashboardCommunitiesPage", () => {
 
       typeAndLeave(input(), "");
 
-      expect(mutate).toHaveBeenCalledWith({ communityId: 7, data: cleared });
+      expect(mutate).toHaveBeenCalledWith({ communityId: 7, data: cleared }, expect.anything());
     });
 
     it.each(rejects)("reverts %s without saving", async (_label, value) => {
@@ -338,22 +328,30 @@ describe("OperatorDashboardCommunitiesPage", () => {
 
       typeAndLeave(input, "99");
       expect(mutate).toHaveBeenCalled();
+      // The other cap, typed in while the save was out, is not what was refused.
+      fireEvent.change(userLimitInput(), { target: { value: "42" } });
 
-      act(() => updateCallbacks.onError?.(new Error("nope")));
+      act(() => mutate.mock.calls[0][1].onError(new Error("nope")));
       expect(storageInput().value).toBe("10");
+      expect(userLimitInput().value).toBe("42");
     });
 
     it("shows what a save actually stored, not what was typed", async () => {
-      await openSheet("Capped Community");
+      const user = userEvent.setup();
+      const { rerender } = renderPage();
+      await user.click(await screen.findByLabelText("Manage settings for Capped Community"));
       typeAndLeave(storageInput(), "5.0");
 
-      act(() =>
-        updateCallbacks.onSuccess?.({
-          ...communitiesData[0],
-          max_storage_bytes: 5 * GIB,
-        })
-      );
-      expect(storageInput().value).toBe("5");
+      // The save lands, and the refetched list carries what was stored.
+      const capped = communitiesData[0];
+      communitiesData[0] = { ...capped, max_storage_bytes: 5 * GIB };
+      try {
+        act(() => mutate.mock.calls[0][1].onSuccess());
+        rerender(<OperatorDashboardCommunitiesPage />);
+        expect(storageInput().value).toBe("5");
+      } finally {
+        communitiesData[0] = capped;
+      }
     });
   });
 
@@ -647,11 +645,9 @@ describe("OperatorDashboardCommunitiesPage", () => {
       // The purge date is an instant, not a calendar day, so it is drawn in
       // the reader's own timezone — computed here the same way rather than
       // written out, which would only pass in the timezone it was written in.
-      const expected = new Date("2026-11-30T00:00:00Z").toLocaleDateString("en", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      const expected = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+        new Date("2026-11-30T00:00:00Z")
+      );
       expect(
         screen.getByText(`Deleted. Everything in it is destroyed on ${expected}.`)
       ).toBeInTheDocument();

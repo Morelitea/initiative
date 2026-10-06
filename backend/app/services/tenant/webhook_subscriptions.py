@@ -11,6 +11,8 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
+from app.core.messages import WebhookSubscriptionMessages
 from app.core import webhook_events
 from app.core.plugin_scopes import plugin_scope
 from app.db import cohorts
@@ -47,16 +49,12 @@ def _target_host(url: str | None) -> str | None:
     return urlsplit(url).hostname if url else None
 
 
-class WebhookSubscriptionVocabularyError(Exception):
+class WebhookSubscriptionVocabularyError(CodedError):
     """A subscription named an event type or field that could never fire.
 
     Carries the message code the endpoint answers with, so the check has one
     home rather than one per caller.
     """
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
 
 
 async def plugin_event_emitters(
@@ -116,8 +114,6 @@ async def assert_vocabulary(
     subscription that looks healthy and never delivers. Returns the plug-in events
     named, each with the plug-in that emits it (:func:`plugin_event_emitters`).
     """
-    from app.core.messages import WebhookSubscriptionMessages
-
     named = list(event_types or [])
     emitters = await plugin_event_emitters(guild_id, named)
     changes = [name for name in named if name not in emitters]
@@ -132,16 +128,14 @@ async def assert_vocabulary(
     return emitters
 
 
-class WebhookSubscriptionScopeError(Exception):
+class WebhookSubscriptionScopeError(CodedError):
     """An installed plug-in asked for a subscription its standing does not cover.
 
     Carries the message code the endpoint answers with, like
     :class:`WebhookSubscriptionVocabularyError`.
     """
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 403
 
 
 def assert_install_may_subscribe(
@@ -189,11 +183,6 @@ def assert_install_may_subscribe(
         raise refused
     if initiative_id not in context.member_initiatives:
         raise refused
-
-
-class WebhookSubscriptionNotFoundError(Exception):
-    """Raised when the requested subscription doesn't exist under the
-    caller's scope."""
 
 
 def _generate_hmac_secret() -> str:
@@ -250,9 +239,9 @@ async def get_subscription(
     guild_id: int,
     for_update: bool = False,
 ) -> WebhookSubscription:
-    """Fetch by id, scoped to the caller's guild. Raises
-    :class:`WebhookSubscriptionNotFoundError` so cross-guild lookups
-    report "not found" rather than "forbidden".
+    """Fetch by id, scoped to the caller's guild. A missing row is refused
+    as ``NOT_FOUND`` (404), so cross-guild lookups report "not found" rather
+    than "forbidden".
 
     ``for_update`` locks the row for the rest of the transaction, for callers
     that read it, decide something from it, and write it back.
@@ -264,9 +253,7 @@ async def get_subscription(
         statement = statement.with_for_update()
     row = (await session.exec(statement)).one_or_none()
     if row is None:
-        raise WebhookSubscriptionNotFoundError(
-            f"webhook subscription {subscription_id} not found in guild {guild_id}"
-        )
+        raise CodedError(WebhookSubscriptionMessages.NOT_FOUND, 404)
     return row
 
 

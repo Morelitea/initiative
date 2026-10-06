@@ -5,44 +5,59 @@ from __future__ import annotations
 import json
 
 import pytest
+from starlette.datastructures import Headers
 
 from app.core.body_limit import (
     DEFAULT_MAX_REQUEST_BYTES,
     DOCUMENT_MAX_REQUEST_BYTES,
     MULTIPART_MAX_REQUEST_BYTES,
-    _RULES,
     BodySizeLimitMiddleware,
     _bound_for,
 )
-from app.core.messages import CommonMessages
+from app.core.messages import CommonMessages, ImportEngineMessages
+from app.main import app
 from app.services.import_engine import limits as import_limits
 from app.services.marketplace import listing_assets, tool_listings
 from app.services.tenant import attachments, galleries
 
 
-def _limit(path: str) -> int | None:
-    for pattern, limit, _code in _RULES:
-        if pattern.match(path):
-            return limit()
-    return None
+def _bound(
+    path: str, method: str = "POST", content_type: str = "application/json"
+) -> tuple[int, str]:
+    """The bound a request to ``path`` gets, resolved against the real app."""
+    scope = {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "root_path": "",
+        "headers": [(b"content-type", content_type.encode())],
+        "app": app,
+    }
+    return _bound_for(scope, Headers(scope=scope))
 
 
 def test_the_atlassian_routes_are_bounded_where_they_are():
     """The connect and the import take a handful of strings; the export
     upload takes a zip as large as a backup."""
-    connect = _limit("/api/v1/c/1/imports/atlassian/connect")
-    start = _limit("/api/v1/c/1/imports/atlassian/import")
-    export = _limit("/api/v1/c/1/imports/atlassian/export")
-    assert connect is not None and connect == start
-    assert export is not None and export > import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-    assert export == _limit("/api/v1/c/1/imports/backup")
+    connect = _bound("/api/v1/c/1/imports/atlassian/connect")
+    start = _bound("/api/v1/c/1/imports/atlassian/import")
+    export = _bound("/api/v1/c/1/imports/atlassian/export")
+    assert connect == start
+    assert connect[0] < DEFAULT_MAX_REQUEST_BYTES
+    assert export[0] > import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+    assert export == _bound("/api/v1/c/1/imports/backup")
+    assert {connect[1], export[1]} == {ImportEngineMessages.IMPORT_TOO_LARGE}
 
 
-def _bound(path: str, content_type: bytes = b"application/json") -> tuple[int, str]:
-    return _bound_for({"path": path, "headers": [(b"content-type", content_type)]})
+def test_a_routes_bound_is_read_when_the_request_arrives(monkeypatch):
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
+    assert _bound("/api/v1/c/1/imports/envelope") == (
+        1024,
+        ImportEngineMessages.IMPORT_TOO_LARGE,
+    )
 
 
-def test_a_route_no_rule_names_still_has_a_bound():
+def test_a_route_with_no_bound_of_its_own_still_has_one():
     assert _bound("/api/v1/c/1/tasks/") == (
         DEFAULT_MAX_REQUEST_BYTES,
         CommonMessages.REQUEST_TOO_LARGE,
@@ -56,7 +71,7 @@ def test_a_route_no_rule_names_still_has_a_bound():
 def test_a_multipart_upload_gets_room_for_the_largest_file_a_route_takes():
     limit, _ = _bound(
         "/api/v1/c/1/files/upload",
-        b"multipart/form-data; boundary=x",
+        content_type="multipart/form-data; boundary=x",
     )
     assert limit == MULTIPART_MAX_REQUEST_BYTES
     assert limit > attachments.MAX_FILE_SIZE
@@ -70,37 +85,37 @@ def test_a_multipart_upload_gets_room_for_the_largest_file_a_route_takes():
 
 
 def test_the_default_leaves_room_for_a_calendar_import():
-    """The largest JSON body no rule names is an iCalendar import."""
+    """The largest JSON body no route bounds is an iCalendar import."""
     assert DEFAULT_MAX_REQUEST_BYTES > 2 * 2_000_000
 
 
 @pytest.mark.parametrize(
-    "path",
+    ("method", "path"),
     [
-        "/api/v1/c/1/files/",
-        "/api/v1/c/1/files",
-        "/api/v1/c/1/files/42",
-        "/api/v1/c/1/wikis/3/pages",
-        "/api/v1/c/1/wiki-pages/9",
-        "/api/v1/c/1/collaboration/files/42/collaborate",
-        "/api/v1/c/1/collaboration/wiki-pages/9/collaborate",
+        ("POST", "/api/v1/c/1/files/"),
+        ("PATCH", "/api/v1/c/1/files/42"),
+        ("POST", "/api/v1/c/1/wikis/3/pages"),
+        ("PATCH", "/api/v1/c/1/wiki-pages/9"),
+        ("POST", "/api/v1/c/1/collaboration/files/42/collaborate"),
+        ("POST", "/api/v1/c/1/collaboration/wiki-pages/9/collaborate"),
     ],
 )
-def test_the_routes_that_write_a_file_take_a_whiteboard(path):
-    assert _limit(path) == DOCUMENT_MAX_REQUEST_BYTES
+def test_the_routes_that_write_a_file_take_a_whiteboard(method, path):
+    assert _bound(path, method)[0] == DOCUMENT_MAX_REQUEST_BYTES
 
 
 @pytest.mark.parametrize(
-    "path",
+    ("method", "path"),
     [
-        "/api/v1/c/1/files/42/comments",
-        "/api/v1/c/1/files/42/duplicate",
-        "/api/v1/c/1/wikis/3",
-        "/api/v1/c/1/wiki-pages/9/move",
+        ("POST", "/api/v1/c/1/files/42/comments"),
+        ("POST", "/api/v1/c/1/files/42/duplicate"),
+        ("PATCH", "/api/v1/c/1/wikis/3"),
+        ("POST", "/api/v1/c/1/wiki-pages/9/move"),
+        ("GET", "/api/v1/c/1/files/42"),
     ],
 )
-def test_the_file_rule_names_only_the_routes_that_carry_content(path):
-    assert _limit(path) is None
+def test_only_the_routes_that_carry_content_take_a_whiteboard(method, path):
+    assert _bound(path, method)[0] == DEFAULT_MAX_REQUEST_BYTES
 
 
 async def _run(

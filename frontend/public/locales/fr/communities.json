@@ -57,6 +57,7 @@
   "invite": {
     "title": "Rejoindre {{communityName}}",
     "titleDefault": "Invitation à la communauté",
+    "thisCommunity": "cette communauté",
     "checking": "Vérification des détails de l'invitation…",
     "acceptDescription": "Acceptez pour rejoindre cette communauté.",
     "couldNotValidate": "Cette invitation n'a pas pu être validée.",

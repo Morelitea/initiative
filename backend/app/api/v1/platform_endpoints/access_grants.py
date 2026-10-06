@@ -23,6 +23,7 @@ from app.api.deps import (
     require_capability,
     SystemSessionDep,
 )
+from app.api.v1.platform_endpoints.session_opening import prove_second_factor
 from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
@@ -65,40 +66,6 @@ AccessApproveDep = Annotated[
 # standing all-guild bypass.
 BreakGlassDep = Annotated[User, Depends(require_capability(Capability.DATA_BYPASS))]
 
-# Map service error codes to (status, detail). All details are machine-readable
-# codes the frontend localizes via errors.json.
-_ERROR_STATUS: dict[str, int] = {
-    "COMMUNITY_NOT_FOUND": status.HTTP_404_NOT_FOUND,
-    "ALREADY_MEMBER": status.HTTP_400_BAD_REQUEST,
-    "DURATION_TOO_LONG": status.HTTP_400_BAD_REQUEST,
-    "OVERLAPPING_GRANT": status.HTTP_409_CONFLICT,
-    "NOT_PENDING": status.HTTP_400_BAD_REQUEST,
-    "NOT_ACTIVE": status.HTTP_400_BAD_REQUEST,
-    "CANNOT_APPROVE_OWN": status.HTTP_400_BAD_REQUEST,
-    "CANNOT_CANCEL_OTHERS": status.HTTP_403_FORBIDDEN,
-    "ALREADY_LIVE": status.HTTP_409_CONFLICT,
-    "GRANTEE_INELIGIBLE": status.HTTP_409_CONFLICT,
-}
-_ERROR_DETAIL: dict[str, str] = {
-    "COMMUNITY_NOT_FOUND": AccessGrantMessages.COMMUNITY_NOT_FOUND,
-    "ALREADY_MEMBER": AccessGrantMessages.ALREADY_MEMBER,
-    "DURATION_TOO_LONG": AccessGrantMessages.DURATION_TOO_LONG,
-    "OVERLAPPING_GRANT": AccessGrantMessages.OVERLAPPING_GRANT,
-    "NOT_PENDING": AccessGrantMessages.NOT_PENDING,
-    "NOT_ACTIVE": AccessGrantMessages.NOT_ACTIVE,
-    "CANNOT_APPROVE_OWN": AccessGrantMessages.CANNOT_APPROVE_OWN,
-    "CANNOT_CANCEL_OTHERS": AccessGrantMessages.CANNOT_CANCEL_OTHERS,
-    "ALREADY_LIVE": AccessGrantMessages.ALREADY_LIVE,
-    "GRANTEE_INELIGIBLE": AccessGrantMessages.GRANTEE_INELIGIBLE,
-}
-
-
-def _raise(error: service.AccessGrantError) -> None:
-    raise HTTPException(
-        status_code=_ERROR_STATUS.get(error.code, status.HTTP_400_BAD_REQUEST),
-        detail=_ERROR_DETAIL.get(error.code, error.code),
-    )
-
 
 async def _one(grant, *, system_session: AsyncSession | None = None) -> AccessGrantRead:
     reads = await service.to_read([grant], system_session=system_session)
@@ -117,15 +84,12 @@ async def create_access_request(
     grant so an approver decides about them separately and the log keeps them
     apart. The content one is returned, being the one a caller routes in under.
     """
-    try:
-        asked = await service.request_grants(
-            session,
-            requester=current_user,
-            payload=payload,
-            asks=payload.wanted,
-        )
-    except service.AccessGrantError as exc:
-        _raise(exc)
+    asked = await service.request_grants(
+        session,
+        requester=current_user,
+        payload=payload,
+        asks=payload.wanted,
+    )
     grant = asked[0]
     for requested in asked:
         await audit_service.record(
@@ -184,7 +148,9 @@ async def check_second_factor(
     authenticator, a recovery code, or one of the account's passkeys. The
     recovery code is there because an operator whose phone is gone is exactly
     who needs to reach a community; the passkey, because a holder who signs in
-    with one has no reason to keep an authenticator app as well.
+    with one has no reason to keep an authenticator app as well. A code is
+    taken by :func:`prove_second_factor`, as it is at a sign-in, so the
+    account's lock and its count of wrong answers hold here too.
     """
     if not await service.demands_second_factor(session, actor=actor):
         return
@@ -203,35 +169,34 @@ async def check_second_factor(
         )
 
     if answer.passkey is not None:
-        accepted = await _answers_with_a_passkey(
+        if not await _answers_with_a_passkey(
             session, actor=actor, credential=answer.passkey
-        )
-        method, refusal = "passkey", AccessGrantMessages.PASSKEY_INVALID
-    elif answer.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            session, user_id=actor_id, code=answer.recovery_code
-        )
-        method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
-    elif answer.code:
-        accepted = await totp_service.verify_code(
-            session, user_id=actor_id, code=answer.code
-        )
-        method, refusal = "totp", AuthMessages.TOTP_INVALID
-    else:
+        ):
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+                actor_user_id=actor_id,
+                detail={"method": "passkey", "during": during},
+            )
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AccessGrantMessages.PASSKEY_INVALID,
+            )
+        return
+    if not (answer.code or answer.recovery_code):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AccessGrantMessages.SECOND_FACTOR_REQUIRED,
         )
-
-    if not accepted:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=actor_id,
-            detail={"method": method, "during": during},
-        )
-        await session.commit()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+    await prove_second_factor(
+        session,
+        user_id=actor_id,
+        code=answer.code,
+        recovery_code=answer.recovery_code,
+        during=during,
+        signed_in=True,
+    )
 
 
 @router.get("/break-glass", response_model=BreakGlassRequirements)
@@ -311,56 +276,53 @@ async def break_glass_access(
     await check_second_factor(
         session, actor=current_user, answer=payload, during="break_glass"
     )
-    try:
-        replaced = await service.reconcile_break_glass_pair(
-            session, actor=current_user, payload=payload
-        )
-        grant = await service.break_glass(
+    replaced = await service.reconcile_break_glass_pair(
+        session, actor=current_user, payload=payload
+    )
+    grant = await service.break_glass(
+        session,
+        actor=current_user,
+        payload=payload,
+        level=AccessLevel.read_write.value,
+    )
+    settings_grant = await service.break_glass(
+        session,
+        actor=current_user,
+        payload=payload,
+        purpose=AccessGrantPurpose.settings,
+        level=SettingsLevel.superadmin.value,
+    )
+    for prior in replaced:
+        await audit_service.record(
             session,
-            actor=current_user,
-            payload=payload,
-            level=AccessLevel.read_write.value,
+            event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+            actor_user_id=current_user.id,
+            guild_id=prior.guild_id,
+            target_type="access_grant",
+            target_id=prior.id,
+            detail={
+                "purpose": prior.purpose,
+                "level": prior.access_level,
+                "decision": prior.status,
+                "replacement": "break_glass",
+            },
         )
-        settings_grant = await service.break_glass(
+    # One line per grant, each naming its purpose and its rung, so the log
+    # says what was taken and not merely that glass was broken.
+    for issued in (grant, settings_grant):
+        await audit_service.record(
             session,
-            actor=current_user,
-            payload=payload,
-            purpose=AccessGrantPurpose.settings,
-            level=SettingsLevel.superadmin.value,
+            event_type=AuditEventType.ACCESS_GRANT_SELF_ISSUED,
+            actor_user_id=current_user.id,
+            guild_id=issued.guild_id,
+            target_type="access_grant",
+            target_id=issued.id,
+            detail={
+                "purpose": issued.purpose,
+                "level": issued.access_level,
+                "self_approved": True,
+            },
         )
-        for prior in replaced:
-            await audit_service.record(
-                session,
-                event_type=AuditEventType.ACCESS_GRANT_DECIDED,
-                actor_user_id=current_user.id,
-                guild_id=prior.guild_id,
-                target_type="access_grant",
-                target_id=prior.id,
-                detail={
-                    "purpose": prior.purpose,
-                    "level": prior.access_level,
-                    "decision": prior.status,
-                    "replacement": "break_glass",
-                },
-            )
-        # One line per grant, each naming its purpose and its rung, so the log
-        # says what was taken and not merely that glass was broken.
-        for issued in (grant, settings_grant):
-            await audit_service.record(
-                session,
-                event_type=AuditEventType.ACCESS_GRANT_SELF_ISSUED,
-                actor_user_id=current_user.id,
-                guild_id=issued.guild_id,
-                target_type="access_grant",
-                target_id=issued.id,
-                detail={
-                    "purpose": issued.purpose,
-                    "level": issued.access_level,
-                    "self_approved": True,
-                },
-            )
-    except service.AccessGrantError as exc:
-        _raise(exc)
     read = await _one(grant, system_session=session)
     await session.commit()
     return read
@@ -445,15 +407,12 @@ async def approve_access_grant(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
         )
-    try:
-        grant = await service.approve(
-            session,
-            grant=grant,
-            approver=current_user,
-            duration_minutes=payload.duration_minutes,
-        )
-    except service.AccessGrantError as exc:
-        _raise(exc)
+    grant = await service.approve(
+        session,
+        grant=grant,
+        approver=current_user,
+        duration_minutes=payload.duration_minutes,
+    )
     await audit_service.record(
         session,
         event_type=AuditEventType.ACCESS_GRANT_DECIDED,
@@ -483,10 +442,7 @@ async def deny_access_grant(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
         )
-    try:
-        grant = await service.deny(session, grant=grant, approver=current_user)
-    except service.AccessGrantError as exc:
-        _raise(exc)
+    grant = await service.deny(session, grant=grant, approver=current_user)
     await audit_service.record(
         session,
         event_type=AuditEventType.ACCESS_GRANT_DECIDED,
@@ -516,10 +472,7 @@ async def revoke_access_grant(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
         )
-    try:
-        grant = await service.revoke(session, grant=grant, revoker=current_user)
-    except service.AccessGrantError as exc:
-        _raise(exc)
+    grant = await service.revoke(session, grant=grant, revoker=current_user)
     await audit_service.record(
         session,
         event_type=AuditEventType.ACCESS_GRANT_DECIDED,
@@ -555,9 +508,6 @@ async def cancel_access_request(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
         )
-    try:
-        await service.cancel_own_pending(session, grant=grant, user=current_user)
-    except service.AccessGrantError as exc:
-        _raise(exc)
+    await service.cancel_own_pending(session, grant=grant, user=current_user)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

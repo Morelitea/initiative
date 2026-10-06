@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
-from functools import lru_cache
 from pathlib import Path
 
 from typing import Annotated, Any
@@ -19,7 +18,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_limits
-from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError
 
@@ -32,14 +30,12 @@ from app.api.deps import (
     raise_for_guild_access,
 )
 from app.api.plugin_openapi import build_plugin_openapi, mark_plugin_scopes
-from app.api.embed_csp import plugin_frame_policy
+from app.api.embed_csp import content_security_policy, plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.core import recurrence
+from app.core.errors import CodedError
 from app.core.messages import (
-    AttachmentMessages,
-    CalendarEventMessages,
     CommonMessages,
     GuildMessages,
 )
@@ -50,6 +46,7 @@ from app.core.security import (
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
+from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -58,9 +55,6 @@ from app.db.session import SystemSessionLocal
 from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
-from app.services.marketplace.installs import ListingInstallError
-from app.services.tenant.attachments import StorageQuotaExceededError
-from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
 # stream and the audit stream (see app.core.logging_config).
@@ -300,25 +294,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
 
-#: Stands in for a request that lands on a mounted sub-app. A mount has no
-#: endpoint to read a marker off, which is a different answer from "no route
-#: matched" and gets different treatment below.
-_MOUNTED = object()
-
-
-def _route_endpoint(request: Request) -> object | None:
-    """The endpoint the router will run for this request.
-
-    Starlette dispatches to the FIRST route that fully matches, so this stops
-    there rather than reading on.
-    """
-    for route in request.app.routes:
-        match, _ = route.matches(request.scope)
-        if match == Match.FULL:
-            endpoint = getattr(route, "endpoint", None)
-            return _MOUNTED if endpoint is None else endpoint
-    return None
-
 
 class _DefaultRateLimit(SlowAPIMiddleware):
     """The global default limit, applied against the route that will run.
@@ -334,9 +309,9 @@ class _DefaultRateLimit(SlowAPIMiddleware):
       set deliberately ABOVE the default is silently held down to it.
     * Every request pays a full scan of all 600 routes — ~430µs, measured.
 
-    Resolving the way the router itself does settles all three, so this
-    replaces ``dispatch`` rather than wrapping it: delegating upward would run
-    the scan it is here to avoid.
+    Resolving the way the router itself does (``app.core.routing``) settles
+    all three, so this replaces ``dispatch`` rather than wrapping it:
+    delegating upward would run the scan it is here to avoid.
     """
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -344,8 +319,8 @@ class _DefaultRateLimit(SlowAPIMiddleware):
         if not request_limiter.enabled:
             return await call_next(request)
 
-        endpoint = _route_endpoint(request)
-        if endpoint is _MOUNTED:
+        endpoint = route_endpoint(request.scope)
+        if endpoint is MOUNTED:
             # Nothing to read a marker off, so a mount is limited like any
             # undecorated route — by the URL it was asked for.
             handler = None
@@ -392,65 +367,13 @@ async def validation_exception_handler(
     )
 
 
-@app.exception_handler(recurrence.OutOfReach)
-async def repeat_out_of_reach_handler(
-    request: Request, exc: recurrence.OutOfReach
-) -> JSONResponse:
-    """A repeat that, from the start it is saved with, never happens or
-    doesn't reach its count within a hundred years."""
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={"detail": CalendarEventMessages.RECURRENCE_INVALID},
-    )
+@app.exception_handler(CodedError)
+async def coded_error_handler(request: Request, exc: CodedError) -> JSONResponse:
+    """A service's refusal, answered with its message code and status.
 
-
-@app.exception_handler(SeatWouldBeEmptied)
-async def seat_would_be_emptied_handler(
-    request: Request, exc: SeatWouldBeEmptied
-) -> JSONResponse:
-    """A removal that would leave a community without a superadmin.
-
-    Handled here rather than at each deletion route because the refusal is
-    raised from the membership drop, which every one of them goes through —
-    self-service deactivate and delete, and the operator's versions of both.
-    The communities are named by the eligibility call the dialog already
-    makes; this says why the action stopped.
-    """
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN},
-    )
-
-
-@app.exception_handler(ListingInstallError)
-async def listing_install_error_handler(
-    request: Request, exc: ListingInstallError
-) -> JSONResponse:
-    """A catalog listing that cannot be installed: 404 when there is no such
-    listing, 409 for the conflicts a real one can be in. Raised by
-    ``resolve_listing_install``, which every install route goes through."""
-    return JSONResponse(
-        status_code=(
-            status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-        ),
-        content={"detail": exc.code},
-    )
-
-
-@app.exception_handler(StorageQuotaExceededError)
-async def storage_quota_exceeded_handler(
-    request: Request, exc: StorageQuotaExceededError
-) -> JSONResponse:
-    """A write whose files would take the community past its storage limit.
-
-    Handled here rather than at each save route because saving content can copy
-    the files it shows (``attachments.claim_uploads``), and every save goes
-    through that.
-    """
-    return JSONResponse(
-        status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-        content={"detail": AttachmentMessages.STORAGE_QUOTA_EXCEEDED},
-    )
+    Handled here rather than at each route because a refusal is raised where
+    it is decided, often below every route that reaches it."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.code})
 
 
 @app.exception_handler(DBAPIError)
@@ -501,18 +424,6 @@ async def insufficient_privilege_handler(
             content={"detail": GuildMessages.COMMUNITY_ACCESS_DENIED},
         )
     raise exc
-
-
-@lru_cache(maxsize=8)
-def _content_security_policy(captcha_provider: str | None) -> str:
-    """The app-wide CSP, built once per captcha provider.
-
-    The provider lives in the settings row, so it can change while the process
-    runs; everything else in the header is fixed for the process lifetime.
-    """
-    return settings.content_security_policy_with_frames(
-        (), captcha_provider=captcha_provider
-    )
 
 
 # The three WebAssembly workers — the dashboard widget sandbox, the direct
@@ -568,7 +479,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # route's `script-src 'none'`) instead of overriding it.
         response.headers.setdefault(
             "Content-Security-Policy",
-            _content_security_policy(captcha_config.current_captcha_config().provider),
+            content_security_policy(captcha_config.current_captcha_config().provider),
         )
         if _STRICT_TRANSPORT_SECURITY is not None:
             # Unconditional (not setdefault): unlike CSP there is no legitimate

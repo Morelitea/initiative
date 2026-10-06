@@ -19,7 +19,7 @@ from app.api.v1.platform_endpoints.operator import (
 )
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
-from app.core.config import API_V1_STR
+from app.core.config import DEFAULT_OIDC_SCOPES
 from app.core.config import settings as app_config
 from app.core.intake import IntakeStream
 from app.db.query import build_paginated_response, paginated_query
@@ -85,6 +85,7 @@ from app.services.platform.identity_refs import billing_ref, billing_refs
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
+from app.services.auth import provider_registry
 from app.core.login_methods import (
     FACTOR_METHODS,
     PRIMARY_LOGIN_METHODS,
@@ -123,14 +124,6 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
 router = APIRouter()
 
 
-def _backend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}{API_V1_STR}/auth/oidc/callback"
-
-
-def _frontend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
-
-
 def _email_settings_payload(
     settings_obj: AppSetting, secrets: AppSettingSecret
 ) -> EmailSettingsResponse:
@@ -157,13 +150,15 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
         enabled=provider.enabled if provider else False,
         issuer=provider.issuer if provider else None,
         client_id=provider.client_id if provider else None,
-        redirect_uri=_backend_redirect_uri(),
-        post_login_redirect=_frontend_redirect_uri(),
+        redirect_uri=provider_registry.provider_callback_url(
+            platform_provider_service.PLATFORM_OIDC_SLUG
+        ),
+        post_login_redirect=provider_registry.frontend_callback_url(),
         mobile_redirect_uri=MOBILE_CALLBACK_URI,
         provider_name=provider.display_name if provider else None,
         scopes=platform_provider_service.scopes_list(provider)
         if provider
-        else list(platform_provider_service.DEFAULT_OIDC_SCOPES),
+        else list(DEFAULT_OIDC_SCOPES),
     )
 
 
@@ -1026,13 +1021,6 @@ async def update_platform_community_storage(
             guild = await guilds_service.set_guild_status(
                 session, guild_id=guild_id, status=payload.status
             )
-    except guilds_service.SupportIntakeMissingError as exc:
-        # Nowhere to send what the form would collect. The setup this asks for
-        # is the operator's own, one page over.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED,
-        ) from exc
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(COMMUNITY_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate

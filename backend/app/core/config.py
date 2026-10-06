@@ -1,21 +1,24 @@
 import hashlib
 import hmac
+import json
 import logging
 import re
 from collections.abc import Sequence
 from enum import Enum
 from functools import lru_cache
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from pydantic import (
     AliasChoices,
+    BeforeValidator,
     EmailStr,
     Field,
     PrivateAttr,
     field_validator,
     model_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 from starlette.requests import Request
@@ -116,6 +119,28 @@ CSP_SWAGGER_SCRIPT_ORIGINS = [
 CSP_SWAGGER_STYLE_ORIGINS = ["https://cdn.jsdelivr.net"]
 
 
+#: What the platform OIDC provider asks for when nothing names its scopes.
+DEFAULT_OIDC_SCOPES = ("openid", "profile", "email", "offline_access")
+
+
+def _split_env_list(value: object) -> object:
+    """A list setting's value: a JSON list, or items separated by commas and/or
+    whitespace. Items are trimmed, blanks drop out, and a repeat keeps its first
+    place."""
+    if isinstance(value, str):
+        text = value.strip()
+        value = (
+            json.loads(text) if text.startswith("[") else text.replace(",", " ").split()
+        )
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(dict.fromkeys(item.strip() for item in value if item.strip()))
+    return value
+
+
+#: Every list setting reads its value by ``_split_env_list``.
+EnvList = Annotated[list[str], NoDecode, BeforeValidator(_split_env_list)]
+
+
 def _format_csp(directives: dict[str, list[str]]) -> str:
     """Render a directive map to a CSP header string, de-duplicating sources."""
     return "; ".join(
@@ -203,8 +228,8 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
 #: Settings → Platform from then on, so the env var is read once and the row wins
 #: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
 #: the mechanism; the credential-bearing ones are encrypted at rest under a salt
-#: registered in ``app/db/secret_key_rotation.py``, so they rotate with
-#: SECRET_KEY.
+#: their column declares, so ``app/db/secret_key_rotation.py`` rotates them
+#: with SECRET_KEY.
 #:
 #: Declared here so the deployment contract can say so out loud: an operator
 #: does not need any of these to bring the app up, and a deployment tool does
@@ -554,22 +579,19 @@ class Settings(BaseSettings):
     def app_url_is_https(self) -> bool:
         """True when the public app origin is served over HTTPS.
 
-        Drives both the ``Secure`` cookie flag and whether the
-        ``Strict-Transport-Security`` header is emitted — HSTS over plain HTTP
-        is meaningless and would needlessly pin a dev origin to HTTPS.
+        Drives the ``Secure`` cookie flag, the websocket scheme the CSP admits,
+        and whether the ``Strict-Transport-Security`` header is emitted — HSTS
+        over plain HTTP is meaningless and would needlessly pin a dev origin to
+        HTTPS.
         """
         return urlsplit(self.APP_URL.strip()).scheme == "https"
-
-    @property
-    def cookie_secure(self) -> bool:
-        return self.app_url_is_https
 
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     # Extra browser origins allowed to make credentialed cross-origin requests,
     # beyond APP_URL and the native app (both always allowed — see `cors_origins`).
-    # A wildcard is intentionally unsupported.
-    CORS_ALLOWED_ORIGINS: list[str] = Field(default_factory=list)
+    # A wildcard is unsupported: ``*`` names no origin, so it adds nothing.
+    CORS_ALLOWED_ORIGINS: EnvList = Field(default_factory=list)
 
     @property
     def cors_origins(self) -> list[str]:
@@ -586,7 +608,8 @@ class Settings(BaseSettings):
         Each value is reduced to its bare ``scheme://host[:port]`` origin: an
         ``Origin`` header never carries a path, so an ``APP_URL`` like
         ``https://host/app`` must match as ``https://host`` or every credentialed
-        cross-origin request is silently rejected.
+        cross-origin request is silently rejected. A value with no scheme and
+        host, ``*`` among them, reduces to nothing and is left out.
         """
         origins: list[str] = []
         for candidate in [
@@ -622,7 +645,7 @@ class Settings(BaseSettings):
         untouched: a plug-in's data reaches the browser same-origin through the
         proxy.
         """
-        ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
+        ws = "wss:" if self.app_url_is_https else "ws:"
 
         script_src = ["'self'"]
         style_src = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
@@ -755,13 +778,14 @@ class Settings(BaseSettings):
     OIDC_CLIENT_ID: str | None = None
     OIDC_CLIENT_SECRET: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
-    OIDC_SCOPES: list[str] | str | None = None
+    OIDC_SCOPES: EnvList = Field(default_factory=lambda: list(DEFAULT_OIDC_SCOPES))
     # Which ways in the deployment permits, seeded into ``app_settings`` on
     # the first boot only — the same rule as the OIDC_* five above, and the
     # same owner afterwards: Settings -> Platform -> Authentication, which the
     # env never overwrites. Comma- or space-separated values of
-    # ``app.core.login_methods.LoginMethod``; unset keeps the app's default.
-    AUTH_LOGIN_METHODS: list[str] | str | None = None
+    # ``app.core.login_methods.LoginMethod``; unset or blank keeps the app's
+    # default.
+    AUTH_LOGIN_METHODS: EnvList = Field(default_factory=list)
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_SECURE: bool = False
@@ -1150,58 +1174,25 @@ class Settings(BaseSettings):
     # floor in ``app.core.password_policy`` still applies.
     HIBP_CHECK_ENABLED: bool = True
 
-    @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_allowed_origins(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            items = value.split(",")
-        else:
-            items = value
-        # Drop blanks and any "*": credentialed CORS takes explicit origins
-        # only. APP_URL and the native origins
-        # are always allowed via the `cors_origins` property, so the effective
-        # allowlist is never empty even when this is.
-        return [
-            item.strip()
-            for item in items
-            if item and item.strip() and item.strip() != "*"
-        ]
-
     @field_validator("OIDC_SCOPES", mode="before")
     @classmethod
-    def parse_oidc_scopes(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return ["openid", "profile", "email", "offline_access"]
-        if isinstance(value, str):
-            if not value.strip():
-                return ["openid", "profile", "email", "offline_access"]
-            items = value.replace(",", " ").split()
-        else:
-            items = value
-        normalized: list[str] = []
-        for scope in items:
-            cleaned = scope.strip()
-            if cleaned and cleaned not in normalized:
-                normalized.append(cleaned)
-        return normalized or ["openid", "profile", "email"]
+    def _blank_oidc_scopes_are_the_default(cls, value: object) -> object:
+        """A blank value reads as unset: the default scope list."""
+        if isinstance(value, str) and not value.strip():
+            return list(DEFAULT_OIDC_SCOPES)
+        return value
 
-    @field_validator("AUTH_LOGIN_METHODS", mode="before")
+    @field_validator("OIDC_SCOPES")
     @classmethod
-    def parse_auth_login_methods(
-        cls, value: str | list[str] | None
-    ) -> list[str] | None:
-        """Blank and unset read the same: the app's own default."""
-        if value is None:
-            return None
-        items = value.replace(",", " ").split() if isinstance(value, str) else value
-        normalized: list[str] = []
-        for item in items:
-            cleaned = item.strip().lower()
-            if cleaned and cleaned not in normalized:
-                normalized.append(cleaned)
-        return normalized or None
+    def _scopeless_oidc_scopes_ask_for_the_basics(cls, value: list[str]) -> list[str]:
+        """A value that names no scope asks for the sign-in basics alone."""
+        return value or ["openid", "profile", "email"]
+
+    @field_validator("AUTH_LOGIN_METHODS")
+    @classmethod
+    def _login_methods_in_lower_case(cls, value: list[str]) -> list[str]:
+        """Lower case, the shape the seed compares against ``LoginMethod``."""
+        return list(dict.fromkeys(item.lower() for item in value))
 
 
 @lru_cache

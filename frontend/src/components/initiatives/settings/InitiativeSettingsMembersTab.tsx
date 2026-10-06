@@ -1,4 +1,3 @@
-import type { PaginationState } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,13 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useAddInitiativeMember,
   useInitiativeRoster,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
+import { useServerTableState } from "@/hooks/useServerTableState";
 import {
   type MemberSearchScope,
   USER_ID_LOOKUP_MAX,
@@ -90,15 +89,8 @@ export const InitiativeSettingsMembersTab = ({
 
   // The roster is searched and paged on the server: the table only ever holds
   // the page on screen.
-  const [draft, setDraft] = useState("");
-  const rosterSearch = useDebouncedValue(draft, 250);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const rosterQuery = useInitiativeRoster(initiativeId, {
-    search: rosterSearch.trim() || undefined,
-    page,
-    page_size: pageSize,
-  });
+  const table = useServerTableState();
+  const rosterQuery = useInitiativeRoster(initiativeId, table.params);
   const members = useMemo(() => rosterQuery.data?.items ?? [], [rosterQuery.data]);
   const totalCount = rosterQuery.data?.total_count ?? 0;
 
@@ -359,26 +351,10 @@ export const InitiativeSettingsMembersTab = ({
             getRowId={(row) => String(row.user.id)}
             enableFilterInput
             filterInputPlaceholder={t("settings.filterByName")}
-            filterValue={draft}
-            onFilterValueChange={(value) => {
-              setDraft(value);
-              setPage(1);
-            }}
             enablePagination
-            manualPagination
-            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
-            rowCount={totalCount}
             // The page the server answered with: a page emptied by a removal
             // comes back as page 1.
-            pageIndex={(rosterQuery.data?.page ?? page) - 1}
-            onPaginationChange={(next: PaginationState) => {
-              if (next.pageSize !== pageSize) {
-                setPageSize(next.pageSize);
-                setPage(1);
-              } else {
-                setPage(next.pageIndex + 1);
-              }
-            }}
+            {...table.tableProps(totalCount, rosterQuery.data?.page)}
           />
           {canManageMembers ? (
             <>

@@ -16,7 +16,6 @@ from app.services.tenant.attachments import (
     detect_document_image_type,
     FileTooLargeError,
     PASTED_IMAGE_PREFIX,
-    StorageQuotaExceededError,
     enforce_storage_quota,
     new_upload_filename,
     read_upload_bounded,
@@ -91,15 +90,9 @@ async def _store_image(
     # reads and the type recorded on the row describe the same bytes.
     filename = new_upload_filename(_SUFFIXES[content_type], prefix=prefix)
 
-    try:
-        await enforce_storage_quota(
-            session, guild_id=guild_id, incoming_bytes=len(contents)
-        )
-    except StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
+    await enforce_storage_quota(
+        session, guild_id=guild_id, incoming_bytes=len(contents)
+    )
 
     # Pick up a backend/credential change saved in another worker before writing,
     # so the blob lands in the configured store (TTL-gated; usually a no-op).

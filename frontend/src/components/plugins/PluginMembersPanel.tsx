@@ -54,6 +54,7 @@ import {
 } from "@/hooks/useCommunityPluginDetail";
 import { useUserSearch } from "@/hooks/useUsers";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -417,7 +418,7 @@ function ConnectionMembers({
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
-                    {new Date(item.created_at).toLocaleDateString()}
+                    {formatDate(item.created_at)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">

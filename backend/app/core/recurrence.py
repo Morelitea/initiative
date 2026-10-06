@@ -32,6 +32,8 @@ from typing import Iterable, Iterator, Literal
 import icalendar
 from dateutil.rrule import rrulestr
 
+from app.core.errors import CodedError
+from app.core.messages import CalendarEventMessages
 from app.core.user_input_validators import resolve_zone
 
 RecurrenceKind = Literal["task", "event"]
@@ -106,9 +108,11 @@ _LAST = datetime.combine(_LAST_DAY, _END_OF_DAY)
 _CALENDAR = _LAST - datetime(1, 1, 1)
 
 
-class OutOfReach(ValueError):
+class OutOfReach(CodedError, ValueError):
     """A repeat that, from its start, never happens, or doesn't reach its
     count within a hundred years."""
+
+    status_code = 422
 
 
 @dataclass(frozen=True)
@@ -247,11 +251,7 @@ def stored(
     wanted = repeat.get("COUNT", [1])[0]
     starts = _walk(Recurrence(repeat), start, shift, start)
     if sum(1 for _ in islice(starts, wanted)) < wanted:
-        raise OutOfReach(
-            "A counted repeat ends within a hundred years of its start."
-            if "COUNT" in repeat
-            else "This repeat never happens."
-        )
+        raise OutOfReach(CalendarEventMessages.RECURRENCE_INVALID)
     return rule, shift
 
 

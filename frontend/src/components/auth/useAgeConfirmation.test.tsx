@@ -11,12 +11,13 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { AxiosError, type AxiosResponse } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const post = vi.fn();
+const confirmMyAge = vi.fn();
 const refreshUser = vi.fn();
 const invalidations = vi.hoisted(() => vi.fn());
 
-vi.mock("@/api/client", () => ({
-  apiClient: { post: (...args: unknown[]) => post(...args) },
+vi.mock("@/api/generated/users/users", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/users/users")>()),
+  confirmMyAge: (...args: unknown[]) => confirmMyAge(...args),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -36,7 +37,7 @@ import { useAgeConfirmation } from "./useAgeConfirmation";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  post.mockResolvedValue({ data: {} });
+  confirmMyAge.mockResolvedValue(undefined);
   refreshUser.mockResolvedValue(undefined);
 });
 
@@ -48,7 +49,7 @@ describe("confirming an age", () => {
     await waitFor(() => expect(result.current.birthdate).toBe("1990-01-01"));
     await result.current.confirm();
 
-    expect(post).toHaveBeenCalledWith("/me/age-confirmation", {
+    expect(confirmMyAge).toHaveBeenCalledWith({
       birthdate: "1990-01-01",
     });
     expect(refreshUser).toHaveBeenCalled();
@@ -58,7 +59,7 @@ describe("confirming an age", () => {
   it("keeps what is on screen when the answer was refused", async () => {
     // A refusal changes nothing, and re-reading everything would only make the
     // page flicker on its way back to what it already said.
-    post.mockRejectedValue(new Error("too young"));
+    confirmMyAge.mockRejectedValue(new Error("too young"));
     const { result } = renderHook(() => useAgeConfirmation());
 
     result.current.setBirthdate("2020-01-01");
@@ -70,7 +71,7 @@ describe("confirming an age", () => {
   });
 
   it("re-reads the account when the answer was under age, which it records", async () => {
-    post.mockRejectedValue(
+    confirmMyAge.mockRejectedValue(
       new AxiosError("refused", "ERR_BAD_REQUEST", undefined, undefined, {
         status: 422,
         data: { detail: "USER_AGE_BELOW_MINIMUM" },

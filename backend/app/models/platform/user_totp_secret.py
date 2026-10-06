@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_TOTP_SECRET
+
 
 class UserTotpSecret(SQLModel, table=True):
     """The shared secret behind one account's authenticator factor.
@@ -28,7 +30,9 @@ class UserTotpSecret(SQLModel, table=True):
         )
     )
 
-    secret_encrypted: str = Field(sa_column=Column(Text, nullable=False))
+    secret_encrypted: str = Field(
+        sa_column=Column(Text, nullable=False, info={FERNET_SALT: SALT_TOTP_SECRET})
+    )
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

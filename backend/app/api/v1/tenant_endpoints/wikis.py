@@ -39,6 +39,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import WikiMessages
+from app.core.body_limit import max_document_body
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
@@ -406,6 +407,7 @@ async def remove_file_from_wiki(
     response_model=WikiPageRead,
     status_code=status.HTTP_201_CREATED,
 )
+@max_document_body
 async def create_wiki_page(
     wiki_id: int,
     page_in: WikiPageCreate,
@@ -528,6 +530,7 @@ async def duplicate_wiki_page(
 
 
 @pages_router.patch("/wiki-pages/{page_id}", response_model=WikiPageRead)
+@max_document_body
 async def update_wiki_page(
     page_id: int,
     page_in: WikiPageUpdate,

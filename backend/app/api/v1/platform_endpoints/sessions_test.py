@@ -8,6 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.platform_endpoints import session_opening
 from app.api.v1.platform_endpoints import sessions as sessions_endpoints
 from app.api.v1.platform_endpoints import users as users_endpoints
 from app.core import auth_context
@@ -339,7 +340,7 @@ class _LiveAccountSession:
 async def streams(monkeypatch):
     """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
-    auth_context.set_session_credential(None)
+    auth_context.reset()
     register = ContentSockets()
 
     async def _admitted(*_a, **_k):
@@ -351,6 +352,7 @@ async def streams(monkeypatch):
     monkeypatch.setattr(content_sockets, "establish_guild_access", _admitted)
     monkeypatch.setattr(sessions_endpoints, "content_sockets", register)
     monkeypatch.setattr(users_endpoints, "content_sockets", register)
+    monkeypatch.setattr(session_opening, "content_sockets", register)
     yield register
     for sub in list(register._subs.values()):
         register.leave(sub.websocket)

@@ -13,8 +13,6 @@ are its adapter's in ``ADAPTERS``.
 """
 
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Annotated, Any, List, Literal, Optional, Union
@@ -53,7 +51,7 @@ from app.services.export.adapters.backup import (
     GuildExportAdapter,
     InitiativeExportAdapter,
 )
-from app.services.export.engine import ExportError, InlineExport, start_export
+from app.services.export.engine import InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
     content_disposition_attachment,
@@ -102,15 +100,6 @@ def _job_response(
     )
 
 
-@contextmanager
-def _export_errors() -> Iterator[None]:
-    """Answer an ``ExportError`` as the HTTP error its code and status name."""
-    try:
-        yield
-    except ExportError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
-
-
 async def _start_export(
     session: RLSSessionDep,
     current_user: User,
@@ -122,16 +111,15 @@ async def _start_export(
 ) -> Union[InlineExport, ExportJob]:
     """Start an export through the engine: rendered here when it is small, or
     queued as a job the caller polls."""
-    with _export_errors():
-        return await start_export(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            source=source,
-            format=format,
-            params=params,
-            allow_job=_allow_job(guild_context),
-        )
+    return await start_export(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        source=source,
+        format=format,
+        params=params,
+        allow_job=_allow_job(guild_context),
+    )
 
 
 def _export_response(
@@ -345,17 +333,16 @@ async def estimate_aggregate_export(
 
     if scope == "community":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
-    with _export_errors():
-        return await estimate_backup(
-            session,
-            current_user,
-            guild_context.guild_id,
-            # A backup records its scope as "guild" in its manifest.
-            scope="guild" if scope == "community" else scope,
-            initiative_id=initiative_id,
-            include_uploads=include_uploads,
-            filters=_parse_json_param(filters),
-        )
+    return await estimate_backup(
+        session,
+        current_user,
+        guild_context.guild_id,
+        # A backup records its scope as "guild" in its manifest.
+        scope="guild" if scope == "community" else scope,
+        initiative_id=initiative_id,
+        include_uploads=include_uploads,
+        filters=_parse_json_param(filters),
+    )
 
 
 @router.get("/initiative", response_model=None)

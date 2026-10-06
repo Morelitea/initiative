@@ -34,10 +34,11 @@ from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, is_device, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.core import auth_context
-from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
+from app.core import audit_context, auth_context
+from app.core.rate_limit import MAIL_SENDS, limiter
 from app.core.encryption import (
     decrypt_field,
+    normalize_email,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
@@ -48,7 +49,7 @@ from app.core.messages import (
     OidcMessages,
     UserMessages,
 )
-from app.core.password_policy import enforce_password_policy
+from app.core.password_policy import validate_new_password
 from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.identify import identify
@@ -68,24 +69,22 @@ from app.api.v1.platform_endpoints.session_cookies import (
     REFRESH_COOKIE_PATH,
     clear_refresh_cookie,
     clear_session_cookie,
-    set_refresh_cookie,
-    set_session_cookie,
 )
 from app.api.v1.platform_endpoints.session_opening import (
     PASSWORD_LEG,
     SECOND_FACTOR_PURPOSES,
-    count_wrong_answer,
     current_session_row,
     MOBILE_CALLBACK_URI,
     first_leg_of,
-    issue_session,
     mint_for,
     open_session,
     prove_password,
-    refuse_if_locked,
+    prove_second_factor,
     require_login_method,
+    require_passkeys_allowed,
     second_factor_outstanding,
-    session_store,
+    set_password,
+    upgrade_session,
 )
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
@@ -123,7 +122,6 @@ from app.schemas.platform.passkey import (
 from app.schemas.platform.guild import NewCommunity
 from app.schemas.platform.user import UserCreate, UserRead
 from app.services import audit as audit_service
-import webauthn
 from webauthn.helpers import bytes_to_base64url
 
 from app.services.auth import account_changes, addresses
@@ -135,7 +133,6 @@ from app.services.auth import native_handoff
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
-from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     passkey_amr,
@@ -163,14 +160,16 @@ from app.services.auth.oidc.provider import (
     OidcProvider,
 )
 from app.services.auth import provider_registry
-from app.services.auth.provider_registry import provider_callback_url
+from app.services.auth.provider_registry import (
+    frontend_callback_url,
+    provider_callback_url,
+)
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     get_platform_provider,
     is_login_ready,
 )
 from app.services.auth.sessions import RefreshOutcome
-from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
@@ -259,7 +258,7 @@ async def register_user(
     await require_login_method(session, LoginMethod.password)
     # Enforce password policy (NIST 800-63B: length + HIBP breach check) before
     # we hash. Raises 422 PASSWORD_TOO_SHORT / PASSWORD_BREACHED on failure.
-    await enforce_password_policy(user_in.password)
+    await validate_new_password(user_in.password)
     registered = await _register_account(
         request,
         session,
@@ -275,7 +274,7 @@ async def register_user(
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
     )
-    return await users_service.to_self_read(registered.user)
+    return await users_service.to_self_read(session, registered.user)
 
 
 def _refuse_impossible_birthdate(birthdate: date | None) -> None:
@@ -326,7 +325,7 @@ async def _registration_gate(
     # fresh deployment has nobody to protect, and its operator should not be
     # locked out by a captcha they have not finished wiring up.
     #
-    # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+    # ``audit_context.client_ip`` is whatever the ASGI server resolved.
     # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
     # ``BEHIND_PROXY`` is true, so behind a proxy the captcha provider sees the
     # client address rather than the proxy's.
@@ -336,12 +335,11 @@ async def _registration_gate(
     # case: it can only be reached with a challenge its begin issued, and the
     # begin is where the token was taken.
     if not is_first_user and check_captcha:
-        from app.core.rate_limit import get_real_client_ip
         from app.services import captcha as captcha_service
 
         await captcha_service.verify_or_raise(
             captcha_token,
-            remote_ip=get_real_client_ip(request),
+            remote_ip=audit_context.client_ip(),
         )
 
     # Address-aware: the address is taken if it reaches ANY account, not
@@ -394,12 +392,9 @@ async def _register_account(
 
     smtp_configured = False
     try:
-        app_settings = await app_settings_service.get_app_settings(session)
-        smtp_configured = bool(
-            app_settings.smtp_host and app_settings.smtp_from_address
-        )
+        smtp_configured = await email_service.email_configured(session)
 
-        normalized_email = details.email.lower().strip()
+        normalized_email = normalize_email(details.email)
         is_first_user = await _registration_gate(
             request,
             session,
@@ -432,14 +427,9 @@ async def _register_account(
         # the address joins the guild.
         awaiting_invite_id: int | None = None
         if normalized_invite and not address_confirmed:
-            try:
-                awaiting = await guilds_service.invite_awaiting_address(
-                    session, code=normalized_invite, email=normalized_email
-                )
-            except guilds_service.GuildInviteError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
+            awaiting = await guilds_service.invite_awaiting_address(
+                session, code=normalized_invite, email=normalized_email
+            )
             awaiting_invite_id = awaiting.id if awaiting is not None else None
         user_kwargs: dict[str, Any] = dict(
             # Filled in by ``insert_with_handle`` below, which owns the insert
@@ -465,17 +455,12 @@ async def _register_account(
         # The handle: the name part as typed, and the number the name check
         # showed while it is still free. Registering is where an account picks
         # one, so it counts as chosen and its owner never meets the pick screen.
-        try:
-            await username_service.insert_with_handle(
-                session,
-                user=user,
-                name=details.username,
-                prefer=read_handle_offer(details.username_offer, details.username),
-            )
-        except UsernameError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-            ) from exc
+        await username_service.insert_with_handle(
+            session,
+            user=user,
+            name=details.username,
+            prefer=read_handle_offer(details.username_offer, details.username),
+        )
 
         address = addresses.record_address(
             session,
@@ -535,20 +520,11 @@ async def _register_account(
             # The guild is joined when the address is confirmed.
             await session.commit()
         elif normalized_invite:
-            try:
-                guild = await guilds_service.redeem_invite_for_user(
-                    session,
-                    code=normalized_invite,
-                    user=user,
-                )
-            except guilds_service.GuildInviteError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
-            except guilds_service.GuildCapacityError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-                ) from exc
+            guild = await guilds_service.redeem_invite_for_user(
+                session,
+                code=normalized_invite,
+                user=user,
+            )
             # Joining an existing (already-provisioned) guild — just record membership.
             await guilds_service.ensure_membership(
                 session,
@@ -622,21 +598,6 @@ async def _register_account(
 _SIGN_UP_PURPOSES = (challenge_service.ChallengePurpose.passkey_sign_up,)
 
 
-async def _passkey_sign_up_allowed(session: AsyncSession) -> None:
-    """Refuse the door before it is opened.
-
-    Two things: the deployment permits passkeys at all, and its address can
-    carry one — a plain-http or IP-literal address cannot, and saying so is
-    better than a ceremony the browser will refuse.
-    """
-    await require_login_method(session, LoginMethod.passkey)
-    if passkey_service.site_refusal() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
-        )
-
-
 @router.post("/register/passkey/begin", response_model=PasskeyRegistrationOptions)
 async def begin_passkey_sign_up(
     request: Request,
@@ -655,18 +616,18 @@ async def begin_passkey_sign_up(
     own id — and it is what the authenticator files this deployment's entry
     under.
     """
-    await _passkey_sign_up_allowed(session)
+    await require_passkeys_allowed(session)
     _refuse_impossible_birthdate(payload.birthdate)
     await _registration_gate(
         request,
         session,
-        email=payload.email.lower().strip(),
+        email=normalize_email(payload.email),
         invite=(invite_code or "").strip() or None,
         captcha_token=payload.captcha_token,
     )
 
     ceremony = passkey_service.begin_sign_up(
-        account_name=payload.email.lower().strip(),
+        account_name=normalize_email(payload.email),
         display_name=payload.username.strip(),
     )
     await challenge_service.create(
@@ -703,41 +664,16 @@ async def finish_passkey_sign_up(
     back with it: there is no password to reset, so the codes are how this
     account gets one later, and they are shown once.
     """
-    await _passkey_sign_up_allowed(session)
+    await require_passkeys_allowed(session)
 
-    value = passkey_service.challenge_in(payload.credential)
-    if value is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        )
-    challenge = await challenge_service.claim_attempt(
-        session, value=value, purposes=_SIGN_UP_PURPOSES
+    registered = await passkey_service.register_against_challenge(
+        session,
+        user_id=None,
+        credential=payload.credential,
+        purposes=_SIGN_UP_PURPOSES,
     )
-    if challenge is None or challenge.user_id is not None:
-        # The attempt is counted whether or not the answer was any good, so
-        # the commit comes before the refusal.
-        await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        )
-    try:
-        registered = passkey_service.finish_registration(
-            credential=payload.credential,
-            expected_challenge=webauthn.base64url_to_bytes(value),
-        )
-    except Exception as exc:
-        await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
-        ) from exc
-
-    if not await challenge_service.consume(session, challenge):
-        # Spent between the claim and here, so the account it would buy is not
-        # this request's to make a second time.
-        await session.rollback()
+    if isinstance(registered, passkey_service.PresentationRefused):
+        await registered.settle(session)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
@@ -856,12 +792,6 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
-    try:
-        await refuse_if_locked(system_session, user_id)
-    except HTTPException:
-        # The attempt the claim took stands.
-        await system_session.commit()
-        raise
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await system_session.get(User, user_id)
@@ -871,33 +801,20 @@ async def answer_second_factor(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
 
-    if payload.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            system_session, user_id=user_id, code=payload.recovery_code
-        )
-        method, factor_amr = "recovery_code", ["mfa"]
-        refusal = AuthMessages.RECOVERY_CODE_INVALID
-    else:
-        accepted = await totp_service.verify_code(
-            system_session, user_id=user_id, code=payload.code or ""
-        )
-        method, factor_amr = "totp", ["otp", "mfa"]
-        refusal = AuthMessages.TOTP_INVALID
-
-    if not accepted:
-        # The attempt is already counted against the challenge, which stands
-        # until it runs out; this records the refusal and lets them try again.
-        await audit_service.record(
+    try:
+        proof = await prove_second_factor(
             system_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=None,
-            target_user_id=user_id,
-            target_type="user",
-            target_id=user_id,
-            detail={"method": method},
+            user_id=user_id,
+            code=payload.code,
+            recovery_code=payload.recovery_code,
+            during="sign_in",
+            signed_in=False,
         )
-        await count_wrong_answer(system_session, user_id)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+    except HTTPException:
+        # The attempt the claim took stands, and the challenge with it until
+        # it runs out, so they can try again.
+        await system_session.commit()
+        raise
 
     if not await challenge_service.consume(system_session, challenge):
         # Spent between the claim and here, so the session it bought is not
@@ -908,18 +825,6 @@ async def answer_second_factor(
             detail=AuthMessages.TOTP_CHALLENGE_INVALID,
         )
 
-    if method == "recovery_code":
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
-            actor_user_id=user_id,
-            detail={
-                "remaining": await totp_service.remaining_recovery_codes(
-                    system_session, user_id=user_id
-                )
-            },
-        )
-
     leg, _ = first_leg_of(challenge.purpose)
     return await open_session(
         request,
@@ -927,8 +832,8 @@ async def answer_second_factor(
         system_session,
         user_id=user_id,
         token_version=user.token_version,
-        amr=[*leg.amr, *factor_amr],
-        audit_detail={"method": leg.method, "second_factor": method},
+        amr=[*leg.amr, *proof.amr],
+        audit_detail={"method": leg.method, "second_factor": proof.method},
     )
 
 
@@ -966,8 +871,8 @@ async def refresh_access_token(
     result = await session_service.rotate_session(
         system_session,
         raw_refresh_token=raw,
-        user_agent=request.headers.get("user-agent"),
-        ip=get_inet_client_ip(request),
+        user_agent=audit_context.client_user_agent(),
+        ip=audit_context.client_ip(),
         idle=timedelta(seconds=(payload.idle_seconds or 0) if payload else 0),
     )
     if result.outcome is RefreshOutcome.REUSED and result.user_id is not None:
@@ -1014,15 +919,9 @@ async def refresh_access_token(
         return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     # Bounded by the row it renews, the same way the first token was.
-    access_token, access_max_age = mint_for(
-        issued.session, subject=subject, token_version=user.token_version
-    )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(
-        access_token=access_token,
-        refresh_token=issued.refresh_token if presented_in_body else None,
-    )
+    renewed = mint_for(issued, subject=subject, token_version=user.token_version)
+    renewed.set_cookies(response)
+    return renewed.to_token(include_refresh=presented_in_body)
 
 
 @router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
@@ -1194,11 +1093,12 @@ async def issue_upload_token(
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
+    recorded = auth_context.current()
     token, expires_in = create_upload_token(
         user_id=current_user.id,
-        satisfied_providers=sorted(auth_context.satisfied_providers()),
-        satisfied_claims=auth_context.satisfied_claims(),
-        session_amr=auth_context.session_amr(),
+        satisfied_providers=sorted(recorded.satisfied_providers),
+        satisfied_claims=recorded.satisfied_claims,
+        session_amr=recorded.session_amr,
         not_after=(
             datetime.fromtimestamp(session_exp, timezone.utc)
             if session_exp is not None
@@ -1211,6 +1111,7 @@ async def issue_upload_token(
 @router.post("/native/token", response_model=Token)
 async def redeem_native_sign_in(
     request: Request,
+    response: Response,
     system_session: SystemSessionDep,
     payload: NativeSignInRedeem,
 ) -> Token:
@@ -1233,31 +1134,23 @@ async def redeem_native_sign_in(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
         )
-    user_id, token_version = user.id, user.token_version
-    async with session_store(system_session, user_id=user_id):
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail={
-                "method": handoff.method,
-                "native": True,
-                "device_name": handoff.device_name,
-            },
-        )
-        await sign_in_locks.record_success(system_session, user_id)
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=handoff.amr,
-            satisfied_providers=handoff.satisfied_providers,
-            provider_auth=handoff.provider_auth,
-            device_name=handoff.device_name,
-            device=True,
-        )
-    return issued.to_token(include_refresh=True)
+    return await open_session(
+        request,
+        response,
+        system_session,
+        user_id=user.id,
+        token_version=user.token_version,
+        amr=handoff.amr,
+        audit_detail={
+            "method": handoff.method,
+            "native": True,
+            "device_name": handoff.device_name,
+        },
+        satisfied_providers=handoff.satisfied_providers,
+        provider_auth=handoff.provider_auth,
+        device_name=handoff.device_name,
+        device=True,
+    )
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -1267,11 +1160,6 @@ def _provider_state_key(row: AuthProvider) -> str:
     to the flow — it applies what it said about the provider afterwards.
     """
     return row.slug
-
-
-def _frontend_redirect_uri() -> str:
-    base = settings.APP_URL.rstrip("/")
-    return f"{base}/oidc/callback"
 
 
 # Carries a validated SPA return path from /auth/{slug}/login to the web
@@ -1480,7 +1368,7 @@ async def _begin_provider_login(
         value=_state_digest(begun.state),
         max_age=OIDC_NEXT_COOKIE_MAX_AGE,
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         samesite="lax",
         path=REFRESH_COOKIE_PATH,
     )
@@ -1490,7 +1378,7 @@ async def _begin_provider_login(
             value=next_path,
             max_age=OIDC_NEXT_COOKIE_MAX_AGE,
             httponly=True,
-            secure=settings.cookie_secure,
+            secure=settings.app_url_is_https,
             samesite="lax",
             path=REFRESH_COOKIE_PATH,
         )
@@ -1559,7 +1447,7 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     if is_mobile:
         url = f"{MOBILE_CALLBACK_URI}?{urlencode(params)}"
     else:
-        url = f"{_frontend_redirect_uri()}?{urlencode(params)}"
+        url = f"{frontend_callback_url()}?{urlencode(params)}"
     return RedirectResponse(url)
 
 
@@ -1624,7 +1512,7 @@ async def _complete_provider_login(
 
     email_claim = claims.get("email")
     email = (
-        email_claim.strip().lower()
+        normalize_email(email_claim)
         if isinstance(email_claim, str) and email_claim.strip()
         else None
     )
@@ -1671,11 +1559,29 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
 
     identity = resolution.identity
+    matched = resolution.outcome is ResolutionOutcome.EMAIL_MATCH
     # Set where this sign-in proves an address the person added themselves.
     proved_at = datetime.now(timezone.utc)
     proved_address: str | None = None
     proved_id: int | None = None
-    if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
+    # The address this provider asserts for the account. A provisioned account
+    # already holds it; a linked one existed first, so this is where a work
+    # address arrives beside whatever the person signed up with. A matched
+    # account's address is proved below, by the rule an emailed code uses.
+    row = (
+        await addresses.ensure_address(
+            system_session,
+            user_id=user.id,
+            email=email,
+            source=addresses.SOURCE_OIDC,
+            verified=email_verified and not matched,
+            provider_id=provider_row.id,
+            now=proved_at,
+        )
+        if email
+        else None
+    )
+    if matched:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
@@ -1691,26 +1597,12 @@ async def _complete_provider_login(
         )
         # An address the account had not proved is proved here for the first
         # time, and the account starts from that proof, as it does when an
-        # emailed code is the first proof.
-        retired = not await addresses.holds_address(
-            system_session, user_id=user.id, email=email
-        )
-        if retired:
-            # The proof, the retirement and the link land in one commit.
-            await addresses.retire_credentials_predating_proof(
-                system_session, user=user
+        # emailed code is the first proof. The proof, the retirement and the
+        # link land in one commit.
+        if row is not None and row.id is not None:
+            await addresses.prove_at_sign_in(
+                system_session, user=user, address_id=row.id, now=proved_at
             )
-            row = await addresses.ensure_address(
-                system_session,
-                user_id=user.id,
-                email=email,
-                source=addresses.SOURCE_OIDC,
-                verified=True,
-                provider_id=provider_row.id,
-                now=proved_at,
-            )
-            if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-                proved_address, proved_id = email, row.id
         identity = await link_identity(
             system_session,
             user=user,
@@ -1718,25 +1610,10 @@ async def _complete_provider_login(
             subject=completion.subject,
             email_verified=email_verified,
         )
-        if retired:
-            # Connections opened on the credentials retired above close now.
-            await content_sockets.revoke_user_everywhere(user.id)
-
-    # The address this provider asserts for the account. A provisioned account
-    # already holds it; a linked one existed first, so this is where a work
-    # address arrives beside whatever the person signed up with.
-    if email:
-        row = await addresses.ensure_address(
-            system_session,
-            user_id=user.id,
-            email=email,
-            source=addresses.SOURCE_OIDC,
-            verified=email_verified,
-            provider_id=provider_row.id,
-            now=proved_at,
-        )
-        if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-            proved_address, proved_id = email, row.id
+    if row is not None and await addresses.proved_a_new_way_in(
+        system_session, row, at=proved_at
+    ):
+        proved_address, proved_id = email, row.id
 
     # Profile refresh from the verified claims.
     if avatar_url and user.avatar_url != avatar_url:
@@ -1836,7 +1713,7 @@ async def _complete_provider_login(
     # path in the short-lived cookie; re-validate before echoing it, and
     # clear the cookie either way.
     next_path = request.cookies.get(OIDC_NEXT_COOKIE, "")
-    frontend_uri = _frontend_redirect_uri()
+    frontend_uri = frontend_callback_url()
     if is_safe_next_path(next_path):
         frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
     oidc_response = RedirectResponse(frontend_uri)
@@ -1882,10 +1759,9 @@ async def _complete_provider_login(
             logger.exception("Could not hand a native sign-in to user %s", user_id)
             return _error_redirect(True, OidcMessages.SESSION_STORE_UNAVAILABLE)
         return RedirectResponse(f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}")
-    # A step-up upgrades the session it interrupted rather than starting over:
-    # its factors and satisfied providers carry forward, and it is replaced.
-    # Satisfying one guild's requirement never un-satisfies another's. Only the
-    # same user's session merges; anything else is a fresh sign-in.
+    # A step-up upgrades the session it interrupted rather than starting over
+    # (see ``upgrade_session``). Only the same user's session merges; anything
+    # else is a fresh sign-in.
     #
     # The assurance record merges per provider: this provider's entry is
     # replaced by what it just asserted, and every other provider's account of
@@ -1898,46 +1774,49 @@ async def _complete_provider_login(
         )
         if prior is not None and prior.user_id != user_id:
             prior = None
-    if prior is not None:
-        amr = sorted(set(prior.amr) | set(amr))
-        satisfied = [*prior.satisfied_providers, *satisfied]
     provider_auth = record_for_provider(
         prior.provider_auth if prior is not None else None,
         provider_id=provider_id,
         assurance=assurance,
     )
+    audit_detail = {
+        "method": "oidc",
+        "provider": provider_slug,
+        "step_up": prior is not None,
+        # What the provider said about this authentication, in the same shape
+        # the session row keeps. Absent claims add no keys.
+        **assurance.as_record(),
+    }
     try:
-        async with session_store(system_session, user_id=user_id):
-            await audit_service.record(
-                system_session,
-                event_type=AuditEventType.AUTH_SIGNED_IN,
-                actor_user_id=user_id,
-                guild_id=None,
-                detail={
-                    "method": "oidc",
-                    "provider": provider_slug,
-                    "step_up": prior is not None,
-                    # What the provider said about this authentication, in the
-                    # same shape the session row keeps. Absent claims add no
-                    # keys.
-                    **assurance.as_record(),
-                },
-            )
-            issued = await issue_session(
+        if prior is None:
+            await open_session(
                 request,
+                oidc_response,
                 system_session,
                 user_id=user_id,
                 token_version=token_version,
                 amr=amr,
+                audit_detail=audit_detail,
                 satisfied_providers=satisfied,
                 provider_auth=provider_auth,
-                replaces=prior.id if prior is not None else None,
+                device=False,
+            )
+        else:
+            await upgrade_session(
+                request,
+                oidc_response,
+                system_session,
+                user=user,
+                add_amr=amr,
+                prior=prior,
+                add_providers=satisfied,
+                provider_auth=provider_auth,
+                audit_detail=audit_detail,
             )
     except HTTPException:
         # The provider authenticated them; we could not record it. Back to the
         # app with a code rather than a credential that cannot renew.
         return _error_redirect(is_mobile, OidcMessages.SESSION_STORE_UNAVAILABLE)
-    issued.set_cookies(oidc_response)
     return oidc_response
 
 
@@ -2000,7 +1879,7 @@ async def confirm_verification(
                 address_id=record.user_email_id,
                 now=proved_at,
             )
-        except addresses.AddressError as exc:
+        except addresses.AddressError:
             # Somebody else proved the same address first. The claim is over,
             # and the token that carried it is spent either way. The rollback
             # expired ``record``, so it is spent by its value.
@@ -2010,9 +1889,7 @@ async def confirm_verification(
                 token=payload.token,
                 purpose=UserTokenPurpose.email_verification,
             )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-            ) from exc
+            raise
         if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
             proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
             proved_id = row.id
@@ -2107,15 +1984,14 @@ async def request_password_reset(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
-    normalized_email = addresses.normalize(payload.email)
-    if not await MAIL_SENDS.take(normalized_email):
+    if not await MAIL_SENDS.take(payload.email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.RATE_LIMITED,
         )
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
-    user = await addresses.account_holding(system_session, normalized_email)
+    user = await addresses.account_holding(system_session, payload.email)
     if user is not None and user.status == UserStatus.active:
         token = await user_tokens.create_token(
             system_session,
@@ -2137,7 +2013,7 @@ async def reset_password(
     await require_login_method(session, LoginMethod.password)
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
-    await enforce_password_policy(payload.password)
+    await validate_new_password(payload.password)
     record = await user_tokens.consume_token(
         system_session,
         token=payload.token,
@@ -2150,37 +2026,14 @@ async def reset_password(
         )
     # The caller holds a one-shot token rather than a session, so the row is
     # written on the system engine.
-    stmt = select(User).where(User.id == record.user_id)
-    result = await system_session.exec(stmt)
-    user = result.one_or_none()
+    user = await system_session.get(User, record.user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    user.hashed_password = get_password_hash(payload.password)
-    user.password_set_at = datetime.now(timezone.utc)
-    # Staged before ``revoke_user_sessions`` below, which commits this session:
-    # ``user`` is bound to it, so the new password, the revocations and this
-    # record land on the same commit rather than the record trailing a change
-    # already durable.
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-        actor_user_id=user.id,
-        detail={"via": "reset"},
+    # The link proved the inbox, which is what lets the reset start the count
+    # against the account over.
+    await set_password(
+        request, system_session, user=user, password=payload.password, via="reset"
     )
-    # The link proved the inbox, so the new password is not held back by wrong
-    # answers counted before it.
-    await sign_in_locks.lift(system_session, user.id)
-    # Bump token_version and revoke API keys / refresh sessions
-    # so no stale credential (JWT or captured refresh) survives either.
-    # ``token_version`` is bumped on ``user``, which is bound to the system
-    # engine here, so that half commits with the password.
-    await user_tokens.revoke_user_sessions(system_session, user=user)
-    user.updated_at = datetime.now(timezone.utc)
-    system_session.add(user)
-    await system_session.commit()
-    # Open connections stand on credentials the reset has just ended.
-    await content_sockets.revoke_user_everywhere(record.user_id)
-    await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")

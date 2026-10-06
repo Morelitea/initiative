@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from app.core.errors import CodedError
 from app.core.messages import ImageMessages
 
 #: JPEG frame markers that carry dimensions. The other ``FF Cx`` markers are
@@ -80,17 +81,8 @@ class ValidatedImage:
         return len(self.data)
 
 
-class ImageRejected(ValueError):
-    """An upload that does not meet its spec, carrying the code naming why.
-
-    A domain error rather than an ``HTTPException`` so validation stays callable
-    from somewhere that is not a request; an endpoint maps ``code`` onto the
-    response.
-    """
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+class ImageRejected(CodedError):
+    """An upload that does not meet its spec, carrying the code naming why."""
 
 
 def validate_image(spec: ImageSpec, data: bytes) -> ValidatedImage:

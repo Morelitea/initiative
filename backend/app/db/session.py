@@ -13,7 +13,12 @@ from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncEngine,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -753,7 +758,7 @@ def _missing_database_error() -> RuntimeError:
 
 
 @asynccontextmanager
-async def migration_lock() -> AsyncGenerator[None, None]:
+async def migration_lock() -> AsyncGenerator[AsyncConnection, None]:
     """Take the database's migration lock for the duration of the block.
 
     Alembic runs in-process at startup, so instances sharing a database take
@@ -761,7 +766,8 @@ async def migration_lock() -> AsyncGenerator[None, None]:
     connection of its own — opened for this, closed after, which is what
     releases it — because the upgrade runs on connections alembic opens for
     itself. AUTOCOMMIT keeps that connection merely idle, rather than idle in
-    a transaction, for however long the upgrade ahead of it takes.
+    a transaction, for however long the upgrade ahead of it takes. The block
+    is given the connection, for the checks that run under the lock.
     """
     lock_engine = create_async_engine(
         settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
@@ -783,7 +789,7 @@ async def migration_lock() -> AsyncGenerator[None, None]:
             logger.info(
                 "Migration lock acquired after %.0fs.", time.monotonic() - waited_from
             )
-        yield
+        yield conn
     finally:
         # Closing the connection is what gives the lock back.
         await conn.close()

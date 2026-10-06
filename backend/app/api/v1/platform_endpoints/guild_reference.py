@@ -35,8 +35,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep, oauth2_scheme, SystemSessionDep
 from app.api.v1.platform_endpoints.plugin_installation import installation_caller
-from app.core.plugin_access_token import is_access_token
 from app.core.config import settings
+from app.core.identify import presented_credential
+from app.core.plugin_access_token import is_access_token
 from app.core.messages import BundledChannelMessages
 from app.models.platform.plugin_service_registration import (
     PluginServiceRegistration,
@@ -50,7 +51,6 @@ from app.schemas.marketplace.guild_reference import (
 )
 from app.services.marketplace import plugin_refs
 from app.services.marketplace.bundled_channel import (
-    BundledChannelError,
     verify_bundled_envelope,
 )
 from app.services.marketplace.tuf_registry import configured_root_is_builtin
@@ -80,11 +80,10 @@ async def _answer_installation(
     request: Request,
     session: AsyncSession,
     system_session: AsyncSession,
-    bearer: str,
     body: bytes,
 ) -> CommunityReferenceRead:
     """Name the token's community in a sector its registration carries."""
-    installation = await installation_caller(request, session, bearer)
+    installation = await installation_caller(request, session)
 
     try:
         payload = InstallationReferenceRequest.model_validate_json(body)
@@ -142,32 +141,20 @@ async def read_community_reference(
     request: Request,
     session: SessionDep,
     system_session: SystemSessionDep,
+    # Declares the scheme for the API description; read by ``presented_credential``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> CommunityReferenceRead:
     """Name the caller's guild in another sector."""
     body = await request.body()
-    if bearer and is_access_token(bearer):
-        return await _answer_installation(
-            request, session, system_session, bearer, body
-        )
-    try:
-        verify_bundled_envelope(
-            method=request.method,
-            path=request.url.path,
-            headers=request.headers,
-            body=body,
-        )
-    except BundledChannelError as exc:
-        # Unconfigured is this deployment's own gap rather than the caller's
-        # fault, and retryable; everything else is a refusal.
-        raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-                if exc.code == BundledChannelMessages.NOT_CONFIGURED
-                else status.HTTP_403_FORBIDDEN
-            ),
-            detail=exc.code,
-        ) from exc
+    presented = presented_credential(request)
+    if presented is not None and presented.bearer and is_access_token(presented.token):
+        return await _answer_installation(request, session, system_session, body)
+    verify_bundled_envelope(
+        method=request.method,
+        path=request.url.path,
+        headers=request.headers,
+        body=body,
+    )
 
     try:
         payload = CommunityReferenceRequest.model_validate_json(body)

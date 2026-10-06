@@ -1,4 +1,3 @@
-import type { PaginationState, SortingState } from "@tanstack/react-table";
 import {
   CalendarClock,
   Download,
@@ -12,7 +11,11 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import {
+  ListAllUsersSortBy,
+  type OperatorUserRead,
+  type UserRole,
+} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { OperatorDeleteUserDialog } from "@/components/platform/OperatorDeleteUserDialog";
 import {
@@ -32,7 +35,6 @@ import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdow
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
@@ -44,23 +46,21 @@ import {
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
 } from "@/hooks/useOperatorUsers";
+import { useServerTableState } from "@/hooks/useServerTableState";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { formatDateTime } from "@/lib/formatDate";
+import { formatDate, formatDateTime } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
 
-/** How long typing settles before the roster is asked again. */
-const SEARCH_SETTLES_MS = 250;
-
 /** The columns the server sorts the roster by. Status sorts by how much of the
  *  app is left to an account, which brings the ones needing attention together
  *  at one end. */
-const SORT_FIELDS = new Set(["id", "username", "status"]);
+const SORT_FIELDS = Object.values(ListAllUsersSortBy);
 
 export const SettingsPlatformUsersPage = () => {
-  const { t, i18n } = useTranslation(["settings", "common"]);
+  const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
   const [resettingUserId, setResettingUserId] = useState<number | null>(null);
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<{
@@ -98,37 +98,21 @@ export const SettingsPlatformUsersPage = () => {
 
   // Searched, sorted and paged on the server: the roster is every account on
   // the deployment, so the table only ever holds the page on screen.
-  const [draft, setDraft] = useState("");
-  const search = useDebouncedValue(draft, SEARCH_SETTLES_MS);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const sort = sorting[0];
-  const usersQuery = usePlatformUsers(
-    {
-      search: search.trim() || undefined,
-      page,
-      page_size: pageSize,
-      ...(sort && SORT_FIELDS.has(sort.id)
-        ? {
-            sort_by: sort.id as "id" | "username" | "status",
-            sort_dir: sort.desc ? ("desc" as const) : ("asc" as const),
-          }
-        : {}),
-    },
-    { enabled: canView }
-  );
+  const table = useServerTableState(SORT_FIELDS);
+  const usersQuery = usePlatformUsers(table.params, { enabled: canView });
   const rows = usersQuery.data?.items ?? [];
   const totalCount = usersQuery.data?.total_count ?? 0;
 
   // Read the row back out of the query, so a save re-renders the sheet with
   // what was actually persisted.
   const managing = rows.find((row) => row.id === managingId) ?? null;
+  // The account a toast names: its handle while its row is on the page.
+  const handleOf = (userId: number): string =>
+    rows.find((row) => row.id === userId)?.username ?? t("common:userWithId", { id: userId });
 
   const resetPassword = useOperatorTriggerPasswordReset({
     onSuccess: (_data, userId) => {
-      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
-      toast.success(t("platformUsers.resetSuccess", { handle }));
+      toast.success(t("platformUsers.resetSuccess", { handle: handleOf(userId) }));
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
@@ -139,8 +123,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const resendVerification = useOperatorResendVerification({
     onSuccess: (_data, userId) => {
-      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
-      toast.success(t("platformUsers.resendVerificationSuccess", { handle }));
+      toast.success(t("platformUsers.resendVerificationSuccess", { handle: handleOf(userId) }));
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.resendVerificationError"));
@@ -164,8 +147,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const reactivateUser = useOperatorReactivateUser({
     onSuccess: (_data, userId) => {
-      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
-      toast.success(t("platformUsers.reactivateSuccess", { handle }));
+      toast.success(t("platformUsers.reactivateSuccess", { handle: handleOf(userId) }));
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.reactivateError"));
@@ -174,8 +156,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const restoreUser = useOperatorRestoreUser({
     onSuccess: (_data, userId) => {
-      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
-      toast.success(t("platformUsers.restoreSuccess", { handle }));
+      toast.success(t("platformUsers.restoreSuccess", { handle: handleOf(userId) }));
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.restoreError"));
@@ -277,10 +258,7 @@ export const SettingsPlatformUsersPage = () => {
               {platformUser.purge_at ? (
                 <p className="text-muted-foreground text-xs">
                   {t("platformUsers.erasedOn", {
-                    date: new Date(platformUser.purge_at).toLocaleDateString(
-                      i18n.resolvedLanguage ?? i18n.language,
-                      { year: "numeric", month: "short", day: "numeric" }
-                    ),
+                    date: formatDate(platformUser.purge_at),
                   })}
                 </p>
               ) : (
@@ -478,31 +456,9 @@ export const SettingsPlatformUsersPage = () => {
             getRowId={(row) => String(row.id)}
             enableFilterInput
             filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
-            filterValue={draft}
-            onFilterValueChange={(value) => {
-              setDraft(value);
-              setPage(1);
-            }}
-            manualSorting
-            sorting={sorting}
-            onSortingChange={(next) => {
-              setSorting(next);
-              setPage(1);
-            }}
             enableResetSorting
             enablePagination
-            manualPagination
-            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
-            rowCount={totalCount}
-            pageIndex={page - 1}
-            onPaginationChange={(next: PaginationState) => {
-              if (next.pageSize !== pageSize) {
-                setPageSize(next.pageSize);
-                setPage(1);
-              } else {
-                setPage(next.pageIndex + 1);
-              }
-            }}
+            {...table.tableProps(totalCount)}
           />
         </CardContent>
 

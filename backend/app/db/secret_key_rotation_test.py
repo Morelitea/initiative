@@ -15,11 +15,15 @@ import secrets
 
 import pytest
 from sqlalchemy import text
+from sqlmodel import SQLModel
 
 from app.core import config, security
 from app.core.encryption import (
+    FERNET_SALT,
     SALT_AI_API_KEY,
+    SALT_PLUGIN_CONFIG,
     SALT_PLUGIN_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_VENDOR,
     SALT_EMAIL,
     decrypt_field,
     encrypt_field,
@@ -40,6 +44,7 @@ from app.services.platform.app_settings import (
     load_plugin_platform_signing_key,
     seed_app_settings,
 )
+from app.testing import create_plugin_service_registration, sealed_vendor_values
 
 # Distinct test-only keys (≥32 chars). Deliberately different from the ambient
 # test SECRET_KEY so unrelated rows fall into the (untouched) "failed" bucket.
@@ -296,11 +301,12 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
                 )
 
 
-async def test_rotate_reencrypts_the_generated_plugin_platform_key(
+async def test_rotate_reencrypts_the_plugin_platform_key_and_vendor_values(
     session, monkeypatch
 ):
-    """The key a deployment generated for its plug-ins moves to the new key with
-    the other stored credentials, and still reads back as the same key."""
+    """The key a deployment generated for its plug-ins and every value in a
+    registration's vendor map move to the new key with the other stored
+    credentials, and still read back as the same values."""
     monkeypatch.setattr(config.settings, "SECRET_KEY", OLD)
     monkeypatch.setattr(
         config.settings, "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None
@@ -310,6 +316,10 @@ async def test_rotate_reencrypts_the_generated_plugin_platform_key(
     await load_plugin_platform_signing_key(session)
     pem, _ = security.resolve_plugin_platform_signing_material()
     await session.commit()
+    vendor = {"client_id": "vendor-id", "client_secret": "vendor-secret"}
+    registration = await create_plugin_service_registration(
+        session, vendor_values=sealed_vendor_values(vendor)
+    )
 
     _use_keys(monkeypatch, old=OLD, new=NEW)
     await rotate_secret_key()
@@ -320,15 +330,28 @@ async def test_rotate_reencrypts_the_generated_plugin_platform_key(
     assert (
         decrypt_field(stored, SALT_PLUGIN_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
     )
+    vendor_values = await session.scalar(
+        text("SELECT vendor_values FROM plugin_service_registrations WHERE id = :i"),
+        {"i": registration.id},
+    )
+    assert {
+        key: decrypt_field(value, SALT_PLUGIN_VENDOR, secret_key=NEW)
+        for key, value in vendor_values.items()
+    } == vendor
 
 
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
     """The guild AI key columns are guild-scoped, so they live in guild_<id>
     schemas — the sweep re-keys them there. This covers both a guild-level table
     (guild_ai_connection_keys) and the own-row-RLS member-key table
-    (guild_ai_member_keys). Guild data is re-keyed
+    (guild_ai_member_keys), and every value of an install's plug-in secrets map,
+    by connection then field (guild_plugin_secrets). Guild data is re-keyed
     ONLY through its guild schema, never an unrouted public pathway."""
     gid = None
+    plugin_secrets = {
+        "admin_read": {"api_key": "read-key", "region": "eu"},
+        "member_write": {"token": "write-token"},
+    }
     try:
         async with engine.begin() as conn:
             gid = await conn.scalar(
@@ -363,6 +386,25 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                     "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),
                 },
             )
+            await conn.execute(
+                text(
+                    f'INSERT INTO "{schema}".guild_plugin_secrets '  # noqa: S608
+                    "(install_id, secrets) VALUES (1, CAST(:s AS jsonb))"
+                ),
+                {
+                    "s": json.dumps(
+                        {
+                            connection: {
+                                field: encrypt_field(
+                                    value, SALT_PLUGIN_CONFIG, secret_key=OLD
+                                )
+                                for field, value in fields.items()
+                            }
+                            for connection, fields in plugin_secrets.items()
+                        }
+                    )
+                },
+            )
 
         _use_keys(monkeypatch, old=OLD, new=NEW)
         await rotate_secret_key()
@@ -376,8 +418,18 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             member_ct = await conn.scalar(
                 text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys'),
             )
+            sealed = await conn.scalar(
+                text(f'SELECT secrets FROM "{schema}".guild_plugin_secrets'),  # noqa: S608
+            )
         assert decrypt_field(conn_ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
         assert decrypt_field(member_ct, SALT_AI_API_KEY, secret_key=NEW) == "member-ai"
+        assert {
+            connection: {
+                field: decrypt_field(value, SALT_PLUGIN_CONFIG, secret_key=NEW)
+                for field, value in fields.items()
+            }
+            for connection, fields in sealed.items()
+        } == plugin_secrets
 
         # The per-guild sweep routes pooled connections from the guild's
         # cohort; a fresh checkout afterwards runs as the plain system login.
@@ -396,46 +448,18 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                 )
 
 
-async def test_every_encrypted_shared_column_is_registered_for_rotation(engine):
-    """A column added without an entry in the rotation list is the failure mode
-    this guards, and it is a quiet one: nothing breaks at the moment of the
-    rotation — the row keeps its old ciphertext and still looks healthy. It
-    breaks later, when the previous key is retired and the value can no longer
-    be decrypted by anything.
-
-    Read from the catalog rather than from a hand-kept list, so a new column
-    counts the day it lands.
-    """
-    from sqlalchemy import text
-
-    from app.db.secret_key_rotation import _PUBLIC_FERNET_COLUMNS
-    from app.db.tenancy import SHARED_TABLES
-
-    async with engine.begin() as conn:
-        rows = (
-            await conn.execute(
-                text(
-                    """
-                    SELECT table_name, column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND column_name LIKE '%_encrypted'
-                    """
-                )
-            )
-        ).all()
-
-    registered = {(table, column) for table, column, _salt in _PUBLIC_FERNET_COLUMNS}
-    # The address table moves its ciphertext with the email_hash HMAC beside it,
-    # so it is rotated by its own pass rather than by the column sweep.
-    registered.add(("user_emails", "email_encrypted"))
-
-    missing = sorted(
-        (table, column)
-        for table, column in rows
-        if table in SHARED_TABLES and (table, column) not in registered
+@pytest.mark.always
+def test_every_encrypted_column_declares_its_salt():
+    """A column named ``*_encrypted`` holds Fernet ciphertext, and the rotation
+    re-keys every column whose ``info`` declares the salt it is sealed under.
+    Each column the name marks as ciphertext, on every table, declares one."""
+    undeclared = sorted(
+        f"{table.name}.{column.name}"
+        for table in SQLModel.metadata.tables.values()
+        for column in table.columns
+        if column.name.endswith("_encrypted")
+        and not isinstance(column.info.get(FERNET_SALT), bytes)
     )
-    assert not missing, (
-        "encrypted columns on shared tables are not registered for key "
-        f"rotation: {missing}"
+    assert not undeclared, (
+        f"encrypted columns declare no FERNET_SALT in their info: {undeclared}"
     )

@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, TypeVar
 
 
-from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
+from sqlalchemy import ColumnElement, Select, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import AuthMessages
+from app.core.errors import CodedError
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
+from app.core.security import has_usable_password
 from app.core.encryption import (
     SALT_BIRTHDATE,
     decrypt_field,
@@ -64,8 +66,10 @@ from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.request_context import SystemGuild, SystemMaintenance
 
+_S = TypeVar("_S", bound=Select)
 
-class SeatWouldBeEmptied(Exception):
+
+class SeatWouldBeEmptied(CodedError):
     """Removing this account would leave a community with no superadmin.
 
     Raised from the membership drop rather than from an eligibility check,
@@ -75,8 +79,8 @@ class SeatWouldBeEmptied(Exception):
     """
 
     def __init__(self, guild_names: List[str]) -> None:
+        super().__init__(GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN)
         self.guild_names = guild_names
-        super().__init__(", ".join(guild_names))
 
 
 async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
@@ -109,6 +113,10 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     """Names of the communities where this account holds the only superadmin
     seat.
 
+    Holding one is the only thing that stops this account being deleted.
+    Owning content does not: ownership is released on the way out and the
+    content is left unowned for a guild admin to claim.
+
     An ordinary admin does not count: a community left with admins but no
     seat has nobody inside who can appoint one, reach its billing, or change
     its sign-in. A community whose only member is this account
@@ -117,52 +125,6 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     from app.services.platform.guilds import stranded_seats
 
     return [name for _, name in await stranded_seats(session, user_id=user_id)]
-
-
-async def check_deletion_eligibility(
-    session: AsyncSession,
-    user_id: int,
-    *,
-    operator_context: bool = False,
-) -> tuple[bool, List[str]]:
-    """
-    Check if user can be deleted.
-    Returns: (can_delete, blockers)
-
-    The only blocker is holding a community's sole superadmin seat, which would
-    leave it with nobody who can appoint one, reach its billing, or change its
-    sign-in. Being its last ordinary admin is not one: every community has a
-    superadmin, so there is always somebody left who can promote another.
-
-    Owning content is not a blocker: ownership is released on the way out and
-    the content is left unowned for a guild admin to claim, so there is nothing
-    for the departing user to decide.
-
-    Args:
-        session: Database session
-        user_id: ID of the user to check
-        operator_context: If True, word the blockers for an operator reading another account
-    """
-    blockers = []
-
-    for guild_name in await is_last_guild_superadmin(session, user_id):
-        if operator_context:
-            blockers.append(
-                f"User is the only superadmin of community '{guild_name}'. "
-                f"They can make another member superadmin, or somebody holding "
-                f"break-glass access to the community can appoint one, or delete "
-                f"the community, from its settings."
-            )
-        else:
-            blockers.append(
-                f"You are the only superadmin of community '{guild_name}'. "
-                f"Make another user superadmin or delete the community before "
-                f"deleting your account."
-            )
-
-    can_delete = len(blockers) == 0
-
-    return can_delete, blockers
 
 
 async def _end_plugin_access(
@@ -845,6 +807,17 @@ async def is_last_capability_holder(
     return (await session.exec(others_stmt)).one() == 0
 
 
+async def ensure_config_manager_remains(
+    session: AsyncSession, user_id: int, *, for_update: bool = False
+) -> None:
+    """Refuse a change that takes ``config.manage`` from its last active
+    holder, so the platform keeps somebody who can configure it."""
+    if await is_last_capability_holder(
+        session, user_id, Capability.CONFIG_MANAGE, for_update=for_update
+    ):
+        raise CodedError(UserMessages.CANNOT_REMOVE_LAST_OWNER)
+
+
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,
@@ -1061,6 +1034,19 @@ def visible_to_other_people(status_column=None):
     return column.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value))
 
 
+def guild_members(statement: _S, *, guild_id: int) -> _S:
+    """``statement`` narrowed to the people listed as members of one community.
+
+    ``MemberProfile`` joined to each person's membership row there, so a caller
+    may select its columns beside the profile, and the people
+    :func:`visible_to_other_people` leaves out left out here too. A statement
+    that selects no profile column names ``MemberProfile`` in ``select_from``.
+    """
+    return statement.join(
+        GuildMembership, GuildMembership.user_id == MemberProfile.id
+    ).where(GuildMembership.guild_id == guild_id, visible_to_other_people())
+
+
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
     """Each account's address and whether it has proved one.
 
@@ -1107,7 +1093,7 @@ async def _credential_state(
         )
 
 
-async def to_self_read(user: User) -> "UserRead":
+async def to_self_read(session: AsyncSession, user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
@@ -1115,16 +1101,25 @@ async def to_self_read(user: User) -> "UserRead":
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
-    are put back together, for the endpoints that hand somebody their own
-    account.
+    are put back together, with how the account confirms a change (a linked
+    identity, a usable password, whether a confirmation asks for it), for
+    every endpoint that hands somebody their own account. ``session`` is the
+    request's: the identity link is the caller's own row, and the deployment's
+    sign-in methods are read from its settings.
     """
     from app.schemas.platform.user import UserRead
+    from app.services.platform import auth_posture
 
     primary, proven = await _reach([user.id])
     payload = UserRead.model_validate(user)
     payload.email = primary.get(user.id)
     payload.email_verified = user.id in proven
     payload.birthdate_on_file = await _birthdate_on_file(user.id)
+    payload.has_federated_identity = await identity_service.has_federated_identity(
+        session, user_id=user.id
+    )
+    payload.has_password = has_usable_password(user.hashed_password)
+    payload.password_required = await auth_posture.password_confirms(session, user)
     return payload
 
 

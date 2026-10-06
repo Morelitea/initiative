@@ -43,6 +43,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
+import { browserTimezone } from "@/lib/timezones";
 import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
@@ -142,7 +143,7 @@ export const MyCalendarPage = () => {
     setCommunityFilters([]);
   };
 
-  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const userTimezone = useMemo(browserTimezone, []);
 
   // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(

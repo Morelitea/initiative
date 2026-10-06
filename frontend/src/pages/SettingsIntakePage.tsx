@@ -14,7 +14,7 @@
  * the same binding — the blueprint is a convenience, not a different mechanism.
  */
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -51,6 +51,7 @@ import {
   useUpdateOperationsCommunity,
   useUpsertIntakeBinding,
 } from "@/hooks/useIntakeSettings";
+import { useServerForm } from "@/hooks/useServerForm";
 import { usePlatformCommunities } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
@@ -215,42 +216,41 @@ const ContactsCard = ({
   settled: boolean;
 }) => {
   const { t } = useTranslation("intake");
-  const streams = useMemo(
-    () => settings.bindings.map((binding) => binding.stream as IntakeStream),
-    [settings.bindings]
-  );
-  const saved = useMemo(
-    () => ({
-      general: settings.general_contact_email ?? "",
-      streams: Object.fromEntries(
-        streams.map((stream) => [stream, settings.contact_emails?.[stream] ?? ""])
-      ) as Record<IntakeStream, string>,
-    }),
-    [settings, streams]
-  );
-  const [draft, setDraft] = useState(saved);
-  // A save, or another tab's, replaces what the form started from.
-  useEffect(() => setDraft(saved), [saved]);
+  const streams = settings.bindings.map((binding) => binding.stream as IntakeStream);
+  // One flat field per address: "general", then each stream by name.
+  const contactsOf = (loaded: IntakeSettingsRead | undefined): Record<string, string> => ({
+    general: loaded?.general_contact_email ?? "",
+    ...Object.fromEntries(
+      streams.map((stream) => [stream, loaded?.contact_emails?.[stream] ?? ""])
+    ),
+  });
+  const saved = contactsOf(settings);
+  const form = useServerForm(settings, contactsOf, "intake-contacts");
+  const draft = form.values;
 
   const updateGeneral = useUpdateIntakeGeneralContact();
   const updateStream = useUpdateIntakeStreamContact();
   const saving = updateGeneral.isPending || updateStream.isPending;
-  const changed =
-    draft.general.trim() !== saved.general ||
-    streams.some((stream) => draft.streams[stream].trim() !== saved.streams[stream]);
+  const changedOf = (sent: Record<string, string>, field: string) =>
+    (sent[field] ?? saved[field]).trim() !== saved[field];
+  const changed = Object.keys(saved).some((field) => changedOf(draft, field));
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    // What is being sent, so anything typed while this is in flight is not
+    // counted as saved by it.
+    const sent = draft;
     const email = (value: string) => value.trim() || null;
     try {
-      if (draft.general.trim() !== saved.general) {
-        await updateGeneral.mutateAsync({ email: email(draft.general) });
+      if (changedOf(sent, "general")) {
+        await updateGeneral.mutateAsync({ email: email(sent.general) });
       }
       for (const stream of streams) {
-        if (draft.streams[stream].trim() !== saved.streams[stream]) {
-          await updateStream.mutateAsync({ stream, body: { email: email(draft.streams[stream]) } });
+        if (changedOf(sent, stream)) {
+          await updateStream.mutateAsync({ stream, body: { email: email(sent[stream]) } });
         }
       }
+      form.settle(sent);
       toast.success(t("contacts.saved"));
     } catch (err) {
       toast.error(getErrorMessage(err, "intake:contacts.saveError"));
@@ -273,7 +273,7 @@ const ContactsCard = ({
               value={draft.general}
               placeholder={t("contacts.generalPlaceholder")}
               disabled={!settled || saving}
-              onChange={(event) => setDraft({ ...draft, general: event.target.value })}
+              onChange={(event) => form.set({ general: event.target.value })}
             />
           </div>
           {streams.map((stream) => (
@@ -282,15 +282,10 @@ const ContactsCard = ({
               <Input
                 id={`intake-contact-${stream}`}
                 type="email"
-                value={draft.streams[stream]}
+                value={draft[stream]}
                 placeholder={t("contacts.streamPlaceholder")}
                 disabled={!settled || saving}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    streams: { ...draft.streams, [stream]: event.target.value },
-                  })
-                }
+                onChange={(event) => form.set({ [stream]: event.target.value })}
               />
             </div>
           ))}

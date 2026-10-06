@@ -47,6 +47,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_PLUGIN_CONFIG
+
 #: Where a connection has got to, as far as this side can tell.
 #:
 #: ``pending`` — the member started the vendor flow and the plug-in has not written
@@ -115,7 +117,12 @@ class GuildPluginUserConnection(SQLModel, table=True):
     #: guild-scoped values.
     config_secrets: dict[str, Any] = Field(
         default_factory=dict,
-        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        sa_column=Column(
+            JSONB,
+            nullable=False,
+            server_default="{}",
+            info={FERNET_SALT: SALT_PLUGIN_CONFIG},
+        ),
     )
 
     status: str = Field(

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuthChallenge } from "@/hooks/useAuthChallenge";
 import { useCommunityLoginProviders, useLoginProviders } from "@/hooks/useCommunityAuthPolicy";
+import { providerSignInHref } from "@/lib/returnPath";
 
 /** The path the sign-in should return to: where the challenge happened. */
 const currentSpaPath = (): string => `${window.location.pathname}${window.location.search}`;
@@ -56,7 +57,7 @@ export const StepUpDialog = () => {
     }
     const loginUrl =
       provider?.login_url ?? `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
-    window.location.href = `${loginUrl}?next=${encodeURIComponent(currentSpaPath())}`;
+    window.location.href = providerSignInHref(loginUrl, currentSpaPath());
   };
 
   return (

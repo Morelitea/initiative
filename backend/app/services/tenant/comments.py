@@ -29,6 +29,7 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import (
     CommentMessages,
     TaskMessages,
@@ -71,16 +72,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CommentError(Exception):
+class CommentError(CodedError):
     """Base error for comment operations."""
 
 
 class CommentNotFoundError(CommentError):
     """Raised when a linked resource cannot be found."""
 
+    status_code = 404
+
 
 class CommentPermissionError(CommentError):
     """Raised when the user lacks permission to comment."""
+
+    status_code = 403
 
 
 class CommentValidationError(CommentError):

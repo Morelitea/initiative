@@ -67,7 +67,6 @@ from app.db import session as db_session
 from app.db.cohorts import request_sessionmaker
 from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS
 from app.models.platform.user import Presence, User, UserStatus
-from app.services.auth import credentials
 from app.services.auth import sessions as session_service
 from app.services.platform import presence
 
@@ -160,11 +159,12 @@ class Credential:
 
     @classmethod
     def captured(cls) -> "Credential":
-        session = auth_context.session_credential()
+        recorded = auth_context.current()
+        session = recorded.session_credential
         return cls(
-            satisfied_providers=auth_context.satisfied_providers(),
-            session_amr=auth_context.session_amr(),
-            satisfied_claims=auth_context.satisfied_claims(),
+            satisfied_providers=recorded.satisfied_providers,
+            session_amr=recorded.session_amr,
+            satisfied_claims=recorded.satisfied_claims,
             session_id=session.session_id if session else None,
             token_version=session.token_version if session else None,
         )
@@ -509,9 +509,12 @@ class ContentSockets:
                     # Present this socket's sign-in and nothing else: whatever
                     # the task that asked for the re-check had recorded (an
                     # API key, another session) is not this socket's.
-                    credentials.clear_recorded_credential()
-                    auth_context.set_session_amr(first.credential.session_amr)
-                    auth_context.set_satisfied_claims(first.credential.satisfied_claims)
+                    auth_context.reset(
+                        auth_context.AuthContext(
+                            session_amr=first.credential.session_amr,
+                            satisfied_claims=first.credential.satisfied_claims,
+                        )
+                    )
                     try:
                         await establish_guild_access(
                             session,

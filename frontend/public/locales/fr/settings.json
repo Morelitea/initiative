@@ -46,13 +46,11 @@
     "currentPasswordLabel": "Mot de passe actuel",
     "currentPasswordRequired": "Saisissez votre mot de passe actuel pour en définir un nouveau.",
     "newPasswordLabel": "Nouveau mot de passe",
-    "confirmPasswordLabel": "Confirmer le mot de passe",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Télécharger",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://exemple.com/avatar.jpg",
     "removeUploadedAvatar": "Supprimer l'avatar téléchargé",
-    "passwordsMismatch": "Les mots de passe ne correspondent pas",
     "saveChanges": "Enregistrer les modifications",
     "saving": "Enregistrement…",
     "updateError": "Impossible de mettre à jour le profil",
@@ -492,6 +490,10 @@
     "deleteButton": "Supprimer le compte",
     "title": "Fermer votre compte"
   },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Tapez",
+    "typeToConfirmSuffix": "pour confirmer"
+  },
   "deleteAccount": {
     "title": "Supprimer le compte",
     "deactivateTitle": "Désactiver le compte",
@@ -509,6 +511,7 @@
     "softDeleteRadioDescription": "Vous ne pouvez pas vous connecter, mais toutes les données sont préservées. Un administrateur peut réactiver votre compte ultérieurement.",
     "cannotDelete": "Impossible de supprimer le compte :",
     "cannotDeactivate": "Impossible de désactiver le compte :",
+    "soleSuperadminBlocker": "Vous êtes le seul superadministrateur de {{communityName}}. Nommez d'abord un autre membre superadministrateur, ou supprimez la communauté.",
     "resolveIssues": "Veuillez résoudre ces problèmes avant de supprimer votre compte.",
     "resolveIssuesDeactivate": "Veuillez résoudre ces problèmes avant de désactiver votre compte.",
     "eligible": "Votre compte est éligible à la suppression.",
@@ -516,8 +519,6 @@
     "actionSerious": "Cette action est sérieuse :",
     "confirmPasswordLabel": "Confirmez votre mot de passe",
     "enterPassword": "Entrez votre mot de passe",
-    "typeToConfirmPrefix": "Tapez",
-    "typeToConfirmSuffix": "pour confirmer",
     "deactivateAccount": "Désactiver le compte",
     "deleteAccountButton": "Supprimer le compte",
     "checking": "Vérification…",

@@ -19,11 +19,17 @@ that opened the request whichever task each of them runs in.
 
 Outside a request — a background sweep, a startup seed — there is no holder,
 and a line written there carries ``"context": null``.
+
+The address and agent are read here once per request, and everything else
+that wants them — a session's bookkeeping, a rate limit's key, a captcha
+check — asks :func:`client_ip` and :func:`client_user_agent` for the same
+values.
 """
 
 from __future__ import annotations
 
 import contextvars
+import ipaddress
 from dataclasses import dataclass
 from typing import Any, Optional
 from uuid import uuid4
@@ -120,16 +126,36 @@ def clean_request_id(supplied: Optional[str]) -> Optional[str]:
     return supplied if all(char in _ID_CHARS for char in supplied) else None
 
 
+def _inet(address: Optional[str]) -> Optional[str]:
+    """``address`` as a stored ``inet`` accepts it, or ``None`` when it is not
+    an address (a test client's ``testclient``, a socket with no peer).
+
+    Normalized, and without an IPv6 zone identifier: a zone names a local
+    interface, which means nothing in stored data.
+    """
+    if not address:
+        return None
+    try:
+        return str(ipaddress.ip_address(address.split("%", 1)[0]))
+    except ValueError:
+        return None
+
+
 def begin(
     *,
     request_id: str,
     source_ip: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> tuple[RequestContext, contextvars.Token]:
-    """Open a request's context and return it with the token that closes it."""
+    """Open a request's context and return it with the token that closes it.
+
+    ``source_ip`` is the peer the ASGI server resolved, which is already
+    whatever the deployment's proxy configuration says it is (uvicorn's
+    ``FORWARDED_ALLOW_IPS``).
+    """
     context = RequestContext(
         request_id=request_id,
-        source_ip=source_ip,
+        source_ip=_inet(source_ip),
         user_agent=(user_agent or None) and user_agent[:MAX_USER_AGENT],
     )
     return context, _request.set(context)
@@ -143,6 +169,20 @@ def end(token: contextvars.Token) -> None:
 def current() -> Optional[RequestContext]:
     """This request's context, or ``None`` outside a request."""
     return _request.get()
+
+
+def client_ip() -> Optional[str]:
+    """The address this request came from, normalized; ``None`` outside a
+    request or when it arrived from no address."""
+    context = _request.get()
+    return context.source_ip if context is not None else None
+
+
+def client_user_agent() -> Optional[str]:
+    """The user agent this request named, cut to :data:`MAX_USER_AGENT`;
+    ``None`` outside a request or when it named none."""
+    context = _request.get()
+    return context.user_agent if context is not None else None
 
 
 def note_grant(

@@ -20,9 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, select
 
 from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
-from app.core.image_headers import ValidatedImage
+from app.core.image_headers import ImageRejected, ValidatedImage, validate_image
 from app.core.messages import ImageMessages, UserMessages
-from app.models.platform.user_avatar import UserAvatar
+from app.models.platform.user_avatar import AVATAR_SPEC, UserAvatar
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
@@ -41,6 +41,17 @@ AVATAR_REJECTIONS: dict[str, str] = {
     ImageMessages.IMAGE_WRONG_SIZE: UserMessages.AVATAR_TOO_LARGE_DIMENSIONS,
     ImageMessages.IMAGE_WRONG_RATIO: UserMessages.AVATAR_NOT_SQUARE,
 }
+
+
+def validate_avatar(data: bytes) -> ValidatedImage:
+    """Hold ``data`` to the profile-picture spec, refusing in the picture's
+    own wording."""
+    try:
+        return validate_image(AVATAR_SPEC, data)
+    except ImageRejected as rejected:
+        raise ImageRejected(
+            AVATAR_REJECTIONS.get(rejected.code, rejected.code)
+        ) from None
 
 
 def avatar_url(user_id: int, sha256: str) -> str:

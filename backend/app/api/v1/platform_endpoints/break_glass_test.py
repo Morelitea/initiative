@@ -23,6 +23,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 
 from app.core import auth_context
@@ -353,13 +354,13 @@ async def test_the_deployments_requirement_asks_an_account_without_one(
     session.add(row)
     await session.commit()
 
-    auth_context.set_session_amr(signed_in_with)
+    auth_context.record(session_amr=signed_in_with)
     try:
         demanded = await access_grants_service.demands_second_factor(
             session, actor=a.user
         )
     finally:
-        auth_context.set_session_amr(None)
+        auth_context.reset()
     assert demanded is asked
 
 
@@ -385,7 +386,8 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
     detail,
 ):
     """An account that holds a factor is asked for it, and its own factor is
-    what answers."""
+    what answers. Wrong codes count against the account as they do at sign-in,
+    so enough of them turn the right one away too."""
     a, guild = await outsider()
     secret, codes = await _enrol_factor(client, session, a)
     body = {
@@ -402,6 +404,16 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
         assert resp.json()["detail"] == detail
     else:
         assert resp.json()["status"] == "approved"
+
+    if credential == "wrong":
+        for _ in range(sign_in_locks.LOCK_AFTER_FAILURES - 1):
+            again = await _break_glass(client, a, guild, reason="incident", **body)
+            assert again.status_code == 400, again.text
+        locked = await _break_glass(
+            client, a, guild, reason="incident", code=_next_code(secret)
+        )
+        assert locked.status_code == 429, locked.text
+        assert locked.json()["detail"] == "SIGN_IN_LOCKED"
 
 
 async def test_withdrawing_the_authenticator_stops_it_being_asked_for(

@@ -19,20 +19,13 @@ them at all.
 import pytest
 from sqlalchemy import text
 
-from app.core.config import settings
+from app.db.public_rls import role_name
 from app.db.schema_provisioning import GuildRoleKind, guild_role_name
 from app.testing import create_guild, create_guild_membership, create_user
 
 
 _COUNT = "SELECT count(*) FROM public.current_guild_members"
 _IDS = "SELECT id FROM public.current_guild_members ORDER BY id"
-
-
-def _platform_floor() -> str:
-    """The platform ladder's floor, for the same reason the query role is
-    asked for rather than spelled out: a run's roles are its own, and an
-    unprefixed name is whatever another database on this cluster holds."""
-    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
 
 
 async def _as_query_role(conn, guild_id: int):
@@ -167,7 +160,11 @@ class TestTheRolesThatReadIt:
         The schema hands every new relation in ``public`` full DML to the
         request-path floors, so a read-only one has to say so."""
         async with engine.connect() as conn:
-            for role in ("app_guild_base", "app_guild_base_ro", _platform_floor()):
+            for role in (
+                "app_guild_base",
+                "app_guild_base_ro",
+                role_name("platform_base"),
+            ):
                 for verb in ("INSERT", "UPDATE", "DELETE"):
                     assert not await conn.scalar(
                         text(
@@ -186,5 +183,5 @@ class TestTheRolesThatReadIt:
                     "SELECT has_table_privilege(:r, "
                     "'public.current_guild_members', 'SELECT')"
                 ),
-                {"r": _platform_floor()},
+                {"r": role_name("platform_base")},
             )

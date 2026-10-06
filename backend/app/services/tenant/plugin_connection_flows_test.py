@@ -569,8 +569,19 @@ class TestMemberFlow:
         code = vendor.authorize(start["code_challenge"])
 
         landing = await _callback(client, None, state=start["state"], code=code)
+        # A request that presents a bearer header is read by that header, so
+        # the session cookie beside it does not sign anyone in here.
+        beside_bearer = await client.get(
+            "/api/v1/plugin-connections/callback",
+            params={"state": start["state"], "code": code},
+            headers=_cookie(a) | a.headers,
+        )
 
         assert landing["outcome"] == "sign_in_required"
+        assert beside_bearer.status_code == 303
+        assert (
+            _landing(beside_bearer.headers["location"])["outcome"] == "sign_in_required"
+        )
         assert vendor.token_requests == []
         assert await _member_row(session, a.guild.id, plugin.id) is None
 
@@ -1346,18 +1357,22 @@ class TestVendorWebhooks:
         from starlette.requests import Request
 
         from app.api.v1.platform_endpoints.plugin_hooks import _per_plugin_and_sender
+        from app.core import audit_context
 
         def _key(address: str) -> str:
-            return _per_plugin_and_sender(
-                Request(
-                    {
-                        "type": "http",
-                        "headers": [],
-                        "client": (address, 443),
-                        "path_params": {"public_id": PUBLIC_ID},
-                    }
+            _, token = audit_context.begin(request_id="x", source_ip=address)
+            try:
+                return _per_plugin_and_sender(
+                    Request(
+                        {
+                            "type": "http",
+                            "headers": [],
+                            "path_params": {"public_id": PUBLIC_ID},
+                        }
+                    )
                 )
-            )
+            finally:
+                audit_context.end(token)
 
         assert _key("203.0.113.7") != _key("198.51.100.9")
         assert _key("203.0.113.7") == _key("203.0.113.7")

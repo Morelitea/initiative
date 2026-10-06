@@ -103,8 +103,6 @@ class AuthMessages:
     #: The assertion did not verify, named a credential nobody registered, or
     #: its challenge is not standing. One code for all of those.
     PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
-    #: The deployment does not offer passkeys.
-    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
     #: The password is the account's only way to start a session, so it stays.
     PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
     #: The passkey is the account's only way to start a session, so it stays.
@@ -521,7 +519,6 @@ class SharingMessages:
 class ReactionMessages:
     TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
     PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
-    NOT_FOUND = "REACTION_NOT_FOUND"
     TOO_MANY = "REACTION_TOO_MANY"
     DISABLED = "REACTION_DISABLED"
 
@@ -645,12 +642,9 @@ class OperatorMessages:
     ALREADY_ANONYMIZED = "OPERATOR_ALREADY_ANONYMIZED"
     CANNOT_CHANGE_ROLE_INACTIVE = "OPERATOR_CANNOT_CHANGE_ROLE_INACTIVE"
     CANNOT_CHANGE_OWN_ROLE = "OPERATOR_CANNOT_CHANGE_OWN_ROLE"
-    CANNOT_DEMOTE_LAST_OWNER = "OPERATOR_CANNOT_DEMOTE_LAST_OWNER"
     CANNOT_ASSIGN_HIGHER_ROLE = "OPERATOR_CANNOT_ASSIGN_HIGHER_ROLE"
     USE_SELF_DELETION = "OPERATOR_USE_SELF_DELETION"
-    CANNOT_DELETE_LAST_OWNER = "OPERATOR_CANNOT_DELETE_LAST_OWNER"
     CANNOT_DELETE_SELF = "OPERATOR_CANNOT_DELETE_SELF"
-    USER_CANNOT_BE_DELETED = "OPERATOR_USER_CANNOT_BE_DELETED"
 
 
 class AccessGrantMessages:
@@ -687,7 +681,8 @@ class PasswordMessages:
 
 
 class UserMessages:
-    CANNOT_DELETE_LAST_OWNER = "USER_CANNOT_DELETE_LAST_OWNER"
+    #: The change would leave the platform with nobody who can configure it.
+    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
@@ -711,6 +706,8 @@ class UserMessages:
     NO_LIVE_API_KEYS = "USER_NO_LIVE_API_KEYS"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
+    #: A new password was sent beside a field other than the current password.
+    PASSWORD_CHANGED_ALONE = "USER_PASSWORD_CHANGED_ALONE"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
     INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"
@@ -737,6 +734,18 @@ class UserMessages:
     DECORATION_PACK_NOT_FOUND = "USER_DECORATION_PACK_NOT_FOUND"
     #: A decoration this library already holds from a different pack.
     DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
+
+
+class UsernameMessages:
+    """Why a name part cannot be stored."""
+
+    TOO_SHORT = "USERNAME_TOO_SHORT"
+    TOO_LONG = "USERNAME_TOO_LONG"
+    INVALID_CHARACTERS = "USERNAME_INVALID_CHARACTERS"
+    MUST_START_WITH_LETTER = "USERNAME_MUST_START_WITH_LETTER"
+    RESERVED = "USERNAME_RESERVED"
+    #: Every number behind the name part is taken.
+    UNAVAILABLE = "USERNAME_UNAVAILABLE"
 
 
 class ProjectExportMessages:

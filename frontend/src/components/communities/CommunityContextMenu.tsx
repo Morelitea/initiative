@@ -13,7 +13,8 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createCommunityInvite } from "@/api/generated/communities/communities";
-import type { CommunityInviteRead, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import { invalidate, q } from "@/api/query-keys";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
   ContextMenu,
@@ -72,10 +73,8 @@ export const CommunityContextMenu = ({
     if (creatingInvite || atUserLimit) return;
     setCreatingInvite(true);
     try {
-      const data = (await createCommunityInvite(
-        community.id,
-        {}
-      )) as unknown as CommunityInviteRead;
+      const data = await createCommunityInvite(community.id, {});
+      void invalidate(q.communityInvites(community.id));
       const inviteLink = `${window.location.origin}/invite/${data.code}`;
       await navigator.clipboard.writeText(inviteLink);
       toast.success(t("inviteLinkCopied"));

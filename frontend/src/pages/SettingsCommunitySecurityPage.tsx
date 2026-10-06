@@ -37,6 +37,7 @@ import { useServer } from "@/hooks/useServer";
 import { useServerForm } from "@/hooks/useServerForm";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { providerSignInHref } from "@/lib/returnPath";
 
 /**
  * Community sign-in configuration (Settings → Security), in two halves.
@@ -357,8 +358,10 @@ export const SettingsCommunitySecurityPage = () => {
     if (!entry) {
       return;
     }
-    const next = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
+    window.location.href = providerSignInHref(
+      entry.login_url,
+      `${window.location.pathname}${window.location.search}`
+    );
   };
   const canSignInWithRequired =
     unmetProviderSlug != null &&

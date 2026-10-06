@@ -72,11 +72,6 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services.tenant import webhook_refs
 from app.services.tenant import webhook_subscriptions as subscriptions_service
-from app.services.tenant.webhook_subscriptions import (
-    WebhookSubscriptionNotFoundError,
-    WebhookSubscriptionScopeError,
-    WebhookSubscriptionVocabularyError,
-)
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -211,29 +206,20 @@ async def create_subscription(
     """
     await _validate_target_url(str(payload.target_url))
 
-    try:
-        if isinstance(guild_context, InstallContext):
-            (
-                subscription,
-                secret,
-            ) = await subscriptions_service.create_install_subscription(
-                session, context=guild_context, payload=payload
-            )
-        else:
-            subscription, secret = await subscriptions_service.create_subscription(
-                session,
-                payload=payload,
-                created_by=guild_context.user_id,
-                guild_id=guild_context.guild_id,
-            )
-    except WebhookSubscriptionVocabularyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
-    except WebhookSubscriptionScopeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
-        ) from exc
+    if isinstance(guild_context, InstallContext):
+        (
+            subscription,
+            secret,
+        ) = await subscriptions_service.create_install_subscription(
+            session, context=guild_context, payload=payload
+        )
+    else:
+        subscription, secret = await subscriptions_service.create_subscription(
+            session,
+            payload=payload,
+            created_by=guild_context.user_id,
+            guild_id=guild_context.guild_id,
+        )
 
     return WebhookSubscriptionCreated(
         # A subscription that was just created has no delivery history yet.
@@ -288,23 +274,13 @@ async def update_subscription(
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 
-    try:
-        row = await subscriptions_service.update_subscription(
-            session,
-            subscription_id=subscription_id,
-            guild_id=guild_context.guild_id,
-            payload=payload,
-            actor_user_id=current_user.id,
-        )
-    except WebhookSubscriptionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-    except WebhookSubscriptionVocabularyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    row = await subscriptions_service.update_subscription(
+        session,
+        subscription_id=subscription_id,
+        guild_id=guild_context.guild_id,
+        payload=payload,
+        actor_user_id=current_user.id,
+    )
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id]
     )
@@ -329,19 +305,13 @@ async def delete_subscription(
     installed plug-in reaches only the subscriptions it registered, and any other
     is a 404."""
     by_install = isinstance(guild_context, InstallContext)
-    try:
-        await subscriptions_service.delete_subscription(
-            session,
-            subscription_id=subscription_id,
-            guild_id=guild_context.guild_id,
-            actor_user_id=guild_context.user_id,
-            by_install=by_install,
-        )
-    except WebhookSubscriptionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
+    await subscriptions_service.delete_subscription(
+        session,
+        subscription_id=subscription_id,
+        guild_id=guild_context.guild_id,
+        actor_user_id=guild_context.user_id,
+        by_install=by_install,
+    )
     if by_install:
         # An install's subscriptions are named in the install's own sector,
         # which outlives any one of them; there is nothing of this one's to

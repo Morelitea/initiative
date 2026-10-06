@@ -14,6 +14,8 @@ from sqlalchemy import DateTime, String
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.encryption import FERNET_SALT, SALT_AI_API_KEY
+
 
 class AIConnectionColumns(SQLModel):
     """The columns of an AI connection, shared by the operator's table here
@@ -56,5 +58,8 @@ class PlatformAIConnection(AIConnectionColumns, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     api_key_encrypted: Optional[str] = Field(
-        default=None, sa_type=String(2000), nullable=True
+        default=None,
+        sa_type=String(2000),
+        nullable=True,
+        sa_column_kwargs={"info": {FERNET_SALT: SALT_AI_API_KEY}},
     )

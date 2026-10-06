@@ -16,6 +16,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability
+from app.core.errors import CodedError
+from app.core.messages import UserMessages
 from app.models.platform.guild import CommunityRole
 from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
@@ -90,72 +92,6 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
         )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
-
-
-async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
-    """Test that user can be deleted when they have no blocking conditions."""
-    # Create a regular member user
-    member = await create_user(session)
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, creator=admin)
-
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=CommunityRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=CommunityRole.member
-    )
-
-    # Check deletion eligibility
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        member.id,
-    )
-
-    assert can_delete is True
-    assert len(blockers) == 0
-
-
-async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
-    """Holding a community's only seat is what stops an account going."""
-    seat = await create_user(session)
-    guild = await create_guild(session, name="My Guild", creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=CommunityRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=CommunityRole.member
-    )
-
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        seat.id,
-    )
-
-    assert can_delete is False
-    assert any("My Guild" in blocker for blocker in blockers)
-    assert any("superadmin" in blocker.lower() for blocker in blockers)
-
-
-async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
-    """Being a community's last *admin* stops nobody: its seat is still there
-    and can promote somebody else."""
-    seat = await create_user(session, email="seat@example.com")
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="My Guild", creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=CommunityRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=CommunityRole.admin
-    )
-
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session, admin.id
-    )
-
-    assert can_delete is True
-    assert blockers == []
 
 
 async def test_removing_the_only_seat_is_refused_where_the_rows_go(
@@ -645,6 +581,9 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is True
     )
+    with pytest.raises(CodedError) as refusal:
+        await user_service.ensure_config_manager_remains(session, active_owner.id)
+    assert refusal.value.code == UserMessages.CANNOT_REMOVE_LAST_OWNER
 
     # The deactivated owner is never "the last owner" — they're not in
     # the count to begin with, so removing them changes nothing.
@@ -654,6 +593,7 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is False
     )
+    await user_service.ensure_config_manager_remains(session, deact_owner.id)
 
 
 async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):

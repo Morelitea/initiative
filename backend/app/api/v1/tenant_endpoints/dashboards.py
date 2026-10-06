@@ -54,7 +54,6 @@ from app.schemas.tenant.dashboard import (
     build_widget_catalog,
 )
 from app.schemas.tenant.tool import serialize_tool
-from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services.tenant import properties as properties_service
@@ -71,7 +70,6 @@ from app.services.tenant import tags as tags_service
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace.plugin_data import row_columns
 from app.services.tenant.dashboard_definition import (
-    DashboardDefinitionError,
     normalize_dashboard_config,
     normalize_dashboard_definition,
 )
@@ -114,16 +112,10 @@ def _normalize_body(
 ) -> tuple[dict, dict]:
     """Validate a definition + its config together. Raises 422 with the
     validator's machine code so the client can localize it."""
-    try:
-        clean_definition = normalize_dashboard_definition(
-            definition or {}, endpoint_columns=endpoint_columns
-        )
-        clean_config = normalize_dashboard_config(config or {}, clean_definition)
-    except DashboardDefinitionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
+    clean_definition = normalize_dashboard_definition(
+        definition or {}, endpoint_columns=endpoint_columns
+    )
+    clean_config = normalize_dashboard_config(config or {}, clean_definition)
     return clean_definition, clean_config
 
 
@@ -505,13 +497,7 @@ async def load_dashboard_data(
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    try:
-        widgets = await canvas_widget_data(session, dashboard, guild_context.guild_id)
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    widgets = await canvas_widget_data(session, dashboard, guild_context.guild_id)
     return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
 
 

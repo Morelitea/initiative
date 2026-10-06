@@ -301,6 +301,7 @@ async def test_register_with_a_bound_invite_joins_on_confirming(
     monkeypatch.setattr(email_service, "send_verification_email", _undelivered)
     failed = await client.post(resend_path, headers=operator_headers)
     assert failed.status_code == 502
+    assert failed.json()["detail"] == "SETTINGS_EMAIL_SEND_FAILED"
     assert await user_tokens.get_valid_token(
         session, token=letters[0], purpose=UserTokenPurpose.email_verification
     )

@@ -21,7 +21,7 @@ def set_session_cookie(response: Response, token: str, *, max_age: int) -> None:
         value=token,
         httponly=True,
         samesite="lax",
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         max_age=max_age,
         path="/",
     )
@@ -33,7 +33,7 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         samesite="lax",
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         max_age=settings.AUTH_REFRESH_TTL_DAYS * 86400,
         path=REFRESH_COOKIE_PATH,
     )
@@ -45,7 +45,7 @@ def clear_session_cookie(response: Response) -> None:
         key=SESSION_COOKIE_NAME,
         path="/",
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         samesite="lax",
     )
 
@@ -55,6 +55,6 @@ def clear_refresh_cookie(response: Response) -> None:
         key=REFRESH_COOKIE_NAME,
         path=REFRESH_COOKIE_PATH,
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=settings.app_url_is_https,
         samesite="lax",
     )

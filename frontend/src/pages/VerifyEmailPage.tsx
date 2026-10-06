@@ -2,7 +2,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { confirmVerification } from "@/api/generated/auth/auth";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export const VerifyEmailPage = () => {
         return;
       }
       try {
-        await apiClient.post("/auth/verification/confirm", { token });
+        await confirmVerification({ token });
         setStatus("success");
         setMessage(t("verifyEmail.success"));
       } catch (err) {

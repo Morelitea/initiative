@@ -39,12 +39,14 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useServerForm } from "@/hooks/useServerForm";
 import {
   useAgreeCommunityNarrowing,
   useCommunityNarrowings,
   useUpdateCommunityStorage,
 } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 
 const GIB = 1024 ** 3;
@@ -85,66 +87,65 @@ export const CommunityOperatorSettingsSheet = ({
    *  binding, one for every community, served beside the list. */
   supportBound: boolean;
 }) => {
-  const { t, i18n } = useTranslation("settings");
+  const { t } = useTranslation("settings");
   const { billing } = useAppConfig();
   const planIsBillings = billing?.manages_plans ?? false;
 
-  const [storageDraft, setStorageDraft] = useState("");
-  const [usersDraft, setUsersDraft] = useState("");
-  const [loadedFor, setLoadedFor] = useState<number | null>(null);
+  // The drafts follow whichever community the sheet was opened for, and show
+  // what is stored once a save lands — a normalised value ("10.0" -> "10")
+  // included.
+  const form = useServerForm(
+    community ?? undefined,
+    (loaded) => ({
+      storage: bytesToGbInput(loaded?.max_storage_bytes ?? null),
+      users: userLimitToInput(loaded?.max_users ?? null),
+    }),
+    [open, community?.id]
+  );
   const [restoring, setRestoring] = useState(false);
 
-  /** Show what is stored, so a box never presents an unsaved value as saved. */
-  const syncDrafts = (row: { max_storage_bytes: number | null; max_users: number | null }) => {
-    setStorageDraft(bytesToGbInput(row.max_storage_bytes));
-    setUsersDraft(userLimitToInput(row.max_users));
-  };
-
   const update = useUpdateCommunityStorage({
-    // A save that normalised a value ("10.0" -> "10") answers with what it
-    // stored, and that is what the boxes then show.
-    onSuccess: (row) => {
-      syncDrafts(row);
-      toast.success(t("communities.saved", { name: row.name }));
-    },
-    // A refused save leaves the old value in place, so the boxes go back to it
-    // rather than keeping a number nothing accepted.
-    onError: (err) => {
-      if (community) syncDrafts(community);
-      toast.error(getErrorMessage(err, "settings:communities.saveError"));
-    },
+    onSuccess: (row) => toast.success(t("communities.saved", { name: row.name })),
+    onError: (err) => toast.error(getErrorMessage(err, "settings:communities.saveError")),
   });
-
-  // The drafts follow whichever community the sheet was opened for.
-  if (community && loadedFor !== community.id) {
-    setLoadedFor(community.id);
-    syncDrafts(community);
-  }
 
   if (!community) return null;
 
+  type Cap = keyof typeof form.values;
   const patch = (data: Parameters<typeof update.mutate>[0]["data"]) =>
     update.mutate({ communityId: community.id, data });
+  // A cap is saved from its box, which then goes back to following the server.
+  // A refused save leaves the old value in place, so that box goes back to it
+  // rather than keeping a number nothing accepted.
+  const commitCap = (
+    data: Parameters<typeof update.mutate>[0]["data"],
+    sent: typeof form.values,
+    cap: Cap
+  ) =>
+    update.mutate(
+      { communityId: community.id, data },
+      { onSuccess: () => form.settle(sent), onError: () => form.reset({ [cap]: sent[cap] }) }
+    );
 
   const commitStorage = () => {
-    const stored = community.max_storage_bytes ?? null;
-    const { bytes, invalid } = parseGbInput(storageDraft);
+    const sent = form.values;
+    const { bytes, invalid } = parseGbInput(sent.storage);
     // A malformed entry snaps back to the persisted value rather than saving.
-    if (invalid || bytes === stored) {
-      setStorageDraft(bytesToGbInput(stored));
+    if (invalid || bytes === (community.max_storage_bytes ?? null)) {
+      form.reset({ storage: sent.storage });
       return;
     }
-    patch({ max_storage_bytes: bytes });
+    commitCap({ max_storage_bytes: bytes }, sent, "storage");
   };
 
   const commitUsers = () => {
-    const stored = community.max_users ?? null;
-    const { limit, invalid } = parseUserLimitInput(usersDraft);
-    if (invalid || limit === stored) {
-      setUsersDraft(userLimitToInput(stored));
+    const sent = form.values;
+    const { limit, invalid } = parseUserLimitInput(sent.users);
+    if (invalid || limit === (community.max_users ?? null)) {
+      form.reset({ users: sent.users });
       return;
     }
-    patch({ max_users: limit });
+    commitCap({ max_users: limit }, sent, "users");
   };
 
   const options = community.auth_options ?? [];
@@ -161,13 +162,7 @@ export const CommunityOperatorSettingsSheet = ({
   // What locks the plan's own controls: a community on its way out, or a plan
   // that billing sets.
   const planLocked = deleted || planIsBillings;
-  const purgeDate = community.purge_at
-    ? new Date(community.purge_at).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : null;
+  const purgeDate = formatDate(community.purge_at);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -221,8 +216,8 @@ export const CommunityOperatorSettingsSheet = ({
                   step={1}
                   inputMode="numeric"
                   className="w-32"
-                  value={usersDraft}
-                  onChange={(event) => setUsersDraft(event.target.value)}
+                  value={form.values.users}
+                  onChange={(event) => form.set({ users: event.target.value })}
                   onBlur={commitUsers}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") event.currentTarget.blur();
@@ -245,8 +240,8 @@ export const CommunityOperatorSettingsSheet = ({
                     step="any"
                     inputMode="decimal"
                     className="pr-9"
-                    value={storageDraft}
-                    onChange={(event) => setStorageDraft(event.target.value)}
+                    value={form.values.storage}
+                    onChange={(event) => form.set({ storage: event.target.value })}
                     onBlur={commitStorage}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") event.currentTarget.blur();

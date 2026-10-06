@@ -10,14 +10,18 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.public_rls import platform_tier, role_name
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User, UserRole
-from app.db.schema_provisioning import platform_role_name
 from app.core.image_headers import validate_image
 from app.models.platform.user_avatar import AVATAR_SPEC, UserAvatar
 from app.services.platform import user_avatars as service
 from app.services.platform.user_avatars_test import jpeg, png
-from app.testing.factories import create_user, get_auth_headers
+from app.testing.factories import (
+    create_federated_identity,
+    create_user,
+    get_auth_headers,
+)
 from app.testing import drain_notices
 
 
@@ -36,7 +40,7 @@ async def _assume(session, tier: str, user_id: int) -> None:
             "SELECT set_config('app.current_user_id', :uid, true), "
             "set_config('role', :role, true)"
         ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
+        params={"uid": str(user_id), "role": role_name(platform_tier(tier))},
     )
 
 
@@ -52,6 +56,7 @@ async def test_upload_stores_the_picture_and_names_it_on_the_user(
     client: AsyncClient, session: AsyncSession
 ):
     user = await create_user(session)
+    await create_federated_identity(session, user)
 
     response = await _upload(client, get_auth_headers(user))
 
@@ -61,6 +66,10 @@ async def test_upload_stores_the_picture_and_names_it_on_the_user(
     assert body["avatar_url"] == f"/api/v1/users/{user.id}/avatar/{digest}"
     # The blob does not travel in the payload any more.
     assert "avatar_base64" not in body
+    # The account's own record, as /me gives it: how it confirms a change.
+    assert body["has_federated_identity"] is True
+    assert body["has_password"] is True
+    assert body["password_required"] is True
 
 
 async def test_anyone_may_fetch_a_picture_without_a_session(

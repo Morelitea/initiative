@@ -31,7 +31,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.plugin_access_token import seal_install_token
-from app.core.body_limit import PLUGIN_INSTALLATION_MAX_REQUEST_BYTES, _RULES
 from app.core.encryption import SALT_PLUGIN_CONFIG, encrypt_field
 from app.core.messages import PluginChannelMessages
 from app.models.platform.plugin_service_registration import PluginServiceRegistration
@@ -610,11 +609,3 @@ class TestEvents:
         assert response.status_code == 400
         assert response.json()["detail"] == PluginChannelMessages.UNKNOWN_EVENT_TYPE
         assert await _kept(session, guild.id) == []
-
-    def test_the_transport_bounds_every_installation_call(self):
-        """An event is the largest body these routes take, so the transport's
-        ceiling is an event and its envelope."""
-        assert PLUGIN_INSTALLATION_MAX_REQUEST_BYTES == (
-            channels_service.MAX_EVENT_PAYLOAD_BYTES + 8 * 1024
-        )
-        assert any(pattern.match(f"{BASE}/events") for pattern, _, _ in _RULES)

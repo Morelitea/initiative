@@ -489,7 +489,7 @@ class TestWhoMayInstallOne:
         with pytest.raises(ListingInstallError) as caught:
             await resolve_listing_install(session, DASH_UID, kind="dashboard")
         assert caught.value.code == "MARKETPLACE_LISTING_NEEDS_PLUGIN"
-        assert caught.value.not_found is False
+        assert caught.value.status_code == 409
 
     async def test_a_guild_that_switched_the_plugin_off_may_not(self, session):
         user = await create_user(session)

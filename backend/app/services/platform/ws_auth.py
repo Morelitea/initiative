@@ -8,6 +8,7 @@ from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import auth_context
 from app.core.identify import SOCKET_CREDENTIALS, CredentialKind, identify_token
 from app.models.platform.user import User, UserStatus
 from app.services.auth import credentials
@@ -37,6 +38,6 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
         authenticated.kind is CredentialKind.session
         and authenticated.session_id is None
     ) or authenticated.user.status != UserStatus.active:
-        credentials.clear_recorded_credential()
+        auth_context.reset()
         return None
     return authenticated.user

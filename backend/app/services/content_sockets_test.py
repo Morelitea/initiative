@@ -73,10 +73,7 @@ async def register():
     # Async so its teardown runs on the loop that owns the sockets' writer
     # tasks. A socket's credential is read off the auth context at join; start
     # each test with none recorded.
-    auth_context.set_session_credential(None)
-    auth_context.set_session_amr(None)
-    auth_context.set_satisfied_claims(None)
-    auth_context.set_satisfied_providers(None)
+    auth_context.reset()
     reg = ContentSockets()
     yield reg
     for sub in list(reg._subs.values()):
@@ -499,10 +496,10 @@ async def test_recheck_replays_join_time_satisfied_providers(
     register, monkeypatch
 ) -> None:
     seen = _patch_entry(monkeypatch)
-    auth_context.set_satisfied_providers(frozenset({42}))
+    auth_context.record(satisfied_providers=frozenset({42}))
     ws = FakeWebSocket()
     _join(register, ws, rooms={DOC}, authorize=_answers(DOC))
-    auth_context.set_satisfied_providers(None)
+    auth_context.record(satisfied_providers=frozenset())
 
     await register.revoke_user(1, USER.id)
 
@@ -517,51 +514,51 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
     own session, and the checking context is left as it was."""
 
     def wants_a_passkey():
-        if not auth_context.session_amr() & {"hwk", "swk"}:
+        if not auth_context.current().session_amr & {"hwk", "swk"}:
             raise GuildAccessError()
 
     _patch_entry(monkeypatch, gate=wants_a_passkey)
 
     with_a_key = FakeWebSocket()
-    auth_context.set_session_amr(frozenset({"mfa", "hwk"}))
+    auth_context.record(session_amr=frozenset({"mfa", "hwk"}))
     _join(register, with_a_key, rooms={DOC}, authorize=_answers(DOC))
     with_a_password = FakeWebSocket()
-    auth_context.set_session_amr(None)
+    auth_context.record(session_amr=frozenset())
     other = resource_room(1, "file", 4)
     _join(register, with_a_password, rooms={other}, authorize=_answers(other))
 
-    auth_context.set_session_amr(frozenset({"mfa", "hwk"}))
+    auth_context.record(session_amr=frozenset({"mfa", "hwk"}))
     await register.revoke_user(1, USER.id)
 
     assert with_a_key.closed is None
     assert with_a_password.closed == status.WS_1008_POLICY_VIOLATION
-    assert auth_context.session_amr() == frozenset({"mfa", "hwk"})
+    assert auth_context.current().session_amr == frozenset({"mfa", "hwk"})
 
 
 async def test_recheck_answers_a_narrowed_provider_from_the_socket(
     register, monkeypatch
 ) -> None:
     def wants_the_claim():
-        asserted = auth_context.satisfied_claims().get("7", {})
+        asserted = auth_context.current().satisfied_claims.get("7", {})
         if "acme.com" not in asserted.get("hd", []):
             raise GuildAccessError()
 
     _patch_entry(monkeypatch, gate=wants_the_claim)
 
     from_acme = FakeWebSocket()
-    auth_context.set_satisfied_claims({"7": {"hd": ["acme.com"]}})
+    auth_context.record(satisfied_claims={"7": {"hd": ["acme.com"]}})
     _join(register, from_acme, rooms={DOC}, authorize=_answers(DOC))
     from_elsewhere = FakeWebSocket()
-    auth_context.set_satisfied_claims({"7": {"hd": ["other.example"]}})
+    auth_context.record(satisfied_claims={"7": {"hd": ["other.example"]}})
     other = resource_room(1, "file", 4)
     _join(register, from_elsewhere, rooms={other}, authorize=_answers(other))
 
-    auth_context.set_satisfied_claims({"7": {"hd": ["third.example"]}})
+    auth_context.record(satisfied_claims={"7": {"hd": ["third.example"]}})
     await register.revoke_user(1, USER.id)
 
     assert from_acme.closed is None
     assert from_elsewhere.closed == status.WS_1008_POLICY_VIOLATION
-    assert auth_context.satisfied_claims() == {"7": {"hd": ["third.example"]}}
+    assert auth_context.current().satisfied_claims == {"7": {"hd": ["third.example"]}}
 
 
 async def test_recheck_does_not_carry_the_askers_api_key(register, monkeypatch) -> None:
@@ -569,20 +566,19 @@ async def test_recheck_does_not_carry_the_askers_api_key(register, monkeypatch) 
     another guild is answered for the socket's own sign-in, not the key."""
 
     def refuses_a_key_pinned_elsewhere():
-        if auth_context.api_key_credential() or auth_context.api_key_guild_id():
+        recorded = auth_context.current()
+        if recorded.api_key_credential or recorded.api_key_guild_id:
             raise GuildAccessError()
 
     _patch_entry(monkeypatch, gate=refuses_a_key_pinned_elsewhere)
     ws = FakeWebSocket()
     _join(register, ws, rooms={DOC}, authorize=_answers(DOC))
 
-    auth_context.set_api_key_credential(True)
-    auth_context.set_api_key_guild_id(99)
+    auth_context.record(api_key_credential=True, api_key_guild_id=99)
     try:
         await register.revoke_user(1, USER.id)
     finally:
-        auth_context.set_api_key_credential(False)
-        auth_context.set_api_key_guild_id(None)
+        auth_context.reset()
 
     assert ws.closed is None
 

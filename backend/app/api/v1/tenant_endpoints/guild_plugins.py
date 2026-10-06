@@ -887,14 +887,9 @@ async def update_community_plugin_config(
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — a flow completing is doing the same thing to the same values.
     plugin = await _load(session, plugin_id, for_update=True)
-    try:
-        await guild_plugins_service.apply_static_config(
-            session, plugin, payload.values, actor_user_id=current_user.id
-        )
-    except plugin_config_service.PluginConfigError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    await guild_plugins_service.apply_static_config(
+        session, plugin, payload.values, actor_user_id=current_user.id
+    )
     await session.commit()
     await session.refresh(plugin)
     await plugin_installs_service.record(guild_context.guild_id, plugin)
@@ -1185,18 +1180,15 @@ async def connect_community_plugin(
         current_status = existing.status if existing is not None else "pending"
         user_id = current_user.id
 
-    try:
-        connect_url = await flows_service.start_url(
-            plugin=plugin,
-            connection=connection,
-            guild_id=guild_context.guild_id,
-            user_id=user_id,
-            started_by=current_user.id,
-            public_id=registration.public_id,
-            fields=plugin_config_service.without_tokens(stored_config),
-        )
-    except flows_service.ConnectionFlowError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    connect_url = await flows_service.start_url(
+        plugin=plugin,
+        connection=connection,
+        guild_id=guild_context.guild_id,
+        user_id=user_id,
+        started_by=current_user.id,
+        public_id=registration.public_id,
+        fields=plugin_config_service.without_tokens(stored_config),
+    )
     return CommunityPluginConnectStart(
         connection_id=connection_id,
         connect_url=connect_url,

@@ -52,6 +52,7 @@ import {
 } from "@/hooks/useCommunityPlugins";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 import { declaredEmbeds } from "@/lib/pluginSurfaces";
 import { cn } from "@/lib/utils";
@@ -161,7 +162,7 @@ function PluginRow({ plugin, canManage }: { plugin: PluginListItem; canManage: b
           )}
           <p className="text-muted-foreground text-xs">
             {t("plugins:manage.installed", {
-              date: new Date(plugin.created_at).toLocaleDateString(),
+              date: formatDate(plugin.created_at),
             })}
           </p>
         </div>

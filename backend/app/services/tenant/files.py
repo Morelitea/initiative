@@ -8,6 +8,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.search import SearchEntityType
 from app.models.tenant.file import File, FileType
 from app.models.tenant.resource_grant import ResourceGrant
@@ -55,18 +56,12 @@ def _empty_state() -> dict[str, Any]:
 EMPTY_LEXICAL_STATE = _empty_state()
 
 
-class FileContentError(ValueError):
-    """Raised when file content fails type-specific validation.
-
-    The `code` attribute is a stable error constant from FileMessages
-    that callers (endpoints) translate to a localized HTTPException.
-    Inheriting from ValueError keeps bare ``except ValueError`` catches
-    working for callers that don't care about the structured code.
+class FileContentError(CodedError, ValueError):
+    """Raised when file content fails type-specific validation, with a
+    ``FileMessages`` code. Inheriting from ValueError keeps bare
+    ``except ValueError`` catches working for callers that don't care about
+    the structured code.
     """
-
-    def __init__(self, code: str):
-        super().__init__(code)
-        self.code = code
 
 
 def normalize_file_content(

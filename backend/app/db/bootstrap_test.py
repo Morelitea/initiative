@@ -169,7 +169,7 @@ async def test_the_provisioner_shape_on_an_existing_role(
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy.pool import NullPool
 
-    from app.db.bootstrap import _ensure_role
+    from app.db.bootstrap import _ensure_role_steps, _run_steps
     from conftest import RUN_ID, TEST_DATABASE_URL
 
     # Roles are cluster-global; key the probe to this run so concurrent
@@ -183,7 +183,10 @@ async def test_the_provisioner_shape_on_an_existing_role(
             await conn.execute(text(f'CREATE ROLE "{name}" {created_with}'))
         try:
             async with engine.begin() as conn:
-                await _ensure_role(conn, LoginRole(name, None, provisioner.attributes))
+                await _run_steps(
+                    conn,
+                    _ensure_role_steps(LoginRole(name, None, provisioner.attributes)),
+                )
                 held = await conn.scalar(
                     text(f"SELECT {attribute} FROM pg_roles WHERE rolname = :n"),
                     {"n": name},
@@ -281,13 +284,13 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
 ):
     """The ordinary case, and the one a warning must not fire on."""
     from app.db.bootstrap import _FOREIGN_OWNERS
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
 
     owners = (
         await session.exec(
             _FOREIGN_OWNERS.bindparams(
                 owner=login_roles()[0].name,
-                tables=sorted(GRANTABLE_SHARED_TABLES),
+                tables=sorted(SHARED_TABLE_REGISTRY),
             )
         )
     ).all()
@@ -310,7 +313,7 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
                 ).bindparams(
                     owner=login_roles()[0].name,
                     schemas=GUILD_OR_TEMPLATE_SCHEMA_REGEX,
-                    tables=sorted(GRANTABLE_SHARED_TABLES),
+                    tables=sorted(SHARED_TABLE_REGISTRY),
                 )
             )
         ).all()
@@ -325,7 +328,7 @@ async def test_an_object_owned_elsewhere_is_seen(session):
     """A table in a guild schema owned by another login is what the signal is
     looking for."""
     from app.db.bootstrap import _FOREIGN_OWNERS
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
     from sqlalchemy import text
 
     from conftest import RUN_ID
@@ -346,7 +349,7 @@ async def test_an_object_owned_elsewhere_is_seen(session):
                 await session.exec(
                     _FOREIGN_OWNERS.bindparams(
                         owner=login_roles()[0].name,
-                        tables=sorted(GRANTABLE_SHARED_TABLES),
+                        tables=sorted(SHARED_TABLE_REGISTRY),
                     )
                 )
             ).all()
@@ -391,7 +394,7 @@ async def test_the_handover_claims_every_function_the_outgoing_login_owns(sessio
     from sqlalchemy import text
 
     from app.db.bootstrap import _TRANSFER_STATEMENTS, BOOTSTRAP_OWNED_FUNCTIONS
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
     from conftest import RUN_ID
 
     async def set_local(key: str, value: str) -> None:
@@ -409,7 +412,7 @@ async def test_the_handover_claims_every_function_the_outgoing_login_owns(sessio
     try:
         await set_local("app._bootstrap_role", "handover_target")
         await set_local(
-            "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
+            "app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY))
         )
         await set_local(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
@@ -455,7 +458,7 @@ async def test_the_handover_leaves_alone_what_a_login_never_held(session):
         SEARCH_MATCH_FUNCTION,
         _kept_owners,
     )
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
     from conftest import RUN_ID
 
     async def set_local(key: str, value: str) -> None:
@@ -464,7 +467,7 @@ async def test_the_handover_leaves_alone_what_a_login_never_held(session):
         )
 
     await set_local("app._bootstrap_role", "handover_target")
-    await set_local("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES)))
+    await set_local("app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY)))
     await set_local(
         "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
     )
@@ -515,7 +518,7 @@ async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
     from sqlalchemy import text
 
     from app.db.bootstrap import _TRANSFER_STATEMENTS
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
 
     from conftest import RUN_ID
 
@@ -531,7 +534,7 @@ async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
         )
         for key, value in (
             ("app._bootstrap_role", provisioner),
-            ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+            ("app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY))),
             ("app._bootstrap_functions", ""),
             ("app._bootstrap_kept_owners", ""),
         ):
@@ -562,7 +565,7 @@ async def test_the_handover_leaves_alone_what_the_target_already_owns(session):
     from sqlalchemy import text
 
     from app.db.bootstrap import _TRANSFER_STATEMENTS
-    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from app.db.public_rls import SHARED_TABLE_REGISTRY
 
     from conftest import RUN_ID
 
@@ -576,7 +579,7 @@ async def test_the_handover_leaves_alone_what_the_target_already_owns(session):
         )
         for key, value in (
             ("app._bootstrap_role", provisioner),
-            ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+            ("app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY))),
             ("app._bootstrap_functions", ""),
             ("app._bootstrap_kept_owners", ""),
         ):

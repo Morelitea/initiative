@@ -39,6 +39,7 @@ from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.db.session import routed_guild_id
 from app.core.messages import PluginChannelMessages
 from app.db.event_capture import OUTBOX_CHANNEL
@@ -96,13 +97,8 @@ class RegisteredPlugin(Protocol):
     listing_uid: Optional[str]
 
 
-class PluginChannelError(Exception):
+class PluginChannelError(CodedError):
     """A refusal on the plug-in channel, as a message code plus its HTTP answer."""
-
-    def __init__(self, code: str, status_code: int = 400) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
 
 
 # --- which installs are this plug-in's ------------------------------------------

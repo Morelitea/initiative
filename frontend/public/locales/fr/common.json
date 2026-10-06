@@ -18,6 +18,11 @@
   "submit": "Envoyer",
   "reset": "Réinitialiser",
   "done": "Terminé",
+  "pullToRefresh": {
+    "pull": "Tirez pour actualiser",
+    "release": "Relâchez pour actualiser",
+    "refreshing": "Actualisation…"
+  },
   "toolViewFilter": {
     "label": "Afficher",
     "all": "Tous",

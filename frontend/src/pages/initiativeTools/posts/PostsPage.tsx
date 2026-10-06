@@ -28,6 +28,7 @@ import { useToolCounts } from "@/hooks/useToolCounts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod, formatPeriodYear } from "@/lib/formatDate";
 import { postPeriod } from "@/lib/posts";
+import { browserTimezone } from "@/lib/timezones";
 import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 /**
@@ -121,7 +122,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   // going anywhere else.
   const timelineQuery = usePostsTimeline({
     ...filters,
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    tz: browserTimezone(),
   });
 
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.post, {

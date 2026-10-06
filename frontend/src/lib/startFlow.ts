@@ -17,6 +17,7 @@ import type { CommunityEntry } from "@/hooks/useCommunities";
 import { asCommunityCategories } from "@/lib/communityCategories";
 import { EMPTY_PLACE, type Place, placeFrom } from "@/lib/directoryNear";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { browserTimezone } from "@/lib/timezones";
 
 export type StartPath = "invite" | "join" | "personal" | "shared";
 
@@ -42,9 +43,6 @@ export interface StartAnswers {
 const DRAFT_KEY = "initiative-start-draft";
 const PENDING_KEY = "initiative-start-pending";
 
-export const detectedTimezone = (): string =>
-  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-
 export const freshAnswers = (path: StartPath, inviteCode = ""): StartAnswers => ({
   path,
   inviteCode,
@@ -56,7 +54,7 @@ export const freshAnswers = (path: StartPath, inviteCode = ""): StartAnswers => 
   listName: "",
   planId: null,
   username: "",
-  timezone: detectedTimezone(),
+  timezone: browserTimezone(),
 });
 
 const parse = <T>(raw: string | null): T | null => {

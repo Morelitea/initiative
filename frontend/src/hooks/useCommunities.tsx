@@ -12,9 +12,14 @@ import {
   useState,
 } from "react";
 
-import { apiClient } from "@/api/client";
+import { listAccessGrants } from "@/api/generated/access-grants/access-grants";
+import {
+  listCommunities,
+  createCommunity as postCommunity,
+  readCommunity,
+  reorderCommunities as saveCommunityOrder,
+} from "@/api/generated/communities/communities";
 import type {
-  AccessGrantListResponse,
   AccessGrantRead,
   CommunityRead,
   NewCommunity,
@@ -29,6 +34,7 @@ import {
 } from "@/lib/activeCommunityStorage";
 import { renderableBanner } from "@/lib/banner";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { walkPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
 import {
   addGrantOnlyCommunityIds,
@@ -179,9 +185,8 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Co
 const withSettingsEntry = async (entry: CommunityEntry): Promise<CommunityEntry> => {
   if (!entry.grantSettingsLevel) return entry;
   try {
-    const response = await apiClient.get<CommunityRead>(`/communities/${entry.id}`);
     return {
-      ...response.data,
+      ...(await readCommunity(entry.id)),
       position: entry.position,
       content_read_only: entry.content_read_only,
       accessType: entry.accessType,
@@ -240,7 +245,7 @@ const fetchCommunityList = async (
 
   let listed: CommunityRead[];
   try {
-    listed = (await apiClient.get<CommunityRead[]>("/communities/")).data;
+    listed = await listCommunities();
   } catch (err) {
     if (currentUserId.current !== forUser) throw superseded();
     // Nothing answered: fall back to the communities this device last saw, so
@@ -274,14 +279,10 @@ const fetchCommunityList = async (
     { content?: AccessGrantRead; settings?: AccessGrantRead }
   >();
   try {
-    const grants: AccessGrantRead[] = [];
-    for (let page = 1; ; page++) {
-      const { data } = await apiClient.get<AccessGrantListResponse>("/access-grants/", {
-        params: { live: true, page, page_size: 200 },
-      });
-      grants.push(...data.items);
-      if (!data.has_next) break;
-    }
+    const walked = await walkPages(listAccessGrants, { live: true, page_size: 200 });
+    // A walk stopped at its bound is not every grant, so it prunes nothing.
+    grantsKnown = !walked.has_next;
+    const grants = walked.items;
     for (const grant of grants) {
       if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
         continue;
@@ -469,7 +470,7 @@ export const CommunityProvider = ({ children }: { children: ReactNode }) => {
     const payload = pendingOrderRef.current;
     pendingOrderRef.current = null;
     try {
-      await apiClient.put("/communities/order", { community_ids: payload });
+      await saveCommunityOrder({ community_ids: payload });
     } catch (err) {
       console.error("Failed to save community order", err);
       toast.error(getErrorMessage(err, "errors:unableToSaveCommunityOrder"));
@@ -613,7 +614,7 @@ export const CommunityProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Community name is required.");
       }
 
-      const response = await apiClient.post<CommunityRead>("/communities/", {
+      const created = await postCommunity({
         name: trimmedName,
         description: description?.trim() || undefined,
         plan: plan ?? undefined,
@@ -621,7 +622,7 @@ export const CommunityProvider = ({ children }: { children: ReactNode }) => {
 
       await Promise.all([refreshCommunities(), refreshUser()]);
 
-      return response.data;
+      return created;
     },
     [userId, canCreateCommunities, refreshCommunities, refreshUser]
   );

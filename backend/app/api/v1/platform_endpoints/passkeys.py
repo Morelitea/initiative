@@ -15,18 +15,15 @@ because a credential is presented while signing in, before there is anybody to
 scope a policy to.
 """
 
-import json
 import logging
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 from urllib.parse import urlencode
 
-import webauthn
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn.helpers import bytes_to_base64url
-from webauthn.helpers.exceptions import WebAuthnException
 
 from app.api.deps import (
     FactorExemptUser,
@@ -41,14 +38,13 @@ from app.api.v1.platform_endpoints.held_changes import (
     hold_change,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
-    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
     MOBILE_CALLBACK_URI,
     open_session,
     record_sign_in_failure,
-    require_login_method,
+    require_passkeys_allowed,
     require_session_row,
     upgrade_session,
 )
@@ -117,13 +113,6 @@ def _registration_invalid() -> HTTPException:
     )
 
 
-def _site_unsupported() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
-    )
-
-
 def _sign_in_invalid() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -138,47 +127,6 @@ def _limit_reached() -> HTTPException:
     )
 
 
-async def _require_passkeys_offered(session: AsyncSession) -> None:
-    """Refuse a ceremony this deployment would not accept — registering a
-    credential, or presenting one against a session already open.
-
-    Server-side, so withdrawing the method closes the route rather than only
-    hiding its button. The credentials an account already holds are left where
-    they are; they simply stop being a way in.
-    """
-    if not await auth_posture.login_method_allowed(session, LoginMethod.passkey):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.PASSKEY_NOT_PERMITTED,
-        )
-
-
-def _challenge_from_client_data(
-    credential: dict[str, Any], *, refusal: HTTPException
-) -> str:
-    """The challenge the browser signed, read back out of its own client data.
-
-    The ceremony's response carries the challenge inside the bytes the
-    authenticator signed over, so that is where the server reads it from.
-    ``refusal`` is what the calling ceremony answers with, so a registration
-    and a sign-in each say their own thing.
-    """
-    response = credential.get("response")
-    if not isinstance(response, dict):
-        raise refusal
-    encoded = response.get("clientDataJSON")
-    if not isinstance(encoded, str) or not encoded:
-        raise refusal
-    try:
-        client_data = json.loads(webauthn.base64url_to_bytes(encoded))
-    except Exception as exc:
-        raise refusal from exc
-    challenge = client_data.get("challenge") if isinstance(client_data, dict) else None
-    if not isinstance(challenge, str) or not challenge:
-        raise refusal
-    return challenge
-
-
 @router.get("/passkeys", response_model=PasskeyList)
 async def list_passkeys(
     current_user: FactorExemptUser,
@@ -189,7 +137,9 @@ async def list_passkeys(
     rows = await passkey_service.list_for_user(system_session, user_id=current_user.id)
     return PasskeyList(
         passkeys=[_read(row) for row in rows],
-        password_required=await password_confirms(system_session, current_user),
+        password_required=await auth_posture.password_confirms(
+            system_session, current_user
+        ),
         limit=passkey_service.MAX_PASSKEYS_PER_USER,
         site_supported=passkey_service.site_refusal() is None,
         offered=await auth_posture.login_method_allowed(session, LoginMethod.passkey),
@@ -215,9 +165,7 @@ async def begin_passkey_registration(
     deployment will not keep is answered before the browser makes anything.
     The one stored is the one finish carries.
     """
-    await _require_passkeys_offered(session)
-    if passkey_service.site_refusal() is not None:
-        raise _site_unsupported()
+    await require_passkeys_allowed(session)
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
@@ -268,34 +216,17 @@ async def finish_passkey_registration(
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyRead:
     """Keep the credential the browser made, under the name given."""
-    await _require_passkeys_offered(session)
-    value = _challenge_from_client_data(
-        payload.credential, refusal=_registration_invalid()
-    )
+    await require_passkeys_allowed(session)
 
-    challenge = await challenge_service.claim_attempt(
-        system_session, value=value, purposes=_REGISTER_PURPOSES
+    registered = await passkey_service.register_against_challenge(
+        system_session,
+        user_id=current_user.id,
+        credential=payload.credential,
+        purposes=_REGISTER_PURPOSES,
     )
-    if challenge is None or challenge.user_id != current_user.id:
-        # The attempt is counted whether or not the answer was any good, so
-        # the commit comes before the refusal.
-        await system_session.commit()
+    if isinstance(registered, passkey_service.PresentationRefused):
+        await registered.settle(system_session)
         raise _registration_invalid()
-
-    try:
-        registered = passkey_service.finish_registration(
-            credential=payload.credential,
-            expected_challenge=webauthn.base64url_to_bytes(value),
-        )
-    except (WebAuthnException, ValueError) as exc:
-        logger.warning(
-            "passkey registration did not verify for user %s: %s: %s",
-            current_user.id,
-            type(exc).__name__,
-            exc,
-        )
-        await system_session.commit()
-        raise _registration_invalid() from exc
 
     try:
         row = await passkey_service.store(
@@ -307,12 +238,6 @@ async def finish_passkey_registration(
     except passkey_service.PasskeyLimitReached:
         await system_session.rollback()
         raise _limit_reached() from None
-
-    if not await challenge_service.consume(system_session, challenge):
-        # The challenge went elsewhere between the claim and here, so the
-        # credential staged against it goes with the transaction.
-        await system_session.rollback()
-        raise _registration_invalid()
 
     read = _read(row)
     risky = await is_risky(request, system_session, current_user)
@@ -449,7 +374,7 @@ async def begin_passkey_sign_in(
     """Options for signing in with a passkey. Nobody is named yet: the
     authenticator offers what it holds for this site, and the assertion that
     comes back says which credential answered."""
-    await require_login_method(session, LoginMethod.passkey)
+    await require_passkeys_allowed(session)
 
     ceremony = passkey_service.begin_authentication()
     # No account on the row, because none is known: the challenge stands for
@@ -482,73 +407,50 @@ async def finish_passkey_sign_in(
     is a multi-factor authentication on its own and no code is asked for after
     it. What answered is recorded in the session's ``amr``.
     """
-    await require_login_method(session, LoginMethod.passkey)
+    await require_passkeys_allowed(session)
 
-    value = _challenge_from_client_data(payload.credential, refusal=_sign_in_invalid())
-
-    challenge = await challenge_service.claim_attempt(
-        system_session, value=value, purposes=_SIGN_IN_PURPOSES
-    )
-    if challenge is None:
-        # The attempt is counted whether or not the answer was any good, so
-        # the commit comes before the refusal.
-        await system_session.commit()
-        raise _sign_in_invalid()
-
-    outcome = await passkey_service.finish_authentication(
+    presented = await passkey_service.present_against_challenge(
         system_session,
+        user_id=None,
         credential=payload.credential,
-        expected_challenge=webauthn.base64url_to_bytes(value),
+        purposes=_SIGN_IN_PURPOSES,
     )
-    if isinstance(outcome, passkey_service.AssertionRefusal):
-        # Recorded against the account the credential belongs to where the id
-        # named a row, and against nobody where it named none — the credential
-        # is the only thing that would have said who. The client is answered
-        # the same either way. The record commits on its own.
-        refused_for = (
-            await system_session.get(User, outcome.passkey.user_id)
-            if outcome.passkey is not None
-            else None
-        )
-        if outcome.reason == "wrong_rp" and outcome.passkey is not None:
-            # Said in the log because it is an operator's answer, not the
-            # account's: the deployment moved domain and the credentials made
-            # under the old one cannot answer here.
-            logger.warning(
-                "passkey refused: the credential belongs to %s, "
-                "this deployment answers to %s",
-                outcome.passkey.rp_id,
-                passkey_service.relying_party_id(),
+    if isinstance(presented, passkey_service.PresentationRefused):
+        if presented.reason is not None:
+            # Recorded against the account the credential belongs to where the
+            # id named a row, and against nobody where it named none — the
+            # credential is the only thing that would have said who. The client
+            # is answered the same either way. The record commits on its own,
+            # with the attempt the claim counted. A credential this deployment
+            # holds no row for, and one made under another domain, say nothing
+            # about the account the record names, so neither counts toward the
+            # repeated-refusal rule.
+            await record_sign_in_failure(
+                system_session,
+                (
+                    await system_session.get(User, presented.user_id)
+                    if presented.user_id is not None
+                    else None
+                ),
+                method="passkey",
+                reason=presented.reason,
             )
-        # A credential this deployment holds no row for, and one made under
-        # another domain, say nothing about the account the record names, so
-        # neither counts toward the repeated-refusal rule.
-        await record_sign_in_failure(
-            system_session,
-            refused_for,
-            method="passkey",
-            reason=outcome.reason,
-        )
+        else:
+            await presented.settle(system_session)
         raise _sign_in_invalid()
 
-    # Read off the credential while the row is attached: the helpers below may
-    # roll the transaction back, which expires its attributes.
-    passkey_id = str(outcome.passkey.id)
-    backed_up = outcome.passkey.backed_up
-    account_id = outcome.passkey.user_id
-
-    user = await system_session.get(User, account_id)
+    user = await system_session.get(User, presented.user_id)
     # See SIGN_IN_STATUSES: a deletion is called off by its holder signing in.
     if user is None or user.status not in SIGN_IN_STATUSES:
-        # No session to open, so the counter the assertion moved goes back with
-        # the transaction and the refusal is recorded on its own. The account
-        # is read again because the rollback expired the row. The attempt
-        # ``claim_attempt`` counted goes back with it, and the route's own rate
-        # limit is what bounds this path.
+        # No session to open, so the spent challenge and the counter the
+        # assertion moved go back with the transaction and the refusal is
+        # recorded on its own. The account is read again because the rollback
+        # expired the row. The attempt the claim counted goes back with it, and
+        # the route's own rate limit is what bounds this path.
         await system_session.rollback()
         await record_sign_in_failure(
             system_session,
-            await system_session.get(User, account_id),
+            await system_session.get(User, presented.user_id),
             method="passkey",
             reason="inactive",
         )
@@ -556,13 +458,6 @@ async def finish_passkey_sign_in(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     user_id, token_version = user.id, user.token_version
-
-    if not await challenge_service.consume(system_session, challenge):
-        # Spent between the claim and here, so the session it bought is not
-        # this request's to open a second time. The counter the assertion moved
-        # goes back with the transaction.
-        await system_session.rollback()
-        raise _sign_in_invalid()
 
     if payload.mobile and payload.code_challenge:
         # The relay page in the phone's system browser hands the app a one-time
@@ -573,7 +468,7 @@ async def finish_passkey_sign_in(
             handoff=native_handoff.Handoff(
                 user_id=user_id,
                 method="passkey",
-                amr=passkey_amr(backed_up=backed_up),
+                amr=passkey_amr(backed_up=presented.backed_up),
                 device_name=payload.device_name.strip() or _DEFAULT_DEVICE_NAME,
             ),
         )
@@ -598,8 +493,8 @@ async def finish_passkey_sign_in(
         system_session,
         user_id=user_id,
         token_version=token_version,
-        amr=passkey_amr(backed_up=backed_up),
-        audit_detail={"method": "passkey", "passkey_id": passkey_id},
+        amr=passkey_amr(backed_up=presented.backed_up),
+        audit_detail={"method": "passkey", "passkey_id": presented.passkey_id},
     )
     return PasskeySignInResult(access_token=token.access_token)
 
@@ -615,7 +510,7 @@ async def begin_passkey_step_up(
 ) -> PasskeyAuthenticationOptions:
     """Options for presenting one of this account's passkeys against the
     session already open — the allow-list names the account's own."""
-    await _require_passkeys_offered(session)
+    await require_passkeys_allowed(session)
     # What the ceremony would be added to, asked for before it is begun: the
     # finish route ends in an upgrade, which has nothing to upgrade unless this
     # request is on a session of its own.
@@ -670,7 +565,7 @@ async def finish_passkey_step_up(
     proved carries forward and the old row is retired, the shape the other
     step-ups take.
     """
-    await _require_passkeys_offered(session)
+    await require_passkeys_allowed(session)
 
     presented = await passkey_service.present_against_challenge(
         system_session,
@@ -690,10 +585,7 @@ async def finish_passkey_step_up(
                     "reason": presented.reason,
                 },
             )
-        if presented.keep:
-            await system_session.commit()
-        else:
-            await system_session.rollback()
+        await presented.settle(system_session)
         raise _sign_in_invalid()
 
     # The spent challenge and the credential's counter commit with the session.

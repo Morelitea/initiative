@@ -15,8 +15,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import platform_role_name
-from app.db.public_rls import DML, PUBLIC_RLS, SELECT, SHARED_TABLE_REGISTRY
+from app.db.public_rls import (
+    DML,
+    PUBLIC_RLS,
+    SELECT,
+    SHARED_TABLE_REGISTRY,
+    platform_tier,
+    role_name,
+)
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_user
 
@@ -71,7 +77,7 @@ async def test_no_platform_tier_reads_or_writes_registrations(session):
             f"UPDATE {TABLE} SET enabled = false",
             f"DELETE FROM {TABLE}",
         ):
-            async with as_role(session, platform_role_name(tier.value), user.id):
+            async with as_role(session, role_name(platform_tier(tier)), user.id):
                 with pytest.raises(DBAPIError):
                     async with session.begin_nested():
                         await session.exec(text(statement))

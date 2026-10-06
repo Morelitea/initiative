@@ -32,12 +32,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from fastapi import status
 from pglast import ast, parse_sql
 from pglast.enums import A_Expr_Kind, SetOperation
 from pglast.parser import ParseError
 from pglast.stream import RawStream
 from pglast.visitors import Visitor
 
+from app.core.errors import CodedError
 from app.core.messages import QueryMessages
 from app.db import gucs
 from app.services.fields import dataset
@@ -53,13 +55,24 @@ _EXPLAIN_JSON = (ast.DefElem(defname="format", arg=ast.String(sval="json")),)
 MAX_RELATIONS = 4
 
 
-class QueryError(Exception):
+#: What each refusal is, as HTTP. Everything not named here is something the
+#: reader can fix in the statement.
+_REFUSAL_STATUS = {
+    QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
+    QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
+    QueryMessages.INTERRUPTED: status.HTTP_503_SERVICE_UNAVAILABLE,
+}
+
+
+class QueryError(CodedError):
     """A query this surface will not run, and the word that has to change."""
 
     def __init__(self, code: str, subject: str = "") -> None:
-        super().__init__(f"{code}: {subject}" if subject else code)
-        self.code = code
+        super().__init__(code, _REFUSAL_STATUS.get(code))
         self.subject = subject
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.subject}" if self.subject else self.code
 
 
 @dataclass(frozen=True)

@@ -252,7 +252,7 @@ describe("SettingsIntakePage", () => {
   it("says who to contact before any community is named", async () => {
     state.generalContact = "ops@example.com";
     state.contactEmails = { moderation: "trust@example.com" };
-    renderPage();
+    const { rerender } = renderPage();
     const user = userEvent.setup();
 
     const general = screen.getByLabelText("General contact");
@@ -264,6 +264,9 @@ describe("SettingsIntakePage", () => {
     expect(save).toBeDisabled();
 
     await user.type(screen.getByLabelText("Support"), "help@example.com");
+    // A refetch while the form is being filled in keeps what was typed.
+    rerender(<SettingsIntakePage />);
+    expect(screen.getByLabelText("Support")).toHaveValue("help@example.com");
     await user.clear(screen.getByLabelText("Moderation"));
     await user.click(save);
 

@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import AIMessages
 from app.models.tenant.task import Task
 from app.models.platform.user import User
@@ -33,14 +34,12 @@ _PROVIDER_FAULTS = frozenset(
 )
 
 
-class AIGenerationError(Exception):
+class AIGenerationError(CodedError):
     """A generation that failed, with the message code and status the
     endpoint answers: a fault on the provider's side is a bad gateway."""
 
     def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = 502 if code in _PROVIDER_FAULTS else 400
+        super().__init__(code, 502 if code in _PROVIDER_FAULTS else 400)
 
 
 @dataclass(frozen=True)

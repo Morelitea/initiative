@@ -1,4 +1,5 @@
 import type { TaskListReadRecurrenceStrategy } from "@/api/generated/initiativeAPI.schemas";
+import { browserTimezone } from "@/lib/timezones";
 import type { TranslateFn } from "@/types/i18n";
 
 export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "fifth" | "last";
@@ -485,9 +486,6 @@ const POSITION_OF = Object.fromEntries(
  * local midnight, so it is that day in every zone.
  */
 export const allDayReference = (start: string) => `${start.slice(0, 10)}T00:00:00`;
-
-/** The browser's zone, sent beside a rule so the server can store it. */
-export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

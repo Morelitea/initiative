@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import (
@@ -33,27 +33,24 @@ from app.api.deps import (
     get_current_active_user,
     get_current_user,
 )
+from app.core.identify import presented_credential
 from app.core.rate_limit import limiter
-from app.core.security import SESSION_COOKIE_NAME
 from app.services.tenant import plugin_connection_flows as flows_service
 
 router = APIRouter(include_in_schema=False)
 
 
-async def signed_in_person(
-    request: Request,
-    session: SessionDep,
-    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
-) -> Optional[int]:
+async def signed_in_person(request: Request, session: SessionDep) -> Optional[int]:
     """The person signed in to Initiative in this browser, or ``None``.
 
     Read from the session cookie alone, and held to what every signed-in
     request is: a valid session for an active account.
     """
-    if not session_cookie:
+    presented = presented_credential(request)
+    if presented is None or presented.bearer:
         return None
     try:
-        user = await get_current_user(request, session, None, session_cookie)
+        user = await get_current_user(request, session)
         user = await get_current_active_user(request, session, user)
     except HTTPException:
         return None
