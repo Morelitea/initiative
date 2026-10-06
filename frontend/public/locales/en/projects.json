@@ -3,10 +3,10 @@
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
   "error": "Something went wrong",
-  "pinned": "Pinned",
-  "noProjects": "No projects yet. Create one to get started.",
+  "noProjects": "No projects yet",
+  "noProjectsDescription": "A project holds tasks and tracks them on a board or in a table until they are done.",
+  "createFirst": "Create Your First Project",
   "noMatchingProjects": "No projects match your filters.",
-  "onlyPinnedMatch": "Only pinned projects match your filters.",
   "filters": {
     "heading": "Filters",
     "searchLabel": "Name or description",
@@ -14,15 +14,6 @@
     "selectedInitiative": "Selected initiative",
     "filterByTag": "Filter by tag",
     "allTags": "All tags",
-    "sortProjects": "Sort projects",
-    "selectSortOrder": "Select sort order",
-    "sortCustom": "Custom (drag & drop)",
-    "sortRecentlyOpened": "Recently opened",
-    "sortRecentlyUpdated": "Recently updated",
-    "sortRecentlyCreated": "Recently created",
-    "sortAlphabetical": "Alphabetical",
-    "favorites": "Favorites",
-    "showOnlyFavorites": "Show only favorites",
     "filterByAssignee": "Filter by assignee",
     "allAssignees": "All assignees",
     "noUsersAvailable": "No users available",
@@ -66,19 +57,6 @@
       "unassigned": "Unassigned",
       "mine": "Mine"
     }
-  },
-  "templates": {
-    "loading": "Loading templates…",
-    "loadError": "Unable to load templates.",
-    "stopUsingAsTemplate": "Stop using as template",
-    "noTemplates": "No templates available",
-    "noTemplatesDescription": "Create a template from any project in project settings."
-  },
-  "archived": {
-    "loading": "Loading archived projects…",
-    "loadError": "Unable to load archived projects.",
-    "noArchived": "No archived projects",
-    "noArchivedDescription": "Active projects stay on the Active tab."
   },
   "createDialog": {
     "title": "Create project",

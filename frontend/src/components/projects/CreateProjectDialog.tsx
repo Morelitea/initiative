@@ -25,27 +25,27 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useCreateProject, useTemplateProjects } from "@/hooks/useProjects";
 import { dateRangeBounds } from "@/lib/dateRange";
+import type { DialogProps } from "@/types/dialog";
 
 const NO_TEMPLATE_VALUE = "template-none";
 
-type CreateProjectDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+type CreateProjectDialogProps = DialogProps & {
   initiativeId: number;
-  initiativeName: string | null;
-  onCreated: () => void;
+  onSuccess: (project: { id: number }) => void;
 };
 
 export const CreateProjectDialog = ({
   open,
   onOpenChange,
   initiativeId,
-  initiativeName,
-  onCreated,
+  onSuccess,
 }: CreateProjectDialogProps) => {
   const { t } = useTranslation(["projects", "common"]);
+  // The initiative page's own cached read, for the dialog's label.
+  const initiativeName = useInitiative(initiativeId).data?.name ?? null;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -56,7 +56,7 @@ export const CreateProjectDialog = ({
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
-  const templatesQuery = useTemplateProjects();
+  const templatesQuery = useTemplateProjects(open);
 
   // Sync description from selected template
   useEffect(() => {
@@ -107,7 +107,7 @@ export const CreateProjectDialog = ({
         payload.template_id = Number(selectedTemplateId);
       }
       createProjectMutation.mutate(payload, {
-        onSuccess: () => {
+        onSuccess: (project) => {
           setName("");
           setDescription("");
           setIcon("");
@@ -116,7 +116,8 @@ export const CreateProjectDialog = ({
           setSelectedTemplateId(NO_TEMPLATE_VALUE);
           setIsTemplateProject(false);
           setGrants([...DEFAULT_GRANTS]);
-          onCreated();
+          onOpenChange(false);
+          onSuccess(project);
         },
       });
     },

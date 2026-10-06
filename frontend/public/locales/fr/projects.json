@@ -3,10 +3,10 @@
   "loading": "Chargement des projets…",
   "loadError": "Impossible de charger les projets.",
   "error": "Une erreur s'est produite",
-  "pinned": "Épinglé",
-  "noProjects": "Aucun projet pour l'instant. Créez-en un pour commencer.",
+  "noProjects": "Aucun projet pour l'instant",
+  "noProjectsDescription": "Un projet regroupe des tâches et les suit sur un tableau ou dans une table jusqu'à ce qu'elles soient terminées.",
+  "createFirst": "Créer votre premier projet",
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
-  "onlyPinnedMatch": "Seuls les projets épinglés correspondent à vos filtres.",
   "filters": {
     "heading": "Filtres",
     "searchLabel": "Nom ou description",
@@ -14,15 +14,6 @@
     "selectedInitiative": "Initiative sélectionnée",
     "filterByTag": "Filtrer par étiquette",
     "allTags": "Toutes les étiquettes",
-    "sortProjects": "Trier les projets",
-    "selectSortOrder": "Sélectionner l'ordre de tri",
-    "sortCustom": "Personnalisé (glisser-déposer)",
-    "sortRecentlyOpened": "Récemment ouverts",
-    "sortRecentlyUpdated": "Récemment mis à jour",
-    "sortRecentlyCreated": "Récemment créés",
-    "sortAlphabetical": "Alphabétique",
-    "favorites": "Favoris",
-    "showOnlyFavorites": "Afficher uniquement les favoris",
     "filterByAssignee": "Filtrer par assigné",
     "allAssignees": "Tous les assignés",
     "noUsersAvailable": "Aucun utilisateur disponible",
@@ -66,19 +57,6 @@
       "unassigned": "Non attribuées",
       "mine": "Les miennes"
     }
-  },
-  "templates": {
-    "loading": "Chargement des modèles…",
-    "loadError": "Impossible de charger les modèles.",
-    "stopUsingAsTemplate": "Ne plus utiliser comme modèle",
-    "noTemplates": "Aucun modèle disponible",
-    "noTemplatesDescription": "Créez un modèle depuis n'importe quel projet dans les paramètres du projet."
-  },
-  "archived": {
-    "loading": "Chargement des projets archivés…",
-    "loadError": "Impossible de charger les projets archivés.",
-    "noArchived": "Aucun projet archivé",
-    "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs."
   },
   "createDialog": {
     "title": "Créer un projet",

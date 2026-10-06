@@ -105,10 +105,7 @@ test("the first owner builds a community and finds it again", async ({ page }) =
   const project = page.getByRole("dialog", { name: "Create project" });
   await project.getByLabel("Name").fill("Cake stall");
   await project.getByRole("button", { name: "Create project" }).click();
-  await page
-    .getByRole("main")
-    .getByRole("link", { name: /^Cake stall/ })
-    .click();
+  // Made, and opened.
   await expect(page.getByRole("heading", { name: "Cake stall", level: 1 })).toBeVisible();
   made.projectId = page.url().split("/projects/")[1];
 

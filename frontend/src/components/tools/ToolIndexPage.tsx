@@ -1,16 +1,16 @@
 /**
  * THE index page a tool's entities are browsed from — one initiative's shelf of
- * documents, wikis, galleries, queues, counter groups or dashboards.
+ * projects, documents, wikis, galleries, queues, counter groups or dashboards.
  *
  * Each of those pages carried its own copy of the same thing: the view toggle,
  * the filter panel, the create button and its dialog, the loading, error,
  * narrowed and empty states, the card grid, and bulk selection. What a tool
  * actually contributes is narrow — which list it reads, what a row looks like,
  * the handful of keys it spells its own way, and the few things only some
- * tools do (a dialog of their own, files dropped on the list, a table) — and
- * that is what {@link TOOL_INDEX} carries. It is a `Record<Tool, …>`, so a new
- * tool cannot arrive without saying either how it lists or what it does
- * instead.
+ * tools do (a dialog of their own, files dropped on the list, a table, an order
+ * of the reader's own) — and that is what {@link TOOL_INDEX} carries. It is a
+ * `Record<Tool, …>`, so a new tool cannot arrive without saying either how it
+ * lists or what it does instead.
  *
  * Everything else is derived rather than declared per tool, the way
  * `lib/tools.ts` asks: the views read the registry's view specs, the import
@@ -59,11 +59,15 @@ import {
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
+import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { ProjectCard } from "@/components/projects/ProjectCard";
+import { useProjectColumns } from "@/components/projects/projectColumns";
 import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { TagBrowseLayout } from "@/components/tags/TagBrowseLayout";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
+import { SortableCards } from "@/components/tools/ToolIndexSortable";
 import {
   TABLE_SORT_FIELDS,
   ToolIndexTable,
@@ -84,6 +88,7 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
+import { useProjects, useReorderProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { useTagTreeSelection } from "@/hooks/useTagTreeSelection";
 import { useToolCounts } from "@/hooks/useToolCounts";
@@ -153,6 +158,8 @@ export type ToolIndexList = {
   rows: ToolIndexRow[];
   isLoading: boolean;
   isError: boolean;
+  /** The rows are the previous request's, shown while this one loads. */
+  isPlaceholderData: boolean;
   /** Rows the server holds for this archive state — what the pager counts. */
   totalCount: number;
   hasNext: boolean;
@@ -192,7 +199,22 @@ export type ToolIndexEntry = {
   table?: { useColumns: () => AppColumnDef<ToolIndexRow>[] };
   /** The list can be narrowed to rows with no tag, which the tag tree offers. */
   untagged?: true;
+  /**
+   * The reader keeps an order of their own, which is the list's order until
+   * they pick one in the table, and drag the cards to change it. The mutation
+   * is handed the ids of the rows the list starts with, in their new order;
+   * the rest keep their place after them.
+   */
+  reorder?: {
+    useReorder: () => { mutate: (orderedIds: number[], options?: ReorderOptions) => void };
+  };
 };
+
+/** What the page asks of a reorder it sends. */
+type ReorderOptions = { onError?: () => void };
+
+/** The hook a tool without an order of its own calls in its place. */
+const useNoReorder = () => null;
 
 /** What a tool's own create dialog is handed. */
 export type ToolIndexCreateDialogProps = DialogProps & {
@@ -218,6 +240,35 @@ export const toolIndexEntry = (tool: Tool): ToolIndexEntry | null => {
 // Each tool's list
 // ---------------------------------------------------------------------------
 
+const useProjectRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
+  const query = useProjects({
+    ...filters.list,
+    initiative_id: initiativeId,
+    ...filters.view,
+    ...filters.sort,
+    page: filters.page,
+    page_size: filters.pageSize,
+  });
+
+  const rows = useMemo(
+    () =>
+      (query.data?.items ?? []).map((project) => ({
+        ...project,
+        card: <ProjectCard project={project} />,
+      })),
+    [query.data]
+  );
+
+  return {
+    rows,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    totalCount: query.data?.total_count ?? 0,
+    hasNext: query.data?.has_next ?? false,
+  };
+};
+
 const useDocumentRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
   const query = useDocumentsList({
     ...filters.list,
@@ -241,6 +292,7 @@ const useDocumentRows = (initiativeId: number, filters: ToolIndexFilters): ToolI
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -265,6 +317,7 @@ const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndex
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -293,6 +346,7 @@ const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -320,6 +374,7 @@ const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolInde
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -350,6 +405,7 @@ const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): T
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -380,6 +436,7 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -395,9 +452,24 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
  * to state which of the two it is.
  */
 const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
-  [Tool.project]: { ownPage: "ProjectsPage — board and table views, and its own status filters" },
   [Tool.calendar]: { ownPage: "CalendarsPage — a month grid, not a shelf of cards" },
   [Tool.post]: { ownPage: "PostsPage — a virtualized feed with a timeline rail" },
+
+  [Tool.project]: {
+    useList: useProjectRows,
+    text: {
+      ns: "projects",
+      create: "addProject",
+      noMatches: "noMatchingProjects",
+      emptyTitle: "noProjects",
+      emptyBody: "noProjectsDescription",
+    },
+    // Made from a template, with dates and an icon, not just a name.
+    CreateDialog: CreateProjectDialog,
+    // The rows are projects, which is what these columns read.
+    table: { useColumns: useProjectColumns as unknown as () => AppColumnDef<ToolIndexRow>[] },
+    reorder: { useReorder: useReorderProjects },
+  },
 
   [Tool.document]: {
     useList: useDocumentRows,
@@ -592,9 +664,10 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const tagTree = useTagTreeSelection(layout === "tags");
 
   // The order a reader picks in a tool's table outlives the visit, and is the
-  // list's order in every layout.
+  // list's order in every layout. A tool that keeps the reader's own order
+  // opens in it: asked for no order, the server lists in that one.
   const [tableState, { setSorting }] = usePersistedTableState(toolTableStorageKey(tool, "order"), {
-    sorting: NEWEST_FIRST,
+    sorting: entry.reorder ? [] : NEWEST_FIRST,
   });
   const [sorted] = tableState.sorting;
   const sort =
@@ -663,6 +736,18 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   );
 
   const selection = useGridSelection<ToolIndexRow>(list.rows);
+
+  const useReorder = entry.reorder?.useReorder ?? useNoReorder;
+  const reorder = useReorder();
+  // The order the reader just dragged the cards into, shown until the list is
+  // read again in it, or the move is refused.
+  const [moved, setMoved] = useState<{ from: ToolIndexRow[]; rows: ToolIndexRow[] } | null>(null);
+  const orderedRows = moved?.from === list.rows ? moved.rows : list.rows;
+  const reorderRows = (orderedIds: number[]) => {
+    const byId = new Map(orderedRows.map((row) => [row.id, row]));
+    setMoved({ from: list.rows, rows: orderedIds.flatMap((id) => byId.get(id) ?? []) });
+    reorder?.mutate(orderedIds, { onError: () => setMoved(null) });
+  };
   // Another view or layout must not strand a hidden selection behind the bulk
   // actions — every change starts unselected.
   const exitSelection = selection.exit;
@@ -711,21 +796,48 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
           : value != null
     ).length + parsePropertyFilters(propertyFilters).length;
 
+  // The reader's own order covers the whole list, and a drop sends the list's
+  // opening rows: so only the live list, in that order, unnarrowed, on its
+  // first page, and not while picking rows out of it. Unnarrowed as asked for
+  // and as shown: a cleared search is still the debounced one, and its rows
+  // stay on screen until the full list arrives.
+  const draggable =
+    reorder !== null &&
+    view === "active" &&
+    !sort.sort_by &&
+    page === 1 &&
+    activeFilterCount === 0 &&
+    !search &&
+    !list.isPlaceholderData &&
+    tagTree.selectedPaths.size === 0 &&
+    !selection.active;
+
   const ToolIcon = TOOL_ICONS[tool];
+  const cardGrid = entry.tiles
+    ? layout === "tags"
+      ? "grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4"
+      : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+    : layout === "tags"
+      ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      : "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
+  const cardOf = (row: ToolIndexRow) => (
+    <div className="relative">
+      {row.card}
+      {unread.hasResource(communityId, tool, row.id) ? (
+        <UnreadDot className="absolute top-3 right-3" />
+      ) : null}
+    </div>
+  );
   // The cards, as the grid and the tags view both draw them.
-  const cards = (
-    <div
-      className={
-        entry.tiles
-          ? layout === "tags"
-            ? "grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4"
-            : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-          : layout === "tags"
-            ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-            : "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-      }
-    >
-      {list.rows.map((row) => (
+  const cards = draggable ? (
+    <SortableCards
+      items={orderedRows.map((row) => ({ id: row.id, card: cardOf(row) }))}
+      onReorder={reorderRows}
+      className={cardGrid}
+    />
+  ) : (
+    <div className={cardGrid}>
+      {orderedRows.map((row) => (
         <SelectableGridItem
           key={row.id}
           active={selection.active}
@@ -733,12 +845,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
           onToggle={(options) => selection.toggle(row, options)}
           label={row.name}
         >
-          <div className="relative">
-            {row.card}
-            {unread.hasResource(communityId, tool, row.id) ? (
-              <UnreadDot className="absolute top-3 right-3" />
-            ) : null}
-          </div>
+          {cardOf(row)}
         </SelectableGridItem>
       ))}
     </div>
