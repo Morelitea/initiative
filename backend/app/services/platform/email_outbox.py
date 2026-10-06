@@ -148,7 +148,8 @@ async def enqueue_account_letter(
     change: dict[str, Any] | None = None,
     also_to: Sequence[str] = (),
 ) -> None:
-    """Write down a letter about the account's own security.
+    """Write down a letter the account is owed whatever its notification
+    settings: about its own security, or a community whose seat it holds.
 
     Due at once and marked ``security``: the worker sends it on its own, and
     nothing in the account's notification settings holds or drops it. One row
@@ -183,6 +184,8 @@ async def enqueue_account_letter(
                         "subject": pieces.subject,
                         "headline": pieces.headline,
                         "body": pieces.body,
+                        "link": pieces.link,
+                        "link_label": pieces.link_label,
                         "created_at": now,
                         "deliver_after": now,
                     }

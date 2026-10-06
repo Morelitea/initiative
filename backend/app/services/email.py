@@ -926,15 +926,14 @@ def community_on_hold_pieces(
     plan_managed: bool,
     locale: str,
 ) -> EmailPieces:
-    """A community's hold as notification mail, in ``locale``: that it is on
-    hold, whom to contact about it, and, where the hold runs out, when it is
-    deleted.
+    """A community's hold as a letter, in ``locale``: that it is on hold, whom
+    to contact about it, and, where the hold runs out, when it is deleted.
 
     ``delete_at`` is None where this deployment never deletes a held community.
     ``plan_managed`` says what lifts the hold: on a deployment whose plans the
     billing service sets, restoring the plan, which the letter's button leads
-    to; elsewhere, whoever put it there, and the letter has no button. Written
-    into the notice outbox beside the bell line, like a trial notice.
+    to; elsewhere, whoever put it there, and the letter has no button. Queued
+    as account mail, to every address each seat holder has proved.
     """
     next_step = (
         email_t("communityOnHold.contact", locale=locale, contact=contact)

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import ColumnElement, and_, case, exists, false, func, or_, text, true
 from sqlalchemy.orm import aliased
@@ -1507,14 +1507,16 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     Called after the commit that put it there, on the system engine. The people
     told are its superadmins: the hold is about paying for it, which is the
     seat's errand. Each gets one line in their bell — an account notice, not
-    one filed under the community, which none of them can open now — and a
-    letter in the language they read, which names the day the community is
-    deleted if the hold is still in place. Both are written to the notice
-    outbox like a trial notice, whose worker delivers and retries them.
+    one filed under the community, which none of them can open now — and one
+    letter at every proved address, in the language they read, which names the
+    day the community is deleted if the hold is still in place. The line goes
+    through the notice outbox and the letters through the email outbox as
+    account mail, whose workers deliver and retry them.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
     from app.services.platform import app_settings as app_settings_service
+    from app.services.platform import email_outbox, notice_outbox
     from app.services.platform import intake as intake_service
 
     await set_rls_context(session, Unattributed())
@@ -1527,26 +1529,47 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     delete_at = COMMUNITY_HOLD.ends_at(
         guild, await app_settings_service.get_app_settings(session)
     )
-    data: dict[str, str | None] = {"contact": contact, "target_path": "/"}
+    seat_holders = (
+        await session.exec(
+            select(User).where(
+                User.id.in_(await _superadmin_ids(session, guild_id))  # type: ignore[union-attr]
+            )
+        )
+    ).all()
+    data: dict[str, str | None] = {
+        "community": guild.name,
+        "contact": contact,
+        "target_path": "/",
+    }
     if delete_at is not None:
         # A calendar day; the bell writes it in the reader's language.
         data["delete_on"] = delete_at.date().isoformat()
-    await _queue_plan_notice(
+    await notice_outbox.enqueue(
         session,
-        guild,
-        await _superadmin_ids(session, guild_id),
-        NotificationType.community_on_hold,
-        data,
-        lambda locale: email_service.community_on_hold_pieces(
-            community=guild.name,
-            contact=contact,
-            guild_id=guild_id,
-            delete_at=delete_at,
-            plan_managed=billing_service.billing_managed(),
-            locale=locale,
-        ),
-        in_community=False,
+        [
+            notice_outbox.row(
+                cast(int, user.id), None, NotificationType.community_on_hold, data
+            )
+            for user in seat_holders
+        ],
     )
+    letters = [
+        (
+            user,
+            email_service.community_on_hold_pieces(
+                community=guild.name,
+                contact=contact,
+                guild_id=guild_id,
+                delete_at=delete_at,
+                plan_managed=billing_service.billing_managed(),
+                locale=user.locale or "en",
+            ),
+        )
+        for user in seat_holders
+    ]
+    await session.commit()
+    for user, letter in letters:
+        await email_outbox.enqueue_account_letter(user, letter)
 
 
 #: The bell line each billing trial notice writes.
@@ -1677,17 +1700,12 @@ async def _queue_plan_notice(
     guild: Guild,
     recipients: list[int],
     notification_type: NotificationType,
-    data: Mapping[str, str | None],
+    data: dict[str, str],
     letter_for: Callable[[str], EmailPieces],
-    *,
-    in_community: bool = True,
 ) -> None:
     """Write one account notice about a community's plan to each recipient: a
-    bell line, and a letter in the recipient's language. Commits.
-
-    The line leads to the community's Plan & usage tab unless ``data`` names
-    another ``target_path``; with ``in_community`` false it names no community
-    to open, for one its readers cannot open now."""
+    bell line leading to its Plan & usage tab unless ``data`` names another
+    ``target_path``, and a letter in the recipient's language. Commits."""
     from app.services.platform import notice_outbox
 
     locales = dict(
@@ -1707,7 +1725,7 @@ async def _queue_plan_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    **({"community_id": guild.id} if in_community else {}),
+                    "community_id": guild.id,
                     "target_path": "/settings/usage",
                     **data,
                 },
