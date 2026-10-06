@@ -31,11 +31,7 @@ from sqlalchemy import insert, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import (
-    Channel,
-    NotificationCategory,
-    sample_type,
-)
+from app.core.notification_categories import Channel, NotificationCategory
 from app.core.email_i18n import email_t
 from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field, hash_email
 from app.models.platform.email_outbox import EmailOutboxItem
@@ -120,7 +116,7 @@ async def enqueue(
 
     due = notification_prefs.email_due_at(
         prefs,
-        notification_type=sample_type(category),
+        category=category,
         tz_name=recipient.timezone,
         last_active_at=getattr(recipient, "last_active_at", None),
     )
@@ -237,7 +233,7 @@ async def recompute_pending(
             continue
         due = notification_prefs.email_due_at(
             prefs,
-            notification_type=sample_type(category),
+            category=category,
             tz_name=tz_name,
             last_active_at=last_active_at,
             now=now,
@@ -596,7 +592,7 @@ def _still_wanted(prefs: Mapping[str, Any], row: EmailOutboxItem) -> bool:
         return False
     return notification_prefs.wants(
         prefs,
-        notification_type=sample_type(category),
+        category=category,
         channel=Channel.email,
         guild_id=row.guild_id,
     )

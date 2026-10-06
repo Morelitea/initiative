@@ -37,7 +37,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
 from app.core.user_display import handle_of
-from app.core.notification_categories import Channel
+from app.core.notification_categories import Channel, NotificationCategory
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
 from app.services.platform import (
@@ -261,7 +261,7 @@ async def wake_own_devices(
             prefs = await notification_prefs.load_prefs(session, user_id)
             if not notification_prefs.wants(
                 prefs,
-                notification_type=NotificationType.direct_message,
+                category=NotificationCategory.direct_messages,
                 channel=Channel.push,
             ):
                 return
@@ -332,7 +332,7 @@ async def _roll_up(
     def _wanted(channel: Channel) -> bool:
         return notification_prefs.reachable(
             prefs,
-            notification_type=NotificationType.direct_message,
+            category=NotificationCategory.direct_messages,
             channel=channel,
             tz_name=recipient.timezone,
             last_active_at=recipient.last_active_at,
@@ -359,7 +359,7 @@ async def _roll_up(
     # deferred rather than dropped; when it goes out is the outbox's to decide.
     if existing is None and notification_prefs.wants(
         prefs,
-        notification_type=NotificationType.direct_message,
+        category=NotificationCategory.direct_messages,
         channel=Channel.email,
     ):
         await _email(
@@ -381,7 +381,6 @@ async def _email(
     before it goes withdraws it, which is the one thing a mailbox most wants.
     """
     from app.core.config import settings as app_config
-    from app.core.notification_categories import NotificationCategory
     from app.services import email as email_service
     from app.services.platform import email_outbox
 
