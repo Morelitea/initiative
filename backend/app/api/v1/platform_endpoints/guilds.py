@@ -377,33 +377,28 @@ async def list_directory_communities(
     is off there is nothing to browse and the request is refused rather than
     answered with an empty page.
     """
-    try:
-        rows, total = await guilds_service.list_community_guilds(
-            session,
-            user_id=current_user.id,
-            query=search,
-            query_countries=[
-                code.upper()
-                for code in search_country
-                if re.fullmatch(r"[A-Za-z]{2}", code)
-            ],
-            categories=[c.value for c in category],
-            near=(
-                guilds_service.NearPlace(
-                    country=near_country.upper(),
-                    region_code=(near_region or "").strip().upper() or None,
-                    city=(near_city or "").strip() or None,
-                )
-                if near_country
-                else None
-            ),
-            page=page,
-            page_size=page_size,
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    rows, total = await guilds_service.list_community_guilds(
+        session,
+        user_id=current_user.id,
+        query=search,
+        query_countries=[
+            code.upper()
+            for code in search_country
+            if re.fullmatch(r"[A-Za-z]{2}", code)
+        ],
+        categories=[c.value for c in category],
+        near=(
+            guilds_service.NearPlace(
+                country=near_country.upper(),
+                region_code=(near_region or "").strip().upper() or None,
+                city=(near_city or "").strip() or None,
+            )
+            if near_country
+            else None
+        ),
+        page=page,
+        page_size=page_size,
+    )
     # Who is present is live state held by the process, not a column, so it is
     # read here for the page being returned rather than joined in the query.
     online = content_sockets.present_counts(guild.id for guild, _, _ in rows)
@@ -454,28 +449,9 @@ async def join_directory_community(
     an already-joined guild is not an error; it returns the guild the caller is
     already in.
     """
-    try:
-        guild = await guilds_service.join_community_guild(
-            session, guild_id=guild_id, user=current_user
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.CommunityJoinError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except guilds_service.AgeConfirmationRequiredError as exc:
-        # The one thing the caller can fix by answering, so it is its own code:
-        # the SPA ticks the box and repeats the request.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    guild = await guilds_service.join_community_guild(
+        session, guild_id=guild_id, user=current_user
+    )
     await session.commit()
     await cohorts.settle(session)
     membership = await guilds_service.get_membership(
@@ -716,14 +692,9 @@ async def update_community(
             await guilds_service.get_guild(system_session, guild_id=guild_id)
         ).is_community
         if not listed_before:
-            try:
-                await guilds_service.assert_may_list_with_members(
-                    system_session, guild_id=guild_id
-                )
-            except guilds_service.CommunityListingError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
+            await guilds_service.assert_may_list_with_members(
+                system_session, guild_id=guild_id
+            )
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
@@ -740,46 +711,29 @@ async def update_community(
         if retention_days_provided
         else None
     )
-    try:
-        guild = await guilds_service.update_guild(
-            session,
-            guild_id=guild_id,
-            name=updates.name,
-            description=updates.description,
-            retention_days=updates.retention_days,
-            retention_days_provided=retention_days_provided,
-            is_community=updates.is_community,
-            categories=(
-                [category.value for category in updates.categories]
-                if updates.categories
-                else []
-            ),
-            categories_provided=categories_provided,
-            has_adult_content=updates.has_adult_content,
-            has_adult_content_provided=has_adult_content_provided,
-            banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
-            banner_provided=banner_provided,
-            location=(
-                updates.location.model_dump(mode="json") if updates.location else None
-            ),
-            location_provided=location_provided,
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        # No directory on this deployment, so there is nothing to list in.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.BannerColorError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except guilds_service.CommunityListingError as exc:
-        # The guild does not qualify to be listed. Named specifically (which
-        # rule) rather than as a generic rejection, so the settings page can say
-        # what to fix.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+    guild = await guilds_service.update_guild(
+        session,
+        guild_id=guild_id,
+        name=updates.name,
+        description=updates.description,
+        retention_days=updates.retention_days,
+        retention_days_provided=retention_days_provided,
+        is_community=updates.is_community,
+        categories=(
+            [category.value for category in updates.categories]
+            if updates.categories
+            else []
+        ),
+        categories_provided=categories_provided,
+        has_adult_content=updates.has_adult_content,
+        has_adult_content_provided=has_adult_content_provided,
+        banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
+        banner_provided=banner_provided,
+        location=(
+            updates.location.model_dump(mode="json") if updates.location else None
+        ),
+        location_provided=location_provided,
+    )
     await guilds_service.record_settings_change(
         session,
         guild_id=guild_id,
@@ -921,14 +875,9 @@ async def _store_guild_images(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=GuildMessages.IMAGE_TOO_LARGE,
             )
-        try:
-            renditions.append(
-                images_service.validate_rendition(variant, data, upload.content_type)
-            )
-        except images_service.GuildImageError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-            ) from exc
+        renditions.append(
+            images_service.validate_rendition(variant, data, upload.content_type)
+        )
 
     await images_service.set_images(session, guild_id=guild_id, renditions=renditions)
 
@@ -1398,20 +1347,15 @@ async def create_community_invite(
     session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> CommunityInviteRead:
-    try:
-        invite = await guilds_service.create_guild_invite(
-            session,
-            guild_id=guild_id,
-            created_by=current_user.id,
-            expires_at=invite_in.expires_at,
-            max_uses=invite_in.max_uses,
-            invitee_email=invite_in.invitee_email,
-            actor_user_id=current_user.id,
-        )
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    invite = await guilds_service.create_guild_invite(
+        session,
+        guild_id=guild_id,
+        created_by=current_user.id,
+        expires_at=invite_in.expires_at,
+        max_uses=invite_in.max_uses,
+        invitee_email=invite_in.invitee_email,
+        actor_user_id=current_user.id,
+    )
     await session.commit()
     return CommunityInviteRead.model_validate(invite)
 
@@ -1446,25 +1390,9 @@ async def accept_invite(
 ) -> CommunityRead:
     """Accept a guild invite. Uses the system session because the user doesn't
     belong to the guild yet — the invite code is the authorization."""
-    try:
-        guild = await guilds_service.redeem_invite_for_user(
-            session, code=payload.code, user=current_user
-        )
-    except guilds_service.GuildInviteError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.AgeConfirmationRequiredError as exc:
-        # The invite leads into a listed community, so the age question applies
-        # to it. Same code the directory's Join returns, so the SPA answers it
-        # the same way wherever the invite was opened.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    guild = await guilds_service.redeem_invite_for_user(
+        session, code=payload.code, user=current_user
+    )
     await session.commit()
     await cohorts.settle(session)
     membership = await guilds_service.get_membership(

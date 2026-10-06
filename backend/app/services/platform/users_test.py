@@ -16,6 +16,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability
+from app.core.errors import CodedError
+from app.core.messages import UserMessages
 from app.models.platform.guild import CommunityRole
 from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
@@ -645,6 +647,9 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is True
     )
+    with pytest.raises(CodedError) as refusal:
+        await user_service.ensure_config_manager_remains(session, active_owner.id)
+    assert refusal.value.code == UserMessages.CANNOT_REMOVE_LAST_OWNER
 
     # The deactivated owner is never "the last owner" — they're not in
     # the count to begin with, so removing them changes nothing.
@@ -654,6 +659,7 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is False
     )
+    await user_service.ensure_config_manager_remains(session, deact_owner.id)
 
 
 async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):

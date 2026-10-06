@@ -280,7 +280,7 @@ export function OperatorDeleteUserDialog({
                     </div>
                     <ul className="list-inside list-disc space-y-1">
                       {eligibility.blockers.map((blocker) => (
-                        <li key={blocker}>{blocker}</li>
+                        <li key={blocker}>{t(`errors:${blocker}`, { defaultValue: blocker })}</li>
                       ))}
                     </ul>
                     <p className="mt-2 text-sm">{t("operatorDeleteUser.blockersDescription")}</p>

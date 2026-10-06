@@ -51,7 +51,6 @@ from app.api.deps import (
     plugin_scope,
 )
 from app.core.messages import (
-    AttachmentMessages,
     GalleryMessages,
 )
 from app.core.tools import Tool
@@ -157,15 +156,9 @@ async def _read_picture(
         else (header.width, header.height)
     )
     incoming = len(contents) + (len(thumbnail.data) if thumbnail else 0)
-    try:
-        await attachments_service.enforce_storage_quota(
-            session, guild_id=guild_context.guild_id, incoming_bytes=incoming
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
+    await attachments_service.enforce_storage_quota(
+        session, guild_id=guild_context.guild_id, incoming_bytes=incoming
+    )
     return contents, header.content_type, extension, width, height, thumbnail
 
 

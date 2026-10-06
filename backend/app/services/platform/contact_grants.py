@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as SyncSession
 from sqlmodel import col, select
 
+from app.core.errors import CodedError
 from app.models.platform.contact_grant import (
     ContactGrant,
     ContactGrantKind,
@@ -46,12 +47,13 @@ from app.schemas.platform.dm import (
 )
 
 
-class ContactGrantError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+class ContactGrantError(CodedError):
+    """A refused grant. Every refusal is a 409 with its code and nothing else:
+    a handle nobody holds, an account that cannot be reached and a request that
+    will never be surfaced all answer the same way, so the endpoint is not a
+    way to learn which it was."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 409
 
 
 def initial_message_state(connected: bool) -> ContactGrantState:

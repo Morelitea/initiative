@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import ReactionMessages
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
@@ -50,16 +51,20 @@ MAX_REACTIONS_PER_USER = 20
 _TOGGLE_KEY = bindparam("toggle_key", type_=String)
 
 
-class ReactionError(Exception):
+class ReactionError(CodedError):
     """Base error for reaction operations."""
 
 
 class ReactionNotFoundError(ReactionError):
     """The target does not exist (or is not visible)."""
 
+    status_code = 404
+
 
 class ReactionPermissionError(ReactionError):
     """The user may not react here."""
+
+    status_code = 403
 
 
 class ReactionValidationError(ReactionError):
@@ -68,6 +73,8 @@ class ReactionValidationError(ReactionError):
 
 class ReactionDisabledError(ReactionError):
     """The target takes no reactions — its own switch is off."""
+
+    status_code = 409
 
 
 @dataclass(frozen=True)

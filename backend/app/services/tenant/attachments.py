@@ -14,7 +14,9 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
+from app.core.errors import CodedError
 from app.core.identity_boundary import UPLOAD_PATH_SHAPE
+from app.core.messages import AttachmentMessages
 from app.core.image_headers import read_image_header
 from app.db.query import ids_in
 from app.services.storage import get_guild_storage
@@ -50,21 +52,17 @@ class FileTooLargeError(Exception):
         super().__init__(f"File exceeds maximum size of {max_size} bytes")
 
 
-class StorageQuotaExceededError(Exception):
-    """Raised when an upload would push a guild over its ``max_storage_bytes``.
+class StorageQuotaExceededError(CodedError):
+    """Raised when a write would push a guild over its ``max_storage_bytes``.
 
-    Carries the limit, the current usage, and the incoming size so callers can
-    build an accurate error response.
+    Answered by the API wherever it is raised, because saving content can copy
+    the files it shows (``claim_uploads``), and every save goes through that.
     """
 
-    def __init__(self, *, limit: int, usage: int, incoming: int) -> None:
-        self.limit = limit
-        self.usage = usage
-        self.incoming = incoming
-        super().__init__(
-            f"Upload of {incoming} bytes would exceed the guild storage limit "
-            f"of {limit} bytes (current usage {usage})"
-        )
+    status_code = 507
+
+    def __init__(self) -> None:
+        super().__init__(AttachmentMessages.STORAGE_QUOTA_EXCEEDED)
 
 
 async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
@@ -1001,9 +999,7 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     )
     usage = await get_guild_storage_usage(guild_id)
     if usage + incoming_bytes > limit:
-        raise StorageQuotaExceededError(
-            limit=limit, usage=usage, incoming=incoming_bytes
-        )
+        raise StorageQuotaExceededError()
 
 
 #: How far into a file the SVG root element may sit — past a byte-order mark, an

@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.encryption import (
     SALT_EMAIL,
     decrypt_field,
@@ -445,12 +446,8 @@ async def replace_all(
     )
 
 
-class AddressError(Exception):
+class AddressError(CodedError):
     """A refused address operation, carrying the code the endpoint reports."""
-
-    def __init__(self, code: str) -> None:
-        self.code = code
-        super().__init__(code)
 
 
 async def list_for_user(session: AsyncSession, *, user_id: int) -> list[UserEmail]:
@@ -662,7 +659,7 @@ async def primary_candidate(
 async def _owned(session: AsyncSession, *, user_id: int, address_id: int) -> UserEmail:
     row = await session.get(UserEmail, address_id)
     if row is None or row.user_id != user_id or row.source == SOURCE_SYNTHETIC:
-        raise AddressError(AddressMessages.ADDRESS_NOT_FOUND)
+        raise AddressError(AddressMessages.ADDRESS_NOT_FOUND, 404)
     return row
 
 

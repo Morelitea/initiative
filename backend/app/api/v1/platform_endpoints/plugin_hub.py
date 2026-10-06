@@ -195,7 +195,7 @@ async def call_plugin_endpoint(
         )
     except PluginDataError as exc:
         _audit(caller, target=public_id, endpoint_id=endpoint_id, outcome=exc.code)
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+        raise
 
     _audit(
         caller,

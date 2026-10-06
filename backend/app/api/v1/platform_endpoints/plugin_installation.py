@@ -59,7 +59,6 @@ from app.schemas.tenant.plugin_channel import (
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.tenant import plugin_channels as channels_service
-from app.services.tenant.plugin_channels import PluginChannelError
 
 # Not part of the OpenAPI document: only plug-in containers call these, never the
 # SPA, so the generated frontend client carries none of them.
@@ -72,10 +71,6 @@ def _refuse() -> HTTPException:
         detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-
-def _to_http(exc: PluginChannelError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail=exc.code)
 
 
 @dataclass(frozen=True)
@@ -171,11 +166,8 @@ async def read_installation_config(
     wrote back itself, each keyed by the opaque reference it knows that member
     by. Refused when the community has turned the plug-in off.
     """
-    try:
-        plugin = await _load(session, installation)
-        payload = await channels_service.config_payload(session, plugin)
-    except PluginChannelError as exc:
-        raise _to_http(exc) from exc
+    plugin = await _load(session, installation)
+    payload = await channels_service.config_payload(session, plugin)
     return PluginInstallConfigRead(**payload)
 
 
@@ -185,11 +177,8 @@ async def list_installation_connections(
 ) -> PluginConnectionsResponse:
     """The plug-in's per-member connections for this install, by opaque reference
     and with status only."""
-    try:
-        plugin = await _load(session, installation)
-        rows = await channels_service.connection_payload(session, plugin)
-    except PluginChannelError as exc:
-        raise _to_http(exc) from exc
+    plugin = await _load(session, installation)
+    rows = await channels_service.connection_payload(session, plugin)
     return PluginConnectionsResponse(
         items=[PluginConnectionRead(**row) for row in rows]
     )
@@ -211,16 +200,13 @@ async def read_installation_connection_token(
     guild-wide connection answers its ``jwt_bearer`` token, minted and reused
     until shortly before it expires, or its own stored token.
     """
-    try:
-        plugin = await _load(session, installation, for_write=True)
-        token = await channels_service.connection_token(
-            session,
-            plugin,
-            installation.registration,
-            connection_ref=connection_ref,
-        )
-    except PluginChannelError as exc:
-        raise _to_http(exc) from exc
+    plugin = await _load(session, installation, for_write=True)
+    token = await channels_service.connection_token(
+        session,
+        plugin,
+        installation.registration,
+        connection_ref=connection_ref,
+    )
     return PluginConnectionToken(**token)
 
 
@@ -236,13 +222,10 @@ async def report_installation_config_status(
     this is how that answer reaches the admin who supplied it. An install
     nothing reports on stays ``unverified``.
     """
-    try:
-        plugin = await _load(session, installation, for_write=True)
-        result = await channels_service.report_config_state(
-            session, plugin, state=payload.state, detail=payload.detail
-        )
-    except PluginChannelError as exc:
-        raise _to_http(exc) from exc
+    plugin = await _load(session, installation, for_write=True)
+    result = await channels_service.report_config_state(
+        session, plugin, state=payload.state, detail=payload.detail
+    )
     return PluginStatusRead(**result)
 
 
@@ -260,17 +243,14 @@ async def ingest_installation_event(
     ``202``: the event is kept and delivered to the community's subscriptions,
     and what subscribers do with it is not the emitting plug-in's to know.
     """
-    try:
-        plugin = await _load(session, installation, for_write=True)
-        await channels_service.emit_event(
-            session,
-            plugin,
-            installation.registration,
-            event_type=payload.event_type,
-            payload=payload.payload,
-            initiative_id=payload.initiative_id,
-            token_initiative_id=installation.initiative_id,
-        )
-    except PluginChannelError as exc:
-        raise _to_http(exc) from exc
+    plugin = await _load(session, installation, for_write=True)
+    await channels_service.emit_event(
+        session,
+        plugin,
+        installation.registration,
+        event_type=payload.event_type,
+        payload=payload.payload,
+        initiative_id=payload.initiative_id,
+        token_initiative_id=installation.initiative_id,
+    )
     return {"status": "accepted"}

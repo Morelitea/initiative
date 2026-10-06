@@ -20,6 +20,7 @@ from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -79,15 +80,10 @@ class SourceAdapter(Protocol):
     ) -> RenderRequest: ...
 
 
-class ExportError(Exception):
+class ExportError(CodedError):
     """Engine-level failure with a machine-readable code (``messages.py``
-    constant). Endpoints map it to an HTTPException; the worker records the
+    constant). The API answers it with its status; the worker records the
     code on the failed job row."""
-
-    def __init__(self, code: str, status_code: int = 400) -> None:
-        self.code = code
-        self.status_code = status_code
-        super().__init__(code)
 
 
 @dataclass(frozen=True)

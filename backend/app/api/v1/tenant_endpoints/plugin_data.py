@@ -57,7 +57,6 @@ from app.core.tools import Tool
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
-from app.services.query.resolve import QueryError
 from app.schemas.tenant.plugin_data import (
     PluginDataTable,
     PluginDataResponse,
@@ -291,17 +290,14 @@ async def read_plugin_data(
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
         )
 
-    try:
-        result = await plugin_data_service.fetch_plugin_source(
-            session,
-            plugin=plugin,
-            endpoint_id=endpoint_id,
-            raw_params=params,
-            user_id=current_user.id,
-            is_guild_admin=guild_context.is_admin,
-        )
-    except plugin_data_service.PluginDataError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    result = await plugin_data_service.fetch_plugin_source(
+        session,
+        plugin=plugin,
+        endpoint_id=endpoint_id,
+        raw_params=params,
+        user_id=current_user.id,
+        is_guild_admin=guild_context.is_admin,
+    )
 
     # After the fetch, so a statement is a transformation of a shared answer:
     # twenty viewers of the same binding are still one upstream call, whatever
@@ -339,13 +335,8 @@ def _transformed(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
         )
-    try:
-        planned = rows_query.plan(statement, plugin_data_service.row_columns(endpoint))
-        answered = rows_query.evaluate(planned, result.rows)
-    except QueryError as refused:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=refused.code
-        ) from refused
+    planned = rows_query.plan(statement, plugin_data_service.row_columns(endpoint))
+    answered = rows_query.evaluate(planned, result.rows)
 
     return PluginDataTable(
         columns=[
@@ -414,19 +405,16 @@ async def read_plugin_summary(
             detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
         )
 
-    try:
-        result = await plugin_data_service.fetch_plugin_source(
-            session,
-            plugin=plugin,
-            endpoint_id=endpoint["id"],
-            raw_params=None,
-            user_id=current_user.id,
-            # The settings rung is the community's admin standing, which is
-            # what an admin-only summary asks for.
-            is_guild_admin=True,
-        )
-    except plugin_data_service.PluginDataError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    result = await plugin_data_service.fetch_plugin_source(
+        session,
+        plugin=plugin,
+        endpoint_id=endpoint["id"],
+        raw_params=None,
+        user_id=current_user.id,
+        # The settings rung is the community's admin standing, which is
+        # what an admin-only summary asks for.
+        is_guild_admin=True,
+    )
 
     return PluginDataResponse(
         rows=result.rows,
@@ -494,18 +482,15 @@ async def read_plugin_param_options(
             detail=GuildPluginMessages.AGE_RESTRICTED,
         )
 
-    try:
-        options, unavailable = await plugin_data_service.resolve_param_options(
-            session,
-            plugin=plugin,
-            endpoint_id=endpoint_id,
-            param_key=param,
-            raw_params=params,
-            user_id=current_user.id,
-            is_guild_admin=guild_context.is_admin,
-        )
-    except plugin_data_service.PluginDataError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    options, unavailable = await plugin_data_service.resolve_param_options(
+        session,
+        plugin=plugin,
+        endpoint_id=endpoint_id,
+        param_key=param,
+        raw_params=params,
+        user_id=current_user.id,
+        is_guild_admin=guild_context.is_admin,
+    )
 
     return PluginParamOptionsResponse(
         options=[PluginParamOption(**option) for option in options],

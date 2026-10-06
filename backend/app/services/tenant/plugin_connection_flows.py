@@ -51,6 +51,7 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.config import settings
 from app.core.encryption import SALT_PLUGIN_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import PluginChannelMessages, GuildPluginMessages
@@ -167,13 +168,10 @@ MAX_ACCOUNT_LABEL_LENGTH = 200
 http_transport: httpx.AsyncBaseTransport | None = None
 
 
-class ConnectionFlowError(Exception):
+class ConnectionFlowError(CodedError):
     """A step of a connection's flow or token that could not go ahead."""
 
-    def __init__(self, code: str, status_code: int = 409) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
+    status_code = 409
 
 
 class VendorRefusedError(Exception):

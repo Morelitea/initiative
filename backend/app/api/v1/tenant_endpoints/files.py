@@ -43,7 +43,6 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import (
-    AttachmentMessages,
     FileMessages,
 )
 from app.core.rate_limit import limiter
@@ -84,7 +83,7 @@ from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
 from app.services import reachability
 from app.services import audit as audit_service
-from app.services.ai_generation import AIGenerationError, generate_file_summary
+from app.services.ai_generation import generate_file_summary
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import spreadsheet_import
 from app.services.tenant.collaboration import (
@@ -246,15 +245,10 @@ async def create_file(
         detail=FileMessages.NAME_ALREADY_EXISTS,
     )
 
-    try:
-        normalized_content = files_service.normalize_file_content(
-            file_in.content,
-            file_type=file_in.file_type,
-        )
-    except files_service.FileContentError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    normalized_content = files_service.normalize_file_content(
+        file_in.content,
+        file_type=file_in.file_type,
+    )
 
     file = File(
         name=name,
@@ -414,15 +408,9 @@ async def _store_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=FileMessages.VERSION_TYPE_MISMATCH,
         )
-    try:
-        await attachments_service.enforce_storage_quota(
-            session, guild_id=guild_id, incoming_bytes=len(contents)
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
+    await attachments_service.enforce_storage_quota(
+        session, guild_id=guild_id, incoming_bytes=len(contents)
+    )
     file_url = await attachments_service.store_upload(
         session,
         guild_id=guild_id,
@@ -640,14 +628,9 @@ async def update_file(
     if room is not None:
         # The writer read what the session holds now: the change goes into
         # it, reaches the open editors, and is saved with their edits.
-        try:
-            live_content = files_service.normalize_file_content(
-                update_data["content"], file_type=file.file_type
-            )
-        except files_service.FileContentError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-            ) from exc
+        live_content = files_service.normalize_file_content(
+            update_data["content"], file_type=file.file_type
+        )
         if not await room.write(live_content, version, user_id=guild_context.user_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -667,15 +650,10 @@ async def update_file(
                 detail=FileMessages.CONTENT_CHANGED,
             )
         previous_content_urls = attachments_service.extract_upload_urls(file.content)
-        try:
-            file.content = files_service.normalize_file_content(
-                update_data["content"],
-                file_type=file.file_type,
-            )
-        except files_service.FileContentError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-            ) from exc
+        file.content = files_service.normalize_file_content(
+            update_data["content"],
+            file_type=file.file_type,
+        )
         new_content_urls = attachments_service.extract_upload_urls(file.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
         # No room is live, so this edit is the newest thing about the
@@ -810,17 +788,14 @@ async def generate_summary(
         )
         await session.commit()
 
-    try:
-        summary = await generate_file_summary(
-            session=session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            file_content=file.content,
-            file_name=file.name,
-        )
-        return GenerateFileSummaryResponse(summary=summary)
-    except AIGenerationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.code)
+    summary = await generate_file_summary(
+        session=session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        file_content=file.content,
+        file_name=file.name,
+    )
+    return GenerateFileSummaryResponse(summary=summary)
 
 
 async def read_after_write(
@@ -1042,14 +1017,9 @@ async def import_spreadsheet_file(
             detail=FileMessages.FILE_TOO_LARGE,
         )
 
-    try:
-        # Parsing a workbook is CPU work, so it runs off the event loop.
-        sheets = await asyncio.to_thread(
-            spreadsheet_import.parse_spreadsheet_file, upload.filename or "", contents
-        )
-    except files_service.FileContentError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    # Parsing a workbook is CPU work, so it runs off the event loop.
+    sheets = await asyncio.to_thread(
+        spreadsheet_import.parse_spreadsheet_file, upload.filename or "", contents
+    )
 
     return SpreadsheetImportRead(sheets=sheets)

@@ -28,6 +28,7 @@ from typing import Any, Optional, Sequence
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.tools import Tool
 from app.models.platform.marketplace import (
     UID_ALPHABET,
@@ -60,14 +61,11 @@ __all__ = [
 LOCAL_PUBLIC_ID_PREFIX = "local."
 
 
-class LocalListingError(Exception):
-    """A share or a review that cannot go ahead. ``code`` is a message code;
-    ``not_found`` separates "no such listing" from a conflict."""
+class LocalListingError(CodedError):
+    """A share or a review that cannot go ahead: 404 when there is no such
+    listing, 422 for a share that cannot be taken."""
 
-    def __init__(self, code: str, *, not_found: bool = False) -> None:
-        super().__init__(code)
-        self.code = code
-        self.not_found = not_found
+    status_code = 422
 
 
 def mint_uid() -> str:
@@ -122,9 +120,7 @@ async def submit_share(
         ):
             # Somebody else's listing reads the same as none: this is not a way
             # to learn who shared what.
-            raise LocalListingError(
-                MarketplaceMessages.LISTING_NOT_FOUND, not_found=True
-            )
+            raise LocalListingError(MarketplaceMessages.LISTING_NOT_FOUND, 404)
         if existing.kind != tool.value:
             raise LocalListingError(MarketplaceMessages.SHARE_KIND_MISMATCH)
         uid, public_id = existing.uid, existing.public_id
@@ -244,7 +240,7 @@ async def _pending(
             )
         ).first()
     if listing is None or row is None:
-        raise LocalListingError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
+        raise LocalListingError(MarketplaceMessages.LISTING_NOT_FOUND, 404)
     return listing, row
 
 
@@ -322,7 +318,7 @@ async def withdraw_share(session: AsyncSession, uid: str, user_id: int) -> None:
 
     listing = await catalog_service.get_listing_by_uid(session, uid)
     if listing is None or listing.submitted_by != user_id:
-        raise LocalListingError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
+        raise LocalListingError(MarketplaceMessages.LISTING_NOT_FOUND, 404)
     for row in (
         await session.exec(
             select(MarketplaceListingVersion).where(

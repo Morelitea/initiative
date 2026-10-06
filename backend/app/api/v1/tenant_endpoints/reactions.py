@@ -5,9 +5,9 @@ path segment resolved through the service registry, so the next reactable thing
 gets these endpoints for free instead of a parallel set of its own.
 """
 
-from typing import Annotated, NoReturn
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from app.api.deps import (
     RLSSessionDep,
@@ -24,18 +24,6 @@ from app.schemas.tenant.reaction import (
 from app.services.tenant import reactions as reactions_service
 
 router = APIRouter()
-
-
-def _raise(exc: reactions_service.ReactionError) -> NoReturn:
-    """Translate a service error into its HTTP shape. Declared ``NoReturn`` so
-    a caller can treat everything after it as unreachable."""
-    if isinstance(exc, reactions_service.ReactionNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, reactions_service.ReactionPermissionError):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    if isinstance(exc, reactions_service.ReactionDisabledError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.get("/suggested", response_model=list[str])
@@ -72,17 +60,14 @@ async def toggle_reaction(
     whether the chip is pressed, and one idempotent-per-intent call removes the
     race where a double tap leaves a reaction it meant to clear.
     """
-    try:
-        summary, _added = await reactions_service.toggle_reaction(
-            session,
-            target=target_type,
-            target_id=target_id,
-            emoji=payload.emoji,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-        )
-    except reactions_service.ReactionError as exc:
-        _raise(exc)
+    summary, _added = await reactions_service.toggle_reaction(
+        session,
+        target=target_type,
+        target_id=target_id,
+        emoji=payload.emoji,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+    )
 
     await session.commit()
     return summary

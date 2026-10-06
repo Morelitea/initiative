@@ -49,14 +49,12 @@ from app.api.v1.platform_endpoints.held_changes import (
     hold_change,
 )
 from app.api.v1.platform_endpoints.session_opening import set_password
-from app.core.password_policy import enforce_password_policy
+from app.core.password_policy import validate_new_password
 from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
 from app.db import cohorts
 from app.db.guild_standing import InstallContext
 from app.core import usernames
-from app.core.capabilities import Capability
-from app.core.usernames import UsernameError
 from app.core.rate_limit import limiter
 from app.core.security import (
     read_handle_offer,
@@ -129,7 +127,6 @@ from app.schemas.tenant.ownership import (
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.encryption import SALT_EMAIL, decrypt_field
 from app.core.messages import (
-    AddressMessages,
     AuthMessages,
     GuildMessages,
     InitiativeMessages,
@@ -1068,17 +1065,12 @@ async def claim_my_username(
             detail=UserMessages.USERNAME_ALREADY_CHOSEN,
         )
 
-    try:
-        await username_service.claim_for_user(
-            session,
-            user=current_user,
-            name=payload.username,
-            prefer=read_handle_offer(payload.offer, payload.username),
-        )
-    except UsernameError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-        ) from exc
+    await username_service.claim_for_user(
+        session,
+        user=current_user,
+        name=payload.username,
+        prefer=read_handle_offer(payload.offer, payload.username),
+    )
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
@@ -1303,14 +1295,9 @@ async def add_my_address(
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
 
-    try:
-        added = await addresses.add_for_user(
-            system_session, user_id=current_user.id, email=payload.email
-        )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    added = await addresses.add_for_user(
+        system_session, user_id=current_user.id, email=payload.email
+    )
     # ``added`` is the new claim, or the one this account already had — asking
     # again is how a letter that did not arrive is sent again. ``None`` means
     # somebody has proven the address, and nothing is written.
@@ -1340,17 +1327,6 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-def _address_refused(exc: addresses.AddressError) -> HTTPException:
-    return HTTPException(
-        status_code=(
-            status.HTTP_404_NOT_FOUND
-            if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-            else status.HTTP_400_BAD_REQUEST
-        ),
-        detail=exc.code,
-    )
-
-
 @me_router.post(
     "/emails/{address_id}/remove",
     response_model=HeldChangeOutcome,
@@ -1371,26 +1347,23 @@ async def remove_my_address(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    try:
-        target = await addresses.removable(
-            system_session, user_id=current_user.id, address_id=address_id
+    target = await addresses.removable(
+        system_session, user_id=current_user.id, address_id=address_id
+    )
+    if target.verified_at is not None and await is_risky(
+        request, system_session, current_user
+    ):
+        held = await hold_change(
+            request,
+            system_session,
+            current_user,
+            kind=HeldChangeKind.remove_address,
+            address_id=address_id,
         )
-        if target.verified_at is not None and await is_risky(
-            request, system_session, current_user
-        ):
-            held = await hold_change(
-                request,
-                system_session,
-                current_user,
-                kind=HeldChangeKind.remove_address,
-                address_id=address_id,
-            )
-            return held_response(HeldChangeOutcome(held=held))
-        await held_changes.remove_address(
-            system_session, current_user, address_id=address_id, risky=False
-        )
-    except addresses.AddressError as exc:
-        raise _address_refused(exc) from exc
+        return held_response(HeldChangeOutcome(held=held))
+    await held_changes.remove_address(
+        system_session, current_user, address_id=address_id, risky=False
+    )
     return HeldChangeOutcome()
 
 
@@ -1413,27 +1386,22 @@ async def make_my_address_primary(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    try:
-        target = await addresses.primary_candidate(
-            system_session, user_id=current_user.id, address_id=address_id
-        )
-        if not target.is_primary and await is_risky(
-            request, system_session, current_user
-        ):
-            return held_response(
-                await hold_change(
-                    request,
-                    system_session,
-                    current_user,
-                    kind=HeldChangeKind.primary,
-                    address_id=address_id,
-                )
+    target = await addresses.primary_candidate(
+        system_session, user_id=current_user.id, address_id=address_id
+    )
+    if not target.is_primary and await is_risky(request, system_session, current_user):
+        return held_response(
+            await hold_change(
+                request,
+                system_session,
+                current_user,
+                kind=HeldChangeKind.primary,
+                address_id=address_id,
             )
-        row = await held_changes.make_primary(
-            system_session, current_user, address_id=address_id, risky=False
         )
-    except addresses.AddressError as exc:
-        raise _address_refused(exc) from exc
+    row = await held_changes.make_primary(
+        system_session, current_user, address_id=address_id, risky=False
+    )
     return _address_read(row)
 
 
@@ -1461,7 +1429,7 @@ async def update_me(
             current_user,
             update_data.get("current_password"),
         )
-        await enforce_password_policy(password)
+        await validate_new_password(password)
         # A request of its own (``UserSelfUpdate`` holds it to that), committed
         # with the session that keeps this device signed in. Its commit is the
         # request's only write; the account is read back for the answer.
@@ -1618,13 +1586,9 @@ async def delete_own_account(
     """Delete or deactivate the current user's account."""
     # Keep at least one owner, who is the only rung that can manage platform
     # configuration (FOR UPDATE to prevent a race).
-    if await users_service.is_last_capability_holder(
-        session, current_user.id, Capability.CONFIG_MANAGE, for_update=True
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
-        )
+    await users_service.ensure_config_manager_remains(
+        session, current_user.id, for_update=True
+    )
 
     # Re-check the password, where the account holds one to re-check. An
     # account that signs in another way — a passkey, an identity provider —
@@ -2118,12 +2082,7 @@ async def upload_my_avatar(
     to write their own avatar and no other.
     """
     data = await file.read(AVATAR_MAX_BYTES + 1)
-    try:
-        validated = user_avatars_service.validate_avatar(data)
-    except user_avatars_service.AvatarRejected as rejected:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=rejected.code
-        ) from rejected
+    validated = user_avatars_service.validate_avatar(data)
 
     # Records the serving URL on the user row too, so every payload that
     # carries a person can name the picture without a second query.

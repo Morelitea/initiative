@@ -51,7 +51,6 @@ from app.schemas.marketplace.guild_reference import (
 )
 from app.services.marketplace import plugin_refs
 from app.services.marketplace.bundled_channel import (
-    BundledChannelError,
     verify_bundled_envelope,
 )
 from app.services.marketplace.tuf_registry import configured_root_is_builtin
@@ -150,24 +149,12 @@ async def read_community_reference(
     presented = presented_credential(request)
     if presented is not None and presented.bearer and is_access_token(presented.token):
         return await _answer_installation(request, session, system_session, body)
-    try:
-        verify_bundled_envelope(
-            method=request.method,
-            path=request.url.path,
-            headers=request.headers,
-            body=body,
-        )
-    except BundledChannelError as exc:
-        # Unconfigured is this deployment's own gap rather than the caller's
-        # fault, and retryable; everything else is a refusal.
-        raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-                if exc.code == BundledChannelMessages.NOT_CONFIGURED
-                else status.HTTP_403_FORBIDDEN
-            ),
-            detail=exc.code,
-        ) from exc
+    verify_bundled_envelope(
+        method=request.method,
+        path=request.url.path,
+        headers=request.headers,
+        body=body,
+    )
 
     try:
         payload = CommunityReferenceRequest.model_validate_json(body)

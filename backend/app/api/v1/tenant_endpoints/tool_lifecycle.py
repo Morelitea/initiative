@@ -29,7 +29,7 @@ write scope, as it reaches the tool's create.
 from enum import Enum
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, Path, status
 
 from app.api import resource_access, tool_copy
 from app.api.actor_route import ActorRoute
@@ -44,13 +44,11 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ToolListSpec
-from app.core.messages import AttachmentMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.schemas.tenant.tool import ToolDuplicateRequest
 from app.services.content_sockets import sockets
 from app.services.permissions import Action
-from app.services.tenant.attachments import StorageQuotaExceededError
 from app.services.tenant import named_people
 from app.services.tenant.soft_delete import trash
 
@@ -127,22 +125,16 @@ def _mount_duplicate(
         source = await tool_copy.load_source(
             session, tool, entity_id, current_user, guild_context
         )
-        try:
-            copied = await tool_copy.duplicate(
-                session,
-                tool,
-                source,
-                initiative_id=body.target_initiative_id,
-                name=body.name,
-                user=current_user,
-                actor=guild_context,
-                payload=body,
-            )
-        except StorageQuotaExceededError:
-            raise HTTPException(
-                status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-                detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-            )
+        copied = await tool_copy.duplicate(
+            session,
+            tool,
+            source,
+            initiative_id=body.target_initiative_id,
+            name=body.name,
+            user=current_user,
+            actor=guild_context,
+            payload=body,
+        )
         settled = named_people.Governing.of(tool, copied)
         await session.commit()
         # The people named inside the copy came with it; those its sharing

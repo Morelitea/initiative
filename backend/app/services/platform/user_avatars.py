@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, select
 
+from app.core.errors import CodedError
 from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
 from app.core.image_headers import read_image_header
 from app.core.messages import GuildMessages, UserMessages
@@ -43,17 +44,8 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 _DIGEST_LENGTH = 64
 
 
-class AvatarRejected(Exception):
-    """An upload that will not be stored, carrying the code naming why.
-
-    A domain error rather than an ``HTTPException`` so the service stays
-    callable from somewhere that is not a request; the endpoint maps ``code``
-    onto the response.
-    """
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+class AvatarRejected(CodedError):
+    """An upload that will not be stored, carrying the code naming why."""
 
 
 @dataclass(frozen=True)

@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.errors import CodedError
 from app.db.schema_provisioning import search_operator_available
 from app.db.query import build_paginated_response
 from app.core.plugin_scopes import tool_resource
@@ -85,15 +86,13 @@ def writable_column(user_id: int | None, *, install: InstallContext | None = Non
     return writable.label("can_write")
 
 
-class SearchScopeError(Exception):
+class SearchScopeError(CodedError):
     """An installed plug-in asked for kinds its scopes do not let it read.
 
     Carries the message code the endpoint answers with.
     """
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 403
 
 
 def install_entity_types(

@@ -36,10 +36,8 @@ from app.api.embed_csp import plugin_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.core import recurrence
+from app.core.errors import CodedError
 from app.core.messages import (
-    AttachmentMessages,
-    CalendarEventMessages,
     CommonMessages,
     GuildMessages,
 )
@@ -58,9 +56,6 @@ from app.db.session import SystemSessionLocal
 from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
-from app.services.marketplace.installs import ListingInstallError
-from app.services.tenant.attachments import StorageQuotaExceededError
-from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
 # stream and the audit stream (see app.core.logging_config).
@@ -391,65 +386,13 @@ async def validation_exception_handler(
     )
 
 
-@app.exception_handler(recurrence.OutOfReach)
-async def repeat_out_of_reach_handler(
-    request: Request, exc: recurrence.OutOfReach
-) -> JSONResponse:
-    """A repeat that, from the start it is saved with, never happens or
-    doesn't reach its count within a hundred years."""
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={"detail": CalendarEventMessages.RECURRENCE_INVALID},
-    )
+@app.exception_handler(CodedError)
+async def coded_error_handler(request: Request, exc: CodedError) -> JSONResponse:
+    """A service's refusal, answered with its message code and status.
 
-
-@app.exception_handler(SeatWouldBeEmptied)
-async def seat_would_be_emptied_handler(
-    request: Request, exc: SeatWouldBeEmptied
-) -> JSONResponse:
-    """A removal that would leave a community without a superadmin.
-
-    Handled here rather than at each deletion route because the refusal is
-    raised from the membership drop, which every one of them goes through —
-    self-service deactivate and delete, and the operator's versions of both.
-    The communities are named by the eligibility call the dialog already
-    makes; this says why the action stopped.
-    """
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN},
-    )
-
-
-@app.exception_handler(ListingInstallError)
-async def listing_install_error_handler(
-    request: Request, exc: ListingInstallError
-) -> JSONResponse:
-    """A catalog listing that cannot be installed: 404 when there is no such
-    listing, 409 for the conflicts a real one can be in. Raised by
-    ``resolve_listing_install``, which every install route goes through."""
-    return JSONResponse(
-        status_code=(
-            status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-        ),
-        content={"detail": exc.code},
-    )
-
-
-@app.exception_handler(StorageQuotaExceededError)
-async def storage_quota_exceeded_handler(
-    request: Request, exc: StorageQuotaExceededError
-) -> JSONResponse:
-    """A write whose files would take the community past its storage limit.
-
-    Handled here rather than at each save route because saving content can copy
-    the files it shows (``attachments.claim_uploads``), and every save goes
-    through that.
-    """
-    return JSONResponse(
-        status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-        content={"detail": AttachmentMessages.STORAGE_QUOTA_EXCEEDED},
-    )
+    Handled here rather than at each route because a refusal is raised where
+    it is decided, often below every route that reaches it."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.code})
 
 
 @app.exception_handler(DBAPIError)

@@ -1024,18 +1024,15 @@ async def generate_task_checklist(
         initiative_id=project.initiative_id,
     )
 
-    try:
-        items = await ai_generation_service.generate_checklist(
-            session,
-            current_user,
-            guild_context.guild_id,
-            task,
-            initiative_name=project.initiative.name if project.initiative else None,
-            project_name=project.name,
-        )
-        return GenerateChecklistResponse(items=items)
-    except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.code)
+    items = await ai_generation_service.generate_checklist(
+        session,
+        current_user,
+        guild_context.guild_id,
+        task,
+        initiative_name=project.initiative.name if project.initiative else None,
+        project_name=project.name,
+    )
+    return GenerateChecklistResponse(items=items)
 
 
 @router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
@@ -1058,15 +1055,12 @@ async def generate_task_description(
         initiative_id=project.initiative_id,
     )
 
-    try:
-        description = await ai_generation_service.generate_description(
-            session,
-            current_user,
-            guild_context.guild_id,
-            task,
-            initiative_name=project.initiative.name if project.initiative else None,
-            project_name=project.name,
-        )
-        return GenerateDescriptionResponse(description=description)
-    except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.code)
+    description = await ai_generation_service.generate_description(
+        session,
+        current_user,
+        guild_context.guild_id,
+        task,
+        initiative_name=project.initiative.name if project.initiative else None,
+        project_name=project.name,
+    )
+    return GenerateDescriptionResponse(description=description)

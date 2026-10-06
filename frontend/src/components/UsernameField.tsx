@@ -49,6 +49,7 @@ export const UsernameField = ({
   onChecked,
 }: UsernameFieldProps) => {
   const { t } = useTranslation("auth");
+  const { t: tErrors } = useTranslation("errors");
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
   const [touched, setTouched] = useState(false);
 
@@ -137,9 +138,7 @@ export const UsernameField = ({
       </div>
       {availability.state === "taken" ? (
         <p className="text-destructive text-xs">
-          {t(`register.usernameError.${availability.reason}`, {
-            defaultValue: t("register.usernameError.USERNAME_UNAVAILABLE"),
-          })}
+          {tErrors(availability.reason, { defaultValue: tErrors("USERNAME_UNAVAILABLE") })}
         </p>
       ) : null}
     </div>

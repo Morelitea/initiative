@@ -20,6 +20,7 @@ from typing import Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import MarketplaceMessages
 from app.db import cohorts
 from app.models.platform.marketplace import (
@@ -41,18 +42,11 @@ __all__ = [
 ]
 
 
-class ListingInstallError(Exception):
-    """A listing that cannot be installed, and why.
+class ListingInstallError(CodedError):
+    """A listing that cannot be installed, and why: 404 when there is no such
+    listing, 409 for the conflicts a real one can be in."""
 
-    ``code`` is a message code the client localizes; ``not_found`` separates
-    "no such listing" (which the caller reports as 404) from the conflicts a
-    real listing can be in.
-    """
-
-    def __init__(self, code: str, *, not_found: bool = False) -> None:
-        super().__init__(code)
-        self.code = code
-        self.not_found = not_found
+    status_code = 409
 
 
 async def resolve_listing_install(
@@ -82,7 +76,7 @@ async def resolve_listing_install(
     """
     listing = await catalog_service.get_listing_by_uid(session, listing_uid)
     if listing is None or listing.kind != kind:
-        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
+        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, 404)
     if not listing.available:
         raise ListingInstallError(MarketplaceMessages.LISTING_UNAVAILABLE)
     if not await listing_is_offered(session, listing):
@@ -101,7 +95,7 @@ async def resolve_listing_install(
         # so a uid naming one names nothing to acquire here, and says so with
         # the same answer rather than a second one reachable only by asking
         # directly.
-        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
+        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, 404)
     return listing, version
 
 
