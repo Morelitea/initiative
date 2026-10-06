@@ -1,10 +1,9 @@
 """What a notification may leave the app carrying.
 
 Two levels answer three questions, and the stricter of each pair binds. The
-tests below cover the resolution itself and then the two seams that apply it —
-the one every push goes through and the one every notification email is written
-at — because a switch that resolves correctly and is not read anywhere is not a
-switch.
+tests below cover the resolution itself and then where it is applied — as a
+push is sent and as a notification email is written — because a switch that
+resolves correctly and is not read anywhere is not a switch.
 """
 
 from unittest.mock import AsyncMock
@@ -13,7 +12,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import NotificationCategory
+from app.core.notification_categories import NotificationCategory, category_of
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
@@ -146,7 +145,9 @@ async def test_a_community_that_no_longer_exists_is_answered_by_the_deployment(
 
 
 async def test_a_redacted_line_says_the_kind_of_thing_and_stops() -> None:
-    title, body = notification_policy.redacted_push(NotificationType.mention, "en")
+    title, body = notification_policy.redacted_line(
+        category_of(NotificationType.mention), "en"
+    )
     assert title == "You were mentioned"
     assert body == "Open Initiative to see where."
 
@@ -154,8 +155,7 @@ async def test_a_redacted_line_says_the_kind_of_thing_and_stops() -> None:
 async def test_every_category_has_a_redacted_line() -> None:
     """A category with no line of its own would push its own key at somebody."""
     for category in NotificationCategory:
-        subject = notification_policy.redacted_subject(category, "en")
-        body = notification_policy.redacted_body(category, "en")
+        subject, body = notification_policy.redacted_line(category, "en")
         assert not subject.startswith("redacted."), category
         assert not body.startswith("redacted."), category
 
