@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.notification_categories import category_of
 from app.models.platform.notification import NotificationType
 from app.models.platform.push_token import PushToken
 from app.services.platform import notification_policy, push_tokens
@@ -276,8 +277,7 @@ async def send_push_notification(
 async def _recipient_locale(user_id: int) -> str:
     """The language one recipient reads, read on the system engine.
 
-    Only asked for when a redacted line has to be written and the caller had no
-    locale in hand; the recipient's account is not the sending session's to
+    Only asked for when the caller had no locale in hand; the recipient's account is not the sending session's to
     read, the same way their notification settings are not.
     """
     from app.db.session import SystemSessionLocal
@@ -334,10 +334,10 @@ async def send_push_to_user(
 ) -> int:
     """Send push notification to all of a user's devices.
 
-    Every push in the app leaves through here, which is where the deployment's
-    and the community's answers about what may reach a phone are applied: one
-    of them declining sends nothing, and either of them asking for a redacted
-    notification replaces the wording with the kind of thing that happened.
+    The deployment's and the community's switches are applied as it sends
+    (:func:`notification_policy.apply`): one of them declining sends nothing,
+    and either of them asking for a redacted notification replaces the wording
+    with the kind of thing that happened.
 
     The recipient's device rows are read and written on the system engine
     rather than on ``session``, which is the caller's and often routed into a
@@ -359,13 +359,23 @@ async def send_push_to_user(
             belongs to no community — a message, a connection, an account
             notice — which the deployment alone answers for.
         locale: The recipient's language, for a redacted line. Read from their
-            account when a redacted line is needed and this was not given.
+            account when this was not given.
 
     Returns:
         Number of successful deliveries
     """
     if not (await push_config.ensure_push_config_fresh()).enabled:
         return 0
+
+    shown = notification_policy.apply(
+        await notification_policy.for_send(session, guild_id),
+        (title, body),
+        category=category_of(notification_type),
+        locale=locale or await _recipient_locale(user_id),
+    )
+    if shown is None:
+        return 0
+    title, body = shown
 
     tokens = await _recipient_tokens(user_id)
     if only_session_ids is not None:
@@ -374,14 +384,6 @@ async def send_push_to_user(
     if not tokens:
         logger.debug(f"No push tokens found for user {user_id}")
         return 0
-
-    policy = await notification_policy.for_send(session, guild_id)
-    if not policy.push:
-        return 0
-    if policy.redact:
-        title, body = notification_policy.redacted_push(
-            notification_type, locale or await _recipient_locale(user_id)
-        )
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         outcome = await _send_to_devices(

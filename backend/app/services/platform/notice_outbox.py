@@ -36,7 +36,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.services import email as email_service
 from app.services.platform import (
-    email_outbox,
     notification_policy,
     notification_prefs,
     push_config,
@@ -124,23 +123,23 @@ async def notice(
 ) -> dict[str, Any]:
     """One recipient's row, holding no more than the notice may say.
 
-    The deployment's and the community's switches are applied here: a channel
-    either has switched off is left empty, and where either redacts, the push
-    and the email say the kind of thing that happened rather than what it was
-    about. Whether the recipient wants each channel is the worker's question.
+    The deployment's and the community's switches are applied here as well as
+    at send: a channel either has switched off is left empty, and where either
+    redacts, the push and the email say the kind of thing that happened rather
+    than what it was about. Whether the recipient wants each channel is the
+    worker's question.
     """
     policy = await notification_policy.for_send(session, guild_id)
+    category = category_of(notification_type)
     locale = getattr(recipient, "locale", None) or "en"
-    if push is not None and not (
-        policy.push and (await push_config.ensure_push_config_fresh()).enabled
-    ):
+    if push is not None:
+        push = notification_policy.apply(policy, push, category=category, locale=locale)
+    if push is not None and not (await push_config.ensure_push_config_fresh()).enabled:
         push = None
-    if push is not None and policy.redact:
-        push = notification_policy.redacted_push(notification_type, locale)
-    if email is not None and not policy.email:
-        email = None
-    if email is not None and policy.redact:
-        email = email_outbox.redacted(email, category_of(notification_type), locale)
+    if email is not None:
+        email = notification_policy.apply(
+            policy, email, category=category, locale=locale
+        )
     return row(
         cast(int, recipient.id),
         guild_id,
@@ -366,20 +365,25 @@ async def _push(
     policies = await notification_policy.for_send_many(
         session, {row.guild_id for row in rows}
     )
-    allowed = [row for row in rows if policies[row.guild_id].push]
-    pushes = []
-    for row in allowed:
+    allowed: list[NoticeOutboxItem] = []
+    pushes: list[push_notifications.Push] = []
+    for row in rows:
         notification_type = NotificationType(row.type)
-        title, body = row.push_title or "", row.push_body or ""
-        if policies[row.guild_id].redact:
-            locale = getattr(accounts.get(row.user_id), "locale", None) or "en"
-            title, body = notification_policy.redacted_push(notification_type, locale)
+        shown = notification_policy.apply(
+            policies[row.guild_id],
+            (row.push_title or "", row.push_body or ""),
+            category=category_of(notification_type),
+            locale=getattr(accounts.get(row.user_id), "locale", None) or "en",
+        )
+        if shown is None:
+            continue
+        allowed.append(row)
         pushes.append(
             push_notifications.Push(
                 user_id=row.user_id,
                 notification_type=notification_type,
-                title=title,
-                body=body,
+                title=shown[0],
+                body=shown[1],
                 data=dict(row.push_data or {}),
             )
         )

@@ -132,11 +132,11 @@ async def test_a_redacting_community_writes_down_no_more_than_it_will_say(
     await session.commit()
 
     [row] = await _waiting(session)
-    title, body = notification_policy.redacted_push(NotificationType.mention, "en")
-    assert (row.push_title, row.push_body) == (title, body)
-    assert row.email_subject == notification_policy.redacted_subject(
+    title, body = notification_policy.redacted_line(
         category_of(NotificationType.mention), "en"
     )
+    assert (row.push_title, row.push_body) == (title, body)
+    assert row.email_subject == title
     assert "Q3 budget" not in f"{row.push_body} {row.email_body} {row.email_subject}"
 
 
@@ -232,7 +232,9 @@ async def test_a_retry_follows_the_communitys_switches_as_they_stand_then(
     await session.commit()
     answer["now"] = (True, False)
     await _deliver(session, start + timedelta(seconds=31))
-    title, _body = notification_policy.redacted_push(NotificationType.mention, "en")
+    title, _body = notification_policy.redacted_line(
+        category_of(NotificationType.mention), "en"
+    )
     assert pushed[2:] == [title, title]
 
     answer["now"] = (False, False)

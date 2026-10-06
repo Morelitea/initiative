@@ -964,19 +964,14 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
     """
     locale = _recipient_locale(user)
     first = assignments[0]
-    if any(item.get("redacted") for item in assignments):
-        title, body = notification_policy.redacted_push(
-            NotificationType.task_assignment, locale
-        )
-    else:
-        title = _nt("task.assignment.title", locale)
-        body = _nt(
-            "task.assignment.body",
-            locale,
-            count=len(assignments),
-            title=first.get("task_title") or "",
-            project=first.get("project_name") or "",
-        )
+    title = _nt("task.assignment.title", locale)
+    body = _nt(
+        "task.assignment.body",
+        locale,
+        count=len(assignments),
+        title=first.get("task_title") or "",
+        project=first.get("project_name") or "",
+    )
     data: dict[str, str] = {
         "type": NotificationType.task_assignment.value,
         "count": str(len(assignments)),
@@ -993,18 +988,30 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
 
 
 async def _queue_push(
-    session: AsyncSession, user: User, push: push_notifications.Push
+    session: AsyncSession,
+    user: User,
+    push: push_notifications.Push,
+    policy: notification_policy.NotificationPolicy = notification_policy.UNRESTRICTED,
 ) -> bool:
     """Hand a push of its own to the notice worker, which sends it and tries
-    again if it fails. Returns whether one may go at all: none does from a
-    deployment that sends no push."""
+    again if it fails. ``policy`` is what the communities it gathers from
+    answer, applied alongside the deployment's. Returns whether one may go at
+    all: none does from a deployment that sends no push."""
+    shown = notification_policy.apply(
+        policy,
+        (push.title, push.body),
+        category=category_of(push.notification_type),
+        locale=_recipient_locale(user),
+    )
+    if shown is None:
+        return False
     item = await notice_outbox.notice(
         session,
         user,
         push.notification_type,
         {},
         guild_id=None,
-        push=(push.title, push.body),
+        push=shown,
         push_data=push.data,
         kind="push",
     )
@@ -1090,32 +1097,32 @@ def wants_digest(
 
 async def _digest_batch(
     session: AsyncSession, batch: list[dict]
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[list[dict], list[dict], notification_policy.NotificationPolicy]:
     """The items of a digest each channel may still carry, per community.
 
     A digest gathers from every community an account is in, so what may leave
     with it is answered one community at a time: items from one that declines a
-    channel are left out of it, and items from one asking for redacted
-    notifications are marked, so the composer writes the kind of thing that
-    happened rather than what it was about.
+    channel are left out of it. An email item from one asking for redacted
+    notifications is marked, so the composer writes that line as the kind of
+    thing that happened; a push is one line, so it is redacted when any of its
+    items' communities asks.
 
-    Returns ``(for_email, for_push)`` — the same items, filtered and marked for
-    each channel.
+    Returns ``(for_email, for_push, push_policy)`` — the items each channel
+    carries, and the answer the push is sent under.
     """
     policies = await notification_policy.for_send_many(
         session, {item.get("community_id") for item in batch}
     )
-
-    def prepared(item: dict, channel: str) -> dict | None:
-        policy = policies[item.get("community_id")]
-        if not getattr(policy, channel):
-            return None
-        return {**item, "redacted": True} if policy.redact else item
-
-    return (
-        [row for item in batch if (row := prepared(item, "email")) is not None],
-        [row for item in batch if (row := prepared(item, "push")) is not None],
-    )
+    for_email = [
+        {**item, "redacted": True} if policy.redact else item
+        for item in batch
+        if (policy := policies[item.get("community_id")]).email
+    ]
+    for_push = [item for item in batch if policies[item.get("community_id")].push]
+    push_policy = notification_policy.UNRESTRICTED
+    for item in for_push:
+        push_policy = push_policy.stricter_than(policies[item.get("community_id")])
+    return for_email, for_push, push_policy
 
 
 def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
@@ -1227,7 +1234,7 @@ async def _send_digests(
         channels = await _channels(
             session, user, notification_type=sample_type(spec.category)
         )
-        email_batch, push_batch = await _digest_batch(session, batch)
+        email_batch, push_batch, push_policy = await _digest_batch(session, batch)
         # Each channel is handed to its outbox, which tries a failed send again
         # itself, so the items never go back to waiting.
         if channels.email and email_batch:
@@ -1248,7 +1255,7 @@ async def _send_digests(
                     user_id,
                 )
         if channels.push and push_batch:
-            await _queue_push(session, user, spec.push(user, push_batch))
+            await _queue_push(session, user, spec.push(user, push_batch), push_policy)
         if spec.stamp is not None:
             setattr(user, spec.stamp, now)
             session.add(user)
@@ -1709,20 +1716,15 @@ def _reaction_push(user: User, reactions: list[dict]) -> push_notifications.Push
     """
     locale = _recipient_locale(user)
     first = reactions[0]
-    if any(item.get("redacted") for item in reactions):
-        title, body = notification_policy.redacted_push(
-            NotificationType.comment_reaction, locale
-        )
-    else:
-        title = _nt("comment.reaction.title", locale)
-        body = _nt(
-            "comment.reaction.body",
-            locale,
-            count=len(reactions),
-            actor=first.get("reactor_name") or "",
-            emoji=first.get("emoji") or "",
-            context=first.get("context_title") or "",
-        )
+    title = _nt("comment.reaction.title", locale)
+    body = _nt(
+        "comment.reaction.body",
+        locale,
+        count=len(reactions),
+        actor=first.get("reactor_name") or "",
+        emoji=first.get("emoji") or "",
+        context=first.get("context_title") or "",
+    )
     data: dict[str, str] = {
         "type": NotificationType.comment_reaction.value,
         "count": str(len(reactions)),
@@ -1905,15 +1907,8 @@ def _overdue_push(user: User, tasks: list[dict]) -> push_notifications.Push:
     ``target_path`` as an app-level route.
     """
     locale = _recipient_locale(user)
-    if any(item.get("redacted") for item in tasks):
-        title, body = notification_policy.redacted_push(
-            NotificationType.overdue_tasks, locale
-        )
-    else:
-        title = _nt("task.overdue.title", locale)
-        body = _nt(
-            "task.overdue.body", locale, count=len(tasks), title=tasks[0]["title"]
-        )
+    title = _nt("task.overdue.title", locale)
+    body = _nt("task.overdue.body", locale, count=len(tasks), title=tasks[0]["title"])
     data = {
         "type": NotificationType.overdue_tasks.value,
         "count": str(len(tasks)),
@@ -2069,7 +2064,7 @@ async def _send_overdue(
         channels = await _channels(
             session, user, notification_type=NotificationType.overdue_tasks
         )
-        email_tasks, push_tasks = await _digest_batch(session, tasks)
+        email_tasks, push_tasks, push_policy = await _digest_batch(session, tasks)
         if channels.email and email_tasks:
             delivered = await email_outbox.enqueue(
                 session,
@@ -2090,7 +2085,9 @@ async def _send_overdue(
                 )
         if channels.push and push_tasks:
             delivered = (
-                await _queue_push(session, user, _overdue_push(user, push_tasks))
+                await _queue_push(
+                    session, user, _overdue_push(user, push_tasks), push_policy
+                )
                 or delivered
             )
         if delivered:

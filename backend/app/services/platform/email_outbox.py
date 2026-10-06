@@ -93,21 +93,24 @@ async def enqueue(
     request, usually — and appends to ``public.email_outbox``. An append, and
     only that: the row is the worker's from here on.
 
-    Every notification email in the app is written here, which is where the
-    deployment's and the community's answers about what may reach a mailbox are
-    applied: one of them declining writes nothing, and either of them asking for
-    a redacted notification stores the kind of thing that happened instead of
-    what it was about — so the row carries no more than the mail will.
+    The deployment's and the community's switches are applied here as well as
+    at send: one of them declining writes nothing, and either of them asking
+    for a redacted notification stores the kind of thing that happened instead
+    of what it was about — so the row carries no more than the mail will.
 
     ``prefs`` is the recipient's settings document, which the caller has
     already loaded to decide the email was wanted at all. The switches are read
     once per transaction of ``session``, so a fan-out asks once.
     """
-    policy = await notification_policy.for_send(session, guild_id)
-    if not policy.email:
+    shown = notification_policy.apply(
+        await notification_policy.for_send(session, guild_id),
+        pieces,
+        category=category,
+        locale=getattr(recipient, "locale", None) or "en",
+    )
+    if shown is None:
         return False
-    if policy.redact:
-        pieces = redacted(pieces, category, getattr(recipient, "locale", None) or "en")
+    pieces = shown
     if not await email_service.email_configured(session):
         # Nothing to drain it, so nothing is written. A caller holding a queue
         # keeps it rather than treating this as delivered.
@@ -142,19 +145,6 @@ async def enqueue(
         .inline()
     )
     return True
-
-
-def redacted(
-    pieces: email_service.EmailPieces, category: NotificationCategory, locale: str
-) -> email_service.EmailPieces:
-    """What a notification email says where content is redacted: the kind of
-    thing that happened, and the link to it."""
-    return email_service.EmailPieces(
-        subject=notification_policy.redacted_subject(category, locale),
-        headline=notification_policy.redacted_subject(category, locale),
-        body=notification_policy.redacted_body(category, locale),
-        link=pieces.link,
-    )
 
 
 async def enqueue_account_letter(
@@ -416,30 +406,61 @@ async def _back_off(
 
 
 async def _send_one(
-    session: AsyncSession, *, user: User, rows: list[EmailOutboxItem], now: datetime
+    session: AsyncSession,
+    *,
+    user: User,
+    rows: list[EmailOutboxItem],
+    now: datetime,
+    policies: Mapping[int | None, notification_policy.NotificationPolicy],
 ) -> None:
     """Compose and send one account's due mail, then settle it.
 
     A security letter goes on its own, to every address the account has proved,
     and nothing drops it. The rest is notification mail: anything read in the
-    app on the way here, or switched off since it was written, is dropped, and
-    what is left goes as one message or one digest.
+    app on the way here, or switched off since it was written — by the
+    recipient, the deployment or its community — is dropped, a row whose
+    community has started redacting since says the kind of thing that
+    happened, and what is left goes as one message or one digest.
     """
     letters = [row for row in rows if row.security]
     rows = [row for row in rows if not row.security]
     prefs = await notification_prefs.load_prefs(session, user.id)
+    locale = getattr(user, "locale", None) or "en"
     if rows:
         stale = await _already_read(session, rows)
-        refused = {
-            row.id
-            for row in rows
-            if row.id not in stale and not _still_wanted(prefs, row)
-        }
+        refused = set()
+        for row in rows:
+            if row.id in stale:
+                continue
+            shown = (
+                notification_policy.apply(
+                    policies[row.guild_id],
+                    email_service.EmailPieces(
+                        subject=row.subject,
+                        headline=row.headline,
+                        body=row.body,
+                        link=row.link,
+                        link_label=row.link_label,
+                    ),
+                    category=NotificationCategory(row.category),
+                    locale=row.locale or locale,
+                )
+                if _still_wanted(prefs, row)
+                else None
+            )
+            if shown is None:
+                refused.add(row.id)
+                continue
+            row.subject, row.headline, row.body, row.link_label = (
+                shown.subject,
+                shown.headline,
+                shown.body,
+                shown.link_label,
+            )
         await _discard(session, sorted(stale | refused))
         rows = [row for row in rows if row.id not in stale and row.id not in refused]
 
     _settings, accent = await email_service.email_context(session)
-    locale = getattr(user, "locale", None) or "en"
     for batch in [[letter] for letter in letters] + ([rows] if rows else []):
         ids = [row.id for row in batch]
         try:
@@ -599,10 +620,15 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
         )
     )
     user_ids = [row.user_id for row in result.all()]
+    # The switches as they stand for this pass, read once per community.
+    policies: dict[int | None, notification_policy.NotificationPolicy] = {}
     for user_id in user_ids:
         rows = await _claim(session, user_id=user_id, now=now)
         if not rows:
             continue
+        unread = {row.guild_id for row in rows if not row.security} - policies.keys()
+        if unread:
+            policies.update(await notification_policy.load_many(unread))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).one_or_none()
@@ -611,7 +637,7 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
             # the rows, and there is nobody to send to meanwhile.
             await session.commit()
             continue
-        await _send_one(session, user=user, rows=rows, now=now)
+        await _send_one(session, user=user, rows=rows, now=now, policies=policies)
         await session.commit()
 
 

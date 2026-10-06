@@ -29,6 +29,7 @@ from app.schemas.platform.notification import (
     SubjectReadResponse,
     UnreadPlacesResponse,
 )
+from app.core.notification_categories import category_of
 from app.core.messages import NotificationMessages
 from app.services.platform import (
     notification_policy,
@@ -173,8 +174,8 @@ async def read_notification_alert(
     policy = await notification_policy.for_send(session, notification.guild_id)
     redacted = None
     if policy.redact or not policy.push:
-        title, body = notification_policy.redacted_push(
-            notification.type, current_user.locale or "en"
+        title, body = notification_policy.redacted_line(
+            category_of(notification.type), current_user.locale or "en"
         )
         redacted = RedactedAlert(title=title, body=body)
     (line,) = await _with_subjects(session, current_user.id, [notification])
