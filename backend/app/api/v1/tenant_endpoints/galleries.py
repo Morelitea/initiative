@@ -44,12 +44,9 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     IncludeDeletedDep,
     RLSSessionDep,
     plugin_scope,
-    get_current_active_user,
-    GuildContextDep,
 )
 from app.core.messages import (
     AttachmentMessages,
@@ -91,7 +88,6 @@ MAX_IMAGE_PAGE_SIZE = 200
 
 router = APIRouter(route_class=ActorRoute)
 
-CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 #: The routes an installed plug-in may call, under the galleries scopes.
 GalleriesRead = Annotated[ActorContext, Depends(plugin_scope("galleries:read"))]
 GalleriesWrite = Annotated[ActorContext, Depends(plugin_scope("galleries:write"))]
@@ -136,7 +132,7 @@ async def _refetch_image(session: RLSSessionDep, image_id: int) -> GalleryImage:
 
 async def _read_picture(
     session: RLSSessionDep,
-    guild_context: GuildContext,
+    guild_context: ActorContext,
     file: UploadFile,
 ) -> tuple[bytes, str, str, int, int, galleries_service.Thumbnail | None]:
     """Read and validate an upload, then render its thumbnail.
@@ -198,7 +194,7 @@ async def _read_picture(
 
 async def _store_blob(
     session: RLSSessionDep,
-    guild_context: GuildContext,
+    guild_context: ActorContext,
     gallery: Gallery,
     contents: bytes,
     extension: str,
@@ -218,7 +214,7 @@ async def _store_blob(
 
 async def _store_picture(
     session: RLSSessionDep,
-    guild_context: GuildContext,
+    guild_context: ActorContext,
     gallery: Gallery,
     file: UploadFile,
 ) -> dict[str, Any]:
@@ -507,9 +503,9 @@ async def list_gallery_images(
 @router.get("/{gallery_id}/images/timeline", response_model=TimelineResponse)
 async def get_gallery_image_timeline(
     gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
     tag_ids: Optional[List[int]] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tz: Optional[str] = Query(
@@ -541,9 +537,9 @@ async def get_gallery_image_timeline(
 )
 async def upload_gallery_image(
     gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
     file: UploadFile = File(...),
     title: Optional[str] = Form(default=None),
     caption: Optional[str] = Form(default=None),
@@ -564,14 +560,14 @@ async def upload_gallery_image(
         gallery_id=gallery.id,
         title=(title or "").strip()[:255] or None,
         caption=(caption or "").strip() or None,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         created_at=now,
         updated_at=now,
     )
     session.add(image)
     await session.flush()
     version = await file_versions.add_version(
-        session, image, created_by=current_user.id, **stored
+        session, image, created_by=guild_context.user_id, **stored
     )
     # A gallery that just gained a picture has changed, and the list orders by
     # that.
@@ -587,9 +583,9 @@ async def upload_gallery_image(
 async def read_gallery_image(
     gallery_id: int,
     image_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
 ) -> GalleryImageRead:
     image = await resource_access.load_child(
         session, GalleryImage, image_id, parent_id=gallery_id
@@ -603,9 +599,9 @@ async def update_gallery_image(
     gallery_id: int,
     image_id: int,
     image_in: GalleryImageUpdate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryImageRead:
     """Retitle, caption, retag or set the properties of a picture. Requires
     write access on the gallery."""
@@ -640,9 +636,9 @@ async def update_gallery_image(
 async def delete_gallery_image(
     gallery_id: int,
     image_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> None:
     """Send a picture to the trash. Requires write access on the gallery —
     removing a picture is editing the gallery, and it can be restored."""
@@ -655,7 +651,7 @@ async def delete_gallery_image(
     await trash(
         session,
         image,
-        deleted_by_user_id=current_user.id,
+        deleted_by_user_id=guild_context.user_id,
     )
     if gallery.cover_image_id == image.id:
         # The list falls back to the newest picture rather than a trashed one.
@@ -671,9 +667,9 @@ async def delete_gallery_image(
 async def bulk_delete_gallery_images(
     gallery_id: int,
     payload: GalleryImageBulkDelete,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryImageBulkDeleteResponse:
     """Send a selection of pictures to the trash in one transaction. Requires
     write access on the gallery — the same gate removing one asks — and
@@ -705,7 +701,7 @@ async def bulk_delete_gallery_images(
         await soft_delete_entity(
             session,
             image,
-            deleted_by_user_id=current_user.id,
+            deleted_by_user_id=guild_context.user_id,
             retention_days=retention_days,
         )
     if gallery.cover_image_id in ids:
@@ -728,9 +724,9 @@ async def bulk_delete_gallery_images(
 async def upload_gallery_image_version(
     gallery_id: int,
     image_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
     file: UploadFile = File(...),
 ) -> GalleryImageVersionRead:
     """Replace a picture with a new rendition, keeping the old one as history.
@@ -740,7 +736,7 @@ async def upload_gallery_image_version(
     )
     stored = await _store_picture(session, guild_context, image.gallery, file)
     version = await file_versions.add_version(
-        session, image, created_by=current_user.id, **stored
+        session, image, created_by=guild_context.user_id, **stored
     )
     await file_versions.commit_version(
         session,
@@ -758,9 +754,9 @@ async def upload_gallery_image_version(
 async def list_gallery_image_versions(
     gallery_id: int,
     image_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
 ) -> List[GalleryImageVersionRead]:
     """Every stored rendition of a picture, newest first."""
     image = await resource_access.load_child(
@@ -780,9 +776,9 @@ async def delete_gallery_image_version(
     gallery_id: int,
     image_id: int,
     version_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> None:
     """Delete one rendition of a picture. Owner only. Deleting the current
     one promotes the previous; deleting the last is refused — remove the

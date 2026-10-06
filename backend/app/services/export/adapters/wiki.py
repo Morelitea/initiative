@@ -379,12 +379,20 @@ def filed_document_records(
 def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
     by_id = {page.id: page for page in pages}
     home = by_id.get(wiki.home_page_id) if wiki.home_page_id else None
+    template = by_id.get(wiki.template_page_id) if wiki.template_page_id else None
     return {
         "type": tool_envelope_type(Tool.wiki),
         "schema_version": 1,
         "name": wiki.name,
         "description": wiki.description,
         "home_page": home.slug if home is not None else None,
+        "template_page": template.slug if template is not None else None,
+        "page_order": wiki.page_order,
+        "contents_depth": wiki.contents_depth,
+        "show_connections": wiki.show_connections,
+        "show_updated_at": wiki.show_updated_at,
+        "reading_width": wiki.reading_width,
+        "accent_color": wiki.accent_color,
         "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
         "properties": exported_properties(wiki),
         "pages": [_page_envelope(page, by_id) for page in pages],

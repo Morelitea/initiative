@@ -21,11 +21,12 @@ Three things here are the wiki's own rather than the generic tool shape:
 """
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.api import resource_access, tool_copy
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -97,6 +98,20 @@ async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     await comments_service.annotate_comment_counts(session, wikis, column="wiki_id")
 
 
+async def _serialized_page(
+    session: AsyncSession, page: WikiPage, guild_context: ActorContext
+) -> WikiPageRead:
+    """A page as every page route answers with it: its tags and properties,
+    and the body it reads as now with that body's version."""
+    await tags_service.annotate_tags(session, [page])
+    await properties_service.annotate_properties(session, [page])
+    return await versioned(
+        serialize_wiki_page(page, context=guild_context),
+        guild_context.guild_id,
+        SearchEntityType.wiki_page.value,
+    )
+
+
 async def _refetch_wiki(
     session: RLSSessionDep, wiki_id: int, *, user_id: int | None
 ) -> Wiki:
@@ -122,12 +137,12 @@ async def read_wiki(
     current_user: ActorUserDep,
     guild_context: WikisRead,
 ) -> WikiRead:
-    await resource_access.load_authorized(
+    wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
-    hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
+    await annotate_wiki_rows(session, [wiki])
     return serialize_tool(
-        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
+        WikiRead, wiki, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -219,9 +234,9 @@ async def update_wiki(
     # The settings proper: each is written exactly when it was sent.
     for field in (
         "page_order",
-        "show_page_counts",
         "contents_depth",
         "show_connections",
+        "show_updated_at",
         "reading_width",
     ):
         if field in data and data[field] is not None:
@@ -229,6 +244,8 @@ async def update_wiki(
     if "accent_color" in data:
         setattr(wiki, "accent_color", (data["accent_color"] or "").strip() or None)
 
+    if data:
+        wiki.updated_at = datetime.now(timezone.utc)
     session.add(wiki)
     await attachments_service.claim_uploads(session, wiki)
     await session.commit()
@@ -421,9 +438,9 @@ async def remove_document_from_wiki(
 async def create_wiki_page(
     wiki_id: int,
     page_in: WikiPageCreate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> WikiPageRead:
     """Add a page. Write access on the wiki is the whole gate — a page is the
     wiki's content.
@@ -460,7 +477,7 @@ async def create_wiki_page(
 
     page = WikiPage(
         wiki_id=wiki.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         parent_page_id=page_in.parent_page_id,
         position=await wikis_service.next_position(
             session, wiki, page_in.parent_page_id
@@ -488,13 +505,13 @@ async def create_wiki_page(
         session,
         relationships_service.Endpoint(SearchEntityType.wiki_page, page.id),
         body=page.content,
-        author_id=current_user.id,
+        author_id=guild_context.user_id,
     )
     await attachments_service.claim_uploads(session, page)
     await properties_service.write_on_create(session, page, page_in.properties)
     await session.commit()
-    await session.refresh(page)
-    return serialize_wiki_page(page, context=guild_context)
+    hydrated = await resource_access.reload_child(session, WikiPage, page.id)
+    return await _serialized_page(session, hydrated, guild_context)
 
 
 @pages_router.get("/wiki-pages/{page_id}", response_model=WikiPageRead)
@@ -507,13 +524,7 @@ async def read_wiki_page(
     """One page by its own id, which is all a link to it, a mention or a
     stored notification names."""
     page = await resource_access.load_child(session, WikiPage, page_id)
-    await tags_service.annotate_tags(session, [page])
-    await properties_service.annotate_properties(session, [page])
-    return await versioned(
-        serialize_wiki_page(page, context=guild_context),
-        guild_context.guild_id,
-        SearchEntityType.wiki_page.value,
-    )
+    return await _serialized_page(session, page, guild_context)
 
 
 @pages_router.post(
@@ -541,19 +552,17 @@ async def duplicate_wiki_page(
         ),
     )
     await session.commit()
-    await session.refresh(copy)
-    await tags_service.annotate_tags(session, [copy])
-    await properties_service.annotate_properties(session, [copy])
-    return serialize_wiki_page(copy, context=guild_context)
+    hydrated = await resource_access.reload_child(session, WikiPage, copy.id)
+    return await _serialized_page(session, hydrated, guild_context)
 
 
 @pages_router.patch("/wiki-pages/{page_id}", response_model=WikiPageRead)
 async def update_wiki_page(
     page_id: int,
     page_in: WikiPageUpdate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> WikiPageRead:
     page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     data = page_in.model_dump(exclude_unset=True)
@@ -600,7 +609,9 @@ async def update_wiki_page(
     if room is not None:
         # The writer read what the session holds now: the change goes into
         # it, reaches the open editors, and is saved with their edits.
-        if not await room.write(data["content"], version, user_id=current_user.id):
+        if not await room.write(
+            data["content"], version, user_id=guild_context.user_id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=WikiMessages.CONTENT_CHANGED,
@@ -615,6 +626,8 @@ async def update_wiki_page(
             body_states.LEXICAL, page.yjs_state, page.content
         )
 
+    if data:
+        page.updated_at = datetime.now(timezone.utc)
     session.add(page)
     await session.flush()
 
@@ -622,7 +635,7 @@ async def update_wiki_page(
         await tags_service.set_entity_tags(
             session,
             tags_service.TAG_LINKS["wiki_page"],
-            guild_id=routed_guild_id(session),
+            guild_id=guild_context.guild_id,
             entity_id=page.id,
             tag_ids=data["tag_ids"],
         )
@@ -632,7 +645,7 @@ async def update_wiki_page(
             session,
             relationships_service.Endpoint(SearchEntityType.wiki_page, page.id),
             body=page.content,
-            author_id=current_user.id,
+            author_id=guild_context.user_id,
         )
     await attachments_service.claim_uploads(session, page)
     await session.commit()
@@ -642,23 +655,17 @@ async def update_wiki_page(
         await collaboration_manager.invalidate_room_if_empty(
             guild_context.guild_id, SearchEntityType.wiki_page.value, page.id
         )
-    await session.refresh(page)
-    await tags_service.annotate_tags(session, [page])
-    await properties_service.annotate_properties(session, [page])
-    return await versioned(
-        serialize_wiki_page(page, context=guild_context),
-        guild_context.guild_id,
-        SearchEntityType.wiki_page.value,
-    )
+    hydrated = await resource_access.reload_child(session, WikiPage, page.id)
+    return await _serialized_page(session, hydrated, guild_context)
 
 
 @pages_router.post("/wiki-pages/{page_id}/move", response_model=WikiPageRead)
 async def move_wiki_page(
     page_id: int,
     move: WikiPageMove,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> WikiPageRead:
     """File a page and place it there in one request — what a drag is.
 
@@ -672,16 +679,16 @@ async def move_wiki_page(
         session, wiki, page, move.position, move.parent_page_id
     )
     await session.commit()
-    await session.refresh(page)
-    return serialize_wiki_page(page, context=guild_context)
+    hydrated = await resource_access.reload_child(session, WikiPage, page.id)
+    return await _serialized_page(session, hydrated, guild_context)
 
 
 @pages_router.delete("/wiki-pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wiki_page(
     page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""
@@ -691,6 +698,6 @@ async def delete_wiki_page(
     await soft_delete_service.trash(
         session,
         page,
-        deleted_by_user_id=current_user.id,
+        deleted_by_user_id=guild_context.user_id,
     )
     await session.commit()

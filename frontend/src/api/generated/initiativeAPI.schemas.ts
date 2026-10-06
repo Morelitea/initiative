@@ -4776,7 +4776,7 @@ export interface GalleryImageRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   uploader: CommentAuthor | null;
   created_at: string;
   updated_at: string;
@@ -4814,7 +4814,7 @@ export interface GalleryImageVersionRead {
   original_filename: string | null;
   width: number | null;
   height: number | null;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   is_current: boolean;
 }
@@ -9819,7 +9819,6 @@ export interface WikiPageRead {
   smart_link_url: string | null;
   content: WikiPageReadContent;
   content_version: string | null;
-  comment_count: number;
 }
 
 /**

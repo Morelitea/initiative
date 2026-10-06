@@ -20,7 +20,6 @@ class Upload(CreatedByMixin, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str = Field(unique=True, index=True)
-    created_by: int = Field(foreign_key="users.id")
     size_bytes: int = Field(default=0)
     # MIME type recorded at upload time, so serving can set Content-Type without
     # sniffing the bytes (and a future object-store backend can set it on the
