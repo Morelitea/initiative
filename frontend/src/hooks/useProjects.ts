@@ -54,10 +54,9 @@ export const useSetProjectGrants = projects.useSetGrants;
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /** Templates across every initiative the caller can see — the create dialog's
- *  "start from a template" picker. The projects list reads its own templates
- *  through `useProjects`, since the status filter picks which of the three
- *  states the same query returns. */
-export const useTemplateProjects = () => useProjects({ is_template: true });
+ *  "start from a template" picker, read once the dialog is open. */
+export const useTemplateProjects = (open: boolean) =>
+  useProjects({ is_template: true }, { enabled: open });
 
 /** Every live project the reader may edit — where a task can be moved to; a
  *  template takes no tasks moved into it. Walks the list's windows, so no
@@ -115,23 +114,6 @@ export const useGlobalProjects = (
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-/**
- * Row-level template removal from the projects list, where the id varies per
- * row so the curried {@link useUpdateProject} doesn't fit.
- */
-export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, number>) =>
-  useCommunityMutation<ProjectRead, number>(
-    {
-      mutationFn: (communityId, projectId) =>
-        updateProject(communityId, projectId, {
-          is_template: false,
-        }),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:error",
-    },
-    options
-  );
 
 export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
   const communityId = useActiveCommunityId();

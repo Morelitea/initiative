@@ -3,10 +3,10 @@
   "loading": "Projekte werden geladen…",
   "loadError": "Projekte konnten nicht geladen werden.",
   "error": "Etwas ist schiefgelaufen",
-  "pinned": "Angeheftet",
-  "noProjects": "Noch keine Projekte. Erstelle eins, um loszulegen.",
+  "noProjects": "Noch keine Projekte",
+  "noProjectsDescription": "Ein Projekt sammelt Aufgaben und verfolgt sie auf einem Board oder in einer Tabelle, bis sie erledigt sind.",
+  "createFirst": "Erstelle dein erstes Projekt",
   "noMatchingProjects": "Keine Projekte entsprechen deinen Filtern.",
-  "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
   "filters": {
     "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
@@ -14,15 +14,6 @@
     "selectedInitiative": "Ausgewählte Initiative",
     "filterByTag": "Nach Tag filtern",
     "allTags": "Alle Tags",
-    "sortProjects": "Projekte sortieren",
-    "selectSortOrder": "Sortierreihenfolge auswählen",
-    "sortCustom": "Benutzerdefiniert (Drag & Drop)",
-    "sortRecentlyOpened": "Zuletzt geöffnet",
-    "sortRecentlyUpdated": "Zuletzt aktualisiert",
-    "sortRecentlyCreated": "Zuletzt erstellt",
-    "sortAlphabetical": "Alphabetisch",
-    "favorites": "Favoriten",
-    "showOnlyFavorites": "Nur Favoriten anzeigen",
     "filterByAssignee": "Nach zuständiger Person filtern",
     "allAssignees": "Alle zuständigen Personen",
     "noUsersAvailable": "Keine Benutzer verfügbar",
@@ -66,19 +57,6 @@
       "unassigned": "Nicht zugewiesen",
       "mine": "Meine"
     }
-  },
-  "templates": {
-    "loading": "Vorlagen werden geladen…",
-    "loadError": "Vorlagen konnten nicht geladen werden.",
-    "stopUsingAsTemplate": "Nicht mehr als Vorlage verwenden",
-    "noTemplates": "Keine Vorlagen verfügbar",
-    "noTemplatesDescription": "Erstelle eine Vorlage aus jedem beliebigen Projekt in den Projekteinstellungen."
-  },
-  "archived": {
-    "loading": "Archivierte Projekte werden geladen…",
-    "loadError": "Archivierte Projekte konnten nicht geladen werden.",
-    "noArchived": "Keine archivierten Projekte",
-    "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“."
   },
   "createDialog": {
     "title": "Projekt erstellen",

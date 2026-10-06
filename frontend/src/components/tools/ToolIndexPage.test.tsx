@@ -7,15 +7,15 @@
  *
  * What only one tool's list takes — a queue's status, a document's type — is
  * asked of that tool alone, at the bottom. So is what only one tool configures
- * today (a dialog of its own, files dropped on the list, a table): the page
- * does it for any tool whose entry asks, and documents are the one that does.
+ * today (files dropped on the list, the reader's own order): the page does it
+ * for any tool whose entry asks, and documents and projects are the ones that do.
  */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
+import { buildNotificationPlace, buildProject, ownerCan, readerCan } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -26,8 +26,10 @@ import {
   ToolIndexPage,
   toolIndexEntry,
 } from "@/components/tools/ToolIndexPage";
+import { toolTableStorageKey } from "@/components/tools/ToolIndexTable";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { queryClient } from "@/lib/queryClient";
+import { setItem } from "@/lib/storage";
 import { TOOLS, toolRouteSegment, toolViews } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -66,6 +68,13 @@ const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
     smart_link_url: null,
   },
   gallery: { cover: null, preview: [] },
+  project: {
+    icon: null,
+    is_template: false,
+    pinned_at: null,
+    is_favorited: false,
+    task_summary: { total: 0, completed: 0 },
+  },
   queue: { current_round: 1, is_active: true },
 };
 
@@ -91,7 +100,7 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
  * for: which archive state, a search, and a page. Every request is kept, so a
  * test can read what the page sent.
  */
-const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
+const stubList = (tool: Tool, rows: { name: string; archived_at?: string | null }[]) => {
   const requests: URLSearchParams[] = [];
   server.use(
     communityHttp.get(`/${toolRouteSegment(tool)}/`, ({ request }) => {
@@ -396,6 +405,26 @@ describe("the tool index page's bulk actions", () => {
     await waitFor(() => expect(deleted).toEqual(["5"]));
   });
 
+  it("refuses sharing on an archived selection, and says why", async () => {
+    stubList(Tool.project, [
+      buildProject({
+        name: "Planescape Detour",
+        // What an archived project arrives as: nothing on it may be changed
+        // but taking it back out.
+        can: { ...readerCan({ unarchive: true }), configure: false },
+        archived_at: "2026-06-01T00:00:00.000Z",
+      }),
+    ]);
+
+    renderIndex(Tool.project, { status: "archived" });
+    await screen.findByText("Planescape Detour");
+    await select("Planescape Detour");
+
+    const editAccess = screen.getByRole("button", { name: translate("access:bulkBar.editAccess") });
+    expect(editAccess).toBeDisabled();
+    expect(editAccess).toHaveAttribute("title", translate("access:bulkBar.archived"));
+  });
+
   it("copies templates it can only read, and refreshes the list when part of a batch fails", async () => {
     const readOnly = { ...ownerCan(), edit: false, delete: false };
     const templates = [
@@ -545,5 +574,70 @@ describe("the document index page", () => {
       fireEvent.drop(root, drag([brief()]));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("the project index page", () => {
+  const handles = () =>
+    screen.queryAllByRole("button", { name: translate("projects:preview.reorder") });
+
+  it("lists in the reader's own order, and offers the live cards to drag", async () => {
+    const requests = stubList(Tool.project, [
+      buildProject({ name: "Barovia Arc" }),
+      buildProject({ name: "Planescape Detour", archived_at: "2026-06-01T00:00:00.000Z" }),
+    ]);
+
+    renderIndex(Tool.project);
+    await screen.findByText("Barovia Arc");
+
+    // Asked for no order, the server lists in the reader's own.
+    expect(requests.at(-1)?.has("sort_by")).toBe(false);
+    expect(handles()).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("radio", { name: shared("toolViewFilter.archived") }));
+    expect(await screen.findByText("Planescape Detour")).toBeInTheDocument();
+    expect(handles()).toHaveLength(0);
+  });
+
+  it("is made from a dialog of its own, in the initiative it is listed in", async () => {
+    stubList(Tool.project, []);
+    let sent: unknown;
+    server.use(
+      communityHttp.post("/projects/", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(buildProject({ id: 9, name: "Fresh" }));
+      })
+    );
+
+    renderIndex(Tool.project);
+    await userEvent.click(
+      await screen.findByRole("button", { name: translate("projects:addProject") })
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(translate("common:name")), "Fresh");
+    await userEvent.click(
+      within(dialog).getByRole("button", {
+        name: translate("projects:createDialog.createProject"),
+      })
+    );
+
+    await waitFor(() =>
+      expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
+    );
+  });
+
+  it("drags nothing once the reader picks an order in the table", async () => {
+    setItem(
+      toolTableStorageKey(Tool.project, "order"),
+      JSON.stringify({ grouping: [], sorting: [{ id: "name", desc: false }] })
+    );
+    const requests = stubList(Tool.project, [buildProject({ name: "Barovia Arc" })]);
+
+    renderIndex(Tool.project);
+    await screen.findByText("Barovia Arc");
+
+    expect(requests.at(-1)?.get("sort_by")).toBe("name");
+    expect(handles()).toHaveLength(0);
   });
 });

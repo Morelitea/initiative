@@ -9,12 +9,12 @@
  * posts all shipped importers that way, and posts stayed unreachable longest
  * because it is the one board that does not go through {@link ToolIndexPage}.
  *
- * Asserted against the source, because the alternative is mounting four
+ * Asserted against the source, because the alternative is mounting three
  * pages' worth of providers to look for one menu item — and the thing that
  * actually regresses is a page being written without the wiring.
  *
  * {@link ToolIndexPage} covers every tool with no list page of its own
- * (documents, wikis, galleries, queues, counter groups, …), so it is on the list too:
+ * (projects, documents, wikis, galleries, queues, …), so it is on the list too:
  * the entry disappearing from it would take all of them at once.
  */
 import fs from "node:fs";
@@ -29,10 +29,6 @@ const SURFACES = [
   {
     what: "the shared tool index",
     source: read("../components/tools/ToolIndexPage.tsx"),
-  },
-  {
-    what: "the projects page",
-    source: read("../pages/initiativeTools/projects/ProjectsPage.tsx"),
   },
   {
     what: "the calendars page",

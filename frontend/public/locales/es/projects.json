@@ -3,10 +3,10 @@
   "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
   "error": "Algo salió mal",
-  "pinned": "Fijados",
-  "noProjects": "Aún no hay proyectos. Crea uno para comenzar.",
+  "noProjects": "Aún no hay proyectos",
+  "noProjectsDescription": "Un proyecto reúne tareas y las sigue en un tablero o en una tabla hasta que estén terminadas.",
+  "createFirst": "Crea tu primer proyecto",
   "noMatchingProjects": "Ningún proyecto coincide con tus filtros.",
-  "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
   "filters": {
     "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
@@ -14,15 +14,6 @@
     "selectedInitiative": "Iniciativa seleccionada",
     "filterByTag": "Filtrar por etiqueta",
     "allTags": "Todas las etiquetas",
-    "sortProjects": "Ordenar proyectos",
-    "selectSortOrder": "Seleccionar orden",
-    "sortCustom": "Personalizado (arrastrar y soltar)",
-    "sortRecentlyOpened": "Abiertos recientemente",
-    "sortRecentlyUpdated": "Actualizados recientemente",
-    "sortRecentlyCreated": "Creados recientemente",
-    "sortAlphabetical": "Alfabético",
-    "favorites": "Favoritos",
-    "showOnlyFavorites": "Mostrar solo favoritos",
     "filterByAssignee": "Filtrar por asignado",
     "allAssignees": "Todos los asignados",
     "noUsersAvailable": "No hay usuarios disponibles",
@@ -66,19 +57,6 @@
       "unassigned": "Sin asignar",
       "mine": "Mías"
     }
-  },
-  "templates": {
-    "loading": "Cargando plantillas…",
-    "loadError": "No se pudieron cargar las plantillas.",
-    "stopUsingAsTemplate": "Dejar de usar como plantilla",
-    "noTemplates": "No hay plantillas disponibles",
-    "noTemplatesDescription": "Crea una plantilla desde cualquier proyecto en la configuración del proyecto."
-  },
-  "archived": {
-    "loading": "Cargando proyectos archivados…",
-    "loadError": "No se pudieron cargar los proyectos archivados.",
-    "noArchived": "No hay proyectos archivados",
-    "noArchivedDescription": "Los proyectos activos están en la pestaña Activos."
   },
   "createDialog": {
     "title": "Crear proyecto",
