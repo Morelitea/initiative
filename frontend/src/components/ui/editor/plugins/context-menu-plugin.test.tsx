@@ -34,6 +34,22 @@ const STATE = {
   },
 };
 
+/** "Hi " followed by a smart chip, in one paragraph. */
+const CHIP_STATE = {
+  root: {
+    ...STATE.root,
+    children: [
+      {
+        ...STATE.root.children[0],
+        children: [
+          { ...STATE.root.children[0].children[0], text: "Hi " },
+          { type: "smart-chip", version: 1, chipKind: "task:due", entityId: 1, text: "Friday" },
+        ],
+      },
+    ],
+  },
+};
+
 /** The rule in the editor theme that lifts the menu's overlay, and its z-index. */
 const overlayRule = (): { selector: string; zIndex: number } => {
   const match = THEME_CSS.match(/([^{}]*\.EditorContextMenu[^{}]*)\{([^}]*)\}/);
@@ -69,5 +85,32 @@ describe("the editor's right-click menu", () => {
     const rule = overlayRule();
     expect(overlay.matches(rule.selector)).toBe(true);
     expect(rule.zIndex).toBeGreaterThan(10);
+  });
+
+  it("deletes the chip it was opened on", async () => {
+    renderPage(() => (
+      <Editor editorSerializedState={CHIP_STATE as unknown as SerializedEditorState} />
+    ));
+
+    const chip = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>("[data-lexical-decorator]");
+      if (!element) throw new Error("the chip has not rendered");
+      return element;
+    });
+    fireEvent.contextMenu(chip);
+
+    const deleteItem = await waitFor(() => {
+      const item = Array.from(
+        document.querySelectorAll<HTMLElement>(".EditorContextMenu [role=menuitem]")
+      ).find((element) => element.textContent?.includes("Delete Node"));
+      if (!item) throw new Error("the menu has no Delete Node item");
+      return item;
+    });
+    fireEvent.click(deleteItem);
+
+    await waitFor(() => {
+      expect(document.querySelector("[data-lexical-decorator]")).toBeNull();
+    });
+    expect(document.querySelector("[contenteditable]")?.textContent).toContain("Hi");
   });
 });

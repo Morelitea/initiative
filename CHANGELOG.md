@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Delete Node in a document's right-click menu removes a smart chip or mention** when opened on one, instead of doing nothing.
 - **Notifications inbox.** Clicking a finished export now downloads it, as the bell does, and items are grouped under the day they happened where you are.
 - **Notification switches reach queued email.** Turning email off for a community or the server, or hiding notification content, now also applies to emails already waiting to go out, such as a digest held for its next send.
 - **An imported dashboard keeps its tags**, as other tools do.
