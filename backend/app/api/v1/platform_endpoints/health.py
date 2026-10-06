@@ -253,7 +253,7 @@ async def prometheus_metrics(request: Request) -> Response:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     presented = bearer_token(request.headers)
     if presented is None or not secrets.compare_digest(
-        presented.encode(), token.encode()
+        presented.strip().encode(), token.encode()
     ):
         return Response(
             status_code=status.HTTP_401_UNAUTHORIZED,

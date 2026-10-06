@@ -228,7 +228,8 @@ async def test_metrics_answers_a_scrape_presenting_the_token(
     monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
     await client.get("/api/v1/version")
 
-    resp = await client.get(METRICS, headers={"Authorization": "Bearer s3cret-token"})
+    # The token is compared with the space around it trimmed.
+    resp = await client.get(METRICS, headers={"Authorization": "Bearer  s3cret-token"})
 
     assert resp.status_code == 200, resp.text
     assert resp.headers["content-type"].startswith("text/plain")
