@@ -1,4 +1,4 @@
-"""Counter service layer — DAC, query helpers, and value operations.
+"""Counter service layer — query helpers and value operations.
 
 Mirrors the queues service. CounterGroups are owned containers under an
 Initiative; Counters are independent numeric values clamped to optional
@@ -24,16 +24,11 @@ from app.schemas.tenant.counter import (
     CounterPreview,
     CounterSortDirection,
     CounterSortField,
-    format_decimal,
 )
+from app.schemas.tenant.tool import from_row
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-
-
-# ---------------------------------------------------------------------------
-# Visibility subquery
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -87,14 +82,7 @@ async def list_previews(
     )
     previews: dict[int, list[CounterPreview]] = {group_id: [] for group_id in ids}
     for row in rows.all():
-        previews[row.counter_group_id].append(
-            CounterPreview(
-                id=row.id,
-                name=row.name,
-                color=row.color,
-                count=format_decimal(row.count),
-            )
-        )
+        previews[row.counter_group_id].append(from_row(CounterPreview, row))
     return previews
 
 
@@ -209,11 +197,8 @@ async def reset_counter(session: AsyncSession, counter: Counter) -> Counter:
 async def reset_all_counters(
     session: AsyncSession, group: CounterGroup
 ) -> CounterGroup:
-    counters = getattr(group, "counters", None) or []
     now = datetime.now(timezone.utc)
-    for counter in counters:
-        if counter.deleted_at is not None:
-            continue
+    for counter in group.counters or []:
         counter.count = clamp(counter.initial_count, counter.min, counter.max)
         counter.updated_at = now
         session.add(counter)
@@ -247,9 +232,7 @@ async def sort_counters(
     deterministic and repeatable — descending is the exact reverse of
     ascending, and re-sorting an already-sorted group is idempotent.
     """
-    counters = [
-        c for c in (getattr(group, "counters", None) or []) if c.deleted_at is None
-    ]
+    counters = list(group.counters or [])
 
     if field == CounterSortField.name:
 

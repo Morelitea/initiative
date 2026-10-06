@@ -23,7 +23,7 @@ from app.schemas.tenant.property import (
     annotated_properties,
 )
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.schemas.tenant.tool import ToolSummaryBase, from_row, serialize_tool
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -169,22 +169,12 @@ def serialize_queue_item(
     in their own table, and a queue shows many items at once, so the caller
     counts them for the whole page in one go.
     """
-    user = getattr(item, "user", None)
-    return QueueItemRead(
-        id=item.id,
-        queue_id=item.queue_id,
-        label=item.label,
-        position=item.position,
-        user_id=item.user_id,
-        user=UserPublic.model_validate(user) if user else None,
-        color=item.color,
-        notes=item.notes,
-        is_visible=item.is_visible,
-        held_at_round=item.held_at_round,
+    return from_row(
+        QueueItemRead,
+        item,
         tags=annotated_tags(item),
         properties=annotated_properties(item),
         attachment_count=attachment_count,
-        created_at=item.created_at,
     )
 
 

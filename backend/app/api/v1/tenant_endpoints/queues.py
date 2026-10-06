@@ -115,14 +115,17 @@ QueuesWrite = Annotated[ActorContext, Depends(plugin_scope("queues:write"))]
 # ---------------------------------------------------------------------------
 
 
-async def _refetch_queue(
+async def read_after_write(
     session: RLSSessionDep,
     queue_id: int,
-) -> Queue:
-    """Re-fetch a queue after commit for serialization.
+    user: Optional[User],
+    guild_context: ActorContext,
+) -> QueueRead:
+    """The queue a write answers with: re-read after the commit, serialized.
 
-    Uses populate_existing=True so selectinload returns fresh relationship data
-    (needed because expire_on_commit=False keeps stale collections in identity map).
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape. ``populate_existing``
+    because the session keeps what it loaded before the commit.
     """
     queue = await queues_service.get_queue_hydrated(
         session, queue_id, populate_existing=True
@@ -132,7 +135,31 @@ async def _refetch_queue(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.queue.not_found_code,
         )
-    return queue
+    return await _serialized_queue(session, queue, user_id=guild_context.user_id)
+
+
+async def _queue_committed(
+    session: RLSSessionDep,
+    queue_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+    event: str,
+) -> QueueRead:
+    """Commit a write to the queue, tell its room ``event``, and answer with it."""
+    await session.commit()
+    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, event)
+    return await read_after_write(session, queue_id, user, guild_context)
+
+
+async def _item_committed(
+    session: RLSSessionDep, item: QueueItem, event: str
+) -> QueueItemRead:
+    """Commit a write to an item, tell its queue's room ``event``, and answer
+    with the item re-read."""
+    await session.commit()
+    sockets.signal(routed_guild_id(session), Tool.queue, item.queue_id, event)
+    hydrated = await resource_access.reload_child(session, QueueItem, item.id)
+    return await _serialized_queue_item(session, hydrated)
 
 
 # ---------------------------------------------------------------------------
@@ -179,11 +206,7 @@ async def duplicate_queue_item(
     copy = await tool_copy.duplicate_child(
         session, item, user_id=item.user_id if item.user_id in keep else None
     )
-    await session.commit()
-    hydrated = await resource_access.reload_child(session, QueueItem, copy.id)
-    result = await _serialized_queue_item(session, hydrated)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_added")
-    return result
+    return await _item_committed(session, copy, "item_added")
 
 
 @router.get("/{queue_id}", response_model=QueueRead)
@@ -239,9 +262,7 @@ async def create_queue(
     await attachments_service.claim_uploads(session, queue)
     await properties_service.write_on_create(session, queue, queue_in.properties)
     await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    return await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
+    return await read_after_write(session, queue.id, current_user, guild_context)
 
 
 @router.patch("/{queue_id}", response_model=QueueRead)
@@ -256,27 +277,14 @@ async def update_queue(
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
-    updated = False
-    update_data = queue_in.model_dump(exclude_unset=True)
-
-    if "name" in update_data:
-        queue.name = update_data["name"]
-        updated = True
-    if "description" in update_data:
-        queue.description = update_data["description"]
-        updated = True
-
-    if updated:
-        queue.updated_at = datetime.now(timezone.utc)
-        session.add(queue)
-        await attachments_service.claim_uploads(session, queue)
-        await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    if updated:
-        sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "queue_updated")
-    return result
+    for field, value in queue_in.model_dump(exclude_unset=True).items():
+        setattr(queue, field, value)
+    queue.updated_at = datetime.now(timezone.utc)
+    session.add(queue)
+    await attachments_service.claim_uploads(session, queue)
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "queue_updated"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -339,12 +347,7 @@ async def add_queue_item(
 
     await attachments_service.claim_uploads(session, item)
     await properties_service.write_on_create(session, item, item_in.properties)
-    await session.commit()
-
-    hydrated_item = await resource_access.reload_child(session, QueueItem, item.id)
-    result = await _serialized_queue_item(session, hydrated_item)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_added")
-    return result
+    return await _item_committed(session, item, "item_added")
 
 
 @items_router.patch("/queue-items/{item_id}", response_model=QueueItemRead)
@@ -357,43 +360,30 @@ async def update_queue_item(
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
     item = await resource_access.load_child(session, QueueItem, item_id, access="write")
-    queue = item.queue
-
-    updated = False
-    update_data = item_in.model_dump(exclude_unset=True)
+    update_data = item_in.model_dump(
+        exclude_unset=True, exclude={"tag_ids", "properties"}
+    )
     if update_data.get("user_id") is not None:
         await named_people.require_readers(
             session,
-            named_people.Governing.of(Tool.queue, queue),
+            named_people.Governing.of(Tool.queue, item.queue),
             [update_data["user_id"]],
         )
-
-    for field in ("label", "position", "user_id", "color", "notes", "is_visible"):
-        if field in update_data:
-            setattr(item, field, update_data[field])
-            updated = True
-    if update_data.get("tag_ids") is not None:
+    for field, value in update_data.items():
+        setattr(item, field, value)
+    if item_in.tag_ids is not None:
         await tags_service.set_entity_tags(
             session,
             tags_service.TAG_LINKS["queue_item"],
             guild_id=routed_guild_id(session),
             entity_id=item.id,
-            tag_ids=update_data["tag_ids"],
+            tag_ids=item_in.tag_ids,
         )
-        updated = True
     if item_in.properties is not None:
         await properties_service.write_on_update(session, item, item_in.properties)
-        updated = True
-
-    if updated:
-        session.add(item)
-        await attachments_service.claim_uploads(session, item)
-        await session.commit()
-
-    hydrated_item = await resource_access.reload_child(session, QueueItem, item.id)
-    result = await _serialized_queue_item(session, hydrated_item)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_updated")
-    return result
+    session.add(item)
+    await attachments_service.claim_uploads(session, item)
+    return await _item_committed(session, item, "item_updated")
 
 
 @items_router.delete("/queue-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -435,12 +425,9 @@ async def start_queue(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.start_queue(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "queue_started")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "queue_started"
+    )
 
 
 @router.post("/{queue_id}/stop", response_model=QueueRead)
@@ -455,12 +442,9 @@ async def stop_queue(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.stop_queue(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "queue_stopped")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "queue_stopped"
+    )
 
 
 @router.post("/{queue_id}/next", response_model=QueueRead)
@@ -475,12 +459,9 @@ async def advance_turn(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.advance_turn(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_advance")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "turn_advance"
+    )
 
 
 @router.post("/{queue_id}/previous", response_model=QueueRead)
@@ -495,12 +476,9 @@ async def previous_turn(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.previous_turn(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_previous")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "turn_previous"
+    )
 
 
 @router.post("/{queue_id}/set-active/{item_id}", response_model=QueueRead)
@@ -516,12 +494,9 @@ async def set_active_item(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.set_active_item(session, queue, item_id)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_set_active")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "turn_set_active"
+    )
 
 
 @router.post("/{queue_id}/reset", response_model=QueueRead)
@@ -536,12 +511,9 @@ async def reset_queue(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.reset_queue(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "queue_reset")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "queue_reset"
+    )
 
 
 @router.post("/{queue_id}/hold", response_model=QueueRead)
@@ -561,12 +533,9 @@ async def hold_current_turn(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.hold_current(session, queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_held")
-    return result
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "turn_held"
+    )
 
 
 @router.post("/{queue_id}/release/{item_id}", response_model=QueueRead)
@@ -597,32 +566,9 @@ async def release_held_item(
     await queues_service.release_held(
         session, queue, item_id, reposition=options.reposition
     )
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_released")
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Sharing (resource grants)
-# ---------------------------------------------------------------------------
-
-
-async def read_after_write(
-    session: RLSSessionDep,
-    queue_id: int,
-    user: Optional[User],
-    guild_context: ActorContext,
-) -> QueueRead:
-    """The queue a write answers with: re-read after the commit, serialized.
-
-    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
-    (``tool_grants.py``) answers in this tool's own shape.
-    """
-    hydrated = await _refetch_queue(session, queue_id)
-    return await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
+    return await _queue_committed(
+        session, queue_id, current_user, guild_context, "turn_released"
+    )
 
 
 # ---------------------------------------------------------------------------

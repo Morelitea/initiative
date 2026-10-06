@@ -1189,7 +1189,7 @@ export function useReadCounter<
 
 /**
  * Copy the counter to the end of its group as "<name> (Copy)", with its
- * count, tags and properties.
+ * count and properties.
  * @summary Duplicate Counter
  */
 export const duplicateCounter = (

@@ -818,12 +818,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
-        list_doc=(
-            "List queues visible to the current user.\n"
-            "\n"
-            "DAC: Queues with explicit QueuePermission or role-based permission.\n"
-            "Guild admins see all queues."
-        ),
+        list_doc="List queues visible to the current user (guild admins see all).",
     ),
     Tool.counter_group: ToolListSpec(
         tool=Tool.counter_group,

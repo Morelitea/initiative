@@ -109,7 +109,7 @@ def _filters(params: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _conditions(session: AsyncSession, user: User, params: dict[str, Any]):
-    from app.api.v1.tenant_endpoints.calendar_events import (
+    from app.services.tenant.calendar_events import (
         guild_calendar_event_conditions,
     )
 
@@ -121,7 +121,7 @@ async def _conditions(session: AsyncSession, user: User, params: dict[str, Any])
 async def _query(
     session: AsyncSession, user: User, params: dict[str, Any]
 ) -> list[CalendarEvent]:
-    from app.api.v1.tenant_endpoints.calendar_events import (
+    from app.services.tenant.calendar_events import (
         query_guild_calendar_events,
     )
 

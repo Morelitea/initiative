@@ -47,9 +47,7 @@ class TestExportEnumeration:
         await create_calendar(session, initiative, user)
 
         await route_session_to_guild(session, guild.id)
-        ids = await list_calendar_ids_for_export(
-            session, user, guild.id, initiative_id=initiative.id
-        )
+        ids = await list_calendar_ids_for_export(session, initiative_id=initiative.id)
         assert ids == []
 
     async def test_an_enabled_initiative_exports_its_calendars(self, session):
@@ -57,9 +55,7 @@ class TestExportEnumeration:
         calendar = await create_calendar(session, initiative, user)
 
         await route_session_to_guild(session, guild.id)
-        ids = await list_calendar_ids_for_export(
-            session, user, guild.id, initiative_id=initiative.id
-        )
+        ids = await list_calendar_ids_for_export(session, initiative_id=initiative.id)
         assert ids == [calendar.id]
 
     async def test_a_guild_calendar_is_exportable_at_guild_scope_only(self, session):
@@ -69,10 +65,10 @@ class TestExportEnumeration:
         guild_calendar = await create_guild_calendar(session, guild, user)
 
         await route_session_to_guild(session, guild.id)
-        everything = await list_calendar_ids_for_export(session, user, guild.id)
+        everything = await list_calendar_ids_for_export(session)
         assert guild_calendar.id in everything
 
         narrowed = await list_calendar_ids_for_export(
-            session, user, guild.id, initiative_id=initiative.id
+            session, initiative_id=initiative.id
         )
         assert guild_calendar.id not in narrowed
