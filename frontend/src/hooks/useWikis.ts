@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 import type {
   WikiPageCreate,
@@ -26,6 +27,8 @@ import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { wikiPageRoute } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -85,6 +88,22 @@ export const useCreateWikiPage = (
     },
     options
   );
+
+/**
+ * The "New page" action: makes a page and opens it for writing, because a
+ * page nobody has written yet has nothing to read.
+ */
+export const useAddWikiPage = (wikiId: number, initiativeId: number) => {
+  const gp = useCommunityPath();
+  const navigate = useNavigate();
+  return useCreateWikiPage(wikiId, {
+    onSuccess: (page) =>
+      void navigate({
+        to: gp(wikiPageRoute(initiativeId, wikiId, page.id)),
+        search: { edit: true },
+      }),
+  });
+};
 
 export const useDuplicateWikiPage = (
   wikiId: number,

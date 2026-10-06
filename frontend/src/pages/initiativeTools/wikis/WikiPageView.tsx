@@ -30,7 +30,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
+import { useAddWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
 import { toolRouteSegment, wikiPageRoute } from "@/lib/tools";
@@ -316,17 +316,9 @@ export const WikiPageView = () => {
   // screen waits to be asked rather than opening a drawer on arrival.
   const [railAsked, setRailAsked] = useState(false);
 
-  const createPage = useCreateWikiPage(wikiId);
+  const createPage = useAddWikiPage(wikiId, initiativeId);
   const navigate = useNavigate();
-
-  const addPage = () =>
-    createPage.mutate(
-      {},
-      {
-        onSuccess: (created) =>
-          void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, created.id)) }),
-      }
-    );
+  const addPage = () => createPage.mutate({});
 
   // The screen's primary create action is a page, not another wiki — this is
   // the inside of one.
