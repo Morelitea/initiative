@@ -2,7 +2,7 @@
 
 See plan & ``project_export.py`` for the format. The algorithm:
 
-1. Validate ``schema_version``.
+1. Refuse an envelope with no task statuses.
 2. Resolve the target initiative + its guild + member handles.
 3. Create the ``Project`` (importer is owner; rename on collision).
 4. Bulk-create per-project task statuses; build ``name → id`` map.
@@ -13,8 +13,8 @@ See plan & ``project_export.py`` for the format. The algorithm:
    of mutating the target's existing one.
 7. Insert each task; resolve status / tag / assignee / property refs
    via the maps; insert property values.
-8. Return :class:`ProjectImportResult` so the UI can warn about dropped
-   assignees etc.
+8. Return the counts as an :class:`EnvelopeImportResult`, like every
+   importer's apply.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
@@ -41,16 +40,17 @@ from app.models.tenant.task import (
 )
 from app.models.platform.user import User
 from app.schemas.tenant.project_export import (
-    MIN_SUPPORTED_IMPORT_VERSION,
-    SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
     ProjectExportTag,
     ProjectExportTask,
-    ProjectImportResult,
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.contract import (
+    EnvelopeImportResult,
+    ImportEngineError,
+)
 from app.services.import_engine.importers._base import PropertyRestore, grant_ownership
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.references import (
@@ -83,7 +83,7 @@ async def import_project(
     target_initiative: Initiative,
     importer: User,
     context: ImportContext | None = None,
-) -> ProjectImportResult:
+) -> EnvelopeImportResult:
     """Materialize ``envelope`` as a new project under ``target_initiative``.
 
     Caller is responsible for permission checks (the user must be allowed
@@ -99,16 +99,8 @@ async def import_project(
     in an entry that has not been applied yet — and the people map, which
     says which account each handle in it turned out to be.
     """
-    if not (MIN_SUPPORTED_IMPORT_VERSION <= envelope.schema_version <= SCHEMA_VERSION):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectExportMessages.SCHEMA_VERSION_UNSUPPORTED,
-        )
     if not envelope.task_statuses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectExportMessages.NO_TASK_STATUSES,
-        )
+        raise ImportEngineError(ProjectExportMessages.NO_TASK_STATUSES)
 
     initiative_member_handles = await load_initiative_member_handles(
         session, initiative_id=target_initiative.id
@@ -166,12 +158,14 @@ async def import_project(
             default_status_id = status_row.id
     if default_status_id is None:
         # First backlog-category status, else the first one
-        for s in envelope.task_statuses:
-            if s.category == TaskStatusCategory.backlog:
-                default_status_id = status_name_to_id[s.name]
-                break
-        if default_status_id is None and envelope.task_statuses:
-            default_status_id = status_name_to_id[envelope.task_statuses[0].name]
+        default_status_id = next(
+            (
+                status_name_to_id[s.name]
+                for s in envelope.task_statuses
+                if s.category == TaskStatusCategory.backlog
+            ),
+            status_name_to_id[envelope.task_statuses[0].name],
+        )
 
     # 3. Tags → name → id map; attach to project
     tag_name_to_id: dict[str, int] = {}
@@ -244,18 +238,23 @@ async def import_project(
     )
     unmatched_handles.update(named_handles[user_id] for user_id in gone)
 
-    return ProjectImportResult(
-        project_id=project.id,
-        project_name=project.name,
-        task_count=len(envelope.tasks),
-        tag_create_count=tag_create_count,
-        tag_match_count=tag_match_count,
-        property_create_count=props.created,
-        property_match_count=props.matched,
-        property_rename_count=len(props.renamed),
-        assignee_match_count=assignee_match_count,
-        assignee_unmatched_handles=sorted(unmatched_handles),
-        comment_count=comment_count,
+    return EnvelopeImportResult(
+        entity_id=project.id,
+        entity_title=project.name,
+        created={
+            Tool.project.plural: 1,
+            "tasks": len(envelope.tasks),
+            "tags": tag_create_count,
+            "properties": props.created,
+            "comments": comment_count,
+        },
+        matched={
+            "tags": tag_match_count,
+            "properties": props.matched,
+            "assignees": assignee_match_count,
+        },
+        renamed_property_count=len(props.renamed),
+        unmatched_handles=sorted(unmatched_handles),
     )
 
 
@@ -273,7 +272,7 @@ async def _import_task(
     importer_zone: str | None,
     status_name_to_id: dict[str, int],
     status_id_to_category: dict[int, TaskStatusCategory],
-    default_status_id: int | None,
+    default_status_id: int,
     tag_name_to_id: dict[str, int],
     props: PropertyRestore,
     initiative_member_handles: dict[str, int],
@@ -286,13 +285,6 @@ async def _import_task(
     comments. Returns (assignees matched & linked, comments written).
     """
     status_id = status_name_to_id.get(envelope_task.status_name) or default_status_id
-    if status_id is None:
-        # Should be unreachable because we require non-empty
-        # task_statuses on the envelope, but bail loudly if it happens.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectExportMessages.NO_TASK_STATUSES,
-        )
 
     repeat, shift = recurrence.imported(
         envelope_task.recurrence,

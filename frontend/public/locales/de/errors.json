@@ -256,7 +256,6 @@
   "TRASH_ITEM_NOT_FOUND": "Dieses Element im Papierkorb ist nicht mehr verfügbar.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Nur Community-Administratoren können Elemente endgültig löschen.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Unbekannter Papierkorb-Elementtyp.",
-  "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Dieser Projektexport wurde mit einer neueren Version von Initiative erstellt und kann hier nicht importiert werden.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "Der Projektexport enthält keine Aufgabenstatus, die für den Import erforderlich sind.",
   "EXPORT_UNKNOWN_SOURCE": "Diese Daten können nicht exportiert werden.",
   "EXPORT_INVALID_FORMAT": "Dieses Exportformat wird für diese Daten nicht unterstützt.",
