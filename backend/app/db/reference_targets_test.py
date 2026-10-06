@@ -6,21 +6,16 @@ that would have broken an attribute. These are the checks that fail instead of a
 request failing at runtime.
 """
 
-import importlib
-import pkgutil
-
 from sqlmodel import SQLModel
 
-import app.models.tenant as tenant_models
+import app.db.base  # noqa: F401 — registers every model
 from app.core.relationships import ENDPOINT_KINDS
 from app.db.reference_targets import VISUALS, Visual, _column, _table_for
 from app.db.search_index import SEARCH_SOURCES
 
 
 def _tables():
-    """Every tenant table, keyed by bare name."""
-    for module in pkgutil.iter_modules(tenant_models.__path__):
-        importlib.import_module(f"app.models.tenant.{module.name}")
+    """Every table, keyed by bare name."""
     return {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
     }

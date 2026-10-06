@@ -12,7 +12,8 @@ and ``missing_grants`` probes what that name does not hold. Those views are what
 * ``security_invariants_test`` fails on any drift in either direction (a
   hotfix ``GRANT`` the registry doesn't know about, or a registry verb the
   catalog lacks);
-* ``public_rls_test`` fails when a shared table has no registry record.
+* ``tenancy_test`` fails when a model's table has no placement, and a
+  shared table's placement is its registry record.
 
 Migrations remain the immutable record of *when* a grant changed (they still
 run the actual ``GRANT``/``REVOKE``). See issue #782.
@@ -35,13 +36,10 @@ from app.db.public_rls import (
     platform_tier,
     role_name,
 )
-from app.db.tenancy import SHARED_TABLES
 
 __all__ = [
     "ROLE_GRANTS",
     "LOGIN_SETTINGS",
-    "NON_MODEL_SHARED_TABLES",
-    "GRANTABLE_SHARED_TABLES",
     "VALID_GRANT_VERBS",
     "grant_sql",
     "grant_statements",
@@ -50,19 +48,6 @@ __all__ = [
     "revoke_statements",
     "tier_table_grants",
 ]
-
-# Public tables that carry no SQLModel (so they're absent from ``SHARED_TABLES``,
-# which derives from model metadata) yet still exist in ``public`` and so still
-# need an explicit "grant it nothing" decision for the login roles.
-# ``storage_backfill_state`` is created lazily at runtime (see
-# app.services.storage_backfill), not by a migration; its registry record is what
-# the service's own GRANT renders from.
-NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset(
-    {"alembic_version", "storage_backfill_state"}
-)
-
-# Every ``public`` table that requires a per-role grant decision.
-GRANTABLE_SHARED_TABLES: frozenset[str] = SHARED_TABLES | NON_MODEL_SHARED_TABLES
 
 # Canonical DML verb order for rendered ``GRANT`` statements. Grant order is
 # semantically irrelevant, so the registry stores verb *sets* (compared directly
@@ -173,8 +158,8 @@ _MISSING_GRANTS = text(
 async def missing_grants(conn: AsyncConnection, role: str) -> list[tuple[str, str]]:
     """The ``(table, verb)`` pairs the registry gives ``role`` that its catalog
     name does not effectively hold, in one round trip. A table the registry
-    names but that does not exist yet (``NON_MODEL_SHARED_TABLES`` are created
-    by their service) has nothing to hold."""
+    names but that does not exist yet (``tenancy.NON_MODEL_SHARED_TABLES`` are
+    created by their service) has nothing to hold."""
     pairs = [
         (table, verb)
         for table, verbs in ROLE_GRANTS[role].items()

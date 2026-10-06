@@ -44,8 +44,13 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import DATABASE_LOGINS, settings
 from app.db.guild_migrations import GUILD_OR_TEMPLATE_SCHEMA_REGEX
-from app.db.public_rls import PLATFORM_ROUTES, SHARED_ROLES, platform_tier, role_name
-from app.db.system_grants import GRANTABLE_SHARED_TABLES
+from app.db.public_rls import (
+    PLATFORM_ROUTES,
+    SHARED_ROLES,
+    SHARED_TABLE_REGISTRY,
+    platform_tier,
+    role_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -579,7 +584,7 @@ def _role_steps(roles: tuple[LoginRole, ...]) -> list[_Step]:
         ]
     steps += [
         _administer_existing_roles(),
-        ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+        ("app._bootstrap_tables", ",".join(sorted(SHARED_TABLE_REGISTRY))),
         ("app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))),
         ("app._bootstrap_kept_owners", _kept_owners()),
         _TRANSFER_STATEMENTS,
@@ -721,7 +726,7 @@ async def warn_if_ownership_was_never_handed_over() -> None:
                         _FOREIGN_OWNERS,
                         {
                             "owner": provisioner.name,
-                            "tables": sorted(GRANTABLE_SHARED_TABLES),
+                            "tables": sorted(SHARED_TABLE_REGISTRY),
                         },
                     )
                 ).all()

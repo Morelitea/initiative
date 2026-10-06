@@ -51,10 +51,10 @@ def test_every_table_is_classified():
     unclassified = _metadata_tables() - ALL_CLASSIFIED_TABLES
     assert not unclassified, (
         f"These tables exist but are unclassified in app/db: {sorted(unclassified)}. "
-        "Add each to SHARED_TABLES (public), or — for guild content — a path in "
+        "Add each to SHARED_TABLE_REGISTRY in app/db/public_rls.py (public), or — "
+        "for guild content — a path in "
         "app/db/initiative_rls.py INITIATIVE_PATHS (initiative-scoped) or to "
-        "GUILD_LEVEL_TABLES in tenancy.py (guild-wide). An unclassified guild "
-        "table would leak across tenants."
+        "GUILD_LEVEL_TABLES in tenancy.py (guild-wide)."
     )
 
 
