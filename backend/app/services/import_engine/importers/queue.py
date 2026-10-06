@@ -12,7 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.queue import Queue, QueueItem
@@ -30,7 +30,7 @@ from app.services.tenant import tags as tags_service
 
 
 class QueueImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-queue"
+    envelope_type = tool_envelope_type(Tool.queue)
     permission = PermissionKey.create_queues
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:

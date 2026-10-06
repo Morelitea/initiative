@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.backup_export import ManifestPerson
@@ -22,7 +23,7 @@ from app.services.import_engine.importers._base import (
 
 
 class ProjectImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-project"
+    envelope_type = tool_envelope_type(Tool.project)
     permission = PermissionKey.create_projects
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:

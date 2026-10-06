@@ -24,7 +24,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
 from app.services.export.adapters._common import (
@@ -93,7 +93,7 @@ def build_counter_group_item(
 
 def _envelope(group: CounterGroup) -> dict[str, Any]:
     return {
-        "type": "initiative-counter-group",
+        "type": tool_envelope_type(Tool.counter_group),
         "schema_version": 1,
         "name": group.name,
         "description": group.description,

@@ -8,7 +8,6 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.tenant_endpoints.documents import MAX_DOCUMENT_IDS
 from app.models.tenant.document import (
     Document,
     DocumentType,
@@ -741,52 +740,6 @@ def test_document_content_error_is_value_error() -> None:
     assert exc.code == "SOME_CODE"
 
 
-async def test_list_documents_filters_by_ids(client: AsyncClient, session, acting_user):
-    """``ids`` narrows the listing to the requested documents so callers can
-    hydrate a known set without walking the whole collection."""
-    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-
-    wanted = await create_document(session, actor.initiative, actor.user)
-    other = await create_document(session, actor.initiative, actor.user)
-
-    response = await client.get(
-        actor.g("/documents/"),
-        headers=actor.headers,
-        params={"ids": [wanted.id]},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert [item["id"] for item in data["items"]] == [wanted.id]
-    assert data["total_count"] == 1
-    assert other.id not in {item["id"] for item in data["items"]}
-
-
-async def test_list_documents_ids_filter_respects_visibility(
-    client: AsyncClient, session, acting_user
-):
-    """``ids`` is a filter, not a bypass — an id the caller cannot see stays
-    invisible."""
-    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    private_doc = await create_document(session, owner.initiative, owner.user)
-
-    other = await acting_user(
-        guild_role=CommunityRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
-
-    response = await client.get(
-        other.g("/documents/"),
-        headers=other.headers,
-        params={"ids": [private_doc.id]},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["items"] == []
-
-
 async def test_list_documents_filters_by_template_and_type(
     client: AsyncClient, session, acting_user
 ):
@@ -905,19 +858,6 @@ async def test_the_tag_tree_narrows_by_document_type(
         await untagged(view="templates", filters='{"document_type": "whiteboard"}') == 1
     )
     assert await untagged(filters='{"document_type": "native"}') == 1
-
-
-async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
-    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-
-    response = await client.get(
-        actor.g("/documents/"),
-        headers=actor.headers,
-        params={"ids": list(range(1, MAX_DOCUMENT_IDS + 2))},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_TOO_MANY_IDS"
 
 
 async def test_document_counts_by_initiative(

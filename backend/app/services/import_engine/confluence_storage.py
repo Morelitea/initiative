@@ -27,6 +27,7 @@ from html.parser import HTMLParser
 from typing import Any, Callable, Optional, Union
 from urllib.parse import quote, urlsplit
 
+from app.core.search import SearchEntityType
 from app.services.import_engine.limits import MAX_NESTING_DEPTH
 
 # --- Lexical text format bits, as the editor defines them ---------------------
@@ -503,7 +504,7 @@ class _Walker:
                 {
                     "type": "entity-mention",
                     "version": 1,
-                    "entityType": "document",
+                    "entityType": SearchEntityType.document.value,
                     "entityId": 0,
                     "text": "".join(n.get("text", "") for n in text) or filename,
                     # Resolved to the imported document's id on apply.

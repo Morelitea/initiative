@@ -322,14 +322,14 @@ async def _count_scope(
     total += await _task_rows(session, user, params, ids["project"])
 
     if _include_uploads(params) and (
-        scope_kind == "guild" or _included(params, "document")
+        scope_kind == "guild" or _included(params, Tool.document.value)
     ):
         if scope_kind == "guild":
             from app.services.tenant.attachments import get_guild_storage_usage
 
             upload_bytes = await get_guild_storage_usage(guild_id)
         else:
-            upload_bytes = await _known_upload_bytes(session, ids["document"])
+            upload_bytes = await _known_upload_bytes(session, ids[Tool.document.value])
         if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
@@ -743,7 +743,7 @@ class _ScopeBuilder:
             self.entries.append(
                 ManifestEntry(
                     path=asset_path,
-                    tool="document",
+                    tool=Tool.document.value,
                     type="file",
                     schema_version=None,
                     entity_id=document.id,
@@ -955,8 +955,8 @@ class _ScopeBuilder:
         wiki_paths = {
             entry.entity_id: entry.path
             for entry in self.entries
-            if entry.tool == "wiki"
-            and entry.type == "initiative-wiki"
+            if entry.tool == Tool.wiki.value
+            and entry.type == tool_envelope_type(Tool.wiki)
             and entry.initiative_id == initiative.id
         }
         file_entries = {
@@ -1034,7 +1034,7 @@ class _ScopeBuilder:
         if self.mode == "backup":
             return {}
         formats = self.params.get("formats") or {}
-        value = formats.get("document")
+        value = formats.get(Tool.document.value)
         return dict(value) if isinstance(value, dict) else {}
 
     async def _guild_profiles(self) -> dict[int, Any]:
@@ -1567,7 +1567,7 @@ async def estimate_backup(
     uploads_count = 0
     uploads_bytes = 0
     if include_uploads:
-        document_ids = [d for per in ids["document"].values() for d in per]
+        document_ids = [d for per in ids[Tool.document.value].values() for d in per]
         if document_ids:
             uploads_count = (
                 await session.exec(
@@ -1583,7 +1583,7 @@ async def estimate_backup(
             # Exact total blob usage — an upper bound on what ships.
             uploads_bytes = await get_guild_storage_usage(guild_id)
         else:
-            uploads_bytes = await _known_upload_bytes(session, ids["document"])
+            uploads_bytes = await _known_upload_bytes(session, ids[Tool.document.value])
         estimated_rows += uploads_bytes // _MIB
 
     return BackupEstimate(

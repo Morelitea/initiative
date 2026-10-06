@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, TYPE_CHECKING
 
 from pydantic import (
     AliasChoices,
@@ -14,7 +14,6 @@ from pydantic import (
 
 from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId, names_withheld
-from app.core.relationships import Related
 from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
@@ -66,24 +65,6 @@ class OccurrenceRequest(SanitizedBaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Document attachment read schema
-# ---------------------------------------------------------------------------
-
-
-class CalendarEventDocumentRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    document_id: int
-    name: str = ""
-    attached_at: datetime
-
-
-# ---------------------------------------------------------------------------
-# Recurrence schema
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Calendar event schemas
 # ---------------------------------------------------------------------------
 
@@ -114,7 +95,6 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
     tz: Optional[str] = Field(default=None, max_length=64)
     attendee_ids: Optional[List[PersonId]] = None
     tag_ids: Optional[List[int]] = None
-    document_ids: Optional[List[int]] = None
 
 
 class CalendarEventUpdate(PropertiesOnUpdate):
@@ -217,7 +197,6 @@ class CalendarEventSummary(CalendarEventBase):
 
 class CalendarEventRead(CalendarEventSummary):
     attendees: List[CalendarEventAttendeeRead] = Field(default_factory=list)
-    documents: List[CalendarEventDocumentRead] = Field(default_factory=list)
     #: What an occurrence changed; the rest follows its series.
     overridden_fields: List[str] = Field(default_factory=list)
     #: A series' skipped starts and extra starts.
@@ -228,25 +207,6 @@ class CalendarEventRead(CalendarEventSummary):
 # ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
-
-
-def _serialize_documents(
-    documents: Sequence[Related],
-) -> List[CalendarEventDocumentRead]:
-    """The attached documents, as the read schema wants them.
-
-    Handed in rather than read off the event: the edges live in their own table
-    now, and loading them is the caller's job so a page of events pays for one
-    query instead of one per event.
-    """
-    return [
-        CalendarEventDocumentRead(
-            document_id=related.id,
-            name=getattr(related.entity, "name", "") if related.entity else "",
-            attached_at=related.linked_at,
-        )
-        for related in documents
-    ]
 
 
 def _serialize_attendees(
@@ -312,7 +272,6 @@ def serialize_calendar_event(
     *,
     context: ActorContext,
     user_id: Optional[int] = None,
-    documents: Sequence[Related] = (),
     answers: Mapping[int, RSVPStatus] | None = None,
 ) -> CalendarEventRead:
     """``answers`` are one occurrence's, shown in place of the series'."""
@@ -327,7 +286,6 @@ def serialize_calendar_event(
     return CalendarEventRead(
         **dict(summary),
         attendees=_serialize_attendees(event, answers or {}),
-        documents=_serialize_documents(documents),
         overridden_fields=list(event.overridden_fields or []),
         skipped_starts=skipped,
         extra_starts=extra,

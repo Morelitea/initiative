@@ -23,7 +23,6 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     initiative: null,
     owner: null,
     owner_plugin: null,
-    projects: [],
     comment_count: 0,
     comments_enabled: true,
     grants: [],
@@ -37,7 +36,6 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     file_size: null,
     original_filename: null,
     smart_link_url: null,
-    yjs_updated_at: null,
     ...overrides,
   };
 }

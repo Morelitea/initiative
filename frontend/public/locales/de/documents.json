@@ -8,7 +8,6 @@
     "comments_other": "{{count}} Kommentare"
   },
   "columns": {
-    "projects": "Projekte",
     "owner": "Eigentümer",
     "type": "Typ",
     "community": "Community",

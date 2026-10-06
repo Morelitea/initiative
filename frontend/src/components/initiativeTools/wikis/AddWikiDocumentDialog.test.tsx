@@ -33,8 +33,6 @@ describe("AddWikiDocumentDialog", () => {
           page: 1,
           page_size: 0,
           has_next: false,
-          sort_by: null,
-          sort_dir: null,
         });
       })
     );

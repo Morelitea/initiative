@@ -40,7 +40,7 @@ from app.db.session import routed_guild_id
 from app.core.references import format_ref
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.core.tools import BULK_EXPORT_TOOLS, Tool
+from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_envelope_type
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.schemas.tenant.backup_export import (
@@ -131,7 +131,7 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
     whatever tool it was filed under; everything else is its own tool. A
     tool this build has no endpoint kind for cannot be an end of an edge,
     which is a reason to skip it rather than to fail the restore."""
-    name = "document" if entry.type == "file" else entry.tool
+    name = Tool.document.value if entry.type == "file" else entry.tool
     try:
         return SearchEntityType(name)
     except ValueError:
@@ -528,7 +528,9 @@ async def _resolve_target_initiative(
             continue
         # A file entry is a document whatever tool it was filed under, so it
         # is the document importer's permission that governs it.
-        envelope_type = "initiative-document" if entry.type == "file" else entry.type
+        envelope_type = (
+            tool_envelope_type(Tool.document) if entry.type == "file" else entry.type
+        )
         if envelope_type in seen:
             continue
         seen.add(envelope_type)
@@ -552,7 +554,7 @@ async def _resolve_target_initiative(
             session,
             guild_id=guild_id,
             initiative_id=target_initiative_id,
-            importer=IMPORTERS["initiative-document"],
+            importer=IMPORTERS[tool_envelope_type(Tool.document)],
             user=user,
         )
     return initiative
@@ -981,7 +983,7 @@ async def _apply_file_entry(
                 )
                 session.add(
                     tags_service.tag_edge(
-                        tags_service.TAG_LINKS["document"],
+                        tags_service.TOOL_TAG_LINKS[Tool.document],
                         document.id,
                         resolved.id,
                     )

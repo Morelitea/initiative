@@ -9,17 +9,12 @@ import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 /** What the documents table shows beside the columns every tool's table has:
- *  how many projects a document is linked to, its owner, and its type. */
+ *  its owner and its type. */
 export const useDocumentColumns = (): AppColumnDef<DocumentSummary>[] => {
   const { t } = useTranslation("documents");
 
   return useMemo<AppColumnDef<DocumentSummary>[]>(
     () => [
-      {
-        id: "projects",
-        header: t("columns.projects"),
-        cell: ({ row }) => <span>{row.original.projects.length}</span>,
-      },
       {
         id: "owner",
         header: t("columns.owner"),

@@ -1,15 +1,3 @@
-import type { LucideIcon } from "lucide-react";
-import {
-  FileCode,
-  FileSpreadsheet,
-  FileText,
-  ImageIcon,
-  PenTool,
-  Presentation,
-  ScrollText,
-  Sheet,
-} from "lucide-react";
-
 /** What an uploaded document may be, as a file picker's `accept` list. */
 export const DOCUMENT_UPLOAD_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
@@ -122,60 +110,4 @@ export function getFileTypeLabel(
   }
 
   return "File";
-}
-
-/**
- * Return the color class for a document icon based on its type.
- * For file documents, the color depends on the file format; native docs
- * get the default muted foreground.
- */
-export function getDocumentIconColor(
-  documentType: string | null | undefined,
-  mimeType: string | null | undefined,
-  filename: string | null | undefined
-): string {
-  if (documentType === "whiteboard") return "text-purple-500";
-  if (documentType === "spreadsheet") return "text-emerald-500";
-  if (documentType !== "file") return "text-muted-foreground";
-  const label = getFileTypeLabel(mimeType, filename);
-  switch (label) {
-    case "PDF":
-      return "text-red-500";
-    case "Word":
-      return "text-blue-600";
-    case "Excel":
-      return "text-green-600";
-    case "PowerPoint":
-      return "text-orange-500";
-    case "Text":
-      return "text-gray-500";
-    case "HTML":
-      return "text-purple-500";
-    case "Image":
-      return "text-emerald-500";
-    case "Markdown":
-      return "text-indigo-500";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
-/**
- * Return the Lucide icon component for a document.
- * Native documents get ScrollText; file documents get a format-specific icon.
- */
-export function getDocumentIcon(
-  documentType: string | null | undefined,
-  mimeType: string | null | undefined,
-  filename: string | null | undefined
-): LucideIcon {
-  if (documentType === "whiteboard") return PenTool;
-  if (documentType === "spreadsheet") return Sheet;
-  if (documentType !== "file") return ScrollText;
-  const label = getFileTypeLabel(mimeType, filename);
-  if (label === "Image") return ImageIcon;
-  if (label === "Markdown") return FileCode;
-  if (label === "Excel") return FileSpreadsheet;
-  if (label === "PowerPoint") return Presentation;
-  return FileText;
 }

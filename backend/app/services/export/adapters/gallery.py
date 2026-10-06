@@ -25,7 +25,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.services.export.adapters._common import (
@@ -164,7 +164,7 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
         None,
     )
     return {
-        "type": "initiative-gallery",
+        "type": tool_envelope_type(Tool.gallery),
         "schema_version": 1,
         "name": gallery.name,
         "description": gallery.description,

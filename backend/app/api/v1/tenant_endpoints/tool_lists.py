@@ -65,7 +65,7 @@ from app.api.v1.tenant_endpoints import posts as posts_endpoints
 from app.api.v1.tenant_endpoints import projects as projects_endpoints
 from app.api.v1.tenant_endpoints import queues as queues_endpoints
 from app.api.v1.tenant_endpoints import wikis as wikis_endpoints
-from app.core.messages import DocumentMessages, QueryMessages
+from app.core.messages import QueryMessages
 from app.core.tools import Tool
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
@@ -309,7 +309,6 @@ def page_size_param(
 _NOT_FILTERS = frozenset(
     {
         "initiative_id",
-        "ids",
         "scope",
         "slim",
         "writable",
@@ -419,8 +418,6 @@ class ToolListSpec:
     views: Mapping[str, Mapping[str, Any]] = field(
         default_factory=lambda: dict(DEFAULT_VIEWS)
     )
-    #: (the request's values) -> extra fields on the list response.
-    response_extras: Optional[Callable[[dict], dict]] = None
     list_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
@@ -606,24 +603,10 @@ async def _serialize_projects(spec: ToolListSpec, req: ListRequest, rows: list) 
 
 async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
-    if values.get("initiative_id") is not None:
-        # The only list that answers 404 for an initiative outside the guild
-        # rather than an empty page — its callers address a known initiative.
-        await documents_endpoints.get_initiative_or_404(
-            req.session,
-            initiative_id=values["initiative_id"],
-        )
-    ids = values.get("ids")
-    if ids is not None and len(ids) > documents_endpoints.MAX_DOCUMENT_IDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TOO_MANY_IDS,
-        )
     conditions = documents_endpoints.visible_document_conditions(
         req.guild_context,
         req.user_id,
         initiative_id=values.get("initiative_id"),
-        ids=ids,
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         untagged=values.get("untagged"),
@@ -810,24 +793,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         # The one tool that also sorts by when a row was written — a document
         # list is a filing cabinet, and "newest first" is how you read one.
         extra_sort_fields={"created_at": Document.created_at},
-        response_extras=lambda values: {
-            "sort_by": values.get("sort_by"),
-            "sort_dir": values.get("sort_dir"),
-        },
         params=(
             _initiative_id(),
-            ListParam(
-                "ids",
-                Optional[List[int]],
-                Query(
-                    default=None,
-                    description=(
-                        "Filter to specific document IDs — for hydrating a known "
-                        "set of documents without walking a collection. Maximum "
-                        f"{documents_endpoints.MAX_DOCUMENT_IDS} IDs."
-                    ),
-                ),
-            ),
             search_param(description=None),
             _tag_ids(Tool.document, description="Filter by tag IDs"),
             _property_filters(),
@@ -851,8 +818,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         list_doc=(
             "List documents in the active guild visible to the current user.\n"
             "\n"
-            "DAC: Documents with explicit DocumentPermission or role-based "
-            "permission.\n"
+            "DAC: Documents shared with the reader directly or through "
+            "their initiative role.\n"
             "\n"
             "Pagination: page_size=0 serves the full set in server-bounded "
             "windows —\n"
@@ -1211,9 +1178,8 @@ def _mount_list(spec: ToolListSpec) -> None:
         )
         items = await spec.serialize(spec, request, rows)
         page_size = values["page_size"]
-        extras = spec.response_extras(values) if spec.response_extras else {}
         return spec.response_model(
-            **build_paginated_response(items, total_count, page, page_size, **extras)
+            **build_paginated_response(items, total_count, page, page_size)
         )
 
     list_rows.__signature__ = _signature(

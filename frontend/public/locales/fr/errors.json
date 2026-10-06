@@ -147,7 +147,6 @@
   "DOCUMENT_OWNER_REQUIRED": "Permission de propriétaire du document requise",
   "DOCUMENT_NO_ACCESS": "Vous n'avez pas accès à ce document",
   "DOCUMENT_NAME_ALREADY_EXISTS": "Un document avec ce titre existe déjà dans cette initiative",
-  "DOCUMENT_TOO_MANY_IDS": "Trop de documents demandés à la fois (maximum 100)",
   "DOCUMENT_NAME_REQUIRED": "Le titre du document est requis",
   "DOCUMENT_AI_NATIVE_ONLY": "La synthèse IA est uniquement disponible pour les documents natifs",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Une URL est requise pour les documents de lien intelligent",

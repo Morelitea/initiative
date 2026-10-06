@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup, CounterViewMode
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -28,7 +28,7 @@ from app.services.import_engine.importers._base import (
 
 
 class CounterGroupImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-counter-group"
+    envelope_type = tool_envelope_type(Tool.counter_group)
     permission = PermissionKey.create_counter_groups
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:

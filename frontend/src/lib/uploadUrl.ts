@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 
 import { apiClient } from "@/api/client";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { toolRouteSegment } from "@/lib/tools";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
@@ -54,6 +56,10 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
   return resolved;
 }
 
+/** A document's own API path, inside its community. */
+const documentApiPath = (communityId: number, documentId: number): string =>
+  `/api/v1/c/${communityId}/${toolRouteSegment(Tool.document)}/${documentId}`;
+
 /**
  * Resolve a document ID to its authorized download URL (current version).
  *
@@ -68,7 +74,7 @@ export function resolveDocumentDownloadUrl(
   if (!documentId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${communityId}/documents/${documentId}/download`;
+  const base = `${documentApiPath(communityId, documentId)}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
@@ -86,7 +92,7 @@ export function resolveDocumentVersionDownloadUrl(
   if (!documentId || !versionId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${communityId}/documents/${documentId}/versions/${versionId}/download`;
+  const base = `${documentApiPath(communityId, documentId)}/versions/${versionId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 

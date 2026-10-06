@@ -149,7 +149,6 @@
   "DOCUMENT_OWNER_REQUIRED": "Eigentümerberechtigung für das Dokument erforderlich",
   "DOCUMENT_NO_ACCESS": "Du hast keinen Zugriff auf dieses Dokument",
   "DOCUMENT_NAME_ALREADY_EXISTS": "Ein Dokument mit diesem Titel existiert bereits in dieser Initiative",
-  "DOCUMENT_TOO_MANY_IDS": "Zu viele Dokumente auf einmal angefordert (maximal 100)",
   "DOCUMENT_NAME_REQUIRED": "Dokumenttitel ist erforderlich",
   "DOCUMENT_AI_NATIVE_ONLY": "KI-Zusammenfassung ist nur für native Dokumente verfügbar",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Für Smart-Link-Dokumente ist eine URL erforderlich",

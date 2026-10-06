@@ -27,6 +27,7 @@ import {
 } from "@/lib/offlineShards";
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { type ChildKind, PARENT_TOOL, TOOLS, toolRouteSegment } from "@/lib/tools";
 
 /**
  * How long the persisted cache lives on disk.
@@ -69,21 +70,14 @@ const communityShard = (communityId: number) => `g${communityId}`;
  * community without the prefix list having to know any community ids.
  */
 const PERSIST_ALLOWLIST = [
-  // Community content — the things somebody actually opened.
+  // Community content — the things somebody actually opened: every tool, and
+  // everything a tool holds.
+  ...[...TOOLS, ...(Object.keys(PARENT_TOOL) as ChildKind[])].map(
+    (kind) => `/api/v1/c/{g}/${toolRouteSegment(kind)}`
+  ),
   "/api/v1/c/{g}/initiatives",
-  "/api/v1/c/{g}/projects",
-  "/api/v1/c/{g}/tasks",
   "/api/v1/c/{g}/task-statuses",
-  "/api/v1/c/{g}/documents",
-  "/api/v1/c/{g}/queues",
-  "/api/v1/c/{g}/queue-items",
-  "/api/v1/c/{g}/counters",
-  "/api/v1/c/{g}/counter-groups",
-  "/api/v1/c/{g}/calendars",
-  "/api/v1/c/{g}/calendar-events",
   "/api/v1/c/{g}/calendar-entries",
-  "/api/v1/c/{g}/dashboards",
-  "/api/v1/c/{g}/posts",
   "/api/v1/c/{g}/comments",
   "/api/v1/c/{g}/tags",
   "/api/v1/c/{g}/property-definitions",

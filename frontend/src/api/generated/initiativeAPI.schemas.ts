@@ -1419,13 +1419,6 @@ export interface CalendarEventCreate {
   tz?: string | null;
   attendee_ids?: number[] | null;
   tag_ids?: number[] | null;
-  document_ids?: number[] | null;
-}
-
-export interface CalendarEventDocumentRead {
-  document_id: number;
-  name?: string;
-  attached_at: string;
 }
 
 export interface CalendarEventRSVPUpdate {
@@ -1462,7 +1455,6 @@ export interface CalendarEventRead {
   created_at: string;
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
-  documents: CalendarEventDocumentRead[];
   overridden_fields: string[];
   skipped_starts: string[];
   extra_starts: string[];
@@ -1825,8 +1817,8 @@ export interface CommentCreate {
   content: string;
   task_id?: number | null;
   wiki_page_id?: number | null;
-  document_id?: number | null;
   project_id?: number | null;
+  document_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -1859,12 +1851,15 @@ export interface ReactionGroup {
   users: ReactionUser[];
 }
 
+/**
+ * One comment. ``project_id`` is its own for a comment on a project and
+ * the task's for a task comment (filled by the service's serializer).
+ */
 export interface CommentRead {
   content: string;
-  id: number;
-  created_by: number | null;
   task_id: number | null;
   wiki_page_id: number | null;
+  project_id: number | null;
   document_id: number | null;
   queue_id: number | null;
   counter_group_id: number | null;
@@ -1873,12 +1868,13 @@ export interface CommentRead {
   post_id: number | null;
   gallery_id: number | null;
   wiki_id: number | null;
+  id: number;
+  created_by: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
   author: CommentAuthor | null;
   imported_author_name: string | null;
-  project_id: number | null;
   reactions: ReactionGroup[];
   can_remove: boolean;
   audience: CommentAudience;
@@ -4149,14 +4145,6 @@ export interface OwnerPluginSummary {
   avatar_url: string | null;
 }
 
-export interface DocumentProjectLink {
-  project_id: number;
-  project_name?: string | null;
-  project_icon?: string | null;
-  project_initiative_id?: number | null;
-  attached_at: string;
-}
-
 /**
  * Discriminator for document type.
  */
@@ -4189,7 +4177,6 @@ export interface DocumentSummary {
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
   owner_plugin: OwnerPluginSummary | null;
-  projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
   file_url: string | null;
@@ -4197,7 +4184,6 @@ export interface DocumentSummary {
   file_size: number | null;
   original_filename: string | null;
   smart_link_url: string | null;
-  yjs_updated_at: string | null;
 }
 
 export interface DocumentListResponse {
@@ -4207,8 +4193,6 @@ export interface DocumentListResponse {
   has_next: boolean;
   has_prev: boolean;
   items: DocumentSummary[];
-  sort_by: string | null;
-  sort_dir: string | null;
 }
 
 export type DocumentReadContent = { [key: string]: unknown };
@@ -4232,7 +4216,6 @@ export interface DocumentRead {
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
   owner_plugin: OwnerPluginSummary | null;
-  projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
   file_url: string | null;
@@ -4240,7 +4223,6 @@ export interface DocumentRead {
   file_size: number | null;
   original_filename: string | null;
   smart_link_url: string | null;
-  yjs_updated_at: string | null;
   content: DocumentReadContent;
   content_version: string | null;
 }
@@ -8006,14 +7988,7 @@ export interface QueueItemCreate {
   is_visible?: boolean;
   user_id?: number | null;
   tag_ids?: number[] | null;
-  document_ids?: number[] | null;
   task_ids?: number[] | null;
-}
-
-export interface QueueItemDocumentRead {
-  document_id: number;
-  name?: string;
-  attached_at: string;
 }
 
 export interface QueueItemTaskRead {
@@ -8038,7 +8013,6 @@ export interface QueueItemRead {
   user: UserPublic | null;
   tags: TagSummary[];
   properties: PropertySummary[];
-  documents: QueueItemDocumentRead[];
   tasks: QueueItemTaskRead[];
   attachment_count: number;
   held_at_round: number | null;
@@ -8170,10 +8144,6 @@ export interface RecentActivityEntry {
   content: string;
   created_at: string;
   author: CommentAuthor | null;
-  task_id: number | null;
-  task_title: string | null;
-  document_id: number | null;
-  document_name: string | null;
   project_id: number | null;
   project_name: string | null;
   entity_type: string | null;
@@ -10379,10 +10349,6 @@ export type ListProjectsParams = {
 
 export type ListDocumentsParams = {
   initiative_id?: number | null;
-  /**
-   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
-   */
-  ids?: number[] | null;
   search?: string | null;
   /**
    * Filter by tag IDs
@@ -10803,9 +10769,16 @@ export type ListReportsParams = {
 };
 
 export type ListCommentsParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  cursor?: string | null;
   task_id?: number | null;
-  document_id?: number | null;
+  wiki_page_id?: number | null;
   project_id?: number | null;
+  document_id?: number | null;
   queue_id?: number | null;
   counter_group_id?: number | null;
   calendar_id?: number | null;
@@ -10813,13 +10786,6 @@ export type ListCommentsParams = {
   post_id?: number | null;
   gallery_id?: number | null;
   wiki_id?: number | null;
-  wiki_page_id?: number | null;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: number;
-  cursor?: string | null;
 };
 
 export type RecentCommentsParams = {

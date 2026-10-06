@@ -2,10 +2,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { FilePlus, Home, Menu, MessageSquare, Plus, Search, SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCommandCenter } from "@/components/CommandCenter";
-import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { usePrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { getOpenCreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +73,7 @@ export function BottomNav() {
   // permission. Non-create routes (no registration) fall back to the global menu,
   // which itself hides when the user can create neither tasks nor documents in
   // any of their communities.
-  const canCreateGlobal = globalCreate.document || globalCreate.task;
+  const canCreateGlobal = globalCreate.tool || globalCreate.task;
   const hideAdd = isCreateContext ? action === null : !canCreateGlobal;
 
   return (
@@ -178,8 +179,8 @@ export function BottomNav() {
                     {t("bottomNav.addTask")}
                   </DropdownMenuItem>
                 )}
-                {globalCreate.document && (
-                  <DropdownMenuItem onSelect={() => getOpenCreateDocumentWizard()?.()}>
+                {globalCreate.tool && (
+                  <DropdownMenuItem onSelect={() => getOpenCreateToolWizard(Tool.document)?.()}>
                     <FilePlus className="mr-2 h-4 w-4" />
                     {t("bottomNav.addDocument")}
                   </DropdownMenuItem>

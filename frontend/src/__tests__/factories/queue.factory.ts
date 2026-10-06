@@ -28,7 +28,6 @@ export function buildQueueItem(overrides: Partial<QueueItemRead> = {}): QueueIte
     user: null,
     tags: [],
     properties: [],
-    documents: [],
     tasks: [],
     attachment_count: 0,
     created_at: "2026-01-15T00:00:00.000Z",

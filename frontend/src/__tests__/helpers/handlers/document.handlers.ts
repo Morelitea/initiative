@@ -10,8 +10,6 @@ export const documentHandlers = [
       page: 1,
       page_size: 20,
       has_next: false,
-      sort_by: null,
-      sort_dir: null,
     });
   }),
 ];

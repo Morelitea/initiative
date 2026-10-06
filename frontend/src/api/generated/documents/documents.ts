@@ -63,7 +63,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * List documents in the active guild visible to the current user.
  *
- * DAC: Documents with explicit DocumentPermission or role-based permission.
+ * DAC: Documents shared with the reader directly or through their initiative role.
  *
  * Pagination: page_size=0 serves the full set in server-bounded windows —
  * walk page=1,2,... until has_next is false.

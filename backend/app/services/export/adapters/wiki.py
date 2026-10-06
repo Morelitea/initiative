@@ -45,7 +45,7 @@ from dataclasses import replace
 
 from fastapi import HTTPException
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.wiki import Wiki, WikiPage
@@ -389,7 +389,7 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
     by_id = {page.id: page for page in pages}
     home = by_id.get(wiki.home_page_id) if wiki.home_page_id else None
     return {
-        "type": "initiative-wiki",
+        "type": tool_envelope_type(Tool.wiki),
         "schema_version": 1,
         "name": wiki.name,
         "description": wiki.description,

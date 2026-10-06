@@ -44,7 +44,7 @@ import { uploadAttachment } from "@/lib/attachmentUtils";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
 import { findNewMentions } from "@/lib/mentionUtils";
-import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { toolListRoute, toolRouteSegment, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
@@ -95,7 +95,9 @@ export const DocumentDetailPage = () => {
   // where `<Editor>` appears, which regresses the collab bootstrap and leaves
   // Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
-    socketPath: Number.isFinite(parsedId) ? `documents/${parsedId}/collaborate` : null,
+    socketPath: Number.isFinite(parsedId)
+      ? `${toolRouteSegment(Tool.document)}/${parsedId}/collaborate`
+      : null,
     enabled: joinsRoom && Number.isFinite(parsedId),
     onError: (error) => {
       toast.error(t("detail.collaborationFailed"), {
@@ -408,7 +410,7 @@ export const DocumentDetailPage = () => {
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
       // The community rides in the path (`/c/{communityId}/`) — community context is per-tab
       // from the URL; the page required entering this document's community.
-      const url = `${baseUrl}/c/${activeCommunityIdRef.current}/documents/${pending.documentId}`;
+      const url = `${baseUrl}/c/${activeCommunityIdRef.current}/${toolRouteSegment(Tool.document)}/${pending.documentId}`;
       fetch(url, {
         method: "PATCH",
         headers: {

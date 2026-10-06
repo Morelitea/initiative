@@ -76,16 +76,15 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 class ResourceAccessConfig:
     """How one tool is loaded, and what it says when it refuses.
 
-    Only the two things that are genuinely per-tool are stored: the function
-    that loads a row, and the path segment it is addressed by. Every refusal is
-    derived from ``tool``, so each tool has the full set and none of them can be
-    written out by hand.
+    Only the function that loads a row is genuinely per-tool. The path
+    parameter a row is addressed by and every refusal are derived from
+    ``tool``, so each tool has the full set and none of them can be written out
+    by hand.
     """
 
     tool: Tool
     #: async (session, id) -> row | None
     loader: Callable[..., Awaitable[Any]]
-    path_param: str
     #: async (session, id) -> row | None, for a handler that also *serializes*
     #: the row it authorized: the eager loads a read response reads off it.
     #: ``None`` where ``loader`` already carries them, which is most tools —
@@ -93,6 +92,13 @@ class ResourceAccessConfig:
     #: needs, and loading that on every gate check would cost every caller a
     #: handful of queries none of them reads.
     hydrated_loader: Optional[Callable[..., Awaitable[Any]]] = None
+    #: A path parameter that differs from ``<tool>_id``.
+    id_param: Optional[str] = None
+
+    @property
+    def path_param(self) -> str:
+        """The path parameter a row is addressed by."""
+        return self.id_param or f"{self.tool.value}_id"
 
     @property
     def dac_kind(self) -> Tool:
@@ -121,30 +127,25 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.project: ResourceAccessConfig(
         Tool.project,
         project_grants.get_project,
-        "project_id",
         hydrated_loader=project_grants.get_project_hydrated,
     ),
     Tool.document: ResourceAccessConfig(
         Tool.document,
         documents_service.get_document_for_grants,
-        "document_id",
         hydrated_loader=documents_service.get_document_hydrated,
     ),
-    Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue, "queue_id"),
+    Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue),
+    # Counter group routes name their row ``group_id``.
     Tool.counter_group: ResourceAccessConfig(
-        Tool.counter_group, counters_service.get_counter_group, "group_id"
+        Tool.counter_group, counters_service.get_counter_group, id_param="group_id"
     ),
-    Tool.calendar: ResourceAccessConfig(
-        Tool.calendar, calendars_service.get_calendar, "calendar_id"
-    ),
+    Tool.calendar: ResourceAccessConfig(Tool.calendar, calendars_service.get_calendar),
     Tool.dashboard: ResourceAccessConfig(
-        Tool.dashboard, dashboards_service.get_dashboard, "dashboard_id"
+        Tool.dashboard, dashboards_service.get_dashboard
     ),
-    Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post, "post_id"),
-    Tool.gallery: ResourceAccessConfig(
-        Tool.gallery, galleries_service.get_gallery, "gallery_id"
-    ),
-    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki, "wiki_id"),
+    Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post),
+    Tool.gallery: ResourceAccessConfig(Tool.gallery, galleries_service.get_gallery),
+    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki),
 }
 
 
