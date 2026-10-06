@@ -14,7 +14,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t
-from app.core.encryption import hash_email
+from app.core.encryption import hash_email, normalize_email
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services import email as email_service
@@ -121,9 +121,7 @@ async def test_adding_an_address_somebody_holds_says_the_same_thing(
     assert taken.json() == free.json()
 
     # The asker gained the free address and not the taken one.
-    asker_holds = {
-        addresses.normalize(i["email"]) for i in await _listing(client, other)
-    }
+    asker_holds = {normalize_email(i["email"]) for i in await _listing(client, other)}
     assert asker_holds == {"asker@example.com", "untaken@example.com"}
 
     # And the taken address is still where it was.

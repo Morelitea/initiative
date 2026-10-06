@@ -150,7 +150,7 @@ async def lift(session: AsyncSession, user_id: int) -> bool:
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
     for address in await addresses.proven_addresses(session, user_id=user_id):
         try:
-            await SIGN_IN_FAILURES.clear(addresses.normalize(address))
+            await SIGN_IN_FAILURES.clear(address)
         except Exception:
             # The count lapses at the end of its window anyway; the lift and
             # whatever the caller commits with it go ahead without it.

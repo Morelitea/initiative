@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 from typing import Any, Literal
 
 import httpx
@@ -20,7 +19,7 @@ from app.api.v1.platform_endpoints.operator import (
 )
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
-from app.core.config import API_V1_STR, DEFAULT_OIDC_SCOPES
+from app.core.config import DEFAULT_OIDC_SCOPES
 from app.core.config import settings as app_config
 from app.core.intake import IntakeStream
 from app.db.query import build_paginated_response, paginated_query
@@ -85,6 +84,7 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
+from app.services.auth import provider_registry
 from app.core.login_methods import (
     FACTOR_METHODS,
     PRIMARY_LOGIN_METHODS,
@@ -98,7 +98,7 @@ from app.services import captcha as captcha_service
 from app.services.captcha_config import ResolvedCaptchaConfig
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
-from app.services.platform import guild_purge
+from app.services.platform.retention import COMMUNITY_DELETION
 from app.services.platform import guilds as guilds_service
 from app.services.platform.intake import stream_is_bound
 from app.services import audit as audit_service
@@ -121,14 +121,6 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
 
 
 router = APIRouter()
-
-
-def _backend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}{API_V1_STR}/auth/oidc/callback"
-
-
-def _frontend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
 def _email_settings_payload(
@@ -157,8 +149,10 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
         enabled=provider.enabled if provider else False,
         issuer=provider.issuer if provider else None,
         client_id=provider.client_id if provider else None,
-        redirect_uri=_backend_redirect_uri(),
-        post_login_redirect=_frontend_redirect_uri(),
+        redirect_uri=provider_registry.provider_callback_url(
+            platform_provider_service.PLATFORM_OIDC_SLUG
+        ),
+        post_login_redirect=provider_registry.frontend_callback_url(),
         mobile_redirect_uri=MOBILE_CALLBACK_URI,
         provider_name=provider.display_name if provider else None,
         scopes=platform_provider_service.scopes_list(provider)
@@ -797,28 +791,13 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
-def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
-    """When this guild is destroyed, or None if nothing will destroy it.
-
-    ``status_changed_at`` is the deletion time for a deleted guild, so the date
-    is derived from the columns already loaded rather than stored. ``retention``
-    is the deployment's window; None there means it keeps deleted communities,
-    and a community that is never destroyed has no date to show.
-    """
-    if guild.status != CommunityStatus.deleted.value or guild.status_changed_at is None:
-        return None
-    if retention is None:
-        return None
-    return guild_purge.purge_at(guild.status_changed_at, retention)
-
-
 def _guild_storage_read(
     guild: Guild,
     administration: GuildAdministration | None,
     *,
     member_count: int,
     has_seat: bool,
-    retention: int | None,
+    deployment: AppSetting,
 ) -> PlatformCommunityStorageRead:
     """One row of the Guilds tab.
 
@@ -831,7 +810,7 @@ def _guild_storage_read(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
-        purge_at=_guild_purge_at(guild, retention),
+        purge_at=COMMUNITY_DELETION.ends_at(guild, deployment),
         has_seat=has_seat,
         tier_name=administration.tier_name if administration else None,
         max_storage_bytes=(
@@ -935,7 +914,7 @@ async def list_platform_community_storage(
         page=page,
         page_size=page_size,
     )
-    retention = await guild_purge.retention_days(session)
+    deployment = await app_settings_service.get_app_settings(session)
     counts, seated = await _member_tallies([g.id for g, _ in rows])
     items = [
         _guild_storage_read(
@@ -943,7 +922,7 @@ async def list_platform_community_storage(
             administration,
             member_count=counts.get(g.id, 0),
             has_seat=g.id in seated,
-            retention=retention,
+            deployment=deployment,
         )
         for g, administration in rows
     ]
@@ -1096,7 +1075,7 @@ async def update_platform_community_storage(
         administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
-        retention=await guild_purge.retention_days(session),
+        deployment=await app_settings_service.get_app_settings(session),
     )
 
 
@@ -1209,7 +1188,7 @@ async def restore_platform_community(
         administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
-        retention=await guild_purge.retention_days(session),
+        deployment=await app_settings_service.get_app_settings(session),
     )
 
 

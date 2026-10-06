@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { OperatorUserRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  OperatorDeletionEligibilityResponse,
+  OperatorUserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import { OperatorDeleteUserDialog } from "./OperatorDeleteUserDialog";
 
@@ -19,22 +22,16 @@ const targetUser: OperatorUserRead = {
   api_key_count: 0,
 };
 
-const eligibilityWithCommunityBlocker = {
+const eligibilityWithCommunityBlocker: OperatorDeletionEligibilityResponse = {
   can_delete: false,
-  blockers: ["Only superadmin of community Lone Community"],
-  warnings: [],
-  owned_projects: [],
+  last_owner: false,
   community_blockers: [{ community_id: 77, community_name: "Lone Community" }],
-  initiative_blockers: [],
 };
 
-const eligibilityClear = {
+const eligibilityClear: OperatorDeletionEligibilityResponse = {
   can_delete: true,
-  blockers: [],
-  warnings: [],
-  owned_projects: [],
+  last_owner: false,
   community_blockers: [],
-  initiative_blockers: [],
 };
 
 describe("OperatorDeleteUserDialog community blocker resolution", () => {
@@ -80,5 +77,6 @@ describe("OperatorDeleteUserDialog community blocker resolution", () => {
       expect(screen.queryByRole("button", { name: /check again/i })).not.toBeInTheDocument()
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Type\s+USER-\d+\s+to confirm/)).toBeInTheDocument();
   });
 });

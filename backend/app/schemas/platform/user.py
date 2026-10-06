@@ -920,9 +920,10 @@ class DeletionEligibilityResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_delete: bool
-    blockers: List[str] = Field(default_factory=list)
-    #: Communities this account holds the only superadmin seat of — the one
-    #: thing that blocks deletion, and what the dialog offers to delete.
+    #: The account is the last active platform owner; another is promoted first.
+    last_owner: bool = False
+    #: Communities this account holds the only superadmin seat of, which the
+    #: dialog offers to delete.
     sole_superadmin_communities: List[str] = Field(
         default_factory=list,
         validation_alias=AliasChoices(

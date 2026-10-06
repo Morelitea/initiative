@@ -33,7 +33,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import Channel, NotificationCategory
 from app.core.email_i18n import email_t
-from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field, hash_email
+from app.core.encryption import (
+    SALT_EMAIL,
+    decrypt_field,
+    encrypt_field,
+    hash_email,
+    normalize_email,
+)
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
@@ -546,7 +552,7 @@ async def _answer_link(
     link is held to when it is used: the address encrypted, as every stored
     address is, rather than as a hash of a key that may be rotated.
     """
-    digest = hash_email(addresses.normalize(recipient))
+    digest = hash_email(recipient)
     held = (
         await session.exec(
             select(UserEmail).where(
@@ -559,7 +565,7 @@ async def _answer_link(
     removed = account_changes.removed_address(change)
     if held is not None:
         proved_at, removed_copy = held.verified_at, False
-    elif removed is not None and hash_email(addresses.normalize(removed)) == digest:
+    elif removed is not None and hash_email(removed) == digest:
         proved_at = datetime.fromisoformat(change["undo"]["proved_at"])
         removed_copy = True
     else:
@@ -576,7 +582,7 @@ async def _answer_link(
         expires_minutes=ANSWER_LINK_MINUTES,
         change={
             **change,
-            "recipient": encrypt_field(addresses.normalize(recipient), SALT_EMAIL),
+            "recipient": encrypt_field(normalize_email(recipient), SALT_EMAIL),
             "recipient_proved_at": proved_at.isoformat() if proved_at else None,
             "removed_copy": removed_copy,
             "may_undo": may_undo,

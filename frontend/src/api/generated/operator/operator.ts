@@ -1421,10 +1421,10 @@ export const useUpdatePlatformRole = <TError = ErrorType<HTTPValidationError>, T
 /**
  * Check if a user can be deleted (``users.delete``).
  *
- * Returns the blockers: the communities the user holds the only superadmin
- * seat of. That is the only one: owning content does not stop a deletion,
- * because ownership is released on the way out and the content is left
- * unowned for a guild admin to claim.
+ * Returns the blockers ``delete_user`` refuses on: being the last platform
+ * owner, and the communities the user holds the only superadmin seat of.
+ * Owning content does not stop a deletion, because ownership is released on
+ * the way out and the content is left unowned for a guild admin to claim.
  * @summary Check User Deletion Eligibility
  */
 export const checkUserDeletionEligibility = (

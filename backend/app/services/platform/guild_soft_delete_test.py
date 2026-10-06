@@ -9,10 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
+from app.core.audit_events import AuditEventType
 from app.core.messages import GuildMessages
 from app.models.platform.app_setting import (
     DEFAULT_GUILD_RETENTION_DAYS,
@@ -31,6 +32,7 @@ from app.services import email as email_service
 from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
 from app.services.platform.identity_refs import billing_guild_ref, existing_ref
+from app.testing import emitted
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -179,19 +181,15 @@ async def test_deleting_the_community_unblocks_deleting_the_account(
     holder, guild = await _seated_guild(session)
     await create_guild_membership(session, user=await create_user(session), guild=guild)
 
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, holder.id
-    )
-    assert can_delete is False and blockers, "precondition: the seat blocks"
+    assert await users_service.is_last_guild_superadmin(session, holder.id) == [
+        guild.name
+    ], "precondition: the seat blocks"
 
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
     await guilds_service.soft_delete_guild(session, row, actor_user_id=holder.id)
     await session.commit()
 
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, holder.id
-    )
-    assert can_delete is True, blockers
+    assert await users_service.is_last_guild_superadmin(session, holder.id) == []
 
 
 # ── Restore ─────────────────────────────────────────────────────────────────
@@ -285,8 +283,8 @@ async def test_the_purge_is_what_drops_billings_name(
 
     await guild_purge.purge_due_guilds(
         session,
-        now=guild_purge.purge_at(row.status_changed_at, DEFAULT_GUILD_RETENTION_DAYS)
-        + timedelta(minutes=1),
+        now=row.status_changed_at
+        + timedelta(days=DEFAULT_GUILD_RETENTION_DAYS, minutes=1),
     )
 
     assert await _billing_ref(guild.id) is None
@@ -391,44 +389,79 @@ async def test_the_status_control_cannot_delete_a_community(
 
 
 async def test_the_purge_waits_out_the_whole_window(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd, monkeypatch
 ):
+    """Nothing is destroyed a minute early. Each due community is then
+    destroyed on its own and recorded once: one whose destruction fails is left
+    for the next pass while the one behind it goes, and one another sweep holds
+    is left to that sweep."""
+    from app.db.session import SystemSessionLocal
+
     admin, guild = await _seated_guild(session)
     await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+    other_admin, other = await _seated_guild(session)
+    await _delete_via_danger_zone(
+        client, guild=other, headers=get_auth_headers(other_admin)
+    )
+    guild_id, other_id = guild.id, other.id
     session.expunge_all()
 
-    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
     deleted_at = row.status_changed_at
     assert deleted_at is not None
-    assert guild_purge.purge_at(
-        deleted_at, DEFAULT_GUILD_RETENTION_DAYS
-    ) == deleted_at + timedelta(days=DEFAULT_GUILD_RETENTION_DAYS)
 
     session.expunge_all()
     assert (
         await guild_purge.purge_due_guilds(
             session,
-            now=guild_purge.purge_at(deleted_at, DEFAULT_GUILD_RETENTION_DAYS)
+            now=deleted_at
+            + timedelta(days=DEFAULT_GUILD_RETENTION_DAYS)
             - timedelta(minutes=1),
         )
         == 0
     )
     assert (
-        await session.exec(select(Guild).where(Guild.id == guild.id))
+        await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none() is not None
 
-    session.expunge_all()
-    assert (
-        await guild_purge.purge_due_guilds(
-            session,
-            now=guild_purge.purge_at(deleted_at, DEFAULT_GUILD_RETENTION_DAYS)
-            + timedelta(minutes=1),
-        )
-        == 1
+    later = datetime.now(timezone.utc) + timedelta(
+        days=DEFAULT_GUILD_RETENTION_DAYS, minutes=1
     )
+    destroy = guild_purge._destroy
+
+    async def _first_fails(session, row, days):
+        if row.id == guild_id:
+            raise RuntimeError("destroying failed")
+        await destroy(session, row, days)
+
+    monkeypatch.setattr(guild_purge, "_destroy", _first_fails)
+    capfd.readouterr()
+    session.expunge_all()
+    assert await guild_purge.purge_due_guilds(session, now=later) == 1
+    monkeypatch.setattr(guild_purge, "_destroy", destroy)
+    remaining = (
+        await session.exec(
+            select(Guild.id).where(col(Guild.id).in_([guild_id, other_id]))
+        )
+    ).all()
+    assert list(remaining) == [guild_id]
+
+    async with SystemSessionLocal() as other_sweep:
+        await other_sweep.exec(
+            select(Guild.id).where(Guild.id == guild_id).with_for_update()
+        )
+        assert await guild_purge.purge_due_guilds(session, now=later) == 0
+        await other_sweep.rollback()
+
+    session.expunge_all()
+    assert await guild_purge.purge_due_guilds(session, now=later) == 1
+    session.expunge_all()
+    assert await guild_purge.purge_due_guilds(session, now=later) == 0
     assert (
-        await session.exec(select(Guild).where(Guild.id == guild.id))
+        await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none() is None
+    purged = [row["guild_id"] for row in emitted(capfd, AuditEventType.GUILD_PURGED)]
+    assert sorted(purged) == sorted([guild_id, other_id])
 
 
 async def test_the_window_is_the_deployments_to_set(
@@ -665,7 +698,7 @@ async def test_a_hold_waits_out_its_whole_window(session: AsyncSession):
     guild_id = guild.id
     held_at = datetime.now(timezone.utc) - timedelta(days=1)
     await _hold_since(session, guild_id, held_at)
-    deletes_at = guild_purge.hold_deletes_at(held_at, DEFAULT_HOLD_DELETION_DAYS)
+    deletes_at = held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)
 
     assert (
         await guild_purge.delete_expired_holds(
