@@ -981,3 +981,20 @@ def test_a_minimum_age_is_kept_as_declared(validator):
     assert list(validator.iter_errors(manifest)) == []
     stored = normalize_listing_definition("plugin", manifest)
     assert stored["minimum_age"] == {"default": 16, "US": 13, "FR": 15}
+
+
+@pytest.mark.parametrize("min_plugin_api", ["4", "4.2.0", "v4.2", "4.x", "", 4.2])
+def test_a_min_plugin_api_is_major_minor(min_plugin_api, validator):
+    """The oldest contract a plug-in needs is ``MAJOR.MINOR``; anything else is
+    refused by the schema and the platform alike."""
+    manifest = _manifest(min_plugin_api=min_plugin_api)
+    assert list(validator.iter_errors(manifest)) != []
+    with pytest.raises(ValueError):
+        platform_accepts(manifest)
+
+
+def test_a_min_plugin_api_is_kept_as_declared(validator):
+    manifest = _manifest(min_plugin_api="4.2")
+    assert list(validator.iter_errors(manifest)) == []
+    stored = normalize_listing_definition("plugin", manifest)
+    assert stored["min_plugin_api"] == "4.2"

@@ -115,6 +115,11 @@
       },
       "description": "How old somebody must be to use this plug-in, by where they are. Keys are ISO 3166-1 alpha-2 country codes, upper case, and 'default' for every country not listed: {\"default\": 16, \"US\": 13}. The age of digital consent differs by country, inside the EU as well as outside it, which is why a region is a country rather than a regime. Absent, or a country with no entry and no 'default': the deployment's own minimum applies. A declaration, not a gate: whether a deployment enforces it, and how it learns somebody's age and country, are its decisions. At most 64 entries, each from 13 to 21."
     },
+    "min_plugin_api": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "The oldest plug-in API contract this plug-in needs, as 'MAJOR.MINOR': '4.1'. The contract is the plug-in API published with initiative-plugin-sdk, versioned as that package is. A deployment serving contract S can run it when S has the same major version and a minor version at least this one's. Absent: any contract; the plug-in makes no claim. Beside a listing's min_app_version, the oldest Initiative release it runs on, this says what the plug-in calls rather than which release serves it."
+    },
     "hosts": {
       "type": "array",
       "minItems": 1,
