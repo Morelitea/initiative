@@ -1,8 +1,8 @@
 """Writing down what was done.
 
 One function. A call site is a single line, and adding a newly-audited action
-is that line plus an ``AuditEventType`` member and its metadata row — there is
-no second place to register anything.
+is that line plus an ``AuditEventType`` member, which carries its own metadata —
+there is no second place to register anything.
 
 The record is one JSON line on the ``audit`` logger, written after the
 transaction that performed the action commits, so the line and the action
@@ -37,9 +37,7 @@ from app.core.audit_events import (
     SCHEMA_VERSION,
     SERVICE,
     AuditCategory,
-    AuditEventMeta,
     AuditEventType,
-    meta_for,
 )
 
 audit_logger = logging.getLogger("audit")
@@ -66,7 +64,7 @@ def _within(txn: SessionTransaction | None, ancestor: SessionTransaction) -> boo
     return False
 
 
-def _identifies_the_caller(meta: AuditEventMeta) -> bool:
+def _identifies_the_caller(event_type: AuditEventType) -> bool:
     """Whether this event's line carries where the request came from.
 
     Two families need it: getting in, and reaching past the communities you
@@ -75,7 +73,7 @@ def _identifies_the_caller(meta: AuditEventMeta) -> bool:
     against. Somebody making a file in their own community is not either
     of those, and their line carries the request id alone.
     """
-    return meta.category is AuditCategory.AUTHENTICATION or meta.tier == 1
+    return event_type.category is AuditCategory.AUTHENTICATION or event_type.tier == 1
 
 
 def _write(envelope: dict[str, Any]) -> None:
@@ -198,7 +196,6 @@ def _envelope(
     The request context is read here rather than when the line goes out, so a
     record staged now and committed later says where it came from.
     """
-    meta = meta_for(event_type)
     return {
         # The key a collector routes on: this line is the audit stream, and
         # the application's own logs are not.
@@ -215,10 +212,12 @@ def _envelope(
         "target": (
             {"type": target_type, "id": target_id} if target_type is not None else None
         ),
-        "tier": meta.tier,
-        "category": meta.category.value,
-        "is_write": meta.is_write,
-        "context": audit_context.envelope_context(caller=_identifies_the_caller(meta)),
+        "tier": event_type.tier,
+        "category": event_type.category.value,
+        "is_write": event_type.is_write,
+        "context": audit_context.envelope_context(
+            caller=_identifies_the_caller(event_type)
+        ),
         "detail": detail or {},
     }
 

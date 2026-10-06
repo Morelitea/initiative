@@ -9,7 +9,6 @@ from app.core.audit_events import (
     SERVICE,
     AuditCategory,
     AuditEventType,
-    meta_for,
 )
 from app.core.logging_config import configure_logging
 from app.services import audit as audit_service
@@ -200,7 +199,7 @@ def test_snapshot_reads_the_named_attributes():
 def test_getting_in_and_reaching_in_say_where_from(event_type):
     """A sign-in and a privileged reach are the two the address is part of
     the answer to."""
-    assert audit_service._identifies_the_caller(meta_for(event_type))
+    assert audit_service._identifies_the_caller(event_type)
 
 
 @pytest.mark.parametrize(
@@ -217,7 +216,7 @@ def test_getting_in_and_reaching_in_say_where_from(event_type):
 def test_everything_else_leaves_the_person_out_of_it(event_type):
     """Somebody working in their own community is recorded as who and what,
     not as where they were sitting."""
-    assert not audit_service._identifies_the_caller(meta_for(event_type))
+    assert not audit_service._identifies_the_caller(event_type)
 
 
 async def test_a_members_own_work_carries_the_request_and_no_address(session, capfd):

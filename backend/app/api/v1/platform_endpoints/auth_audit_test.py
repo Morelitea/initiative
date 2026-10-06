@@ -17,7 +17,7 @@ from app.api.v1.platform_endpoints.auth_test import (
     _run_oidc_flow,
     _wire_fake_idp,
 )
-from app.core.audit_events import AuditCategory, AuditEventType, meta_for
+from app.core.audit_events import AuditCategory, AuditEventType
 from app.models.platform.user import UserStatus
 from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
@@ -43,7 +43,7 @@ async def test_a_sign_in_is_recorded_with_its_method(
     rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
     assert [r["actor_user_id"] for r in rows] == [user_id]
     assert rows[0]["detail"] == {"method": "password"}
-    assert rows[0]["tier"] == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
+    assert rows[0]["tier"] == AuditEventType.AUTH_SIGNED_IN.tier
 
 
 async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
@@ -181,7 +181,7 @@ async def test_every_auth_event_is_filed_under_authentication():
     auth_events = [e for e in AuditEventType if e.value.startswith("auth.")]
     assert auth_events
     for event_type in auth_events:
-        assert meta_for(event_type).category is AuditCategory.AUTHENTICATION
+        assert event_type.category is AuditCategory.AUTHENTICATION
 
 
 async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
