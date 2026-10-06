@@ -39,6 +39,7 @@ from sqlalchemy.orm import defer, selectinload, undefer
 from app.core.messages import WikiMessages
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.permissions import with_tool
+from app.services.tenant import comments as comments_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
@@ -55,26 +56,38 @@ def list_loader_options() -> list:
     ]
 
 
-def wiki_loader_options() -> list:
-    """Eager-load everything wiki serialization + authorization needs."""
-    return list_loader_options()
-
-
 async def get_wiki(
     session: AsyncSession,
     wiki_id: int,
     *,
     populate_existing: bool = False,
 ) -> Wiki | None:
-    """Fetch a wiki with the relationships authorization + serialization need.
-    RLS scopes the row to the request's guild."""
-    statement = select(Wiki).where(Wiki.id == wiki_id).options(*wiki_loader_options())
-    if populate_existing:
-        statement = statement.execution_options(populate_existing=True)
-    wiki = (await session.exec(statement)).one_or_none()
+    """Fetch a wiki as a list row carries it: what authorizing it and the
+    grant flow read. RLS scopes the row to the request's guild."""
+    statement = (
+        select(Wiki)
+        .where(Wiki.id == wiki_id)
+        .options(*list_loader_options())
+        .execution_options(populate_existing=populate_existing)
+    )
+    return (await session.exec(statement)).one_or_none()
+
+
+async def get_wiki_hydrated(
+    session: AsyncSession,
+    wiki_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Wiki | None:
+    """:func:`get_wiki` plus what a serialized ``WikiRead`` carries beyond its
+    columns: its tags, properties and comment count."""
+    wiki = await get_wiki(session, wiki_id, populate_existing=populate_existing)
     if wiki is not None:
         await tags_service.annotate_tags(session, [wiki])
         await properties_service.annotate_properties(session, [wiki])
+        await comments_service.annotate_comment_counts(
+            session, [wiki], column="wiki_id"
+        )
     return wiki
 
 
@@ -208,18 +221,14 @@ def _placement(wiki: Wiki, document_id: int) -> tuple[int, int | None]:
     return _read_placement((wiki.document_positions or {}).get(str(document_id)))
 
 
-def _document_position(wiki: Wiki, document: Any) -> int:
-    """Where this wiki puts this document, or the end if it has not said."""
-    return _placement(wiki, document.id)[0]
-
-
 def document_parent(wiki: Wiki, document_id: int) -> int | None:
     """The page this wiki files the document under, or ``None`` for the top."""
     return _placement(wiki, document_id)[1]
 
 
 def document_position(wiki: Wiki, document_id: int) -> int:
-    """Where among its siblings this wiki puts the document."""
+    """Where among its siblings this wiki puts the document, or the end if it
+    has not said."""
     return _placement(wiki, document_id)[0]
 
 
@@ -256,7 +265,7 @@ def _sort_key(wiki: Wiki, item: Any, page_order: WikiPageOrder):
         # Negated rather than reversed: the whole list sorts one way, and
         # "recently updated" means the newest first.
         return (-item.updated_at.timestamp(), -item.id)
-    position = item.position if is_page else _document_position(wiki, item)
+    position = item.position if is_page else document_position(wiki, item.id)
     # Ties are ordinary: positions are sparse and a page arrives at 0 before
     # anybody drags anything. Broken by arrival — pages first, then the
     # documents borrowed in — rather than by name, so a list somebody has not

@@ -35,7 +35,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.schemas.tenant.gallery import GalleryCover, gallery_cover
 from app.services.permissions import with_tool
+from app.services.tenant import comments as comments_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -159,7 +161,7 @@ def render_thumbnail(contents: bytes) -> Thumbnail | None:
 
 def list_loader_options() -> list:
     """Eager-load what a gallery *list* row needs: its sharing, the level the
-    request holds on it, its tags, and the cover it chose."""
+    request holds on it, and the cover it chose."""
     return [
         selectinload(Gallery.grants),
         selectinload(Gallery.initiative),
@@ -168,13 +170,8 @@ def list_loader_options() -> list:
     ]
 
 
-def gallery_loader_options() -> list:
-    """Eager-load everything gallery serialization + authorization needs."""
-    return list_loader_options()
-
-
 def image_loader_options() -> list:
-    """Eager-load what a picture needs to be drawn: who uploaded it, its tags."""
+    """Eager-load what a picture needs to be drawn: who uploaded it."""
     return [
         selectinload(GalleryImage.uploader),
     ]
@@ -210,20 +207,34 @@ async def get_gallery(
     *,
     populate_existing: bool = False,
 ) -> Gallery | None:
-    """Fetch a gallery with the relationships authorization + serialization
-    need. RLS scopes the row to the request's guild."""
+    """Fetch a gallery as a list row carries it: what authorizing it and the
+    grant flow read. RLS scopes the row to the request's guild."""
     stmt = (
         select(Gallery)
         .where(Gallery.id == gallery_id)
-        .options(*gallery_loader_options())
+        .options(*list_loader_options())
+        .execution_options(populate_existing=populate_existing)
     )
-    if populate_existing:
-        stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    gallery = result.one_or_none()
+    return (await session.exec(stmt)).one_or_none()
+
+
+async def get_gallery_hydrated(
+    session: AsyncSession,
+    gallery_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Gallery | None:
+    """:func:`get_gallery` plus what a serialized ``GalleryRead`` carries
+    beyond its columns: its tags, properties and comment count."""
+    gallery = await get_gallery(
+        session, gallery_id, populate_existing=populate_existing
+    )
     if gallery is not None:
         await tags_service.annotate_tags(session, [gallery])
         await properties_service.annotate_properties(session, [gallery])
+        await comments_service.annotate_comment_counts(
+            session, [gallery], column="gallery_id"
+        )
     return gallery
 
 
@@ -259,46 +270,45 @@ async def get_image(
 PREVIEW_COUNT = 4
 
 
-async def annotate_covers(session: AsyncSession, rows: Sequence[Gallery]) -> None:
-    """Stamp ``_cover`` and ``_preview`` on each gallery.
-
-    ``_cover`` is the chosen picture. ``_preview`` is the newest few — what a
-    list draws as a small grid for a gallery nobody has chosen a cover for,
-    which is most of them: a wall of forty says what it is better than any one
-    of the forty would.
+async def list_previews(
+    session: AsyncSession, galleries: Sequence[Gallery]
+) -> dict[int, list[GalleryCover]]:
+    """The newest few pictures of every gallery on a list's page, which its
+    card draws as a small grid where nobody chose a cover: a wall of forty
+    says what it is better than any one of the forty would.
 
     One query for the page: a window over each gallery's pictures, newest
-    first, cut at :data:`PREVIEW_COUNT`. A chosen cover that has since been
-    trashed reads as no choice at all, because the relationship is loaded
-    under the soft-delete filter and comes back empty.
+    first, cut at :data:`PREVIEW_COUNT`.
     """
-    ids = [g.id for g in rows if g.id is not None]
-    by_gallery: dict[int, list[GalleryImage]] = {}
-    if ids:
-        ranked = (
-            select(
-                GalleryImage,
-                func.row_number()
-                .over(
-                    partition_by=GalleryImage.gallery_id,
-                    order_by=(GalleryImage.created_at.desc(), GalleryImage.id.desc()),
-                )
-                .label("rank"),
+    previews: dict[int, list[GalleryCover]] = {
+        gallery.id: [] for gallery in galleries if gallery.id is not None
+    }
+    if not previews:
+        return previews
+    ranked = (
+        select(
+            GalleryImage,
+            func.row_number()
+            .over(
+                partition_by=GalleryImage.gallery_id,
+                order_by=(GalleryImage.created_at.desc(), GalleryImage.id.desc()),
             )
-            .where(GalleryImage.gallery_id.in_(tuple(ids)))
-            .subquery()
+            .label("rank"),
         )
-        image_alias = aliased(GalleryImage, ranked)
-        newest = (
-            select(image_alias)
-            .where(ranked.c.rank <= PREVIEW_COUNT)
-            .order_by(ranked.c.gallery_id, ranked.c.rank)
-        )
-        for image in (await session.exec(newest)).all():
-            by_gallery.setdefault(image.gallery_id, []).append(image)
-    for gallery in rows:
-        object.__setattr__(gallery, "_cover", gallery.cover_image)
-        object.__setattr__(gallery, "_preview", by_gallery.get(gallery.id, []))
+        .where(GalleryImage.gallery_id.in_(tuple(previews)))
+        .subquery()
+    )
+    image_alias = aliased(GalleryImage, ranked)
+    newest = (
+        select(image_alias)
+        .where(ranked.c.rank <= PREVIEW_COUNT)
+        .order_by(ranked.c.gallery_id, ranked.c.rank)
+    )
+    for image in (await session.exec(newest)).all():
+        cover = gallery_cover(image)
+        if cover is not None:
+            previews[image.gallery_id].append(cover)
+    return previews
 
 
 async def annotate_version_counts(

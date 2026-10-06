@@ -106,8 +106,8 @@ export const useDuplicateWikiPage = (
  * changes is what the wiki contains — which is why both invalidate the page
  * list, and nothing belonging to the document itself.
  */
-export const useAddWikiDocument = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
-  useCommunityMutation<WikiPageTree, number>(
+export const useAddWikiDocument = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useCommunityMutation<void, number>(
     {
       mutationFn: (communityId, documentId) => addDocumentToWiki(communityId, wikiId, documentId),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
@@ -168,9 +168,9 @@ export type MoveWikiDocumentVars = WikiPageMove & { documentId: number };
  *  the wiki records where it put it, and the document is not touched. */
 export const useMoveWikiDocument = (
   wikiId: number,
-  options?: MutationOpts<WikiPageTree, MoveWikiDocumentVars>
+  options?: MutationOpts<void, MoveWikiDocumentVars>
 ) =>
-  useCommunityMutation<WikiPageTree, MoveWikiDocumentVars>(
+  useCommunityMutation<void, MoveWikiDocumentVars>(
     {
       mutationFn: (communityId, { documentId, ...move }) =>
         moveWikiDocument(communityId, wikiId, documentId, move),
