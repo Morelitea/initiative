@@ -181,6 +181,7 @@
   "OPERATOR_USE_SELF_DELETION": "Utilisez la page des paramètres du compte pour supprimer votre propre compte",
   "OPERATOR_CANNOT_DELETE_SELF": "Utilisez les paramètres de votre compte pour supprimer votre propre compte.",
   "OPERATOR_USER_CANNOT_BE_DELETED": "L'utilisateur ne peut pas être supprimé",
+  "USER_CANNOT_REMOVE_LAST_OWNER": "C'est le dernier propriétaire de la plateforme, et la plateforme en garde toujours un. Nommez d'abord un autre propriétaire.",
   "USER_INVALID_PASSWORD": "Mot de passe invalide",
   "USER_CURRENT_PASSWORD_REQUIRED": "Saisissez votre mot de passe actuel pour le modifier.",
   "USER_CURRENT_PASSWORD_INCORRECT": "Votre mot de passe actuel est incorrect.",

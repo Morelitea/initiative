@@ -183,6 +183,7 @@
   "OPERATOR_USE_SELF_DELETION": "Use the account settings page to delete your own account",
   "OPERATOR_CANNOT_DELETE_SELF": "Use your account settings to delete your own account.",
   "OPERATOR_USER_CANNOT_BE_DELETED": "User cannot be deleted",
+  "USER_CANNOT_REMOVE_LAST_OWNER": "This is the platform's last owner, and the platform keeps one. Make someone else an owner first.",
   "USER_INVALID_PASSWORD": "Invalid password",
   "USER_CURRENT_PASSWORD_REQUIRED": "Enter your current password to change it.",
   "USER_CURRENT_PASSWORD_INCORRECT": "Your current password is incorrect.",

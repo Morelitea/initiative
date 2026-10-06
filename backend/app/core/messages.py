@@ -679,6 +679,8 @@ class PasswordMessages:
 
 
 class UserMessages:
+    #: The change would leave the platform with nobody who can configure it.
+    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
