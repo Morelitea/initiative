@@ -1084,8 +1084,7 @@ class Settings(BaseSettings):
     # behind Cloudflare. Read to apply a plug-in's minimum age for where
     # somebody is; never stored. Unset (the default), or a value that is not a
     # country, means "not known", and a plug-in's highest declared age applies.
-    # Only set it when every request reaches the app through that proxy, or a
-    # client could name its own country.
+    # Only set it when every request reaches the app through that proxy.
     CLIENT_COUNTRY_HEADER: str | None = None
 
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to

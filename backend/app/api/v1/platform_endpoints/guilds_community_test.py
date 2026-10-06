@@ -1536,3 +1536,65 @@ async def test_lifting_a_block_that_is_not_there_says_so(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_AGE_NOT_BLOCKED"
+
+
+async def test_a_reset_adult_answering_under_age_is_not_still_confirmed(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The reset starts the question over: an old confirmation left standing
+    would admit somebody whose new answer is under the minimum."""
+    subject = await acting_user("member", age_confirmed_at=None)
+    support = await acting_user(UserRole.support)
+    await client.post(
+        "/api/v1/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=subject.headers,
+    )
+
+    lifted = await client.delete(
+        f"/api/v1/operator/users/{subject.user.id}/age-block", headers=support.headers
+    )
+    under = await client.post(
+        "/api/v1/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=subject.headers,
+    )
+
+    assert lifted.status_code == 200, lifted.text
+    assert under.status_code == 422
+    assert under.json()["detail"] == "USER_AGE_BELOW_MINIMUM"
+    await session.refresh(subject.user)
+    assert subject.user.age_confirmed_at is None
+    assert subject.user.age_below_minimum_at is not None
+
+
+async def test_a_date_that_failed_to_save_does_not_block_a_retry(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """The answer is committed before the date, so a date that never saved
+    leaves the question answerable rather than standing."""
+    from app.services.platform import users as users_service
+
+    a = await acting_user("member", age_confirmed_at=None)
+    kept = users_service.keep_birthdate
+
+    async def fails(*args, **kwargs):
+        raise RuntimeError("storage unavailable")
+
+    monkeypatch.setattr(users_service, "keep_birthdate", fails)
+    with pytest.raises(RuntimeError):
+        await client.post(
+            "/api/v1/me/age-confirmation",
+            json={"birthdate": ADULT_BIRTHDATE},
+            headers=a.headers,
+        )
+    monkeypatch.setattr(users_service, "keep_birthdate", kept)
+
+    retry = await client.post(
+        "/api/v1/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=a.headers,
+    )
+
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["birthdate_on_file"] is True

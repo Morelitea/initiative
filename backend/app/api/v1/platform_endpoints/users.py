@@ -1153,13 +1153,16 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
+    current_user.updated_at = datetime.now(timezone.utc)
+    session.add(current_user)
+    await session.commit()
+    # The date after the answer: a date kept is what refuses a second answer, so
+    # it must never be on file for an answer that was not. Failing here leaves
+    # the answer recorded and the date missing, and the person is asked again.
     await users_service.keep_birthdate(
         system_session, user_id=current_user.id, birthdate=payload.birthdate
     )
     await system_session.commit()
-    current_user.updated_at = datetime.now(timezone.utc)
-    session.add(current_user)
-    await session.commit()
     if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

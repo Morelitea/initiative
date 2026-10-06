@@ -778,8 +778,8 @@ async def clear_age_block(
     An answer stands — an under-age one, and any kept date of birth — and the
     question is not re-asked, otherwise it is not a question. This is the way
     back for the case that is nearly all of them: a mistyped year. It clears
-    the under-age record and the kept date, and nothing else; the account
-    answers again from scratch.
+    the under-age record, the confirmation and the kept date, and nothing
+    else; the account answers again from scratch.
 
     Gated on ``users.age_unblock``, which the support tier holds — the lowest
     rung, because getting somebody back into their account after a typo is
@@ -796,7 +796,10 @@ async def clear_age_block(
         )
 
     await users_service.forget_birthdate(session, user_id=user_id)
+    # From scratch means every record of the earlier answer: a confirmation left
+    # standing would admit somebody whose new answer is under the minimum.
     user.age_below_minimum_at = None
+    user.age_confirmed_at = None
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
 

@@ -56,7 +56,7 @@ The first time you join a listed community, you'll be asked your date of birth. 
 !!! info "It's about the community, not the button"
     Anyone signed in can find a listed community, so joining one asks your age however you got there — the directory, or an invite into it. If you were put in one without ever being asked, it asks the first time you open it. A community that hasn't listed itself never asks, whoever invites you. Initiative asks every account its date of birth once, so if you've already answered, joining asks nothing more.
 
-!!! info "The date isn't kept"
+!!! info "The date is kept encrypted"
     It's kept encrypted and used only to check age limits. It's never shown back to anyone, and it isn't sold or shared. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"

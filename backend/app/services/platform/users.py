@@ -1266,6 +1266,10 @@ def record_age_answer(user: User, birthdate: date) -> bool:
     check_birthdate(birthdate)
     if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
         user.age_below_minimum_at = datetime.now(timezone.utc)
+        # The two are the two answers to one question (``ck_users_age_answer``):
+        # an under-age answer replaces any confirmation rather than sitting
+        # beside it.
+        user.age_confirmed_at = None
         return False
     if user.age_confirmed_at is None:
         user.age_confirmed_at = datetime.now(timezone.utc)
