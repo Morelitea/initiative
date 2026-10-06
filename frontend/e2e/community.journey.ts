@@ -39,9 +39,25 @@ const made = { communityPath: "", initiativePath: "", projectId: "" };
 
 const next = (page: Page) => page.getByRole("button", { name: "Continue" }).click();
 
-/** The start flow from "About you" on: a handle, then the account. */
+/**
+ * The date of birth, typed into the picker. Every account is asked it once: a
+ * fresh install asks beside the handle, and an account that signs up without
+ * it meets a screen that asks before anything else.
+ */
+async function giveBirthdate(page: Page) {
+  const field = page.getByRole("button", { name: "Date of birth" });
+  await field.click();
+  const typed = page.getByRole("textbox", { name: "Type or pick a date" });
+  await typed.fill("1990-04-12");
+  await typed.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(field).toContainText("Apr 12, 1990");
+}
+
+/** The start flow from "About you" on: a handle and a birthday, then the account. */
 async function register(page: Page, person: typeof owner, between?: () => Promise<void>) {
   await page.getByLabel("Username").fill(person.username);
+  await giveBirthdate(page);
   // Continue opens once the handle has been checked.
   await next(page);
   await between?.();
