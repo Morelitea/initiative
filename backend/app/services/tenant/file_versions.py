@@ -132,9 +132,7 @@ def _new_version(session: AsyncSession, parent: Any, fields: dict[str, Any]) -> 
 async def versions_newest_first(session: AsyncSession, parent: Any) -> list[Any]:
     model, column = _history(parent)
     result = await session.exec(
-        select(model)
-        .where(column == parent.id)
-        .order_by(model.version_number.desc())
+        select(model).where(column == parent.id).order_by(model.version_number.desc())
     )
     return list(result.all())
 
@@ -153,9 +151,7 @@ async def add_version(session: AsyncSession, parent: Any, **fields: Any) -> Any:
     )
 
 
-def copy_version(
-    session: AsyncSession, version: Any, copy: Any, **values: Any
-) -> Any:
+def copy_version(session: AsyncSession, version: Any, copy: Any, **values: Any) -> Any:
     """Version 1 of ``copy``, carrying ``version``'s file, made current.
     ``values`` set what differs from it: the copy's author, a copied file."""
     model, column = _history(copy)

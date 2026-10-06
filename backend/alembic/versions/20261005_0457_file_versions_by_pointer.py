@@ -22,8 +22,9 @@ Every version's ``file_content_type`` becomes NOT NULL: the type decides how
 the file is shown, and it is always one its tool accepts. A version with no
 type, or one its tool does not show, takes the type its original filename's
 extension names, or failing that its stored name's, from the mapping as it
-stands at this revision. A version still without a type stops the upgrade
-with a count, rather than being given one nothing says it is.
+stands at this revision. One that no name types takes its tool's fallback
+(``text/plain`` for a document, ``image/png`` for a picture), so the upgrade
+always completes; the file still downloads under its own name.
 
 The search triggers on both tables name the columns that go, so they are
 dropped first; the search generation comment is cleared so the next boot
@@ -156,6 +157,12 @@ _TYPES = {
     "gallery_image_versions": _PICTURE_TYPES,
 }
 
+#: version table -> the type a file no name types is given.
+_FALLBACK_TYPE = {
+    "document_file_versions": "text/plain",
+    "gallery_image_versions": "image/png",
+}
+
 
 def _typed_by_extension(versions: str, column: str) -> str:
     """Give each version whose type is missing, or not one its tool shows,
@@ -178,14 +185,6 @@ _UNPOINTED = (
     "SELECT (SELECT count(*) FROM documents"
     " WHERE file_url IS NOT NULL AND current_version_id IS NULL)"
     " + (SELECT count(*) FROM gallery_images WHERE current_version_id IS NULL)"
-)
-
-#: Versions whose type neither was recorded nor follows from a name.
-_UNTYPED = (
-    "SELECT (SELECT count(*) FROM document_file_versions"
-    " WHERE file_content_type IS NULL)"
-    " + (SELECT count(*) FROM gallery_image_versions"
-    " WHERE file_content_type IS NULL)"
 )
 
 
@@ -247,11 +246,13 @@ def _apply_upgrade() -> None:
             for versions in _TYPES
             for column in ("original_filename", "file_url")
         ),
-        *(_point(parent) for parent in _VERSIONED),
-        checks=(
-            (_UNPOINTED, "files point at no version"),
-            (_UNTYPED, "file versions have no type a name gives them"),
+        *(
+            f"UPDATE {versions} SET file_content_type = '{fallback}'"  # noqa: S608
+            " WHERE file_content_type IS NULL"
+            for versions, fallback in _FALLBACK_TYPE.items()
         ),
+        *(_point(parent) for parent in _VERSIONED),
+        checks=((_UNPOINTED, "files point at no version"),),
     )
     for versions in _TYPES:
         op.alter_column(versions, "file_content_type", nullable=False)

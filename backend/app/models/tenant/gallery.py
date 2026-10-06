@@ -253,9 +253,7 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     )
     #: One of ``galleries.PICTURE_EXTENSIONS``: it decides how the picture is
     #: shown.
-    file_content_type: str = Field(
-        sa_column=Column(String(length=128), nullable=False)
-    )
+    file_content_type: str = Field(sa_column=Column(String(length=128), nullable=False))
     file_size: Optional[int] = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )

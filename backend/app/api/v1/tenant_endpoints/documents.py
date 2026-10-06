@@ -368,7 +368,9 @@ async def upload_document_file(
         Document.initiative_id == initiative.id,
         detail=DocumentMessages.NAME_ALREADY_EXISTS,
     )
-    stored = await _store_file(session, guild_context, file, initiative_id=initiative.id)
+    stored = await _store_file(
+        session, guild_context, file, initiative_id=initiative.id
+    )
 
     # Create document record. A picture is its own featured image, set here so
     # it is written with the row: the uploader's owner grant is only added

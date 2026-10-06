@@ -49,6 +49,7 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     # The datasets that are simply a tool. Declared together because there is
     # nothing to say about any of them individually (app.services.fields.tools).
     "documents": tool_datasets.build_documents,
+    "document_versions": tool_datasets.build_document_versions,
     "queues": tool_datasets.build_queues,
     "queue_items": tool_datasets.build_queue_items,
     "calendars": tool_datasets.build_calendars,
@@ -56,6 +57,7 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "posts": tool_datasets.build_posts,
     "galleries": tool_datasets.build_galleries,
     "gallery_images": tool_datasets.build_gallery_images,
+    "gallery_image_versions": tool_datasets.build_gallery_image_versions,
     "wikis": tool_datasets.build_wikis,
     "wiki_pages": tool_datasets.build_wiki_pages,
 }

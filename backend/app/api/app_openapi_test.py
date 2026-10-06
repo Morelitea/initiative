@@ -186,9 +186,7 @@ def test_every_field_holding_written_text_carries_its_mentions():
     erasure scrubs mentions (``mention_parser.anonymize_user_mentions``). Each
     field of the app's document named for one says how it mentions people:
     an editor state as Lexical, text as markdown. Its schema describes it."""
-    columns = {
-        column for written in written_columns().values() for column in written
-    }
+    columns = {column for written in written_columns().values() for column in written}
     schemas = app_openapi()["components"]["schemas"]
     found: dict[tuple[str, str], set[str]] = {}
     expected: dict[tuple[str, str], set[str]] = {}
