@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
 - **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
 - **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it: install the new one, sign in, then uninstall the old one. The old app keeps working with upgraded servers in the meantime. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
