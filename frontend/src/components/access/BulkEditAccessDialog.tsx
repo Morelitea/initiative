@@ -60,6 +60,8 @@ export interface BulkAccessItem {
   id: number;
   initiative_id: number;
   archived_at?: string | null;
+  /** A template, which anyone who reads it may copy. */
+  is_template?: boolean;
   grants?: ResourceGrantSchema[] | null;
   can: ToolCan;
 }

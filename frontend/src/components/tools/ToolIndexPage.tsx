@@ -648,7 +648,8 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const { canCreate: canCreateDerived } = useToolCreateAccess(tool, {
     initiativeId: fixedInitiativeId,
   });
-  const canCreateHere = canCreate ?? canCreateDerived;
+  // Nothing is made into the archive: its view offers no way to create.
+  const canCreateHere = (canCreate ?? canCreateDerived) && view !== "archived";
 
   const {
     open: createOpen,

@@ -62,6 +62,8 @@ export function BulkAccessSection<T extends BulkItem>({
   // Duplicating and tagging both ask for edit on every selected item.
   const canEdit = everyCan(items, "edit");
   const canDelete = everyCan(items, "delete");
+  // Read is enough to copy a template; anything else needs edit.
+  const canDuplicate = count > 0 && items.every((item) => item.is_template || item.can.edit);
 
   const duplicate = useDuplicateTools(tool, {
     onSuccess: (copies) => {
@@ -101,8 +103,8 @@ export function BulkAccessSection<T extends BulkItem>({
             variant="outline"
             size="sm"
             onClick={() => duplicate.mutate(items.map((item) => item.id))}
-            disabled={count === 0 || !canEdit || duplicate.isPending}
-            title={count > 0 && !canEdit ? t("common:bulkActions.needEdit") : undefined}
+            disabled={!canDuplicate || duplicate.isPending}
+            title={count > 0 && !canDuplicate ? t("common:bulkActions.needEdit") : undefined}
           >
             {duplicate.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

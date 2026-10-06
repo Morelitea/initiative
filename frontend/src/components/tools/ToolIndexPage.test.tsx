@@ -13,7 +13,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -27,6 +27,7 @@ import {
   toolIndexEntry,
 } from "@/components/tools/ToolIndexPage";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
+import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolRouteSegment, toolViews } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -132,7 +133,7 @@ describe("the tool index page", () => {
     expect(screen.getByText(copy(entry, "emptyBody"))).toBeInTheDocument();
   });
 
-  it.each(CASES)("$tool reaches its archived rows from the toolbar", async ({ tool }) => {
+  it.each(CASES)("$tool reaches its archived rows from the toolbar", async ({ tool, entry }) => {
     const requests = stubList(tool, [
       row(tool, { id: 1, name: "Still in use" }),
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
@@ -159,6 +160,8 @@ describe("the tool index page", () => {
 
     expect(await screen.findByText("Put away")).toBeInTheDocument();
     await waitFor(() => expect(requests.at(-1)?.get("archived")).toBe("true"));
+    // Nothing is made into the archive.
+    expect(screen.queryByRole("button", { name: copy(entry, "create") })).not.toBeInTheDocument();
   });
 
   it.each(CASES)("$tool opens its filters from the toolbar", async ({ tool, entry }) => {
@@ -391,6 +394,45 @@ describe("the tool index page's bulk actions", () => {
     await select("Retro");
     await userEvent.click(screen.getByRole("button", { name: shared("delete") }));
     await waitFor(() => expect(deleted).toEqual(["5"]));
+  });
+
+  it("copies templates it can only read, and refreshes the list when part of a batch fails", async () => {
+    const readOnly = { ...ownerCan(), edit: false, delete: false };
+    const templates = [
+      {
+        ...row(Tool.document, { id: 6, name: "Brief template" }),
+        is_template: true,
+        can: readOnly,
+      },
+      { ...row(Tool.document, { id: 7, name: "Memo template" }), is_template: true, can: readOnly },
+    ];
+    const requests = stubList(Tool.document, templates);
+    server.use(
+      communityHttp.post("/documents/:id/duplicate", ({ params }) =>
+        params.id === "6"
+          ? HttpResponse.json({ id: 60, initiative_id: INITIATIVE_ID })
+          : new HttpResponse(null, { status: 500 })
+      )
+    );
+
+    // The app's own client, which the bulk action's refresh reaches.
+    renderPage(
+      () => <ToolIndexPage tool={Tool.document} fixedInitiativeId={INITIATIVE_ID} canCreate />,
+      { routerSearch: { status: "templates" }, queryClient }
+    );
+    onTestFinished(() => queryClient.clear());
+    await screen.findByText("Brief template");
+    await select("Brief template");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Memo template", pressed: false })
+    );
+
+    const listed = requests.length;
+    const duplicate = screen.getByRole("button", { name: shared("bulkActions.duplicate") });
+    expect(duplicate).toBeEnabled();
+    await userEvent.click(duplicate);
+    // The copy that landed is real: the list is read again despite the failure.
+    await waitFor(() => expect(requests.length).toBeGreaterThan(listed));
   });
 });
 

@@ -672,12 +672,30 @@ export const useDuplicateTool = (
     options
   );
 
+/**
+ * Every request of a bulk action, run to the end. When some fail, the list is
+ * refreshed anyway — the ones that landed are real — and the first failure is
+ * what the action reports.
+ */
+const settleAll = async <T>(tool: Tool, requests: Promise<T>[]): Promise<T[]> => {
+  const results = await Promise.allSettled(requests);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) {
+    void invalidate(q.toolList(tool));
+    throw failed.reason;
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<T>).value);
+};
+
 /** A copy of each of `ids` beside its original, named as the server names one. */
 export const useDuplicateTools = (tool: Tool, options?: MutationOpts<Duplicated[], number[]>) =>
   useCommunityMutation<Duplicated[], number[]>(
     {
       mutationFn: (communityId, ids) =>
-        Promise.all(ids.map((id) => TOOL_HOOKS[tool].duplicate(communityId, id, {}))),
+        settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].duplicate(communityId, id, {}))
+        ),
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:bulkActions.duplicateError",
     },
@@ -689,7 +707,10 @@ export const useDeleteTools = (tool: Tool, options?: MutationOpts<void, number[]
   useCommunityMutation<void, number[]>(
     {
       mutationFn: async (communityId, ids) => {
-        await Promise.all(ids.map((id) => TOOL_HOOKS[tool].remove(communityId, id)));
+        await settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].remove(communityId, id))
+        );
       },
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:bulkActions.deleteError",
