@@ -640,6 +640,12 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
 #: rather than by re-opening a free-form id here.
 _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
+#: Binding keys only a definition sets: what a widget reads, as opposed to the
+#: values it reads it with. Instance config never carries them.
+_DEFINITION_ONLY_KEYS = (
+    frozenset({"source", "sql", "plugin_uid", "endpoint_id"}) | _CONTEXT_ONLY_PARAMS
+)
+
 
 def _normalize_binding(
     raw: Any,
@@ -882,10 +888,12 @@ def normalize_dashboard_config(
     """Validate instance config against a definition's widgets.
 
     Config fills the binding parameters a definition left open (the ids a
-    catalog listing can't know). Entries naming a widget the definition doesn't
-    have are dropped, so updating to a version that removes a widget can't leave
-    dangling config behind. The parameter values are the fetcher's business,
-    exactly as in a binding.
+    catalog listing can't know), and nothing else: a key the definition set, or
+    one that says what the widget reads rather than how (its source, statement,
+    plug-in or endpoint), is dropped. What remains is checked by the same
+    normalizer as the definition's own binding, laid over it. Entries naming a
+    widget the definition doesn't have are dropped too, so updating to a
+    version that removes a widget can't leave dangling config behind.
     """
     config = _require_mapping(payload, DashboardMessages.CONFIG_INVALID)
     raw_widgets = config.get("widgets")
@@ -893,10 +901,26 @@ def normalize_dashboard_config(
         return {"widgets": {}}
     widget_config = _require_mapping(raw_widgets, DashboardMessages.CONFIG_INVALID)
 
-    known_ids = {widget["id"] for widget in definition.get("widgets", [])}
-    cleaned = {
-        widget_id: values
-        for widget_id, values in widget_config.items()
-        if widget_id in known_ids and isinstance(values, dict) and values
-    }
+    cleaned: dict[str, dict[str, Any]] = {}
+    for widget in definition.get("widgets", []):
+        values = widget_config.get(widget["id"])
+        if not isinstance(values, dict):
+            continue
+        binding = widget["binding"]
+        open_values = {
+            key: value
+            for key, value in values.items()
+            if key not in _DEFINITION_ONLY_KEYS and binding.get(key) is None
+        }
+        if not open_values:
+            continue
+        plugin_parts = plugin_widget_parts(widget["type"])
+        resolved = _normalize_binding(
+            {**binding, **open_values},
+            PLUGIN_WIDGET_SPEC if plugin_parts else WIDGET_SPECS[widget["type"]],
+            plugin_listing_uid=plugin_parts[0] if plugin_parts else None,
+        )
+        kept = {key: resolved[key] for key in open_values if key in resolved}
+        if kept:
+            cleaned[widget["id"]] = kept
     return {"widgets": cleaned}

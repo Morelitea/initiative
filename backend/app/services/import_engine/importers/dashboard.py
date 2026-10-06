@@ -2,10 +2,11 @@
 
 A dashboard owns no child content — the data it shows is fetched per viewer
 through the tools it points at — so applying one is creating a single row.
-What it does need is the definition put back through
-``normalize_dashboard_definition``: an envelope is a file, and a file is not a
-trusted source. That is the same validator the create endpoint runs, so an
-imported dashboard cannot describe a widget the app has no renderer for.
+What it does need is the definition and config put back through
+``normalize_dashboard_definition`` and ``normalize_dashboard_config``: an
+envelope is a file, and a file is not a trusted source. Those are the same
+validators the create endpoint runs, so an imported dashboard cannot describe a
+widget the app has no renderer for.
 """
 
 from __future__ import annotations
@@ -65,7 +66,7 @@ class DashboardImporter(NamesPeopleInPassing):
             ).all()
         )
 
-        definition = await _normalized_definition(env.definition)
+        definition, config = _normalized_canvas(env.definition, env.config)
         listing_uid, listing_version = await _resolved_listing(
             session, env.listing_uid, env.listing_version
         )
@@ -76,7 +77,7 @@ class DashboardImporter(NamesPeopleInPassing):
             initiative_id=target_initiative.id,
             created_by=importer.id,
             definition=definition,
-            config=dict(env.config or {}),
+            config=config,
             listing_uid=listing_uid,
             listing_version=listing_version,
         )
@@ -104,24 +105,33 @@ class DashboardImporter(NamesPeopleInPassing):
         )
 
 
-async def _normalized_definition(raw: dict[str, Any] | None) -> dict[str, Any]:
-    """The envelope's definition, through the app's own validator.
+def _normalized_canvas(
+    raw_definition: dict[str, Any] | None, raw_config: dict[str, Any] | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The envelope's definition and config, through the app's own validators.
 
     A definition naming a widget or binding this build has no renderer for —
     an archive from a newer version, or one that referenced a plug-in that is not
     installed here — yields an empty canvas rather than failing the whole
     import: the dashboard arrives, empty, for somebody to rebuild, which is
-    more use than losing it and everything queued behind it.
+    more use than losing it and everything queued behind it. Config the
+    definition does not accept is dropped the same way.
     """
     from app.services.tenant.dashboard_definition import (
         DashboardDefinitionError,
+        normalize_dashboard_config,
         normalize_dashboard_definition,
     )
 
     try:
-        return normalize_dashboard_definition(raw or {})
+        definition = normalize_dashboard_definition(raw_definition or {})
     except DashboardDefinitionError:
-        return normalize_dashboard_definition({})
+        definition = normalize_dashboard_definition({})
+    try:
+        config = normalize_dashboard_config(raw_config or {}, definition)
+    except DashboardDefinitionError:
+        config = {"widgets": {}}
+    return definition, config
 
 
 async def _resolved_listing(

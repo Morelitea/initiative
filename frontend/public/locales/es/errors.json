@@ -231,7 +231,6 @@
   "QUERY_STAR_NOT_ALLOWED": "Enumera las columnas que quieres en lugar de *.",
   "QUERY_RESERVED_NAME": "«me» significa quien está leyendo, así que nada más puede llamarse así.",
   "QUERY_VIEWER_NEEDS_A_PERSON": "Compara «me» con un campo que contenga una persona.",
-  "DASHBOARD_WIDGET_HAS_NO_QUERY": "Ese widget no tiene ninguna consulta.",
   "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE": "El acceso de un complemento se concede en los ajustes del complemento, no aquí.",
   "QUERY_TOO_EXPENSIVE": "Esta consulta pide más trabajo del que puede hacer una consulta. Redúcela: menos tablas, o un filtro que recorte las filas.",
   "QUERY_TIMED_OUT": "Esta consulta tardó demasiado y se detuvo.",
