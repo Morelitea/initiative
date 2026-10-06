@@ -27,7 +27,9 @@ export const CommunityInvitePage = () => {
   const { refreshCommunities } = useCommunities();
   const { t } = useTranslation(["communities", "common"]);
   const inviteQuery = useGetInviteStatus(encodeURIComponent(normalizedCode), {
-    query: { enabled: Boolean(normalizedCode) },
+    // One code's status is never a placeholder for another's: the card and the
+    // accept button describe the code in the URL.
+    query: { enabled: Boolean(normalizedCode), placeholderData: undefined },
   });
   const status = inviteQuery.data ?? null;
   const loading = Boolean(normalizedCode) && inviteQuery.isPending;
