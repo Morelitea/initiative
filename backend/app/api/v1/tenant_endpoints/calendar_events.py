@@ -57,6 +57,8 @@ from app.schemas.tenant.calendar_event import (
 )
 from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.ical import (
+    ICalImportError,
+    ICalImportProblem,
     ICalImportRequest,
     ICalImportResult,
     ICalParseRequest,
@@ -520,7 +522,9 @@ async def import_ical_events(
             created += 1
         except Exception:
             logger.exception("iCal import could not save event %r", event.title)
-            errors.append(f"Could not save '{event.title}'")
+            errors.append(
+                ICalImportError(problem=ICalImportProblem.not_saved, title=event.title)
+            )
 
     if created > 0:
         await session.commit()
@@ -735,6 +739,7 @@ async def create_calendar_event(
         start_at=event_in.start_at,
         end_at=event_in.end_at,
         all_day=event_in.all_day,
+        rsvp_open=event_in.rsvp_open,
         recurrence=repeat,
         recurrence_shift=shift,
     )
@@ -834,7 +839,7 @@ async def update_calendar_event(
         exclude_unset=True, exclude={"scope", "occurrence", "tz"}
     )
     scope, at = event_in.scope, event_in.occurrence
-    alone = {"recurrence", "calendar_id"}
+    alone = {"recurrence", "calendar_id", "rsvp_open"}
 
     if event.series_id is not None:
         if scope in (None, "this"):
@@ -906,6 +911,7 @@ async def _apply_update(
     # Snapshot fields that drive the "updated"/"rescheduled" notification before
     # the in-place mutation below.
     old_title = event.title
+    old_rsvp_open = event.rsvp_open
     old_location = event.location
     old_all_day = event.all_day
     old_start = event.start_at
@@ -969,6 +975,7 @@ async def _apply_update(
         "start_at",
         "end_at",
         "all_day",
+        "rsvp_open",
     ):
         if field in update_data:
             value = update_data[field]
@@ -1059,6 +1066,7 @@ async def _apply_update(
                     ("title", old_title),
                     ("description", old_description),
                     ("location", old_location),
+                    ("rsvp_open", old_rsvp_open),
                 )
                 if getattr(event, name) != before
             }
@@ -1421,16 +1429,25 @@ async def update_rsvp(
     """Update the current user's RSVP status. Read access on the calendar
     suffices — RSVPing is answering an invitation, not editing the event.
 
+    On an event whose RSVP is open, answering puts the reader on its list.
+    Closed, only someone already on it answers, besides those who may edit
+    the event. An occurrence's own row carries its series' setting.
+
     An answer is for one event: a repeating event is answered one occurrence
     at a time, named by ``occurrence``."""
     event = await resource_access.load_child(session, CalendarEvent, event_id)
     answer = rsvp_in.rsvp_status
+    join = event.rsvp_open or permissions_service.allows(
+        event.calendar, Action.contribute
+    )
     if event.recurrence:
         await occurrences_service.answer_occurrence(
-            session, event, rsvp_in.occurrence, current_user.id, answer
+            session, event, rsvp_in.occurrence, current_user.id, answer, join=join
         )
     else:
-        await occurrences_service.answer_on(session, event, current_user.id, answer)
+        await occurrences_service.answer_on(
+            session, event, current_user.id, answer, join=join
+        )
 
     await _notify_about_event(
         session,

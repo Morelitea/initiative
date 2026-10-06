@@ -58,6 +58,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * ``scope=community`` is the same question asked by kind rather than by name: every
  * guild calendar, however many there are. The calendar plug-in shows all of them
  * at once, and a list of ids it had to assemble first would be a page of them.
+ *
+ * ``initiative_id`` and ``scope`` bound both legs: an initiative's tasks are
+ * those of its projects, and the community as a whole holds none, since
+ * every project is an initiative's.
  * @summary List Calendar Entries
  */
 export const listCalendarEntries = (
