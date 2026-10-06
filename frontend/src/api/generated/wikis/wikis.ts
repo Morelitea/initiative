@@ -822,7 +822,7 @@ export const addDocumentToWiki = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<WikiPageTree>(
+  return apiMutator<void>(
     {
       url: `/api/v1/c/${communityId}/wikis/${wikiId}/documents/${documentId}`,
       method: "PUT",
@@ -1022,7 +1022,7 @@ export const moveWikiDocument = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<WikiPageTree>(
+  return apiMutator<void>(
     {
       url: `/api/v1/c/${communityId}/wikis/${wikiId}/documents/${documentId}/move`,
       method: "POST",

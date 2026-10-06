@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildInitiative,
+  buildPost,
   buildPropertySummary,
   buildTagSummary,
   initiativeCan,
@@ -17,6 +18,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PostReactionsField } from "@/components/initiativeTools/posts/PostReactionsField";
 import {
   type ToolMutation,
   type ToolSettingsEntity,
@@ -173,6 +175,55 @@ describe("ToolSettingsDetailsPage comments switch", () => {
     await userEvent.click(toggle);
 
     await waitFor(() => expect(toggle).toBeChecked());
+  });
+});
+
+describe("PostReactionsField", () => {
+  const servePost = (reactions_enabled: boolean) =>
+    communityHttp.get("/posts/:postId", () =>
+      HttpResponse.json(buildPost({ id: 7, reactions_enabled }))
+    );
+
+  it("starts from the post and keeps the new state", async () => {
+    resetFactories();
+    server.use(
+      servePost(false),
+      communityHttp.put("/posts/:postId/reactions", () =>
+        HttpResponse.json({ reactions_enabled: true })
+      )
+    );
+    renderSection(PostReactionsField, buildEntity(), Tool.post);
+
+    const toggle = await screen.findByRole("switch", { name: "Reactions" });
+    await waitFor(() => expect(toggle).not.toBeChecked());
+
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
+  it("puts the switch back when the write fails", async () => {
+    resetFactories();
+    server.use(
+      servePost(true),
+      communityHttp.put("/posts/:postId/reactions", () =>
+        HttpResponse.json({ detail: "NOPE" }, { status: 500 })
+      )
+    );
+    renderSection(PostReactionsField, buildEntity(), Tool.post);
+
+    const toggle = await screen.findByRole("switch", { name: "Reactions" });
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
+  it("is read-only to someone who may not edit the post", async () => {
+    resetFactories();
+    server.use(servePost(true));
+    renderSection(PostReactionsField, buildEntity({ can: readerCan() }), Tool.post);
+
+    expect(await screen.findByRole("switch", { name: "Reactions" })).toBeDisabled();
   });
 });
 

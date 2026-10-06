@@ -64,7 +64,11 @@ from app.core.config import settings
 from app.core.messages import ExportMessages, InitiativeMessages
 from app.models.platform.user import User
 from app.models.tenant.document import DocumentType
-from app.services.export.adapters._common import BuildContext, ToolExportAdapter
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    storage_key_of,
+)
 from app.services.export.adapters.document import doc_type_of
 from app.services.export.contract import RenderItem, RenderRequest
 from app.core.tools import (
@@ -730,7 +734,7 @@ class _ScopeBuilder:
         from app.schemas.tenant.backup_export import ManifestEntry
 
         version = document.current_version
-        storage_key = version.file_url.split("/")[-1]
+        storage_key = storage_key_of(version.file_url)
         asset_path = self._register_asset(
             storage_key,
             original_filename=version.original_filename,
@@ -812,8 +816,6 @@ class _ScopeBuilder:
     async def _register_gallery_pictures(self, loaded, path: str) -> None:
         """Each picture's bytes, registered as an asset of the gallery's
         entry."""
-        from app.services.export.adapters.gallery import storage_key_of
-
         _gallery, images = loaded
         for image in images:
             version = image.current_version

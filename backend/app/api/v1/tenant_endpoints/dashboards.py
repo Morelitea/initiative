@@ -198,7 +198,12 @@ async def read_dashboard(
     include_deleted: IncludeDeletedDep = False,
 ) -> DashboardRead:
     dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        hydrated=True,
     )
     return serialize_tool(
         DashboardRead, dashboard, user_id=current_user.id, context=guild_context
@@ -615,7 +620,7 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    dashboard = await dashboards_service.get_dashboard(
+    dashboard = await dashboards_service.get_dashboard_hydrated(
         session, dashboard_id, populate_existing=True
     )
     if not dashboard:

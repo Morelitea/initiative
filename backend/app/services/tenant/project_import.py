@@ -23,7 +23,6 @@ import re
 from datetime import datetime, timezone
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select
 
 from app.core import recurrence
 from app.core.messages import ProjectExportMessages
@@ -51,7 +50,11 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.importers._base import PropertyRestore, grant_ownership
+from app.services.import_engine.importers._base import (
+    PropertyRestore,
+    TagRestore,
+    grant_ownership,
+)
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.references import (
     has_source_references,
@@ -66,13 +69,11 @@ from app.services.import_engine.people import (
 from app.services.tenant import task_completion
 from app.services.tenant.task_statuses import defaults_for_category
 from app.services.import_engine.common import (
-    ensure_tag,
     load_initiative_member_handles,
     handle_key,
-    unique_name,
+    unique_name_in_initiative,
 )
 from app.core.tools import Tool
-from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
 
@@ -110,12 +111,10 @@ async def import_project(
     # known by its id rather than by a handle to look up.
 
     # 1. Project row (rename on collision)
-    taken = await session.exec(
-        select(Project.name).where(Project.initiative_id == target_initiative.id)
-    )
-    project_name = unique_name(set(taken.all()), envelope.project.name)
     project = Project(
-        name=project_name,
+        name=await unique_name_in_initiative(
+            session, Project, target_initiative.id, envelope.project.name
+        ),
         icon=envelope.project.icon,
         description=envelope.project.description,
         is_template=envelope.project.is_template,
@@ -167,26 +166,9 @@ async def import_project(
             status_name_to_id[envelope.task_statuses[0].name],
         )
 
-    # 3. Tags → name → id map; attach to project
-    tag_name_to_id: dict[str, int] = {}
-    tag_create_count = 0
-    tag_match_count = 0
-    for t in envelope.tags:
-        tag_id = await ensure_tag(
-            session,
-            name=t.name,
-            color=t.color,
-        )
-        if tag_id.created:
-            tag_create_count += 1
-        else:
-            tag_match_count += 1
-        tag_name_to_id[t.name] = tag_id.id
-        session.add(
-            tags_service.tag_edge(
-                tags_service.TOOL_TAG_LINKS[Tool.project], project.id, tag_id.id
-            )
-        )
+    # 3. Tags, attached to the project
+    tags = TagRestore(session)
+    await tags.attach(project, envelope.tags)
 
     # 4. Property definitions, then the project's own values. A property
     # unticked on the review is left out, with its values.
@@ -215,7 +197,7 @@ async def import_project(
             status_name_to_id=status_name_to_id,
             status_id_to_category=status_id_to_category,
             default_status_id=default_status_id,
-            tag_name_to_id=tag_name_to_id,
+            tags=tags,
             props=props,
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
@@ -244,12 +226,12 @@ async def import_project(
         created={
             Tool.project.plural: 1,
             "tasks": len(envelope.tasks),
-            "tags": tag_create_count,
+            "tags": tags.created,
             "properties": props.created,
             "comments": comment_count,
         },
         matched={
-            "tags": tag_match_count,
+            "tags": tags.matched,
             "properties": props.matched,
             "assignees": assignee_match_count,
         },
@@ -273,7 +255,7 @@ async def _import_task(
     status_name_to_id: dict[str, int],
     status_id_to_category: dict[int, TaskStatusCategory],
     default_status_id: int,
-    tag_name_to_id: dict[str, int],
+    tags: TagRestore,
     props: PropertyRestore,
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
@@ -343,27 +325,8 @@ async def _import_task(
     if envelope_task.series is not None:
         task.series_id = series_ids.setdefault(envelope_task.series, task.id)
 
-    # Tag links — match-or-create against the target guild for any tag
-    # that wasn't already in the project-level set (tasks can have tags
-    # the project itself doesn't carry).
-    async def tag_id(task_tag: ProjectExportTag) -> int:
-        tid = tag_name_to_id.get(task_tag.name)
-        if tid is None:
-            resolved = await ensure_tag(
-                session,
-                name=task_tag.name,
-                color=task_tag.color,
-            )
-            tid = resolved.id
-            tag_name_to_id[task_tag.name] = tid
-        return tid
-
-    for task_tag in envelope_task.tags:
-        session.add(
-            tags_service.tag_edge(
-                tags_service.TAG_LINKS["task"], task.id, await tag_id(task_tag)
-            )
-        )
+    # A task can carry tags the project itself does not.
+    await tags.attach(task, envelope_task.tags)
 
     # What an edit of just this task kept back, its tags and assignees named
     # back into this community.
@@ -384,8 +347,9 @@ async def _import_task(
                 ),
             )
         if "tags" in carry:
+            carried_tags = [ProjectExportTag(**tag) for tag in carry.pop("tags")]
             carry["tag_ids"] = sorted(
-                {await tag_id(ProjectExportTag(**tag)) for tag in carry.pop("tags")}
+                {await tags.resolve(tag.name, tag.color) for tag in carried_tags}
             )
         if "assignee_handles" in carry:
             carried: set[int] = set()

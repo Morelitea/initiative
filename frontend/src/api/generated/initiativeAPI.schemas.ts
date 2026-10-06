@@ -10667,6 +10667,10 @@ export type ListGalleriesParams = {
    */
   archived?: boolean | null;
   /**
+   * Also send what each row's card shows of what is inside it, read for the whole page at once.
+   */
+  include_preview?: boolean;
+  /**
    * @minimum 1
    */
   page?: number;
