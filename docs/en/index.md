@@ -4,7 +4,7 @@ icon: lucide/compass
 
 # Welcome to Initiative
 
-Initiative is where your group's projects, tasks, documents and plans all live in one place.
+Initiative is where your group's projects, tasks, files and plans all live in one place.
 
 Right now they're living across a group chat, two spreadsheets, an email thread from March, and the head of whoever's been doing this the longest.
 
@@ -16,7 +16,7 @@ We know about the spreadsheet. We know about the merged cells. We know somebody 
 
 Day one: make one board, put a few tasks on it. Done. That's a complete setup — a real, functioning system — and if you never touch another feature you'll still be dramatically better off than you were on Tuesday.
 
-Everything else is already installed and waiting. Documents, a calendar, dashboards, the lot. None of it will bother you, email you, or pop up to ask whether you've considered optimising your workflow. It has nowhere else to be.
+Everything else is already installed and waiting. Files, a calendar, dashboards, the lot. None of it will bother you, email you, or pop up to ask whether you've considered optimising your workflow. It has nowhere else to be.
 
 [Start with Getting started →](getting-started/index.md){ .md-button .md-button--primary }
 
@@ -62,13 +62,13 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
 -   :material-sitemap-outline: __How Initiative is organized__
 
-    Communities, initiatives, projects, documents — what they are and how they fit together.
+    Communities, initiatives, projects, files — what they are and how they fit together.
 
     [:octicons-arrow-right-24: The big picture](concepts/index.md)
 
 -   :material-book-open-variant: __Using Initiative__
 
-    How-to guides for projects, tasks, documents, the calendar and everything else.
+    How-to guides for projects, tasks, files, the calendar and everything else.
 
     [:octicons-arrow-right-24: How-to guides](guides/index.md)
 
@@ -80,7 +80,7 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
 -   :material-account-multiple-check-outline: __Sharing & access__
 
-    Decide exactly who sees and edits each project and document.
+    Decide exactly who sees and edits each project and file.
 
     [:octicons-arrow-right-24: Sharing & access](sharing/index.md)
 
@@ -106,7 +106,7 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
 ## You choose who sees what
 
-Nothing here is visible to "everyone" by default, and there's no buried setting you have to find to make that true. Your group's space is separate from every other group's; inside it, each effort is only visible to the people you put in it; and any project or document narrows down further still.
+Nothing here is visible to "everyone" by default, and there's no buried setting you have to find to make that true. Your group's space is separate from every other group's; inside it, each effort is only visible to the people you put in it; and any project or file narrows down further still.
 
 Which is how the payroll planning stays away from the seasonal staff, and next year's programme away from this year's volunteers — same workspace, nothing configured, nobody wandering into a folder they were never meant to see. [How that works →](sharing/index.md)
 

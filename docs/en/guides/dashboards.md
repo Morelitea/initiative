@@ -26,7 +26,7 @@ Each tile shows *you* only what you're already allowed to see.
 
 So two people can open the same dashboard and correctly see different numbers, and neither of them is looking at a bug.
 
-The access rules you set on projects and documents follow straight through into the reporting — which means a dashboard is never the accidental side door to something somebody wasn't supposed to see.
+The access rules you set on projects and files follow straight through into the reporting — which means a dashboard is never the accidental side door to something somebody wasn't supposed to see.
 
 ## Run dashboard as
 
@@ -56,7 +56,7 @@ Usually faster than starting from a blank canvas, and often better, because some
 
 Two steps, and most people never leave the first.
 
-**Build** is clicking. Pick what to read — tasks, documents, queue items, notices, events, your community's own people — then which columns, what to group them by, and what to narrow it to. The dashboard writes the query for you.
+**Build** is clicking. Pick what to read — tasks, files, queue items, notices, events, your community's own people — then which columns, what to group them by, and what to narrow it to. The dashboard writes the query for you.
 
 **SQL** is the tab beside it, for the question clicking can't describe. It's real SQL, with the tables and columns offered as you type and the statement checked as you pause. One thing to know before you start: once you've edited the text, that tile stays in SQL. The builder can't read arbitrary SQL back, so it stops trying rather than quietly mangling what you wrote.
 
@@ -96,7 +96,7 @@ Some marketplace tiles are custom **widgets**. They run in an isolated sandbox a
 
 ## Where they show up
 
-Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Everything else every tool has, they have too; see [Tools](tools.md). Since "look at this" is the entire use case, they're often the one thing a group opens right up.
+Dashboards live inside an initiative, next to its projects and files, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Everything else every tool has, they have too; see [Tools](tools.md). Since "look at this" is the entire use case, they're often the one thing a group opens right up.
 
 Each dashboard has its own comment thread, which is an excellent place to argue about what a number actually means. Switch it off under **Settings → Details** if you'd rather that argument happened somewhere else.
 
@@ -104,5 +104,5 @@ Each dashboard has its own comment thread, which is an excellent place to argue 
 
 - [Counters](counters.md) — numbers a dashboard can read.
 - [Plug-ins & the marketplace](plugins-and-marketplace.md) — ready-made dashboards.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — access levels in full.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — access levels in full.
 - [Your space](your-space.md#my-tools) — every dashboard that's reached you, from every community.

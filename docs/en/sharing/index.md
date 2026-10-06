@@ -23,7 +23,7 @@ graph LR
 1. **Are you in the community?** If not, you see nothing in it. Full stop, end of conversation.
 2. **Are you in the initiative?** Even inside a community, an initiative is only visible to the people added to it. This is the big one — it's how a business keeps payroll planning away from seasonal staff, and how the spring play team keeps its work away from the summer show team, in the same workspace.
 3. **Does your role allow this kind of thing?** Your [initiative role](initiative-roles.md) decides which *tools* you can use — whether you can make projects, or only look at them.
-4. **Is this particular item shared with you?** Each project and document can be shared with specific people or roles, at **view**, **edit**, or **own**. See [Sharing projects & documents](sharing-projects-and-documents.md).
+4. **Is this particular item shared with you?** Each project and file can be shared with specific people or roles, at **view**, **edit**, or **own**. See [Sharing projects & files](sharing-projects-and-files.md).
 
 All four have to be true.
 
@@ -38,7 +38,7 @@ Two kinds of person see more than the layers above suggest, on purpose:
 
 ## Why a missing thing says "not found" rather than "denied"
 
-If you're not in an initiative, its projects and documents aren't locked doors you can rattle. They simply aren't there for you.
+If you're not in an initiative, its projects and files aren't locked doors you can rattle. They simply aren't there for you.
 
 A direct link comes back "not found" rather than "access denied", because as far as your account is concerned there is genuinely nothing at that address. Nobody has to be told they're excluded from something, and nobody learns that a thing exists by bumping into a wall.
 
@@ -52,11 +52,11 @@ A direct link comes back "not found" rather than "access denied", because as far
 
     [:octicons-arrow-right-24: Initiative roles](initiative-roles.md)
 
--   :material-share-variant-outline: __Sharing projects & documents__
+-   :material-share-variant-outline: __Sharing projects & files__
 
     Share with people or whole roles, at view / edit / own.
 
-    [:octicons-arrow-right-24: Sharing projects & documents](sharing-projects-and-documents.md)
+    [:octicons-arrow-right-24: Sharing projects & files](sharing-projects-and-files.md)
 
 </div>
 

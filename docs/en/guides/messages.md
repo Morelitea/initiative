@@ -13,7 +13,7 @@ Open them from the **Initiative logo** in the top-left corner, then **My Message
 !!! info "A message with a few people on it, not a room"
     A group message here is a thread. It has no name, no topic, no pinned post and nobody in charge of it — it's the people on it, the way a text with three friends is.
 
-    That's deliberate, because the conversation about your *work* has a better home. **Everything in Initiative has comments** — projects, tasks, documents, queues, counters, calendars, dashboards, posts, the lot — so the discussion about a thing lives *on* that thing, where the next person finds it. **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back.
+    That's deliberate, because the conversation about your *work* has a better home. **Everything in Initiative has comments** — projects, tasks, files, queues, counters, calendars, dashboards, posts, the lot — so the discussion about a thing lives *on* that thing, where the next person finds it. **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back.
 
     Which is the trouble with the other kind: somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
 
@@ -123,7 +123,7 @@ See [Notifications](notifications.md).
 
 ## What this means for community admins
 
-Messages are **not** community content. A community admin can reach everything in their community — every project, document, and task — and that authority stops at the edge of a private conversation. Messages don't appear in exports, they can't be searched, and there is nothing to moderate, because there is nothing to read.
+Messages are **not** community content. A community admin can reach everything in their community — every project, file and task — and that authority stops at the edge of a private conversation. Messages don't appear in exports, they can't be searched, and there is nothing to moderate, because there is nothing to read.
 
 The tools that *do* work are the ones above: people control who can reach them, and ignoring ends contact without needing anyone's help. If an account is behaving badly, report the account — see [Reporting a problem](../security/reporting-a-problem.md).
 

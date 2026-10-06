@@ -13,7 +13,7 @@ Every group has this knowledge and most groups keep it in a person. That works b
 **New Wiki** on the initiative's **Wikis** tab. Name it, say what it covers, done. One wiki per *body of knowledge* — "Club handbook", "World bible", "How we run the fete" — not one per topic. The topics are the pages.
 
 !!! tip "Wikis are off until you turn them on"
-    Like every tool that isn't projects or documents, an initiative's manager switches them on in the **Tools** card under **Initiative settings → Details**.
+    Like every tool that isn't projects or files, an initiative's manager switches them on in the **Tools** card under **Initiative settings → Details**.
 
 ## Pages, and the shape they make
 
@@ -27,9 +27,9 @@ Pages nest. Hover any page in the tree and a **+** appears to start one undernea
 
 Drag a page onto another to file it underneath. Drag it to a row's top or bottom edge to put it beside instead. A page cannot be dropped inside itself, which is the one move the tree will not let you make.
 
-Documents you already have can sit in a wiki too: **Add a document** at the bottom of the tree offers every document in the initiative — a PDF, a spreadsheet, a whiteboard, a link. Each opens in the wiki the way it opens anywhere, and drags like a page, so the fire risk assessment can live under "Health and safety" where people will actually look for it. Nothing is copied. The document keeps its own address and its own sharing, and can sit somewhere else entirely in another wiki.
+Files you already have can sit in a wiki too: **Add a file** at the bottom of the tree offers every file in the initiative — a PDF, a spreadsheet, a whiteboard, a link. Each opens in the wiki the way it opens anywhere, and drags like a page, so the fire risk assessment can live under "Health and safety" where people will actually look for it. Nothing is copied. The file keeps its own address and its own sharing, and can sit somewhere else entirely in another wiki.
 
-A page is written in the same editor as a document, with the same toolbar and the same shortcuts. If you've written a document here, you already know how — and like a document, several people can write on the same page at once, each with their own cursor.
+A page is written in the same editor as a text document, with the same toolbar and the same shortcuts. If you've written a text document here, you already know how — and like one, several people can write on the same page at once, each with their own cursor.
 
 ## Linking, which is the actual point
 
@@ -37,9 +37,9 @@ Type `[[` in a page and pick another page. That's a link.
 
 Then look at the page you linked *to*. It knows. Its **Connections** list has your page under **Mentioned in**, and there you are.
 
-This is the bit that makes a wiki more than a folder of documents, and it's worth stopping on for a second. You never maintain a list of what points where. You write a link because it made sense in that sentence, and the map builds itself out of the links everybody happened to write.
+This is the bit that makes a wiki more than a folder of pages, and it's worth stopping on for a second. You never maintain a list of what points where. You write a link because it made sense in that sentence, and the map builds itself out of the links everybody happened to write.
 
-It isn't only pages, either. `#` picks anything — a task, a document, an event, a counter — and the same thing happens: link the bar float page from a task about counting the bar float, and the page tells you the task exists.
+It isn't only pages, either. `#` picks anything — a task, a file, an event, a counter — and the same thing happens: link the bar float page from a task about counting the bar float, and the page tells you the task exists.
 
 **Connections** sits beside the page on a wide screen, and opens from the bottom of the screen on a phone. It starts as a plain list of links; it can be tiles, a carousel or a graph instead, and each page remembers which. See [Mentions & links](mentions-and-links.md#connections).
 
@@ -84,9 +84,9 @@ Make the home page a contents page. A short one. Three sentences saying what thi
 
 ## Taking a copy
 
-**Settings → Advanced** on the wiki exports it, for whoever could also delete it. As a **PDF**, **Markdown** or **Word** file it's the whole wiki as one document: every page under a heading with its title, nested as deep as the page sits, each starting a new page in PDF and Word, drafts left out. As an **importable file** it keeps every page, the tree, the home page and the documents filed in it — import it from another wiki page and the documents are filed back under the same pages.
+**Settings → Advanced** on the wiki exports it, for whoever could also delete it. As a **PDF**, **Markdown** or **Word** file it's the whole wiki as one document: every page under a heading with its title, nested as deep as the page sits, each starting a new page in PDF and Word, drafts left out. As an **importable file** it keeps every page, the tree, the home page and the files kept in it — import it from another wiki page and the files go back under the same pages.
 
-Whichever you pick, the download is a zip: the wiki, and the documents filed in it, each in the format that suits it — text in the format you picked, spreadsheets as Excel, uploads as themselves. A document you couldn't export on its own stays behind.
+Whichever you pick, the download is a zip: the wiki, and the files kept in it, each in the format that suits it — text in the format you picked, spreadsheets as Excel, uploads as themselves. A file you couldn't export on its own stays behind.
 
 ## Deleting a page
 

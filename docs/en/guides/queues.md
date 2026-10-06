@@ -26,7 +26,7 @@ Each item can carry:
 | **Linked member** | Link the item to an actual person in your community. |
 | **Notes** | The detail that doesn't fit in a label — "has a key", "vegetarian", "back on the 14th". |
 | **Tags** | The same tags as everything else. |
-| **Attached** | The documents and tasks this turn is *about*, so nobody has to go hunting for it when their turn arrives. Anything from the same initiative that isn't archived. |
+| **Attached** | The files and tasks this turn is *about*, so nobody has to go hunting for it when their turn arrives. Anything from the same initiative that isn't archived. |
 | **Visible / hidden** | Keep somebody in the queue without showing them right now. |
 
 ## Running one
@@ -63,6 +63,6 @@ Queues share exactly like every other tool: per-queue access at **Viewer**, **Ed
 ## Related
 
 - [Tools](tools.md) — what every tool shares.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — the access levels in full.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — the access levels in full.
 - [Tags](tags.md) — labeling queues and their items.
 - [Your space](your-space.md#my-tools) — every queue that's reached you, from every community, in one table.

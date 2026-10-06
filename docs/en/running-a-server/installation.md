@@ -44,7 +44,7 @@ The example file ships **PostgreSQL 17** and sensible defaults already wired tog
 
 Two things need to persist across restarts and upgrades:
 
-- **The database** — your projects, tasks, documents, and so on.
+- **The database** — your projects, tasks, comments, and so on.
 - **Uploaded files** — mounted at `/app/uploads` in the container.
 
 The example compose file sets up volumes for both. Make sure those volumes live somewhere your [backups](backups-and-updates.md) will capture.

@@ -174,7 +174,7 @@ Before deletion, Initiative makes sure your **owned projects are transferred**, 
 You also get an email confirming it happened, to every address you'd confirmed. The one moment somebody most wants it in writing.
 
 !!! tip "There's a window where you can change your mind"
-    **Sign back in during it and the whole thing is called off** — communities, roles, documents, exactly where you left them. Thirty days on most servers, though whoever runs yours sets the number and may have set none at all, in which case nothing is erased on a timer.
+    **Sign back in during it and the whole thing is called off** — communities, roles, files, exactly where you left them. Thirty days on most servers, though whoever runs yours sets the number and may have set none at all, in which case nothing is erased on a timer.
 
     After that it's properly permanent, and there is no undo, no support ticket and no clever recovery. If you're unsure, deactivate instead.
 

@@ -12,7 +12,7 @@ But if you'd like the map first: four regions on screen, plus one corner of it t
 
 ## The far-left strip
 
-A narrow column of icons welded to the edge of the screen. One per community you belong to. Click one and the entire app swaps over — sidebar, projects, documents, the lot.
+A narrow column of icons welded to the edge of the screen. One per community you belong to. Click one and the entire app swaps over — sidebar, projects, files, the lot.
 
 Can't tell your communities apart from a row of tiny pictures? **Expand community list** opens the rail out into cards: each community's banner, description and categories, with how many people are in it and how many are online right now.
 
@@ -42,7 +42,7 @@ Your bits, tucked underneath.
 
 **Your name and picture** opens your account menu — your profile, **My Settings**, **Theme**, and signing out.
 
-The small **dot** on your picture is your presence: online, idle, busy, or offline. Offline means offline. You can sit in Initiative at two in the morning with six documents open and that dot will say offline the entire time, because you asked it to and it is nobody's business. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
+The small **dot** on your picture is your presence: online, idle, busy, or offline. Offline means offline. You can sit in Initiative at two in the morning with six files open and that dot will say offline the entire time, because you asked it to and it is nobody's business. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
 
 **Theme**, in that menu, does Light, Dark, or System. "System" is for those of us who lost the argument with our laptop some time ago and have made peace with it.
 
@@ -57,7 +57,7 @@ Under all of it, one small row:
 
 ## The middle
 
-Where the work is. Whatever you clicked opens here — a board, a document, a task list, a settings page.
+Where the work is. Whatever you clicked opens here — a board, a spreadsheet, a task list, a settings page.
 
 It gets the most room because it *is* the thing. Everything else described on this page is scaffolding holding up this one rectangle.
 
@@ -71,7 +71,7 @@ Close them when you're done. Or let them pile up, as is traditional. You can cap
 
 ++cmd+k++ on a Mac. ++ctrl+k++ on Windows or Linux. Three fingers on a phone screen.
 
-Type the name of any project, task or document — or any page of this help site — and go straight there. No remembering which initiative you filed it under. No clicking down the sidebar muttering "it's in here somewhere."
+Type the name of any project, task or file — or any page of this help site — and go straight there. No remembering which initiative you filed it under. No clicking down the sidebar muttering "it's in here somewhere."
 
 This is faster than navigating. Not usually — every time. It is the entire difference between the people who find Initiative quick and the people who find it fiddly, and it takes roughly four days to become muscle memory.
 
