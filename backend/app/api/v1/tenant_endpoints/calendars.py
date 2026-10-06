@@ -219,24 +219,12 @@ async def update_calendar(
         guild_context,
         access="write",
     )
-    updated = False
-    update_data = calendar_in.model_dump(exclude_unset=True)
-
-    if "name" in update_data and update_data["name"] is not None:
-        calendar.name = update_data["name"].strip()
-        updated = True
-    if "description" in update_data:
-        calendar.description = update_data["description"]
-        updated = True
-    if "color" in update_data and update_data["color"] is not None:
-        calendar.color = update_data["color"]
-        updated = True
-
-    if updated:
-        calendar.updated_at = datetime.now(timezone.utc)
-        session.add(calendar)
-        await attachments_service.claim_uploads(session, calendar)
-        await session.commit()
+    for field, value in calendar_in.model_dump(exclude_unset=True).items():
+        setattr(calendar, field, value)
+    calendar.updated_at = datetime.now(timezone.utc)
+    session.add(calendar)
+    await attachments_service.claim_uploads(session, calendar)
+    await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)
     return serialize_tool(

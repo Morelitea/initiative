@@ -27,6 +27,8 @@
   "rsvpDeclined": "Refusé",
   "rsvpTentative": "Provisoire",
   "rsvpUpdated": "RSVP mis à jour",
+  "rsvpOpen": "Toute personne qui peut le voir peut répondre",
+  "rsvpOpenHint": "Activé, répondre ajoute la personne aux participants. Désactivé, seuls les participants que vous ajoutez peuvent répondre.",
   "recurrence": "Récurrence",
   "daily": "Quotidien",
   "weekly": "Hebdomadaire",
@@ -85,6 +87,12 @@
     "eventsFailed_other": "{{count}} événements échoués",
     "importSuccess": "Importation terminée !",
     "importError": "Échec de l'importation",
+    "problems": {
+      "no_start": "« {{title}} » ignoré : aucune date de début",
+      "unreadable": "Impossible de lire « {{title}} »",
+      "not_saved": "Impossible d'enregistrer « {{title}} »",
+      "untitled": "Sans titre"
+    },
     "selectCalendar": "Sélectionner un calendrier"
   },
   "calendar": "Calendrier",

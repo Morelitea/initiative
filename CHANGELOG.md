@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
+- **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
 
 ### Changed
 
@@ -97,6 +98,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
 - **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
 - **Community locations.** A community can say where it is, from just a country down to a street address, with its own name for the place ("Queen Anne Neighborhood, Seattle, WA"). It shows on the community's front page and its card; street and postcode stay behind a hover or tap. The directory's search finds communities by place too, country names included, and **Near me** puts the closest ones first. Sign-up asks where you are when you're looking for a community.
+- **Clearing an event's description or location saves.** The emptied field used to come back.
+- **Saving an event or calendar with an empty required field is refused** instead of failing with a server error.
+- **A calendar's color follows what was saved**, and can no longer look cleared.
+- **A calendar or event link you can't open says so** instead of loading forever.
+- **iCal import problems show in your language.**
+- **An initiative's calendar shows only its own tasks**, and the community calendar shows none.
 
 ## [0.74.0] - 2026-10-01
 

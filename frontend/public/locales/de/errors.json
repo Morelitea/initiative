@@ -355,6 +355,7 @@
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Termine können nicht zwischen einem Community-Kalender und dem Kalender einer Initiative verschoben werden",
   "CALENDAR_WINDOW_INVALID": "Der Zeitraum muss nach seinem Beginn enden und darf höchstens 400 Tage umfassen",
   "CALENDAR_WINDOW_TOO_FULL": "Dieser Zeitraum enthält zu viele wiederkehrende Termine, um sie auf einmal anzuzeigen. Wähle einen kürzeren Zeitraum",
+  "CALENDAR_EVENT_RSVP_CLOSED": "Die Zusagen für diesen Termin sind geschlossen. Bitte den Organisator, dich hinzuzufügen",
   "DASHBOARD_NOT_FOUND": "Dashboard nicht gefunden",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "Sie haben keine Berechtigung, Dashboards in dieser Initiative zu erstellen",
   "DASHBOARDS_NOT_ENABLED": "Dashboards sind für diese Initiative nicht aktiviert",

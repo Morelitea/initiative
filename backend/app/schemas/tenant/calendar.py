@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
@@ -38,8 +38,9 @@ class CalendarCreate(CalendarBase, PropertiesOnCreate):
 class CalendarUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[MentionStr] = None
-    # Absent = unchanged; a null is rejected (a calendar always has a color).
     color: Optional[str] = Field(default=None, min_length=1, max_length=32)
+
+    _required = reject_null("name", "color")
 
 
 class CalendarSummary(CalendarBase, ToolSummaryBase):

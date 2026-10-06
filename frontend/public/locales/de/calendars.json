@@ -27,6 +27,8 @@
   "rsvpDeclined": "Abgesagt",
   "rsvpTentative": "Vorbehaltlich",
   "rsvpUpdated": "Zusage aktualisiert",
+  "rsvpOpen": "Alle, die den Termin sehen, können zusagen",
+  "rsvpOpenHint": "An: Wer antwortet, wird zu den Teilnehmenden hinzugefügt. Aus: Nur die Teilnehmenden, die du hinzufügst, können antworten.",
   "recurrence": "Wiederholung",
   "daily": "Täglich",
   "weekly": "Wöchentlich",
@@ -85,6 +87,12 @@
     "eventsFailed_other": "{{count}} Termine fehlgeschlagen",
     "importSuccess": "Import abgeschlossen!",
     "importError": "Import fehlgeschlagen",
+    "problems": {
+      "no_start": "„{{title}}“ übersprungen: kein Startdatum",
+      "unreadable": "„{{title}}“ konnte nicht gelesen werden",
+      "not_saved": "„{{title}}“ konnte nicht gespeichert werden",
+      "untitled": "Ohne Titel"
+    },
     "selectCalendar": "Kalender auswählen"
   },
   "calendar": "Kalender",

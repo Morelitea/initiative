@@ -355,6 +355,7 @@
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Los eventos no se pueden mover entre un calendario de comunidad y el calendario de una iniciativa",
   "CALENDAR_WINDOW_INVALID": "El intervalo de fechas debe terminar después de empezar y abarcar como máximo 400 días",
   "CALENDAR_WINDOW_TOO_FULL": "Este intervalo tiene demasiados eventos periódicos para mostrarlos a la vez. Elige un intervalo más corto",
+  "CALENDAR_EVENT_RSVP_CLOSED": "Las respuestas a este evento están cerradas. Pide al organizador que te añada",
   "DASHBOARD_NOT_FOUND": "Panel no encontrado",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "No tienes permiso para crear paneles en esta iniciativa",
   "DASHBOARDS_NOT_ENABLED": "Los paneles no están habilitados en esta iniciativa",
