@@ -147,6 +147,7 @@ async def enqueue_account_letter(
     *,
     change: dict[str, Any] | None = None,
     also_to: Sequence[str] = (),
+    session: AsyncSession | None = None,
 ) -> None:
     """Write down a letter the account is owed whatever its notification
     settings: about its own security, or a community whose seat it holds.
@@ -157,44 +158,53 @@ async def enqueue_account_letter(
     has proved, and ``also_to`` beside them for an address it no longer holds.
     ``change`` names the account notice the letter is and what undoing it
     does; the worker decides, as it sends each copy, what that copy's link
-    may do. Written on a system session of its own,
-    because it is raised once the change it reports has been committed.
-    """
-    from app.db.session import SystemSessionLocal
+    may do.
 
-    now = datetime.now(timezone.utc)
-    async with SystemSessionLocal() as session:
-        if not await email_service.email_configured(session):
-            return
-        own = await addresses.proven_addresses(session, user_id=user.id)
-        recipients = list(dict.fromkeys([*own, *also_to]))
-        if not recipients:
-            return
-        await session.exec(
-            insert(EmailOutboxItem)
-            .values(
-                [
-                    {
-                        "user_id": user.id,
-                        "category": NotificationCategory.account.value,
-                        "security": True,
-                        "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
-                        "change": change,
-                        "locale": getattr(user, "locale", None) or "en",
-                        "subject": pieces.subject,
-                        "headline": pieces.headline,
-                        "body": pieces.body,
-                        "link": pieces.link,
-                        "link_label": pieces.link_label,
-                        "created_at": now,
-                        "deliver_after": now,
-                    }
-                    for address in recipients
-                ]
+    Written on ``session``, a system-engine session the caller commits, where
+    the letter belongs to the same transaction as what else it writes; on a
+    system session of its own and committed there otherwise, for a letter
+    raised once the change it reports has been committed.
+    """
+    if session is None:
+        from app.db.session import SystemSessionLocal
+
+        async with SystemSessionLocal() as own_session:
+            await enqueue_account_letter(
+                user, pieces, change=change, also_to=also_to, session=own_session
             )
-            .inline()
+            await own_session.commit()
+        return
+    now = datetime.now(timezone.utc)
+    if not await email_service.email_configured(session):
+        return
+    own = await addresses.proven_addresses(session, user_id=user.id)
+    recipients = list(dict.fromkeys([*own, *also_to]))
+    if not recipients:
+        return
+    await session.exec(
+        insert(EmailOutboxItem)
+        .values(
+            [
+                {
+                    "user_id": user.id,
+                    "category": NotificationCategory.account.value,
+                    "security": True,
+                    "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
+                    "change": change,
+                    "locale": getattr(user, "locale", None) or "en",
+                    "subject": pieces.subject,
+                    "headline": pieces.headline,
+                    "body": pieces.body,
+                    "link": pieces.link,
+                    "link_label": pieces.link_label,
+                    "created_at": now,
+                    "deliver_after": now,
+                }
+                for address in recipients
+            ]
         )
-        await session.commit()
+        .inline()
+    )
 
 
 async def recompute_pending(

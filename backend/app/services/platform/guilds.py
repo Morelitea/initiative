@@ -1511,7 +1511,8 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     letter at every proved address, in the language they read, which names the
     day the community is deleted if the hold is still in place. The line goes
     through the notice outbox and the letters through the email outbox as
-    account mail, whose workers deliver and retry them.
+    account mail, written in one transaction, whose workers deliver and retry
+    them.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
@@ -1553,8 +1554,8 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
             for user in seat_holders
         ],
     )
-    letters = [
-        (
+    for user in seat_holders:
+        await email_outbox.enqueue_account_letter(
             user,
             email_service.community_on_hold_pieces(
                 community=guild.name,
@@ -1564,12 +1565,9 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
                 plan_managed=billing_service.billing_managed(),
                 locale=user.locale or "en",
             ),
+            session=session,
         )
-        for user in seat_holders
-    ]
     await session.commit()
-    for user, letter in letters:
-        await email_outbox.enqueue_account_letter(user, letter)
 
 
 #: The bell line each billing trial notice writes.
