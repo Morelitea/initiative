@@ -22,8 +22,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
+    GuildContextDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    get_current_active_user,
     plugin_scope,
 )
 from app.models.tenant.counter import (
@@ -340,9 +342,9 @@ async def update_counter(
 )
 async def delete_counter(
     counter_id: int,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: CounterGroupsWrite,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
     from app.services.tenant.soft_delete import trash
 

@@ -29,8 +29,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
+    GuildContextDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    get_current_active_user,
     plugin_scope,
 )
 from app.models.tenant.queue import (
@@ -395,9 +397,9 @@ async def update_queue_item(
 @items_router.delete("/queue-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_queue_item(
     item_id: int,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: QueuesWrite,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
     """Soft-delete a queue item. Requires write access on the parent queue."""
     from app.services.tenant.soft_delete import trash

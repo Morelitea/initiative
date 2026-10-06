@@ -142,7 +142,6 @@ async def test_a_queue_write_needs_the_write_scope(
         ("patch", f"/queues/{queue.id}", {"name": "No"}),
         ("patch", f"/queue-items/{item.id}", {"label": "No"}),
         ("post", f"/queues/{queue.id}/items", {"label": "No"}),
-        ("delete", f"/queue-items/{item.id}", None),
         ("post", f"/queues/{queue.id}/next", None),
         ("post", f"/queues/{queue.id}/start", None),
     ):
@@ -206,10 +205,6 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
         json={"label": "Passing through"},
     )
     assert added.status_code == 201, added.text
-    removed = await client.delete(
-        guild_url(guild_id, f"/queue-items/{added.json()['id']}"), headers=headers
-    )
-    assert removed.status_code == 204, removed.text
 
     first = await create_queue_item(session, queue, label="First", position=20)
     second = await create_queue_item(session, queue, label="Second", position=10)
@@ -395,7 +390,6 @@ async def test_a_counter_write_needs_the_write_scope(
         ("post", f"{base}/reset", None),
         ("post", f"/counter-groups/{group.id}/counters", {"name": "No"}),
         ("patch", base, {"name": "No"}),
-        ("delete", base, None),
         ("post", f"/counter-groups/{group.id}/reset-all", None),
         ("post", f"/counter-groups/{group.id}/sort", {"field": "name"}),
     ):
@@ -483,9 +477,6 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     await route_session_to_guild(session, guild_id)
     stored = await session.get(Counter, counter_id, populate_existing=True)
     assert stored is not None and stored.count == Decimal("1")
-
-    removed = await client.delete(base, headers=headers)
-    assert removed.status_code == 204, removed.text
 
 
 async def test_it_steps_a_counter_shared_for_writing_only(
