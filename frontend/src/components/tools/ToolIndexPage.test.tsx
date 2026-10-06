@@ -594,6 +594,16 @@ describe("the project index page", () => {
     expect(requests.at(-1)?.has("sort_by")).toBe(false);
     expect(handles()).toHaveLength(1);
 
+    // A search narrows the list, and a cleared one still does until the full
+    // list is back: a drop would send only the narrowed rows.
+    const search = screen.getByLabelText(translate("projects:filters.searchLabel"));
+    await userEvent.type(search, "Barovia");
+    await waitFor(() => expect(requests.at(-1)?.get("search")).toBe("Barovia"));
+    expect(handles()).toHaveLength(0);
+    await userEvent.clear(search);
+    expect(handles()).toHaveLength(0);
+    await waitFor(() => expect(handles()).toHaveLength(1));
+
     await userEvent.click(screen.getByRole("radio", { name: shared("toolViewFilter.archived") }));
     expect(await screen.findByText("Planescape Detour")).toBeInTheDocument();
     expect(handles()).toHaveLength(0);

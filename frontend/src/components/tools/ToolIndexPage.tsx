@@ -158,6 +158,8 @@ export type ToolIndexList = {
   rows: ToolIndexRow[];
   isLoading: boolean;
   isError: boolean;
+  /** The rows are the previous request's, shown while this one loads. */
+  isPlaceholderData: boolean;
   /** Rows the server holds for this archive state — what the pager counts. */
   totalCount: number;
   hasNext: boolean;
@@ -261,6 +263,7 @@ const useProjectRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -289,6 +292,7 @@ const useDocumentRows = (initiativeId: number, filters: ToolIndexFilters): ToolI
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -313,6 +317,7 @@ const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndex
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -341,6 +346,7 @@ const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -368,6 +374,7 @@ const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolInde
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -398,6 +405,7 @@ const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): T
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -428,6 +436,7 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
     rows,
     isLoading: query.isLoading,
     isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
   };
@@ -789,13 +798,17 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
 
   // The reader's own order covers the whole list, and a drop sends the list's
   // opening rows: so only the live list, in that order, unnarrowed, on its
-  // first page, and not while picking rows out of it.
+  // first page, and not while picking rows out of it. Unnarrowed as asked for
+  // and as shown: a cleared search is still the debounced one, and its rows
+  // stay on screen until the full list arrives.
   const draggable =
     reorder !== null &&
     view === "active" &&
     !sort.sort_by &&
     page === 1 &&
     activeFilterCount === 0 &&
+    !search &&
+    !list.isPlaceholderData &&
     tagTree.selectedPaths.size === 0 &&
     !selection.active;
 
