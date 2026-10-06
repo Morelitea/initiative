@@ -55,6 +55,8 @@ from app.models.platform.user import UserRole
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "PLATFORM_ROUTES",
+    "PLATFORM_SUSPENDED",
     "PLATFORM_TIER_ROLES",
     "PUBLIC_RLS",
     "Grants",
@@ -64,11 +66,15 @@ __all__ = [
     "TableRls",
     "apply_public_rls",
     "apply_public_rls_if_changed",
+    "existing_public_tables",
+    "platform_tier",
     "policy_name",
     "policy_roles",
     "ensure_public_rls",
     "public_rls_digest",
     "render_public_rls_ddl",
+    "render_table_rls",
+    "role_name",
     "unregistered_policies",
 ]
 
@@ -258,9 +264,25 @@ COMMANDS = frozenset({SELECT, INSERT, UPDATE, DELETE, ALL})
 DML = frozenset({SELECT, INSERT, UPDATE, DELETE})
 
 
-def platform_tier(role: UserRole) -> str:
-    """The Postgres role a platform tier's request assumes, unprefixed."""
-    return f"platform_{role.value}"
+#: The platform role a suspended account assumes whatever its tier: it holds no
+#: rung while in time out. ``platform_suspended`` inherits only
+#: ``platform_base_ro``, the read half of ``platform_base``, so what it reaches
+#: is its own rows, read, and nothing written. Not a rung — ``users.role`` never
+#: holds it — so it sits beside the ladder rather than on it.
+PLATFORM_SUSPENDED = "suspended"
+
+#: Every platform role a request may assume: one ``platform_<tier>`` per rung
+#: of the ladder (``users.role``), and the time-out role.
+PLATFORM_ROUTES: tuple[str, ...] = (
+    *(role.value for role in UserRole),
+    PLATFORM_SUSPENDED,
+)
+
+
+def platform_tier(tier: UserRole | str) -> str:
+    """The Postgres role a platform tier's request assumes, unprefixed. ``tier``
+    is a rung of the ladder or :data:`PLATFORM_SUSPENDED`."""
+    return f"platform_{tier.value if isinstance(tier, UserRole) else tier}"
 
 
 #: The platform ladder as policy roles, one per ``UserRole``.
@@ -280,22 +302,25 @@ SHARED_ROLES = frozenset(
     }
 )
 
-#: Roles a policy may be granted to, by their unprefixed names. The platform
-#: roles and the billing role carry ``settings.PLATFORM_ROLE_PREFIX`` when
-#: rendered (:func:`role_name`); the rest are fixed names.
+#: Roles a policy may be granted to, by their unprefixed names (see
+#: :func:`role_name` for how each is spelled in the catalog).
 KNOWN_ROLES = (
     frozenset({"public", "app_user", "initiative_billing"})
     | SHARED_ROLES
     | PLATFORM_TIER_ROLES
 )
-_PREFIXED = frozenset(r for r in KNOWN_ROLES if r.startswith("platform_")) | {
-    "initiative_billing"
-}
 
 
 def role_name(role: str) -> str:
-    """A known role as the catalog holds it, prefixed where it carries one."""
-    return f"{settings.PLATFORM_ROLE_PREFIX}{role}" if role in _PREFIXED else role
+    """A cluster role as the catalog holds it, from its unprefixed name.
+
+    The platform roles (``platform_*``) and the billing role carry
+    ``settings.PLATFORM_ROLE_PREFIX`` — empty in production, per run under the
+    suite, so databases sharing a cluster keep their own; the rest are fixed
+    names.
+    """
+    prefixed = role.startswith("platform_") or role == "initiative_billing"
+    return f"{settings.PLATFORM_ROLE_PREFIX}{role}" if prefixed else role
 
 
 @dataclass(frozen=True)
@@ -2163,11 +2188,11 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # lazily-created UNLOGGED backfill status singleton: read, seeded idle, and
             # claimed/updated on the system engine; rows are never deleted (the claim
             # UPDATE recycles the singleton). The service grants exactly this set at
-            # table creation (app.services.storage_backfill._ensure_table).
+            # table creation (app.services.storage_backfill._table_ddl).
             app_admin=frozenset({SELECT, INSERT, UPDATE}),
             # system-engine-only status singleton; no request role reads it
             app_user=None,
-            # _ensure_table takes both floors back at creation
+            # _table_ddl takes both floors back at creation
             # (app.services.storage_backfill).
             app_guild_base=None,
         ),
@@ -2420,7 +2445,7 @@ STAMP_PREFIX = "public_rls:"
 # --- Applying -------------------------------------------------------------------
 
 
-async def _existing_public_tables(conn: AsyncConnection) -> frozenset[str]:
+async def existing_public_tables(conn: AsyncConnection) -> frozenset[str]:
     rows = await conn.execute(
         text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
     )
@@ -2433,7 +2458,7 @@ async def apply_public_rls(conn: AsyncConnection) -> None:
     ``storage_backfill_state`` is created lazily by its service, so a table
     registered here may not exist yet; it is picked up on the next boot.
     """
-    existing = await _existing_public_tables(conn)
+    existing = await existing_public_tables(conn)
     ddl = render_public_rls_ddl(existing & frozenset(PUBLIC_RLS))
     raw = await conn.get_raw_connection()
     await raw.driver_connection.execute(ddl)

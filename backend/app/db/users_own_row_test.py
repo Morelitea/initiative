@@ -18,7 +18,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.schema_provisioning import guild_role_name, platform_role_name
+from app.db.public_rls import platform_tier, role_name
+from app.db.schema_provisioning import guild_role_name
 from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
@@ -220,13 +221,13 @@ class TestReestablishedContext:
         member, other = two_accounts
         s = await role_session("app_user")
         await set_rls_context(s, Platform(user_id=member.id, tier="member"))
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
         # The shape of every "back to the platform path" call in the services.
         await set_rls_context(s, Platform(user_id=member.id))
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_a_guild_trip_comes_back_at_the_same_tier(
@@ -245,7 +246,7 @@ class TestReestablishedContext:
 
         await set_rls_context(s, Platform(user_id=member.id))
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_it_crosses_a_transaction_boundary(
@@ -265,7 +266,7 @@ class TestReestablishedContext:
         await set_rls_context(s, Platform(user_id=member.id))
         await s.commit()
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_an_unattributed_context_forgets_it(
