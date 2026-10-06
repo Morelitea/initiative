@@ -14,7 +14,9 @@ from app.core.config import settings
 # ciphertext produced with the old key.
 #
 # To add a new encrypted field: pick a descriptive salt string, add it
-# here, and use encrypt_field / decrypt_field with that constant.
+# here, and use encrypt_field / decrypt_field with that constant. A stored
+# value declares it on its column's ``info`` (``FERNET_SALT``, below), which is
+# how the SECRET_KEY rotation finds it.
 SALT_OIDC_REFRESH_TOKEN = b"oidc-refresh-token"  # legacy name, do not rename
 SALT_OIDC_CLIENT_SECRET = b"oidc-client-secret"
 SALT_OIDC_FLOW_STATE = b"oidc-flow-state"  # transient login-flow state (never stored)
@@ -65,6 +67,19 @@ SALT_PLUGIN_VENDOR_SETUP = b"app-vendor-setup"  # stored value, do not change
 SALT_IMPORT_CREDENTIAL = b"import-credential"
 # The API token one import job uses to read a foreign site. Held for the
 # length of that job and deleted with it.
+
+# Keys of a model column's ``info`` that declare what it stores encrypted, read
+# by the SECRET_KEY rotation (app.db.secret_key_rotation).
+#
+# ``FERNET_SALT``: the salt the column's ciphertext is sealed under — the whole
+# value of a text column, or every string leaf of a JSON column.
+# ``FERNET_PATHS``: on a JSON column, the only leaves that hold ciphertext,
+# each a tuple of keys; the rest of the document is plain.
+# ``EMAIL_HASH_COLUMN``: the column beside it holding ``hash_email`` of the
+# same plaintext, recomputed in the statement that re-encrypts it.
+FERNET_SALT = "fernet_salt"
+FERNET_PATHS = "fernet_paths"
+EMAIL_HASH_COLUMN = "email_hash_column"
 
 
 def _resolve_secret_key(secret_key: str | None) -> str:
