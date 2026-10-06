@@ -341,8 +341,6 @@
     "seeAll": "Alle ansehen",
     "inbox": {
       "title": "Benachrichtigungen",
-      "today": "Heute",
-      "yesterday": "Gestern",
       "empty": "Hier ist noch nichts.",
       "loadMore": "Mehr laden",
       "markRead": "Als gelesen markieren",

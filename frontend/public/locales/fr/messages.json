@@ -95,10 +95,6 @@
     "body": "Il disparaît de cet appareil, et l'application de l'autre personne le retire du sien. Ce qui a déjà été lu reste lu : ceci ne peut pas le défaire."
   },
   "removed": "Message supprimé",
-  "days": {
-    "today": "Aujourd'hui",
-    "yesterday": "Hier"
-  },
   "newDevice": {
     "title": "Nouvel appareil connecté",
     "body": "{{device}} s'est connecté à ton compte. Si c'est le tien, vérifie-le : les deux écrans afficheront les mêmes quatre images à comparer.",

@@ -52,7 +52,7 @@ export async function normalizeBlobError(err: unknown): Promise<unknown> {
 }
 
 /** Fetch a finished export job's artifact and hand it to the browser as a
- * download. Shared by the export button and the notification bell — the loose
+ * download. Shared by the export button and `openNotification` — the loose
  * ``t`` shape (same as NotificationBell's helpers) admits any caller's bound
  * namespaces, since the toast keys here are namespace-prefixed. */
 export async function downloadExportArtifact(

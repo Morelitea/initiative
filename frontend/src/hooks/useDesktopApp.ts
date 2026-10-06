@@ -8,11 +8,12 @@ import {
   listNotifications,
   readNotificationAlert,
 } from "@/api/generated/notifications/notifications";
-import { notificationLink, notificationText } from "@/components/notifications/notificationLine";
+import { notificationText, openNotification } from "@/components/notifications/notificationLine";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import { useMarkNotificationRead, useNotifications } from "@/hooks/useNotifications";
 import { drawBadge, setAlertHandler } from "@/lib/desktopAlerts";
 import Desktop from "@/plugins/desktop";
+import type { TranslateFn } from "@/types/i18n";
 
 /** The tag a "while you were away" notification carries. */
 const SUMMARY = "summary";
@@ -26,7 +27,8 @@ const SUMMARY = "summary";
  */
 export const useDesktopApp = () => {
   const desktop = Capacitor.getPlatform() === "electron";
-  const { t } = useTranslation("communities");
+  // "exports" is loaded alongside for a finished export's download toasts.
+  const { t } = useTranslation(["communities", "exports"]);
   const router = useRouter();
   const markRead = useMarkNotificationRead();
   const streamConnected = useNotificationStreamConnected();
@@ -76,10 +78,7 @@ export const useDesktopApp = () => {
         redacted
           ? { title: redacted.title, body: redacted.body, tag: String(id) }
           : {
-              title: notificationText(
-                notification,
-                t as (key: string, options?: Record<string, unknown>) => string
-              ),
+              title: notificationText(notification, t as TranslateFn),
               tag: String(id),
             }
       );
@@ -107,14 +106,14 @@ export const useDesktopApp = () => {
     const listener = Desktop.addListener("notificationClicked", ({ tag }) => {
       const notification = shown.current.get(tag);
       shown.current.delete(tag);
-      if (notification && !notification.read_at) {
-        markRead.mutate(notification.id);
-      }
-      const target = notification ? notificationLink(notification) : null;
-      if (target) {
-        // As the bell opens it: a query string stays search, not path.
-        router.navigate(target.includes("?") ? { href: target } : { to: target });
-      } else {
+      const opened =
+        notification &&
+        openNotification(notification, {
+          markRead: markRead.mutate,
+          navigate: router.navigate,
+          t: t as TranslateFn,
+        });
+      if (!opened) {
         router.navigate({ to: "/notifications" });
       }
     });
