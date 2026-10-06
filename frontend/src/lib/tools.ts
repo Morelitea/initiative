@@ -106,10 +106,16 @@ export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t
  */
 export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
   [Tool.dashboard]: ListingKind.dashboard,
+  [Tool.project]: ListingKind.project,
 };
 
 /** Which marketplace shelf a tool's list links to, or null when it has none. */
 export const toolListingKind = (tool: Tool): ListingKind | null => TOOL_LISTING_KINDS[tool] ?? null;
+
+/** The tool a listing of this kind installs into, or null when it is not a
+ *  tool's listing (a plug-in, an automation, a profile pack). */
+export const listingKindTool = (kind: ListingKind): Tool | null =>
+  TOOLS.find((tool) => TOOL_LISTING_KINDS[tool] === kind) ?? null;
 
 /** The slices a tool's list can show, in the order a page offers them. */
 export const TOOL_VIEWS = ["active", "templates", "archived"] as const;

@@ -8,6 +8,8 @@
  * only where the plug-in is installed, so the catalog is asked on this community's
  * behalf. What is already installed here is a second question, answered by the
  * community's own dashboards and plug-ins lists and matched up client-side.
+ * Other shelves ask nothing: a project installs as a new copy every time, so
+ * there is no "already have it" to show.
  */
 
 import { useSearch } from "@tanstack/react-router";
@@ -33,6 +35,7 @@ const PAGE_SIZE = 24;
  *  without a line of its own does not compile. */
 const SUBTITLE_KEYS = {
   [ListingKind.dashboard]: "subtitle",
+  [ListingKind.project]: "subtitleProjects",
   [ListingKind.plugin]: "subtitlePlugins",
   [ListingKind.auto]: "subtitleAuto",
 } as const satisfies Record<CommunityShelf, string>;
@@ -74,10 +77,15 @@ export function MarketplaceBrowsePage() {
   // and only one of them is true. The notice below says which.
   const dashboardInstalls = useInstalledListings({ enabled: kind === ListingKind.dashboard });
   const pluginInstalls = useCommunityPlugins({ enabled: kind === ListingKind.plugin });
-  const installedQuery = kind === ListingKind.plugin ? pluginInstalls : dashboardInstalls;
+  const installedQuery =
+    kind === ListingKind.plugin
+      ? pluginInstalls
+      : kind === ListingKind.dashboard
+        ? dashboardInstalls
+        : null;
 
   const installedByUid = useMemo(() => {
-    if (installedQuery.isError) return undefined;
+    if (!installedQuery || installedQuery.isError) return undefined;
     if (kind === ListingKind.plugin) {
       // One install per listing per community, so this is a presence map that
       // happens to be shaped like the dashboards' counts.
@@ -86,7 +94,7 @@ export function MarketplaceBrowsePage() {
       return counts;
     }
     return dashboardInstalls.data?.counts;
-  }, [kind, installedQuery.isError, pluginInstalls.data, dashboardInstalls.data]);
+  }, [kind, installedQuery, pluginInstalls.data, dashboardInstalls.data]);
 
   const listings = (listingsQuery.data?.items ?? []).filter(listingShownHere);
 
@@ -121,7 +129,7 @@ export function MarketplaceBrowsePage() {
         </div>
       ) : listings.length ? (
         <>
-          {installedQuery.isError && (
+          {installedQuery?.isError && (
             <p className="text-muted-foreground text-sm">{t("installedUnknown")}</p>
           )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

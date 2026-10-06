@@ -1,0 +1,698 @@
+{
+  "uid": "WY4WAN93PFP3X4",
+  "public_id": "core.sales-pipeline",
+  "kind": "project",
+  "name": "Sales pipeline",
+  "publisher": "Initiative",
+  "description": "Every deal on one board, from first hello to signed.",
+  "long_description": "Each deal is a card, and each stage is a column: Lead, Contacted, Demo sent, Trial, Negotiating, Won and Lost. Cards carry the company, the person you are talking to, what the deal is worth, where it came from and the date of the next step, so the board doubles as a to-do list.\n\nInstall one per salesperson and everyone works their own pipeline with the usual board, filters and due dates. A manager in the same initiative sees them all.\n\nValue is a plain number with the currency in its name. Rename the field if you sell in something other than dollars.",
+  "avatar_url": "/marketplace/core-sales-pipeline.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Sales pipeline",
+      "icon": "💼",
+      "description": "One card per deal. Move it along as it moves along.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Lead",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Contacted",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": "phone-call",
+        "is_default": false
+      },
+      {
+        "name": "Demo sent",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "send",
+        "is_default": false
+      },
+      {
+        "name": "Trial",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "flask-conical",
+        "is_default": false
+      },
+      {
+        "name": "Negotiating",
+        "category": "in_progress",
+        "position": 4,
+        "color": null,
+        "icon": "handshake",
+        "is_default": false
+      },
+      {
+        "name": "Won",
+        "category": "done",
+        "position": 5,
+        "color": null,
+        "icon": "trophy",
+        "is_default": false
+      },
+      {
+        "name": "Lost",
+        "category": "done",
+        "position": 6,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Company",
+        "type": "text",
+        "position": 0.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Contact",
+        "type": "text",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Value (USD)",
+        "type": "number",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Next step",
+        "type": "date",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Source",
+        "type": "select",
+        "position": 4.0,
+        "color": null,
+        "options": [
+          {
+            "value": "referral",
+            "label": "Referral",
+            "color": "#10B981"
+          },
+          {
+            "value": "website",
+            "label": "Website",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "event",
+            "label": "Event",
+            "color": "#F59E0B"
+          },
+          {
+            "value": "outbound",
+            "label": "Outbound",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "partner",
+            "label": "Partner",
+            "color": "#EC4899"
+          }
+        ]
+      }
+    ],
+    "tasks": []
+  },
+  "example": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Sales pipeline",
+      "icon": "💼",
+      "description": "One card per deal. Move it along as it moves along.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Lead",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Contacted",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": "phone-call",
+        "is_default": false
+      },
+      {
+        "name": "Demo sent",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "send",
+        "is_default": false
+      },
+      {
+        "name": "Trial",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "flask-conical",
+        "is_default": false
+      },
+      {
+        "name": "Negotiating",
+        "category": "in_progress",
+        "position": 4,
+        "color": null,
+        "icon": "handshake",
+        "is_default": false
+      },
+      {
+        "name": "Won",
+        "category": "done",
+        "position": 5,
+        "color": null,
+        "icon": "trophy",
+        "is_default": false
+      },
+      {
+        "name": "Lost",
+        "category": "done",
+        "position": 6,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Company",
+        "type": "text",
+        "position": 0.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Contact",
+        "type": "text",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Value (USD)",
+        "type": "number",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Next step",
+        "type": "date",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Source",
+        "type": "select",
+        "position": 4.0,
+        "color": null,
+        "options": [
+          {
+            "value": "referral",
+            "label": "Referral",
+            "color": "#10B981"
+          },
+          {
+            "value": "website",
+            "label": "Website",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "event",
+            "label": "Event",
+            "color": "#F59E0B"
+          },
+          {
+            "value": "outbound",
+            "label": "Outbound",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "partner",
+            "label": "Partner",
+            "color": "#EC4899"
+          }
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Copper Kettle Café",
+        "description": "Filled in the contact form at 11pm. Wants to know if we do loyalty cards.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": "2000-01-04T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Lead",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Copper Kettle Café"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Dana, owner"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 1200.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-04"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "website"
+          }
+        ]
+      },
+      {
+        "title": "Ridgeline Climbing Gym",
+        "description": "Met at the regional small business fair. Two locations, a third opening in spring.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-05T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Lead",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Ridgeline Climbing Gym"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Theo, general manager"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 4800.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-05"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "event"
+          }
+        ]
+      },
+      {
+        "title": "Bluebird Preschool",
+        "description": "Referred by Larkspur Dental. Needs a parent-facing calendar more than anything else.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-06T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Contacted",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Intro call",
+            "done": true
+          },
+          {
+            "text": "Send pricing sheet",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Bluebird Preschool"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Ms. Okafor, director"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 2400.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-06"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "referral"
+          }
+        ]
+      },
+      {
+        "title": "Halvorsen Freight",
+        "description": "Forty drivers, three depots. Their current system is a whiteboard and a lot of phone calls.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-01-07T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Demo sent",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Discovery call",
+            "done": true
+          },
+          {
+            "text": "Send demo",
+            "done": true
+          },
+          {
+            "text": "Follow up on demo",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Halvorsen Freight"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Ingrid, operations lead"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 18000.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-07"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "outbound"
+          }
+        ]
+      },
+      {
+        "title": "Marigold Yoga",
+        "description": "Looked at the demo twice. Asked whether class schedules can repeat weekly. They can.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-08T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Demo sent",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Marigold Yoga"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Sam, studio owner"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 900.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-08"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "website"
+          }
+        ]
+      },
+      {
+        "title": "Northwind Bicycles",
+        "description": "Two-week trial started. Using it for repair tickets first, inventory later.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-10T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Trial",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Trial kickoff",
+            "done": true
+          },
+          {
+            "text": "Mid-trial check-in",
+            "done": false
+          },
+          {
+            "text": "Trial review",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Northwind Bicycles"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Luis, co-owner"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 6500.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-10"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "partner"
+          }
+        ]
+      },
+      {
+        "title": "Tidewater Brewing",
+        "description": "Happy with the product. Wants annual billing and a discount for paying up front.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-01-09T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Negotiating",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Send proposal",
+            "done": true
+          },
+          {
+            "text": "Legal review",
+            "done": false
+          },
+          {
+            "text": "Signature",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Tidewater Brewing"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Priya, taproom manager"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 7200.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-09"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "referral"
+          }
+        ]
+      },
+      {
+        "title": "Larkspur Dental",
+        "description": "Signed for a year. Asked to be a reference, which we will take them up on.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Won",
+        "position": 7.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Larkspur Dental"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Dr. Reyes"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 3600.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-03"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "event"
+          }
+        ]
+      },
+      {
+        "title": "Juniper & Co. Florists",
+        "description": "Went with a spreadsheet. Check back after wedding season.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Lost",
+        "position": 8.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Company",
+            "property_type": "text",
+            "value_text": "Juniper & Co. Florists"
+          },
+          {
+            "property_name": "Contact",
+            "property_type": "text",
+            "value_text": "Mel, owner"
+          },
+          {
+            "property_name": "Value (USD)",
+            "property_type": "number",
+            "value_number": 1500.0
+          },
+          {
+            "property_name": "Next step",
+            "property_type": "date",
+            "value_text": "2000-01-03"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "outbound"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,385 @@
+{
+  "uid": "619SNT64PE08C5",
+  "public_id": "core.facility-maintenance",
+  "kind": "project",
+  "name": "Facility maintenance",
+  "publisher": "Initiative",
+  "description": "The upkeep nobody remembers until the alarm goes off.",
+  "long_description": "A year of building upkeep, already on repeat: filters, alarms, extinguishers, gutters, the water heater and the roof. Each task comes back on its own schedule when you finish it, so the list never runs out and never needs rewriting.\n\nPick the day to start from when you install. Tasks record the area, the vendor you called and what it cost, which is the information you will want next year and will not have written down otherwise.",
+  "avatar_url": "/marketplace/core-facility-maintenance.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Facility maintenance",
+      "icon": "🔧",
+      "description": "Recurring upkeep. Finish a task and the next one appears on schedule.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "To do",
+        "category": "todo",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "In progress",
+        "category": "in_progress",
+        "position": 1,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "Waiting on vendor",
+        "category": "in_progress",
+        "position": 2,
+        "color": "#F97316",
+        "icon": "circle-pause",
+        "is_default": false
+      },
+      {
+        "name": "Done",
+        "category": "done",
+        "position": 3,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Area",
+        "type": "select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "hvac",
+            "label": "Heating and cooling",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "plumbing",
+            "label": "Plumbing",
+            "color": "#06B6D4"
+          },
+          {
+            "value": "electrical",
+            "label": "Electrical",
+            "color": "#EAB308"
+          },
+          {
+            "value": "safety",
+            "label": "Safety",
+            "color": "#EF4444"
+          },
+          {
+            "value": "building",
+            "label": "Building",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "grounds",
+            "label": "Grounds",
+            "color": "#10B981"
+          }
+        ]
+      },
+      {
+        "name": "Vendor",
+        "type": "text",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Cost",
+        "type": "number",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Test smoke and carbon monoxide alarms",
+        "description": "Press the test button on every one. Replace batteries that chirp.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY",
+        "status_name": "To do",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "safety"
+          }
+        ]
+      },
+      {
+        "title": "Check fire extinguishers",
+        "description": "Pin in place, gauge in the green, nothing blocking it.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-04T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY",
+        "status_name": "To do",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "safety"
+          }
+        ]
+      },
+      {
+        "title": "Test emergency lighting",
+        "description": "Thirty seconds on battery for every fitting.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-05T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY",
+        "status_name": "To do",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "safety"
+          }
+        ]
+      },
+      {
+        "title": "Restock first aid kits",
+        "description": "Bandages go first. Then whatever someone borrowed.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-06T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY",
+        "status_name": "To do",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "safety"
+          }
+        ]
+      },
+      {
+        "title": "Replace heating and cooling filters",
+        "description": "Write the filter size on the unit while you are there.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-10T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY;INTERVAL=3",
+        "status_name": "To do",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "hvac"
+          }
+        ]
+      },
+      {
+        "title": "Pest control visit",
+        "description": "Note what they found and where.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-17T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY;INTERVAL=3",
+        "status_name": "To do",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "building"
+          }
+        ]
+      },
+      {
+        "title": "Service the heating and cooling system",
+        "description": "Before the first hot week and before the first cold one.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-24T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY;INTERVAL=6",
+        "status_name": "To do",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Book the technician",
+            "done": false
+          },
+          {
+            "text": "Clear access to the units",
+            "done": false
+          },
+          {
+            "text": "File the service report",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "hvac"
+          }
+        ]
+      },
+      {
+        "title": "Clear the gutters and drains",
+        "description": "After the leaves fall and again in spring.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-31T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY;INTERVAL=6",
+        "status_name": "To do",
+        "position": 7.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "grounds"
+          }
+        ]
+      },
+      {
+        "title": "Flush the water heater",
+        "description": "Sediment builds up whether you look at it or not.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-02-07T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=YEARLY",
+        "status_name": "To do",
+        "position": 8.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "plumbing"
+          }
+        ]
+      },
+      {
+        "title": "Annual extinguisher service",
+        "description": "A certified inspection, separate from the monthly check.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-02-14T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=YEARLY",
+        "status_name": "To do",
+        "position": 9.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Book the inspector",
+            "done": false
+          },
+          {
+            "text": "Update the tags",
+            "done": false
+          },
+          {
+            "text": "File the certificate",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "safety"
+          }
+        ]
+      },
+      {
+        "title": "Inspect the roof",
+        "description": "From the ground with binoculars is fine. Call someone for anything closer.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-02-21T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=YEARLY",
+        "status_name": "To do",
+        "position": 10.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "building"
+          }
+        ]
+      },
+      {
+        "title": "Test the electrical safety switches",
+        "description": "Press the test button on each one. They should trip immediately.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-02-28T12:00:00+00:00",
+        "recurrence": "RRULE:FREQ=MONTHLY;INTERVAL=6",
+        "status_name": "To do",
+        "position": 11.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Area",
+            "property_type": "select",
+            "value_text": "electrical"
+          }
+        ]
+      }
+    ]
+  }
+}

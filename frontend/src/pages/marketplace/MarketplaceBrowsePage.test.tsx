@@ -111,6 +111,16 @@ describe("MarketplaceBrowsePage", () => {
     expect(screen.queryByText("Installed")).toBeNull();
   });
 
+  it("marks nothing installed on the projects shelf", async () => {
+    // A project installs as a new copy every time, so the dashboards' counts
+    // say nothing about it, even for the same uid.
+    installed = { SPRNT000000001: 1 };
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "project" } });
+    await screen.findByText("Sprint health");
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "project" }));
+    expect(screen.queryByText("Installed")).toBeNull();
+  });
+
   it("marks a listing this community already installed", async () => {
     // Counted server-side over every dashboard. Deriving this from the
     // paginated dashboard list would mark some installs and miss the rest once

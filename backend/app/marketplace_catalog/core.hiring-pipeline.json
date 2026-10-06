@@ -1,0 +1,678 @@
+{
+  "uid": "K3Z79JR02NR40P",
+  "public_id": "core.hiring-pipeline",
+  "kind": "project",
+  "name": "Hiring pipeline",
+  "publisher": "Initiative",
+  "description": "Candidates on a board, so nobody waits three weeks to hear back.",
+  "long_description": "Each candidate is a card that moves from Applied through Screening, Interviewing and Offer to Hired, or to Not moving forward, which is kinder than a column called Rejected.\n\nCards record the role, where the candidate came from, how they would work and when the interview is. Give each card a checklist of your steps, such as phone screen, interviews, references, offer letter and start date, so every candidate gets the same process.\n\nAssign each card to whoever owes the candidate an answer next. That is usually the whole problem.",
+  "avatar_url": "/marketplace/core-hiring-pipeline.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Hiring pipeline",
+      "icon": "🙋",
+      "description": "One card per candidate. The checklist on each card is the process.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Applied",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Screening",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": "phone-call",
+        "is_default": false
+      },
+      {
+        "name": "Interviewing",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "user-check",
+        "is_default": false
+      },
+      {
+        "name": "Offer",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "send",
+        "is_default": false
+      },
+      {
+        "name": "Hired",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": "trophy",
+        "is_default": false
+      },
+      {
+        "name": "Not moving forward",
+        "category": "done",
+        "position": 5,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Role",
+        "type": "text",
+        "position": 0.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Source",
+        "type": "select",
+        "position": 1.0,
+        "color": null,
+        "options": [
+          {
+            "value": "referral",
+            "label": "Referral",
+            "color": "#10B981"
+          },
+          {
+            "value": "job-board",
+            "label": "Job board",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "careers-page",
+            "label": "Careers page",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "recruiter",
+            "label": "Recruiter",
+            "color": "#F59E0B"
+          }
+        ]
+      },
+      {
+        "name": "Work location",
+        "type": "select",
+        "position": 2.0,
+        "color": null,
+        "options": [
+          {
+            "value": "on-site",
+            "label": "On site",
+            "color": null
+          },
+          {
+            "value": "hybrid",
+            "label": "Hybrid",
+            "color": null
+          },
+          {
+            "value": "remote",
+            "label": "Remote",
+            "color": null
+          }
+        ]
+      },
+      {
+        "name": "Interview date",
+        "type": "date",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Portfolio",
+        "type": "url",
+        "position": 4.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": []
+  },
+  "example": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Hiring pipeline",
+      "icon": "🙋",
+      "description": "One card per candidate. The checklist on each card is the process.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Applied",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Screening",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": "phone-call",
+        "is_default": false
+      },
+      {
+        "name": "Interviewing",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "user-check",
+        "is_default": false
+      },
+      {
+        "name": "Offer",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "send",
+        "is_default": false
+      },
+      {
+        "name": "Hired",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": "trophy",
+        "is_default": false
+      },
+      {
+        "name": "Not moving forward",
+        "category": "done",
+        "position": 5,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Role",
+        "type": "text",
+        "position": 0.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Source",
+        "type": "select",
+        "position": 1.0,
+        "color": null,
+        "options": [
+          {
+            "value": "referral",
+            "label": "Referral",
+            "color": "#10B981"
+          },
+          {
+            "value": "job-board",
+            "label": "Job board",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "careers-page",
+            "label": "Careers page",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "recruiter",
+            "label": "Recruiter",
+            "color": "#F59E0B"
+          }
+        ]
+      },
+      {
+        "name": "Work location",
+        "type": "select",
+        "position": 2.0,
+        "color": null,
+        "options": [
+          {
+            "value": "on-site",
+            "label": "On site",
+            "color": null
+          },
+          {
+            "value": "hybrid",
+            "label": "Hybrid",
+            "color": null
+          },
+          {
+            "value": "remote",
+            "label": "Remote",
+            "color": null
+          }
+        ]
+      },
+      {
+        "name": "Interview date",
+        "type": "date",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Portfolio",
+        "type": "url",
+        "position": 4.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Amara K.",
+        "description": "Five years on a help desk. Cover letter mentions our docs, which someone clearly read.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Applied",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": false
+          },
+          {
+            "text": "Interviews",
+            "done": false
+          },
+          {
+            "text": "References",
+            "done": false
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Support specialist"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "careers-page"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "remote"
+          }
+        ]
+      },
+      {
+        "title": "Ben W.",
+        "description": "Ran the front desk for a dental practice.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Applied",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": false
+          },
+          {
+            "text": "Interviews",
+            "done": false
+          },
+          {
+            "text": "References",
+            "done": false
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Office manager"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "job-board"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "on-site"
+          }
+        ]
+      },
+      {
+        "title": "Chloe D.",
+        "description": "Referred by the design team. Portfolio has a very good date picker.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-01-05T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Screening",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": false
+          },
+          {
+            "text": "Interviews",
+            "done": false
+          },
+          {
+            "text": "References",
+            "done": false
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Frontend engineer"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "referral"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "hybrid"
+          },
+          {
+            "property_name": "Interview date",
+            "property_type": "date",
+            "value_text": "2000-01-05"
+          }
+        ]
+      },
+      {
+        "title": "Diego M.",
+        "description": "Phone screen went well. Panel interview with the support leads on the date set.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-07T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Interviewing",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": true
+          },
+          {
+            "text": "Interviews",
+            "done": false
+          },
+          {
+            "text": "References",
+            "done": false
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Support specialist"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "job-board"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "remote"
+          },
+          {
+            "property_name": "Interview date",
+            "property_type": "date",
+            "value_text": "2000-01-07"
+          }
+        ]
+      },
+      {
+        "title": "Elena V.",
+        "description": "Offer sent. Asked for a start date after the end of the month.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": "2000-01-04T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Offer",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": true
+          },
+          {
+            "text": "Interviews",
+            "done": true
+          },
+          {
+            "text": "References",
+            "done": true
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Frontend engineer"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "recruiter"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "remote"
+          },
+          {
+            "property_name": "Interview date",
+            "property_type": "date",
+            "value_text": "2000-01-04"
+          }
+        ]
+      },
+      {
+        "title": "Farid H.",
+        "description": "Starts on the first of the month. Order a desk.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Hired",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": true
+          },
+          {
+            "text": "Interviews",
+            "done": true
+          },
+          {
+            "text": "References",
+            "done": true
+          },
+          {
+            "text": "Offer letter",
+            "done": true
+          },
+          {
+            "text": "Start date set",
+            "done": true
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Office manager"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "referral"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "on-site"
+          },
+          {
+            "property_name": "Interview date",
+            "property_type": "date",
+            "value_text": "2000-01-03"
+          }
+        ]
+      },
+      {
+        "title": "Grace L.",
+        "description": "Strong, but looking for a backend role. Keep in mind for the next one.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Not moving forward",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Phone screen",
+            "done": true
+          },
+          {
+            "text": "Interviews",
+            "done": true
+          },
+          {
+            "text": "References",
+            "done": false
+          },
+          {
+            "text": "Offer letter",
+            "done": false
+          },
+          {
+            "text": "Start date set",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Role",
+            "property_type": "text",
+            "value_text": "Frontend engineer"
+          },
+          {
+            "property_name": "Source",
+            "property_type": "select",
+            "value_text": "careers-page"
+          },
+          {
+            "property_name": "Work location",
+            "property_type": "select",
+            "value_text": "hybrid"
+          },
+          {
+            "property_name": "Interview date",
+            "property_type": "date",
+            "value_text": "2000-01-03"
+          }
+        ]
+      }
+    ]
+  }
+}
