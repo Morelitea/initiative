@@ -32,7 +32,7 @@ from sqlmodel import delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
@@ -65,27 +65,24 @@ async def _delete_expired_hold(session: AsyncSession, guild: Guild, _days: int) 
     from app.services.platform import billing_ping
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import plugin_connections as plugin_connections_service
-    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
     guild_id = guild.id
     async with cohorts.system_session(guild_id) as guild_session:
         await set_rls_context(guild_session, SystemGuild(guild_id))
         await plugin_connections_service.delete_guild_connections(guild_session)
+        # The plug-ins are told once this commits, whatever happens below.
         await guild_session.commit()
-        revocations = plugin_revocation_service.drain_revocations(guild_session)
 
-    try:
-        notice = await guilds_service.soft_delete_guild(
-            session, guild, via="hold_expired", keep_roster=True
-        )
-        await session.commit()
-    finally:
-        # The connections are gone either way, so the plug-ins are told either way.
-        await plugin_revocation_service.dispatch_revocations(revocations)
+    notice = await guilds_service.soft_delete_guild(
+        session, guild, via="hold_expired", keep_roster=True
+    )
+    await session.commit()
 
     await email_service.announce_community_deleted(session, notice)
     # These live on other connections, so they go after the commit that made
-    # the deletion real.
+    # the deletion real, and after the revocations, which name the guild by
+    # them.
+    await post_commit.settle(guild_session)
     await plugin_refs.forget_guild(guild_id=guild_id, keep_billing=True)
     billing_ping.notify_lifecycle_changed(guild_id)
 

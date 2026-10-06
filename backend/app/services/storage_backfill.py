@@ -37,6 +37,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
+from app.db import post_commit
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
 from app.db.public_rls import PUBLIC_RLS, render_table_rls
@@ -276,6 +277,12 @@ async def _run() -> None:
         try:
             summary = await backfill_uploads_to_s3(on_progress=_on_progress)
             await _finalize(session, summary=summary)
+        except asyncio.CancelledError:
+            # Stopped at shutdown. The copy skips what the bucket already
+            # holds, so the next run carries on from here and may start now.
+            await session.rollback()
+            await _persist(session, status="failed", finished=True)
+            raise
         except Exception as exc:  # noqa: BLE001 — surface the failure in status
             logger.exception("storage backfill failed")
             await _finalize(session, error=str(exc))
@@ -286,7 +293,7 @@ async def start_backfill(session: AsyncSession) -> dict:
     already in progress (cluster-wide)."""
     if not await try_claim(session):
         raise BackfillAlreadyRunning()
-    asyncio.create_task(_run())
+    post_commit.spawn(_run(), cancel_on_settle=True)
     row = await _fetch(session)
     if row is None:
         raise RuntimeError("storage backfill state row missing after claim")

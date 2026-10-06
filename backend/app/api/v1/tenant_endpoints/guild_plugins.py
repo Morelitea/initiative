@@ -40,6 +40,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import post_commit
 from app.db.session import routed_guild_id
 from app.api.deps import (
     AgeViewerDep,
@@ -114,7 +115,6 @@ from app.services.tenant import plugin_connection_flows as flows_service
 from app.services.tenant import plugin_connections as connections_service
 from app.services.tenant import plugin_member_consents as consents_service
 from app.services.tenant import plugin_handoff as handoff_service
-from app.services.tenant import plugin_revocation as revocation_service
 from app.services.tenant import plugin_schedules as plugin_schedules_service
 from app.services.tenant import plugin_updates as plugin_updates_service
 from app.services.tenant import guild_plugins as guild_plugins_service
@@ -581,7 +581,6 @@ async def upgrade_community_plugin(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-    background_tasks: BackgroundTasks,
     viewer: AgeViewerDep,
     payload: Optional[CommunityPluginUpgrade] = None,
 ) -> CommunityPluginDetail:
@@ -685,7 +684,6 @@ async def upgrade_community_plugin(
         detail=record,
     )
     await session.commit()
-    revocation_service.send_after_response(session, background_tasks)
     await session.refresh(plugin)
     await plugin_schedules_service.reconcile(
         guild_context.guild_id, plugin.id, plugin.definition
@@ -837,8 +835,8 @@ async def uninstall_community_plugin(
     )
     await session.commit()
     await plugin_installs_service.forget(guild_id, install_id)
-    revocation_service.send_after_response(session, background_tasks)
-    # Queued after the revocations, which name the guild by these references.
+    # After the revocations, which name the guild by these references.
+    background_tasks.add_task(post_commit.settle, session)
     background_tasks.add_task(_drop_install_refs, guild_id, install_id)
 
 
@@ -1205,7 +1203,6 @@ async def disconnect_community_plugin(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """Disconnect: a member's own account, or a guild-wide credential.
 
@@ -1235,7 +1232,6 @@ async def disconnect_community_plugin(
         )
 
     await session.commit()
-    revocation_service.send_after_response(session, background_tasks)
     if connection.get("scope") == "static":
         await session.refresh(plugin)
         await plugin_installs_service.record(guild_context.guild_id, plugin)
@@ -1431,7 +1427,6 @@ async def revoke_member_connection(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
     plugin = await _load(session, plugin_id)
@@ -1445,7 +1440,6 @@ async def revoke_member_connection(
         reason="admin_revoked",
     )
     await session.commit()
-    revocation_service.send_after_response(session, background_tasks)
 
 
 @router.post(
@@ -1459,7 +1453,6 @@ async def block_member_connection(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """Revoke a member's connection and refuse the next one.
 
@@ -1477,7 +1470,6 @@ async def block_member_connection(
         blocked_by_id=current_user.id,
     )
     await session.commit()
-    revocation_service.send_after_response(session, background_tasks)
 
 
 @router.delete(
@@ -1564,7 +1556,6 @@ async def revoke_all_member_connections(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """End every member's connection at once, leaving the install standing.
 
@@ -1575,4 +1566,3 @@ async def revoke_all_member_connections(
 
     await connections_service.revoke_all(session, plugin=plugin)
     await session.commit()
-    revocation_service.send_after_response(session, background_tasks)

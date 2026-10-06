@@ -29,7 +29,7 @@ from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace import plugin_oauth
 from app.services.marketplace.plugin_refs import ensure_plugin_guild_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.services.tenant import plugin_revocation, plugin_updates
+from app.services.tenant import plugin_updates
 from app.testing import route_session_to_guild
 from app.testing.plugin_clients import (
     CLIENT,
@@ -231,7 +231,6 @@ async def _upgrade_dropping(session: AsyncSession, installed: InstalledPlugin, k
         guild_id=installed.guild.id,
     )
     await session.commit()
-    plugin_revocation.drain_revocations(session)
 
 
 async def test_a_scope_the_pinned_version_dropped_is_not_issued(

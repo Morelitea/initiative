@@ -33,7 +33,7 @@ from app.core.config import settings
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_PLUGIN_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AccessGrantMessages, PluginChannelMessages
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.db.session import set_rls_context
 from app.models.platform.access_grant import (
@@ -55,6 +55,7 @@ from app.services.marketplace import expressions
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import (
     plugin_connection_flows,
+    plugin_connections,
     plugin_revocation,
     plugin_schedules,
 )
@@ -1066,9 +1067,20 @@ class TestRevocation:
     async def test_uninstall_calls_the_revoke_url(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
+        """Once, after the commit that ended the connection; a rolled-back
+        disconnect sends nothing."""
         a = await acting_user(guild_role=CommunityRole.superadmin)
         plugin = await _install(session, a)
         await _connected_row(session, a, plugin, expires_in=3600)
+
+        async with cohorts.system_session(a.guild.id) as own:
+            await set_rls_context(own, SystemGuild(a.guild.id))
+            await plugin_connections.disconnect(
+                own, plugin=plugin, connection_id="account", user_id=a.user.id
+            )
+            await own.rollback()
+        await post_commit.settle_all()
+        assert vendor.revocations == []
 
         response = await client.delete(a.g(f"/plugins/{plugin.id}"), headers=a.headers)
 
@@ -1093,6 +1105,7 @@ class TestRevocation:
         response = await client.delete(
             a.g(f"/plugins/{plugin.id}/connections/account"), headers=a.headers
         )
+        await post_commit.settle_all()
 
         assert response.status_code == 204
         assert len(vendor.revocations) == plugin_revocation.REVOKE_ATTEMPTS
@@ -1275,6 +1288,7 @@ class TestRevocation:
         response = await client.delete(
             a.g(f"/plugins/{plugin.id}/connections/hooked"), headers=a.headers
         )
+        await post_commit.settle_all()
 
         assert response.status_code == 204
         name, body, authorization = vendor.hooks[-1]

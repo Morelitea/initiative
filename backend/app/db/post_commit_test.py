@@ -39,3 +39,16 @@ async def test_a_step_runs_once_its_transaction_commits():
         assert ran == ["in the commit"]
         await post_commit.settle(session)
     assert sorted(ran) == ["in the commit", "keyed", "savepoint released"]
+
+
+async def test_settle_all_cancels_long_work_and_waits_for_the_rest():
+    finished: list[str] = []
+
+    async def work(name: str, seconds: float) -> None:
+        await asyncio.sleep(seconds)
+        finished.append(name)
+
+    post_commit.spawn(work("long", 60), cancel_on_settle=True)
+    post_commit.spawn(work("short", 0.01))
+    await asyncio.wait_for(post_commit.settle_all(), timeout=5)
+    assert finished == ["short"]

@@ -18,16 +18,16 @@ Two properties this module keeps:
 
 * **Captured during the transaction, sent after it.** An intent carries the
   sealed tokens of the row it ends, read before the row is deleted, and is
-  queued on the session. The caller drains the queue once the transaction has
-  committed, so a rolled-back delete never ends a grant.
+  queued on the session's commit (:func:`app.db.post_commit.after_commit`), so
+  a rolled-back delete, or one in a rolled-back savepoint, never ends a grant.
 * **Never able to fail a teardown.** Each intent is tried three times and a
   failure is logged. A member who left a community has left it whether or not
   the vendor answered.
 
-Intents are sent several at a time, since each is its own vendor round trip
-with its own tries. A request that queued some hands them to its response's
-background tasks (:func:`send_after_response`), so the answer does not wait on
-the vendors.
+A transaction's intents are sent together once it commits, several at a
+time, since each is its own vendor round trip with its own tries. They run as a
+task of their own, so a request's answer does not wait on the vendors; a caller
+that must know they have gone awaits :func:`app.db.post_commit.settle`.
 
 Every path that deletes a connection's stored values queues an intent here,
 whether or not the connection declares a way to revoke it, so each ending is
@@ -41,8 +41,7 @@ import logging
 from dataclasses import dataclass, field, replace
 from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
 
-from fastapi import BackgroundTasks
-
+from app.db import post_commit
 from app.db.session import routed_guild_id
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace import registration_lookup
@@ -58,13 +57,11 @@ __all__ = [
     "REVOKE_ATTEMPTS",
     "RevocationIntent",
     "dispatch_revocations",
-    "drain_revocations",
     "queue_install_revocations",
     "queue_revocations_for_rows",
-    "send_after_response",
 ]
 
-_SESSION_INFO_KEY = "plugin_credential_revocations"
+_STEP_KEY = "plugin_credential_revocations"
 
 #: How many times one revocation is sent before it is logged and dropped.
 REVOKE_ATTEMPTS = 3
@@ -150,9 +147,20 @@ def _intent_for(
     )
 
 
+class _Revocations(list[RevocationIntent]):
+    """One transaction's intents, sent together once it commits."""
+
+    def join(self, released: list[RevocationIntent]) -> None:
+        """Take a released savepoint's intents."""
+        self.extend(released)
+
+    def __call__(self) -> Awaitable[None]:
+        return dispatch_revocations(self)
+
+
 def _queue(session: Any, intent: RevocationIntent) -> None:
-    """Record one intent, to be sent after the caller commits."""
-    session.info.setdefault(_SESSION_INFO_KEY, []).append(intent)
+    """Record one intent, to be sent once the caller commits."""
+    post_commit.after_commit(session, _Revocations(), key=_STEP_KEY).append(intent)
 
 
 def queue_install_revocations(
@@ -214,19 +222,6 @@ def queue_revocations_for_rows(
                 user_id=row.user_id,
             ),
         )
-
-
-def drain_revocations(session: Any) -> list[RevocationIntent]:
-    """Take (and clear) the queued intents. Call after commit."""
-    return session.info.pop(_SESSION_INFO_KEY, [])
-
-
-def send_after_response(session: Any, background_tasks: BackgroundTasks) -> None:
-    """Take the queued intents and send them once the response has gone. Call
-    after commit."""
-    intents = drain_revocations(session)
-    if intents:
-        background_tasks.add_task(dispatch_revocations, intents)
 
 
 async def dispatch_revocations(intents: list[RevocationIntent]) -> None:

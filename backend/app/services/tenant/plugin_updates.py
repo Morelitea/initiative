@@ -218,8 +218,9 @@ async def apply_version(
     carries is the grant intersected with what the pinned version requests.
 
     The caller commits — an upgrade is one transaction with whatever else it is
-    part of — and drains the queued revocations afterwards, so a plug-in is told a
-    credential is finished only once the write that finished it is durable.
+    part of — and the queued revocations are sent once it does, so a plug-in is
+    told a credential is finished only once the write that finished it is
+    durable.
     """
     definition = pending.definition
     previous = plugin.definition
@@ -464,19 +465,8 @@ async def update_guild(session: AsyncSession, guild_id: int) -> None:
     members see.
     """
     asked: list[AskedUpdate] = []
-    try:
-        await _update_guild(session, guild_id, asked=asked)
-        await session.commit()
-    except Exception:
-        # The queued revocations are dropped with the writes they belonged
-        # to: nothing was taken away, so there is nothing to tell a plug-in.
-        revocation_service.drain_revocations(session)
-        raise
-    # After the commit, always: a plug-in is told a credential is finished only
-    # once the write that finished it is durable.
-    intents = revocation_service.drain_revocations(session)
-    if intents:
-        await revocation_service.dispatch_revocations(intents)
+    await _update_guild(session, guild_id, asked=asked)
+    await session.commit()
     # The versions now waiting are durable, so the seat is told about them. A
     # bell that cannot be written is logged: the version stays pending on the
     # install and the settings page still shows it.
