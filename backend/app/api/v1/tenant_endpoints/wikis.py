@@ -33,7 +33,7 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -79,9 +79,9 @@ router = APIRouter(route_class=ActorRoute)
 pages_router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
-#: The routes an installed app may call, under the wikis scopes.
-WikisRead = Annotated[ActorContext, Depends(app_scope("wikis:read"))]
-WikisWrite = Annotated[ActorContext, Depends(app_scope("wikis:write"))]
+#: The routes an installed plug-in may call, under the wikis scopes.
+WikisRead = Annotated[ActorContext, Depends(plugin_scope("wikis:read"))]
+WikisWrite = Annotated[ActorContext, Depends(plugin_scope("wikis:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ async def create_wiki(
 ) -> WikiRead:
     """Create a wiki. Requires create_wikis permission on the initiative (or
     guild admin); the creator gets the owner grant."""
-    resource_access.refuse_app_sharing(guild_context, wiki_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, wiki_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.wiki, wiki_in.initiative_id, current_user, guild_context
     )

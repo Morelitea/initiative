@@ -6,7 +6,7 @@ project, so the loaders here eager-load ``grants`` and the level the request
 holds on the calendar.
 
 Two kinds of calendar live here. Nearly all of them belong to an initiative. A
-**guild calendar** — the one the calendar app installs — belongs to none, and
+**guild calendar** — the one the calendar plug-in installs — belongs to none, and
 that is the whole of what it is: a set of its own events, holding nothing from
 any initiative and reaching into none. Its ``initiative_id`` is NULL, so
 anything derived from an initiative has nothing to derive from and refuses.
@@ -34,8 +34,8 @@ def tool_enabled_clause():
 
     An initiative calendar answers to that initiative's ``calendars_enabled``
     switch. A guild calendar answers to no initiative, so the switch has nothing
-    to say about it — installing the app is what turned it on, and removing the
-    app is what takes it away.
+    to say about it — installing the plug-in is what turned it on, and removing the
+    plug-in is what takes it away.
 
     Use this only where the question is "every calendar in scope". A query for
     *one initiative's* calendars must keep comparing ``initiative_id`` directly:

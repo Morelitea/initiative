@@ -62,7 +62,7 @@ def _app_role_family() -> list[str]:
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         "app_superadmin",
-        "app_install_base",
+        "plugin_install_base",
         *(platform_role_name(t.value) for t in UserRole),
         billing_role_name(),
     ]

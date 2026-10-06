@@ -10,7 +10,7 @@
 import { createContext, type ReactNode, useContext } from "react";
 
 import type {
-  OwnerAppSummary,
+  OwnerPluginSummary,
   PropertySummary,
   ResourceGrantSchema,
   TagSummary,
@@ -46,11 +46,11 @@ export interface ToolSettingsEntity {
    */
   reactions_enabled?: boolean;
   /**
-   * The installed app that owns it, where the tool's read model names one
-   * (projects and documents). Elsewhere the sharing control finds the app
+   * The installed plug-in that owns it, where the tool's read model names one
+   * (projects and documents). Elsewhere the sharing control finds the plug-in
    * from the owner grant.
    */
-  owner_app?: OwnerAppSummary | null;
+  owner_plugin?: OwnerPluginSummary | null;
 }
 
 /**

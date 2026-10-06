@@ -235,10 +235,10 @@ LIVE_WINDOW = (
     " AND ((expires_at IS NULL) OR (expires_at > now()))"
 )
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
-#: A reference in the routed install's own sector: what an installed app's
+#: A reference in the routed install's own sector: what an installed plug-in's
 #: request calls somebody, and nothing any other install or purpose holds.
-INSTALL_SECTOR = f"purpose = 'app' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
-#: A reference an installed app's request mints: in its own sector, live, and
+INSTALL_SECTOR = f"purpose = 'plugin' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
+#: A reference an installed plug-in's request mints: in its own sector, live, and
 #: naming a person or its own community.
 INSTALL_SECTOR_MINT = (
     f"{INSTALL_SECTOR} AND retired_at IS NULL"
@@ -274,7 +274,7 @@ SHARED_ROLES = frozenset(
         "app_dm_reader",
         "app_profile_reader",
         "app_superadmin",
-        "app_install_base",
+        "plugin_install_base",
         "platform_base",
         "platform_base_ro",
     }
@@ -363,8 +363,8 @@ class Grants:
       the reach of an unrouted, authenticated request.
     * ``app_superadmin`` — the seat floor, which only ``guild_<id>_superadmin``
       inherits.
-    * ``app_install_base`` — the install floor, which only ``guild_<id>_app``
-      inherits: an installed app's reach into ``public``.
+    * ``plugin_install_base`` — the install floor, which only ``guild_<id>_plugin``
+      inherits: an installed plug-in's reach into ``public``.
 
     The two floors are granted the other way round from the rest: the schema
     default gives each full DML on a new table, and the migration that adds
@@ -379,7 +379,7 @@ class Grants:
     app_guild_base: Verbs = None
     platform_base: Verbs = None
     app_superadmin: Verbs = None
-    app_install_base: Verbs = None
+    plugin_install_base: Verbs = None
 
 
 @dataclass(frozen=True)
@@ -539,7 +539,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # Deployment settings are read from inside a community as from anywhere
             # (app_settings_read, TO public): a notification an install's write sends
             # asks whether the deployment sends mail (migration 20260924_0386).
-            app_install_base=frozenset({SELECT}),
+            plugin_install_base=frozenset({SELECT}),
         ),
         # Deployment configuration is written under the tier that manages it
         # (app_settings_owner); every request role reads it through its floor.
@@ -1123,7 +1123,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "install_reads_its_member",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=f"guild_id = {gucs.GUILD_ID} AND {own_row('user_id')}",
                 ),
             ),
@@ -1145,7 +1145,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # No TABLE grant: a column-scoped SELECT on (guild_id, user_id), which a
             # member token's standing reads for the member's own row in the routed
             # community (install_reads_its_member; migration 20260924_0385).
-            app_install_base=None,
+            plugin_install_base=None,
         ),
     ),
     "guild_provider_connections": SharedTable(
@@ -1246,12 +1246,12 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_guild_base_ro",),
                     using=routed_admin("id"),
                 ),
-                # An installed app's standing reads the status of the community it
+                # An installed plug-in's standing reads the status of the community it
                 # is routed into (its column grant is id and status alone).
                 Policy(
                     "install_reads_its_guild",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=f"id = {gucs.GUILD_ID}",
                 ),
             ),
@@ -1281,7 +1281,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # (install_reads_its_guild; migration 20260924_0379). Column grants live in
             # pg_attribute, not relacl, so they are asserted separately
             # (install_standing_test).
-            app_install_base=None,
+            plugin_install_base=None,
         ),
     ),
     "identity_refs": SharedTable(
@@ -1293,19 +1293,19 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_user",),
                     using=CLIENT_SECTOR,
                 ),
-                # An installed app's request reads what its install calls people and
+                # An installed plug-in's request reads what its install calls people and
                 # its community, and mints what it has not been told yet — in its
-                # own sector only (app_refs.install_refs; migration 20260924_0383).
+                # own sector only (plugin_refs.install_refs; migration 20260924_0383).
                 Policy(
                     "install_reads_its_sector",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=INSTALL_SECTOR,
                 ),
                 Policy(
                     "install_mints_in_its_sector",
                     INSERT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     check=INSTALL_SECTOR_MINT,
                 ),
             ),
@@ -1326,7 +1326,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # the install calls the people and the community a request or response
             # names (install_reads_its_sector / install_mints_in_its_sector; migration
             # 20260924_0383).
-            app_install_base=frozenset({SELECT, INSERT}),
+            plugin_install_base=frozenset({SELECT, INSERT}),
         ),
     ),
     "legal_acceptances": SharedTable(
@@ -1827,7 +1827,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "install_reads_its_member",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=own_row("id"),
                 ),
                 Policy(
@@ -1856,10 +1856,10 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # token's standing reads for the member it acts for alone
             # (install_reads_its_member; migration 20260924_0385). Asserted in
             # install_standing_test beside the ones below.
-            app_install_base=None,
+            plugin_install_base=None,
         ),
     ),
-    "app_assertion_jtis": SharedTable(
+    "plugin_assertion_jtis": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
             # The token endpoint records each client assertion's jti here, and the
@@ -1870,11 +1870,11 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_user=None,
         ),
     ),
-    "app_installs": SharedTable(
+    "plugin_installs": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
             # The install index: kept in step with each community's installs, read to
-            # list an app's installs and to route its vendor webhooks.
+            # list a plug-in's installs and to route its vendor webhooks.
             app_admin=DML,
         ),
     ),
@@ -1892,26 +1892,26 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=None,
         ),
     ),
-    # Everything else is the system engine's. An installed app's standing reads
+    # Everything else is the system engine's. An installed plug-in's standing reads
     # the registration its token was issued to (its column grant is public_id,
     # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url and
     # vendor_ready alone).
-    "app_service_registrations": SharedTable(
+    "plugin_service_registrations": SharedTable(
         rls=TableRls(
             policies=(
                 Policy(
                     "install_reads_its_registration",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=f"public_id = {gucs.TOKEN_CLIENT_ID}",
                 ),
             ),
         ),
         grants=Grants(
-            # App service registrations: full DML on the system engine, which is the
+            # Plug-in service registrations: full DML on the system engine, which is the
             # only reader and writer — the owner-gated CRUD endpoints run on
             # SystemSessionDep (as access_grants and auth_providers do), boot
-            # reconciliation upserts from APP_SERVICES_CONFIG, and the registration
+            # reconciliation upserts from PLUGIN_SERVICES_CONFIG, and the registration
             # snapshot reads it. No request-path role holds anything on it beyond the
             # install floor's column grant.
             app_admin=DML,
@@ -1922,10 +1922,10 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # the install's token names (install_reads_its_registration; migrations
             # 20260924_0379, 20260924_0387, 20260924_0388 and 20260924_0390). Asserted
             # in install_standing_test beside the one on guilds.
-            app_install_base=None,
+            plugin_install_base=None,
         ),
     ),
-    # Everything else is the system engine's. An installed app's standing reads
+    # Everything else is the system engine's. An installed plug-in's standing reads
     # whether the publisher of its token's registration is on (its column grant
     # is id and enabled alone).
     "publishers": SharedTable(
@@ -1934,9 +1934,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "install_reads_its_publisher",
                     SELECT,
-                    ("app_install_base",),
+                    ("plugin_install_base",),
                     using=(
-                        "EXISTS (SELECT 1 FROM public.app_service_registrations r "
+                        "EXISTS (SELECT 1 FROM public.plugin_service_registrations r "
                         "WHERE r.publisher_id = publishers.id "
                         f"AND r.public_id = {gucs.TOKEN_CLIENT_ID})"
                     ),
@@ -1944,14 +1944,14 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             ),
         ),
         grants=Grants(
-            # Publishers: written by the apps.manage routes, seeded at boot, added when
+            # Publishers: written by the plugins.manage routes, seeded at boot, added when
             # a registration names a new prefix, and read with every registration.
             # Nothing deletes one (a registration references it).
             app_admin=frozenset({SELECT, INSERT, UPDATE}),
             # No TABLE grant: a column-scoped SELECT on (id, enabled), for the
             # publisher of that registration (install_reads_its_publisher; migration
             # 20260924_0387).
-            app_install_base=None,
+            plugin_install_base=None,
         ),
     ),
     "auth_challenges": SharedTable(
@@ -2196,7 +2196,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_guild_base=frozenset({INSERT}),
             platform_base=frozenset({INSERT}),
             # What an install's write causes is told the same way.
-            app_install_base=frozenset({INSERT}),
+            plugin_install_base=frozenset({INSERT}),
         ),
     ),
     "push_tokens": SharedTable(

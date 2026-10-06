@@ -866,7 +866,7 @@ __all__ = [
 
 
 def records_edges(session: AsyncSession) -> bool:
-    """Whether this request writes ``references`` edges. An installed app
+    """Whether this request writes ``references`` edges. An installed plug-in
     writes relationships only under its ``relationships:write`` scope; without
     it, what its content points at is left unrecorded."""
     context = install_context(session)

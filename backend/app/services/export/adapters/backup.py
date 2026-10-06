@@ -373,17 +373,16 @@ async def _known_upload_bytes(
     from sqlalchemy import func
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.document import Document, DocumentFileVersion
 
     all_ids = [d for per in document_ids.values() for d in per]
     if not all_ids:
         return 0
     total = (
         await session.exec(
-            select(func.coalesce(func.sum(Document.file_size), 0)).where(
-                Document.id.in_(all_ids),
-                Document.document_type == DocumentType.file,
-            )
+            select(func.coalesce(func.sum(DocumentFileVersion.file_size), 0))
+            .join(Document, Document.current_version_id == DocumentFileVersion.id)
+            .where(Document.id.in_(all_ids))
         )
     ).one()
     return int(total or 0)
@@ -731,12 +730,13 @@ class _ScopeBuilder:
     ) -> None:
         from app.schemas.tenant.backup_export import ManifestEntry
 
-        storage_key = (document.file_url or "").split("/")[-1]
+        version = document.current_version
+        storage_key = version.file_url.split("/")[-1]
         asset_path = self._register_asset(
             storage_key,
-            original_filename=document.original_filename,
-            content_type=document.file_content_type,
-            size_bytes=int(document.file_size or 0),
+            original_filename=version.original_filename,
+            content_type=version.file_content_type,
+            size_bytes=int(version.file_size or 0),
             referenced_by=path_stem,
         )
         if self.mode == "backup":
@@ -817,23 +817,24 @@ class _ScopeBuilder:
 
         _gallery, images = loaded
         for image in images:
-            key = storage_key_of(image.file_url)
+            version = image.current_version
+            key = storage_key_of(version.file_url)
             if not key:
                 continue
             # The picture only; a thumbnail is a rendition the app makes
             # again from it.
             self._register_asset(
                 key,
-                original_filename=image.original_filename,
-                content_type=image.file_content_type,
-                size_bytes=int(image.file_size or 0),
+                original_filename=version.original_filename,
+                content_type=version.file_content_type,
+                size_bytes=int(version.file_size or 0),
                 referenced_by=path,
             )
 
     # -- section hooks: dashboards ---------------------------------------------
 
     async def _record_foreign_dashboards(self, initiative, exported: list[int]) -> None:
-        """Dashboards built on an app this build does not ship.
+        """Dashboards built on a plug-in this build does not ship.
 
         The dashboard listing applies the provenance filter, so the ones it
         left out are recovered here separately in order to record them: an

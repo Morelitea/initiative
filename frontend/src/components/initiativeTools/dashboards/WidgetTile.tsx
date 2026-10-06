@@ -38,7 +38,7 @@ export interface WidgetTileProps {
   /** Draw this failure instead of running the widget — for the one case the
    *  module cannot speak to, its data never arriving. Running it over empty rows
    *  would show "nothing to display", which is a different and misleading claim
-   *  from "the app behind this is not answering". */
+   *  from "the plug-in behind this is not answering". */
   errorCode?: WidgetErrorCode;
   /** The binding's own fetch is still in flight. Shown as the same skeleton the
    *  sandbox call uses, so a widget does not flash empty then populate. */
@@ -87,7 +87,7 @@ export function WidgetTile({
     // Nor is it run while its data is still on the way. The tile is already
     // showing a skeleton, so an early run draws nothing anyone sees — it just
     // spends a sandbox call per widget per mount, and if the fetch then fails
-    // it has already claimed "no data" for a widget whose app is down.
+    // it has already claimed "no data" for a widget whose plug-in is down.
     if (isLoading) return;
 
     const moduleSource = source ?? builtinWidgetSource(type);

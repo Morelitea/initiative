@@ -48,8 +48,8 @@
     "SCENE_TOO_LARGE": "This widget returned more data than a tile can show.",
     "SCENE_TOO_MANY_NODES": "This widget tried to draw too many elements.",
     "SCENE_VALUE_NOT_FINITE": "This widget returned a number that is not valid.",
-    "WIDGET_APP_NOT_INSTALLED": "The app this widget was connected to is no longer installed. Reconnect the app to bring this widget back.",
-    "WIDGET_APP_UNAVAILABLE": "The app behind this widget is not responding.",
+    "WIDGET_PLUGIN_NOT_INSTALLED": "The plug-in this widget was connected to is no longer installed. Reconnect the plug-in to bring this widget back.",
+    "WIDGET_PLUGIN_UNAVAILABLE": "The plug-in behind this widget is not responding.",
     "WIDGET_BAD_OUTPUT": "This widget returned something that cannot be drawn.",
     "WIDGET_NO_RENDER_EXPORT": "This widget has no render function.",
     "WIDGET_OUT_OF_MEMORY": "This widget used too much memory and was stopped.",
@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "SQL query",
     "sheet_range": "Sheet range",
-    "app": "App data"
+    "plugin": "Plug-in data"
   },
   "gallery": {
     "title": "Widget gallery",
@@ -115,14 +115,14 @@
     "all_counter_group": "All counter groups",
     "all_counter": "All counters",
     "all_document": "All spreadsheets",
-    "appEndpoint": "What it reads",
-    "app": "App",
-    "appPlaceholder": "Choose an app",
-    "appEndpointPlaceholder": "Choose a read…",
-    "appNotInstalled": "This app is not installed in this community.",
-    "appParamPlaceholder": "Choose…",
-    "appParamNeedsSibling": "Choose the value above first.",
-    "appParamListHint": "Separate values with commas.",
+    "pluginEndpoint": "What it reads",
+    "plugin": "Plug-in",
+    "pluginPlaceholder": "Choose a plug-in",
+    "pluginEndpointPlaceholder": "Choose a read…",
+    "pluginNotInstalled": "This plug-in is not installed in this community.",
+    "pluginParamPlaceholder": "Choose…",
+    "pluginParamNeedsSibling": "Choose the value above first.",
+    "pluginParamListHint": "Separate values with commas.",
     "all_property": "No property",
     "sqlHelp": "A read-only SELECT over this community's data. It runs as you, so it returns what you can already see."
   },
@@ -245,8 +245,8 @@
     "document": "Spreadsheet",
     "sheet": "Sheet",
     "range": "Range",
-    "app_uid": "App",
-    "source_id": "App data source",
+    "plugin_uid": "Plug-in",
+    "source_id": "Plug-in data source",
     "sql": "Statement"
   },
   "slot": {

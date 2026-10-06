@@ -836,6 +836,45 @@ async def test_list_documents_filters_by_template_and_type(
     assert [item["id"] for item in response.json()["items"]] == [plain.id]
 
 
+async def test_a_list_reads_its_files_in_one_statement(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Each file document in a list reports its current version's file, read
+    for the whole page at once rather than once per row."""
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    names = [f"page-{n}.pdf" for n in range(3)]
+    for name in names:
+        await create_document(
+            session,
+            actor.initiative,
+            actor.user,
+            name=name,
+            document_type=DocumentType.file,
+            file_url=f"/uploads/{guild_of(actor.initiative)}/{name}",
+            original_filename=name,
+        )
+    url = actor.g("/documents/")
+    sent: list[str] = []
+
+    def record(_conn, _cursor, statement, _params, _context, _many) -> None:
+        sent.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        listed = await client.get(
+            url, headers=actor.headers, params={"document_type": "file"}
+        )
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+    assert listed.status_code == 200, listed.text
+    items = listed.json()["items"]
+    assert sorted(item["original_filename"] for item in items) == names
+    assert len([s for s in sent if "FROM document_file_versions" in s]) == 1, sent
+
+
 async def test_the_tag_tree_narrows_by_document_type(
     client: AsyncClient, session, acting_user
 ):

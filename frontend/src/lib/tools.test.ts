@@ -218,7 +218,7 @@ describe("tool i18n", () => {
 describe("tool routes", () => {
   // A tool's list IS its initiative tab, so the route lives inside the
   // initiative tree. Six sibling files rather than one dynamic $toolSegment
-  // route: a dynamic segment beside `settings`/`apps` would resolve by
+  // route: a dynamic segment beside `settings`/`plugins` would resolve by
   // static-beats-dynamic ranking, which fails silently and only at runtime.
   it("every tool has its initiative tab route", () => {
     for (const tool of TOOLS) {
@@ -259,7 +259,7 @@ describe("tool routes", () => {
   // The tab routes are siblings of the initiative's own static children, so a
   // tool whose segment collided with one would be unreachable.
   it("no tool segment collides with a reserved initiative child route", () => {
-    const reserved = new Set(["settings", "apps"]);
+    const reserved = new Set(["settings", "plugins"]);
     for (const tool of TOOLS) {
       expect(
         reserved.has(toolRouteSegment(tool)),
@@ -305,7 +305,7 @@ describe("tool route builders", () => {
     );
   });
 
-  // Only calendars have community-level entities (an app installs one). A null
+  // Only calendars have community-level entities (a plug-in installs one). A null
   // initiative means "address me at the community route", never "unknown".
   it("keeps a community-level entity at its community route", () => {
     expect(toolListRoute(Tool.calendar, null)).toBe("/calendars");

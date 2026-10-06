@@ -284,7 +284,7 @@ class AppSetting(SQLModel, table=True):
     )
 
     # Whether this deployment follows the marketplace registry: listings,
-    # publishers and app registrations from the TUF repository whose root
+    # publishers and plug-in registrations from the TUF repository whose root
     # ships in the image (or the one ``MARKETPLACE_REGISTRY_ROOT`` names). On
     # by default. Off stops the background refresh; what already arrived stays.
     marketplace_registry_enabled: bool = Field(

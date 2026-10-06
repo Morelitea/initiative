@@ -34,7 +34,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -163,10 +163,10 @@ items_router = APIRouter(route_class=ActorRoute)
 
 logger = logging.getLogger(__name__)
 
-#: The routes an installed app may call, under the queues scopes. A queue's
+#: The routes an installed plug-in may call, under the queues scopes. A queue's
 #: items and its turn commands answer to the queue's own scopes.
-QueuesRead = Annotated[ActorContext, Depends(app_scope("queues:read"))]
-QueuesWrite = Annotated[ActorContext, Depends(app_scope("queues:write"))]
+QueuesRead = Annotated[ActorContext, Depends(plugin_scope("queues:read"))]
+QueuesWrite = Annotated[ActorContext, Depends(plugin_scope("queues:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ async def create_queue(
     Requires create_queues permission on the initiative (or guild admin).
     The creator automatically gets owner-level permission.
     """
-    resource_access.refuse_app_sharing(guild_context, queue_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, queue_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.queue, queue_in.initiative_id, current_user, guild_context
     )

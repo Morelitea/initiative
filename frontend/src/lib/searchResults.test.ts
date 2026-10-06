@@ -111,7 +111,7 @@ describe("searchHitPath", () => {
   });
 
   it("keeps a community-level entity on its community route", () => {
-    // An app-installed calendar has no initiative; `null` means "address me at
+    // An plugin-installed calendar has no initiative; `null` means "address me at
     // the community route", not "initiative unknown".
     expect(
       searchHitPath(

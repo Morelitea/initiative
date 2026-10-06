@@ -1,6 +1,6 @@
 """A member token's standing: the member's own reach, within the install's.
 
-``establish_install_access`` routes a member token as ``guild_<id>_app`` with
+``establish_install_access`` routes a member token as ``guild_<id>_plugin`` with
 the member as the request's user, and the install standing statement's member
 branch computes what the token reaches from rows: the member's membership, their
 account, their consent for this install and purpose, and their initiative roles,
@@ -23,7 +23,7 @@ from app.db.guild_standing import InstallContext
 from app.db.schema_provisioning import guild_schema_name, GuildRoleKind, guild_role_name
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user import User, UserStatus
-from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
+from app.models.tenant.plugin_member_consent import PluginMemberConsent, ConsentAccess
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -33,12 +33,12 @@ from app.testing import (
     route_as_install,
     route_session_to_guild,
 )
-from app.testing.app_clients import CLIENT, InstalledApp, install_app
+from app.testing.plugin_clients import CLIENT, InstalledPlugin, install_plugin
 
 _NOW = datetime.now(timezone.utc)
 
 
-async def _member(acting_user, installed: InstalledApp, *, role: str = "member"):
+async def _member(acting_user, installed: InstalledPlugin, *, role: str = "member"):
     """An ordinary member of the initiative the install is placed in."""
     return await acting_user(
         guild_role=CommunityRole.member,
@@ -50,7 +50,7 @@ async def _member(acting_user, installed: InstalledApp, *, role: str = "member")
 
 async def _consent(
     session,
-    installed: InstalledApp,
+    installed: InstalledPlugin,
     user_id: int,
     *,
     purpose: str | None = "node-1",
@@ -58,10 +58,10 @@ async def _consent(
     granted: ConsentAccess | None = ConsentAccess.read_write,
     initiative_id: int | None = None,
     revoked: bool = False,
-) -> AppMemberConsent:
+) -> PluginMemberConsent:
     await route_session_to_guild(session, installed.guild.id)
-    row = AppMemberConsent(
-        install_id=installed.app.id,
+    row = PluginMemberConsent(
+        install_id=installed.plugin.id,
         user_id=user_id,
         purpose=purpose,
         label="Comment as you",
@@ -79,7 +79,7 @@ async def _consent(
 
 async def _route(
     role_session,
-    installed: InstalledApp,
+    installed: InstalledPlugin,
     user_id: int,
     scopes,
     *,
@@ -90,7 +90,7 @@ async def _route(
     context = await route_as_install(
         s,
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=scopes,
         initiative_id=initiative_id,
@@ -106,7 +106,7 @@ async def _refused(role_session, installed, user_id, scopes, **kwargs) -> None:
         await route_as_install(
             s,
             guild_id=installed.guild.id,
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             client_id=CLIENT,
             scopes=scopes,
             user_id=user_id,
@@ -124,7 +124,7 @@ async def _refused(role_session, installed, user_id, scopes, **kwargs) -> None:
 async def test_a_member_token_stands_as_the_member_within_the_install(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     member = await _member(acting_user, installed)
@@ -161,7 +161,7 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
         )
     ).one()
     assert tuple(values) == (
-        guild_role_name(installed.guild.id, GuildRoleKind.app),
+        guild_role_name(installed.guild.id, GuildRoleKind.plugin),
         str(member.user.id),
         "false",
         "",
@@ -171,7 +171,7 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
 
 
 async def test_no_live_consent_is_not_live(session, acting_user, role_session):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -192,7 +192,7 @@ async def test_no_live_consent_is_not_live(session, acting_user, role_session):
 async def test_read_consent_on_a_write_request_reads_and_cannot_write(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     member = await _member(acting_user, installed, role="project_manager")
@@ -226,7 +226,7 @@ async def test_read_consent_on_a_write_request_reads_and_cannot_write(
 async def test_what_is_shared_with_the_member_reaches_the_token(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -253,7 +253,7 @@ async def test_what_is_shared_with_the_member_reaches_the_token(
 async def test_a_consent_bound_to_an_initiative_needs_a_token_narrowed_to_it(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -276,7 +276,7 @@ async def test_a_consent_bound_to_an_initiative_needs_a_token_narrowed_to_it(
 async def test_a_guild_admins_member_token_administers_nothing(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     seat = installed.seat
@@ -323,7 +323,7 @@ async def test_a_guild_admins_member_token_administers_nothing(
 async def test_the_member_leaving_or_revoking_ends_what_the_token_reaches(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -356,7 +356,7 @@ async def test_the_member_leaving_or_revoking_ends_what_the_token_reaches(
     await route_session_to_guild(session, installed.guild.id)
     consent = (
         await session.exec(
-            select(AppMemberConsent).where(AppMemberConsent.id == row.id)
+            select(PluginMemberConsent).where(PluginMemberConsent.id == row.id)
         )
     ).one()
     consent.revoked_at = _NOW
@@ -368,7 +368,7 @@ async def test_the_member_leaving_or_revoking_ends_what_the_token_reaches(
 async def test_an_account_that_is_not_active_is_not_live(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -387,7 +387,7 @@ async def test_an_installation_token_stands_as_it_did(
 ):
     """The member branch changes nothing for the install itself, however many
     members consented."""
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     member = await _member(acting_user, installed)
@@ -397,7 +397,7 @@ async def test_an_installation_token_stands_as_it_did(
     context = await route_as_install(
         s,
         guild_id=installed.guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         client_id=CLIENT,
         scopes=["documents:write"],
     )
@@ -405,12 +405,12 @@ async def test_an_installation_token_stands_as_it_did(
     assert f"{installed.placed.id}:create_documents" in context.role_grants
     assert context.member_role_ids == () and context.override_initiatives == ()
     # An installation token reads no member's consent.
-    assert (await s.exec(select(AppMemberConsent.install_id))).all() == []
+    assert (await s.exec(select(PluginMemberConsent.install_id))).all() == []
     await s.rollback()
 
 
 async def test_a_member_token_is_two_statements(session, acting_user, role_session):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -429,7 +429,7 @@ async def test_a_member_token_is_two_statements(session, acting_user, role_sessi
         context = await route_as_install(
             s,
             guild_id=installed.guild.id,
-            install_id=installed.app.id,
+            install_id=installed.plugin.id,
             client_id=CLIENT,
             scopes=["documents:read"],
             user_id=member.user.id,
@@ -443,7 +443,7 @@ async def test_a_member_token_is_two_statements(session, acting_user, role_sessi
 
 
 async def test_a_new_transaction_replays_the_member(session, acting_user, role_session):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:read"]
     )
     member = await _member(acting_user, installed)
@@ -478,7 +478,7 @@ async def test_a_new_transaction_replays_the_member(session, acting_user, role_s
 async def test_what_a_member_token_creates_is_owned_by_the_member(
     session, acting_user, role_session
 ):
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     member = await _member(acting_user, installed, role="project_manager")
@@ -503,7 +503,7 @@ async def test_what_a_member_token_creates_is_owned_by_the_member(
         )
     ).all()
     assert [
-        (g.level, g.user_id, g.app_install_id, g.initiative_id) for g in grants
+        (g.level, g.user_id, g.plugin_install_id, g.initiative_id) for g in grants
     ] == [(ResourceAccessLevel.owner, member.user.id, None, installed.placed.id)]
     created_by = (
         await s.exec(select(Document.created_by).where(Document.id == made.id))
@@ -517,7 +517,7 @@ async def test_a_member_token_writes_no_owner_row_itself(
 ):
     """The owner row is the trigger's: a member token inserting one naming the
     member on a document that already exists is refused."""
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["documents:write"]
     )
     member = await _member(acting_user, installed, role="project_manager")

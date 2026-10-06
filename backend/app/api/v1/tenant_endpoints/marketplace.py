@@ -3,19 +3,19 @@
 The catalog itself is platform data — one shared set of listings with globally
 unique ids, and no guild column anywhere in it. Browsing it is nevertheless
 guild-addressed, because what is *offered* depends on the guild asking: a
-dashboard an app ships with draws that app's widgets, so it appears only where
-the app is installed.
+dashboard a plug-in ships with draws that plug-in's widgets, so it appears only where
+the plug-in is installed.
 
 That makes the guild a required part of the question rather than a filter the
 client applies afterwards, and it puts browse on the same footing as the
 install: both run on the guild-routed session, and both read the guild's own
-installs through :func:`installed_app_uids`, so a card and the install behind
+installs through :func:`installed_plugin_uids`, so a card and the install behind
 it always agree.
 
 Listings are written by the system engine (boot seeding, the operator's
 catalog directory, the registry refresh) through the platform routes. Installing
 writes the guild's own schema: a tool's listing through that tool's importer
-(below), an app through the guild's app routes.
+(below), a plug-in through the guild's plug-in routes.
 """
 
 from typing import Annotated, Optional
@@ -57,7 +57,7 @@ from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
     count_install,
-    installed_app_uids,
+    installed_plugin_uids,
     listing_is_offered,
     resolve_listing_install,
 )
@@ -68,7 +68,7 @@ from app.services.marketplace.listing_assets import (
     UploadedImageError,
     store_uploaded_image,
 )
-from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
@@ -101,14 +101,14 @@ async def list_marketplace_listings(
     """A page of listings this guild can install, searchable by name,
     description, or publisher.
 
-    A guild with none of an app installed sees the same catalog as before —
-    the apps themselves, and the dashboards that stand alone.
+    A guild with none of a plug-in installed sees the same catalog as before —
+    the plug-ins themselves, and the dashboards that stand alone.
     """
     listings, total = await catalog_service.list_listings(
         session,
         kind=kind,
         query=search,
-        bundled_with=sorted(await installed_app_uids(session)),
+        bundled_with=sorted(await installed_plugin_uids(session)),
         page=page,
         page_size=page_size,
     )
@@ -135,14 +135,14 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     """A listing's page, or the answer the shelf gives by leaving it out.
 
     Two things put a listing out of reach, and both read as *not found* here
-    because both are already true of the shelf: an app whose service this
-    deployment does not run, and a dashboard whose app this guild has not
+    because both are already true of the shelf: a plug-in whose service this
+    deployment does not run, and a dashboard whose plug-in this guild has not
     installed.
     """
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
-    offered = await registration_lookup.app_is_offered(
+    offered = await registration_lookup.plugin_is_offered(
         latest.definition if latest else None, listing_uid=listing.uid
     ) and await listing_is_offered(session, listing)
     if not offered:
@@ -153,23 +153,23 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     summary = serialize_listing_summary(listing, latest)
     definition = dict(latest.definition) if latest else {}
     # What the install dialog asks the seat about, from the version it would
-    # install and the registration's ceiling. Empty for anything not an app.
+    # install and the registration's ceiling. Empty for anything not a plug-in.
     requested: list[str] = []
     grantable: list[str] = []
-    if listing.kind == "app":
-        requested = guild_apps_service.requested_scopes(definition)
+    if listing.kind == "plugin":
+        requested = guild_plugins_service.requested_scopes(definition)
         registration = await registration_lookup.registration_for_definition(definition)
-        grantable = guild_apps_service.grantable_scopes(
+        grantable = guild_plugins_service.grantable_scopes(
             definition, registration.scope_ceiling if registration else ()
         )
     return MarketplaceListingDetail(
         **summary.model_dump(),
         requested_scopes=requested,
         grantable_scopes=grantable,
-        app_names=await guild_apps_service.app_scope_names(session, requested),
+        plugin_names=await guild_plugins_service.plugin_scope_names(session, requested),
         has_initiative_surfaces=(
-            listing.kind == "app"
-            and guild_apps_service.has_initiative_surfaces(definition)
+            listing.kind == "plugin"
+            and guild_plugins_service.has_initiative_surfaces(definition)
         ),
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads
@@ -197,7 +197,7 @@ async def resolve_marketplace_listing(
     This is what an installed instance uses to find where it came from: the
     instance stores the uid, and the catalog answers with the listing and the
     version it currently publishes. A listing this guild can no longer take —
-    a bundled dashboard whose app it removed — answers 404, which is what
+    a bundled dashboard whose plug-in it removed — answers 404, which is what
     stops an update being offered that the install would refuse.
     """
     listing = await catalog_service.get_listing_by_uid(session, uid)
@@ -245,7 +245,7 @@ async def install_marketplace_listing(
     permission and nothing more. The copy is the member's: it records the
     listing and version it came from, and nothing links it back.
 
-    Apps and profile packs install elsewhere; a uid naming one reads as not
+    Plug-ins and profile packs install elsewhere; a uid naming one reads as not
     found here, as it would from any installer that cannot install it.
     """
     # Installing is authoring, like any import: a community whose content is

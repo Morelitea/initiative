@@ -3,7 +3,7 @@
 :func:`deliver` POSTs one envelope to one subscription's target, signed with
 the subscription's HMAC secret. The outbox poller
 (``app.services.tenant.outbox_poller``) is its caller: it drains the change log
-and the events apps emit to each subscription, and holds the retry, backoff and
+and the events plug-ins emit to each subscription, and holds the retry, backoff and
 dead-letter state around each send.
 
 Verification (the receiver's job, in initiative-auto):

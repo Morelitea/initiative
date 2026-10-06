@@ -135,7 +135,7 @@ Along the top of a list:
 
 - **Show** switches between **Active** and **Archived** — and, for projects and documents, **Templates** — each with how many are in it.
 - **Filters** narrows the list by name, by tag, and by the initiative's own [properties](initiatives.md).
-- **More actions** holds the rest: **Select items**, for changing who can see or edit several at once (click the first, hold ++shift++, click the last — see [Sharing & access](../sharing/index.md)); **Import from file**, for bringing back something exported; and, where the [marketplace](apps-and-marketplace.md) has ready-made ones, **Browse the marketplace**.
+- **More actions** holds the rest: **Select items**, for changing who can see or edit several at once (click the first, hold ++shift++, click the last — see [Sharing & access](../sharing/index.md)); **Import from file**, for bringing back something exported; and, where the [marketplace](plugins-and-marketplace.md) has ready-made ones, **Browse the marketplace**.
 
 There's one button for making a new one. On a phone it lives at the bottom of the screen.
 
@@ -154,5 +154,5 @@ The things inside a tool copy on their own, too: a task, a counter, a queue item
 ## Related
 
 - [Initiatives](initiatives.md) — tools live inside an initiative.
-- [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards and apps.
+- [Plug-ins & the marketplace](plugins-and-marketplace.md) — ready-made dashboards and plug-ins.
 - [Your space](your-space.md#my-tools) — every tool of every kind that's reached you, across every community.

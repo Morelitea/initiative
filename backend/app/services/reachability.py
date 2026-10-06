@@ -161,7 +161,7 @@ async def missing_or_denied(
 
     ``denied`` where the reader is in the row's initiative, ``not_found``
     otherwise. Returns the exception rather than raising it, so a caller reads
-    as ``raise await missing_or_denied(...)``. An installed app (``user_id``
+    as ``raise await missing_or_denied(...)``. An installed plug-in (``user_id``
     ``None``) is answered ``not_found``: it is in no initiative as a member.
     """
     from fastapi import HTTPException, status

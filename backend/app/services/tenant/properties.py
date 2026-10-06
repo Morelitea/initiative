@@ -46,7 +46,7 @@ from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import current_install_boundary
-from app.core.messages import AppMessages, PropertyMessages, QueryMessages
+from app.core.messages import PluginMessages, PropertyMessages, QueryMessages
 from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
@@ -429,7 +429,7 @@ async def set_values(
     *,
     initiative_id: Optional[int],
 ) -> None:
-    """The whole write a person or an app makes: resolve an app's person
+    """The whole write a person or a plug-in makes: resolve a plug-in's person
     references, replace the values, mark the row changed, and let a target
     whose own shape reacts (a repeating event) do so. Authorization is the
     caller's."""
@@ -545,9 +545,9 @@ async def property_values_by_row_id(
     """``values`` with each person a ``user_reference`` value names as a row
     id.
 
-    Unchanged for a person. An installed app names a person by the reference
+    Unchanged for a person. An installed plug-in names a person by the reference
     it was given for them, which is resolved here the way a ``PersonId`` field
-    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``). Only
+    is; anything else in that place is a 422 (``PLUGIN_REFERENCE_UNKNOWN``). Only
     a person-valued property's value is read this way, since which values
     name a person depends on each value's definition.
     """
@@ -570,7 +570,7 @@ async def property_values_by_row_id(
             except PydanticCustomError:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=AppMessages.REFERENCE_UNKNOWN,
+                    detail=PluginMessages.REFERENCE_UNKNOWN,
                 )
             entry = entry.model_copy(update={"value": row_id})
         resolved.append(entry)
@@ -1103,7 +1103,7 @@ async def property_filter_clauses(
 
     The one reading of the param, for every list and every view of one (a
     tool's list, the event list, the posts timeline). A filter on a
-    person-valued property takes row ids, which an installed app does not
+    person-valued property takes row ids, which an installed plug-in does not
     hold, so it is left to people (``names_people``), as the task list does.
     """
     from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles

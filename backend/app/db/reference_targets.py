@@ -103,6 +103,9 @@ class Visual:
     thumbnail is absent whenever the source was already small enough not to need
     one — so the full picture is the fallback, decided here rather than by every
     surface that draws one.
+
+    A column named ``pointer.column`` is read from the row the foreign key
+    ``pointer`` names: a file's facts live on its current version.
     """
 
     image: tuple[str, ...] = ()
@@ -126,21 +129,24 @@ class Visual:
 
 #: Keyed by table, the way :data:`~app.db.search_index.SEARCH_SOURCES` is. A
 #: table with no entry has no look of its own, which is most of them.
+#: A picture's file and its thumbnail, read from the version it shows.
+_PICTURE = ("current_version_id.thumbnail_url", "current_version_id.file_url")
+
 VISUALS: dict[str, Visual] = {
     "documents": Visual(
         image=("featured_image_url",),
         document_type="document_type",
-        mime="file_content_type",
-        filename="original_filename",
+        mime="current_version_id.file_content_type",
+        filename="current_version_id.original_filename",
         link_in_json=("content", "url"),
     ),
-    "gallery_images": Visual(image=("thumbnail_url", "file_url")),
+    "gallery_images": Visual(image=_PICTURE),
     "galleries": Visual(
         preview=Preview(
             table="gallery_images",
             parent_fk="gallery_id",
             chosen_fk="cover_image_id",
-            columns=("thumbnail_url", "file_url"),
+            columns=_PICTURE,
             newest_by="created_at",
         )
     ),
@@ -262,6 +268,21 @@ def _coalesced(columns):
     return func.coalesce(*columns) if len(columns) > 1 else columns[0]
 
 
+def _column(table: Table, name: str):
+    """A column of ``table``, or for ``pointer.column`` the column of the row
+    the foreign key ``pointer`` names."""
+    pointer, _, column = name.rpartition(".")
+    if not pointer:
+        return table.c[column]
+    (key,) = table.c[pointer].foreign_keys
+    target = key.column.table
+    return (
+        select(target.c[column])
+        .where(target.c["id"] == table.c[pointer])
+        .scalar_subquery()
+    )
+
+
 def _urls_of(picked, column: str):
     """The URLs a subquery selected, as one array. NULL when it picked none."""
     rows = picked.subquery()
@@ -276,7 +297,7 @@ def _preview_expr(table: Table, preview: Preview):
     because this runs once per kind for a whole page of edges.
     """
     other = SQLModel.metadata.tables[preview.table]
-    url = _coalesced([other.c[name] for name in preview.columns]).label("url")
+    url = _coalesced([_column(other, name) for name in preview.columns]).label("url")
     live = _live(other)
 
     chosen = select(url).where(other.c["id"] == table.c[preview.chosen_fk])
@@ -312,7 +333,7 @@ def _visual_exprs(table_name: str, table: Table):
 
     if visual.image:
         # A row with no picture reports no pictures, not one that is null.
-        one = _coalesced([table.c[name] for name in visual.image])
+        one = _coalesced([_column(table, name) for name in visual.image])
         images = case((one.isnot(None), pg_array([one])), else_=null())
     elif visual.preview is not None:
         images = _preview_expr(table, visual.preview)
@@ -322,7 +343,7 @@ def _visual_exprs(table_name: str, table: Table):
     icon = table.c[visual.icon] if visual.icon else null()
     color = table.c[visual.color] if visual.color else null()
     facets = tuple(
-        table.c[name] if name else null()
+        _column(table, name) if name else null()
         for name in (visual.document_type, visual.mime, visual.filename)
     )
     if visual.link_in_json is not None:

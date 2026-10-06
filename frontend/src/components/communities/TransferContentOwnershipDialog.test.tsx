@@ -1,6 +1,6 @@
 /**
  * The transfer dialog offers the community's admins, and beside them the
- * installed apps the server says may own everything that moves.
+ * installed plug-ins the server says may own everything that moves.
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -46,7 +46,7 @@ const content = (overrides: Partial<OwnedContentResponse> = {}): OwnedContentRes
   items: [{ tool: "project", id: 5, name: "Roadmap" }],
   counts: { project: 1 },
   total: 1,
-  eligible_apps: [],
+  eligible_plugins: [],
   ...overrides,
 });
 
@@ -57,9 +57,9 @@ describe("TransferContentOwnershipDialog", () => {
     api.claim.mockResolvedValue({ counts: { project: 1 }, total: 1 });
   });
 
-  it("offers an app the server lists and hands the content to it", async () => {
+  it("offers a plug-in the server lists and hands the content to it", async () => {
     api.listOwned.mockResolvedValue(
-      content({ eligible_apps: [{ id: 301, name: "Automations", avatar_url: null }] })
+      content({ eligible_plugins: [{ id: 301, name: "Automations", avatar_url: null }] })
     );
 
     renderWithProviders(
@@ -73,11 +73,11 @@ describe("TransferContentOwnershipDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
 
     await waitFor(() =>
-      expect(api.transfer).toHaveBeenCalledWith(7, member.id, { new_owner_app_id: 301 })
+      expect(api.transfer).toHaveBeenCalledWith(7, member.id, { new_owner_plugin_id: 301 })
     );
   });
 
-  it("offers only admins when no app may own it, and names a person by id", async () => {
+  it("offers only admins when no plug-in may own it, and names a person by id", async () => {
     api.listUnowned.mockResolvedValue(content());
 
     renderWithProviders(
@@ -91,7 +91,7 @@ describe("TransferContentOwnershipDialog", () => {
 
     await userEvent.click(await screen.findByRole("combobox", { name: "New owner" }));
     expect(await screen.findByRole("option", { name: "Ada Admin" })).toBeInTheDocument();
-    expect(screen.queryByText("App")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plug-in")).not.toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
 

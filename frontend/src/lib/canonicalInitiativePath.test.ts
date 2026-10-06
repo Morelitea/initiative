@@ -16,7 +16,7 @@ describe("canonicalInitiativePath", () => {
     );
   });
 
-  // An app's calendar belongs to no initiative; its address says so.
+  // A plug-in's calendar belongs to no initiative; its address says so.
   it("drops the segment for a community-level entity", () => {
     expect(canonicalInitiativePath("/c/1/i/9/calendars/2", null)).toBe("/c/1/calendars/2");
     expect(canonicalInitiativePath("/c/1/i/9/calendars/2/events/8", null)).toBe(

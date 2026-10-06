@@ -1,7 +1,7 @@
 """Telling the person who filed a case that it moved.
 
 A sweep, not a hook: a case moves however its team moves it — a drag on the
-board, a bulk edit, an app, a reply — and every one of those already has its
+board, a bulk edit, a plug-in, a reply — and every one of those already has its
 own writer. Once each pass, the sweep reads the cases of the operations
 community that have a filer, works out where each stands for its filer the
 same way their own view does (:func:`tickets.derive_state`), and compares that

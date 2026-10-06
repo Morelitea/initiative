@@ -20,7 +20,7 @@ describe("recentRoute", () => {
     expect(recentRoute(item)).toBe("/c/3/i/5/projects/7");
   });
 
-  // Only calendars can be community-level (an app installs one).
+  // Only calendars can be community-level (a plug-in installs one).
   it("keeps a community-level entity at its community route", () => {
     const item = buildRecentItem({
       entity_type: "calendar",

@@ -19,10 +19,13 @@ What survives here from the per-tool copies these replace:
   per tool where the visibility rules live (``calendars_test`` and
   ``dashboards_test`` both strip grants and read back).
 
+A grant change also lets go of the people named inside the tool whom the new
+sharing no longer reaches — a task's assignee, an event's attendee, a queue
+item's person.
+
 What stays where it is: sharing that runs into the initiative-role gate
-(``queues_test.test_sharing_does_not_reach_past_the_role_gate``), the projects'
-own side effect of a grant change (``projects_test``'s demoted-assignee
-tests), and every test that merely *uses* the route to set up something else.
+(``queues_test.test_sharing_does_not_reach_past_the_role_gate``), and every
+test that merely *uses* the route to set up something else.
 """
 
 import pytest
@@ -33,7 +36,21 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.testing import create_tool_entity, enable_all_tools
+from app.models.tenant.property import PropertyType
+from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.services.tenant import named_people
+from app.testing import (
+    create_calendar_event,
+    create_property_definition,
+    create_property_value,
+    create_queue_item,
+    create_resource_grant,
+    create_task,
+    create_tool_entity,
+    enable_all_tools,
+    grant_role_permission,
+    route_session_to_guild,
+)
 
 #: Every tool, as its own test case.
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
@@ -181,3 +198,78 @@ async def test_the_room_is_told_that_sharing_moved(
 
     assert (a.guild.id, tool, entity.id, "permissions_changed") in signalled
     assert rechecked == [resource_room(a.guild.id, tool.value, entity.id)]
+
+
+async def _assign(session: AsyncSession, actor, project, person) -> None:
+    await create_task(session, project, assignees=[person])
+
+
+async def _invite(session: AsyncSession, actor, calendar, person) -> None:
+    await create_calendar_event(session, calendar, actor.user, attendees=[person])
+
+
+async def _queue_up(session: AsyncSession, actor, queue, person) -> None:
+    await create_queue_item(session, queue, user_id=person.id)
+
+
+async def _person_field(session: AsyncSession, actor, entity, person) -> None:
+    definition = await create_property_definition(
+        session, actor.initiative, type=PropertyType.user_reference
+    )
+    await create_property_value(session, entity, definition, value_user_id=person.id)
+
+
+#: How a person is named inside a tool: by its own rows, or by a person field,
+#: which any tool may carry.
+NAMES = {
+    "task_assignee": (Tool.project, _assign),
+    "event_attendee": (Tool.calendar, _invite),
+    "queue_item": (Tool.queue, _queue_up),
+    "person_field": (Tool.document, _person_field),
+}
+
+
+@pytest.mark.parametrize("case", list(NAMES))
+async def test_a_grant_change_lets_go_only_of_who_can_no_longer_open_it(
+    client: AsyncClient, session: AsyncSession, acting_user, case: str
+):
+    """Nobody stays named inside a tool they can no longer open, and the
+    cleanup reads effective access: a lower level, or access through another
+    grant, keeps them named."""
+    tool, name = NAMES[case]
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    entity = await _entity(session, a, tool)
+    b = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await grant_role_permission(session, a.initiative, tool.view_permission)
+    await create_resource_grant(
+        session, entity, user=b.user, level=ResourceAccessLevel.write
+    )
+    await name(session, a, entity, b.user)
+    governing = named_people.Governing.of(tool, entity)
+    url = a.g(f"/{tool.route_segment}/{entity.id}/grants")
+
+    async def named() -> set[int]:
+        await session.commit()
+        await route_session_to_guild(session, a.guild.id)
+        return await named_people.named_on(session, governing)
+
+    assert b.user.id in await named()
+
+    # The per-user grant swapped for an all-members read grant: still opens it.
+    r = await client.put(
+        url,
+        headers=a.headers,
+        json=[{"all_initiative_members": True, "level": "read"}],
+    )
+    assert r.status_code == 200, r.text
+    assert b.user.id in await named()
+
+    # Every grant removed: they can no longer open it and are let go.
+    r = await client.put(url, headers=a.headers, json=[])
+    assert r.status_code == 200, r.text
+    assert b.user.id not in await named()

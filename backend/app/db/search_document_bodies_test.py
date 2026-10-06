@@ -19,6 +19,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.document import DocumentType
 from app.models.tenant.search_entry import SearchEntry
+from app.services.tenant import file_versions
 from app.testing import Actor, create_document
 from app.db.request_context import SystemGuild
 
@@ -212,7 +213,8 @@ async def test_a_smart_link_indexes_its_url(
 async def test_a_file_document_indexes_its_filename_only(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
-    """Its bytes live outside the database, so its name is all there is."""
+    """Its bytes live outside the database, so its name is all there is: the
+    filename of the version it shows, which a new version replaces."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
@@ -221,11 +223,22 @@ async def test_a_file_document_indexes_its_filename_only(
         name="Contract",
         document_type=DocumentType.file,
         content={},
+        file_url=f"/uploads/{a.guild.id}/v1.pdf",
+        original_filename="draft-agreement.pdf",
+    )
+    await file_versions.add_version(
+        session,
+        doc,
+        created_by=a.user.id,
+        file_url=f"/uploads/{a.guild.id}/v2.pdf",
+        file_content_type="application/pdf",
         original_filename="vendor-contract-2026.pdf",
     )
+    await session.commit()
     assert "vendor-contract-2026.pdf" in await _body(session, a.guild.id, doc.id)
     # ...and findable by a word inside it, not only by the whole filename.
     assert await _finds(session, a.guild.id, "vendor contract") == ["Contract"]
+    assert await _finds(session, a.guild.id, "draft") == []
 
 
 async def test_text_is_stored_once(

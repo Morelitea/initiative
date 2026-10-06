@@ -11,8 +11,8 @@ import { communityPath } from "@/lib/communityUrl";
 import {
   entityRefTypeFor,
   isSearchEntityType,
-  normalizeAppTarget,
   normalizeLegacyTarget,
+  normalizePluginTarget,
 } from "@/lib/entityResolver";
 import { formatDate } from "@/lib/formatDate";
 import { storeSellingNow } from "@/lib/storeSelling";
@@ -52,7 +52,7 @@ export const resolveSmartLink = (notification: NotificationRead): string | null 
     // treated a bare `target_path` as an app-level route; this matches it.
     return communityId !== null
       ? buildCommunityPath(communityId, targetPath)
-      : normalizeAppTarget(targetPath);
+      : normalizePluginTarget(targetPath);
   }
 
   if (typeof data.smart_link === "string" && data.smart_link) {
@@ -459,15 +459,15 @@ export const notificationText = (
         : t("notifications.accountSuspended");
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
-    case "app_consent_requested":
-      // The label is the app's own words, quoted as such by the string.
-      return t("notifications.appConsentRequested", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_consent_requested":
+      // The label is the plug-in's own words, quoted as such by the string.
+      return t("notifications.pluginConsentRequested", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         label: typeof data.label === "string" ? data.label : "",
       });
-    case "app_update_pending":
-      return t("notifications.appUpdatePending", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_update_pending":
+      return t("notifications.pluginUpdatePending", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         version: typeof data.version === "string" ? data.version : "",
       });
     case "community_on_hold": {

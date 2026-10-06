@@ -52,7 +52,7 @@ from app.core.security import (
     create_billing_portal_handoff_token,
 )
 from app.services.platform.identity_refs import billing_refs
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.db import cohorts
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
@@ -112,8 +112,8 @@ from app.services.platform import guild_entitlements
 from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
 from app.services.content_sockets import sockets as content_sockets
-from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_revocation as app_revocation_service
+from app.services.tenant import plugin_connections as plugin_connections_service
+from app.services.tenant import plugin_revocation as plugin_revocation_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -1345,9 +1345,9 @@ async def delete_community(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # End the guild's app access. The guild has withdrawn its authorization, so
-    # each app is told to let go now rather than at the end of the retention
-    # window — a restored guild comes back with its apps disconnected, and an
+    # End the guild's plug-in access. The guild has withdrawn its authorization, so
+    # each plug-in is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its plug-ins disconnected, and an
     # admin reconnects them.
     #
     # On the REQUEST session, which is the one that can reach these rows: they
@@ -1361,7 +1361,7 @@ async def delete_community(
     # The connections go first: a guild left live with its integrations ended
     # is a thing its admin can see and put back, and the revocations are not
     # dispatched until the deletion below has actually committed.
-    await app_connections_service.delete_guild_connections(session)
+    await plugin_connections_service.delete_guild_connections(session)
     await session.commit()
 
     # Move the guild to ``deleted`` and keep everything: the shared rows, the
@@ -1383,9 +1383,9 @@ async def delete_community(
     # the commit that made the deletion real. Billing keeps its name for the
     # guild until the purge, and is told to go and read what happened to it.
     # The references go after the revocations, which name the guild by them.
-    app_revocation_service.send_after_response(session, background_tasks)
+    plugin_revocation_service.send_after_response(session, background_tasks)
     background_tasks.add_task(
-        app_refs.forget_guild, guild_id=guild_id, keep_billing=True
+        plugin_refs.forget_guild, guild_id=guild_id, keep_billing=True
     )
     billing_ping.notify_lifecycle_changed(guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1845,8 +1845,8 @@ async def leave_community(
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await content_sockets.revoke_user(guild_id, current_user.id)
-    # …and tell this guild's apps that the credentials this person connected
-    # under it are finished. After the commit, so an app is never told to let go
+    # …and tell this guild's plug-ins that the credentials this person connected
+    # under it are finished. After the commit, so a plug-in is never told to let go
     # of something a rollback would have put back.
-    app_revocation_service.send_after_response(session, background_tasks)
+    plugin_revocation_service.send_after_response(session, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

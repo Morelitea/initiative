@@ -159,7 +159,7 @@ class CommunityCan(SanitizedBaseModel):
     #: community's own calendars. The membership row's administrator; no
     #: grant makes one.
     administer_content: bool = False
-    #: Hold its top seat: sign-in, billing, AI, apps, data and deletion.
+    #: Hold its top seat: sign-in, billing, AI, plug-ins, data and deletion.
     seat: bool = False
 
 
@@ -490,7 +490,7 @@ class PlatformCommunityStorageUpdate(SanitizedBaseModel):
 
         It is reached by deleting a guild and left by restoring one, both of
         which do a good deal more than move this column: clearing the guild's
-        app grants as it goes, seating somebody who can run it as it returns.
+        plug-in grants as it goes, seating somebody who can run it as it returns.
         Those two endpoints own the transition; this field does not.
         """
         if value == CommunityStatus.deleted:

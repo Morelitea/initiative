@@ -19,7 +19,9 @@ interface ProjectDates {
  */
 export const ProjectDetailsFields = ({ project }: { project: ProjectRead }) => {
   const { t } = useTranslation("projects");
-  const update = useUpdateProject(project.id);
+  // One queue for the project's writes: a later date change waits for the
+  // earlier one, so the last change made is the last one saved.
+  const update = useUpdateProject(project.id, { scope: { id: `project-${project.id}` } });
   const canEdit = project.can.edit;
 
   // An inverted pair stays here unsaved until the other date puts it right.

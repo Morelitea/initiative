@@ -15,7 +15,7 @@ from pydantic import (
 from app.core.identity_boundary import responding_to_install
 from app.core.tools import PROPERTY_TARGETS
 from app.schemas.base import SanitizedBaseModel
-from app.schemas.platform.user import AppPerson
+from app.schemas.platform.user import PluginPerson
 
 from app.models.tenant.property import PropertyType
 
@@ -193,21 +193,21 @@ class PropertySummary(SanitizedBaseModel):
         description=(
             "Shaped by the property's type. For user_reference, a person: id, "
             "username, discriminator, display_name and avatar_url, or an "
-            "AppPerson when the reader is an installed app."
+            "PluginPerson when the reader is an installed plug-in."
         ),
     )
 
     @field_serializer("value")
     def _value_out(self, value: Any) -> Any:
         """A person a ``user_reference`` value names, as the response's reader
-        knows them: an installed app gets an :class:`AppPerson`."""
+        knows them: an installed plug-in gets an :class:`PluginPerson`."""
         if (
             self.type is not PropertyType.user_reference
             or not isinstance(value, dict)
             or not responding_to_install()
         ):
             return value
-        return AppPerson.model_validate(value).for_install()
+        return PluginPerson.model_validate(value).for_install()
 
 
 def annotated_properties(entity: Any) -> List[PropertySummary]:

@@ -159,10 +159,19 @@ def _wiki_page_text(row: str) -> str:
     return _json_text(row, "strict $.**.text")
 
 
+def _current_filename(row: str, versions: str) -> str:
+    """The uploaded filename of the version a row shows (its
+    ``current_version_id`` in ``versions``), or empty where it shows none."""
+    return (
+        f"coalesce((SELECT v.original_filename FROM {versions} v"  # noqa: S608 — stated names
+        f" WHERE v.id = {row}.current_version_id), '')"
+    )
+
+
 def _gallery_image_text(row: str) -> str:
     """A picture's searchable text: its caption, and the filename split into
     words so ``round-4-detail.png`` is found by ``detail``."""
-    filename = f"coalesce({row}.original_filename, '')"
+    filename = _current_filename(row, "gallery_image_versions")
     return f"coalesce({row}.caption, '') || ' ' || {_with_words(filename)}"
 
 
@@ -195,7 +204,7 @@ def _document_text(row: str) -> str:
         f" WHEN 'spreadsheet' THEN {cells}"
         f" WHEN 'smart_link' THEN {url}"
         " ELSE '' END)"
-        " || ' ' || " + _with_words(f"coalesce({row}.original_filename, '')")
+        " || ' ' || " + _with_words(_current_filename(row, "document_file_versions"))
     )
 
 
@@ -289,9 +298,13 @@ def _flag_expr(table: str, flag: str, row: str) -> str | None:
 
 def _written(table: str, source: "SearchSource") -> tuple[str, ...]:
     """The body columns somebody writes in: all of them, less a column that only
-    names a kind (an enum)."""
+    names a kind (an enum) or another row (a foreign key)."""
     columns = SQLModel.metadata.tables[table].columns
-    return tuple(c for c in source.body if not isinstance(columns[c].type, Enum))
+    return tuple(
+        c
+        for c in source.body
+        if not isinstance(columns[c].type, Enum) and not columns[c].foreign_keys
+    )
 
 
 def _mentions_expr(table: str, source: "SearchSource", row: str = ROW) -> str:
@@ -355,7 +368,7 @@ def _inside(kind: SearchEntityType, **fields: Any) -> SearchSource:
 #: from here is not an omission — it is a tool that takes the shape above.
 TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
     Tool.document: {
-        "body": ("content", "document_type", "original_filename"),
+        "body": ("content", "document_type", "current_version_id"),
         "body_sql": _document_text,
     },
     # A post's text is what it says, not a summary of it: the headline is the
@@ -401,9 +414,10 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         SearchEntityType.gallery_image,
         title="title",
         title_sql=lambda row: (
-            f"coalesce(nullif({row}.title, ''), {row}.original_filename, '')"
+            f"coalesce(nullif({row}.title, ''),"
+            f" {_current_filename(row, 'gallery_image_versions')})"
         ),
-        body=("caption", "original_filename"),
+        body=("caption", "current_version_id"),
         body_sql=_gallery_image_text,
     ),
     # A page is found by its title and by what is written on it. Its body is a
@@ -461,7 +475,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
     "uploads": "stored files, found through the content that shows them",
     "event_outbox": "change log, not content",
-    "app_event_outbox": "app events awaiting delivery, not content",
+    "plugin_event_outbox": "plug-in events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",
     "property_definitions": "field config, reached from the tool it configures",
     "webhook_subscriptions": "integration config",

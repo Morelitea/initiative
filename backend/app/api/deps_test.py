@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
 from app.api.deps import get_active_user_exempt_from_factor
-from app.core.app_access_token import seal_install_token
+from app.core.plugin_access_token import seal_install_token
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import get_system_session
@@ -51,7 +51,7 @@ async def test_a_system_session_is_from_the_cohort_of_the_community_served():
     token, _ = seal_install_token(
         guild_id=4,
         install_id=1,
-        client_id="an-app",
+        client_id="a-plugin",
         scopes=frozenset(),
         initiative_id=None,
     )

@@ -90,7 +90,7 @@ def test_which_addresses_can_carry_a_credential(monkeypatch, app_url, refusal):
     assert passkeys.site_refusal() == refusal
 
 
-def test_an_app_url_naming_no_host_is_refused(monkeypatch):
+def test_a_plugin_url_naming_no_host_is_refused(monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "APP_URL", "not-a-url")

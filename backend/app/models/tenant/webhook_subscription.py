@@ -40,16 +40,16 @@ class WebhookSubscription(CreatedByMixin, table=True):
         ),
     )
 
-    # Which install registered this, when an app did. NULL for a subscription a
+    # Which install registered this, when a plug-in did. NULL for a subscription a
     # member registered against a URL of their own.
     #
-    # It decides how an envelope names the guild and the actor: an app already
+    # It decides how an envelope names the guild and the actor: a plug-in already
     # holds references for both, minted at its install, and a delivery should
     # use those rather than introduce a second set it cannot match to anything.
-    # No foreign key — ``guild_apps`` rows go when an app is uninstalled, and a
+    # No foreign key — ``guild_plugins`` rows go when a plug-in is uninstalled, and a
     # subscription outliving that is one whose deliveries stop, not one that
     # should disappear from the owner's list.
-    app_install_id: Optional[int] = Field(
+    plugin_install_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, nullable=True, index=True),
     )

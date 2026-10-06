@@ -396,14 +396,14 @@ class SettingsGrantee:
         )
 
 
-# --- An installed app ---------------------------------------------------------
+# --- An installed plug-in -----------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Install:
-    """An installed app acting in the community it is installed in.
+    """An installed plug-in acting in the community it is installed in.
 
-    The install is the principal, routed into ``guild_<id>_app``. ``standing``
+    The install is the principal, routed into ``guild_<id>_plugin``. ``standing``
     is the ``InstallContext`` the install seam built, which names the same
     community and install. A member token also names the member it acts for and
     the purpose they consented to, both carried by that context; it is never a
@@ -464,7 +464,7 @@ class Install:
                 gucs.SCOPE_INITIATIVE_ID: self.scope_initiative_id,
                 gucs.GUILD_AUTH_OK: completed and self.standing.guild_auth_ok,
             },
-            _guild_role(self.guild_id, GuildRoleKind.app),
+            _guild_role(self.guild_id, GuildRoleKind.plugin),
             _guild_schemas(self.guild_id),
         )
 

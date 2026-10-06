@@ -102,8 +102,9 @@ class BillingCommunityNoticeKind(str, Enum):
     trial_ended = "trial_ended"
 
 
-#: The sources that send a community notice. Only the trial's end, for now.
-_NOTICE_SOURCES = frozenset({BillingSource.trial_expiry})
+#: The sources that send a community notice. Only Paddle's, for now: a trial
+#: is Paddle's, and billing times its notices off the dates Paddle reports.
+_NOTICE_SOURCES = frozenset({BillingSource.paddle_webhook})
 
 
 class BillingCommunityNotice(SanitizedBaseModel):

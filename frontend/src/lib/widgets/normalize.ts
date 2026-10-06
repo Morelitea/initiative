@@ -124,6 +124,6 @@ export const normalizeSheetRange = (
 /** The envelope for a binding we fetched nothing for — one whose parameters the
  *  instance config has not filled in yet. */
 export const emptyDataFor = (source: WidgetSource): WidgetData =>
-  source === "app"
-    ? { source: "app", rows: [], values: {} }
+  source === "plugin"
+    ? { source: "plugin", rows: [], values: {} }
     : { source: "rows", columns: [], rows: [] };

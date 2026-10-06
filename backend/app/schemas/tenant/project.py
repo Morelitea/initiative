@@ -18,7 +18,7 @@ from app.schemas.tenant.archive import ToolCan, ToolState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
-from app.schemas.tenant.ownership import OwnerAppSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary
 from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -91,7 +91,7 @@ class ProjectRead(ProjectBase, ToolState):
 
     id: int
     # Who owns the project: the person holding its owner-level grant, or None
-    # when nobody does or an app does (``owner_app``). ``owner`` carries the
+    # when nobody does or a plug-in does (``owner_plugin``). ``owner`` carries the
     # same fact with the user attached;
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not
@@ -109,10 +109,10 @@ class ProjectRead(ProjectBase, ToolState):
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[ProjectViewMode] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the project or nobody does. At most one of ``owner_id`` and this is set.
-    owner_app: Optional[OwnerAppSummary] = Field(
-        default=None, validation_alias="owner_app_source"
+    owner_plugin: Optional[OwnerPluginSummary] = Field(
+        default=None, validation_alias="owner_plugin_source"
     )
     initiative: Optional[InitiativeSummary] = None
     can: ProjectCan = Field(default_factory=ProjectCan)

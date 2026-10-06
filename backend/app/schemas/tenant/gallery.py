@@ -21,7 +21,7 @@ from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
-    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
+    from app.models.tenant.gallery import GalleryImage
 
 
 class GalleryBase(SanitizedBaseModel):
@@ -171,15 +171,28 @@ class GalleryImageVersionRead(SanitizedBaseModel):
     is_current: bool = False
 
 
+#: What a picture reports of its current version.
+_FILE_FIELDS = (
+    "file_url",
+    "thumbnail_url",
+    "file_content_type",
+    "file_size",
+    "original_filename",
+    "width",
+    "height",
+)
+
+
 def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
-    if image is None or image.id is None:
+    version = image.current_version if image is not None else None
+    if image is None or image.id is None or version is None:
         return None
     return GalleryCover(
         image_id=image.id,
-        file_url=image.file_url,
-        thumbnail_url=image.thumbnail_url,
-        width=image.width,
-        height=image.height,
+        file_url=version.file_url,
+        thumbnail_url=version.thumbnail_url,
+        width=version.width,
+        height=version.height,
     )
 
 
@@ -192,13 +205,7 @@ def serialize_gallery_image(
         community_id=context.guild_id,
         title=image.title,
         caption=image.caption,
-        file_url=image.file_url,
-        thumbnail_url=image.thumbnail_url,
-        file_content_type=image.file_content_type,
-        file_size=image.file_size,
-        original_filename=image.original_filename,
-        width=image.width,
-        height=image.height,
+        **{name: getattr(image.current_version, name, None) for name in _FILE_FIELDS},
         created_by=image.created_by,
         uploader=(
             CommentAuthor.model_validate(image.uploader)
@@ -211,37 +218,3 @@ def serialize_gallery_image(
         tags=annotated_tags(image),
         properties=annotated_properties(image),
     )
-
-
-def serialize_gallery_image_version(
-    version: "GalleryImageVersion", *, is_current: bool
-) -> GalleryImageVersionRead:
-    return GalleryImageVersionRead(
-        id=version.id,
-        version_number=version.version_number,
-        file_url=version.file_url,
-        thumbnail_url=version.thumbnail_url,
-        file_content_type=version.file_content_type,
-        file_size=version.file_size,
-        original_filename=version.original_filename,
-        width=version.width,
-        height=version.height,
-        created_by=version.created_by,
-        created_at=version.created_at,
-        is_current=is_current,
-    )
-
-
-def serialize_gallery_image_versions(
-    versions: List["GalleryImageVersion"],
-) -> List[GalleryImageVersionRead]:
-    """Serialize versions, marking the highest ``version_number`` as current."""
-    if not versions:
-        return []
-    current_number = max(v.version_number for v in versions)
-    return [
-        serialize_gallery_image_version(
-            v, is_current=v.version_number == current_number
-        )
-        for v in versions
-    ]

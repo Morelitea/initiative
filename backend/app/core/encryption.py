@@ -27,34 +27,36 @@ SALT_FCM_SERVICE_ACCOUNT = b"fcm-service-account"
 SALT_PUSH_RELAY_KEY = b"push-relay-key"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
-# Values a guild (or one of its members) supplies to an installed app's
+# Values a guild (or one of its members) supplies to an installed plug-in's
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.
-SALT_APP_CONFIG = b"app-config"
-# What an operator supplies for an app's vendor client (its secret, its
-# signing key), one ciphertext per field on the app's registration.
-SALT_APP_VENDOR = b"app-vendor"
-# The app platform's signing key, when this deployment generated its own
-# rather than being given one in APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
-SALT_APP_PLATFORM_SIGNING_KEY = b"app-platform-signing-key"
-# The state an app connection's vendor flow carries through the vendor and
+SALT_PLUGIN_CONFIG = b"app-config"  # stored value, do not change
+# What an operator supplies for a plug-in's vendor client (its secret, its
+# signing key), one ciphertext per field on the plug-in's registration.
+SALT_PLUGIN_VENDOR = b"app-vendor"  # stored value, do not change
+# The plug-in platform's signing key, when this deployment generated its own
+# rather than being given one in PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
+SALT_PLUGIN_PLATFORM_SIGNING_KEY = (
+    b"app-platform-signing-key"  # stored value, do not change
+)
+# The state a plug-in connection's vendor flow carries through the vendor and
 # back. Transient: it lives ten minutes and is never stored.
-SALT_APP_CONNECTION_FLOW = b"app-connection-flow"
+SALT_PLUGIN_CONNECTION_FLOW = b"app-connection-flow"  # stored value, do not change
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
-# The access tokens the app platform's token endpoint issues. Transient: a
+# The access tokens the plug-in platform's token endpoint issues. Transient: a
 # token lives ten minutes and is never stored, so a key rotation ends the ones
-# in flight and their apps ask again.
-SALT_APP_ACCESS_TOKEN = b"app-access-token"
-# Where a page of an app's installs ends, handed to the app to ask for the next
+# in flight and their plug-ins ask again.
+SALT_PLUGIN_ACCESS_TOKEN = b"app-access-token"  # stored value, do not change
+# Where a page of a plug-in's installs ends, handed to the plug-in to ask for the next
 # one. Transient: never stored.
-SALT_APP_INSTALLS_CURSOR = b"app-installs-cursor"
+SALT_PLUGIN_INSTALLS_CURSOR = b"app-installs-cursor"  # stored value, do not change
 # A sign-in finished in the phone's browser, on its way back to the app that
 # began it. Transient: it lives two minutes and is spent once.
 SALT_NATIVE_HANDOFF = b"native-handoff"
-# The state an app vendor's own setup carries through the vendor and back.
+# The state a plug-in vendor's own setup carries through the vendor and back.
 # Transient: it lives an hour and is spent once.
-SALT_APP_VENDOR_SETUP = b"app-vendor-setup"
+SALT_PLUGIN_VENDOR_SETUP = b"app-vendor-setup"  # stored value, do not change
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

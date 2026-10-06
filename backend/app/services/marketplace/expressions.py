@@ -1,4 +1,4 @@
-"""JSONata, as Initiative evaluates a declarative app's expressions.
+"""JSONata, as Initiative evaluates a declarative plug-in's expressions.
 
 Standard JSONata (``jsonata-python``, a port of the reference implementation),
 with no functions added, answering what the SDK's ``evaluate`` answers: the

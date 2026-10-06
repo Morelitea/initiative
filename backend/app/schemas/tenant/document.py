@@ -25,15 +25,12 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
-from app.schemas.tenant.ownership import OwnerAppSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
-    from app.models.tenant.document import (
-        Document,
-        DocumentFileVersion,
-    )
+    from app.models.tenant.document import Document
 
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
@@ -84,24 +81,24 @@ class DocumentUpdate(SanitizedBaseModel):
 
 class DocumentSummary(DocumentBase, ToolSummaryBase):
     # ``validate_by_name`` so ``derived_fields`` can set ``owner`` and
-    # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading
+    # ``owner_plugin`` by name; their aliases keep ``from_attributes`` from reading
     # an ORM relationship.
     model_config = ConfigDict(validate_by_name=True)
 
     initiative: Optional[InitiativeSummary] = None
     #: The person holding the document's owner grant, or None when it is
-    #: unowned or an app owns it.
+    #: unowned or a plug-in owns it.
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the document or nobody does. At most one of ``owner`` and this is set.
-    owner_app: Optional[OwnerAppSummary] = Field(
-        default=None, validation_alias="owner_app_source"
+    owner_plugin: Optional[OwnerPluginSummary] = Field(
+        default=None, validation_alias="owner_plugin_source"
     )
     #: ``DocumentBase``'s, marked here: a request takes it as it is.
     featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    # File document fields
+    # File document fields, read from its current version
     document_type: DocumentType = DocumentType.native
     file_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
@@ -117,13 +114,19 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     def derived_fields(
         cls, row: Any, *, context: ActorContext, user_id: Optional[int]
     ) -> dict[str, Any]:
-        from app.services.tenant.ownership import owner_app_of
+        from app.services.tenant.ownership import owner_plugin_of
 
+        version = row.current_version
         return {
             "owner": _document_owner(row),
-            "owner_app": owner_app_of(row),
+            "owner_plugin": owner_plugin_of(row),
             "smart_link_url": smart_link_url(row),
+            **{name: getattr(version, name, None) for name in _FILE_FIELDS},
         }
+
+
+#: What a document reports of its current version.
+_FILE_FIELDS = ("file_url", "file_content_type", "file_size", "original_filename")
 
 
 class DocumentListResponse(PageMeta):
@@ -237,38 +240,6 @@ def serialize_document(
         user_id=user_id,
         **({} if include_content else {"content": {}}),
     )
-
-
-def serialize_document_file_version(
-    version: "DocumentFileVersion",
-    *,
-    is_current: bool,
-) -> DocumentFileVersionRead:
-    return DocumentFileVersionRead(
-        id=version.id,
-        version_number=version.version_number,
-        file_content_type=version.file_content_type,
-        file_size=version.file_size,
-        original_filename=version.original_filename,
-        created_by=version.created_by,
-        created_at=version.created_at,
-        is_current=is_current,
-    )
-
-
-def serialize_document_file_versions(
-    versions: List["DocumentFileVersion"],
-) -> List[DocumentFileVersionRead]:
-    """Serialize versions, marking the highest ``version_number`` as current."""
-    if not versions:
-        return []
-    current_number = max(v.version_number for v in versions)
-    return [
-        serialize_document_file_version(
-            v, is_current=v.version_number == current_number
-        )
-        for v in versions
-    ]
 
 
 class SpreadsheetImportRead(SanitizedBaseModel):

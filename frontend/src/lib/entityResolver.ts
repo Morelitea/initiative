@@ -100,7 +100,7 @@ const TOOL_READS: Record<
 };
 
 /** The initiative a tool row lives in. `null` is a community-level row (an
- *  app-installed calendar), which keeps a community address — not a failure. */
+ *  plugin-installed calendar), which keeps a community address — not a failure. */
 const toolInitiative = async (
   read: Read,
   communityId: number,
@@ -244,15 +244,15 @@ const LEGACY_LISTS = new Set([
  * the ones already sent have to be rewritten on the way out; the server no
  * longer mints it.
  */
-const LEGACY_APP_TARGETS = new Map([
+const LEGACY_PLUGIN_TARGETS = new Map([
   ["/settings/profile", "/profile/account"],
   ["/settings/account", "/profile/account"],
 ]);
 
 /** As {@link normalizeLegacyTarget}, for a path that names no community. */
-export function normalizeAppTarget(path: string): string {
+export function normalizePluginTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return LEGACY_APP_TARGETS.get(normalized) ?? normalized;
+  return LEGACY_PLUGIN_TARGETS.get(normalized) ?? normalized;
 }
 
 export function normalizeLegacyTarget(path: string): string {

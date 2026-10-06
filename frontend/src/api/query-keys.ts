@@ -69,7 +69,7 @@ export type Spec = {
   personalPrefix?: readonly string[];
   /**
    * Hand-written keys named by their first element and carrying their community in
-   * the second (`["community-app", communityId, appId]`). Scoped to the active community by
+   * the second (`["community-plugin", communityId, pluginId]`). Scoped to the active community by
    * that element, like every other community key.
    */
   communityNamed?: readonly string[];
@@ -382,16 +382,16 @@ const moderationReports = (initiativeId: number): Spec => ({
 // so its list lives in the personal/platform family, not under any /c/ key.
 const platformCommunities = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
-// ── App services (personal / platform) ───────────────────────────────────────
-// Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
-// as `/api/v1/app-services/{id}` (no slash), so they are siblings rather than a
+// ── Plug-in services (personal / platform) ──────────────────────────────────
+// Orval keys the list as `/api/v1/plugin-services/` (trailing slash) and each row
+// as `/api/v1/plugin-services/{id}` (no slash), so they are siblings rather than a
 // prefix pair. Name the shared path so one description reaches the list and
 // every detail read.
-const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
+const pluginServices = (): Spec => ({ personalPrefix: ["/api/v1/plugin-services"] });
 
-// ── Installed apps (community) ───────────────────────────────────────────────────
+// ── Installed plug-ins (community) ──────────────────────────────────────────────
 // The other half of the same domain: a service is the platform's registration
-// of an app, an install is one community's copy of it.
+// of a plug-in, an install is one community's copy of it.
 //
 // One description for every read of an install, because one write moves all of
 // them — the sidebar's list, the settings dialog's detail, the members view —
@@ -399,9 +399,9 @@ const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
 // Two key shapes: the list is Orval's URL key, while the detail and members
 // reads are hand-written and keyed by name. The named pair carries its community in
 // element 1, so it is scoped like every other community key rather than by name.
-const apps = (): Spec => ({
-  communityPrefix: ["/api/v1/apps"],
-  communityNamed: ["community-app", "community-app-members"],
+const plugins = (): Spec => ({
+  communityPrefix: ["/api/v1/plugins"],
+  communityNamed: ["community-plugin", "community-plugin-members"],
 });
 
 // ── AI Settings (platform config is personal; community/member/resolved are community) ──
@@ -631,8 +631,8 @@ export const q = {
   allTasks,
   announcements,
   appConfig,
-  appServices,
-  apps,
+  pluginServices,
+  plugins,
   authProviders,
   communityNarrowings,
   authSettings,

@@ -59,7 +59,7 @@ async def list_dashboard_ids_for_export(
 ) -> list[int]:
     """Ids of every dashboard the user may export in the given initiatives —
     DAC-visible to the user, feature-flag respected, and built on nothing but
-    this build's own apps. Deterministic order for stable backup output."""
+    this build's own plug-ins. Deterministic order for stable backup output."""
     if not initiative_ids:
         return []
     from app.services.export.provenance import builtin_listing_uids, is_exportable

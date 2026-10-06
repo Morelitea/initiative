@@ -13,7 +13,7 @@ Seeding is also what *removes* a shipped listing. The files are the whole truth
 about what this build offers, so anything in the catalog under ``builtin`` that
 no longer has a file is withdrawn on the next boot. Without that a listing
 dropped from the build stays on the shelf of every database that ever saw it.
-Withdrawn is not deleted: a guild that already installed it keeps its app.
+Withdrawn is not deleted: a guild that already installed it keeps its plug-in.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ async def seed_builtin_listings(
         # Recorded before the upsert, not after: a manifest this build ships but
         # cannot validate is a packaging bug to fix, and withdrawing the working
         # listing it replaces would turn that bug into data loss. Every uid the
-        # manifest publishes, so the dashboards an app bundles are claimed by
+        # manifest publishes, so the dashboards a plug-in bundles are claimed by
         # the same pass that publishes them.
         shipped.extend(uid for uid in published_uids(manifest) if uid)
         try:

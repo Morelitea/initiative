@@ -36,7 +36,7 @@ from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
 )
-from app.services.storage import get_guild_storage
+from app.services.tenant import file_versions
 from app.services.tenant import tags as tags_service
 
 
@@ -125,7 +125,6 @@ class GalleryImporter(NamesPeopleInPassing):
         )
         await props.attach(gallery, env.properties)
 
-        storage = get_guild_storage(guild_id)
         created = 0
         missing = 0
         cover_id: int | None = None
@@ -136,23 +135,32 @@ class GalleryImporter(NamesPeopleInPassing):
             if not key or "/" in key or "\\" in key or key in (".", ".."):
                 missing += 1
                 continue
-            if storage.open_readable(key) is None:
+            # Stored here, and a picture a gallery shows, by its bytes.
+            content_type = await file_versions.stored_file_type(
+                GalleryImage, guild_id, key
+            )
+            if content_type is None:
                 missing += 1
                 continue
             row = GalleryImage(
                 gallery_id=gallery.id,
                 title=image_env.title,
                 caption=image_env.caption,
-                file_url=f"/uploads/{guild_id}/{key}",
-                file_content_type=image_env.content_type,
-                file_size=image_env.size_bytes,
-                original_filename=image_env.original_filename,
-                width=image_env.width,
-                height=image_env.height,
                 created_by=importer.id,
             )
             session.add(row)
             await session.flush()
+            await file_versions.add_version(
+                session,
+                row,
+                created_by=importer.id,
+                file_url=f"/uploads/{guild_id}/{key}",
+                file_content_type=content_type,
+                file_size=image_env.size_bytes,
+                original_filename=image_env.original_filename,
+                width=image_env.width,
+                height=image_env.height,
+            )
             if context is not None:
                 context.links.register(
                     image_env.external_ref, SearchEntityType.gallery_image, row.id

@@ -5,7 +5,7 @@ and keeps everything — the shared rows, the ``guild_<id>`` schema, the stored
 blobs — so a platform operator can put the community back. This worker is what
 eventually does the destroying, and it does exactly what the delete used to do
 inline: remove the shared guild row (whose ``ON DELETE CASCADE`` clears the
-roster), forget the identities its apps knew its members by, then drop the
+roster), forget the identities its plug-ins knew its members by, then drop the
 schema and purge the blobs. Each pass then reclaims any ``guild_<id>`` schema
 whose row is already gone — a teardown that deleted the row but did not finish
 dropping the schema, here or where a guild's creation was rolled back.
@@ -17,7 +17,7 @@ retention window then starts like any other.
 
 Polled by ``background_tasks._loop_worker`` once an hour on ``SystemSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds``; the one thing it does
-inside a guild's schema, deleting a held community's app connections, runs on
+inside a guild's schema, deleting a held community's plug-in connections, runs on
 a system session from that community's cohort. The schema is dropped wholesale
 on the provisioning engine.
 """
@@ -38,7 +38,7 @@ from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, CommunityStatus
 from app.services import audit as audit_service
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -106,11 +106,11 @@ async def _delete_expired_hold(
     session: AsyncSession, guild_id: int, *, cutoff: datetime
 ) -> bool:
     """Delete one community whose hold has run out. Mirrors the danger-zone
-    delete: its apps let go, the status moves to ``deleted``, the seat is
+    delete: its plug-ins let go, the status moves to ``deleted``, the seat is
     written to, and billing is told to read what happened.
 
     One transaction from the lock to the status write, so a hold lifted while
-    the pass runs leaves the community exactly as it was. Its app connections
+    the pass runs leaves the community exactly as it was. Its plug-in connections
     are deleted in its own schema first, under that lock, so a status write
     that fails leaves a held community without them, which the next pass
     deletes. Nobody asked for this deletion, so the roster stays whatever its
@@ -119,8 +119,8 @@ async def _delete_expired_hold(
     from app.services import email as email_service
     from app.services.platform import billing_ping
     from app.services.platform import guilds as guilds_service
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
+    from app.services.tenant import plugin_revocation as plugin_revocation_service
 
     await set_rls_context(session, Unattributed())
     guild = await _lock_expired_hold(session, guild_id, cutoff=cutoff)
@@ -130,9 +130,9 @@ async def _delete_expired_hold(
 
     async with cohorts.system_session(guild_id) as guild_session:
         await set_rls_context(guild_session, SystemGuild(guild_id))
-        await app_connections_service.delete_guild_connections(guild_session)
+        await plugin_connections_service.delete_guild_connections(guild_session)
         await guild_session.commit()
-        revocations = app_revocation_service.drain_revocations(guild_session)
+        revocations = plugin_revocation_service.drain_revocations(guild_session)
 
     try:
         notice = await guilds_service.soft_delete_guild(
@@ -140,13 +140,13 @@ async def _delete_expired_hold(
         )
         await session.commit()
     finally:
-        # The connections are gone either way, so the apps are told either way.
-        await app_revocation_service.dispatch_revocations(revocations)
+        # The connections are gone either way, so the plug-ins are told either way.
+        await plugin_revocation_service.dispatch_revocations(revocations)
 
     await email_service.announce_community_deleted(session, notice)
     # These live on other connections, so they go after the commit that made
     # the deletion real.
-    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    await plugin_refs.forget_guild(guild_id=guild_id, keep_billing=True)
     billing_ping.notify_lifecycle_changed(guild_id)
     return True
 
@@ -235,7 +235,7 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
 
     # These live on other connections, so they go after the commit that made
     # the purge real.
-    await app_refs.forget_guild(guild_id=guild_id)
+    await plugin_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:

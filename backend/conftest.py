@@ -516,15 +516,15 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_app_caches():
-    """Start and end every test with no cached app service registrations and
+    """Start and end every test with no cached plug-in service registrations and
     no cached install references.
 
     The request path reads both through in-process caches (see
-    ``registration_lookup`` and ``app_refs``). Test databases are rebuilt per
+    ``registration_lookup`` and ``plugin_refs``). Test databases are rebuilt per
     test while those caches are module state, so without this a row created in
     one test would still be answering reads in the next.
     """
-    from app.services.marketplace.app_refs import forget_cached_install_refs
+    from app.services.marketplace.plugin_refs import forget_cached_install_refs
     from app.services.marketplace.registration_lookup import invalidate_registrations
 
     invalidate_registrations()

@@ -167,7 +167,7 @@
     "communityRoleHelp": {
       "member": "Nimmt an dem teil, wozu die Person hinzugefügt wurde.",
       "admin": "Führt die Community — Mitglieder, Einladungen, Initiativen, Einstellungen.",
-      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Apps. Nur ein Superadmin kann einen weiteren ernennen."
+      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Plug-ins. Nur ein Superadmin kann einen weiteren ernennen."
     },
     "loadingSettings": "Einstellungen werden geladen…",
     "unableToLoadSettings": "Einstellungen konnten nicht geladen werden.",
@@ -307,13 +307,13 @@
     "accountSuspendedWithReason": "Dein Konto wurde gesperrt: {{reason}}",
     "accountUnsuspended": "Dein Konto ist nicht mehr gesperrt.",
     "communityOnHold": "{{community}} ist pausiert. Wende dich an die Betreiber dieses Servers, um das zu klären.",
-    "appConsentRequested": "{{app}} möchte in deinem Namen handeln: „{{label}}“",
-    "appUpdatePending": "{{app}} Version {{version}} fragt nach mehr Zugriff",
+    "pluginConsentRequested": "{{plugin}} möchte in deinem Namen handeln: „{{label}}“",
+    "pluginUpdatePending": "{{plugin}} Version {{version}} fragt nach mehr Zugriff",
     "communityOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
     "communityOnHoldDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an die Betreiber dieses Servers, um das zu klären.",
     "communityOnHoldDeletingWithContact": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an {{contact}}, um das zu klären.",
-    "communityTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können.",
-    "communityTrialEndingInApp": "Die Testphase von {{community}} endet am {{date}}. Danach ist die Community schreibgeschützt.",
+    "communityTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Danach läuft ihr Tarif weiter und wird über die hinterlegte Zahlungsmethode abgerechnet. Prüfe deine Zahlungsdaten oder kündige vorher, wenn du nicht weitermachen möchtest.",
+    "communityTrialEndingInApp": "Die Testphase von {{community}} endet am {{date}}. Danach läuft ihr Tarif weiter und wird über die hinterlegte Zahlungsmethode abgerechnet.",
     "communityTrialEnded": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können.",
     "communityTrialEndedInApp": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt.",
     "communityWelcome": "{{community}} ist bereit. Richte den Tarif ein, um loszulegen.",
@@ -453,8 +453,7 @@
       "endsDetail": "Dein Tarif endet am {{date}}. Danach ist die Community 30 Tage lang schreibgeschützt und wird dann pausiert.",
       "pauses": "Pausiert ab {{date}}",
       "resumes": "Läuft wieder ab {{date}}",
-      "trialDetail": "Die Testphase endet am {{date}}. Schließe vorher ein Abo ab, um weiter bearbeiten zu können.",
-      "trialDetailInApp": "Die Testphase endet am {{date}}. Danach ist die Community schreibgeschützt.",
+      "trialDetail": "Die Testphase endet am {{date}}; dann beginnt die Abrechnung.",
       "renews": "Verlängert am {{date}}",
       "renewsWithAmount": "Verlängert am {{date}} · {{amount}}"
     }
@@ -468,8 +467,8 @@
     "recipientLabel": "Neuer Besitzer",
     "recipientPlaceholder": "Admin auswählen",
     "adminsOnly": "Nur Community-Admins können Besitz erhalten.",
-    "appHint": "App",
-    "adminsOrApps": "Eigentümer können Community-Administratoren werden, und auch eine App, die eingeschaltet ist, überall dort platziert ist, wo dieser Inhalt liegt, und ihn ändern darf.",
+    "pluginHint": "Plug-in",
+    "adminsOrPlugins": "Eigentümer können Community-Administratoren werden, und auch ein Plug-in, das eingeschaltet ist, überall dort platziert ist, wo dieser Inhalt liegt, und ihn ändern darf.",
     "confirm": "Übertragen",
     "transferring": "Wird übertragen…",
     "nothingOwned": "Diese Person besitzt nichts in dieser Community.",

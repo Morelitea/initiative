@@ -1,6 +1,6 @@
 """Every field the contract declares is one this build reads.
 
-The vocabulary now arrives from the app-kit rather than being declared here, and
+The vocabulary now arrives from the plugin-kit rather than being declared here, and
 a kit release can reach an author before it reaches a deployment. That makes one
 failure possible that could not happen while this build owned both sides: the
 contract declares a field, the normalizer does not read it, and the field is
@@ -18,7 +18,7 @@ So the inventory is checked in both directions:
   otherwise this build stores a term no author can discover.
 
 The manifests below are deliberately maximal: they exist to populate every
-field once, not to be realistic apps. An app is a container or declarative and
+field once, not to be realistic plug-ins. A plug-in is a container or declarative and
 never both, so there are two, and each object is measured across both. A field
 added to the contract and to nothing else fails here.
 """
@@ -31,8 +31,8 @@ from app.services.marketplace.definitions import normalize_listing_definition
 pytestmark = pytest.mark.always
 
 #: The endpoint a widget binds and a sample is keyed by, written once.
-READ_ENDPOINT = "app.acme.tracker.read"
-#: The declarative app's listing, which names it.
+READ_ENDPOINT = "plugin.acme.tracker.read"
+#: The declarative plug-in's listing, which names it.
 DECLARATIVE_ID = "acme.issues"
 
 
@@ -45,11 +45,11 @@ def maximal_manifest() -> dict:
     none of the caller-side fields, so those sit on the read endpoint.
     """
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {
             "public_id": "acme.tracker",
             "protocol": 1,
-            "scopes": ["projects:write", "comments:read", "apps:acme.github"],
+            "scopes": ["projects:write", "comments:read", "plugins:acme.github"],
         },
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
@@ -166,7 +166,7 @@ def maximal_manifest() -> dict:
                         "required": False,
                         "options": ["a", "b"],
                         "list": True,
-                        # Values only the app can enumerate, and the sibling
+                        # Values only the plug-in can enumerate, and the sibling
                         # answer it has to be told to enumerate them.
                         "options_from": {
                             "endpoint": READ_ENDPOINT,
@@ -188,7 +188,7 @@ def maximal_manifest() -> dict:
                 "public": True,
             },
             {
-                "id": "app.acme.tracker.written",
+                "id": "plugin.acme.tracker.written",
                 "direction": "write",
                 "label": {"en": "Written"},
                 "returns": [{"key": "number", "type": "int"}],
@@ -197,7 +197,7 @@ def maximal_manifest() -> dict:
                 "identity": {"kind": "issue", "key": ["number"]},
             },
             {
-                "id": "app.acme.tracker.emitted",
+                "id": "plugin.acme.tracker.emitted",
                 "direction": "emit",
                 "label": {"en": "Emitted"},
                 "returns": [{"key": "number", "type": "int"}],
@@ -270,7 +270,7 @@ def maximal_declarative_manifest() -> dict:
         "on_limit": "truncate",
     }
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "features": ["endpoints"],
         "hosts": ["api.tracker.example", "*.tracker.example"],
         "auth": {"header": "X-Tracker-Token", "prefix": ""},
@@ -374,7 +374,7 @@ def maximal_declarative_manifest() -> dict:
             "events": [
                 {
                     "when": 'headers."x-event" = "opened"',
-                    "emit": "app.acme.issues.opened",
+                    "emit": "plugin.acme.issues.opened",
                     "map": '{"number": payload.number}',
                 }
             ],
@@ -388,7 +388,7 @@ def maximal_declarative_manifest() -> dict:
         },
         "endpoints": [
             {
-                "id": "app.acme.issues.list",
+                "id": "plugin.acme.issues.list",
                 "direction": "read",
                 "returns": [{"key": "titles", "type": "string", "list": True}],
                 "unavailable": ["archived"],
@@ -406,7 +406,7 @@ def maximal_declarative_manifest() -> dict:
                 ],
             },
             {
-                "id": "app.acme.issues.search",
+                "id": "plugin.acme.issues.search",
                 "direction": "read",
                 "returns": [{"key": "ids", "type": "string", "list": True}],
                 "request": {
@@ -430,7 +430,7 @@ def maximal_declarative_manifest() -> dict:
                 "map": '{"ids": response.body[]}',
             },
             {
-                "id": "app.acme.issues.label",
+                "id": "plugin.acme.issues.label",
                 "direction": "write",
                 "returns": [{"key": "number", "type": "int"}],
                 "identity": {"kind": "issue", "key": ["number"]},
@@ -464,7 +464,7 @@ def maximal_declarative_manifest() -> dict:
                 "map": '{"number": steps.set.body.number}',
             },
             {
-                "id": "app.acme.issues.opened",
+                "id": "plugin.acme.issues.opened",
                 "direction": "emit",
                 "returns": [{"key": "number", "type": "int"}],
             },
@@ -475,14 +475,14 @@ def maximal_declarative_manifest() -> dict:
 @pytest.fixture(scope="module")
 def published() -> dict:
     """The maximal manifest as this build would store it."""
-    return normalize_listing_definition("app", maximal_manifest())
+    return normalize_listing_definition("plugin", maximal_manifest())
 
 
 @pytest.fixture(scope="module")
 def declarative() -> dict:
     """The maximal declarative manifest as this build would store it."""
     return normalize_listing_definition(
-        "app", maximal_declarative_manifest(), public_id=DECLARATIVE_ID
+        "plugin", maximal_declarative_manifest(), public_id=DECLARATIVE_ID
     )
 
 
@@ -583,7 +583,7 @@ def test_every_service_field_survives_a_publish(published):
     declared = contract.manifest_schema()["properties"]["service"]["properties"]
     assert set(declared) == set(published["service"])
     assert published["service"]["scopes"] == [
-        "apps:acme.github",
+        "plugins:acme.github",
         "comments:read",
         "projects:write",
     ]
@@ -638,7 +638,7 @@ def test_the_uid_shape_matches_the_contract():
 
 
 def test_a_term_the_contract_does_not_name_is_reported():
-    """The whole point of the report: a newer app's extra terms are named."""
+    """The whole point of the report: a newer plug-in's extra terms are named."""
     served = maximal_manifest()
     served["rate_limit"] = 5
     served["endpoints"][0]["retries"] = 3
@@ -682,12 +682,12 @@ def test_an_object_the_contract_leaves_open_reports_nothing():
 
 
 def test_a_manifest_this_build_fully_understands_reports_nothing():
-    """The ordinary case. A report on an app written against this contract
+    """The ordinary case. A report on a plug-in written against this contract
     would be a false alarm on every verification."""
     assert contract.discarded_terms(maximal_manifest()) == []
 
 
-# --- what only the app can know --------------------------------------------
+# --- what only the plug-in can know --------------------------------------------
 
 
 def test_an_identity_must_name_single_returns_of_its_own_endpoint():
@@ -699,7 +699,7 @@ def test_an_identity_must_name_single_returns_of_its_own_endpoint():
     def publish(**endpoint):
         body = maximal_manifest()
         body["endpoints"][1].update(endpoint)
-        return normalize_listing_definition("app", body)
+        return normalize_listing_definition("plugin", body)
 
     with pytest.raises(ListingDefinitionError):
         publish(identity={"kind": "issue", "key": ["nothing_returned"]})
@@ -718,7 +718,7 @@ def test_a_read_endpoint_has_no_identity():
     body = maximal_manifest()
     body["endpoints"][0]["identity"] = {"kind": "issue", "key": ["count"]}
     with pytest.raises(ListingDefinitionError):
-        normalize_listing_definition("app", body)
+        normalize_listing_definition("plugin", body)
 
 
 # --- a vendor's own setup flow ---------------------------------------------
@@ -743,7 +743,7 @@ def test_a_setup_writes_each_answer_once_and_secrets_only_to_a_secret(values):
     body = maximal_manifest()
     body["vendor"]["setup"]["values"] = values
     with pytest.raises(ListingDefinitionError):
-        normalize_listing_definition("app", body)
+        normalize_listing_definition("plugin", body)
 
 
 # --- container or declarative ----------------------------------------------
@@ -853,14 +853,14 @@ def _with(build, change):
         "member-connection-not-in-requires",
     ],
 )
-def test_one_app_is_one_kind_and_says_only_what_its_kind_says(body):
-    """An app is a container or declarative, never both, and a declarative
-    app's expressions parse and read only the steps before them. An endpoint
+def test_one_plugin_is_one_kind_and_says_only_what_its_kind_says(body):
+    """A plug-in is a container or declarative, never both, and a declarative
+    plug-in's expressions parse and read only the steps before them. An endpoint
     is closed: a misspelt term is refused, not dropped."""
     from app.services.marketplace.manifest_values import ListingDefinitionError
 
     with pytest.raises(ListingDefinitionError):
-        normalize_listing_definition("app", body, public_id=DECLARATIVE_ID)
+        normalize_listing_definition("plugin", body, public_id=DECLARATIVE_ID)
 
 
 def test_a_declarative_manifest_is_named_by_its_listing():
@@ -869,9 +869,9 @@ def test_a_declarative_manifest_is_named_by_its_listing():
     from app.services.marketplace.manifest_values import ListingDefinitionError
 
     with pytest.raises(ListingDefinitionError):
-        normalize_listing_definition("app", maximal_declarative_manifest())
+        normalize_listing_definition("plugin", maximal_declarative_manifest())
     with pytest.raises(ListingDefinitionError):
         normalize_listing_definition(
-            "app", maximal_declarative_manifest(), public_id="acme.other"
+            "plugin", maximal_declarative_manifest(), public_id="acme.other"
         )
     assert contract.discarded_terms(maximal_declarative_manifest()) == []

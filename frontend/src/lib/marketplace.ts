@@ -4,7 +4,7 @@ import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
  * Which marketplace offers a listing.
  *
  * Every kind but one installs to a **community** — a dashboard lands in an
- * initiative, an app mounts in a community, and installing is something a
+ * initiative, a plug-in mounts in a community, and installing is something a
  * community's admins do. A profile pack installs to a **person**: its
  * decorations land in one account's library and belong to that person across
  * every community they are in.
@@ -21,7 +21,7 @@ export const USER_SHELVES = [ListingKind.profile_pack] as const;
 
 export const COMMUNITY_SHELVES = [
   ListingKind.dashboard,
-  ListingKind.app,
+  ListingKind.plugin,
   ListingKind.auto,
 ] as const;
 
