@@ -1810,6 +1810,8 @@ async def create_calendar_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+    elif attendees:
+        await session.flush()
 
     for user in attendees or []:
         session.add(CalendarEventAttendee(calendar_event_id=event.id, user_id=user.id))
