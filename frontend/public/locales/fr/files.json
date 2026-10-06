@@ -357,7 +357,6 @@
   "noFiles": "Aucun fichier pour l'instant",
   "noFilesDescription": "Créez votre premier fichier d'initiative pour partager des briefs, des décisions ou des guides.",
   "filters": {
-    "heading": "Filtres",
     "searchLabel": "Rechercher",
     "searchFiles": "Rechercher des fichiers",
     "noMatchingFiles": "Aucun fichier ne correspond à vos filtres.",

@@ -56,8 +56,6 @@ export const ToolFilterButton = ({
 type ToolFilterPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Heading for the mobile sheet. */
-  title: string;
   /** Resets every filter this panel owns; omitted when there is nothing to
    *  clear (e.g. a list whose only filter is a search box). */
   onClear?: () => void;
@@ -85,7 +83,6 @@ type ToolFilterPanelProps = {
 export const ToolFilterPanel = ({
   open,
   onOpenChange,
-  title,
   onClear,
   activeCount = 0,
   actions,
@@ -121,7 +118,7 @@ export const ToolFilterPanel = ({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto">
           <SheetHeader className="mb-4 text-left">
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle>{t("toolbar.filters")}</SheetTitle>
           </SheetHeader>
           {fields(
             leading || actions ? (

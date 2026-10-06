@@ -319,7 +319,6 @@ export const MyCalendarPage = () => {
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
-          title={t("tasks:filters.heading")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
         >

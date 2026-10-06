@@ -69,7 +69,6 @@
   "viewList": "List view",
   "viewOnDeck": "On Deck",
   "filters": {
-    "heading": "Filters",
     "searchQueues": "Search queues...",
     "searchLabel": "Name or description",
     "status": "Status",

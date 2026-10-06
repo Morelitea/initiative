@@ -56,7 +56,6 @@
     "refusedSize": "más de 25 MB"
   },
   "filters": {
-    "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchGalleries": "Buscar galerías...",
     "noMatchingGalleries": "Ninguna galería coincide con tus filtros.",

@@ -53,7 +53,6 @@
     "updated": "Updated {{date}}"
   },
   "filters": {
-    "heading": "Filters",
     "searchLabel": "Name or description",
     "searchWikis": "Search wikis...",
     "noMatchingWikis": "No wikis match your filters."

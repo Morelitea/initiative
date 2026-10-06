@@ -69,7 +69,6 @@
   "viewList": "Listenansicht",
   "viewOnDeck": "On Deck",
   "filters": {
-    "heading": "Filter",
     "searchQueues": "Abläufe (Queues) suchen...",
     "searchLabel": "Name oder Beschreibung",
     "status": "Status",

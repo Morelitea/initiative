@@ -8,7 +8,6 @@
   "createFirst": "Create Your First Project",
   "noMatchingProjects": "No projects match your filters.",
   "filters": {
-    "heading": "Filters",
     "searchLabel": "Name or description",
     "searchProjects": "Search projects",
     "selectedInitiative": "Selected initiative",
@@ -198,7 +197,6 @@
     "viewTable": "Table",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendar",
-    "filtersHeading": "Filters",
     "archiveDoneTasks": "Archive done tasks",
     "archiveDialogTitle": "Archive tasks",
     "archiveDialogDescription": "This will archive {{count}} task. Archived tasks are hidden by default but can be shown using the filter.",

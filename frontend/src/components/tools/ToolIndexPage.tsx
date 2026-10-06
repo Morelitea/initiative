@@ -771,7 +771,6 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
       <ToolFilterPanel
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
-        title={t("filters.heading")}
         onClear={() => changeFilters({})}
         activeCount={activeFilterCount}
       >

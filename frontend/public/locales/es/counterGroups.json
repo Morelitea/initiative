@@ -61,7 +61,6 @@
   },
   "createFirst": "Crea tu primer grupo de contadores",
   "filters": {
-    "heading": "Filtros",
     "searchGroups": "Buscar grupos de contadores...",
     "searchLabel": "Nombre o descripción",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."

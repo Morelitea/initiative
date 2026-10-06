@@ -12,7 +12,7 @@ interface TaskStatusPriorityFiltersProps {
   onPriorityChange: (next: TaskPriority[]) => void;
 }
 
-/** The status-category and priority pickers of a calendar's task filters. */
+/** The status-category and priority pickers of a task filter panel. */
 export const TaskStatusPriorityFilters = ({
   statusFilters,
   onStatusChange,

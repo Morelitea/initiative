@@ -69,7 +69,6 @@
   "viewList": "Vista de lista",
   "viewOnDeck": "En espera",
   "filters": {
-    "heading": "Filtros",
     "searchQueues": "Buscar colas...",
     "searchLabel": "Nombre o descripción",
     "status": "Estado",

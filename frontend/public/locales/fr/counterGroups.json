@@ -61,7 +61,6 @@
   },
   "createFirst": "Créez votre premier groupe de compteurs",
   "filters": {
-    "heading": "Filtres",
     "searchGroups": "Rechercher des groupes de compteurs...",
     "searchLabel": "Nom ou description",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."

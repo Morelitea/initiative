@@ -706,7 +706,6 @@ export const CalendarsView = ({
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
-          title={t("common:toolbar.filters")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
         >

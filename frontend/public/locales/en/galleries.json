@@ -56,7 +56,6 @@
     "refusedSize": "larger than 25 MB"
   },
   "filters": {
-    "heading": "Filters",
     "searchLabel": "Name or description",
     "searchGalleries": "Search galleries...",
     "noMatchingGalleries": "No galleries match your filters.",

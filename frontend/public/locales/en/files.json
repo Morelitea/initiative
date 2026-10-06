@@ -357,7 +357,6 @@
   "noFiles": "No files yet",
   "noFilesDescription": "Create your first initiative file to share briefs, decisions, or guides.",
   "filters": {
-    "heading": "Filters",
     "searchLabel": "Search",
     "searchFiles": "Search files",
     "noMatchingFiles": "No files match your filters.",

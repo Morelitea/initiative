@@ -7,7 +7,6 @@
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
   "filters": {
-    "heading": "Filtres",
     "searchLabel": "Nom ou description",
     "searchDashboards": "Rechercher des tableaux de bord...",
     "noMatchingDashboards": "Aucun tableau de bord ne correspond à vos filtres."

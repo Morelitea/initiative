@@ -7,7 +7,6 @@
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
   "filters": {
-    "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
     "searchDashboards": "Dashboards suchen...",
     "noMatchingDashboards": "Keine Dashboards entsprechen deinen Filtern."

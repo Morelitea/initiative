@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -9,9 +8,9 @@ import type {
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { PropertyFilter } from "@/components/properties/PropertyFilter";
+import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { PRIORITY_ORDER } from "@/lib/sorting";
 
 interface GlobalTaskFiltersProps {
   statusFilters: TaskStatusCategory[];
@@ -49,61 +48,20 @@ export const GlobalTaskFilters = ({
 }: GlobalTaskFiltersProps) => {
   const { t } = useTranslation("tasks");
 
-  const statusOptions = useMemo(
-    () => [
-      { value: "backlog" as TaskStatusCategory, label: t("statusCategory.backlog") },
-      { value: "todo" as TaskStatusCategory, label: t("statusCategory.todo") },
-      { value: "in_progress" as TaskStatusCategory, label: t("statusCategory.in_progress") },
-      { value: "done" as TaskStatusCategory, label: t("statusCategory.done") },
-    ],
-    [t]
-  );
-
   return (
     <ToolFilterPanel
       open={filtersOpen}
       onOpenChange={setFiltersOpen}
-      title={t("filters.heading")}
       onClear={onClear}
       activeCount={activeCount}
     >
       <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full sm:w-60 lg:flex-1">
-          <Label
-            htmlFor="task-status-filter"
-            className="mb-2 block font-medium text-muted-foreground text-xs"
-          >
-            {t("filters.filterByStatusCategory")}
-          </Label>
-          <MultiSelect
-            selectedValues={statusFilters}
-            options={statusOptions.map((option) => ({
-              value: option.value,
-              label: option.label,
-            }))}
-            onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-            placeholder={t("filters.allStatusCategories")}
-            emptyMessage={t("filters.noStatusCategories")}
-          />
-        </div>
-        <div className="w-full sm:w-60 lg:flex-1">
-          <Label
-            htmlFor="task-priority-filter"
-            className="mb-2 block font-medium text-muted-foreground text-xs"
-          >
-            {t("filters.filterByPriority")}
-          </Label>
-          <MultiSelect
-            selectedValues={priorityFilters}
-            options={PRIORITY_ORDER.map((priority) => ({
-              value: priority,
-              label: t(`priority.${priority}` as never),
-            }))}
-            onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-            placeholder={t("filters.allPriorities")}
-            emptyMessage={t("filters.noPriorities")}
-          />
-        </div>
+        <TaskStatusPriorityFilters
+          statusFilters={statusFilters}
+          onStatusChange={setStatusFilters}
+          priorityFilters={priorityFilters}
+          onPriorityChange={setPriorityFilters}
+        />
         <div className="w-full sm:w-60 lg:flex-1">
           <Label
             htmlFor="task-community-filter"
