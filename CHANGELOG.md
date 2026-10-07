@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.2] - 2026-10-07
+
 ### Changed
 
 - **A community's location is one field you type into.** A country, a city or a full address, as short or as long as you like, with places suggested as you type and the closest ones first. Pick one to put the community on the map; the card shows the location exactly as you wrote it, with your own name for the place in front. **Near me** sorts by distance, so a community just over a border counts as nearby.
