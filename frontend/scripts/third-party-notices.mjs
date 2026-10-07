@@ -11,20 +11,26 @@
 // Most of what the app ships is open source under terms (MIT, BSD, ISC,
 // Apache-2.0, MPL-2.0, EPL-2.0, OFL-1.1, ...) that ask for the copyright and
 // licence notice to travel with every copy. Minified bundles strip them, so
-// this collects them again, in four parts:
+// this collects them again, from three kinds of component:
 //
-//   1. Every production JavaScript package installed, read from node_modules:
-//      name, version, licence, and the package's own LICENSE/NOTICE files,
-//      verbatim. Identical texts are printed once, under every package that
-//      shares them. A package that ships no licence file gets the standard
-//      text from licences/texts/, and says so.
-//   2. The native code in the iOS and Android apps: the Capacitor plug-ins, and
-//      the Swift and Gradle libraries they and the app pull in. Those are not
-//      npm packages, so licences/native.json lists them by hand, and the build
-//      fails when a Capacitor plug-in in package.json is missing from it.
-//   3. Fonts the build emits, from licences/fonts.json. The build fails when it
-//      emits a font file that no entry there claims.
-//   4. The artwork credited in the repository's NOTICE.md, verbatim.
+//   - every production JavaScript package installed, read from node_modules
+//     with its own LICENSE and NOTICE files;
+//   - the native code in the iOS and Android apps, which is not npm packages,
+//     so licences/native.json lists it by hand; the build fails when a
+//     Capacitor plug-in in package.json is missing from it;
+//   - the fonts the build emits, from licences/fonts.json; the build fails
+//     when it emits a font file that no entry there claims.
+//
+// The file is compact. A licence text that is the standard one (compared word
+// for word with licences/texts/, ignoring layout, a title and the copyright
+// lines) is printed once, and each component under it gets one line with its
+// own copyright lines; that is the notice plus the permission text those
+// licences ask for. Apache NOTICE files are kept verbatim under their line,
+// and copyleft components (MPL, EPL, GPL) say where their source is. Any text
+// that differs, by a clause or a name, is printed in full under "Other licence
+// texts": when in doubt, the full text. A package with no licence file gets
+// the standard text, and its line says so. The artwork credits in the
+// repository's NOTICE.md close the file, verbatim.
 //
 // Choices a human made (which side of a dual licence we take, a licence a
 // package's metadata leaves out) live in licences/overrides.json.
@@ -54,12 +60,18 @@ const THIN_RULE = "-".repeat(80);
 // LICENSE, LICENCE, COPYING, NOTICE, with or without an extension or a suffix
 // (LICENSE.md, LICENSE-MIT, license.txt, NOTICE.txt).
 const LICENCE_FILE = /^(licen[cs]e|copying|notice)([._-].*)?$/i;
+// ...but not a script that happens to be named for one (cytoscape's
+// license-update.mjs).
+const CODE_FILE = /\.(?:[cm]?[jt]sx?|json|sh|py)$/i;
 const NOTICE_FILE = /^notice([._-].*)?$/i;
 
 /** The licence and notice files at the top of a package, licences first. */
 export const findLicenceFiles = (dir) =>
   readdirSync(dir)
-    .filter((name) => LICENCE_FILE.test(name) && statSync(join(dir, name)).isFile())
+    .filter(
+      (name) =>
+        LICENCE_FILE.test(name) && !CODE_FILE.test(name) && statSync(join(dir, name)).isFile()
+    )
     .sort((a, b) => {
       const noticeA = NOTICE_FILE.test(a);
       const noticeB = NOTICE_FILE.test(b);
@@ -179,95 +191,134 @@ export const collectPackages = (rootDir, { buildOnly = [] } = {}) => {
 const comparePackages = (a, b) =>
   a.name.localeCompare(b.name) || a.version.localeCompare(b.version, undefined, { numeric: true });
 
-// --- Turning packages into notices -------------------------------------------
+// --- Licence texts -----------------------------------------------------------
 
-const normaliseText = (text) =>
+export const normaliseText = (text) =>
   text
     .replace(/^﻿/, "")
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t]+$/gm, "")
     .trim();
 
-/**
- * One package's licence id and the text that goes with it.
- *
- * `readFile(dir, name)` and `listFiles(dir)` are injected so the rules can be
- * tested without a node_modules; `standardText(id)` returns the stock text for
- * an SPDX id, or null when licences/texts/ has none.
- */
-export const resolveNotice = (entry, { overrides, listFiles, readFile, standardText }) => {
-  const override = overrides[entry.name] ?? {};
-  const licence = override.licence ?? entry.licence;
-  const files = override.files ?? listFiles(entry.dir);
-  const extraFiles = override.extraFiles ?? [];
-  const parts = [...files, ...extraFiles].map((name) => {
-    const text = normaliseText(readFile(entry.dir, name));
-    return files.length + extraFiles.length > 1 ? `[${name}]\n\n${text}` : text;
-  });
-  const note = override.note ?? null;
-  if (parts.length > 0) {
-    if (!licence) {
-      throw new Error(
-        `third-party-notices: ${entry.name}@${entry.version} declares no licence; ` +
-          "name it in licences/overrides.json"
-      );
+// A copyright notice starts its line: "Copyright (c) 2020 Foo", "© Bar",
+// "(c) 2019 Baz", give or take Markdown ("# Copyright", "**Copyright") or a
+// title run onto the same line ("MIT License Copyright (c) ..."). The word
+// inside the terms is licence text, not a notice, even when the text wraps to
+// put it first ("copyright notice that is included in or attached to the
+// work", "copyright owner or entity").
+const NOTICE_START =
+  /^([ \t]*)[#*>_ \t]*(?:(?:the\s+)?mit\s+licen[cs]e\s+)?((?:copyright\b(?!\s+(?:notices?|owners?|holders?|laws?|and|or|statements?|licen[cs]e|protection|interest|to|of|in|is|the\s+(?:above|following))\b)|©|\(c\)\s*(?:\d|by\b)).*)$/i;
+// A notice can run on: indented further, a bulleted list of holders, or a
+// bare URL on the next line.
+const isContinuation = (line, noticeIndent) => {
+  if (!line.trim()) return false;
+  if (/^\s*[-*•]\s+\S/.test(line)) return true;
+  if (/^\s*<?https?:\/\/\S+>?\s*$/.test(line)) return true;
+  return (line.match(/^[ \t]*/)[0].length ?? 0) > noticeIndent;
+};
+// The blanks in a canonical text, which no package's notice should carry.
+const PLACEHOLDER =
+  /<year>|<owner>|<copyright holders?>|\[yyyy\]|\[name of copyright owner\]|\bYEAR\b|\bAUTHOR\b/;
+const RIGHTS_RESERVED = /^[\s*_]*all rights reserved\.?[\s*_]*$/i;
+
+/** A licence file split into its copyright notices and the terms around them. */
+const splitNotices = (text) => {
+  const notices = [];
+  const body = [];
+  let indent = -1;
+  for (const line of normaliseText(text).split("\n")) {
+    const start = NOTICE_START.exec(line);
+    if (start) {
+      notices.push(start[2].replace(/[*_\s]+$/, "").trim());
+      indent = start[1].length;
+      continue;
     }
-    return { licence, text: parts.join("\n\n"), fallback: false, note };
+    if (indent >= 0 && isContinuation(line, indent)) {
+      notices[notices.length - 1] += ` ${line.trim()}`;
+      continue;
+    }
+    indent = -1;
+    if (RIGHTS_RESERVED.test(line)) continue;
+    body.push(line);
   }
-  const stock = licence ? standardText(licence) : null;
-  if (!stock) {
-    throw new Error(
-      `third-party-notices: ${entry.name}@${entry.version} ships no licence file and ` +
-        `licences/texts/ has no standard text for "${licence ?? "no licence"}"; ` +
-        "add one, or an entry in licences/overrides.json"
-    );
-  }
-  const holder = entry.author ? ` Its author, per its package.json: ${entry.author}.` : "";
-  return {
-    licence,
-    text:
-      `This package ships no licence file. Its package.json declares ${licence}, ` +
-      `whose standard text follows.${holder}\n\n${normaliseText(stock)}`,
-    fallback: true,
-    note,
-  };
+  return { notices, body: body.join("\n") };
 };
 
-const licenceSortKey = (id) => id.replace(/[()]/g, "");
+/** Every copyright notice in a licence file, as written, blanks left out. */
+export const extractCopyrights = (text) =>
+  splitNotices(text).notices.filter((notice) => !PLACEHOLDER.test(notice));
+
+// The words of a licence without its copyright notices, list numbering,
+// punctuation or case, so that two copies differing only in layout, quotes,
+// http/https or who holds the copyright compare equal.
+const licenceWords = (text) =>
+  splitNotices(text)
+    .body.split("\n")
+    .map((line) => line.replace(/^\s*\d+\.\s+/, ""))
+    .join("\n")
+    .toLowerCase()
+    .replace(/\bhttps:/g, "http:")
+    .match(/[a-z0-9]+/g)
+    ?.join(" ") ?? "";
+
+// A title above the terms ("The MIT License (MIT)", "ISC License") is not part
+// of them; copies carry it or not.
+const TITLES = [
+  /^(?:this software is released under )?(?:the )?mit(?: expat)?(?: licen[cs]e)?(?: mit)? /,
+  /^(?:the )?isc licen[cs]e(?: isc)? /,
+  /^zlib licen[cs]e /,
+  /^bsd (?:2|3|two|three) clause licen[cs]e /,
+  /^bsd zero clause licen[cs]e /,
+  /^(?:the )?unlicen[cs]e /,
+];
+// The OFL's own lead-in, as fonts ship it: "This Font Software is licensed
+// under the SIL Open Font License, Version 1.1. This license is copied below,
+// and is also available with a FAQ at: <url>".
+const OFL_LEAD_IN =
+  /^this font software is licensed under the sil open font license version 1 1 this license is copied below and is also available with a faq at(?: [a-z0-9]+){1,6}? (?=sil open font license version 1 1 26 february 2007 )/;
+// An Apache copy may stop at the end of the terms, or carry the appendix on
+// how to apply the licence, or only the boilerplate notice from it.
+const APACHE_END = "end of terms and conditions";
+const APACHE_BOILERPLATE = "licensed under the apache license";
+
+const comparableWords = (words) => {
+  let out = `${words} `.replace(OFL_LEAD_IN, "");
+  for (const title of TITLES) out = out.replace(title, "");
+  return out.trim();
+};
+
+/** A licence as the words standard-text detection compares. */
+export const comparableText = (text) => comparableWords(licenceWords(text));
 
 /**
- * Packages grouped by licence id, and within a licence by identical text, so a
- * text shared by fifty packages is printed once beneath all fifty names.
- * Groups sort by licence id; blocks by their first package.
+ * Whether `text` is the standard `licence` text, give or take layout, a title
+ * and its copyright notices. Anything else (an extra clause, a name in the BSD
+ * endorsement clause, a trademark notice, a bundled third party's terms) is
+ * not, and keeps its full text.
  */
-export const groupByLicence = (resolved) => {
-  const byLicence = new Map();
-  for (const { entry, notice } of resolved) {
-    if (!byLicence.has(notice.licence)) byLicence.set(notice.licence, new Map());
-    const blocks = byLicence.get(notice.licence);
-    const key = `${notice.note ?? ""}\u0000${notice.text}`;
-    if (!blocks.has(key)) {
-      blocks.set(key, {
-        text: notice.text,
-        note: notice.note,
-        fallback: notice.fallback,
-        packages: [],
-      });
-    }
-    blocks.get(key).packages.push(entry);
+export const isStandardText = (licence, text, canonicalFor) => {
+  const canonical = canonicalFor(licence);
+  if (!canonical) return false;
+  const pkg = comparableText(text);
+  const full = comparableText(canonical);
+  if (pkg === full) return true;
+  if (licence === "Apache-2.0") {
+    const end = full.indexOf(APACHE_END) + APACHE_END.length;
+    if (end <= APACHE_END.length || pkg.slice(0, end) !== full.slice(0, end)) return false;
+    const rest = pkg.slice(end).trim();
+    const boilerplate = full.slice(full.lastIndexOf(APACHE_BOILERPLATE));
+    return rest === "" || rest === boilerplate;
   }
-  return [...byLicence.entries()]
-    .sort(([a], [b]) =>
-      licenceSortKey(a).localeCompare(licenceSortKey(b), undefined, { sensitivity: "base" })
-    )
-    .map(([licence, blocks]) => ({
-      licence,
-      packages: [...blocks.values()].reduce((n, block) => n + block.packages.length, 0),
-      blocks: [...blocks.values()]
-        .map((block) => ({ ...block, packages: block.packages.sort(comparePackages) }))
-        .sort((a, b) => comparePackages(a.packages[0], b.packages[0])),
-    }));
+  return false;
 };
+
+/** A canonical text as printed: its copyright placeholder lines left out. */
+const printableCanonical = (text) =>
+  normaliseText(text)
+    .split("\n")
+    .filter((line) => !(NOTICE_START.test(line) && PLACEHOLDER.test(line)))
+    .join("\n")
+    .trim();
 
 /**
  * The stock text for an SPDX id or a simple expression of them ("MIT AND ISC",
@@ -284,6 +335,267 @@ export const standardTextFor = (expression, readText) => {
   if (ids.length === 0 || texts.some((text) => !text)) return null;
   if (ids.length === 1) return texts[0];
   return ids.map((id, i) => `[${id}]\n\n${normaliseText(texts[i])}`).join("\n\n");
+};
+
+// --- Reading a package's licence -----------------------------------------------
+
+/**
+ * One package as a component: its licence id, the text of its licence files,
+ * and what must be reproduced verbatim beside it (NOTICE files, and any
+ * `extraFiles` overrides.json names).
+ *
+ * `readFile(dir, name)` and `listFiles(dir)` are injected so the rules can be
+ * tested without a node_modules.
+ */
+export const resolveNotice = (entry, { overrides, listFiles, readFile }) => {
+  const override = overrides[entry.name] ?? {};
+  const licence = override.licence ?? entry.licence;
+  const files = override.files ?? listFiles(entry.dir);
+  const licenceFiles = files.filter((name) => !NOTICE_FILE.test(name));
+  const attachments = [
+    ...files.filter((name) => NOTICE_FILE.test(name)),
+    ...(override.extraFiles ?? []),
+  ].map((name) => ({ name, text: normaliseText(readFile(entry.dir, name)) }));
+  if (!licence) {
+    throw new Error(
+      `third-party-notices: ${entry.name}@${entry.version} declares no licence; ` +
+        "name it in licences/overrides.json"
+    );
+  }
+  const texts = licenceFiles.map((name) => normaliseText(readFile(entry.dir, name)));
+  return {
+    kind: "package",
+    name: entry.name,
+    version: entry.version,
+    licence,
+    source: entry.source,
+    author: entry.author,
+    // Two licence files are only ever compared as the one text they make.
+    licenceText:
+      texts.length === 0
+        ? null
+        : texts.length === 1
+          ? texts[0]
+          : licenceFiles.map((name, i) => `[${name}]\n\n${texts[i]}`).join("\n\n"),
+    attachments,
+    note: override.note ?? null,
+  };
+};
+
+// Licences that ask for the source to be pointed at, so every line under one
+// says where it is.
+const COPYLEFT = /^(?:MPL|EPL|GPL|LGPL|AGPL|CDDL)-/;
+
+/**
+ * Where a component goes: under its licence's standard text, with its own
+ * copyright lines; in "Other licence texts" with its whole text; or, for a
+ * proprietary SDK, to a link to its terms.
+ */
+export const classifyComponent = (component, canonicalFor) => {
+  if (component.terms) return { ...component, section: "proprietary" };
+  const { licence, licenceText } = component;
+  if (licenceText) {
+    if (isStandardText(licence, licenceText, canonicalFor)) {
+      const copyrights = component.copyright
+        ? [component.copyright, ...extractCopyrights(licenceText)]
+        : extractCopyrights(licenceText);
+      return { ...component, section: "standard", copyrights: [...new Set(copyrights)] };
+    }
+    return { ...component, section: "other", text: licenceText };
+  }
+  // No licence file: the canonical text stands in, and the line says so.
+  if (canonicalFor(licence)) {
+    return {
+      ...component,
+      section: "standard",
+      copyrights: component.copyright ? [component.copyright] : [],
+      supplied: component.kind === "package",
+    };
+  }
+  const stock = standardTextFor(licence, canonicalFor);
+  if (!stock) {
+    throw new Error(
+      `third-party-notices: ${component.name} ${component.version} ships no licence file and ` +
+        `licences/texts/ has no standard text for "${licence}"; add one, or an entry in ` +
+        "licences/overrides.json"
+    );
+  }
+  return {
+    ...component,
+    section: "other",
+    supplied: true,
+    text: `${SUPPLIED}\n\n${normaliseText(stock)}`,
+  };
+};
+
+const SUPPLIED = "(no licence file in the package; the standard text is supplied)";
+
+const compareComponents = (a, b) =>
+  KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+  a.name.localeCompare(b.name) ||
+  String(a.version).localeCompare(String(b.version), undefined, { numeric: true });
+const KIND_ORDER = ["package", "native", "font"];
+
+const licenceSortKey = (id) => id.replace(/[()]/g, "");
+const byLicence = (a, b) =>
+  licenceSortKey(a).localeCompare(licenceSortKey(b), undefined, { sensitivity: "base" });
+
+/**
+ * Classified components in their sections: standard licences grouped by id
+ * (one text each), other texts grouped by identical text, proprietary alone.
+ */
+export const groupComponents = (classified) => {
+  const standard = new Map();
+  const other = new Map();
+  const proprietary = [];
+  for (const component of classified) {
+    if (component.section === "standard") {
+      if (!standard.has(component.licence)) standard.set(component.licence, []);
+      standard.get(component.licence).push(component);
+    } else if (component.section === "other") {
+      const key = `${component.licence}\u0000${component.text}`;
+      if (!other.has(key))
+        other.set(key, { licence: component.licence, text: component.text, components: [] });
+      other.get(key).components.push(component);
+    } else {
+      proprietary.push(component);
+    }
+  }
+  return {
+    standard: [...standard.entries()]
+      .sort(([a], [b]) => byLicence(a, b))
+      .map(([licence, components]) => ({
+        licence,
+        components: components.sort(compareComponents),
+      })),
+    other: [...other.values()]
+      .map((block) => ({ ...block, components: block.components.sort(compareComponents) }))
+      .sort(
+        (a, b) =>
+          byLicence(a.licence, b.licence) || compareComponents(a.components[0], b.components[0])
+      ),
+    proprietary: proprietary.sort(compareComponents),
+  };
+};
+
+// --- Rendering ---------------------------------------------------------------
+
+const heading = (text) => `${RULE}\n${text}\n${RULE}`;
+const subheading = (text) => `${THIN_RULE}\n${text}\n${THIN_RULE}`;
+const indent = (text, by = "      ") =>
+  text
+    .split("\n")
+    .map((line) => (line ? `${by}${line}` : ""))
+    .join("\n");
+
+const componentName = (c) =>
+  c.kind === "package" ? `${c.name} ${c.version}` : `${c.name}, ${c.where}`;
+
+/**
+ * One component's line under its licence: `name version — copyright`, then
+ * whatever has to go with it (source for copyleft, NOTICE files, a note).
+ */
+export const renderComponentLine = (c) => {
+  const lines = [];
+  const copyrights = c.copyrights ?? [];
+  let lead;
+  if (c.supplied) {
+    lead = `${SUPPLIED}${c.author ? ` author: ${c.author}` : ""}`;
+  } else if (copyrights.length > 0) {
+    lead = copyrights[0];
+  } else {
+    const who = [c.source, c.author ? `author: ${c.author}` : null].filter(Boolean).join("; ");
+    lead = `(no copyright line in the package)${who ? ` ${who}` : ""}`;
+  }
+  lines.push(`  * ${componentName(c)} — ${lead}`);
+  for (const extra of copyrights.slice(c.supplied ? 0 : 1)) lines.push(`      ${extra}`);
+  // Named once: the no-copyright lead already carries the repository.
+  const sourceShown = !c.supplied && copyrights.length === 0;
+  if (c.source && !sourceShown && (COPYLEFT.test(c.licence) || c.supplied)) {
+    lines.push(`      Source: ${c.source}`);
+  }
+  if (c.note) lines.push(indent(c.note));
+  for (const attachment of c.attachments ?? []) {
+    lines.push(`      [${attachment.name}]`);
+    lines.push(indent(attachment.text));
+  }
+  return lines.join("\n");
+};
+
+const KIND_TITLES = {
+  package: "JavaScript packages",
+  native: "Native libraries in the iOS and Android apps",
+  font: "Fonts",
+};
+
+const renderByKind = (components, render) =>
+  KIND_ORDER.filter((kind) => components.some((c) => c.kind === kind))
+    .map(
+      (kind) =>
+        `${KIND_TITLES[kind]}:\n\n${components
+          .filter((c) => c.kind === kind)
+          .map(render)
+          .join("\n")}`
+    )
+    .join("\n\n");
+
+const renderStandard = (groups, canonicalFor) =>
+  groups
+    .map(
+      ({ licence, components }) =>
+        `${subheading(`${licence} (${components.length})`)}\n\n` +
+        `${printableCanonical(canonicalFor(licence))}\n\n` +
+        `Each component below is licensed under the ${licence} text above, under its own copyright notice.\n\n` +
+        renderByKind(components, renderComponentLine)
+    )
+    .join("\n\n\n");
+
+const otherLine = (c) => {
+  const lines = [`  * ${componentName(c)}`];
+  if (c.source) lines.push(`      Source: ${c.source}`);
+  if (c.note) lines.push(indent(c.note));
+  for (const attachment of c.attachments ?? []) {
+    lines.push(`      [${attachment.name}]`);
+    lines.push(indent(attachment.text));
+  }
+  return lines.join("\n");
+};
+
+const renderOther = (blocks) =>
+  blocks
+    .map(
+      ({ licence, text, components }) =>
+        `${subheading(`${licence}: ${components.map((c) => c.name).join(", ")}`)}\n\n` +
+        `${components.map(otherLine).join("\n")}\n\n${text}`
+    )
+    .join("\n\n\n");
+
+const renderProprietary = (components) =>
+  components
+    .map((c) =>
+      [
+        `  * ${componentName(c)}`,
+        `      ${c.licence}`,
+        `      Terms: ${c.terms}`,
+        c.note ? indent(c.note) : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n");
+
+const renderNativeMap = (native, pluginPackages) => {
+  // The short name: "OkHttp", not "OkHttp (com.squareup.okhttp3:okhttp)".
+  const libs = (ids) =>
+    (ids ?? []).map((id) => native.libraries[id].name.replace(/ \(.*$/, "")).join(", ") || "none";
+  const lines = pluginPackages.map(
+    (p) =>
+      `  * ${p.name} ${p.version}\n      iOS: ${libs(native.plugins[p.name].ios)}\n      Android: ${libs(native.plugins[p.name].android)}`
+  );
+  lines.push(
+    `  * The app itself\n      iOS: ${libs(native.app.ios)}\n      Android: ${libs(native.app.android)}`
+  );
+  return lines.join("\n");
 };
 
 // --- Native code -------------------------------------------------------------
@@ -335,100 +647,7 @@ const nativePluginNames = (packages, rootDir) => {
     .sort();
 };
 
-// --- Rendering ---------------------------------------------------------------
-
-const heading = (text) => `${RULE}\n${text}\n${RULE}`;
-const subheading = (text) => `${THIN_RULE}\n${text}\n${THIN_RULE}`;
-const packageLine = (p) => `  * ${p.name} ${p.version}${p.source ? ` <${p.source}>` : ""}`;
-
-const renderJs = (groups) => {
-  const out = [];
-  for (const group of groups) {
-    out.push(
-      subheading(`${group.licence} (${group.packages} package${group.packages === 1 ? "" : "s"})`)
-    );
-    for (const block of group.blocks) {
-      out.push(block.packages.map(packageLine).join("\n"));
-      if (block.note) out.push(block.note);
-      out.push(block.text);
-      out.push("");
-    }
-  }
-  return out.join("\n\n");
-};
-
-const renderLibrary = (library, readLicenceFile) => {
-  const lines = [`${library.name} (${library.platform})`];
-  lines.push(`Version: ${library.version}`);
-  if (library.source) lines.push(`Source: ${library.source}`);
-  lines.push(`Licence: ${library.licence}`);
-  if (library.terms) lines.push(`Terms: ${library.terms}`);
-  const body = [lines.join("\n")];
-  if (library.note) body.push(library.note);
-  if (library.copyright) body.push(library.copyright);
-  if (library.notice) body.push(normaliseText(readLicenceFile(library.notice)));
-  if (library.licenceFile) {
-    body.push(normaliseText(readLicenceFile(library.licenceFile)));
-  } else if (!library.terms) {
-    body.push(`The full ${library.licence} text is in "${STANDARD_TEXTS_TITLE}" below.`);
-  }
-  return body.join("\n\n");
-};
-
-const STANDARD_TEXTS_TITLE = "5. Standard licence texts";
-
-const renderNative = (native, pluginPackages, readLicenceFile) => {
-  const out = [];
-  out.push(subheading("Capacitor plug-ins and platforms"));
-  out.push(
-    "These are npm packages with native code; their licence texts are in part 1. " +
-      "Each lists the native libraries it brings into the apps."
-  );
-  // The short name: "OkHttp", not "OkHttp (com.squareup.okhttp3:okhttp)".
-  const libs = (ids) =>
-    (ids ?? []).map((id) => native.libraries[id].name.replace(/ \(.*$/, "")).join(", ") || "none";
-  for (const p of pluginPackages) {
-    const entry = native.plugins[p.name];
-    out.push(
-      `  * ${p.name} ${p.version} (${p.licence})\n` +
-        `      iOS: ${libs(entry.ios)}\n      Android: ${libs(entry.android)}`
-    );
-  }
-  out.push(
-    `  * The app itself\n      iOS: ${libs(native.app.ios)}\n      Android: ${libs(native.app.android)}`
-  );
-  out.push(subheading("Native libraries"));
-  const libraries = Object.values(native.libraries).sort(
-    (a, b) => a.platform.localeCompare(b.platform) || a.name.localeCompare(b.name)
-  );
-  for (const library of libraries) {
-    out.push(renderLibrary(library, readLicenceFile));
-    out.push("");
-  }
-  return out.join("\n\n");
-};
-
-const renderFonts = (fonts, readLicenceFile, readPackageFile) => {
-  const out = [];
-  for (const font of [...fonts].sort((a, b) => a.name.localeCompare(b.name))) {
-    const lines = [font.name, `Shipped by: ${font.shippedBy}`, `Licence: ${font.licence}`];
-    if (font.source) lines.push(`Source: ${font.source}`);
-    const body = [lines.join("\n")];
-    if (font.copyright) body.push(font.copyright);
-    if (font.packageLicence) {
-      body.push(
-        normaliseText(readPackageFile(font.packageLicence.package, font.packageLicence.file))
-      );
-    } else if (font.licenceFile) {
-      body.push(normaliseText(readLicenceFile(font.licenceFile)));
-    } else {
-      body.push(`The full ${font.licence} text is in "${STANDARD_TEXTS_TITLE}" below.`);
-    }
-    out.push(body.join("\n\n"));
-    out.push("");
-  }
-  return out.join("\n\n");
-};
+// --- The whole document --------------------------------------------------------
 
 /**
  * The whole document. `bundleFiles`, when given, is the list of files the
@@ -440,32 +659,46 @@ export const buildNotices = ({ frontendDir = FRONTEND_DIR, bundleFiles = null } 
   const native = readJson(join(licencesDir, "native.json"));
   const fonts = readJson(join(licencesDir, "fonts.json")).fonts;
   const textsDir = join(licencesDir, "texts");
-  const standardText = (expression) =>
-    standardTextFor(expression, (id) => {
-      const file = join(textsDir, `${id}.txt`);
-      return existsSync(file) ? readFileSync(file, "utf-8") : null;
-    });
-  const readLicenceFile = (relative) => readFileSync(join(licencesDir, relative), "utf-8");
+  const canonicalFor = (id) => {
+    const file = join(textsDir, `${id}.txt`);
+    return existsSync(file) ? readFileSync(file, "utf-8") : null;
+  };
+  const readLicenceFile = (relative) =>
+    normaliseText(readFileSync(join(licencesDir, relative), "utf-8"));
 
-  // 1. JavaScript packages
+  // JavaScript packages
   const packages = collectPackages(frontendDir, { buildOnly });
-  const resolved = packages.map((entry) => ({
-    entry,
-    notice: resolveNotice(entry, {
+  const components = packages.map((entry) =>
+    resolveNotice(entry, {
       overrides,
       listFiles: findLicenceFiles,
       readFile: (dir, name) => readFileSync(join(dir, name), "utf-8"),
-      standardText,
-    }),
-  }));
-  const groups = groupByLicence(resolved);
+    })
+  );
 
-  // 2. Native code
+  // Native code
   const pluginNames = nativePluginNames(packages, frontendDir);
   checkNativeCoverage(pluginNames, native);
   const pluginPackages = pluginNames.map((name) => packages.find((p) => p.name === name));
+  for (const library of Object.values(native.libraries)) {
+    components.push({
+      kind: "native",
+      name: library.name,
+      version: library.version,
+      where: `${library.platform}, ${library.version}`,
+      licence: library.licence,
+      source: library.source ?? null,
+      copyright: library.copyright ?? null,
+      licenceText: library.licenceFile ? readLicenceFile(library.licenceFile) : null,
+      attachments: library.notice
+        ? [{ name: "NOTICE", text: readLicenceFile(library.notice) }]
+        : [],
+      terms: library.terms ?? null,
+      note: library.note ?? null,
+    });
+  }
 
-  // 3. Fonts
+  // Fonts
   if (bundleFiles) {
     const fontFiles = bundleFiles.filter((f) => /\.(woff2?|ttf|otf|eot)$/i.test(f));
     const unclaimed = fontFiles.filter(
@@ -477,15 +710,33 @@ export const buildNotices = ({ frontendDir = FRONTEND_DIR, bundleFiles = null } 
       );
     }
   }
-  const packageDir = (name) => packages.find((p) => p.name === name)?.dir;
   const readPackageFile = (name, file) => {
-    const dir = packageDir(name);
-    if (!dir)
+    const dir = packages.find((p) => p.name === name)?.dir;
+    if (!dir) {
       throw new Error(`third-party-notices: fonts.json names ${name}, which is not installed`);
-    return readFileSync(join(dir, file), "utf-8");
+    }
+    return normaliseText(readFileSync(join(dir, file), "utf-8"));
   };
+  for (const font of fonts) {
+    components.push({
+      kind: "font",
+      name: font.name,
+      version: "",
+      where: `shipped by ${font.shippedBy}`,
+      licence: font.licence,
+      source: font.source ?? null,
+      copyright: font.copyright ?? null,
+      licenceText: font.packageLicence
+        ? readPackageFile(font.packageLicence.package, font.packageLicence.file)
+        : font.licenceFile
+          ? readLicenceFile(font.licenceFile)
+          : null,
+      attachments: [],
+      note: null,
+    });
+  }
 
-  // 4. Artwork
+  // Artwork
   const noticeFile = resolve(frontendDir, "..", "NOTICE.md");
   if (!existsSync(noticeFile)) {
     throw new Error(
@@ -494,29 +745,22 @@ export const buildNotices = ({ frontendDir = FRONTEND_DIR, bundleFiles = null } 
   }
   const artwork = normaliseText(readFileSync(noticeFile, "utf-8"));
 
-  // 5. Standard texts the native and font entries point at
-  const standardIds = [
-    ...new Set(
-      [...Object.values(native.libraries), ...fonts]
-        .filter((item) => !item.licenceFile && !item.packageLicence && !item.terms)
-        .map((item) => item.licence)
-    ),
-  ].sort();
-  const standardSection = standardIds
-    .map((id) => {
-      const text = standardText(id);
-      if (!text) throw new Error(`third-party-notices: licences/texts/${id}.txt is missing`);
-      return `${subheading(id)}\n\n${normaliseText(text)}\n`;
-    })
-    .join("\n\n");
-
+  const sections = groupComponents(components.map((c) => classifyComponent(c, canonicalFor)));
+  const otherCount = sections.other.reduce((n, block) => n + block.components.length, 0);
   const counts = {
     packages: packages.length,
-    licences: groups.length,
-    fallbacks: resolved.filter((r) => r.notice.fallback).length,
-    plugins: pluginPackages.length,
     nativeLibraries: Object.keys(native.libraries).length,
     fonts: fonts.length,
+    plugins: pluginPackages.length,
+    standardLicences: sections.standard.length,
+    standard: sections.standard.reduce((n, group) => n + group.components.length, 0),
+    other: otherCount,
+    otherPackages: sections.other.reduce(
+      (n, block) => n + block.components.filter((c) => c.kind === "package").length,
+      0
+    ),
+    proprietary: sections.proprietary.length,
+    supplied: components.filter((c) => c.kind === "package" && !c.licenceText).length,
   };
 
   const text = [
@@ -524,29 +768,39 @@ export const buildNotices = ({ frontendDir = FRONTEND_DIR, bundleFiles = null } 
     "",
     OWN_LICENCE,
     "",
+    `This covers ${counts.packages} JavaScript packages, ${counts.nativeLibraries} native libraries ` +
+      `in the iOS and Android apps, ${counts.fonts} fonts, and artwork.`,
+    "",
     "Contents",
-    `  1. JavaScript packages (${counts.packages})`,
-    `  2. Native code in the iOS and Android apps (${counts.plugins} Capacitor packages, ${counts.nativeLibraries} libraries)`,
-    `  3. Fonts (${counts.fonts})`,
-    "  4. Artwork",
-    `  ${STANDARD_TEXTS_TITLE}`,
+    `  1. Standard licences (${counts.standard} components under ${counts.standardLicences} licence texts)`,
+    `  2. Other licence texts (${counts.other} components)`,
+    `  3. Proprietary components in the Android app (${counts.proprietary})`,
+    `  4. Which native libraries each Capacitor plug-in brings in (${counts.plugins})`,
+    "  5. Artwork",
     "",
-    heading(`1. JavaScript packages (${counts.packages})`),
+    heading("1. Standard licences"),
     "",
-    renderJs(groups),
-    heading("2. Native code in the iOS and Android apps"),
+    "Each licence text is printed once, followed by every component under it with that component's own copyright notice. NOTICE files, which Apache-2.0 requires verbatim, follow their component.",
     "",
-    renderNative(native, pluginPackages, readLicenceFile),
-    heading("3. Fonts"),
+    renderStandard(sections.standard, canonicalFor),
     "",
-    renderFonts(fonts, readLicenceFile, readPackageFile),
-    heading("4. Artwork"),
+    heading("2. Other licence texts"),
+    "",
+    "Components whose licence text differs from the standard one, printed in full.",
+    "",
+    renderOther(sections.other),
+    "",
+    heading("3. Proprietary components in the Android app"),
+    "",
+    renderProprietary(sections.proprietary),
+    "",
+    heading("4. Which native libraries each Capacitor plug-in brings in"),
+    "",
+    renderNativeMap(native, pluginPackages),
+    "",
+    heading("5. Artwork"),
     "",
     artwork,
-    "",
-    heading(STANDARD_TEXTS_TITLE),
-    "",
-    standardSection,
   ]
     .join("\n")
     .replace(/\n{4,}/g, "\n\n\n");
