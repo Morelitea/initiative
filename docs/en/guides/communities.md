@@ -45,7 +45,7 @@ Search by name or by place, browse by category, and **join straight from the car
 
 Searching by place covers a city, a neighbourhood, a postcode, or a whole country by name: "Japan" finds everything in Japan, whatever language you type it in.
 
-**Near me**, above the cards, puts the closest communities first: your city, then your region, then your country, then the ones that never said where they are, then everywhere else. It hides nothing; it only sorts. This device remembers it for next time, and the **×** beside it forgets it.
+**Near me**, above the cards, puts the closest communities first: the ones within about an hour's drive (whichever side of a border they're on), then the rest of your country, then the ones that haven't said where they are, then everywhere else. It hides nothing; it only sorts. This device remembers it for next time, and the **×** beside it forgets it.
 
 What you searched, which shelf you're on and where you're near all live in the address, so a filtered directory view is a link you can send somebody.
 
@@ -83,21 +83,21 @@ That certification is the entire content rule — if you can't honestly tick it,
 
 ## Saying where your community is (admins)
 
-Some communities are about a place: the allotment, the street, the Thursday quiz at the one pub with parking. **Location**, under **Community settings → Community**, says where. It's optional, and as vague or as exact as you like.
+Some communities are about a place: the allotment, the street, the Thursday quiz at the one pub with parking. **Location**, under **Community settings → Community**, says where. It's optional, and as vague or as exact as you like: "Japan", "Lyon", or the full address of the hall with the temperamental boiler.
 
-| Give it | The card says |
-|---|---|
-| A country | Japan |
-| A region | Ontario, Canada |
-| A city | Seattle, WA, or Lyon, France |
-| A street address | Still just the city. The street and postcode wait behind a hover or a tap, with a link to a map. |
+Start typing and places appear underneath, the ones closest to you first. Pick one and the community goes on the map, which is what puts it in front of people looking for something nearby. Keep typing after you pick (a street in front of the city, say) and it stays on the map.
 
-**Place name** goes in front of all that: "Queen Anne Neighborhood, Seattle, WA". Keep it short. A card gives the whole location one line, and when the line runs out it's your place name that gets trimmed, so the city always survives.
+Something the list has never heard of, like "the old mill", is fine. It shows on the card all the same; it just can't be near anyone.
 
-The city list is a suggestion, not a test. If yours isn't on it, type it.
+The card shows the location exactly as you typed it, and tapping it on your community's front page opens a map.
+
+**Place name** is optional and goes in front: "Queen Anne Neighborhood, Seattle". Keep it short. A card gives the whole location one line, and when the line runs out it's your place name that gets trimmed, so the place itself survives.
 
 !!! warning "Listed means anyone can see it"
-    A [listed](#listing-your-community-admins) community shows its location to everyone browsing the directory, and the street address to anyone who opens the details. If you meet in somebody's living room, the city is plenty.
+    A [listed](#listing-your-community-admins) community shows its location, exactly as typed, to everyone browsing the directory. If you meet in somebody's living room, the city is plenty.
+
+??? techspec "Where the suggestions come from"
+    The places are [GeoNames](https://www.geonames.org/) data (every town of a thousand people or more) that ships with the app, so typing a place sends nothing anywhere. "Closest to you" starts from the place you've already picked, or else from the city your device's time zone is named after. A picked place saves its country and its coordinates; **Near me** measures the distance between those.
 
 ## Inviting people (admins)
 

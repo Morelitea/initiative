@@ -175,18 +175,16 @@ describe("CommunitiesPage", () => {
     expect(screen.getByText("Art & design")).toBeInTheDocument();
   });
 
-  it("says where a community is, and leaves the street off the card", async () => {
+  it("says where a community is", async () => {
     directoryFor.mockReturnValue(
       directoryResult([
         community({
           location: {
-            country: "US",
-            region: "Washington",
-            region_code: "WA",
-            city: "Seattle",
-            address: "1 Queen Anne Ave N",
-            postal_code: "98109",
+            text: "Seattle, Washington, United States",
             label: "Queen Anne Neighborhood",
+            country: "US",
+            latitude: 47.6,
+            longitude: -122.3,
           },
         }),
       ])
@@ -195,9 +193,10 @@ describe("CommunitiesPage", () => {
     renderDirectory();
 
     expect(
-      await screen.findByRole("button", { name: "Location: Queen Anne Neighborhood, Seattle, WA" })
+      await screen.findByRole("link", {
+        name: "Location: Queen Anne Neighborhood, Seattle, Washington, United States",
+      })
     ).toBeInTheDocument();
-    expect(screen.queryByText(/98109/)).not.toBeInTheDocument();
   });
 
   it("puts the community's banner across the top of its card", async () => {
@@ -314,22 +313,31 @@ describe("CommunitiesPage", () => {
   });
 
   it("sorts from the place in the address", async () => {
-    renderDirectory({ near_country: "US", near_region: "WA", near_city: "Seattle" });
+    renderDirectory({
+      near_country: "US",
+      near_lat: 47.6,
+      near_lon: -122.3,
+      near_place: "Seattle, Washington, United States",
+    });
     await screen.findByText("Riverside Players");
 
+    // The words are the reader's own; only where it is goes to the server.
     expect(directoryFor).toHaveBeenCalledWith(
-      expect.objectContaining({ near_country: "US", near_region: "WA", near_city: "Seattle" }),
+      expect.objectContaining({ near_country: "US", near_lat: 47.6, near_lon: -122.3 }),
       expect.anything()
     );
-    expect(screen.getByRole("button", { name: "Near Seattle, WA" })).toBeInTheDocument();
+    expect(directoryFor.mock.lastCall?.[0]).not.toHaveProperty("near_place");
+    expect(
+      screen.getByRole("button", { name: "Near Seattle, Washington, United States" })
+    ).toBeInTheDocument();
   });
 
   it("sorts from the place kept on this device, and forgets it when cleared", async () => {
-    saveNear({ country: "JP", city: "Kyoto" }, reader.id);
+    saveNear({ text: "Kyoto, Japan", country: "JP", latitude: 35.0, longitude: 135.8 }, reader.id);
     renderDirectory({}, { user: reader });
     await screen.findByText("Riverside Players");
     expect(directoryFor).toHaveBeenLastCalledWith(
-      expect.objectContaining({ near_country: "JP", near_city: "Kyoto" }),
+      expect.objectContaining({ near_country: "JP", near_lat: 35.0, near_lon: 135.8 }),
       expect.anything()
     );
 

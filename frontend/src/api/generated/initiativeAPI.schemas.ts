@@ -2328,59 +2328,49 @@ export interface CommunityInviteStatus {
 }
 
 /**
- * Where a community is, as precisely as its admin cares to say.
+ * Where a community is, in its admin's own words.
  *
- * The country is the one required part: everything finer is optional, so a
- * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
- * address. The parts are generic rather than one country's address form —
- * ``region`` is whatever the country's first-level division is (a state, a
- * province, a prefecture, a county), and a country without one leaves it out.
- *
- * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
- * which lets a card say "Seattle, WA" where the country writes its regions
- * that way. ``label`` is the admin's own name for the place
- * ("Queen Anne Neighborhood"), shown ahead of it.
+ * ``text`` is the place as it was typed and as it is shown: a country alone
+ * ("Japan"), a city ("Lyon, France") or a full street address. ``label`` is
+ * the community's own name for the place ("Queen Anne Neighborhood"), shown
+ * ahead of it. ``country``
+ * (ISO 3166-1 alpha-2) and the coordinates are the place it was pinned to,
+ * for putting the communities near a reader first: a country alone pins no
+ * point, and text that was never pinned leaves all three out.
  *
  * The same shape is read and written: the whole location is one value, and a
  * PATCH replaces it.
  */
 export interface CommunityLocationInput {
-  /** @pattern ^[A-Za-z]{2}$ */
-  country: string;
-  region?: string | null;
-  region_code?: string | null;
-  city?: string | null;
-  address?: string | null;
-  postal_code?: string | null;
+  /** @maxLength 200 */
+  text: string;
   label?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /**
- * Where a community is, as precisely as its admin cares to say.
+ * Where a community is, in its admin's own words.
  *
- * The country is the one required part: everything finer is optional, so a
- * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
- * address. The parts are generic rather than one country's address form —
- * ``region`` is whatever the country's first-level division is (a state, a
- * province, a prefecture, a county), and a country without one leaves it out.
- *
- * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
- * which lets a card say "Seattle, WA" where the country writes its regions
- * that way. ``label`` is the admin's own name for the place
- * ("Queen Anne Neighborhood"), shown ahead of it.
+ * ``text`` is the place as it was typed and as it is shown: a country alone
+ * ("Japan"), a city ("Lyon, France") or a full street address. ``label`` is
+ * the community's own name for the place ("Queen Anne Neighborhood"), shown
+ * ahead of it. ``country``
+ * (ISO 3166-1 alpha-2) and the coordinates are the place it was pinned to,
+ * for putting the communities near a reader first: a country alone pins no
+ * point, and text that was never pinned leaves all three out.
  *
  * The same shape is read and written: the whole location is one value, and a
  * PATCH replaces it.
  */
 export interface CommunityLocationOutput {
-  /** @pattern ^[A-Za-z]{2}$ */
-  country: string;
-  region: string | null;
-  region_code: string | null;
-  city: string | null;
-  address: string | null;
-  postal_code: string | null;
+  /** @maxLength 200 */
+  text: string;
   label: string | null;
+  country: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export type CommunityRole = (typeof CommunityRole)[keyof typeof CommunityRole];
@@ -10176,8 +10166,8 @@ export type ListDirectoryCommunitiesParams = {
   search_country?: string[];
   category?: CommunityCategory[];
   near_country?: string | null;
-  near_region?: string | null;
-  near_city?: string | null;
+  near_lat?: number | null;
+  near_lon?: number | null;
   /**
    * @minimum 1
    */

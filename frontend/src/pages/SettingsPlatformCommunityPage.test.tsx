@@ -95,9 +95,7 @@ describe("SettingsPlatformCommunityPage", () => {
   it("starts asking members their age", async () => {
     renderPage();
 
-    expect(
-      await screen.findByLabelText("Check members' age")
-    ).toBeChecked();
+    expect(await screen.findByLabelText("Check members' age")).toBeChecked();
   });
 
   it("only stops asking once the owner asserts everyone here is an adult", async () => {
