@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-10-07
+
 ### Added
 
 - **A Projects marketplace.** Start a project from a ready-made one: a sales pipeline, a hiring pipeline, a bug tracker, a content calendar, a grant tracker, a product launch or facility maintenance. Find them on the marketplace's **Projects** shelf, or under **From the marketplace** when you create a project. Start blank or from a filled-in example, and its dates land on the day you pick.
