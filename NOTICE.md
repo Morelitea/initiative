@@ -5,22 +5,6 @@ profile decorations under `frontend/public/decorations/` are not our drawings.
 They are used as published rather than redrawn, and they keep their own terms.
 Each file also carries its credit in an SVG `<metadata>` element.
 
-## Creative Commons Attribution-ShareAlike
-
-- **`trophies/heritage-fist.svg`** — the raised fist is
-  [BLM Fist](https://commons.wikimedia.org/wiki/File:BLM_Fist.svg) by
-  **FireDragonValo**, from Wikimedia Commons, licensed
-  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Recoloured
-  and placed on a disc; the outline is unchanged. This one file is distributed
-  under CC BY-SA 4.0, not the AGPL.
-
-- **`trophies/pets-paw.svg`** — the print is
-  [Paw-print](https://commons.wikimedia.org/wiki/File:Paw-print.svg) by
-  **Mistman123**, from Wikimedia Commons, licensed
-  [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Recoloured
-  and placed on a disc; the outline is unchanged. This one file is distributed
-  under CC BY-SA 3.0, not the AGPL.
-
 ## Public domain
 
 These carry no conditions; they are listed so the drawings are credited to the
