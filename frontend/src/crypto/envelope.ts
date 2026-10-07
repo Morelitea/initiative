@@ -395,8 +395,42 @@ export function unpack(plaintext: string, fallbackId: string): Envelope | null {
   return fields === null ? asBody : ({ ...fields, v: 1, kind: name } as Envelope);
 }
 
-/** How many messages of one conversation ride in a single envelope. */
-const HISTORY_CHUNK = 40;
+/** The most one queued message may hold: `MAX_PAYLOAD_BYTES` on the server. */
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+
+/** Room kept in each part for the envelope around its messages and the ratchet's framing. */
+const PART_OVERHEAD_BYTES = 1024;
+
+/**
+ * One thread cut into parts that each fit in one queued message, newest part
+ * first and each part in the thread's own order.
+ *
+ * Cut by size rather than by count: forty short messages and forty long ones
+ * are very different sizes, and a part the server refuses stops the transfer
+ * at that part every time it is tried. A message too large to travel on its own
+ * is left out, so the rest of the thread still goes.
+ */
+function parts(messages: StoredMessage[]): StoredMessage[][] {
+  const room = MAX_PAYLOAD_BYTES - PART_OVERHEAD_BYTES;
+  const encoder = new TextEncoder();
+  const cut: StoredMessage[][] = [];
+  let part: StoredMessage[] = [];
+  let size = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    // The comma between two entries counts as well.
+    const bytes = encoder.encode(JSON.stringify(messages[index])).length + 1;
+    if (bytes > room) continue;
+    if (size + bytes > room) {
+      cut.push(part.reverse());
+      part = [];
+      size = 0;
+    }
+    part.push(messages[index]);
+    size += bytes;
+  }
+  if (part.length > 0) cut.push(part.reverse());
+  return cut;
+}
 
 /**
  * Hand threads over in numbered parts, closed by an empty last one.
@@ -420,11 +454,9 @@ export async function sendTransfer(
 ): Promise<boolean> {
   let next = seq;
   for (const conversationId of conversationIds) {
-    const messages = await messageLog.get(conversationId);
-    for (let end = messages.length; end > 0; end -= HISTORY_CHUNK) {
+    for (const part of parts(await messageLog.get(conversationId))) {
       next += 1;
-      const chunk = messages.slice(Math.max(0, end - HISTORY_CHUNK), end);
-      if (!(await send({ conversationId, messages: chunk, seq: next, last: false }))) return false;
+      if (!(await send({ conversationId, messages: part, seq: next, last: false }))) return false;
     }
     await finished?.(conversationId);
   }

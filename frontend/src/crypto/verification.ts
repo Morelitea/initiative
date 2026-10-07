@@ -27,7 +27,7 @@ import { ratchet } from "./client";
 import { type Context, ensureDeviceContext } from "./device";
 import { answerNewDevice } from "./historySync";
 import { emojiAt, type SafetyEmoji } from "./safetyCode";
-import { accountPickle, type PeerKeyChange, peerKeyChanges } from "./store";
+import { accountPickle, historyAsk, type PeerKeyChange, peerKeyChanges } from "./store";
 import type { TrustedDevice } from "./trust";
 
 /** How long a comparison may take, as the server keeps its messages. */
@@ -303,6 +303,9 @@ async function settle(current: Attempt): Promise<void> {
   } else if (current.ctx.own.held.some((device) => device.id === current.peer.id)) {
     await peerKeyChanges.acknowledge([current.peer.id]);
   }
+  // Verified, so the notice asking for it is done with. The ask itself stays
+  // open: the history it asked for can still be on its way.
+  await historyAsk.dismissNotice();
   finish(current, { phase: "verified", device: current.peer });
 }
 

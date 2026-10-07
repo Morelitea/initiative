@@ -58,6 +58,8 @@ export type DirectoryEntry = Pick<
 export interface PeerDirectory {
   devices: TrustedDevice[];
   held: TrustedDevice[];
+  /** The directory could not be read, which is not the same as it being empty. */
+  unavailable?: boolean;
 }
 
 async function trust(

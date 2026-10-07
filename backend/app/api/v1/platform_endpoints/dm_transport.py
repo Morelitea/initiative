@@ -444,16 +444,18 @@ async def collect_queue(
     device_id: uuid.UUID,
     session: UserSessionDep,
     current_user: CurrentUser,
+    after: int | None = None,
 ) -> DmQueueResponse:
-    """Everything waiting for one device, oldest first."""
-    items = await service.collect(
+    """What is waiting for one device, oldest first, the page after ``after``."""
+    page = await service.collect(
         session,
         user_id=current_user.id,
         device_id=device_id,
         session_id=_session_id(),
+        after=after,
     )
     await session.commit()
-    return DmQueueResponse(items=items)
+    return page
 
 
 @me_router.post("/dm/queue/ack", status_code=status.HTTP_204_NO_CONTENT)

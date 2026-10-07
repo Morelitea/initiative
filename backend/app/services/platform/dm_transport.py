@@ -55,6 +55,7 @@ from app.schemas.platform.dm_transport import (
     DmOneTimeKeyUpload,
     DmOutboundMessage,
     DmQueueItemRead,
+    DmQueueResponse,
     DmRosterMember,
     DmSessionKey,
     DmVerificationMessage,
@@ -148,16 +149,19 @@ def _decode(value: str, *, expect: int | None = None) -> bytes:
     return raw
 
 
-def _encode(raw: bytes) -> str:
-    """Write one base64 value back, padded.
+def _encode_key(raw: bytes) -> str:
+    """Write a key or a signature back the way the ratchet wrote it: no padding.
 
-    Deliberately not the mirror of `_decode`. What the client sends is written
-    by two different encoders -- keys by the ratchet library, which omits the
-    padding, and ciphertext by this crate's own helper, which keeps it -- and
-    only the ciphertext side reads a value back. That reader is strict, so the
-    padding stays on; `_decode` is the tolerant half because it is the one that
-    has to take both.
+    Clients compare keys as text -- the identity a pre-key message names
+    against the one the directory lists -- so a key has one spelling on the
+    wire, and it is the ratchet's.
     """
+    return base64.b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _encode_ciphertext(raw: bytes) -> str:
+    """Write a queued message back padded, which the ratchet's ciphertext
+    reader requires."""
     return base64.b64encode(raw).decode("ascii")
 
 
@@ -398,9 +402,9 @@ async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceR
     return [
         DmDeviceRead(
             id=device.id,
-            identity_key=_encode(device.identity_key),
-            fingerprint_key=_encode(device.fingerprint_key),
-            signature=_encode(device.signature) if device.signature else None,
+            identity_key=_encode_key(device.identity_key),
+            fingerprint_key=_encode_key(device.fingerprint_key),
+            signature=_encode_key(device.signature) if device.signature else None,
             label=device.label,
             created_at=device.created_at,
             last_seen_at=device.last_seen_at,
@@ -446,9 +450,9 @@ def _session_key(
 ) -> DmSessionKey:
     return DmSessionKey(
         device_id=device.id,
-        identity_key=_encode(device.identity_key),
-        fingerprint_key=_encode(device.fingerprint_key),
-        signature=_encode(device.signature) if device.signature else None,
+        identity_key=_encode_key(device.identity_key),
+        fingerprint_key=_encode_key(device.fingerprint_key),
+        signature=_encode_key(device.signature) if device.signature else None,
         one_time_key=one_time_key,
     )
 
@@ -508,9 +512,9 @@ async def _claim_for(
         return None
     return DmOneTimeKeyUpload(
         key_id=row[0],
-        public_key=_encode(bytes(row[1])),
+        public_key=_encode_key(bytes(row[1])),
         fallback=row[2],
-        signature=_encode(bytes(row[3])) if row[3] is not None else None,
+        signature=_encode_key(bytes(row[3])) if row[3] is not None else None,
     )
 
 
@@ -1175,12 +1179,18 @@ async def collect(
     user_id: int,
     device_id: uuid.UUID,
     session_id: uuid.UUID | None = None,
-) -> list[DmQueueItemRead]:
-    """Everything waiting for one device, oldest first.
+    after: int | None = None,
+) -> DmQueueResponse:
+    """What is waiting for one device, oldest first, a page at a time.
 
     The order is not a nicety. A ratchet keeps a bounded number of skipped
     message keys, so handing them over in the order they were written is what
     keeps a client able to read them.
+
+    ``after`` is the last id of the page before, and ``more`` says another page
+    follows. A device may leave a message here that it cannot read yet -- one
+    from a device of its account's that is waiting to be verified -- so a
+    collection pages past those rather than reading the same first page again.
 
     Collecting is also where the key store learns which sign-in it is under. A
     device registers once and never again, so the link cannot only be written
@@ -1203,25 +1213,31 @@ async def collect(
         (
             await session.exec(
                 select(DmQueueItem)
-                .where(DmQueueItem.recipient_device_id == device_id)
+                .where(
+                    DmQueueItem.recipient_device_id == device_id,
+                    DmQueueItem.id > (after or 0),
+                )
                 .order_by(DmQueueItem.id)
-                .limit(QUEUE_PAGE)
+                .limit(QUEUE_PAGE + 1)
             )
         ).all()
     )
     device.last_seen_at = datetime.now(timezone.utc)
     session.add(device)
     await session.flush()
-    return [
-        DmQueueItemRead(
-            id=row.id,
-            conversation_id=row.conversation_id,
-            message_type=row.message_type,
-            payload=_encode(row.payload),
-            created_at=row.created_at,
-        )
-        for row in rows
-    ]
+    return DmQueueResponse(
+        items=[
+            DmQueueItemRead(
+                id=row.id,
+                conversation_id=row.conversation_id,
+                message_type=row.message_type,
+                payload=_encode_ciphertext(row.payload),
+                created_at=row.created_at,
+            )
+            for row in rows[:QUEUE_PAGE]
+        ],
+        more=len(rows) > QUEUE_PAGE,
+    )
 
 
 async def acknowledge(

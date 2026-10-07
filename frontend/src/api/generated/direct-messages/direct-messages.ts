@@ -3016,7 +3016,7 @@ export const useSendMessages = <TError = ErrorType<HTTPValidationError>, TContex
   return useMutation(getSendMessagesMutationOptions(options), queryClient);
 };
 /**
- * Everything waiting for one device, oldest first.
+ * What is waiting for one device, oldest first, the page after ``after``.
  * @summary Collect Queue
  */
 export const collectQueue = (

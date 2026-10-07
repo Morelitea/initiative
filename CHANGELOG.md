@@ -7,13 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **The operator dashboard's Communities list has one billing button per community.** The **Operations** button is gone; open the billing operator console from **Manage › Change in billing**.
-
 ### Fixed
 
-- **Opening billing or breaking glass asks for your second factor instead of signing you out.** When a new grant needed a code from your authenticator app or a passkey, the app read the request as an expired session and signed you out.
+- **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
+- **A new device gets its whole history**, however long, and even while your newest conversation is an invitation you haven't answered. The notice asking you to verify it goes away once you have.
+- **A device keeps receiving messages** when some sent to it can never be opened, such as ones from a device that has since signed out. Those are cleared instead of holding up everything behind them.
 
 ## [0.75.2] - 2026-10-07
 
