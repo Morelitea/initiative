@@ -45,6 +45,35 @@ vi.mock("@capacitor/core", () => ({
   // does, via the authenticated layout.
   registerPlugin: (_name: string, implementations?: { web?: () => unknown }) =>
     implementations?.web?.() ?? {},
+  // The native HTTP client, done the way its web implementation does it:
+  // through fetch, so msw answers it.
+  CapacitorHttp: (() => {
+    const request = async (options: {
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      data?: unknown;
+    }) => {
+      const response = await fetch(options.url, {
+        method: options.method ?? "GET",
+        headers: options.headers,
+        body: options.data === undefined ? undefined : JSON.stringify(options.data),
+      });
+      const json = (response.headers.get("content-type") ?? "").includes("application/json");
+      return {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: json ? await response.json() : await response.text(),
+        url: response.url,
+      };
+    };
+    return {
+      request,
+      get: (options: { url: string }) => request({ ...options, method: "GET" }),
+      post: (options: { url: string }) => request({ ...options, method: "POST" }),
+      delete: (options: { url: string }) => request({ ...options, method: "DELETE" }),
+    };
+  })(),
 }));
 
 vi.mock("@capacitor/device", () => ({

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 import { syncFirebaseProject } from "@/lib/firebaseProject";
-import { registerPushToken } from "@/lib/pushRegistration";
+import { type ApnsEnvironment, registerDeviceForPush } from "@/lib/pushRegistration";
 import { returnPath } from "@/lib/returnPath";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
 
@@ -37,6 +37,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
     let registrationErrorListener: PluginListenerHandle;
     let pushReceivedListener: PluginListenerHandle;
     let pushActionListener: PluginListenerHandle;
+    let apnsEnvironment: ApnsEnvironment | undefined;
 
     const setupListeners = async () => {
       try {
@@ -60,6 +61,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
           }
 
           console.log("Firebase initialized successfully for push notifications");
+          apnsEnvironment = initResult.apnsEnvironment;
           setFcmEnabled(true);
         } catch (err) {
           console.error("Failed to initialize Firebase:", err);
@@ -75,11 +77,18 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
         registrationListener = await PushNotifications.addListener(
           "registration",
           async (token) => {
-            console.log("Push registration success, token:", token.value);
-            // Send token to backend
+            const platform = Capacitor.getPlatform();
+            if (platform !== "ios" && platform !== "android") return;
+            // The server is told the token itself, or the push relay's handle
+            // for it where the server sends this platform's pushes through
+            // the relay.
             try {
-              await registerPushToken(token.value, Capacitor.getPlatform());
-              console.log("Push token registered with backend");
+              await registerDeviceForPush({
+                serverUrl,
+                token: token.value,
+                platform,
+                apnsEnvironment,
+              });
             } catch (err) {
               console.error("Failed to register push token with backend:", err);
             }

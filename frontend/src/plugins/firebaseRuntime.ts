@@ -6,9 +6,15 @@ export interface FirebaseRuntimePlugin {
    * This allows self-hosted instances to use push notifications without rebuilding the APK.
    *
    * @param options - Configuration options
-   * @returns Promise with success status
+   * @returns Promise with success status. An iPhone build also says which APNs
+   *   environment its tokens belong to (`sandbox` for a debug build); older
+   *   builds leave it out, which means `production`.
    */
-  initialize(options: { serverUrl: string }): Promise<{ success: boolean; message?: string }>;
+  initialize(options: { serverUrl: string }): Promise<{
+    success: boolean;
+    message?: string;
+    apnsEnvironment?: "production" | "sandbox";
+  }>;
 
   /**
    * Check if Firebase is already initialized.

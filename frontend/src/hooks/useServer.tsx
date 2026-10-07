@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
 import { setApiBaseUrl } from "@/api/client";
+import { releasePushForServerSwitch } from "@/lib/pushRegistration";
 import { queryClient } from "@/lib/queryClient";
 import { clearAllStorage, getStoredServerUrl, setStoredServerUrl } from "@/lib/serverStorage";
 
@@ -142,6 +143,9 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
 
   const setServerUrl = useCallback(async (url: string): Promise<void> => {
     const normalizedUrl = normalizeServerUrl(url);
+    // This device's push handle is the previous server's; the relay is told
+    // to drop it before anything is sent to the next one.
+    await releasePushForServerSwitch(normalizedUrl).catch(() => undefined);
     setStoredServerUrl(normalizedUrl);
     setApiBaseUrl(normalizedUrl);
     // Nothing the previous server said holds for this one.
@@ -150,6 +154,7 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const clearServerUrl = useCallback(async (): Promise<void> => {
+    await releasePushForServerSwitch(null).catch(() => undefined);
     clearAllStorage();
     setServerUrlState(null);
   }, []);
