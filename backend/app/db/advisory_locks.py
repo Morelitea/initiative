@@ -119,53 +119,6 @@ def _lock_call(name: str, namespace: LockNamespace, key: int | str | None) -> Se
     return select(getattr(func, name)(*args))
 
 
-def _hashed(text: str) -> tuple[ColumnElement, ...]:
-    return (func.hashtextextended(literal(text), 0),)
-
-
-def _previous_lock_args(
-    namespace: LockNamespace, key: int | str
-) -> tuple[ColumnElement, ...] | None:
-    """The key *namespace*'s lock on *key* had in the release before this
-    registry, for the locks this registry renamed.
-
-    :func:`advisory_lock` takes it as well, ahead of the lock's own, so a
-    replica still running that release and one running this one take a lock in
-    common while a deployment rolls from one to the other. Delete this once the
-    release after the registry's has shipped.
-    """
-    text = str(key)
-    head, _, rest = text.partition(":")
-    match namespace:
-        case LockNamespace.NOTIFICATION_LINE:
-            return _hashed(text)
-        case LockNamespace.DM_QUEUE:
-            return _hashed(f"dm-queue:{text}")
-        case LockNamespace.DM_VERIFICATION:
-            return _hashed(f"dm-verification:{text}")
-        case LockNamespace.POST_POLL:
-            return _hashed(f"post_poll:{text}")
-        case LockNamespace.REACTION_TOGGLE:
-            return _hashed(f"reaction:{text}")
-        case LockNamespace.PLUGIN_TOKEN:
-            return _hashed(f"plugin_token:{text}")
-        case LockNamespace.INTAKE_CASE | LockNamespace.MODERATION_REPORT:
-            return (literal(int(head), Integer), func.hashtext(literal(rest)))
-        case LockNamespace.INTAKE_BINDINGS:
-            return (literal(int(text), Integer), func.hashtext("intake_bindings"))
-        case LockNamespace.ACCESS_GRANT:
-            return (literal(int(head), Integer), literal(int(rest), Integer))
-        case LockNamespace.QUERY_SLOT:
-            return (
-                literal(int(namespace) + int(head), Integer),
-                literal(int(rest), Integer),
-            )
-        case LockNamespace.ACCOUNT_ADDRESS:
-            digest = hashlib.blake2b(text.encode("utf-8"), digest_size=8).digest()
-            return (literal(int.from_bytes(digest, "big", signed=True), BigInteger),)
-    return None
-
-
 async def advisory_lock(
     conn: AsyncSession | AsyncConnection,
     namespace: LockNamespace,
@@ -183,11 +136,6 @@ async def advisory_lock(
     name = "pg_{}advisory_{}lock".format(
         "" if wait else "try_", "xact_" if xact else ""
     )
-    previous = _previous_lock_args(namespace, key) if key is not None else None
-    if previous is not None:
-        taken = await conn.scalar(select(getattr(func, name)(*previous)))
-        if not wait and not taken:
-            return False
     taken = await conn.scalar(_lock_call(name, namespace, key))
     return True if wait else bool(taken)
 
