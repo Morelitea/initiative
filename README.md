@@ -26,19 +26,21 @@ The [user guide](https://beyonders-studio.github.io/initiative/) covers using In
 
 ## Running your own server
 
-You need Docker with Compose and an address for the server. Download the example compose file, then give it that address and the two secrets it needs:
+Initiative runs on anything that can run Docker Compose, whether that's a Linux server, a NAS, or a Windows or Mac computer.
 
-```bash
-curl -o docker-compose.yml https://raw.githubusercontent.com/beyonders-studio/initiative/main/docker-compose.example.yml
-cat > .env <<EOF
-APP_URL=https://initiative.example.com
-SECRET_KEY=$(openssl rand -hex 32)
-POSTGRES_PASSWORD=$(openssl rand -hex 32)
-EOF
-docker compose up -d
-```
+1. Make a folder for it and save [docker-compose.example.yml](docker-compose.example.yml) in it as `docker-compose.yml`.
+2. In the same folder, make a file called `.env` with your server's address and two secrets of your own:
 
-Initiative listens on port 8173. Point your reverse proxy's HTTPS at it, and uncomment `BEHIND_PROXY` in the compose file so the app sees each visitor's real address. Then open your address and register. The first account becomes the owner of the server.
+   ```
+   APP_URL=https://initiative.example.com
+   SECRET_KEY=
+   POSTGRES_PASSWORD=
+   ```
+
+   Each secret should be at least 32 random letters and numbers. A password manager's generator works fine, as long as you turn the symbols off.
+3. If a reverse proxy will sit in front of it, uncomment `BEHIND_PROXY` in the compose file so the app sees each visitor's real address.
+4. Start it from that folder with `docker compose up -d`, or with your NAS's or desktop app's own way of starting a Compose project. It listens on port 8173, so that's where your proxy points.
+5. Open your address and register. The first account becomes the owner of the server.
 
 Keep that `.env` file somewhere safe. Postgres only reads the password when it first creates the database, and the secret key encrypts data you'll want to read later, so neither one is something to change on a whim.
 
