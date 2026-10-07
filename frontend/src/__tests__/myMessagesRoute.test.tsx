@@ -116,7 +116,7 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useMessageRequests: () => mocks.messageRequests(),
   useDmSettings: () => mocks.dmSettings(),
-  useCanUseDirectMessages: () => Boolean(mocks.dmSettings().data?.age_confirmed_at),
+  useCanUseDirectMessages: () => mocks.dmSettings().data?.age_answer_required === false,
   useDmPermission: () => mocks.dmPermission(),
   useRequestMessage: () => ({ mutate: mocks.requestMessage, isPending: false }),
   useAcceptMessageRequest: () => ({ mutate: mocks.acceptMessageRequest, isPending: false }),
@@ -200,7 +200,12 @@ beforeEach(() => {
   mocks.dmPermission.mockReturnValue({ data: { permission: "denied" } });
   mocks.userProfile.mockReturnValue({ data: undefined, isLoading: false });
   mocks.dmSettings.mockReturnValue({
-    data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+    data: {
+      dm_policy: "community",
+      communities: [],
+      age_confirmed_at: "2020-01-01T00:00:00Z",
+      age_answer_required: false,
+    },
     isSuccess: true,
   });
   mocks.acceptInvitation.mockResolvedValue(undefined);
@@ -713,7 +718,12 @@ describe("My Messages", () => {
     // it. The form is on this page rather than only in Settings, because this
     // is where somebody arrives wanting the thing it gates.
     mocks.dmSettings.mockReturnValue({
-      data: { dm_policy: "community", communities: [], age_confirmed_at: null },
+      data: {
+        dm_policy: "community",
+        communities: [],
+        age_confirmed_at: null,
+        age_answer_required: true,
+      },
       isSuccess: true,
     });
 

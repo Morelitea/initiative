@@ -30,9 +30,9 @@ export const UserSettingsPrivacyPage = () => {
   const updateSettings = useUpdateDmSettings();
   const dmEnabled = useDirectMessagesEnabled();
 
-  // The age question gates everything, on every deployment — there is no
-  // policy to choose while it is unanswered.
-  const ageConfirmed = Boolean(data?.age_confirmed_at);
+  // The age question gates everything where the deployment checks age — there
+  // is no policy to choose while it is owed.
+  const ageConfirmed = data !== undefined && !data.age_answer_required;
 
   const save = (body: Parameters<typeof updateSettings.mutate>[0]["data"]) =>
     updateSettings.mutate(

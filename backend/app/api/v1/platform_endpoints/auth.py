@@ -141,6 +141,7 @@ from app.services.auth.assurance import (
     record_for_provider,
     session_amr,
 )
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import legal as legal_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
@@ -170,6 +171,7 @@ from app.services.auth.platform_provider import (
     is_login_ready,
 )
 from app.services.auth.sessions import RefreshOutcome
+from app.services.tenant.plugin_age import request_country
 from app.services.platform import auth_posture
 from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
@@ -277,7 +279,11 @@ async def register_user(
     return await users_service.to_self_read(session, registered.user)
 
 
-def _refuse_impossible_birthdate(birthdate: date | None) -> None:
+async def _refuse_birthdate(
+    request: Request, session: AsyncSession, birthdate: date | None
+) -> None:
+    """Refuse a date nobody was born on, and, while the deployment checks age,
+    somebody under the minimum for an account where they are."""
     if birthdate is None:
         return
     try:
@@ -287,6 +293,13 @@ def _refuse_impossible_birthdate(birthdate: date | None) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
+    if not await app_settings_service.community_age_gate_enabled(session):
+        return
+    if users_service.below_account_minimum(birthdate, request_country(request)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=UserMessages.AGE_BELOW_ACCOUNT_MINIMUM,
+        )
 
 
 async def _registration_gate(
@@ -447,9 +460,10 @@ async def _register_account(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
-        # Under age is recorded rather than refused: it closes the directory,
-        # not the account.
-        _refuse_impossible_birthdate(details.birthdate)
+        # Under the minimum for an account where they are is refused, and no
+        # account is made. Older than that but under age is recorded rather
+        # than refused: it closes the directory, not the account.
+        await _refuse_birthdate(request, session, details.birthdate)
         if details.birthdate is not None:
             users_service.record_age_answer(user, details.birthdate)
         # The handle: the name part as typed, and the number the name check
@@ -617,7 +631,7 @@ async def begin_passkey_sign_up(
     under.
     """
     await require_passkeys_allowed(session)
-    _refuse_impossible_birthdate(payload.birthdate)
+    await _refuse_birthdate(request, session, payload.birthdate)
     await _registration_gate(
         request,
         session,

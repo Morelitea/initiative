@@ -242,14 +242,17 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
-    # Whether an account must say it is 16 or older before it joins a guild
-    # listed in that directory. It gates that join and nothing else — a
-    # private guild is its own to answer for, and asks nobody's age.
+    # Whether this deployment checks age at all. On, sign-up refuses anyone
+    # under their country's minimum, an account says it is 16 or older before
+    # it joins a guild listed in that directory or opens its direct messages,
+    # and a plug-in's minimum age applies. A private guild is its own to answer
+    # for, and asks nobody's age.
     # On by default, and only a platform owner
     # turns it off — doing so is that owner asserting that every account on the
     # deployment already belongs to an adult, which is a thing an enterprise
-    # rollout knows and a public one does not. Independent of the directory
-    # switch above so the assertion survives the directory being toggled.
+    # rollout knows and a public one does not. Off, nothing asks and every
+    # account counts as an adult. Independent of the directory switch above so
+    # the assertion survives the directory being toggled.
     community_age_gate_enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),

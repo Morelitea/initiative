@@ -56,6 +56,10 @@ def test_no_date_on_file_is_not_old_enough():
     assert age_allows(AUTO, AgeViewer(age=None, country="US")) is False
 
 
+def test_no_age_check_lets_everyone_in():
+    assert age_allows(AUTO, AgeViewer(age=None, country=None, waived=True)) is True
+
+
 def test_the_country_comes_from_the_configured_header_only(monkeypatch):
     monkeypatch.setattr(settings, "CLIENT_COUNTRY_HEADER", None)
     assert request_country(_request({"CF-IPCountry": "US"})) is None

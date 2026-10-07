@@ -1678,6 +1678,21 @@ class TestMinimumAge:
         assert response.status_code == 403
         assert response.json()["detail"] == GuildPluginMessages.AGE_RESTRICTED
 
+    async def test_no_age_check_opens_it_with_no_date_on_file(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        from app.services.platform import app_settings as app_settings_service
+
+        await app_settings_service.update_community_settings(
+            session, community_directory_enabled=False, community_age_gate_enabled=False
+        )
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await self._aged(session, a, None)
+
+        response = await self._open(client, a, plugin, None)
+
+        assert response.status_code == 200, response.text
+
     async def test_the_read_does_not_offer_what_the_handoff_refuses(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
