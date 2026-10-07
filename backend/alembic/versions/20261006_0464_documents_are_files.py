@@ -33,8 +33,10 @@ The documents tool is the files tool. In ``guild_template`` and every
   default, as each tool's backfill does. The CHECK constraints holding the kind are restated for
   the writes; ``ck_comments_single_parent`` follows its column on its own.
 
-``public.relationship_kind_code`` names the kind ``file`` (still code 6)
-before the edges are rewritten, since their node columns are computed from it.
+``public.relationship_kind_code`` names the kind ``file`` (still code 6).
+The edges' node columns are computed from it, and an edge's two ends are
+respelled one column at a time, so while they are it reads both spellings; it
+reads only the new one once every schema says it.
 The rewrites run with each table's row security unforced and its user
 triggers held: nothing changed about the rows but their spelling.
 
@@ -221,6 +223,10 @@ _KIND_CODES_BEFORE = (
 _KIND_CODES_AFTER = tuple(
     (_KIND.get(kind, kind), code) for kind, code in _KIND_CODES_BEFORE
 )
+#: Both spellings, while an edge's two ends say different ones.
+_KIND_CODES_EITHER = _KIND_CODES_BEFORE + tuple(
+    pair for pair in _KIND_CODES_AFTER if pair not in _KIND_CODES_BEFORE
+)
 
 _CLEAR_SEARCH_GENERATION = "COMMENT ON TABLE search_entries IS NULL"
 
@@ -368,7 +374,9 @@ def _restore_checks(
 
 def _writable(bind: Connection, table: str, fn: Callable[[], None]) -> None:
     """Run ``fn`` with ``table``'s row security unforced and its user triggers
-    held, both restored either way."""
+    held, then restore both. A failure rolls the whole revision back, so
+    nothing is restored on that path: a statement there would only replace
+    the error with "current transaction is aborted"."""
     if not _table_exists(bind, table):
         return
     forced = bool(
@@ -382,12 +390,10 @@ def _writable(bind: Connection, table: str, fn: Callable[[], None]) -> None:
     if forced:
         bind.exec_driver_sql(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
     bind.exec_driver_sql(f"ALTER TABLE {table} DISABLE TRIGGER USER")
-    try:
-        fn()
-    finally:
-        bind.exec_driver_sql(f"ALTER TABLE {table} ENABLE TRIGGER USER")
-        if forced:
-            bind.exec_driver_sql(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
+    fn()
+    bind.exec_driver_sql(f"ALTER TABLE {table} ENABLE TRIGGER USER")
+    if forced:
+        bind.exec_driver_sql(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
 
 def _set_values(
@@ -706,13 +712,25 @@ def _apply(forward: bool) -> None:
     bind.exec_driver_sql(_CLEAR_SEARCH_GENERATION)
 
 
+def _convert(
+    bind: Connection,
+    forward: bool,
+    each_schema: Callable[[Callable[[], None]], None],
+) -> None:
+    """Run ``_apply`` through ``each_schema`` with the kind code reading both
+    spellings, then leave it reading only the one the rows now say."""
+    bind.exec_driver_sql(_kind_code_fn(_KIND_CODES_EITHER))
+    each_schema(lambda: _apply(forward))
+    bind.exec_driver_sql(
+        _kind_code_fn(_KIND_CODES_AFTER if forward else _KIND_CODES_BEFORE)
+    )
+
+
 def upgrade() -> None:
     bind = op.get_bind()
-    bind.exec_driver_sql(_kind_code_fn(_KIND_CODES_AFTER))
-    run_for_each_guild_schema(bind, lambda: _apply(True))
+    _convert(bind, True, lambda apply: run_for_each_guild_schema(bind, apply))
 
 
 def downgrade() -> None:
     bind = op.get_bind()
-    bind.exec_driver_sql(_kind_code_fn(_KIND_CODES_BEFORE))
-    run_for_each_guild_schema(bind, lambda: _apply(False))
+    _convert(bind, False, lambda apply: run_for_each_guild_schema(bind, apply))
