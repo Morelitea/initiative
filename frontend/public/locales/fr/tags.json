@@ -1,7 +1,7 @@
 {
   "detail": {
     "notFound": "Étiquette introuvable",
-    "notFoundDescription": "Cette étiquette a peut-être été supprimée ou vous avez suivi un lien invalide.",
+    "notFoundDescription": "Cette étiquette a peut-être été supprimée, ou le lien que vous avez suivi est rompu.",
     "backToTags": "← Retour à l'accueil",
     "taggedItems_one": "{{count}} élément étiqueté",
     "taggedItems_other": "{{count}} éléments étiquetés",
@@ -33,12 +33,12 @@
     "selectAll": "Sélectionner toutes les étiquettes"
   },
   "picker": {
-    "defaultPlaceholder": "Ajouter des étiquettes...",
-    "createHeading": "Créer une nouvelle étiquette",
+    "defaultPlaceholder": "Ajouter des étiquettes…",
+    "createHeading": "Créer une étiquette",
     "namePlaceholder": "Nom de l'étiquette",
     "creating": "Création en cours…",
     "create": "Créer",
-    "searchPlaceholder": "Rechercher ou créer des étiquettes...",
+    "searchPlaceholder": "Rechercher ou créer des étiquettes…",
     "loading": "Chargement…",
     "existingTags": "Étiquettes existantes",
     "noTagsFound": "Aucune étiquette trouvée.",
@@ -48,9 +48,9 @@
     "anyTag": "N'importe quel tag"
   },
   "tree": {
-    "notTagged": "Non étiqueté",
-    "collapse": "Réduire",
-    "expand": "Développer"
+    "notTagged": "Sans étiquette",
+    "collapse": "Replier",
+    "expand": "Déplier"
   },
   "badge": {
     "remove": "Supprimer l'étiquette {{name}}",

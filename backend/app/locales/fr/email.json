@@ -1,12 +1,12 @@
 {
   "layout": {
-    "footerDisclaimer": "Ce message a été envoyé par Initiative. Si vous ne l'attendiez pas, vous pouvez ignorer cet e-mail.",
-    "updateNotifications": "Modifier les paramètres de notifications"
+    "footerDisclaimer": "Ce message vous a été envoyé par Initiative. Si vous ne l'attendiez pas, vous pouvez ignorer cet e-mail.",
+    "updateNotifications": "Modifier les paramètres de notification"
   },
   "test": {
-    "subject": "Test de configuration SMTP",
+    "subject": "Test de la configuration SMTP",
     "title": "E-mail de test SMTP",
-    "body": "Ceci est un e-mail de test confirmant que les paramètres SMTP sont correctement configurés."
+    "body": "Cet e-mail de test confirme que les paramètres SMTP sont correctement configurés."
   },
   "verification": {
     "subject": "Vérifiez votre compte Initiative",
@@ -14,8 +14,8 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Confirmez votre adresse e-mail pour terminer la configuration de votre compte Initiative.",
     "buttonLabel": "Vérifier l'adresse e-mail",
-    "fallbackText": "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
-    "textBody": "Confirmez votre compte Initiative en visitant {{link}}"
+    "fallbackText": "Si le bouton ne fonctionne pas, copiez ce lien et collez-le dans votre navigateur :",
+    "textBody": "Confirmez votre compte Initiative en vous rendant sur {{link}}"
   },
   "passwordReset": {
     "subject": "Réinitialisez votre mot de passe Initiative",
@@ -23,16 +23,16 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Nous avons reçu une demande de réinitialisation de votre mot de passe Initiative.",
     "buttonLabel": "Réinitialiser le mot de passe",
-    "fallbackText": "Si vous n'avez pas effectué cette demande, vous pouvez ignorer cet e-mail. Le lien expire bientôt.",
-    "textBody": "Réinitialisez votre mot de passe Initiative en visitant {{link}}"
+    "fallbackText": "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail. Le lien expirera bientôt.",
+    "textBody": "Réinitialisez votre mot de passe Initiative en vous rendant sur {{link}}"
   },
   "initiativeAdded": {
-    "subject": "Ajouté à l'initiative {{initiativeName}}",
+    "subject": "Ajout à l'initiative {{initiativeName}}",
     "title": "Vous avez rejoint une nouvelle initiative",
     "greeting": "Bonjour <strong>{{name}}</strong>,",
-    "body": "Vous avez été ajouté(e) à l'initiative <strong>{{initiativeName}}</strong>.",
+    "body": "Vous avez été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Voir les initiatives",
-    "textBody": "Vous avez été ajouté(e) à l'initiative {{initiativeName}}. Visitez {{link}} pour la consulter."
+    "textBody": "Vous avez été ajouté à l'initiative {{initiativeName}}. Rendez-vous sur {{link}} pour la consulter."
   },
   "projectAdded": {
     "subject": "Nouveau projet dans {{initiativeName}}",
@@ -40,7 +40,7 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Un nouveau projet, <strong>{{projectName}}</strong>, a été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Ouvrir le projet",
-    "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le à l'adresse {{link}}."
+    "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le sur {{link}}."
   },
   "taskAssignment": {
     "subject": "Nouvelles tâches qui vous sont assignées",
@@ -49,7 +49,7 @@
     "body": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
     "assignedBy": "assigné par <strong>{{name}}</strong>",
     "inProject": "dans <strong>{{projectName}}</strong>",
-    "footer": "Visitez Initiative pour examiner les tâches.",
+    "footer": "Rendez-vous sur Initiative pour passer les tâches en revue.",
     "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
     "redactedItem": "Une tâche vous a été attribuée"
   },
@@ -140,13 +140,13 @@
     }
   },
   "overdue": {
-    "subject": "Rappel de tâches en retard",
-    "title": "Rappel de tâches en retard",
+    "subject": "Rappel : tâches en retard",
+    "title": "Rappel : tâches en retard",
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body_one": "Vous avez <strong>{{count}}</strong> tâche en retard :",
     "body_other": "Vous avez <strong>{{count}}</strong> tâches en retard :",
     "taskDetail": "projet : <strong>{{projectName}}</strong>, échéance <strong>{{dueDate}}</strong>",
-    "footer": "Visitez Initiative pour vous remettre sur la bonne voie.",
+    "footer": "Rendez-vous sur Initiative pour reprendre le fil.",
     "textBody_one": "Vous avez {{count}} tâche en retard :",
     "textBody_other": "Vous avez {{count}} tâches en retard :",
     "redactedItem": "Une tâche est en retard"

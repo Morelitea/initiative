@@ -1,6 +1,6 @@
 {
   "statusCategory": {
-    "backlog": "Backlog",
+    "backlog": "À traiter",
     "todo": "À faire",
     "in_progress": "En cours",
     "done": "Terminé"
@@ -23,7 +23,7 @@
     "filterByCommunity": "Filtrer par communauté",
     "allCommunities": "Tous les communautés",
     "noCommunities": "Aucune communauté disponible",
-    "filterPlaceholder": "Filtrer les tâches..."
+    "filterPlaceholder": "Filtrer les tâches…"
   },
   "columns": {
     "done": "Terminé",
@@ -31,7 +31,7 @@
     "project": "Projet",
     "startDate": "Date de début",
     "dueDate": "Date d'échéance",
-    "dateWindow": "Fenêtre de dates",
+    "dateWindow": "Période",
     "community": "Communauté",
     "projectPath": "Chemin du projet",
     "priority": "Priorité",
@@ -45,26 +45,26 @@
   "errors": {
     "communityContext": "Impossible de déterminer le contexte de la communauté pour cette tâche.",
     "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
-    "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
+    "statusNoMatch": "Impossible de mettre à jour le statut de la tâche : aucun statut correspondant."
   },
   "updating": "Mise à jour…",
-  "projectFallback": "Projet #{{id}}",
+  "projectFallback": "Projet n° {{id}}",
   "edit": {
     "loadingTask": "Chargement de la tâche…",
     "notFound": "Tâche introuvable",
-    "notFoundDescription": "Cette tâche a peut-être été supprimée ou vous avez suivi un lien invalide.",
+    "notFoundDescription": "Cette tâche a peut-être été supprimée, ou le lien que vous avez suivi est rompu.",
     "noAccess": "Accès refusé",
-    "noAccessDescription": "Vous n'avez pas la permission de consulter cette tâche. Demandez à un gestionnaire de projet de vous accorder l'accès.",
+    "noAccessDescription": "Vous n'êtes pas autorisé à consulter cette tâche. Demandez à un chef de projet de vous en donner l'accès.",
     "backToProjects": "← Retour aux projets",
-    "loadProjectError": "Impossible de charger le contexte du projet pour cette tâche.",
+    "loadProjectError": "Impossible de charger le contexte du projet de cette tâche.",
     "createdBy": "Créée par {{name}} · {{time}}",
     "createdAt": "Créée {{time}}",
-    "readOnlyNoAccess": "Vous n'avez qu'un accès en lecture à ce projet, les champs de la tâche sont donc désactivés.",
+    "readOnlyNoAccess": "Vous n'avez qu'un accès en lecture à ce projet ; les champs de la tâche sont donc désactivés.",
     "readOnlyArchived": "Ce projet est archivé. Désarchivez-le depuis les paramètres du projet pour modifier les tâches.",
     "descriptionLabel": "Description",
-    "aiGenerate": "Génération IA",
-    "descriptionPlaceholder": "Ajoutez du contexte supplémentaire ou des critères d'acceptation. Markdown pris en charge.",
-    "noDescriptionReadOnly": "Aucune description pour l'instant.",
+    "aiGenerate": "Générer avec l'IA",
+    "descriptionPlaceholder": "Ajoutez du contexte ou des critères d'acceptation. Markdown pris en charge.",
+    "noDescriptionReadOnly": "Pas encore de description.",
     "saving": "Enregistrement…",
     "saveTask": "Enregistrer la tâche",
     "moveToProject": "Déplacer vers un projet",
@@ -147,17 +147,17 @@
   "checklist": {
     "title": "Checklist",
     "progressLabel": "Progression de la checklist",
-    "aiGenerate": "Génération IA",
+    "aiGenerate": "Générer avec l'IA",
     "empty": "Aucun élément dans la checklist.",
     "emptyCanEdit": "Ajoutez votre première étape ci-dessous.",
-    "addPlaceholder": "Ajouter un élément",
+    "addPlaceholder": "Ajouter un élément à la liste de contrôle",
     "itemPlaceholder": "Élément de la checklist",
     "readOnlyPlaceholder": "Lecture seule",
     "aiDialogTitle": "Checklist générée par l'IA",
     "aiDialogDescription": "Sélectionnez les étapes que vous souhaitez ajouter à cette tâche.",
     "addSelected": "Ajouter la sélection ({{count}})",
     "addButton": "Ajouter",
-    "reorderItem": "Réordonner l'élément",
+    "reorderItem": "Réorganiser l'élément de la liste de contrôle",
     "deleteItem": "Supprimer l'élément",
     "markIncomplete": "Marquer l'élément comme incomplet",
     "markComplete": "Marquer l'élément comme terminé",
@@ -171,20 +171,20 @@
     "collapseItem": "Afficher moins"
   },
   "prioritySelector": {
-    "ariaLabel": "Priorité : {{priority}}. Cliquer pour modifier.",
+    "ariaLabel": "Priorité : {{priority}}. Cliquez pour la modifier.",
     "changed": "Priorité changée en {{priority}}"
   },
   "statusSelector": {
-    "invalidStatus": "Statut sélectionné invalide."
+    "invalidStatus": "Le statut sélectionné n'est pas valide."
   },
   "move": {
     "title": "Déplacer la tâche vers un autre projet",
     "description": "Sélectionnez un projet de destination dans la communauté actuel. Vous ne pouvez déplacer des tâches que vers des projets où vous avez la permission de créer du travail.",
-    "loadError": "Impossible de charger les projets accessibles en écriture.",
+    "loadError": "Impossible de charger les projets modifiables.",
     "loading": "Chargement des projets disponibles…",
-    "noProjects": "Vous n'avez pas encore d'autres projets accessibles en écriture.",
+    "noProjects": "Vous n'avez encore aucun autre projet modifiable.",
     "searchPlaceholder": "Rechercher des projets…",
-    "statusResetWarning": "Le déplacement de cette tâche réinitialisera son statut à « Backlog ».",
+    "statusResetWarning": "Déplacer cette tâche réinitialisera son statut à « À traiter ».",
     "moving": "Déplacement…",
     "moveTask": "Déplacer la tâche"
   },
@@ -202,15 +202,15 @@
   },
   "bulkEdit": {
     "title": "Modifier les tâches",
-    "description": "Appliquer les modifications à {{count}} tâche sélectionnée. Seuls les champs définis seront mis à jour.",
-    "description_other": "Appliquer les modifications à {{count}} tâches sélectionnées. Seuls les champs définis seront mis à jour.",
+    "description": "Appliquer les modifications à {{count}} tâche sélectionnée. Seuls les champs renseignés seront mis à jour.",
+    "description_other": "Appliquer les modifications aux {{count}} tâches sélectionnées. Seuls les champs renseignés seront mis à jour.",
     "datesSection": "Dates",
     "startDateLabel": "Date de début",
     "startDatePlaceholder": "Définir la date de début",
-    "dueDateLabel": "Date d'échéance",
-    "dueDatePlaceholder": "Définir la date d'échéance",
+    "dueDateLabel": "Échéance",
+    "dueDatePlaceholder": "Définir l'échéance",
     "assignmentSection": "Attribution",
-    "assigneesLabel": "Assignés",
+    "assigneesLabel": "Personnes assignées",
     "noUsersAvailable": "Aucun utilisateur disponible",
     "detailsSection": "Détails",
     "statusLabel": "Statut",
@@ -218,7 +218,7 @@
     "priorityLabel": "Priorité",
     "selectPriority": "Sélectionner une priorité",
     "recurrenceSection": "Récurrence",
-    "recurringSchedule": "Planification récurrente",
+    "recurringSchedule": "Calendrier de récurrence",
     "applying": "Application…",
     "applyChanges": "Appliquer les modifications",
     "selected": "{{count}} tâche sélectionnée",
