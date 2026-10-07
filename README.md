@@ -21,8 +21,16 @@ The [user guide](https://beyonders-studio.github.io/initiative/) covers using In
 - Files with real-time editing, including documents, spreadsheets and whiteboards
 - Calendars, posts, wikis, galleries, queues, counters and dashboards
 - Communities with initiatives inside them, and sharing down to a single project or file
-- A marketplace of plug-ins and dashboards, and an SDK to write your own
+- A marketplace of plug-ins, dashboards and ready-made projects, fed by the Initiative registry
 - Apps for iPhone, Android, Windows, Mac and Linux, and an installable web app
+
+## The Initiative registry
+
+Every Initiative server follows the Initiative registry, a signed catalog of plug-ins, dashboards and ready-made projects. Your server starts reading it the moment it starts up and checks again every fifteen minutes, so new listings show up in your communities' marketplace without anybody upgrading anything. Every file is checked against a key built into Initiative before it's used, so a listing arrives exactly as it was published or it doesn't arrive at all.
+
+Anybody can publish to it. A listing is a pull request to [initiative-developer](https://github.com/beyonders-studio/initiative-developer), and once it's merged it reaches every server that follows the registry. Plug-ins are written with the [plug-in SDK](https://github.com/beyonders-studio/initiative-plugin-sdk), and [Publishing your own listings](https://beyonders-studio.github.io/initiative/en/running-a-server/publishing-listings/#publishing-to-the-initiative-registry) walks through the rest.
+
+If you run a server, the registry needs nothing from you. A server without internet access can take a registry bundle uploaded by hand, or read from a mirror, and [Running plug-ins](https://beyonders-studio.github.io/initiative/en/running-a-server/plugins/) covers both.
 
 ## Running your own server
 
