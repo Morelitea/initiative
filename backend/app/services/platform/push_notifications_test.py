@@ -307,7 +307,9 @@ async def test_a_renewed_session_carries_its_device(session):
 # --- where a push goes: FCM or the push relay ---------------------------------
 
 _RELAY = "https://relay.test"
-_APNS_TOKEN = "ab" * 32
+#: Relay handles, which is all a server holds for a device the relay serves.
+_IOS_HANDLE = "rh_" + "A" * 43
+_ANDROID_HANDLE = "rh_" + "b" * 43
 
 
 def _push_cfg(*, service_account: bool, project_id: str | None = "own-project"):
@@ -393,14 +395,15 @@ async def test_an_iphone_always_goes_through_the_relay(push_wire, service_accoun
     push_wire(_push_cfg(service_account=service_account))
     wire = _Wire()
 
-    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (True, False)
+    assert await _send_one(wire, token=_IOS_HANDLE, platform="ios") == (True, False)
 
     (request,) = wire.sends
     assert str(request.url) == f"{_RELAY}/v1/projects/own-project/messages:send"
     assert request.headers["authorization"] == "Bearer srv_1.key-1"
-    assert request.headers["x-push-platform"] == "ios"
+    # The relay reads the platform from the handle's own record.
+    assert "x-push-platform" not in request.headers
     message = json.loads(request.content)["message"]
-    assert message["token"] == _APNS_TOKEN
+    assert message["token"] == _IOS_HANDLE
     assert message["notification"] == {"title": "t", "body": "b"}
     assert message["data"] == {"target_path": "/tasks/1"}
 
@@ -427,7 +430,7 @@ async def test_android_goes_through_the_relay_without_a_service_account(push_wir
     push_wire(_push_cfg(service_account=False, project_id=None))
     wire = _Wire()
 
-    assert await _send_one(wire, token="fcm-token", platform="android") == (
+    assert await _send_one(wire, token=_ANDROID_HANDLE, platform="android") == (
         True,
         False,
     )
@@ -435,12 +438,34 @@ async def test_android_goes_through_the_relay_without_a_service_account(push_wir
     (request,) = wire.sends
     assert str(request.url) == f"{_RELAY}/v1/projects/relay/messages:send"
     assert request.headers["authorization"] == "Bearer srv_1.key-1"
-    assert request.headers["x-push-platform"] == "android"
+    assert "x-push-platform" not in request.headers
+    assert json.loads(request.content)["message"]["token"] == _ANDROID_HANDLE
+
+
+@pytest.mark.parametrize(
+    ("service_account", "token", "platform"),
+    [
+        # A device token from before the app asked the relay for handles.
+        (False, "ab" * 32, "ios"),
+        (False, "fcm-token", "android"),
+        # A handle the device registered before the operator added a service
+        # account, which FCM cannot address.
+        (True, _ANDROID_HANDLE, "android"),
+    ],
+)
+async def test_a_token_of_the_wrong_kind_is_dropped_unsent(
+    push_wire, service_account, token, platform
+):
+    push_wire(_push_cfg(service_account=service_account))
+    wire = _Wire()
+
+    assert await _send_one(wire, token=token, platform=platform) == (False, True)
+    assert wire.sends == []
 
 
 async def test_a_token_the_relay_does_not_know_is_deleted(push_wire):
     push_wire(_push_cfg(service_account=False))
-    assert await _send_one(_Wire(404), token=_APNS_TOKEN, platform="ios") == (
+    assert await _send_one(_Wire(404), token=_IOS_HANDLE, platform="ios") == (
         False,
         True,
     )
@@ -455,14 +480,14 @@ async def test_a_refused_relay_key_is_forgotten_and_replaced(push_wire, session)
     push_wire(_push_cfg(service_account=False))
 
     refused = _Wire(401)
-    assert await _send_one(refused, token=_APNS_TOKEN, platform="ios") == (
+    assert await _send_one(refused, token=_IOS_HANDLE, platform="ios") == (
         False,
         False,
     )
     assert refused.registrations == 0
 
     wire = _Wire()
-    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (True, False)
+    assert await _send_one(wire, token=_IOS_HANDLE, platform="ios") == (True, False)
     assert wire.registrations == 1
     assert wire.sends[0].headers["authorization"] == "Bearer srv_new1.new-1"
 
@@ -473,8 +498,8 @@ async def test_a_suspended_server_does_not_register_again(push_wire):
     push_wire(_push_cfg(service_account=False))
     wire = _Wire(403)
 
-    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
-    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
+    assert await _send_one(wire, token=_IOS_HANDLE, platform="ios") == (False, False)
+    assert await _send_one(wire, token=_IOS_HANDLE, platform="ios") == (False, False)
 
     assert wire.registrations == 0
     assert push_relay._credentials == ("srv_1", "key-1")
@@ -490,7 +515,7 @@ async def test_no_relay_credential_sends_nothing(push_wire, monkeypatch):
     push_wire(_push_cfg(service_account=False))
     wire = _Wire()
 
-    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
+    assert await _send_one(wire, token=_IOS_HANDLE, platform="ios") == (False, False)
     assert wire.sends == []
 
 

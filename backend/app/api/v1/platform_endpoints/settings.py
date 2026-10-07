@@ -754,8 +754,15 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 
     With no service account configured, pushes go through BeyondersStudio's push
     relay, and the Firebase settings served are the relay's (fetched with this
-    server's relay key and cached); if the relay cannot say, ``enabled`` is
-    served alone.
+    server's relay key and cached); if the relay cannot say, no Firebase
+    settings are served.
+
+    While push is on, this server's relay id is served too, registering with
+    the relay first if it has not yet: iPhone pushes always go through the
+    relay, and the app needs the id to exchange its device token for a
+    handle. A failed registration is retried no more than once every few
+    minutes (``push_relay.REGISTRATION_RETRY_SECONDS``), however often this
+    is asked.
 
     Read from the settings row (``push_config``), not the environment: an owner
     who turns push on in Settings has the mobile clients pick it up on their
@@ -766,26 +773,35 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     cfg = await push_config.ensure_push_config_fresh()
     if not cfg.enabled:
         return FCMConfigResponse(enabled=False)
-    if cfg.service_account_json:
-        return FCMConfigResponse(
-            enabled=True,
-            project_id=cfg.project_id,
-            application_id=cfg.application_id,
-            api_key=cfg.api_key,
-            sender_id=cfg.sender_id,
-        )
-    # No service account: Android pushes go through the push relay, so the app
-    # starts Firebase with the relay's project. An iPhone needs only `enabled`.
     async with httpx.AsyncClient(timeout=10.0) as client:
+        relay_server_id = await push_relay.current_server_id(client)
+        if cfg.service_account_json:
+            return FCMConfigResponse(
+                enabled=True,
+                project_id=cfg.project_id,
+                application_id=cfg.application_id,
+                api_key=cfg.api_key,
+                sender_id=cfg.sender_id,
+                push_relay_server_id=relay_server_id,
+                android_via_relay=False,
+            )
+        # No service account: Android pushes go through the push relay, so the
+        # app starts Firebase with the relay's project.
         relay = await push_relay.android_config(client)
     if relay is None:
-        return FCMConfigResponse(enabled=True)
+        return FCMConfigResponse(
+            enabled=True,
+            push_relay_server_id=relay_server_id,
+            android_via_relay=True,
+        )
     return FCMConfigResponse(
         enabled=True,
         project_id=relay.project_id,
         application_id=relay.application_id,
         api_key=relay.api_key,
         sender_id=relay.sender_id,
+        push_relay_server_id=relay_server_id,
+        android_via_relay=True,
     )
 
 

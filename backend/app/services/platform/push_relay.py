@@ -8,14 +8,25 @@ message either way and only the address and the credential differ.
 A server registers once (``POST /v1/servers``) and is issued an id and a key.
 They are kept beside the service account on ``app_setting_secrets`` (the key
 Fernet-encrypted), read and written on the system engine, and cached in this
-process. Registering happens on the first push that needs the relay, so a
-server whose operator never switches push on never contacts it.
+process. Registering happens when the app first asks for the push settings
+(``GET /settings/fcm-config``) or on the first push that needs the relay,
+whichever comes first, so a server whose operator never switches push on
+never contacts it.
+
+A server never holds a device's own token for a relay platform. The app
+registers that token with the relay for this server's id and is given a
+*handle* (``rh_`` and 43 base64url characters), which is what it registers
+here and what a send names. A handle reaches only the device that chose this
+server, and the relay answers ``404`` for one it does not know, so the row is
+deleted like any other dead token. A new registration means a new id: the
+app sees it in the push settings on its next launch and asks for a new handle.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -42,6 +53,10 @@ REGISTRATION_RETRY_SECONDS = 300.0
 #: failed fetch is remembered before the next one is tried.
 ANDROID_CONFIG_TTL_SECONDS = 3600.0
 ANDROID_CONFIG_RETRY_SECONDS = 300.0
+
+#: What the relay hands the app for a device token: ``rh_`` and the unpadded
+#: base64url of a SHA-256 HMAC.
+_HANDLE = re.compile(r"rh_[A-Za-z0-9_-]{43}")
 
 #: The longest name the relay takes for a server.
 _NAME_MAX = 100
@@ -70,6 +85,18 @@ _last_failed_registration: float | None = None
 
 _android: tuple[float, AndroidConfig | None] | None = None
 _android_lock = asyncio.Lock()
+
+
+def is_handle(push_token: str) -> bool:
+    """Whether a registered token is a relay handle rather than a device's own."""
+    return _HANDLE.fullmatch(push_token) is not None
+
+
+async def current_server_id(client: httpx.AsyncClient) -> str | None:
+    """This server's relay id, registering first if it has none; the app asks
+    the relay for a handle under it. None while registering fails."""
+    held = await credentials(client)
+    return held[0] if held is not None else None
 
 
 def send_url(project_id: str | None) -> str:

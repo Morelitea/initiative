@@ -2183,8 +2183,15 @@ export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, T
  *
  * With no service account configured, pushes go through BeyondersStudio's push
  * relay, and the Firebase settings served are the relay's (fetched with this
- * server's relay key and cached); if the relay cannot say, ``enabled`` is
- * served alone.
+ * server's relay key and cached); if the relay cannot say, no Firebase
+ * settings are served.
+ *
+ * While push is on, this server's relay id is served too, registering with
+ * the relay first if it has not yet: iPhone pushes always go through the
+ * relay, and the app needs the id to exchange its device token for a
+ * handle. A failed registration is retried no more than once every few
+ * minutes (``push_relay.REGISTRATION_RETRY_SECONDS``), however often this
+ * is asked.
  *
  * Read from the settings row (``push_config``), not the environment: an owner
  * who turns push on in Settings has the mobile clients pick it up on their

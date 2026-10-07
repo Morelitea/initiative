@@ -1,11 +1,14 @@
 """``GET /settings/fcm-config``: the Firebase settings the app starts with.
 
 With a service account the server's own settings are served; without one
-pushes go through the push relay, and the relay's Android settings are.
+pushes go through the push relay, and the relay's Android settings are. While
+push is on, the server's relay id is served beside them, for the app to ask
+the relay for a device handle under.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -36,11 +39,17 @@ def _configure(monkeypatch, *, enabled: bool, service_account: bool) -> None:
     )
 
 
+_SERVER_ID = "srv_0123456789abcdef"
+
+
 @pytest.fixture
-def relay_android(monkeypatch) -> AsyncMock:
+def relay_android(monkeypatch) -> Iterator[AsyncMock]:
     fetch = AsyncMock(return_value=_RELAY_ANDROID)
     monkeypatch.setattr(push_relay, "android_config", fetch)
-    return fetch
+    push_relay.reset_for_tests()
+    monkeypatch.setattr(push_relay, "_credentials", (_SERVER_ID, "key"))
+    yield fetch
+    push_relay.reset_for_tests()
 
 
 async def test_push_off_serves_nothing(client, monkeypatch, relay_android):
@@ -55,6 +64,8 @@ async def test_push_off_serves_nothing(client, monkeypatch, relay_android):
         "application_id": None,
         "api_key": None,
         "sender_id": None,
+        "push_relay_server_id": None,
+        "android_via_relay": False,
     }
     relay_android.assert_not_awaited()
 
@@ -72,6 +83,9 @@ async def test_a_service_account_serves_the_servers_own_settings(
         "application_id": "1:9:android:9",
         "api_key": "own-api-key",
         "sender_id": "9",
+        # iPhones still go through the relay; Android goes to FCM directly.
+        "push_relay_server_id": _SERVER_ID,
+        "android_via_relay": False,
     }
     relay_android.assert_not_awaited()
 
@@ -89,13 +103,15 @@ async def test_no_service_account_serves_the_relays_settings(
         "application_id": "1:2:android:3",
         "api_key": "relay-api-key",
         "sender_id": "42",
+        "push_relay_server_id": _SERVER_ID,
+        "android_via_relay": True,
     }
 
 
 async def test_relay_settings_unavailable_still_says_enabled(
     client, monkeypatch, relay_android
 ):
-    """An iPhone needs only ``enabled``; Android gets no Firebase project."""
+    """An iPhone needs only the relay id; Android gets no Firebase project."""
     _configure(monkeypatch, enabled=True, service_account=False)
     relay_android.return_value = None
 
@@ -108,4 +124,43 @@ async def test_relay_settings_unavailable_still_says_enabled(
         "application_id": None,
         "api_key": None,
         "sender_id": None,
+        "push_relay_server_id": _SERVER_ID,
+        "android_via_relay": True,
     }
+
+
+@pytest.mark.parametrize("service_account", [True, False])
+async def test_asking_for_the_settings_registers_with_the_relay(
+    client, session, monkeypatch, relay_android, service_account
+):
+    """The first ask registers this server and keeps the credential; the next
+    one reads it back rather than registering again."""
+    from app.services.platform import app_settings as app_settings_service
+
+    await app_settings_service.seed_app_settings(session)
+    await session.commit()
+    _configure(monkeypatch, enabled=True, service_account=service_account)
+    push_relay.reset_for_tests()
+    register = AsyncMock(return_value=(_SERVER_ID, "issued-key"))
+    monkeypatch.setattr(push_relay, "_register", register)
+
+    first = await client.get(URL)
+    push_relay.reset_for_tests()
+    second = await client.get(URL)
+
+    assert first.json()["push_relay_server_id"] == _SERVER_ID
+    assert second.json()["push_relay_server_id"] == _SERVER_ID
+    assert register.await_count == 1
+
+
+async def test_a_failed_registration_serves_no_relay_id(
+    client, monkeypatch, relay_android
+):
+    _configure(monkeypatch, enabled=True, service_account=True)
+    monkeypatch.setattr(push_relay, "credentials", AsyncMock(return_value=None))
+
+    response = await client.get(URL)
+
+    assert response.status_code == 200
+    assert response.json()["enabled"] is True
+    assert response.json()["push_relay_server_id"] is None
