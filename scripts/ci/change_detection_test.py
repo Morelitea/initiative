@@ -41,6 +41,7 @@ def detect(
     base_ref: str = "dev",
     head_ref: str = "feature",
     same_repo: bool = True,
+    tested: str = "",
 ) -> dict[str, str]:
     """Commit ``changed`` on top of ``origin/<base_ref>`` and return the
     step's outputs."""
@@ -93,6 +94,7 @@ def detect(
                     "HEAD_REF": head_ref,
                     "SAME_REPO": str(same_repo).lower(),
                     "BEFORE": base,
+                    "TESTED": tested,
                     "GITHUB_OUTPUT": str(output),
                     "GITHUB_STEP_SUMMARY": str(summary),
                 },
@@ -147,6 +149,93 @@ class BackendModeTest(unittest.TestCase):
 
     def test_an_integration_push_runs_every_test(self) -> None:
         self.assertMode(["backend/app/services/guilds.py"], "full", event="push")
+
+
+class TestedTreeTest(unittest.TestCase):
+    def test_an_exact_tree_already_tested_runs_nothing(self) -> None:
+        for event in ["pull_request", "push"]:
+            with self.subTest(event=event):
+                outputs = detect(["backend/app/db/session.py"], event, tested="raw")
+                self.assertEqual(outputs.get("backend"), "false")
+                self.assertEqual(outputs.get("frontend"), "false")
+
+    def test_a_release_of_a_tested_tree_runs_the_core(self) -> None:
+        outputs = detect(
+            ["VERSION", "CHANGELOG.md"],
+            base_ref="main",
+            head_ref="release/v1.2.3",
+            tested="tree",
+        )
+        self.assertEqual(outputs.get("backend_mode"), "core")
+        self.assertEqual(outputs.get("alembic"), "false")
+        self.assertEqual(outputs.get("frontend"), "false")
+
+    def test_an_untested_tree_runs_as_usual(self) -> None:
+        self.assertEqual(
+            detect(["backend/app/services/guilds.py"], "push").get("backend_mode"),
+            "full",
+        )
+
+
+class TreeIdTest(unittest.TestCase):
+    """scripts/ci/tested_tree.sh names a tree with and without a release's files."""
+
+    def ids(self, files: dict[str, str]) -> list[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+
+            def git(*args: str) -> None:
+                subprocess.run(
+                    ["git", *args],
+                    cwd=repo,
+                    env=GIT_ENV,
+                    check=True,
+                    capture_output=True,
+                )
+
+            git("init", "-q")
+            git("config", "user.name", "tester")
+            git("config", "user.email", "tester@example.com")
+            for path, text in files.items():
+                (repo / path).parent.mkdir(parents=True, exist_ok=True)
+                (repo / path).write_text(text)
+            git("add", ".")
+            git("commit", "-qm", "tree")
+            return subprocess.run(
+                [str(ROOT / "scripts/ci/tested_tree.sh")],
+                cwd=repo,
+                env=GIT_ENV,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.split()
+
+    BASE = {
+        "backend/app/main.py": "app\n",
+        "VERSION": "1.2.2\n",
+        "CHANGELOG.md": "## [Unreleased]\n",
+        "RELEASED_MIGRATION": "0001\n",
+        "frontend/src/api/generated/version/version.ts": "1.2.2\n",
+    }
+
+    def test_a_release_keeps_the_tree_without_its_files(self) -> None:
+        release = {
+            **self.BASE,
+            "VERSION": "1.2.3\n",
+            "CHANGELOG.md": "## [1.2.3]\n",
+            "RELEASED_MIGRATION": "0002\n",
+            "MIN_DESKTOP_VERSION": "1.2.3\n",
+            "frontend/src/api/generated/version/version.ts": "1.2.3\n",
+        }
+        before, after = self.ids(self.BASE), self.ids(release)
+        self.assertNotEqual(before[0], after[0])
+        self.assertEqual(before[1], after[1])
+
+    def test_any_other_change_is_another_tree(self) -> None:
+        changed = {**self.BASE, "backend/app/main.py": "changed\n"}
+        self.assertNotEqual(self.ids(self.BASE)[1], self.ids(changed)[1])
+        moved = {**self.BASE, "frontend/src/api/mutator.ts": "new\n"}
+        self.assertNotEqual(self.ids(self.BASE)[1], self.ids(moved)[1])
 
 
 class UpgradeTest(unittest.TestCase):
