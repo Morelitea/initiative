@@ -1,15 +1,12 @@
 # Contributor License Agreement
 
-> **Maintainers, before merge:** confirm that "Beyonders Studio" is the exact
-> registered legal name of the party receiving this grant, correct it below if
-> it is not, and remove this note.
-
 Version 2, effective 2026-10-07.
 
 Thank you for your interest in contributing to this project (the "Project").
 
 This Contributor License Agreement ("Agreement") is between you ("You") and
-Beyonders Studio, together with its successors and assigns ("We", "Us").
+Morelitea LLC, doing business as Beyonders Studio, together with its
+successors and assigns ("We", "Us").
 
 ## 1. Definitions
 
