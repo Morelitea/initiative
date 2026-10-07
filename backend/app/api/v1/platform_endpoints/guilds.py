@@ -405,11 +405,11 @@ async def list_directory_communities(
     # in one of these matches the search as if its text had.
     search_country: list[str] = Query(default=[], max_length=50),
     category: list[CommunityCategory] = Query(default=[]),
-    # Where the reader is, to put the communities nearest them first. Each is
-    # optional below the country; none of them narrows what is listed.
+    # Where the reader is, to put the communities nearest them first: a
+    # country, and the point they picked in it. None of it narrows the list.
     near_country: str | None = Query(default=None, pattern=r"^[A-Za-z]{2}$"),
-    near_region: str | None = Query(default=None, max_length=10),
-    near_city: str | None = Query(default=None, max_length=100),
+    near_lat: float | None = Query(default=None, ge=-90, le=90),
+    near_lon: float | None = Query(default=None, ge=-180, le=180),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
 ) -> DirectoryCommunityPage:
@@ -442,8 +442,9 @@ async def list_directory_communities(
         near=(
             guilds_service.NearPlace(
                 country=near_country.upper(),
-                region_code=(near_region or "").strip().upper() or None,
-                city=(near_city or "").strip() or None,
+                # A point is used only whole.
+                latitude=near_lat if near_lon is not None else None,
+                longitude=near_lon if near_lat is not None else None,
             )
             if near_country
             else None

@@ -44,21 +44,22 @@ async def test_a_country_alone_is_a_location(
     guild, admin = await _admin(session, acting_user)
 
     response = await _patch(
-        client, guild.id, admin.headers, {"location": {"country": "jp"}}
+        client,
+        guild.id,
+        admin.headers,
+        {"location": {"text": "Japan", "country": "jp"}},
     )
 
     assert response.status_code == 200, response.text
     await session.refresh(guild)
     # Stored upper case, and with only the parts that were given.
-    assert guild.location == {"country": "JP"}
+    assert guild.location == {"text": "Japan", "country": "JP"}
     assert response.json()["location"] == {
-        "country": "JP",
-        "region": None,
-        "region_code": None,
-        "city": None,
-        "address": None,
-        "postal_code": None,
+        "text": "Japan",
         "label": None,
+        "country": "JP",
+        "latitude": None,
+        "longitude": None,
     }
 
 
@@ -73,13 +74,11 @@ async def test_an_exact_address_is_stored_tidied(
         admin.headers,
         {
             "location": {
-                "country": "US",
-                "region": "Washington",
-                "region_code": "WA",
-                "city": "  Seattle ",
-                "address": "1 Queen  Anne Ave N",
-                "postal_code": "98109",
-                "label": "Queen Anne Neighborhood",
+                "text": "  Booth #4, 1 Queen  Anne Ave N, Seattle, WA 98109 ",
+                "label": " Queen Anne  Neighborhood ",
+                "country": "us",
+                "latitude": 47.60621,
+                "longitude": -122.33207,
             }
         },
     )
@@ -87,31 +86,20 @@ async def test_an_exact_address_is_stored_tidied(
     assert response.status_code == 200, response.text
     await session.refresh(guild)
     assert guild.location == {
-        "country": "US",
-        "region": "Washington",
-        "region_code": "WA",
-        "city": "Seattle",
-        "address": "1 Queen Anne Ave N",
-        "postal_code": "98109",
+        "text": "Booth #4, 1 Queen Anne Ave N, Seattle, WA 98109",
         "label": "Queen Anne Neighborhood",
+        "country": "US",
+        "latitude": 47.60621,
+        "longitude": -122.33207,
     }
 
-
-async def test_a_blank_part_is_absent(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    guild, admin = await _admin(session, acting_user)
-
-    response = await _patch(
-        client,
-        guild.id,
-        admin.headers,
-        {"location": {"country": "GB", "city": "London", "region": "  "}},
+    # Text nobody pinned is a location too: it just sorts nowhere.
+    unplaced = await _patch(
+        client, guild.id, admin.headers, {"location": {"text": "The old mill"}}
     )
-
-    assert response.status_code == 200, response.text
+    assert unplaced.status_code == 200, unplaced.text
     await session.refresh(guild)
-    assert guild.location == {"country": "GB", "city": "London"}
+    assert guild.location == {"text": "The old mill"}
 
 
 async def test_omitting_the_location_leaves_it_and_null_clears_it(
@@ -122,13 +110,13 @@ async def test_omitting_the_location_leaves_it_and_null_clears_it(
         client,
         guild.id,
         admin.headers,
-        {"location": {"country": "CA", "city": "Toronto"}},
+        {"location": {"text": "Toronto", "country": "CA"}},
     )
 
     renamed = await _patch(client, guild.id, admin.headers, {"name": "Gardeners"})
     assert renamed.status_code == 200, renamed.text
     await session.refresh(guild)
-    assert guild.location == {"country": "CA", "city": "Toronto"}
+    assert guild.location == {"text": "Toronto", "country": "CA"}
 
     cleared = await _patch(client, guild.id, admin.headers, {"location": None})
     assert cleared.status_code == 200, cleared.text
@@ -140,13 +128,29 @@ async def test_omitting_the_location_leaves_it_and_null_clears_it(
 @pytest.mark.parametrize(
     "location",
     [
-        {"city": "Seattle"},
-        {"country": "USA"},
-        {"country": "1A"},
-        {"country": "US", "label": "x" * 61},
-        {"country": "US", "label": "Booth #4"},
+        {"country": "US"},
+        {"text": "   "},
+        {"text": "x" * 201},
+        {"text": "Japan", "country": "JPN"},
+        {"text": "Japan", "country": "1A"},
+        {"text": "Seattle", "country": "US", "latitude": 47.6},
+        {"text": "Seattle", "latitude": 47.6, "longitude": -122.3},
+        {"text": "Seattle", "country": "US", "latitude": 91, "longitude": 0},
+        {"text": "Seattle", "label": "x" * 61},
+        {"text": "Seattle", "label": "Booth #4"},
     ],
-    ids=["no country", "three letters", "not letters", "label too long", "label sigil"],
+    ids=[
+        "no text",
+        "blank",
+        "too long",
+        "three letters",
+        "not letters",
+        "half a point",
+        "point without country",
+        "off the globe",
+        "label too long",
+        "label sigil",
+    ],
 )
 async def test_a_malformed_location_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, location: dict
@@ -167,7 +171,7 @@ async def test_a_member_cannot_set_the_location(
     member = await acting_user(guild_role=CommunityRole.member, guild=guild)
 
     response = await _patch(
-        client, guild.id, member.headers, {"location": {"country": "US"}}
+        client, guild.id, member.headers, {"location": {"text": "US"}}
     )
 
     assert response.status_code == 403
@@ -184,7 +188,7 @@ async def test_members_and_the_directory_read_the_location(
     guild = await create_guild(
         session,
         name="Queen Anne Gardeners",
-        location={"country": "US", "region_code": "WA", "city": "Seattle"},
+        location={"text": "Seattle, WA", "country": "US"},
     )
     member = await acting_user(guild_role=CommunityRole.member, guild=guild)
     guild.is_community = True
@@ -195,14 +199,14 @@ async def test_members_and_the_directory_read_the_location(
 
     mine = await client.get("/api/v1/communities/", headers=member.headers)
     [read] = [item for item in mine.json() if item["id"] == guild.id]
-    assert read["location"]["city"] == "Seattle"
+    assert read["location"]["text"] == "Seattle, WA"
 
     browser = await acting_user("member")
     directory = await client.get(
         "/api/v1/communities/directory", headers=browser.headers
     )
     [card] = [item for item in directory.json()["items"] if item["id"] == guild.id]
-    assert card["location"]["region_code"] == "WA"
+    assert card["location"]["country"] == "US"
 
 
 # ---------------------------------------------------------------------------
@@ -237,15 +241,14 @@ async def located_directory(session: AsyncSession):
         session,
         "Gardeners",
         {
-            "country": "US",
-            "region": "Washington",
-            "region_code": "WA",
-            "city": "Seattle",
+            "text": "Seattle, Washington 98109",
             "label": "Queen Anne Neighborhood",
-            "postal_code": "98109",
+            "country": "US",
+            "latitude": 47.6062,
+            "longitude": -122.3321,
         },
     )
-    await _listed_at(session, "Go Club", {"country": "JP", "city": "Kyoto"})
+    await _listed_at(session, "Go Club", {"text": "Kyoto", "country": "JP"})
     await _listed_at(session, "Choir", None)
 
 
@@ -307,17 +310,42 @@ async def spread_directory(session: AsyncSession):
         session, community_directory_enabled=True
     )
     places = {
-        "Kyoto Go": {"country": "JP", "city": "Kyoto"},
-        "Nowhere Choir": None,
-        "Texas Rodeo": {"country": "US", "region_code": "TX", "city": "Austin"},
-        "Tacoma Rowers": {"country": "US", "region_code": "WA", "city": "Tacoma"},
-        "Seattle Gardeners": {
-            "country": "US",
-            "region_code": "WA",
-            "city": "Seattle",
+        "Kyoto Go": {
+            "text": "Kyoto",
+            "country": "JP",
+            "latitude": 35.0116,
+            "longitude": 135.7681,
         },
-        # Same city name, another state: not near a reader in Washington.
-        "Seattle Ohio": {"country": "US", "region_code": "OH", "city": "Seattle"},
+        "Nowhere Choir": None,
+        # Said where, but never pinned.
+        "Mill Knitters": {"text": "The old mill"},
+        "Austin Rodeo": {
+            "text": "Austin, Texas",
+            "country": "US",
+            "latitude": 30.2672,
+            "longitude": -97.7431,
+        },
+        # A country alone: no point to measure from.
+        "Texans": {"text": "Texas", "country": "US"},
+        "Ann Arbor Chess": {
+            "text": "Ann Arbor, Michigan",
+            "country": "US",
+            "latitude": 42.2808,
+            "longitude": -83.7430,
+        },
+        # Across the river from Detroit: another country, and still nearby.
+        "Windsor Rowers": {
+            "text": "Windsor, Ontario",
+            "country": "CA",
+            "latitude": 42.3149,
+            "longitude": -83.0364,
+        },
+        "Detroit Makers": {
+            "text": "Detroit, Michigan",
+            "country": "US",
+            "latitude": 42.3314,
+            "longitude": -83.0458,
+        },
     }
     for name, location in places.items():
         await _listed_at(session, name, location)
@@ -332,14 +360,21 @@ async def test_the_nearest_communities_come_first(
         client,
         browser.headers,
         near_country="us",
-        near_region="wa",
-        near_city="seattle",
+        near_lat=42.33,
+        near_lon=-83.05,
     )
 
-    assert order[:2] == ["Seattle Gardeners", "Tacoma Rowers"]
-    # Then the rest of the country, then nowhere in particular, then abroad.
-    assert set(order[2:4]) == {"Seattle Ohio", "Texas Rodeo"}
-    assert order[4:] == ["Nowhere Choir", "Kyoto Go"]
+    # Nearby, closest first, either side of the border; then the rest of the
+    # country, a point before none; then nowhere in particular; then abroad.
+    assert order[:5] == [
+        "Detroit Makers",
+        "Windsor Rowers",
+        "Ann Arbor Chess",
+        "Austin Rodeo",
+        "Texans",
+    ]
+    assert set(order[5:7]) == {"Nowhere Choir", "Mill Knitters"}
+    assert order[7:] == ["Kyoto Go"]
 
 
 async def test_a_country_alone_puts_that_country_first(
@@ -350,7 +385,7 @@ async def test_a_country_alone_puts_that_country_first(
     order = await _directory_order(client, browser.headers, near_country="JP")
 
     assert order[0] == "Kyoto Go"
-    assert order[1] == "Nowhere Choir"
+    assert set(order[1:3]) == {"Nowhere Choir", "Mill Knitters"}
 
 
 async def test_near_reorders_without_narrowing(

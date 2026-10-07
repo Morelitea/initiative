@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "Licence choices a person made, for packages whose metadata or files cannot say it alone (scripts/third-party-notices.mjs).",
+    "'licence' replaces the id package.json declares; 'files' replaces the licence files found at the package's top level; 'extraFiles' adds files from deeper in it; 'note' is printed above the text.",
+    "'buildOnly' names packages in package.json's dependencies that only run at build time; nothing of theirs reaches the bundle, so they and what only they pull in are left out."
+  ],
+  "buildOnly": ["@tailwindcss/vite"],
+  "packages": {
+    "dompurify": {
+      "licence": "Apache-2.0",
+      "files": ["LICENSE"],
+      "note": "DOMPurify is dual-licensed MPL-2.0 OR Apache-2.0. Initiative takes it under Apache-2.0."
+    },
+    "khroma": {
+      "licence": "MIT",
+      "note": "khroma's package.json declares no licence; the licence file it ships is MIT."
+    },
+    "pdfjs-dist": {
+      "extraFiles": [
+        "wasm/LICENSE_JBIG2",
+        "wasm/LICENSE_OPENJPEG",
+        "wasm/LICENSE_QCMS",
+        "wasm/LICENSE_PDFJS_JBIG2",
+        "wasm/LICENSE_PDFJS_OPENJPEG",
+        "wasm/LICENSE_PDFJS_QCMS"
+      ],
+      "note": "pdf.js's image decoders are WebAssembly builds of other projects; their licences follow its own, and also ship beside them in assets/pdfjs-wasm/."
+    }
+  }
+}

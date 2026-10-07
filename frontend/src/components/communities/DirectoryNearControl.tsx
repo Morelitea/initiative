@@ -1,5 +1,6 @@
 /**
- * Where the directory is sorted from: "Near Seattle, WA", or a way to say so.
+ * Where the directory is sorted from: "Near Seattle, Washington, United
+ * States", or a way to say so.
  *
  * Setting a place puts the communities nearest it first and hides nothing; it
  * goes in the directory's address and is kept on this device for next time.
@@ -15,19 +16,17 @@ import { PlacePicker } from "@/components/communities/PlacePicker";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
-import { locationPlace } from "@/lib/communityLocation";
+import { countryName } from "@/lib/communityLocation";
 import {
   EMPTY_PLACE,
-  type NearPlace,
   NO_NEAR_SEARCH,
   nearOfPlace,
   nearSearchOf,
   type Place,
-  placeOfNear,
   saveNear,
 } from "@/lib/directoryNear";
 
-export const DirectoryNearControl = ({ near }: { near: NearPlace | null }) => {
+export const DirectoryNearControl = ({ near }: { near: Place | null }) => {
   const { t, i18n } = useTranslation("communities");
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ export const DirectoryNearControl = ({ near }: { near: NearPlace | null }) => {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Place>(EMPTY_PLACE);
 
-  const apply = (next: NearPlace | null) => {
+  const apply = (next: Place | null) => {
     saveNear(next, user?.id ?? null);
     void navigate({
       to: "/communities",
@@ -48,27 +47,16 @@ export const DirectoryNearControl = ({ near }: { near: NearPlace | null }) => {
     setOpen(false);
   };
 
-  const where = near
-    ? locationPlace(
-        {
-          country: near.country,
-          region: near.regionName ?? null,
-          region_code: near.region ?? null,
-          city: near.city ?? null,
-          address: null,
-          postal_code: null,
-          label: null,
-        },
-        locale
-      )
-    : null;
+  // An address that carried no words for its place is named by its country.
+  const where = near ? near.text || countryName(near.country, locale) : null;
+  const chosen = nearOfPlace(draft);
 
   return (
     <div className="flex items-center gap-1">
       <Popover
         open={open}
         onOpenChange={(next) => {
-          if (next) setDraft(placeOfNear(near));
+          if (next) setDraft(near?.text ? near : EMPTY_PLACE);
           setOpen(next);
         }}
       >
@@ -85,9 +73,9 @@ export const DirectoryNearControl = ({ near }: { near: NearPlace | null }) => {
             <p className="font-medium text-sm">{t("location.near.title")}</p>
             <p className="text-muted-foreground text-xs">{t("location.near.hint")}</p>
           </div>
-          <PlacePicker value={draft} onChange={setDraft} />
+          <PlacePicker value={draft} onChange={setDraft} aria-label={t("location.near.title")} />
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!draft.country} onClick={() => apply(nearOfPlace(draft))}>
+            <Button size="sm" disabled={!chosen} onClick={() => apply(chosen)}>
               {t("location.near.apply")}
             </Button>
           </div>

@@ -327,16 +327,18 @@ class TestDelivery:
         a = await acting_user()
         b = await acting_user()
         conversation_id, device_id, _, _ = await _channel(client, session, a, b)
-        await _send(client, a, conversation_id, device_id)
-        await client.post(
-            f"/api/v1/me/dm/conversations/{conversation_id}/read", headers=b.headers
-        )
-
+        # Both messages are delivered, so the first does not prune the device.
         with patch(
             "app.services.platform.push_notifications.send_push_notification",
             new_callable=AsyncMock,
             return_value=(True, False),
         ) as send:
+            await _send(client, a, conversation_id, device_id)
+            await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/read",
+                headers=b.headers,
+            )
+            send.reset_mock()
             await _send(client, a, conversation_id, device_id)
 
         assert send.await_count == 1

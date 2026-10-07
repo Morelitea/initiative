@@ -10,6 +10,9 @@ COPY frontend .
 COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
 COPY MIN_DESKTOP_VERSION /MIN_DESKTOP_VERSION
+# The artwork credits, which every build writes into THIRD_PARTY_NOTICES.txt
+# (frontend/scripts/third-party-notices.mjs reads ../NOTICE.md).
+COPY NOTICE.md /NOTICE.md
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
 # The dev signing key's public half: the dev app accepts updates signed with it.

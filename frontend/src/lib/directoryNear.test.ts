@@ -1,15 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  EMPTY_PLACE,
   effectiveNear,
   nearOfPlace,
   nearSearchFrom,
+  nearSearchOf,
   parseSavedNear,
-  placeOfNear,
+  placeFrom,
   savedNearSnapshot,
   saveNear,
   subscribeSavedNear,
 } from "./directoryNear";
+
+const seattle = {
+  text: "Seattle, Washington, United States",
+  country: "US",
+  latitude: 47.6,
+  longitude: -122.3,
+};
+const kyoto = { text: "Kyoto, Japan", country: "JP", latitude: 35.0, longitude: 135.8 };
 
 afterEach(() => {
   saveNear(null, 1);
@@ -17,26 +27,34 @@ afterEach(() => {
 });
 
 describe("nearSearchFrom", () => {
-  it("keeps a well-formed place, upper-casing its codes", () => {
+  it("keeps a well-formed place, and round-trips one", () => {
     expect(
-      nearSearchFrom({ near_country: "us", near_region: "wa", near_city: " Seattle " })
-    ).toEqual({ near_country: "US", near_region: "WA", near_city: "Seattle" });
+      nearSearchFrom({
+        near_country: "us",
+        near_lat: "47.6",
+        near_lon: -122.3,
+        near_place: " Seattle ",
+      })
+    ).toEqual({ near_country: "US", near_lat: 47.6, near_lon: -122.3, near_place: "Seattle" });
+    expect(effectiveNear(nearSearchOf(seattle), null)).toEqual(seattle);
   });
 
-  it("drops the lot when the country is not a country code", () => {
-    expect(nearSearchFrom({ near_country: "USA", near_city: "Seattle" })).toEqual({});
-    expect(nearSearchFrom({ near_city: "Seattle" })).toEqual({});
+  it("drops what makes no sense: a bad country drops the lot, half a point the point", () => {
+    expect(nearSearchFrom({ near_country: "USA", near_lat: 47.6, near_lon: -122.3 })).toEqual({});
+    expect(nearSearchFrom({ near_lat: 47.6, near_lon: -122.3 })).toEqual({});
+    expect(nearSearchFrom({ near_country: "US", near_lat: 47.6 })).toEqual({ near_country: "US" });
+    expect(nearSearchFrom({ near_country: "US", near_lat: 91, near_lon: 0 })).toEqual({
+      near_country: "US",
+    });
   });
 });
 
-describe("nearOfPlace / placeOfNear", () => {
-  it("reads an unpicked place as nowhere", () => {
-    expect(nearOfPlace({ country: "", region: "", region_code: "", city: "" })).toBeNull();
-  });
-
-  it("round-trips a picked place", () => {
-    const place = { country: "US", region: "Washington", region_code: "WA", city: "Seattle" };
-    expect(placeOfNear(nearOfPlace(place))).toEqual(place);
+describe("placeFrom / nearOfPlace", () => {
+  it("reads a place with no text, or none pinned, as nowhere to sort from", () => {
+    // A sign-up draft saved before places were typed.
+    expect(placeFrom({ country: "US", region: "WA", city: "Seattle" })).toEqual(EMPTY_PLACE);
+    expect(nearOfPlace({ ...EMPTY_PLACE, text: "The old mill" })).toBeNull();
+    expect(nearOfPlace(placeFrom(seattle))).toEqual(seattle);
   });
 });
 
@@ -45,8 +63,8 @@ describe("the kept place", () => {
     const heard = vi.fn();
     const stop = subscribeSavedNear(heard);
 
-    saveNear({ country: "JP", city: "Kyoto" }, 1);
-    expect(parseSavedNear(savedNearSnapshot(1))).toMatchObject({ country: "JP", city: "Kyoto" });
+    saveNear(kyoto, 1);
+    expect(parseSavedNear(savedNearSnapshot(1))).toEqual(kyoto);
 
     saveNear(null, 1);
     expect(savedNearSnapshot(1)).toBeNull();
@@ -55,27 +73,26 @@ describe("the kept place", () => {
   });
 
   it("is each account's own", () => {
-    saveNear({ country: "JP", city: "Kyoto" }, 1);
+    saveNear(kyoto, 1);
 
     expect(savedNearSnapshot(2)).toBeNull();
     expect(savedNearSnapshot(null)).toBeNull();
     // Nobody signed in keeps nothing.
-    saveNear({ country: "US" }, null);
+    saveNear(seattle, null);
     expect(savedNearSnapshot(null)).toBeNull();
   });
 
   it("gives way to a place in the address", () => {
-    const kept = { country: "US", region: "WA", regionName: "Washington" };
-    expect(effectiveNear({}, kept)).toBe(kept);
-    expect(effectiveNear({ near_country: "JP" }, kept)).toEqual({
+    expect(effectiveNear({}, seattle)).toBe(seattle);
+    expect(effectiveNear({ near_country: "JP" }, seattle)).toEqual({
+      text: "",
       country: "JP",
-      region: undefined,
-      city: undefined,
-      regionName: undefined,
+      latitude: null,
+      longitude: null,
     });
-    // The kept region's name still applies while the address names that region.
-    expect(effectiveNear({ near_country: "US", near_region: "WA" }, kept)?.regionName).toBe(
-      "Washington"
-    );
+    // The kept words still apply while the address names the same place.
+    expect(
+      effectiveNear({ near_country: "US", near_lat: 47.6, near_lon: -122.3 }, seattle)?.text
+    ).toBe(seattle.text);
   });
 });

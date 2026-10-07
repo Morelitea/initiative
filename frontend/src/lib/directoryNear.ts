@@ -1,109 +1,110 @@
 /**
- * Where a reader of the community directory says they are.
+ * A place someone typed, and where a reader of the community directory is.
  *
- * It sorts the directory — the communities nearest them first — and never
- * narrows it. It travels in the directory's address (`near_country`,
- * `near_region`, `near_city`, the same names the endpoint takes), and the last
- * one set is kept on this device for the account that set it, so the directory
- * opens near them next time too. A place in the address wins over the kept one.
+ * Where the reader is sorts the directory — the communities nearest them
+ * first — and never narrows it. It travels in the directory's address
+ * (`near_country`, `near_lat`, `near_lon`, the names the endpoint takes, and
+ * `near_place`, the words to show it by), and the last one set is kept on this
+ * device for the account that set it, so the directory opens near them next
+ * time too. A place in the address wins over the kept one.
  */
 
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
-export type NearPlace = {
-  /** ISO 3166-1 alpha-2. */
-  country: string;
-  /** The region's ISO 3166-2 suffix ("WA"). */
-  region?: string;
-  /** The region's name, for saying where; never sent. */
-  regionName?: string;
-  city?: string;
-};
-
-/** A place as a picker holds it: every part a string, empty for unpicked. */
+/** A place as a place field holds it: what was typed, and what it was pinned to. */
 export type Place = {
-  /** ISO 3166-1 alpha-2, or empty for none picked. */
+  /** As typed, and as shown. */
+  text: string;
+  /** ISO 3166-1 alpha-2 of the pinned place; empty when nothing is pinned. */
   country: string;
-  region: string;
-  /** The region's ISO 3166-2 suffix ("WA"). */
-  region_code: string;
-  city: string;
+  /** The pinned point; null for a country alone, or nothing pinned. */
+  latitude: number | null;
+  longitude: number | null;
 };
 
-export const EMPTY_PLACE: Place = { country: "", region: "", region_code: "", city: "" };
+export const EMPTY_PLACE: Place = { text: "", country: "", latitude: null, longitude: null };
 
-const part = (value: unknown): string => (typeof value === "string" ? value : "");
+/** The server's limit on a place's text. */
+export const PLACE_TEXT_MAX = 200;
 
-/** A place as it was saved, on today's shape. */
-export const placeFrom = (saved: unknown): Place => {
-  if (!saved || typeof saved !== "object") return EMPTY_PLACE;
-  const fields = saved as Record<string, unknown>;
+const isCountry = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z]{2}$/.test(value);
+
+const coordinate = (value: unknown, bound: number): number | null => {
+  const number = typeof value === "string" && value.trim() ? Number(value) : value;
+  return typeof number === "number" && Number.isFinite(number) && Math.abs(number) <= bound
+    ? number
+    : null;
+};
+
+/** A place from its parts as they were kept, with whatever makes no sense left out. */
+const placeOf = (text: unknown, country: unknown, latitude: unknown, longitude: unknown) => {
+  const lat = coordinate(latitude, 90);
+  const lon = coordinate(longitude, 180);
+  const pinned = isCountry(country);
+  // A point is kept only whole, and only within a country.
+  const point = pinned && lat !== null && lon !== null;
   return {
-    country: part(fields.country),
-    region: part(fields.region),
-    region_code: part(fields.region_code),
-    city: part(fields.city),
+    text: typeof text === "string" ? text.trim().slice(0, PLACE_TEXT_MAX) : "",
+    country: pinned ? country.toUpperCase() : "",
+    latitude: point ? lat : null,
+    longitude: point ? lon : null,
   };
 };
 
-/** A picked place, as somewhere to sort the directory from; none if unpicked. */
-export const nearOfPlace = (place: Place): NearPlace | null =>
-  place.country
-    ? {
-        country: place.country,
-        region: place.region_code || undefined,
-        regionName: place.region || undefined,
-        city: place.city.trim() || undefined,
-      }
-    : null;
+/** A place as it was saved, on today's shape. Older shapes had no text, and
+ *  a place with no text is no place. */
+export const placeFrom = (saved: unknown): Place => {
+  if (!saved || typeof saved !== "object") return EMPTY_PLACE;
+  const fields = saved as Record<string, unknown>;
+  const place = placeOf(fields.text, fields.country, fields.latitude, fields.longitude);
+  return place.text ? place : EMPTY_PLACE;
+};
 
-/** The other way: a place to sort from, as a picker shows it. */
-export const placeOfNear = (near: NearPlace | null): Place =>
-  near
-    ? {
-        country: near.country,
-        region: near.regionName ?? "",
-        region_code: near.region ?? "",
-        city: near.city ?? "",
-      }
-    : EMPTY_PLACE;
+/** A place, as somewhere to sort the directory from: it needs a country. */
+export const nearOfPlace = (place: Place): Place | null =>
+  place.country && place.text.trim() ? place : null;
 
 export type NearSearch = {
   near_country?: string;
-  near_region?: string;
-  near_city?: string;
+  near_lat?: number;
+  near_lon?: number;
+  near_place?: string;
 };
 
 /** Kept per account: another account on the same device has its own. */
 const nearKey = (userId: number): string => `initiative-directory-near:${userId}`;
 
-const text = (value: unknown, max: number): string | undefined =>
-  typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
-
 /** The near-place parameters of an address, as far as they make sense. */
 export const nearSearchFrom = (search: Record<string, unknown>): NearSearch => {
-  const country = text(search.near_country, 3);
-  if (!country || !/^[A-Za-z]{2}$/.test(country)) return {};
-  const region = text(search.near_region, 10);
-  const city = text(search.near_city, 100);
+  const place = placeOf(search.near_place, search.near_country, search.near_lat, search.near_lon);
+  if (!place.country) return {};
   return {
-    near_country: country.toUpperCase(),
-    ...(region ? { near_region: region.toUpperCase() } : {}),
-    ...(city ? { near_city: city } : {}),
+    near_country: place.country,
+    ...(place.latitude !== null && place.longitude !== null
+      ? { near_lat: place.latitude, near_lon: place.longitude }
+      : {}),
+    ...(place.text ? { near_place: place.text } : {}),
   };
 };
 
 /** A place, as the address carries it. */
-export const nearSearchOf = (near: NearPlace | null): NearSearch =>
+export const nearSearchOf = (near: Place | null): NearSearch =>
   near
-    ? nearSearchFrom({ near_country: near.country, near_region: near.region, near_city: near.city })
+    ? nearSearchFrom({
+        near_country: near.country,
+        near_lat: near.latitude,
+        near_lon: near.longitude,
+        near_place: near.text,
+      })
     : {};
 
 /** Every near-place parameter cleared, for an address that drops them. */
 export const NO_NEAR_SEARCH: Record<keyof NearSearch, undefined> = {
   near_country: undefined,
-  near_region: undefined,
-  near_city: undefined,
+  near_lat: undefined,
+  near_lon: undefined,
+  near_place: undefined,
 };
 
 /** Who to tell when the kept place changes. */
@@ -121,24 +122,16 @@ export const savedNearSnapshot = (userId: number | null): string | null =>
   userId === null ? null : getItem(nearKey(userId));
 
 /** The kept place, read from what `savedNearSnapshot` returned. */
-export const parseSavedNear = (raw: string | null): NearPlace | null => {
+export const parseSavedNear = (raw: string | null): Place | null => {
   if (!raw) return null;
   try {
-    const saved = JSON.parse(raw) as Partial<NearPlace>;
-    const search = nearSearchOf(saved as NearPlace);
-    if (!search.near_country) return null;
-    return {
-      country: search.near_country,
-      region: search.near_region,
-      city: search.near_city,
-      regionName: text(saved.regionName, 100),
-    };
+    return nearOfPlace(placeFrom(JSON.parse(raw)));
   } catch {
     return null;
   }
 };
 
-export const saveNear = (near: NearPlace | null, userId: number | null): void => {
+export const saveNear = (near: Place | null, userId: number | null): void => {
   if (userId === null) return;
   if (near?.country) void setItem(nearKey(userId), JSON.stringify(near));
   else void removeItem(nearKey(userId));
@@ -147,16 +140,22 @@ export const saveNear = (near: NearPlace | null, userId: number | null): void =>
 
 /**
  * Where the directory is sorted from: the address's place, else the kept one.
- * A kept region name is used only while it still names the same region.
+ * An address without the words for its place borrows the kept place's while
+ * the two are the same place.
  */
-export const effectiveNear = (search: NearSearch, saved: NearPlace | null): NearPlace | null => {
+export const effectiveNear = (search: NearSearch, saved: Place | null): Place | null => {
   if (!search.near_country) return saved;
-  const sameRegion =
-    saved && saved.country === search.near_country && saved.region === search.near_region;
+  const latitude = search.near_lat ?? null;
+  const longitude = search.near_lon ?? null;
+  const samePlace =
+    saved &&
+    saved.country === search.near_country &&
+    saved.latitude === latitude &&
+    saved.longitude === longitude;
   return {
+    text: search.near_place ?? (samePlace ? saved.text : ""),
     country: search.near_country,
-    region: search.near_region,
-    city: search.near_city,
-    regionName: sameRegion ? saved.regionName : undefined,
+    latitude,
+    longitude,
   };
 };

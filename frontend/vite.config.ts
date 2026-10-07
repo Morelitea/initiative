@@ -5,6 +5,8 @@ import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig, loadEnv } from "vite";
 
+import { buildNotices } from "./scripts/third-party-notices.mjs";
+
 // Load VITE_* vars from .env files (checks backend/.env and frontend/)
 const env = {
   ...loadEnv("production", path.resolve(import.meta.dirname, "../backend"), "VITE_"),
@@ -171,6 +173,42 @@ const pdfjsPlugin = () => ({
   },
 });
 
+// The licence notices of everything third-party the app ships — every
+// production package, the native libraries in the phone apps, fonts and
+// artwork — written into each build as THIRD_PARTY_NOTICES.txt, because a
+// minified bundle strips the notices those licences ask to travel with it.
+// The /licences page reads it, from the version dialog. How it is put together
+// is in scripts/third-party-notices.mjs; a build fails when a Capacitor plug-in
+// or an emitted font has no entry in frontend/licences/.
+const THIRD_PARTY_NOTICES_FILE = "THIRD_PARTY_NOTICES.txt";
+
+const thirdPartyNoticesPlugin = () => ({
+  name: "initiative-third-party-notices",
+  // Dev: generated on request, so the page works under `pnpm dev` too.
+  configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+    server.middlewares.use(
+      (
+        req: { url?: string },
+        res: { setHeader: (k: string, v: string) => void; end: (body?: unknown) => void },
+        next: () => void
+      ) => {
+        if (req.url !== `/${THIRD_PARTY_NOTICES_FILE}`) return next();
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.end(buildNotices().text);
+      }
+    );
+  },
+  // Build: after everything else is in the bundle, so the fonts can be checked.
+  generateBundle(
+    this: { emitFile: (f: unknown) => void },
+    _options: unknown,
+    bundle: Record<string, unknown>
+  ) {
+    const { text } = buildNotices({ bundleFiles: Object.keys(bundle) });
+    this.emitFile({ type: "asset", fileName: THIRD_PARTY_NOTICES_FILE, source: text });
+  },
+});
+
 // Use relative paths for Capacitor builds (mobile apps load from file:// or local server)
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 
@@ -197,6 +235,7 @@ export default defineConfig({
     tailwindcss(),
     emojibasePlugin(),
     pdfjsPlugin(),
+    thirdPartyNoticesPlugin(),
   ],
   resolve: {
     alias: [

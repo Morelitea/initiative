@@ -1,69 +1,38 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { CommunityLocation } from "@/lib/communityLocation";
 
 import { CommunityLocationLine } from "./CommunityLocationLine";
 
-const at = (parts: Partial<CommunityLocation> & { country: string }): CommunityLocation => ({
-  region: null,
-  region_code: null,
-  city: null,
-  address: null,
-  postal_code: null,
-  label: null,
-  ...parts,
-});
+const queenAnne: CommunityLocation = {
+  text: "Seattle, Washington, United States",
+  label: "Queen Anne Neighborhood",
+  country: "US",
+  latitude: 47.6,
+  longitude: -122.3,
+};
 
 describe("CommunityLocationLine", () => {
-  it("is plain text when the line says everything", () => {
-    render(<CommunityLocationLine location={at({ country: "FR", city: "Lyon" })} />);
-
-    expect(screen.getByText("Lyon, France")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
-
-  it("keeps the street off the row and shows it on request", async () => {
-    const user = userEvent.setup();
-    render(
-      <CommunityLocationLine
-        location={at({
-          country: "US",
-          region: "Washington",
-          region_code: "WA",
-          city: "Seattle",
-          address: "1 Queen Anne Ave N",
-          postal_code: "98109",
-          label: "Queen Anne Neighborhood",
-        })}
-      />
-    );
+  it("names the place after the community's own name for it, and opens it on a map", () => {
+    render(<CommunityLocationLine location={queenAnne} />);
 
     expect(
-      screen.getByRole("button", { name: "Location: Queen Anne Neighborhood, Seattle, WA" })
-    ).toBeInTheDocument();
-    expect(screen.queryByText("1 Queen Anne Ave N")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button"));
-
-    expect(await screen.findByText("1 Queen Anne Ave N")).toBeInTheDocument();
-    expect(screen.getByText("Seattle, Washington 98109")).toBeInTheDocument();
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      expect.stringContaining("openstreetmap.org/search")
-    );
+      screen.getByRole("link", {
+        name: "Location: Queen Anne Neighborhood, Seattle, Washington, United States",
+      })
+    ).toHaveAttribute("href", expect.stringContaining("openstreetmap.org/?mlat=47.6"));
   });
 
   it("is a plain line where it sits inside something clickable", () => {
     render(
       <CommunityLocationLine
         interactive={false}
-        location={at({ country: "US", region_code: "WA", city: "Seattle", address: "1 Main St" })}
+        location={{ ...queenAnne, label: null, text: "Lyon, France" }}
       />
     );
 
-    expect(screen.getByText("Seattle, WA")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Lyon, France")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

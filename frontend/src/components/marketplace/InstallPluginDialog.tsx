@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useInstallCommunityPlugin } from "@/hooks/useCommunityPlugins";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useCommunityInitiatives } from "@/hooks/useInitiatives";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { listingShownHere } from "@/lib/marketplaceCuration";
@@ -264,7 +264,7 @@ function InitiativePicker({
   onChange: (next: number[]) => void;
 }) {
   const { t } = useTranslation(["plugins", "common"]);
-  const initiatives = useInitiatives();
+  const initiatives = useCommunityInitiatives();
 
   if (initiatives.isLoading) {
     return (

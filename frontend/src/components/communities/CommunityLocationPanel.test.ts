@@ -1,44 +1,33 @@
 import { describe, expect, it } from "vitest";
 
-import { type Draft, withPlace } from "./CommunityLocationPanel";
+import { EMPTY_PLACE } from "@/lib/directoryNear";
 
-const seattle: Draft = {
-  country: "US",
-  region: "Washington",
-  region_code: "WA",
-  city: "Seattle",
-  address: "1 Queen Anne Ave N",
-  postal_code: "98109",
-  label: "Queen Anne Neighborhood",
-};
+import { locationOf } from "./CommunityLocationPanel";
 
-describe("withPlace", () => {
-  it("keeps the street and name while the country stays", () => {
-    const next = withPlace(seattle, {
+describe("locationOf", () => {
+  it("is the place as typed and pinned, with the community's own name for it", () => {
+    const seattle = {
+      text: " 1 Queen Anne Ave N, Seattle, Washington, United States ",
       country: "US",
-      region: "Washington",
-      region_code: "WA",
-      city: "Tacoma",
-    });
+      latitude: 47.6,
+      longitude: -122.3,
+    };
 
-    expect(next).toMatchObject({
-      city: "Tacoma",
-      address: "1 Queen Anne Ave N",
+    expect(locationOf(seattle, " Queen Anne Neighborhood ")).toEqual({
+      text: "1 Queen Anne Ave N, Seattle, Washington, United States",
       label: "Queen Anne Neighborhood",
+      country: "US",
+      latitude: 47.6,
+      longitude: -122.3,
     });
-  });
-
-  it("clears the street, postcode and name with a new country", () => {
-    const next = withPlace(seattle, { country: "JP", region: "", region_code: "", city: "" });
-
-    expect(next).toEqual({
-      country: "JP",
-      region: "",
-      region_code: "",
-      city: "",
-      address: "",
-      postal_code: "",
-      label: "",
+    // Unpinned text is a location too; a name with no place is none.
+    expect(locationOf({ ...EMPTY_PLACE, text: "The old mill" }, "")).toEqual({
+      text: "The old mill",
+      label: null,
+      country: null,
+      latitude: null,
+      longitude: null,
     });
+    expect(locationOf(EMPTY_PLACE, "Queen Anne Neighborhood")).toBeNull();
   });
 });

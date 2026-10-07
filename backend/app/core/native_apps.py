@@ -31,8 +31,11 @@ ANDROID_DEV_FINGERPRINTS: tuple[str, ...] = (
     "42:9A:61:26:F7:A6:5F:9F:93:A7:17:36:C0:93:E2:61:BC:F4:09:7B:0A:78:74:B9:C6:0C:86:89:8C:FE:17:F8",
 )
 
-#: ``<Team ID>.<bundle id>`` for each iOS app. Empty until the App Store
-#: account exists; the association route answers 404 while it is.
+#: ``<Team ID>.<bundle id>`` for each iOS app (``studio.beyonders.initiative``).
+#: Empty until the App Store account exists; the association route answers 404
+#: while it is. An iPhone reads the file only for the domains the app's own
+#: entitlements name (``initiativetasks.com`` and ``demo.initiativetasks.com``),
+#: so serving it from any other deployment is harmless.
 IOS_APP_IDS: tuple[str, ...] = ()
 
 

@@ -47,7 +47,12 @@ export const InterestStep = ({
       <fieldset className="space-y-3">
         <legend className="font-medium text-sm">{tAuth("start.interest.whereTitle")}</legend>
         <p className="text-muted-foreground text-xs">{tAuth("start.interest.whereHint")}</p>
-        <PlacePicker value={near} onChange={onNearChange} disabled={disabled} />
+        <PlacePicker
+          value={near}
+          onChange={onNearChange}
+          disabled={disabled}
+          aria-label={tAuth("start.interest.whereTitle")}
+        />
       </fieldset>
       <p className="font-medium text-sm">{tAuth("start.interest.whatTitle")}</p>
       <div className="flex flex-wrap gap-2">

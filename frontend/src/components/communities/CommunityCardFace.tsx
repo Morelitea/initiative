@@ -39,7 +39,7 @@ export const CommunityCardFace = ({
   /** A further line under who is there. */
   meta?: ReactNode;
   /**
-   * Whether the location row opens its details. Off for a card that is itself
+   * Whether the location row opens the place on a map. Off for a card that is itself
    * one button, where it is a plain line instead.
    */
   locationDetails?: boolean;

@@ -209,7 +209,7 @@ export const DownloadPage = () => {
   const { config, passkeyLoginEnabled } = useFrontDoor();
   usePageMeta(t("meta.downloadTitle"), t("meta.downloadDescription"));
   // The Android app only gets push where this server has it switched on.
-  const fcm = useGetFcmConfig({ query: { staleTime: 300_000 } });
+  const fcm = useGetFcmConfig(undefined, { query: { staleTime: 300_000 } });
   const push = fcm.data?.enabled === true;
   const minNativeVersion = config?.min_native_version ?? null;
   const minDesktopVersion = config?.min_desktop_version ?? null;
