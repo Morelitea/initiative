@@ -653,12 +653,14 @@ async def community_directory_enabled(session: AsyncSession) -> bool:
 
 
 async def community_age_gate_enabled(session: AsyncSession) -> bool:
-    """Whether an account must confirm its age to belong to a listed guild.
+    """Whether this deployment checks age. Off, every account counts as an adult.
 
     The one read of the switch, for the same reason
-    :func:`community_directory_enabled` is: the two places that ask — the join
-    that refuses, and the standing check that routes an unconfirmed account to
-    the screen — must agree at every moment.
+    :func:`community_directory_enabled` is: every place that asks — sign-up,
+    the directory's join, the standing check at a listed guild's door, a
+    plug-in's minimum age and the direct-message policy — must agree at every
+    moment. The direct-message rule in the database (``dm_reachable``) reads
+    the same column.
     """
     settings_row = await get_app_settings(session)
     return bool(settings_row.community_age_gate_enabled)

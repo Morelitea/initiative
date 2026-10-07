@@ -106,6 +106,7 @@ async def read_settings(
     opt-out rows, so a community joined since the last write arrives switched
     on with nothing written for it.
     """
+    from app.services.platform import app_settings as app_settings_service
     from app.services.platform import guild_images as guild_images_service
 
     row = await _row_for(session, user.id)
@@ -130,6 +131,10 @@ async def read_settings(
     return DirectMessageSettingsRead(
         dm_policy=row.dm_policy,
         age_confirmed_at=user.age_confirmed_at,
+        age_answer_required=(
+            user.age_confirmed_at is None
+            and await app_settings_service.community_age_gate_enabled(session)
+        ),
         send_receipts=row.send_receipts,
         communities=[
             CommunityDmToggle(
@@ -159,19 +164,24 @@ async def update_settings(
 ) -> DirectMessageSettingsRead:
     """Write whichever parts were sent, leaving the rest alone.
 
-    Raising the policy above ``private`` needs the age question answered — the
-    DM surface asks for that itself rather than waiting on the community
-    directory's switches, so the floor holds on every deployment.
+    Raising the policy above ``private`` needs the age question answered,
+    unless the deployment's owner has turned the age check off — then every
+    account counts as an adult. The DM surface asks this itself rather than
+    waiting on the community directory's own switch.
 
     A toggle for a community the account is not in is refused rather than
     ignored: it is a client sending something it cannot have rendered.
     """
     from app.core.messages import DirectMessageMessages
+    from app.services.platform import app_settings as app_settings_service
 
     row = await _row_for(session, user.id)
 
     if dm_policy is not None and dm_policy is not DmPolicy.private:
-        if user.age_confirmed_at is None:
+        if (
+            user.age_confirmed_at is None
+            and await app_settings_service.community_age_gate_enabled(session)
+        ):
             raise DirectMessageSettingsError(
                 DirectMessageMessages.AGE_CONFIRMATION_REQUIRED
             )

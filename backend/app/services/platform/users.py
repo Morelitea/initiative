@@ -1093,6 +1093,7 @@ async def to_self_read(session: AsyncSession, user: User) -> "UserRead":
     sign-in methods are read from its settings.
     """
     from app.schemas.platform.user import UserRead
+    from app.services.platform import app_settings as app_settings_service
     from app.services.platform import auth_posture
 
     primary, proven = await _reach([user.id])
@@ -1100,6 +1101,11 @@ async def to_self_read(session: AsyncSession, user: User) -> "UserRead":
     payload.email = primary.get(user.id)
     payload.email_verified = user.id in proven
     payload.birthdate_on_file = await _birthdate_on_file(user.id)
+    payload.birthdate_required = (
+        not payload.birthdate_on_file
+        and user.age_below_minimum_at is None
+        and await app_settings_service.community_age_gate_enabled(session)
+    )
     payload.has_federated_identity = await identity_service.has_federated_identity(
         session, user_id=user.id
     )
@@ -1190,6 +1196,53 @@ async def to_operator_read_one(user: User) -> "OperatorUserRead":
 #: that are open to people they have not met.
 MINIMUM_AGE_YEARS = 16
 
+#: The age below which somebody may not have an account here at all, by ISO
+#: 3166-1 country: the age of digital consent where they are. ``default`` is
+#: every country not listed. Where the country is not known, the highest age
+#: listed applies, so not knowing where somebody is never lets them in
+#: younger. Asked only while the deployment checks age.
+ACCOUNT_MINIMUM_AGE: dict[str, int] = {
+    "default": 13,
+    # The GDPR's age of consent, as each EU and EEA state set it.
+    "AT": 14,
+    "BE": 13,
+    "BG": 14,
+    "CY": 14,
+    "CZ": 15,
+    "DE": 16,
+    "DK": 13,
+    "EE": 13,
+    "ES": 14,
+    "FI": 13,
+    "FR": 15,
+    "GR": 15,
+    "HR": 16,
+    "HU": 16,
+    "IE": 16,
+    "IS": 13,
+    "IT": 14,
+    "LI": 16,
+    "LT": 14,
+    "LU": 16,
+    "LV": 13,
+    "MT": 13,
+    "NL": 16,
+    "NO": 13,
+    "PL": 16,
+    "PT": 13,
+    "RO": 16,
+    "SE": 13,
+    "SI": 15,
+    "SK": 16,
+    # The UK GDPR.
+    "GB": 13,
+    # COPPA.
+    "US": 13,
+    # PIPL and PIPA.
+    "CN": 14,
+    "KR": 14,
+}
+
 #: A bound on what counts as a date somebody could have been born on. Not a
 #: judgement about anyone — it is what separates a real answer from a typo.
 MAX_PLAUSIBLE_AGE_YEARS = 120
@@ -1203,6 +1256,15 @@ def _years_since(birthdate: date, today: date) -> int:
     """
     had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
     return today.year - birthdate.year - (0 if had_birthday else 1)
+
+
+def below_account_minimum(birthdate: date, country: str | None) -> bool:
+    """Whether somebody born on ``birthdate`` is too young for an account in
+    ``country`` (None when it is not known)."""
+    from app.services.tenant.plugin_age import minimum_in
+
+    minimum = minimum_in(ACCOUNT_MINIMUM_AGE, country) or 0
+    return _years_since(birthdate, datetime.now(timezone.utc).date()) < minimum
 
 
 class InvalidBirthdateError(ValueError):

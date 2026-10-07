@@ -164,10 +164,10 @@ function AppLayout() {
     return <AcceptTerms />;
   }
 
-  // No date of birth on file. Asked once of every account — plug-ins can have a
-  // minimum age that differs by country — and never again once answered. An
-  // account already blocked as under age has nothing left to answer here.
-  if (!loading && user && !user.birthdate_on_file && !user.age_below_minimum_at) {
+  // No date of birth on file, on a deployment that checks age. Asked once of
+  // every account — plug-ins can have a minimum age that differs by country —
+  // and never again once answered. The server says when it is owed.
+  if (!loading && user && user.birthdate_required) {
     return <ConfirmBirthdate />;
   }
 

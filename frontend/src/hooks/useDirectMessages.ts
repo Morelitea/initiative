@@ -239,5 +239,5 @@ export const usePendingContactRequests = (): number => {
 export const useCanUseDirectMessages = (): boolean => {
   const dmEnabled = useDirectMessagesEnabled();
   const { data } = useDmSettings();
-  return dmEnabled && Boolean(data?.age_confirmed_at);
+  return dmEnabled && data !== undefined && !data.age_answer_required;
 };

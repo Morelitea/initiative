@@ -19,6 +19,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.email_i18n import email_t
 from app.core.encryption import (
     decrypt_token,
@@ -78,8 +79,6 @@ async def test_bootstrap_status_with_users(
 ):
     """Registration reads as open only where somebody may register without an
     invite, which turning community creation off closes too."""
-    from app.core.config import settings
-
     await create_user(session)
 
     response = await client.get("/api/v1/auth/bootstrap")
@@ -157,21 +156,28 @@ async def test_register_with_a_community_makes_it(
     ]
 
 
-async def test_register_answers_the_age_question(client: AsyncClient):
+def _register_born(client: AsyncClient, name: str, birthdate: date, country=None):
+    return client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"{name}@example.com",
+            "username": name,
+            "password": "securepassword123",
+            "birthdate": birthdate.isoformat(),
+        },
+        headers={"CF-IPCountry": country} if country else {},
+    )
+
+
+async def test_register_answers_the_age_question(client: AsyncClient, monkeypatch):
     """A birthdate given at sign-up answers the directory's age question; under
-    age is recorded on the account rather than refusing it."""
+    16 but old enough for an account where they are is recorded on the account
+    rather than refusing it."""
+    monkeypatch.setattr(settings, "CLIENT_COUNTRY_HEADER", "CF-IPCountry")
     today = date.today()
 
     def register(name: str, birthdate: date):
-        return client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": f"{name}@example.com",
-                "username": name,
-                "password": "securepassword123",
-                "birthdate": birthdate.isoformat(),
-            },
-        )
+        return _register_born(client, name, birthdate, "US")
 
     adult = await register("adult", date(today.year - 30, 1, 1))
     assert adult.status_code == 201
@@ -180,7 +186,7 @@ async def test_register_answers_the_age_question(client: AsyncClient):
     assert adult.json()["birthdate_on_file"] is True
     assert str(today.year - 30) not in adult.text
 
-    minor = await register("minor", date(today.year - 10, 1, 1))
+    minor = await register("minor", date(today.year - 14, 1, 1))
     assert minor.status_code == 201
     assert minor.json()["age_confirmed_at"] is None
     assert minor.json()["age_below_minimum_at"] is not None
@@ -190,6 +196,52 @@ async def test_register_answers_the_age_question(client: AsyncClient):
     unborn = await register("unborn", today + timedelta(days=2))
     assert unborn.status_code == 422
     assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
+
+
+@pytest.mark.parametrize(
+    ("years", "country"),
+    [(12, "US"), (15, "DE"), (15, None), (15, "XX")],
+    ids=["under the US minimum", "under the German minimum", "no header", "unknown"],
+)
+async def test_register_refuses_anyone_under_the_minimum_where_they_are(
+    client: AsyncClient, session: AsyncSession, monkeypatch, years, country
+):
+    """No account is made; where the country is not known, the highest
+    minimum applies."""
+    monkeypatch.setattr(settings, "CLIENT_COUNTRY_HEADER", "CF-IPCountry")
+    today = date.today()
+
+    response = await _register_born(
+        client, "young", date(today.year - years, 1, 1), country
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "USER_AGE_BELOW_ACCOUNT_MINIMUM"
+    assert await addresses.account_holding(session, "young@example.com") is None
+
+
+async def test_register_asks_no_age_where_the_deployment_does_not_check(
+    client: AsyncClient, session: AsyncSession
+):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False, community_age_gate_enabled=False
+    )
+    today = date.today()
+
+    response = await _register_born(client, "young", date(today.year - 10, 1, 1))
+
+    assert response.status_code == 201
+    # Nothing is owed, so no birthdate screen stands in front of the app.
+    no_date = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "nodate@example.com",
+            "username": "nodate",
+            "password": "securepassword123",
+        },
+    )
+    assert no_date.json()["birthdate_on_file"] is False
+    assert no_date.json()["birthdate_required"] is False
 
 
 async def test_register_with_invite_blocked_when_guild_full(

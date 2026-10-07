@@ -503,6 +503,7 @@
   "COMMUNITY_AGE_CONFIRMATION_REQUIRED": "Bestätige, dass du mindestens 16 bist, bevor du einer für alle auffindbaren Community beitrittst.",
   "COMMUNITY_AGE_BELOW_MINIMUM": "Du hast angegeben, nicht alt genug für eine für alle auffindbare Community zu sein. Die Person, die diesen Server betreibt, kann die Frage zurücksetzen.",
   "USER_AGE_BELOW_MINIMUM": "Du musst mindestens 16 Jahre alt sein, um einer für alle auffindbaren Community beizutreten.",
+  "USER_AGE_BELOW_ACCOUNT_MINIMUM": "Du bist jünger als das Mindestalter für ein Konto hier, deshalb können wir keins für dich anlegen.",
   "USER_AGE_INVALID_BIRTHDATE": "An diesem Datum kannst du nicht geboren sein. Bitte prüfe es und versuche es erneut.",
   "IMAGE_EMPTY": "Dieses Bild war leer.",
   "IMAGE_TOO_LARGE": "Dieses Bild ist zu groß.",

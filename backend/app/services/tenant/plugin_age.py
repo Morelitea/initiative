@@ -12,7 +12,10 @@ Two facts feed it, and neither is the client's to state:
 
 * **Age** — from the date of birth the account gave, kept encrypted
   (``users.birthdate_of``). No date on file is *not allowed*: the person is
-  asked for one, once, and until they answer nothing age-limited opens.
+  asked for one, once, and until they answer nothing age-limited opens. On a
+  deployment whose owner has turned the age check off
+  (``community_age_gate_enabled``), every account counts as an adult and no
+  limit applies.
 * **Country** — from the request, through the header a trusted proxy in front
   of the deployment writes (``CLIENT_COUNTRY_HEADER``, ``CF-IPCountry`` behind
   Cloudflare). Read per request and never stored. Not configured, absent, or
@@ -45,6 +48,8 @@ class AgeViewer:
     age: int | None
     #: ISO 3166-1 alpha-2, or None when not known.
     country: str | None
+    #: The deployment does not check age, so every account counts as an adult.
+    waived: bool = False
 
 
 def request_country(connection: HTTPConnection) -> str | None:
@@ -62,9 +67,12 @@ async def viewer_for(connection: HTTPConnection, user_id: int) -> AgeViewer:
     """The age and country of the person making this request."""
     # Imported here so this module stays importable from ``app.api.deps``.
     from app.db.session import SystemSessionLocal
+    from app.services.platform import app_settings as app_settings_service
     from app.services.platform import users as users_service
 
     async with SystemSessionLocal() as system_session:
+        if not await app_settings_service.community_age_gate_enabled(system_session):
+            return AgeViewer(age=None, country=None, waived=True)
         birthdate = await users_service.birthdate_of(system_session, user_id=user_id)
     return AgeViewer(
         age=None if birthdate is None else users_service.years_old(birthdate),
@@ -87,12 +95,17 @@ def declared_minimum(definition: Mapping[str, Any] | None) -> dict[str, int]:
 def minimum_for(
     definition: Mapping[str, Any] | None, country: str | None
 ) -> int | None:
-    """The minimum age that applies in ``country``, or None for no limit.
+    """The minimum age that applies in ``country``, or None for no limit."""
+    return minimum_in(declared_minimum(definition), country)
+
+
+def minimum_in(declared: Mapping[str, int], country: str | None) -> int | None:
+    """The age a ``{country: years}`` map asks in ``country``, or None.
 
     The country's own entry, else ``default``; where the country is not known,
-    the highest age declared anywhere.
+    the highest age declared anywhere. Plug-ins declare one map each; sign-up
+    reads the platform's own (``users.ACCOUNT_MINIMUM_AGE``).
     """
-    declared = declared_minimum(definition)
     if not declared:
         return None
     if country is None:
@@ -106,6 +119,8 @@ def minimum_for(
 
 def age_allows(definition: Mapping[str, Any] | None, viewer: AgeViewer) -> bool:
     """Whether ``viewer`` is old enough for the plug-in ``definition`` describes."""
+    if viewer.waived:
+        return True
     minimum = minimum_for(definition, viewer.country)
     if minimum is None:
         return True

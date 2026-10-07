@@ -503,6 +503,7 @@
   "COMMUNITY_AGE_CONFIRMATION_REQUIRED": "Confirm you are 16 or older before joining a community anyone can find.",
   "COMMUNITY_AGE_BELOW_MINIMUM": "You told us you're not old enough to join a community anyone can find. Whoever runs this server can reset the question for you.",
   "USER_AGE_BELOW_MINIMUM": "You need to be 16 or older to join a community anyone can find.",
+  "USER_AGE_BELOW_ACCOUNT_MINIMUM": "You're under the minimum age for an account here, so we can't make one for you.",
   "USER_AGE_INVALID_BIRTHDATE": "That is not a date you could have been born on. Check it and try again.",
   "IMAGE_EMPTY": "That image was empty.",
   "IMAGE_TOO_LARGE": "That image is too large.",

@@ -1,6 +1,6 @@
 {
   "placeholder": "Rechercher dans {{activeCommunityName}}...",
-  "noResults": "Aucun résultat trouvé.",
+  "noResults": "Aucun résultat.",
   "groups": {
     "actions": "Actions",
     "suggested": "Suggestions",

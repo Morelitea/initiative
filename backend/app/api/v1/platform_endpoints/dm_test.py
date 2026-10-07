@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
+from app.services.platform import app_settings as app_settings_service
 from app.testing import (
     create_guild,
     create_user,
@@ -53,6 +54,24 @@ async def test_raising_the_policy_needs_an_age_answer(client, session, acting_us
     )
     assert response.status_code == 422
     assert response.json()["detail"] == "DM_AGE_CONFIRMATION_REQUIRED"
+    read = await client.get("/api/v1/me/dm-settings", headers=a.headers)
+    assert read.json()["age_answer_required"] is True
+
+
+async def test_no_age_check_raises_the_policy_unasked(client, session, acting_user):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False, community_age_gate_enabled=False
+    )
+    a = await acting_user()
+    a.user.age_confirmed_at = None
+    session.add(a.user)
+    await session.commit()
+
+    response = await client.patch(
+        "/api/v1/me/dm-settings", json={"dm_policy": "community"}, headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["age_answer_required"] is False
 
 
 async def test_staying_private_needs_no_age_answer(client, session, acting_user):

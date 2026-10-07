@@ -692,6 +692,10 @@ class UserRead(UserBase):
     #: Whether this account's date of birth is kept. The date itself is never
     #: sent, to its owner included; this is what says the question is answered.
     birthdate_on_file: bool = False
+    #: Whether this account still owes its date of birth: none is kept, it has
+    #: not answered as under age, and the deployment checks age. True blocks
+    #: the app on the birthdate screen. Populated by ``/me``; false elsewhere.
+    birthdate_required: bool = False
     #: This account's cookie answer, so a browser it has never been asked in
     #: can adopt it instead of asking again. Null where it has never answered,
     #: which is different from having answered and allowed nothing. Populated

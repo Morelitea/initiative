@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.1] - 2026-10-07
+
+### Changed
+
+- **Sign-up refuses anyone under the minimum age for an account where they are**, from 13 to 16 depending on the country, and no account is made. This only applies while the age check is on. **Server operators:** set `CLIENT_COUNTRY_HEADER` so the minimum follows the country; unset, 16 applies to everyone.
+
+### Fixed
+
+- **Turning the age check off now stops every age question.** With **Check members' age** off under **Platform settings › Community**, every account counts as an adult: nobody is asked for a date of birth, plug-ins with a minimum age open for everyone, and direct messages work without answering.
+
 ## [0.75.0] - 2026-10-07
 
 ### Added
@@ -38,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
 - **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
 - **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
 - **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.

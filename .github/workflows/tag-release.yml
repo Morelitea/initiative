@@ -10,16 +10,34 @@ jobs:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # Everything that writes goes through the release app's token below, so
+    # GITHUB_TOKEN only needs to read.
     permissions:
-      contents: write
-      actions: write
-      pull-requests: write
+      contents: read
 
     steps:
+      # GITHUB_TOKEN cannot open the back-merge pull request: the org keeps
+      # "Allow GitHub Actions to create and approve pull requests" off, so
+      # workflows cannot approve their own pull requests on dev. A tag pushed
+      # by the app also starts Build and Release by itself, which a
+      # GITHUB_TOKEN push does not.
+      - name: Get the release app's token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Push the tag and open the back-merge pull request. The tag points
+          # at a commit already on main, so the push brings no new commits and
+          # no workflow-file changes: no workflows grant needed.
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
 
       - name: Extract version from branch name
         id: version
@@ -35,42 +53,43 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Extracted version: $VERSION from branch: $BRANCH"
 
+      - name: Tag as the release app
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          id=$(gh api "users/${SLUG}[bot]" --jq .id)
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${id}+${SLUG}[bot]@users.noreply.github.com"
+
+      # Build and Release runs on the v*.*.* tag push, so this push starts it.
       - name: Create and push tag
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
           echo "Created and pushed tag $TAG"
 
-      - name: Create PR to merge main back into dev
+      - name: Open the pull request merging main back into dev
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          # Check if there are differences between main and dev
           if git diff --quiet origin/main origin/dev; then
-            echo "main and dev are identical, no PR needed"
-          else
-            # Create a PR to merge main back into dev (respects branch protection)
-            gh pr create \
-              --base dev \
-              --head main \
-              --title "Merge main back into dev after $TAG" \
-              --body "Automated PR to sync \`main\` back into \`dev\` after release $TAG." \
-              --label "sync" \
-              || echo "PR already exists or branches are identical"
+            echo "main and dev are identical, no pull request needed"
+            exit 0
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
-
-      - name: Trigger Build and Release workflow
-        run: |
-          gh workflow run "Build and Release" \
-            --ref "$TAG" \
-            -f version="$VERSION"
-          echo "Triggered Build and Release for $TAG"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
+          existing=$(gh pr list --head main --base dev --state open --json url --jq '.[0].url // empty')
+          if [[ -n "$existing" ]]; then
+            echo "A pull request merging main into dev is already open: $existing"
+            exit 0
+          fi
+          # Through a pull request, so dev's review rule still applies. Any
+          # failure here fails the step.
+          gh pr create \
+            --base dev \
+            --head main \
+            --title "Merge main back into dev after $TAG" \
+            --body "Automated PR to sync \`main\` back into \`dev\` after release $TAG." \
+            --label "sync"
