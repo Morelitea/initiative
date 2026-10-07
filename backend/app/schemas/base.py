@@ -5,10 +5,12 @@ from __future__ import annotations
 import html
 from enum import Enum
 from functools import lru_cache
-from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Dict, Final, get_args, get_origin, get_type_hints
 
 import nh3
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
+
+from app.core.identity_boundary import LEXICAL_MENTIONS, MARKDOWN_MENTIONS
 
 # Hard ceiling on any plain-text field. Generous for names/titles/labels/tokens
 # while bounding both the stored size and the entity-decode loop in
@@ -36,6 +38,16 @@ RichTextStr = Annotated[str, _RichTextMarker()]
 RawTextStr = Annotated[str, _RawTextMarker()]
 """str that opts out of sanitization AND the length cap (large/opaque data)."""
 
+MentionStr = Annotated[str, MARKDOWN_MENTIONS]
+"""str that may mention people (``@[Name](id)``), translated for an installed
+plug-in (``app.core.identity_boundary.Mentions``)."""
+
+RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
+"""Rich text that may mention people, translated as :data:`MentionStr` is."""
+
+#: A Lexical editor state: a file's, a post's or a wiki page's body.
+LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
+
 
 # ``#`` and ``@`` are syntax wherever a name is written or read back. A comment
 # body spells a mention ``@[Name](12)`` or ``#task[Title](3)``; a handle renders
@@ -46,6 +58,9 @@ RESERVED_SIGILS: Final = frozenset("#@")
 
 #: Flat code raised for a name carrying one, mapped in ``errors.json``.
 RESERVED_SIGIL_CODE: Final = "RESERVED_SIGIL_IN_NAME"
+
+#: Flat code raised for a null on a field ``reject_null`` names.
+NULL_FIELD_CODE: Final = "FIELD_CANNOT_BE_NULL"
 
 
 # A name or title is a label: it is read in a sidebar, a breadcrumb, a card and
@@ -62,9 +77,22 @@ class _SigilFreeMarker:
 
 
 TitleStr = Annotated[str, _SigilFreeMarker()]
-"""str for a name/title a person types: sanitized, bounded, and rejected if it
-holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
+"""str for a name/title a person types: sanitized, trimmed, refused when blank,
+bounded, and rejected if it holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
 before the rules has to stay readable."""
+
+
+def _reject_none(value: Any) -> Any:
+    if value is None:
+        raise ValueError(NULL_FIELD_CODE)
+    return value
+
+
+def reject_null(*fields: str) -> Any:
+    """A validator for an update schema's fields where omitted means "keep" and
+    null has no meaning: the column it lands in is required. Assign it in the
+    class body (``_required = reject_null("name")``)."""
+    return field_validator(*fields)(_reject_none)
 
 
 def strip_to_plain_text(value: str) -> str:
@@ -169,7 +197,8 @@ class SanitizedBaseModel(BaseModel):
     (rich text) or :data:`RawTextStr` (large or opaque data) opt out of both,
     even when wrapped in ``Optional[...]``. Enum-typed fields are skipped.
 
-    Fields typed :data:`TitleStr` are additionally bounded at
+    Fields typed :data:`TitleStr` are additionally trimmed, refused when blank,
+    bounded at
     :data:`MAX_TITLE_LENGTH` and reject :data:`RESERVED_SIGILS`.
     """
 
@@ -195,6 +224,9 @@ class SanitizedBaseModel(BaseModel):
                 cleaned = strip_to_plain_text(value)
                 # Both checked on the stripped value, which is what gets stored.
                 if field_name in sigil_free:
+                    cleaned = cleaned.strip()
+                    if not cleaned:
+                        raise ValueError(f"{field_name} cannot be blank")
                     if len(cleaned) > MAX_TITLE_LENGTH:
                         raise ValueError(
                             f"{field_name} exceeds the maximum length of "

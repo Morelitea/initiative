@@ -70,7 +70,7 @@ export const AIConnectionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>
             {isEdit ? t("aiConnections.editTitle") : t("aiConnections.newTitle")}
@@ -78,7 +78,7 @@ export const AIConnectionDialog = ({
           <DialogDescription>
             {scope === "platform"
               ? t("aiConnections.platformDialogDescription")
-              : t("aiConnections.guildDialogDescription")}
+              : t("aiConnections.communityDialogDescription")}
           </DialogDescription>
         </DialogHeader>
 

@@ -15,7 +15,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { normalizeAppTarget } from "@/lib/entityResolver";
+import { normalizePluginTarget } from "@/lib/entityResolver";
 
 const BACKEND = path.resolve(__dirname, "../../../backend/app");
 const ROUTE_TREE = path.resolve(__dirname, "../routeTree.gen.ts");
@@ -51,9 +51,9 @@ describe("notification target paths", () => {
   it("only ever points at a page this app has", () => {
     const routes = appRoutes();
     const missing = backendTargetPaths().filter((target) => {
-      // Guild-relative targets are resolved against a guild elsewhere; these
+      // Community-relative targets are resolved against a community elsewhere; these
       // are the app-level ones the SPA navigates to verbatim.
-      const resolved = normalizeAppTarget(target);
+      const resolved = normalizePluginTarget(target);
       return !routes.has(resolved);
     });
 

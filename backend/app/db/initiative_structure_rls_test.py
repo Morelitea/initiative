@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeMember
 from app.services.tenant import initiatives as initiatives_service
@@ -60,9 +60,9 @@ async def _add(s, initiative, user_id: int, role_id: int) -> None:
 
 
 async def test_a_manager_adds_a_member(session, acting_user, role_session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     manager = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="project_manager",
@@ -76,9 +76,9 @@ async def test_a_manager_adds_a_member(session, acting_user, role_session):
 
 
 async def test_a_member_does_not_add_a_member(session, acting_user, role_session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -96,10 +96,10 @@ async def test_a_member_does_not_add_a_member(session, acting_user, role_session
 async def test_a_member_joins_an_open_initiative_and_not_a_private_one(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     open_one = await create_initiative(session, a.guild, a.user, join_policy="open")
     private_one = await create_initiative(session, a.guild, a.user)
-    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     open_role = await _member_role_id(session, open_one, a.guild.id)
     private_role = await _member_role_id(session, private_one, a.guild.id)
 
@@ -116,7 +116,7 @@ async def test_a_member_joins_an_open_initiative_and_not_a_private_one(
 
 async def test_a_content_grant_manages_no_roster(session, acting_user, role_session):
     """Editing existing content is not membership management."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session, user=support, guild=a.guild, access_level="read_write"
@@ -137,7 +137,7 @@ async def test_a_settings_rung_beside_read_write_manages_the_roster(
 ):
     """The two asks together: the rung names the surface, the read_write grant
     lets it be changed — the roster included, at either rung."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session, user=support, guild=a.guild, access_level=rung, purpose="settings"
@@ -156,7 +156,7 @@ async def test_a_settings_rung_beside_read_write_manages_the_roster(
 async def test_a_settings_rung_alone_reads_the_roster_and_does_not_write_it(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session, user=support, guild=a.guild, access_level="admin", purpose="settings"
@@ -176,9 +176,9 @@ async def test_a_settings_rung_alone_reads_the_roster_and_does_not_write_it(
 async def test_the_administrator_adds_a_member_anywhere(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(session, a.guild, a.user)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     newcomer = await create_user(session)
     await create_guild_membership(session, user=newcomer, guild=a.guild)
     role_id = await _member_role_id(session, initiative, a.guild.id)

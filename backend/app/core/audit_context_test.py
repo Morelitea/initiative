@@ -22,9 +22,33 @@ def test_a_request_carries_its_id_and_where_it_came_from():
             "source_ip": "203.0.113.7",
             "user_agent": "Firefox/1",
         }
+        assert audit_context.client_ip() == "203.0.113.7"
+        assert audit_context.client_user_agent() == "Firefox/1"
     finally:
         audit_context.end(token)
     assert audit_context.current() is None
+    assert audit_context.client_ip() is None
+    assert audit_context.client_user_agent() is None
+
+
+@pytest.mark.parametrize(
+    ("peer", "kept"),
+    [
+        ("fe80::1%eth0", "fe80::1"),
+        ("2001:DB8::1", "2001:db8::1"),
+        ("203.0.113.9", "203.0.113.9"),
+        ("testclient", None),
+        (None, None),
+    ],
+)
+def test_the_address_is_kept_as_an_inet_column_takes_it(peer, kept):
+    """Normalized, without an interface zone, and ``None`` for a peer that
+    is not an address."""
+    _, token = audit_context.begin(request_id="x", source_ip=peer)
+    try:
+        assert audit_context.client_ip() == kept
+    finally:
+        audit_context.end(token)
 
 
 def test_a_long_user_agent_is_cut_to_a_length():

@@ -32,15 +32,17 @@ describe("formatDiscriminator", () => {
 });
 
 describe("getUserDisplayName", () => {
-  it("prefers a name the guild sent", () => {
-    expect(getUserDisplayName({ ...withHandle, full_name: "Jordan Drako" })).toBe("Jordan Drako");
+  it("prefers a community name", () => {
+    expect(getUserDisplayName({ ...withHandle, display_name: "Jordan Drako" })).toBe(
+      "Jordan Drako"
+    );
   });
 
   it("falls back to the handle", () => {
-    // A guild that shows handles sends no name at all, so this is the ordinary
-    // case rather than an edge one.
+    // Most members set no community name, so this is the ordinary case
+    // rather than an edge one.
     expect(getUserDisplayName(withHandle)).toBe("foobar#0012");
-    expect(getUserDisplayName({ ...withHandle, full_name: "   " })).toBe("foobar#0012");
+    expect(getUserDisplayName({ ...withHandle, display_name: "   " })).toBe("foobar#0012");
   });
 
   it("keeps rendering the handle for an account no longer in use", () => {

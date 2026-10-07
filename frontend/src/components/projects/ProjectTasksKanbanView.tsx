@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  PropertyDefinitionRead,
   TaskListRead,
   TaskPriority,
   TaskStatusRead,
@@ -29,10 +30,11 @@ import {
 import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { Badge } from "@/components/ui/badge";
+import { MentionText } from "@/components/user/MentionText";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
-import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
@@ -55,6 +57,9 @@ type ProjectTasksKanbanViewProps = {
   onToggleCollapse: (statusId: number) => void;
   onArchiveDoneTasks?: (statusId: number) => void;
   isArchivingDoneTasks?: boolean;
+  /** The properties the cards can show. When given, the board asks for none:
+   *  a listing's preview has no initiative to ask. */
+  propertyDefinitions?: PropertyDefinitionRead[];
 };
 
 export const ProjectTasksKanbanView = ({
@@ -75,6 +80,7 @@ export const ProjectTasksKanbanView = ({
   onToggleCollapse,
   onArchiveDoneTasks,
   isArchivingDoneTasks,
+  propertyDefinitions: givenDefinitions,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
@@ -83,7 +89,11 @@ export const ProjectTasksKanbanView = ({
   // the table's property columns, so the menu lists the properties a task
   // here can actually carry. No default-hidden ids: a board that has never
   // been configured shows everything, as it did before the menu existed.
-  const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
+  const { data: fetchedDefinitions = [] } = useProperties({
+    initiativeId,
+    enabled: !givenDefinitions,
+  });
+  const propertyDefinitions = givenDefinitions ?? fetchedDefinitions;
   // The hook holds this in state, so its identity is stable between changes —
   // which is what lets the memoized card skip re-rendering on every parent pass.
   const [fieldVisibility, setFieldVisibility] = usePersistedColumnVisibility(
@@ -97,6 +107,17 @@ export const ProjectTasksKanbanView = ({
     [fieldVisibility, propertyDefinitions]
   );
 
+  // The people the cards' excerpts mention, asked about once for the board.
+  const excerpts = useMemo(
+    () =>
+      visibleFields.shows("description")
+        ? Object.values(groupedTasks).flatMap((tasks) =>
+            tasks.flatMap((task) => task.description_excerpt ?? [])
+          )
+        : [],
+    [groupedTasks, visibleFields]
+  );
+
   const taskStatusesLength = taskStatuses.length;
   // Basis rather than min-width: it is what the collapse animates.
   const columnBasis = cn(
@@ -105,62 +126,65 @@ export const ProjectTasksKanbanView = ({
   );
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={kanbanCollisionDetection}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDragCancel={onDragCancel}
-    >
-      <div className="mb-3 flex justify-end">
-        <KanbanFieldsMenu
-          propertyDefinitions={propertyDefinitions}
-          visibility={fieldVisibility}
-          onChange={setFieldVisibility}
-        />
-      </div>
-      <div
-        ref={scrollContainerRef}
-        className="scrollbar-thin cursor-grab overflow-x-auto pb-4"
-        data-kanban-scroll-container
+    <MentionedPeopleScope>
+      <ReportMentionedPeople texts={excerpts} />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={kanbanCollisionDetection}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
       >
-        <div className="flex gap-4">
-          {taskStatuses.map((status) => {
-            const isCollapsed = collapsedStatusIds.has(status.id);
-            return (
-              <KanbanColumn
-                key={status.id}
-                status={status}
-                tasks={groupedTasks[status.id] ?? []}
-                canWrite={canReorderTasks}
-                priorityVariant={priorityVariant}
-                visibleFields={visibleFields}
-                taskHref={taskHref}
-                collapsed={isCollapsed}
-                onToggleCollapse={onToggleCollapse}
-                taskCount={groupedTasks[status.id]?.length ?? 0}
-                className={cn(
-                  "max-h-[70vh] min-h-[70vh] shrink-0 transition-[flex-basis,flex-grow] duration-200",
-                  isCollapsed ? "grow-0 basis-12" : columnBasis
-                )}
-                onArchiveDoneTasks={onArchiveDoneTasks}
-                isArchiving={isArchivingDoneTasks}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <DragOverlay>
-        {activeTask ? (
-          <TaskDragOverlay
-            task={activeTask}
-            priorityVariant={priorityVariant}
-            visibleFields={visibleFields}
+        <div className="mb-3 flex justify-end">
+          <KanbanFieldsMenu
+            propertyDefinitions={propertyDefinitions}
+            visibility={fieldVisibility}
+            onChange={setFieldVisibility}
           />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        </div>
+        <div
+          ref={scrollContainerRef}
+          className="scrollbar-thin cursor-grab overflow-x-auto pb-4"
+          data-kanban-scroll-container
+        >
+          <div className="flex gap-4">
+            {taskStatuses.map((status) => {
+              const isCollapsed = collapsedStatusIds.has(status.id);
+              return (
+                <KanbanColumn
+                  key={status.id}
+                  status={status}
+                  tasks={groupedTasks[status.id] ?? []}
+                  canWrite={canReorderTasks}
+                  priorityVariant={priorityVariant}
+                  visibleFields={visibleFields}
+                  taskHref={taskHref}
+                  collapsed={isCollapsed}
+                  onToggleCollapse={onToggleCollapse}
+                  taskCount={groupedTasks[status.id]?.length ?? 0}
+                  className={cn(
+                    "max-h-[70vh] min-h-[70vh] shrink-0 transition-[flex-basis,flex-grow] duration-200",
+                    isCollapsed ? "grow-0 basis-12" : columnBasis
+                  )}
+                  onArchiveDoneTasks={onArchiveDoneTasks}
+                  isArchiving={isArchivingDoneTasks}
+                />
+              );
+            })}
+          </div>
+        </div>
+        <DragOverlay>
+          {activeTask ? (
+            <TaskDragOverlay
+              task={activeTask}
+              priorityVariant={priorityVariant}
+              visibleFields={visibleFields}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </MentionedPeopleScope>
   );
 };
 
@@ -211,8 +235,8 @@ const TaskDragOverlay = ({
       <div className="space-y-1">
         <p className="font-medium">{task.title}</p>
         {shows("description") && task.description_excerpt ? (
-          <p className="text-muted-foreground text-xs">
-            {truncateText(task.description_excerpt, 80)}
+          <p className="line-clamp-2 text-muted-foreground text-xs">
+            <MentionText text={task.description_excerpt} disableLink />
           </p>
         ) : null}
       </div>

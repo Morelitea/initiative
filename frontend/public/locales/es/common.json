@@ -1,6 +1,8 @@
 {
   "user": "Usuario",
   "userWithId": "Usuario #{{id}}",
+  "formerMember": "Exmiembro",
+  "mentionNotLoaded": "No se pudo cargar este nombre",
   "save": "Guardar",
   "cancel": "Cancelar",
   "delete": "Eliminar",
@@ -16,6 +18,11 @@
   "submit": "Enviar",
   "reset": "Restablecer",
   "done": "Listo",
+  "pullToRefresh": {
+    "pull": "Desliza para actualizar",
+    "release": "Suelta para actualizar",
+    "refreshing": "Actualizando…"
+  },
   "toolViewFilter": {
     "label": "Mostrar",
     "all": "Todos",
@@ -112,6 +119,11 @@
     "advancedOptions": "Opciones avanzadas"
   },
   "deletedUserName": "Usuario eliminado #{{id}}",
+  "subToolDuplicate": {
+    "action": "Duplicar",
+    "duplicating": "Duplicando…",
+    "done": "Duplicado"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archivo",
@@ -124,12 +136,27 @@
       "archived": "«{{name}}» archivado",
       "unarchived": "«{{name}}» ha vuelto"
     },
+    "duplicate": {
+      "title": "Duplicar",
+      "description": "Haz una copia con todo lo que contiene, en esta iniciativa o en otra donde puedas crearlo.",
+      "action": "Duplicar",
+      "dialogTitle": "Duplicar «{{name}}»",
+      "initiative": "Iniciativa",
+      "defaultName": "{{name}} (Copia)",
+      "duplicating": "Duplicando…",
+      "duplicated": "Copiado en {{initiative}}",
+      "error": "No se pudo hacer la copia."
+    },
+    "template": {
+      "title": "Plantilla",
+      "description": "Una plantilla está pensada para copiarse en lugar de trabajarse directamente, y aparece con las plantillas de su iniciativa.",
+      "toggle": "Alternar estado de plantilla"
+    },
     "export": {
       "title": "Exportar",
       "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."
     },
     "title": "Configuración",
-    "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
     "tabDetails": "Detalles",
     "tabAccess": "Acceso",
     "tabAdvanced": "Avanzado",
@@ -159,6 +186,47 @@
     "permissionRequired": "Permiso requerido",
     "permissionRequiredDescription": "No tienes acceso a esta sección de esta configuración."
   },
+  "bulkActions": {
+    "editTags": "Editar etiquetas",
+    "duplicate": "Duplicar",
+    "duplicated_one": "{{count}} copia creada",
+    "duplicated_other": "{{count}} copias creadas",
+    "duplicateError": "No se pudieron crear las copias en este momento.",
+    "deleteConfirm_one": "¿Eliminar {{count}} elemento?",
+    "deleteConfirm_other": "¿Eliminar {{count}} elementos?",
+    "deleted_one": "{{count}} elemento eliminado",
+    "deleted_other": "{{count}} elementos eliminados",
+    "deleteError": "No se pudo eliminar en este momento.",
+    "needEdit": "Necesitas acceso de edición a cada elemento seleccionado.",
+    "needDelete": "Solo puedes eliminar elementos de tu propiedad."
+  },
+  "bulkTags": {
+    "title": "Editar etiquetas",
+    "descriptionAdd_one": "Agregar etiquetas a {{count}} elemento seleccionado.",
+    "descriptionAdd_other": "Agregar etiquetas a {{count}} elementos seleccionados.",
+    "descriptionRemove_one": "Eliminar etiquetas de {{count}} elemento seleccionado.",
+    "descriptionRemove_other": "Eliminar etiquetas de {{count}} elementos seleccionados.",
+    "tabAdd": "Agregar",
+    "tabRemove": "Eliminar",
+    "addPlaceholder": "Seleccionar etiquetas para agregar...",
+    "removePlaceholder": "Seleccionar etiquetas para eliminar...",
+    "noTags": "No hay etiquetas en los elementos seleccionados.",
+    "applying": "Aplicando…",
+    "apply": "Aplicar",
+    "tagsAdded_one": "Etiquetas agregadas a {{count}} elemento",
+    "tagsAdded_other": "Etiquetas agregadas a {{count}} elementos",
+    "tagsRemoved_one": "Etiquetas eliminadas de {{count}} elemento",
+    "tagsRemoved_other": "Etiquetas eliminadas de {{count}} elementos",
+    "updateError": "No se pudieron actualizar las etiquetas en este momento."
+  },
+  "toolIndex": {
+    "lastUpdated": "Última actualización",
+    "tags": "Etiquetas",
+    "emptyArchivedTitle": "No hay nada archivado",
+    "emptyArchivedBody": "Lo que archives aparece aquí, de solo lectura, hasta que lo recuperes.",
+    "emptyTemplatesTitle": "Aún no hay plantillas",
+    "emptyTemplatesBody": "Marca un elemento como plantilla en su configuración para reutilizarlo más adelante."
+  },
   "toolbar": {
     "filters": "Filtros",
     "filtersActive_one": "Filtros ({{count}} activo)",
@@ -167,6 +235,9 @@
     "moreActions": "Más acciones",
     "selectItems": "Seleccionar elementos",
     "view": "Vista",
+    "viewGrid": "Cuadrícula",
+    "viewList": "Lista",
+    "viewTags": "Etiquetas",
     "details": "Detalles"
   },
   "emojiPicker": {
@@ -258,6 +329,22 @@
     "description": "No hay nada en esta dirección. Puede que el enlace esté mal escrito o que la página se haya movido."
   },
   "nativeUpdate": {
-    "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}."
+    "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}.",
+    "desktopReady": "Initiative ha descargado su actualización. Reinicia para terminar.",
+    "restart": "Reiniciar"
+  },
+  "toolHeader": {
+    "rename": "Cambiar nombre"
+  },
+  "toolChest": {
+    "status": "Estado",
+    "active": "Activo",
+    "archived": "Archivado",
+    "none": "Ninguna",
+    "template": "Plantilla"
+  },
+  "days": {
+    "today": "Hoy",
+    "yesterday": "Ayer"
   }
 }

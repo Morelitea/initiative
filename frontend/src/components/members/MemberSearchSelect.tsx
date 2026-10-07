@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 /** The slim user shape these pickers render (the search endpoints' `UserSummary`). */
 export type MemberSummary = Pick<
   UserSummary,
-  "id" | "username" | "discriminator" | "full_name" | "avatar_url" | "status" | "guild_role"
+  "id" | "username" | "discriminator" | "display_name" | "avatar_url" | "status" | "community_role"
 >;
 
 /** A member we can render from partial info — a full {@link MemberSummary} from
@@ -94,7 +94,7 @@ const MemberAvatar = ({ user, className }: { user: MemberLike; className?: strin
   const src = getAvatarSrc(user);
   const label = getUserDisplayName(user);
   return (
-    <Avatar className={cn("h-6 w-6 border text-[10px]", className)}>
+    <Avatar className={cn("h-6 w-6 border text-3xs", className)}>
       {src ? <AvatarImage src={src} alt={label} /> : null}
       <AvatarFallback userId={user.id}>{getInitialsForUser(user)}</AvatarFallback>
     </Avatar>
@@ -120,7 +120,7 @@ export type MemberToken = {
 };
 
 interface MemberMultiSelectProps {
-  /** Which RLS-scoped roster to search (guild / initiative / project). */
+  /** Which RLS-scoped roster to search (community / initiative / project). */
   scope: MemberSearchScope;
   /** Ties the trigger to a `<Label htmlFor>`. A `combobox` takes no accessible
    *  name from its own contents, so without this the control is unnamed. */
@@ -266,14 +266,14 @@ export const MemberMultiSelect = ({
               {selectedIds.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {selectedIds.map((id) => {
-                    const user = seen.get(id) ?? { id, full_name: null };
+                    const user = seen.get(id) ?? { id, display_name: null };
                     const label = getUserDisplayName(user);
                     return (
                       <span
                         key={id}
                         className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary py-0.5 pr-1.5 pl-1 font-medium text-secondary-foreground text-xs"
                       >
-                        <MemberAvatar user={user} className="h-4 w-4 text-[8px]" />
+                        <MemberAvatar user={user} className="h-4 w-4 text-3xs" />
                         <span className="truncate">{label}</span>
                         <button
                           type="button"
@@ -459,7 +459,7 @@ export const MemberSelect = ({
             className={cn("w-full justify-between", !selected && "text-muted-foreground")}
           >
             <span className="flex min-w-0 items-center gap-2">
-              {selected ? <MemberAvatar user={selected} className="h-5 w-5 text-[9px]" /> : null}
+              {selected ? <MemberAvatar user={selected} className="h-5 w-5 text-3xs" /> : null}
               <span className="truncate">{triggerLabel}</span>
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />

@@ -6,9 +6,7 @@ keep the account's own half out by construction.
 """
 
 from app.db.user_columns import (
-    GUILD_MEMBER_PROFILE_COLUMNS,
     PRIVATE_COLUMNS,
-    PUBLIC_PROFILE_COLUMNS,
     PUBLISHED_COLUMNS,
     all_user_columns,
 )
@@ -19,20 +17,6 @@ def test_every_named_column_exists_on_the_model():
     view that cannot be created."""
     unknown = PUBLISHED_COLUMNS - all_user_columns()
     assert not unknown, f"user_columns names columns users does not have: {unknown}"
-
-
-def test_the_guild_projection_contains_the_public_one():
-    """A guild shows a person everything their profile shows, plus their name.
-
-    The two views would otherwise disagree about the same account, and a
-    surface that switched between them would gain or lose fields for no reason
-    the reader could see.
-    """
-    missing = set(PUBLIC_PROFILE_COLUMNS) - set(GUILD_MEMBER_PROFILE_COLUMNS)
-    assert not missing, f"the guild projection is missing {sorted(missing)}"
-    assert set(GUILD_MEMBER_PROFILE_COLUMNS) - set(PUBLIC_PROFILE_COLUMNS) == {
-        "full_name"
-    }
 
 
 def test_the_families_do_not_publish_the_account():

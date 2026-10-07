@@ -119,6 +119,8 @@ type CalendarViewProps = {
   isLoading?: boolean;
   /** Hide the list view option (e.g. for tasks where list doesn't make sense) */
   hideListView?: boolean;
+  /** The page offers the views in its own toolbar, so the calendar does not. */
+  hideViewSwitch?: boolean;
   /** Multi-select on the list view (opt-in — only the list view uses these, and
    *  only the entries `isEntrySelectable` accepts get a checkbox). */
   selectionActive?: boolean;
@@ -134,7 +136,8 @@ type ViewModeLabel =
   | "calendar.year"
   | "calendar.list";
 
-const VIEW_MODE_CONFIG: {
+/** The calendar's views, for a page that offers them in its own toolbar. */
+export const CALENDAR_VIEW_OPTIONS: {
   mode: CalendarViewMode;
   icon: typeof Calendar;
   labelKey: ViewModeLabel;
@@ -157,6 +160,7 @@ function CalendarHeader({
   onFocusDateChange,
   periodLabel,
   hideListView = false,
+  hideViewSwitch = false,
 }: {
   viewMode: CalendarViewMode;
   onViewModeChange: (mode: CalendarViewMode) => void;
@@ -164,6 +168,7 @@ function CalendarHeader({
   onFocusDateChange: (date: Date) => void;
   periodLabel: string;
   hideListView?: boolean;
+  hideViewSwitch?: boolean;
 }) {
   const { t } = useTranslation(["common"]);
 
@@ -212,37 +217,39 @@ function CalendarHeader({
       </div>
 
       {/* Right: view mode switcher */}
-      <TooltipProvider delayDuration={300}>
-        <fieldset
-          className="flex items-center gap-0.5 rounded-lg bg-muted p-1"
-          aria-label={t("common:calendar.viewMode")}
-        >
-          {VIEW_MODE_CONFIG.filter(({ mode }) => !(hideListView && mode === "list")).map(
-            ({ mode, icon: Icon, labelKey }) => (
-              <Tooltip key={mode}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-pressed={viewMode === mode}
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-sm transition-colors",
-                      "hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      viewMode === mode
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-accent/50"
-                    )}
-                    onClick={() => onViewModeChange(mode)}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">{t(labelKey)}</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t(labelKey)}</TooltipContent>
-              </Tooltip>
-            )
-          )}
-        </fieldset>
-      </TooltipProvider>
+      {hideViewSwitch ? null : (
+        <TooltipProvider delayDuration={300}>
+          <fieldset
+            className="flex items-center gap-0.5 rounded-lg bg-muted p-1"
+            aria-label={t("common:calendar.viewMode")}
+          >
+            {CALENDAR_VIEW_OPTIONS.filter(({ mode }) => !(hideListView && mode === "list")).map(
+              ({ mode, icon: Icon, labelKey }) => (
+                <Tooltip key={mode}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-pressed={viewMode === mode}
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-md px-2 py-1.5 font-medium text-sm transition-colors",
+                        "hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        viewMode === mode
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-accent/50"
+                      )}
+                      onClick={() => onViewModeChange(mode)}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">{t(labelKey)}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t(labelKey)}</TooltipContent>
+                </Tooltip>
+              )
+            )}
+          </fieldset>
+        </TooltipProvider>
+      )}
     </div>
   );
 }
@@ -336,6 +343,7 @@ export const CalendarView = ({
   weekStartsOn = 0,
   isLoading = false,
   hideListView = false,
+  hideViewSwitch = false,
   selectionActive = false,
   selectedEntryIds,
   isEntrySelectable,
@@ -456,6 +464,7 @@ export const CalendarView = ({
         onFocusDateChange={onFocusDateChange}
         periodLabel={periodLabel}
         hideListView={hideListView}
+        hideViewSwitch={hideViewSwitch}
       />
 
       {dndEnabled ? (
@@ -470,7 +479,7 @@ export const CalendarView = ({
           <DragOverlay>
             {activeEntry ? (
               <div
-                className="pointer-events-none flex items-center gap-1 rounded px-2 py-1 font-medium text-[11px] text-white shadow-lg"
+                className="pointer-events-none flex items-center gap-1 rounded px-2 py-1 font-medium text-2xs text-white shadow-lg"
                 style={{ backgroundColor: activeEntry.color || "var(--primary)" }}
               >
                 <span className="truncate">{activeEntry.title}</span>

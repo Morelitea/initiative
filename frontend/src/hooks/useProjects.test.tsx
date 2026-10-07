@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import { buildProject } from "@/__tests__/factories";
 import type { ProjectListResponse } from "@/api/generated/initiativeAPI.schemas";
-import { getListProjectsApiV1CGuildIdProjectsGetQueryKey } from "@/api/generated/projects/projects";
+import { getListProjectsQueryKey } from "@/api/generated/projects/projects";
 
-const GUILD = 1;
+const COMMUNITY = 1;
 
 const list = (...items: ReturnType<typeof buildProject>[]): ProjectListResponse => ({
   items,
@@ -28,21 +28,21 @@ describe("project list cache keys", () => {
     const qc = new QueryClient();
     const project = buildProject({ id: 7, is_favorited: false });
 
-    // The shapes the app actually caches: the sidebar's guild-wide read, an
+    // The shapes the app actually caches: the sidebar's community-wide read, an
     // initiative's tab, and that tab's Templates and Archive views.
     const keys = [
-      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD),
-      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, { initiative_id: 5 }),
-      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, {
+      getListProjectsQueryKey(COMMUNITY),
+      getListProjectsQueryKey(COMMUNITY, { initiative_id: 5 }),
+      getListProjectsQueryKey(COMMUNITY, {
         is_template: true,
         initiative_id: 5,
       }),
-      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, { archived: true, initiative_id: 5 }),
+      getListProjectsQueryKey(COMMUNITY, { archived: true, initiative_id: 5 }),
     ];
     for (const key of keys) qc.setQueryData(key, list(project));
 
     qc.setQueriesData<ProjectListResponse>(
-      { queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD) },
+      { queryKey: getListProjectsQueryKey(COMMUNITY) },
       (prev) =>
         prev && {
           ...prev,
@@ -58,13 +58,13 @@ describe("project list cache keys", () => {
     }
   });
 
-  it("does not reach another guild's lists", () => {
+  it("does not reach another community's lists", () => {
     const qc = new QueryClient();
-    const otherKey = getListProjectsApiV1CGuildIdProjectsGetQueryKey(2, { initiative_id: 5 });
+    const otherKey = getListProjectsQueryKey(2, { initiative_id: 5 });
     qc.setQueryData(otherKey, list(buildProject({ id: 7, is_favorited: false })));
 
     qc.setQueriesData<ProjectListResponse>(
-      { queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD) },
+      { queryKey: getListProjectsQueryKey(COMMUNITY) },
       (prev) => prev && { ...prev, items: prev.items.map((p) => ({ ...p, is_favorited: true })) }
     );
 

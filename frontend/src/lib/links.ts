@@ -4,12 +4,14 @@
  * that points somebody at a guide.
  */
 
-export const REPO_URL = "https://github.com/Morelitea/initiative";
+import type { DesktopOs } from "@/pages/landing/platform";
+
+export const REPO_URL = "https://github.com/beyonders-studio/initiative";
 export const RELEASES_URL = `${REPO_URL}/releases`;
 export const CHANGELOG_URL = `${REPO_URL}/blob/main/CHANGELOG.md`;
 
 /** The English help center. Built from `docs/en/` and published on `main`. */
-export const DOCS_URL = "https://morelitea.github.io/initiative/en/";
+export const DOCS_URL = "https://beyonders-studio.github.io/initiative/en/";
 
 /** A page of the help center by its path under `docs/en/`, with or without a
  *  leading slash; a fragment carries through untouched. */
@@ -31,7 +33,22 @@ export const COOKIE_DOCS_URL = docsUrl(
 export const androidApkUrl = (version: string): string =>
   `${RELEASES_URL}/download/v${version}/initiative-${version}.apk`;
 
+const DESKTOP_INSTALLER = {
+  windows: "-setup.exe",
+  mac: ".dmg",
+  linux: ".deb",
+} as const;
+
+/** The desktop installer for one computer, attached to the same release as
+ *  the APK and named the same way (see `desktop-app.yml`). */
+/** The app's Google Play listing. */
+export const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=studio.beyonders.initiative";
+
+export const desktopInstallerUrl = (version: string, os: DesktopOs): string =>
+  `${RELEASES_URL}/download/v${version}/initiative-${version}${DESKTOP_INSTALLER[os]}`;
+
 /** Adds the repo to Obtainium, which then keeps the Android app updated from
  *  its releases. The same link the install guide carries. */
 export const OBTAINIUM_URL =
-  "https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative";
+  "https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fbeyonders-studio%2Finitiative";

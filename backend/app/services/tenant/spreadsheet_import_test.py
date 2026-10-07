@@ -7,10 +7,10 @@ while something checks that they do.
 
 import pytest
 
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.services.export.spreadsheet import render_xlsx
-from app.services.tenant.documents_spreadsheet import (
-    DocumentContentError,
+from app.services.tenant.files_spreadsheet import (
+    FileContentError,
     normalize_spreadsheet_content,
 )
 from app.services.tenant.spreadsheet_import import parse_spreadsheet_file
@@ -75,14 +75,14 @@ def test_a_tsv_is_split_on_tabs() -> None:
 
 
 def test_a_file_that_is_not_a_spreadsheet_is_refused() -> None:
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("notes.pdf", b"%PDF-1.4")
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_UNREADABLE_FILE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_UNREADABLE_FILE
 
 
 def test_an_xlsx_that_is_not_one_is_refused() -> None:
-    with pytest.raises(DocumentContentError):
+    with pytest.raises(FileContentError):
         parse_spreadsheet_file("broken.xlsx", b"not a zip at all")
 
 
@@ -264,10 +264,10 @@ def test_a_csv_with_too_many_cells_is_refused_rather_than_trimmed(monkeypatch) -
     monkeypatch.setattr(spreadsheet_import, "MAX_IMPORT_CELLS", 500)
     row = b",".join(b"x" for _ in range(50)) + b"\n"
 
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("big.csv", row * 40)
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
 def test_a_workbook_with_too_many_tabs_is_refused() -> None:
@@ -281,10 +281,10 @@ def test_a_workbook_with_too_many_tabs_is_refused() -> None:
     buffer = _io.BytesIO()
     book.save(buffer)
 
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("many.xlsx", buffer.getvalue())
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
 def test_a_workbook_declaring_more_than_one_import_reads_is_refused(
@@ -306,10 +306,10 @@ def test_a_workbook_declaring_more_than_one_import_reads_is_refused(
         lambda *a, **k: pytest.fail("the workbook was opened"),
     )
 
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("big.xlsx", buffer.getvalue())
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
 def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
@@ -324,10 +324,10 @@ def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
     buffer = _io.BytesIO()
     book.save(buffer)
 
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("sparse.xlsx", buffer.getvalue())
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
 def test_a_sparse_sheet_with_a_distant_corner_is_refused() -> None:
@@ -344,7 +344,7 @@ def test_a_sparse_sheet_with_a_distant_corner_is_refused() -> None:
     buffer = _io.BytesIO()
     book.save(buffer)
 
-    with pytest.raises(DocumentContentError) as excinfo:
+    with pytest.raises(FileContentError) as excinfo:
         parse_spreadsheet_file("sparse.xlsx", buffer.getvalue())
 
-    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+    assert excinfo.value.code == FileMessages.SPREADSHEET_FILE_TOO_LARGE

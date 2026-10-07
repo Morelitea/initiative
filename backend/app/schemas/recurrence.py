@@ -28,15 +28,19 @@ _DESCRIPTION = (
 OccurrenceScope = Literal["this", "following", "all"]
 
 TaskRule = Annotated[
-    str, Field(max_length=4000, description=_DESCRIPTION), AfterValidator(_task_rule)
+    str,
+    Field(max_length=recurrence.MAX_LENGTH, description=_DESCRIPTION),
+    AfterValidator(_task_rule),
 ]
 EventRule = Annotated[
-    str, Field(max_length=4000, description=_DESCRIPTION), AfterValidator(_event_rule)
+    str,
+    Field(max_length=recurrence.MAX_LENGTH, description=_DESCRIPTION),
+    AfterValidator(_event_rule),
 ]
 
 
 class RecurrencePreviewRequest(SanitizedBaseModel):
-    rule: str = Field(max_length=4000)
+    rule: str = Field(max_length=recurrence.MAX_LENGTH)
     #: The series start: an event's start, a task's due date.
     start: datetime
     #: The zone the rule's days were picked in; UTC without one, and for an

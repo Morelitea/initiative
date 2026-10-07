@@ -17,6 +17,9 @@ import secrets
 import unicodedata
 from typing import Final
 
+from app.core.errors import CodedError
+from app.core.messages import UsernameMessages
+
 MIN_LENGTH: Final = 3
 MAX_LENGTH: Final = 32
 
@@ -165,12 +168,10 @@ _NOUNS: Final = (
 )
 
 
-class UsernameError(ValueError):
-    """A name part that cannot be stored, carrying a flat reason code."""
+class UsernameError(CodedError, ValueError):
+    """A name part that cannot be stored, carrying a ``UsernameMessages`` code."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 422
 
 
 def validate(name: str) -> str:
@@ -182,25 +183,25 @@ def validate(name: str) -> str:
     candidate = (name or "").strip().lower()
 
     if len(candidate) < MIN_LENGTH:
-        raise UsernameError("USERNAME_TOO_SHORT")
+        raise UsernameError(UsernameMessages.TOO_SHORT)
     if len(candidate) > MAX_LENGTH:
-        raise UsernameError("USERNAME_TOO_LONG")
+        raise UsernameError(UsernameMessages.TOO_LONG)
 
     for character in candidate:
         if character not in _ALLOWED:
-            raise UsernameError("USERNAME_INVALID_CHARACTERS")
+            raise UsernameError(UsernameMessages.INVALID_CHARACTERS)
 
     if candidate[0] not in _LOWER:
-        raise UsernameError("USERNAME_MUST_START_WITH_LETTER")
+        raise UsernameError(UsernameMessages.MUST_START_WITH_LETTER)
     if candidate[-1] in _SEPARATORS:
-        raise UsernameError("USERNAME_INVALID_CHARACTERS")
+        raise UsernameError(UsernameMessages.INVALID_CHARACTERS)
     if any(
         first in _SEPARATORS and second in _SEPARATORS
         for first, second in zip(candidate, candidate[1:])
     ):
-        raise UsernameError("USERNAME_INVALID_CHARACTERS")
+        raise UsernameError(UsernameMessages.INVALID_CHARACTERS)
     if candidate in RESERVED:
-        raise UsernameError("USERNAME_RESERVED")
+        raise UsernameError(UsernameMessages.RESERVED)
 
     return candidate
 
@@ -246,24 +247,6 @@ def slugify(seed: str | None) -> str | None:
     if len(slug) < MIN_LENGTH or slug in RESERVED:
         return None
     return slug
-
-
-def from_full_name(full_name: str | None) -> str | None:
-    """A handle offered from a display name: first initial, then last name.
-
-    ``Jordan Janzen`` -> ``jjanzen``. A single-word name has no last name to
-    join, so it stands on its own. ``None`` when nothing usable survives —
-    including an address, which is never the source of a handle.
-    """
-    text = (full_name or "").strip()
-    if not text:
-        return None
-    tokens = text.split()
-    if len(tokens) == 1:
-        return slugify(tokens[0])
-    # Joined before slugifying, so accent folding and the length and reserved
-    # rules all apply to the finished handle rather than to its halves.
-    return slugify(f"{tokens[0][0]}{tokens[-1]}")
 
 
 def random_name() -> str:

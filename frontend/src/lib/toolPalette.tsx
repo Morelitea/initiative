@@ -12,7 +12,7 @@
  * every palette-enabled tool has one.
  *
  * These groups are what the palette shows while BROWSING. Once there is
- * something to search for, the guild index answers instead, across every kind
+ * something to search for, the community index answers instead, across every kind
  * of thing at once.
  */
 
@@ -23,9 +23,9 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import type { ToolPaletteListOptions } from "@/hooks/useToolPaletteList";
 import { useToolPaletteList } from "@/hooks/useToolPaletteList";
-import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
+import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
+import { fileIcon } from "@/lib/fileIcon";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
-import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
   id: number;
@@ -33,7 +33,7 @@ export interface PaletteItem {
   keywords: string[];
   /** Item icon; null falls back to the tool's registry icon. */
   icon: ReactNode | null;
-  /** Guild-relative target path. */
+  /** Community-relative target path. */
   path: string;
 }
 
@@ -76,29 +76,25 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       }));
     },
   },
-  [Tool.document]: {
-    useHeading: () => useGroupHeading(Tool.document),
+  [Tool.file]: {
+    useHeading: () => useGroupHeading(Tool.file),
     useItems: (ctx) => {
       // The 25 most recently updated. Narrowing by what was typed is the
       // index's job now, and it answers for every tool at once.
-      const query = useToolPaletteList(TOOL_HOOKS[Tool.document].listQuery, BROWSE_PAGE_HEAVY, ctx);
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.file].listQuery, BROWSE_PAGE_HEAVY, ctx);
       return (query.data?.items ?? []).map((doc) => {
-        const DocIcon = getDocumentIcon(
-          doc.document_type,
-          doc.file_content_type,
-          doc.original_filename
-        );
-        const color = getDocumentIconColor(
-          doc.document_type,
-          doc.file_content_type,
-          doc.original_filename
-        );
+        const { Icon: DocIcon, colorClass } = fileIcon({
+          file_type: doc.file_type,
+          mime_type: doc.file_content_type,
+          original_filename: doc.original_filename,
+          smart_link_url: doc.smart_link_url,
+        });
         return {
           id: doc.id,
           label: doc.name,
           keywords: [doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])],
-          icon: <DocIcon className={cn(color)} />,
-          path: toolDetailRoute(Tool.document, doc.initiative_id, doc.id),
+          icon: <DocIcon className={colorClass} />,
+          path: toolDetailRoute(Tool.file, doc.initiative_id, doc.id),
         };
       });
     },
@@ -166,7 +162,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       return (query.data?.items ?? []).map((post) => ({
         id: post.id,
         label: post.name,
-        keywords: [post.excerpt],
+        // What it says, not the markup of who it mentions.
+        keywords: [post.excerpt.replace(USER_MENTION_PATTERN, " ")],
         icon: null,
         path: toolDetailRoute(Tool.post, post.initiative_id, post.id),
       }));

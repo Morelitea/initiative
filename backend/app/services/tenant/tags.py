@@ -1,12 +1,11 @@
 """One code path for tag assignment across every taggable surface.
 
-``TOOL_TAG_LINKS`` is the registry: **every** ``Tool`` is taggable — a new tool
-that forgets to wire tags fails ``tools_test.py`` — and the content-level
-extras (tasks, queue items, calendar events, gallery images) are deliberately
-hard-coded in ``EXTRA_TAG_LINKS`` (they are sub-resources of a tool, not tools
-themselves). Everything an assignment surface needs — validation, replace-all,
-copy, bulk add/remove, serialization — lives here, so per-entity endpoints are
-wiring only.
+``TOOL_TAG_LINKS`` is the registry: **every** ``Tool`` is taggable, and the
+content-level extras (``TAGGABLE_EXTRAS``: tasks, queue items, calendar events,
+gallery images, wiki pages) are in ``EXTRA_TAG_LINKS``. Both derive from those
+names, finding each model by its table. Everything an assignment surface needs
+— validation, replace-all, copy, bulk add/remove, serialization — lives here,
+so per-entity endpoints are wiring only.
 
 A tag assignment is stored as one ``tagged_with`` edge in ``relationships``:
 the tagged thing is the source, the tag is the target. So a spec is no longer a
@@ -47,20 +46,11 @@ from app.core.relationships import (
     node_id,
 )
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.counter import CounterGroup
-from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery, GalleryImage
-from app.models.tenant.document import Document
-from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue, QueueItem
+from app.core.tools import KINDS, TAGGABLE_EXTRAS, Tool
+import app.db.base  # noqa: F401 — registers every model, so each is found by table
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.tag import Tag
-from app.models.tenant.wiki import Wiki, WikiPage
-from app.models.tenant.task import Task
 from app.schemas.tenant.tag import tag_summaries
 
 __all__ = [
@@ -115,27 +105,20 @@ class TagLinkSpec:
         return literal(node_base(self.kind), BigInteger) + entity_id
 
 
-# Every Tool is taggable — tools_test.py asserts this spans the enum.
+_MODELS = tool_models()
+
+# Every Tool is taggable: its model is the table named by its plural, and its
+# edges name it by its own kind.
 TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
-    Tool.project: TagLinkSpec(Project, SearchEntityType.project),
-    Tool.document: TagLinkSpec(Document, SearchEntityType.document),
-    Tool.queue: TagLinkSpec(Queue, SearchEntityType.queue),
-    Tool.counter_group: TagLinkSpec(CounterGroup, SearchEntityType.counter_group),
-    Tool.calendar: TagLinkSpec(Calendar, SearchEntityType.calendar),
-    Tool.dashboard: TagLinkSpec(Dashboard, SearchEntityType.dashboard),
-    Tool.post: TagLinkSpec(Post, SearchEntityType.post),
-    Tool.gallery: TagLinkSpec(Gallery, SearchEntityType.gallery),
-    Tool.wiki: TagLinkSpec(Wiki, SearchEntityType.wiki),
+    tool: TagLinkSpec(_MODELS[tool.plural], SearchEntityType(tool.value))
+    for tool in Tool
 }
 
 # Content-level extras: sub-resources of a tool that also carry tags. These are
 # the only non-Tool tag surfaces; anything else new should be a Tool.
 EXTRA_TAG_LINKS: dict[str, TagLinkSpec] = {
-    "task": TagLinkSpec(Task, SearchEntityType.task),
-    "queue_item": TagLinkSpec(QueueItem, SearchEntityType.queue_item),
-    "calendar_event": TagLinkSpec(CalendarEvent, SearchEntityType.calendar_event),
-    "gallery_image": TagLinkSpec(GalleryImage, SearchEntityType.gallery_image),
-    "wiki_page": TagLinkSpec(WikiPage, SearchEntityType.wiki_page),
+    name: TagLinkSpec(_MODELS[KINDS[name].table], SearchEntityType(name))
+    for name in TAGGABLE_EXTRAS
 }
 
 # Keyed by the wire name (`Tool.value` or the extra's key) — the bulk endpoint's

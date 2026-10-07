@@ -4,7 +4,7 @@
  * The served widget catalog is the authority, and a placed tile reads it. This
  * copy exists for the two places that have no catalog to read: the marketplace
  * preview, which is looking at a listing it has not installed and so has no
- * guild to fetch one from, and the widget tests, which run without a backend.
+ * community to fetch one from, and the widget tests, which run without a backend.
  *
  * `dashboards_test.py` is what would catch the served shapes and the declared
  * ones drifting; this file drifting from either shows up as a preview that

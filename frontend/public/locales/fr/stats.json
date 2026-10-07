@@ -1,9 +1,8 @@
 {
   "page": {
     "title": "Mes statistiques",
-    "subtitle": "Suivez votre productivité et vos indicateurs de complétion des tâches",
-    "guildFilterPlaceholder": "Sélectionner une communauté",
-    "allGuilds": "Tous les communautés",
+    "communityFilterPlaceholder": "Sélectionner une communauté",
+    "allCommunities": "Tous les communautés",
     "loading": "Chargement des statistiques\u2026",
     "error": "Échec du chargement des statistiques. Veuillez réessayer plus tard."
   },
@@ -33,7 +32,7 @@
     "assigned": "Assignées",
     "completed": "Terminées"
   },
-  "guildBreakdown": {
+  "communityBreakdown": {
     "title": "Tâches par communauté",
     "description": "Répartition des tâches terminées par communauté",
     "noData": "Aucune donnée de communauté disponible"

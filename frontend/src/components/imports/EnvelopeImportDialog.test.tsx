@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildInitiative } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -12,7 +12,7 @@ import { queryClient } from "@/lib/queryClient";
 
 import { EnvelopeImportDialog } from "./EnvelopeImportDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
@@ -23,7 +23,7 @@ const initiative = buildInitiative({
     manage: false,
     moderate: false,
     view: [],
-    create: [Tool.queue, Tool.document, Tool.project, Tool.gallery],
+    create: [Tool.queue, Tool.file, Tool.project, Tool.gallery],
   },
 });
 
@@ -31,7 +31,7 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: [initiative] }),
 }));
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 function selectFile(contents: object) {
   const input = screen.getByLabelText(/export file/i) as HTMLInputElement;
@@ -52,7 +52,7 @@ describe("EnvelopeImportDialog", () => {
   it("imports a matching envelope into the chosen initiative", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/envelope", async ({ request }) => {
+      communityHttp.post("/imports/envelope", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
@@ -81,7 +81,7 @@ describe("EnvelopeImportDialog", () => {
 
   it("refreshes the tool's list once the import lands", async () => {
     server.use(
-      guildHttp.post("/imports/envelope", () =>
+      communityHttp.post("/imports/envelope", () =>
         HttpResponse.json(
           { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
           { status: 201 }
@@ -104,7 +104,7 @@ describe("EnvelopeImportDialog", () => {
   it("sends a zipped export as it is, saying which tool it is for", async () => {
     let sent: string | null = null;
     server.use(
-      guildHttp.post("/imports/envelope/archive", async ({ request }) => {
+      communityHttp.post("/imports/envelope/archive", async ({ request }) => {
         sent = await request.text();
         return HttpResponse.json(
           { result: { entity_title: "Barovia maps", created: {}, unmatched_handles: [] } },
@@ -140,7 +140,7 @@ describe("EnvelopeImportDialog", () => {
     // imported yet: the server hands back a staged job and the question.
     const stagedJob = {
       id: 42,
-      guild_id: 1,
+      community_id: 1,
       created_by: 1,
       source: "initiative-project",
       params: {},
@@ -163,8 +163,8 @@ describe("EnvelopeImportDialog", () => {
     };
     let confirmed: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/envelope", () => HttpResponse.json(stagedJob, { status: 202 })),
-      guildHttp.post("/imports/jobs/42/confirm", async ({ request }) => {
+      communityHttp.post("/imports/envelope", () => HttpResponse.json(stagedJob, { status: 202 })),
+      communityHttp.post("/imports/jobs/42/confirm", async ({ request }) => {
         confirmed = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...stagedJob, status: "queued" });
       })
@@ -191,7 +191,7 @@ describe("EnvelopeImportDialog", () => {
 
   it("rejects a file whose type belongs to a different tool", async () => {
     renderWithProviders(<EnvelopeImportDialog tool={Tool.queue} open onOpenChange={() => {}} />);
-    selectFile({ type: "initiative-document", name: "Notes", schema_version: 1 });
+    selectFile({ type: "initiative-file", name: "Notes", schema_version: 1 });
     expect(await screen.findByText(/import it from that tool's page/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^import$/i })).toBeDisabled();
   });
@@ -224,7 +224,7 @@ describe("EnvelopeImportDialog", () => {
 
     // The earlier read finishes last with a wrong-tool payload — it must NOT
     // overwrite the newer selection's accepted state.
-    releaseSlow(JSON.stringify({ type: "initiative-document", name: "Stale" }));
+    releaseSlow(JSON.stringify({ type: "initiative-file", name: "Stale" }));
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByText(/import it from that tool's page/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^import$/i })).not.toBeDisabled();

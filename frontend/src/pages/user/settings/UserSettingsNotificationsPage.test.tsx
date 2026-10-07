@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage as renderRoutedPage } from "@/__tests__/helpers/render";
 
 // usePushNotifications pulls in a Capacitor plugin that can't load in jsdom.
 vi.mock("@/hooks/usePushNotifications", () => ({
@@ -21,12 +21,12 @@ import { UserSettingsNotificationsPage } from "./UserSettingsNotificationsPage";
 
 describe("UserSettingsNotificationsPage", () => {
   const renderPage = (overrides = {}) =>
-    renderWithProviders(
+    renderRoutedPage(() => (
       <UserSettingsNotificationsPage
         user={buildUser({ event_reminder_minutes_before: 15, ...overrides })}
         refreshUser={vi.fn().mockResolvedValue(undefined)}
       />
-    );
+    ));
 
   it("renders the grid from the registry the server sends", async () => {
     renderPage();
@@ -41,6 +41,12 @@ describe("UserSettingsNotificationsPage", () => {
   it("offers the bell as a channel", async () => {
     renderPage();
     expect(await screen.findByText("Bell")).toBeInTheDocument();
+  });
+
+  it("offers the desktop on a server with no phone push", async () => {
+    renderPage();
+    expect(await screen.findByText("Desktop")).toBeInTheDocument();
+    expect(screen.queryByText("Mobile")).not.toBeInTheDocument();
   });
 
   it("leaves the bell on and unswitchable for account notices", async () => {

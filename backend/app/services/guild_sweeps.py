@@ -32,7 +32,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import metrics
 from app.db import cohorts
 from app.db.session import set_rls_context
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.services.background_tasks import Loop
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
 from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ class Scope(Enum):
 
     def admits(self, status: str, *, provisioned: bool) -> bool:
         if self is Scope.ACTIVE:
-            return status == GuildStatus.active.value
+            return status == CommunityStatus.active.value
         if self is Scope.LIVE:
             return status in LIVE_STATUS_VALUES
         return provisioned
@@ -164,22 +165,16 @@ class Drain:
     """
 
     def __init__(self, name: str, *, settle: float) -> None:
-        self.name = name
-        self.settle = settle
         self.pending: set[int] = set()
-        self._woken = asyncio.Event()
+        self._loop = Loop(name, settle=settle)
 
     def wake(self, guild_id: int) -> None:
         self.pending.add(guild_id)
-        self._woken.set()
+        self._loop.wake()
 
     async def run(self, visits: Sequence[tuple[Scope, Visit]]) -> None:
-        while True:
-            await self._woken.wait()
-            await asyncio.sleep(self.settle)
-            self._woken.clear()
+        async def visit_pending() -> None:
             only, self.pending = self.pending, set()
-            try:
-                await each_guild(visits, name=self.name, only=only)
-            except Exception:
-                logger.exception("%s: pass failed", self.name)
+            await each_guild(visits, name=self._loop.name, only=only)
+
+        await self._loop.run(visit_pending)

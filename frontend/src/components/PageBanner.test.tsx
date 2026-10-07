@@ -52,7 +52,7 @@ describe("PageBanner", () => {
     expect(ground(container)).toHaveStyle({ backgroundColor: "rgb(42, 157, 143)" });
   });
 
-  it("prefers the picture when a guild has set both", () => {
+  it("prefers the picture when a community has set both", () => {
     const { container } = render(
       <PageBanner
         banner={banner({ image_url: "/api/v1/communities/1/image/abc", color: "#2a9d8f" })}
@@ -158,7 +158,7 @@ describe("PageBanner", () => {
       <PageBanner
         banner={banner({ color: "#2563eb", fade: "strong" })}
         title="Ravenloft"
-        subtitle="A guild"
+        subtitle="A community"
       />
     );
 
@@ -202,7 +202,7 @@ describe("PageBanner", () => {
   });
 
   it("gives the badges a row of their own rather than floating them over the copy", () => {
-    // An overlay clears the title by luck: in the short band a guild with no
+    // An overlay clears the title by luck: in the short band a community with no
     // artwork gets, a long enough name at a narrow enough width wraps straight
     // under it. In flow the copy starts where the corner ended, so there is no
     // width or name that can put them on top of each other.

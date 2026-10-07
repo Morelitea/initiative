@@ -1,14 +1,8 @@
 {
-  "title": "Zähler",
-  "group": "Zählergruppe",
-  "groups": "Zählergruppen",
-  "counter": "Zähler",
   "noGroups": "Noch keine Zählergruppen",
   "noGroupsDescription": "Zählergruppen bündeln zusammengehörige Zahlenwerte (wie HP, Munition oder Scores), die du erhöhen, verringern oder direkt setzen kannst.",
   "createGroup": "Zählergruppe erstellen",
-  "name": "Name",
   "namePlaceholder": "Gruppennamen eingeben",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Optionale Beschreibung",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
@@ -31,7 +25,6 @@
   "viewModeRequiresBounds": "Fortschrittsbalken und Kreis (Uhr) erfordern sowohl Min. als auch Max.",
   "increment": "Erhöhen",
   "decrement": "Verringern",
-  "reset": "Zurücksetzen",
   "resetAll": "Alle zurücksetzen",
   "resetAllConfirm": "Jeden Zähler in dieser Gruppe auf seinen Anfangswert zurücksetzen?",
   "sort": "Sortieren",
@@ -39,23 +32,12 @@
   "sortNameDesc": "Name (Z→A)",
   "sortCountAsc": "Stand (niedrig→hoch)",
   "sortCountDesc": "Stand (hoch→niedrig)",
-  "duplicate": {
-    "title": "Gruppe duplizieren",
-    "description": "Erstelle eine Kopie dieser Gruppe mit allen Zählern und ihren aktuellen Werten.",
-    "action": "Duplizieren",
-    "dialogDescription": "Benenne die neue Kopie. Alle Zähler und ihre Werte werden kopiert.",
-    "defaultName": "{{name}} (Kopie)",
-    "duplicating": "Wird dupliziert…",
-    "success": "Gruppe dupliziert"
-  },
   "noCounters": "Keine Zähler in dieser Gruppe",
   "noCountersDescription": "Füge Zähler hinzu, um mit dem Verfolgen von Werten zu beginnen.",
-  "reorder": "Neu anordnen",
   "dragToReorder": "Zum Neuanordnen ziehen",
   "switchToGridView": "Zur Rasteransicht wechseln",
   "switchToRowView": "Zur Zeilenansicht wechseln",
   "more": "Weitere Aktionen",
-  "permissions": "Berechtigungen",
   "error": "Etwas ist schiefgelaufen",
   "loading": "Zähler werden geladen...",
   "loadError": "Zähler konnten nicht geladen werden.",
@@ -69,8 +51,6 @@
   "noAccessDescription": "Du hast keine Berechtigung, diese Zählergruppe anzuzeigen.",
   "backToGroups": "Zurück zu den Zählergruppen",
   "backToGroup": "Zurück zur Gruppe",
-  "counterCount_one": "{{count}} Zähler",
-  "counterCount_other": "{{count}} Zähler",
   "focus": {
     "openFocus": "Vollbild öffnen",
     "exit": "Vollbild verlassen",
@@ -80,17 +60,9 @@
     "notFound": "Zähler in dieser Gruppe nicht gefunden"
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
-  "settings": "Einstellungen",
-  "details": "Details",
-  "access": "Zugriff",
-  "advanced": "Erweitert",
-  "dangerZone": "Gefahrenzone",
-  "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Gruppen landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
   "filters": {
-    "heading": "Filter",
     "searchGroups": "Zählergruppen suchen...",
     "searchLabel": "Name oder Beschreibung",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
-  },
-  "tags": "Tags"
+  }
 }

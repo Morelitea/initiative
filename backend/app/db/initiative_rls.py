@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.db import gucs
-from app.core.app_scopes import tool_resource
+from app.core.plugin_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
     ENDPOINT_KINDS,
@@ -38,7 +38,13 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
-from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
+from app.db.authorization import (
+    IN_POLICY,
+    STANDING,
+    plugin_narrowed,
+    plugin_scope,
+    in_body,
+)
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
@@ -212,14 +218,14 @@ def _tool_gate(
     the tool's create right, where every other command asks to view it, and it
     asks gate 4 nothing.
 
-    An installed app is asked two more things first: that it holds the tool's
+    An installed plug-in is asked two more things first: that it holds the tool's
     scope, read for SELECT and write for every other command, and, where its
     token is narrowed to one initiative, that the row belongs to an initiative
     at all.
     """
     legs: list[str] = [
-        app_scope(tool_resource(tool), command != "SELECT", _P),
-        app_narrowed(initiative, _P),
+        plugin_scope(tool_resource(tool), command != "SELECT", _P),
+        plugin_narrowed(initiative, _P),
     ]
 
     # Every tool carries a switch on the initiative. A community admin or a PAM
@@ -373,7 +379,7 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: :mod:`app.db.authorization`.
 _GUILD_ADMIN = _P.system_or_admin
 
-#: An installed app acting in this community on a token that is not narrowed
+#: An installed plug-in acting in this community on a token that is not narrowed
 #: to one initiative.
 _UNNARROWED_INSTALL = _P.unnarrowed_install
 
@@ -444,7 +450,7 @@ def direct_or_guild() -> InitiativePath:
     A row naming an initiative is gated like any :func:`direct` row. A row
     naming none belongs to the guild, where the initiative gate has nothing to
     decide: every member reads it as its sharing allows, and writing it is the
-    guild admin's (or a live write grant's), or the installed app's on a token
+    guild admin's (or a live write grant's), or the installed plug-in's on a token
     not narrowed to one initiative. Sharing still applies on top, which is how
     the admin decides who writes what the row holds. ``resource_actions``
     asks the same writer for ``edit``.
@@ -689,7 +695,7 @@ def _tool_comment_parent(tool: Tool) -> CommentParent:
 #: table's single-parent constraint. The extras are written out rather than
 #: derived because each names its own way up to a tool: a comment on a task
 #: names the project too — it is the surface a task comment shows up on, and
-#: the join is already made — and a comment on a wiki page names the wiki.
+#: the join is already made — and a comment on a wiki page names its wiki too.
 _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     CommentParent(
         "task_id",
@@ -706,10 +712,7 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
         "wiki_pages wp JOIN wikis wkp ON wkp.id = wp.wiki_id",
         "wp.id",
         "wkp.initiative_id",
-        # The wiki alone: a page has no address of its own — it is read at
-        # ``/wikis/{id}/pages/{id}`` — so it is not something an event can put
-        # an id under. Its wiki is, which is where a reader would go anyway.
-        (("wikis", "wkp.id"),),
+        (("wiki_pages", "wp.id"), ("wikis", "wkp.id")),
         table="wiki_pages",
         governed_by=Tool.wiki,
         tool_fk="wiki_id",
@@ -1154,10 +1157,10 @@ def webhook_subscription_path() -> InitiativePath:
     ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
     nothing to decide", which admits any member. A guild-wide subscription
     reports across every initiative, so reaching it is guild-admin authority —
-    the one role that already spans them — or an installed app's whose token is
-    not narrowed to one initiative. An app sees and changes only the
-    subscriptions it registered (the ``app_scope_*`` policies), and what one
-    delivers is capped by where the app is placed and the scopes it holds.
+    the one role that already spans them — or an installed plug-in's whose token is
+    not narrowed to one initiative. A plug-in sees and changes only the
+    subscriptions it registered (the ``plugin_scope_*`` policies), and what one
+    delivers is capped by where the plug-in is placed and the scopes it holds.
     """
     return InitiativePath(
         predicate=lambda t, w: (
@@ -1276,16 +1279,12 @@ def recent_views_path() -> InitiativePath:
 # source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
 INITIATIVE_PATHS: dict[str, InitiativePath] = {
-    # Own initiative_id column
-    "projects": direct(),
-    "documents": direct(),
-    "queues": direct(),
-    "counter_groups": direct(),
-    "calendars": direct_or_guild(),
-    "dashboards": direct(),
-    "posts": direct(),
-    "galleries": direct(),
-    "wikis": direct(),
+    # Every tool's table: its own initiative_id column. A calendar may name no
+    # initiative, being made for the whole guild.
+    **{
+        tool.plural: direct_or_guild() if tool is Tool.calendar else direct()
+        for tool in Tool
+    },
     "property_definitions": direct(),
     # Sharing itself. It carries no sharing leg of its own: resource_access
     # reads this table, so a policy here that called it would not resolve.
@@ -1300,10 +1299,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # through the REST path, where sharing decides. The initiative gate is
     # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
-    # The events installed apps emit, scoped by the initiative an event names
+    # The events installed plug-ins emit, scoped by the initiative an event names
     # like the change log beside it. Written by the system engine alone
     # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
-    "app_event_outbox": direct(),
+    "plugin_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
@@ -1321,8 +1320,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_filter_presets": via("projects", "project_id"),
-    # One hop -> documents
-    "document_file_versions": via("documents", "document_id"),
+    # One hop -> files
+    "file_versions": via("files", "file_id"),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
     # One hop -> counter_groups
@@ -1517,7 +1516,7 @@ class ReportsAs:
     """Report a table's changes as an update to a DIFFERENT resource.
 
     Some tables have an id of their own without being something a subscriber
-    fetches on its own: a project's statuses, a document's version history, an
+    fetches on its own: a project's statuses, a file's version history, an
     initiative's roles, a resource's sharing. Each is a facet of the thing it
     belongs to, and saying so is what keeps every event's id resolvable — the
     parent already has a detail route, so adding one of these owes no new API
@@ -1573,7 +1572,7 @@ def grants_report_on_their_resource() -> ReportsAs:
     """A grant is sharing ON something — report it against that something.
 
     ``resource_type`` holds the Tool value and ``resource_id`` its id, so the
-    event lands on the project (or document, queue, …) whose access changed.
+    event lands on the project (or file, queue, …) whose access changed.
     That is both what a subscriber wants to hear and already resolvable, where
     the grant row's own id resolves nowhere.
 
@@ -1802,7 +1801,7 @@ class Emit:
 EVENT_SOURCES: dict[str, Emit | Silent] = {
     # -- Silent ------------------------------------------------------------
     "event_outbox": Silent("the log cannot log itself"),
-    "app_event_outbox": Silent("delivered by the poller as events of its own"),
+    "plugin_event_outbox": Silent("delivered by the poller as events of its own"),
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
@@ -1862,13 +1861,13 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # ``published_at`` is the fact, where ``scheduled_for`` is only the
     # intention — the same column ``is_published_clause`` reads.
     "posts": Emit(quiet_when=lambda r: f"{r}.published_at IS NULL"),
-    # Installed apps, same reasoning: the install row is guild-wide knowledge
+    # Installed plug-ins, same reasoning: the install row is guild-wide knowledge
     # (every member's sidebar lists it), so its lifecycle emits guild-wide too.
     # A subscriber hears an install appear, change (``config_state`` moving is
-    # the moment an app becomes usable), or go away, and re-reads current state
-    # through the API like any other event. Published as ``apps`` because that
-    # is the segment the install's detail route lives at (``/apps/{id}``).
-    "guild_apps": Emit(guild_wide=True, resource_type="apps"),
+    # the moment a plug-in becomes usable), or go away, and re-reads current state
+    # through the API like any other event. Published as ``plugins`` because that
+    # is the segment the install's detail route lives at (``/plugins/{id}``).
+    "guild_plugins": Emit(guild_wide=True, resource_type="plugins"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
     # A property definition is read in its initiative's list, not at an
@@ -1879,18 +1878,14 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "project_filter_presets": Emit(
         reports_as=reports_as("projects", "project_id", "filter_presets")
     ),
-    "document_file_versions": Emit(
-        reports_as=reports_as("documents", "document_id", "versions")
-    ),
+    "file_versions": Emit(reports_as=reports_as("files", "file_id", "versions")),
     # A picture is read through its gallery rather than at an address of its
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.
     "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
-    # A wiki page is addressed through its wiki — `/wikis/{id}/pages/{id}` —
-    # and an envelope carries ids rather than paths, so a change to one reports
-    # as the wiki it is in. A subscriber re-reads the wiki's list, which is
-    # where the page's place in it lives anyway.
-    "wiki_pages": Emit(reports_as=reports_as("wikis", "wiki_id", "pages")),
+    # A draft page is read only by the wiki's writers, so like an unpublished
+    # notice it is not news until it is finished.
+    "wiki_pages": Emit(quiet_when=lambda r: f"{r}.is_draft"),
     "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),

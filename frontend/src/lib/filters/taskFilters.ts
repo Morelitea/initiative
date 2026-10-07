@@ -10,18 +10,19 @@
  * so preset, stored preference, and query params are all the same object.
  */
 
-import type {
-  TaskFilterSpec as ApiTaskFilterSpec,
-  FilterCondition,
-  FilterGroup,
-  ListTasksApiV1CGuildIdTasksGetParams,
-  TaskStatusCategory,
+import {
+  type TaskFilterSpec as ApiTaskFilterSpec,
+  type FilterCondition,
+  type FilterGroup,
+  type ListTasksParams,
+  ProjectReadDefaultViewMode,
+  type TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 
-export type TaskViewMode = "table" | "kanban" | "calendar";
-export const TASK_VIEW_MODES = ["table", "kanban", "calendar"] as const;
+export type TaskViewMode = NonNullable<ProjectReadDefaultViewMode>;
+export const TASK_VIEW_MODES = Object.values(ProjectReadDefaultViewMode);
 
 /** The due-window tokens a preset can hold. `null` is "any due date". */
 export type DueToken = Exclude<DueFilterOption, "all">;
@@ -259,7 +260,7 @@ export function buildTaskConditions(
 export function buildTaskListParams(
   spec: TaskFilterSpec,
   options: { projectId: number }
-): ListTasksApiV1CGuildIdTasksGetParams {
+): ListTasksParams {
   return {
     conditions: buildTaskConditions(spec, options),
     page_size: 0,

@@ -4,7 +4,7 @@ The artifact is content, so its download is a gated read: the download route
 loads the ExportJob row under RLS (own-row + guild-admin policies), asks again
 that the caller reaches every initiative the artifact holds, and only then
 streams the file from the guild's storage backend. Artifacts are deliberately
-never registered in ``uploads``, so the guild-wide ``/uploads/{guild_id}/…``
+never registered in ``uploads``, so the guild-wide ``/uploads/{community_id}/…``
 media route cannot serve them: an export is a per-user snapshot and may contain
 initiative-isolated content the rest of the guild must not reach.
 
@@ -13,8 +13,6 @@ are its adapter's in ``ADAPTERS``.
 """
 
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Annotated, Any, List, Literal, Optional, Union
@@ -33,7 +31,7 @@ from app.api.deps import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.core.tools import Tool, tool_export_source
 from app.core.user_display import display_name
 from app.models.platform.user import User
@@ -43,13 +41,17 @@ from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import (
     ExportJobRead,
-    GuildExportStatus,
+    CommunityExportStatus,
     artifact_expired,
     serialize_export_job,
 )
 from app.services import audit as audit_service
 from app.services.export.adapters import ADAPTERS
-from app.services.export.engine import ExportError, InlineExport, start_export
+from app.services.export.adapters.backup import (
+    GuildExportAdapter,
+    InitiativeExportAdapter,
+)
+from app.services.export.engine import InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
     content_disposition_attachment,
@@ -57,6 +59,7 @@ from app.services.storage import (
 )
 from app.services.export import limits as export_limits
 from app.services.membership import initiative_scope_clause
+from app.services.tenant.initiatives import keeps_content_in
 
 router = APIRouter()
 
@@ -66,7 +69,7 @@ _LIST_LIMIT = 50
 
 
 def _inline_response(result: InlineExport) -> Response:
-    # The filename can carry user text (document titles, original upload
+    # The filename can carry user text (file titles, original upload
     # names) — the helper escapes it (RFC 5987) so it can't break the header.
     return Response(
         content=result.content,
@@ -97,15 +100,6 @@ def _job_response(
     )
 
 
-@contextmanager
-def _export_errors() -> Iterator[None]:
-    """Answer an ``ExportError`` as the HTTP error its code and status name."""
-    try:
-        yield
-    except ExportError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
-
-
 async def _start_export(
     session: RLSSessionDep,
     current_user: User,
@@ -117,16 +111,15 @@ async def _start_export(
 ) -> Union[InlineExport, ExportJob]:
     """Start an export through the engine: rendered here when it is small, or
     queued as a job the caller polls."""
-    with _export_errors():
-        return await start_export(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            source=source,
-            format=format,
-            params=params,
-            allow_job=_allow_job(guild_context),
-        )
+    return await start_export(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        source=source,
+        format=format,
+        params=params,
+        allow_job=_allow_job(guild_context),
+    )
 
 
 def _export_response(
@@ -168,7 +161,7 @@ async def export_tasks(
     ),
 ) -> Union[Response, JSONResponse]:
     """Export the task list (the same visibility and filters as ``GET
-    /tasks/``) as a formatted document. Small results render inline and return
+    /tasks/``) as a formatted file. Small results render inline and return
     the file directly; large results return ``202`` with a queued job to poll
     and download."""
     result = await _start_export(
@@ -195,7 +188,7 @@ async def export_events(
     guild_context: GuildContextDep,
     format: Literal["ics"] = Query(default="ics"),
     initiative_id: Optional[int] = Query(default=None),
-    scope: Optional[Literal["guild"]] = Query(default=None),
+    scope: Optional[Literal["community"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
     exclude_calendar_ids: Optional[List[int]] = Query(
         default=None, description="Calendars to leave out, such as hidden ones"
@@ -287,7 +280,7 @@ async def _guild_export_available_at(session) -> Optional[datetime]:
         await session.exec(
             select(ExportJob.created_at)
             .where(
-                ExportJob.source == "guild",
+                ExportJob.source == "community",
                 ExportJob.status.in_(
                     (
                         ExportJobStatus.queued,
@@ -325,7 +318,7 @@ async def estimate_aggregate_export(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-    scope: Literal["initiative", "guild"] = Query(),
+    scope: Literal["initiative", "community"] = Query(),
     initiative_id: Optional[int] = Query(
         default=None, description="Required when scope=initiative"
     ),
@@ -338,18 +331,18 @@ async def estimate_aggregate_export(
     submitting. Guild scope requires the community's seat."""
     from app.services.export.adapters.backup import estimate_backup
 
-    if scope == "guild":
+    if scope == "community":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
-    with _export_errors():
-        return await estimate_backup(
-            session,
-            current_user,
-            guild_context.guild_id,
-            scope=scope,
-            initiative_id=initiative_id,
-            include_uploads=include_uploads,
-            filters=_parse_json_param(filters),
-        )
+    return await estimate_backup(
+        session,
+        current_user,
+        guild_context.guild_id,
+        # A backup records its scope as "guild" in its manifest.
+        scope="guild" if scope == "community" else scope,
+        initiative_id=initiative_id,
+        include_uploads=include_uploads,
+        filters=_parse_json_param(filters),
+    )
 
 
 @router.get("/initiative", response_model=None)
@@ -369,8 +362,8 @@ async def export_initiative(
     formats: Optional[str] = Query(
         default=None,
         description=(
-            "Report mode: JSON object of tool→format; the document entry is a "
-            'nested map, e.g. {"project": "pdf", "document": {"native": "md", '
+            "Report mode: JSON object of tool→format; the file entry is a "
+            'nested map, e.g. {"project": "pdf", "file": {"native": "md", '
             '"spreadsheet": "xlsx"}}. Unlisted tools use their backup format.'
         ),
     ),
@@ -384,7 +377,7 @@ async def export_initiative(
 ) -> Union[Response, JSONResponse]:
     """Export a whole initiative as one zip: ``backup`` bundles every included
     tool's importable JSON envelope plus a ``manifest.json`` (optionally with
-    the upload blobs the documents reference); ``report`` renders each tool in
+    the upload blobs the files reference); ``report`` renders each tool in
     the caller's chosen format. Requires reaching the initiative; per-entity
     sharing applies throughout, and projects are included with read access.
     Always returns ``202`` with a queued job to poll and download."""
@@ -426,7 +419,7 @@ async def export_initiative(
 
 
 @router.get("/community", response_model=None)
-async def export_guild(
+async def export_community(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
@@ -457,7 +450,7 @@ async def export_guild(
         session,
         current_user,
         guild_context,
-        source="guild",
+        source="community",
         format="zip",
         params={
             "mode": mode,
@@ -488,12 +481,12 @@ async def export_guild(
     return _export_response(result, guild_context)
 
 
-@router.get("/community/status", response_model=GuildExportStatus)
-async def read_guild_export_status(
+@router.get("/community/status", response_model=CommunityExportStatus)
+async def read_community_export_status(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-) -> GuildExportStatus:
+) -> CommunityExportStatus:
     """The state of this community's whole-community export, before anybody
     opens the wizard: the last one taken — who took it, how it ended, and
     whether its archive is still there — and when the next one may start.
@@ -505,18 +498,18 @@ async def read_guild_export_status(
     latest = (
         await session.exec(
             select(ExportJob)
-            .where(ExportJob.source == "guild")
+            .where(ExportJob.source == "community")
             .order_by(ExportJob.created_at.desc())
             .limit(1)
         )
     ).first()
-    # Read through the member view, so a community that renders handles gets a
-    # handle here as it does everywhere else. Empty where the account is gone;
+    # Read through the member view, so the name is the one set in this
+    # community, or the handle, as everywhere else. Empty where the account is gone;
     # the page says who it was missing in its own words.
     started_by = None
     if latest is not None:
         started_by = display_name(await session.get(MemberProfile, latest.created_by))
-    return GuildExportStatus(
+    return CommunityExportStatus(
         cooldown_hours=settings.EXPORT_GUILD_COOLDOWN_HOURS,
         next_available_at=await _guild_export_available_at(session),
         latest=serialize_export_job(latest, guild_id=guild_context.guild_id)
@@ -526,7 +519,7 @@ async def read_guild_export_status(
     )
 
 
-@router.get("/", response_model=list[ExportJobRead])
+@router.get("/jobs", response_model=list[ExportJobRead])
 async def list_export_jobs(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
@@ -540,7 +533,7 @@ async def list_export_jobs(
     return [serialize_export_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
-@router.get("/{job_id:int}", response_model=ExportJobRead)
+@router.get("/jobs/{job_id}", response_model=ExportJobRead)
 async def get_export_job(
     job_id: int,
     session: RLSSessionDep,
@@ -582,7 +575,7 @@ async def _require_reach(
         )
 
 
-@router.get("/{job_id:int}/download")
+@router.get("/jobs/{job_id}/download")
 async def download_export_artifact(
     job_id: int,
     session: RLSSessionDep,
@@ -618,9 +611,32 @@ async def download_export_artifact(
         raise HTTPException(
             status_code=status.HTTP_410_GONE, detail=ExportMessages.EXPORT_EXPIRED
         )
-    if job.source == "guild":
+    if job.source == "community":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_reach(session, current_user, job.initiative_ids)
+    # An initiative's export is served, as it is taken, to those who manage it.
+    if job.source == InitiativeExportAdapter.source:
+        held = await session.exec(
+            select(Initiative.actions).where(
+                Initiative.id.in_(job.initiative_ids),
+                Initiative.deleted_at.is_(None),
+            )
+        )
+        if any("manage" not in (actions or ()) for actions in held):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=InitiativeMessages.MANAGER_REQUIRED,
+            )
+    # The backups take an initiative that keeps its content in; any other file
+    # is refused once one of the initiatives it holds does.
+    if job.source not in (
+        InitiativeExportAdapter.source,
+        GuildExportAdapter.source,
+    ) and await keeps_content_in(session, job.initiative_ids):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.CONTENT_KEPT_IN,
+        )
     storage = get_guild_storage(guild_context.guild_id)
     # Recover the download name from the artifact key. A named artifact
     # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;
@@ -665,10 +681,10 @@ async def download_export_artifact(
     return build_upload_response(blob, filename=filename)
 
 
-#: The format asked for when none is. A document has none: which formats are
+#: The format asked for when none is. A file has none: which formats are
 #: valid depends on its type, so the caller names one.
 _DEFAULT_FORMATS: dict[Tool, Optional[str]] = {
-    Tool.document: None,
+    Tool.file: None,
     Tool.calendar: "ics",
 }
 
@@ -682,8 +698,6 @@ _ALL_FORMATS = tuple(sorted({f for formats in _TOOL_FORMATS.values() for f in fo
 ToolExportFormat: Any = Literal[_ALL_FORMATS]  # ty: ignore[invalid-type-form]
 
 
-# Registered after the job routes, which match only a numeric id, so a tool's
-# name never reaches them and a job id never reaches this.
 @router.get("/{tool}", response_model=None)
 async def export_tool(
     tool: Tool,
@@ -699,7 +713,7 @@ async def export_tool(
         default=None,
         description="One of the tool's export formats ("
         + "; ".join(f"{t.value}: {', '.join(f)}" for t, f in _TOOL_FORMATS.items())
-        + "). ``json`` is the importable envelope. A document's formats depend on "
+        + "). ``json`` is the importable envelope. A file's formats depend on "
         "its type, so it has no default; a calendar defaults to ``ics``, every "
         "other tool to ``json``",
     ),

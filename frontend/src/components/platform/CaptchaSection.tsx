@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/select";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useCaptchaSettings, useUpdateCaptchaSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 const PROVIDERS = ["hcaptcha", "turnstile", "recaptcha"] as const;
 type Provider = (typeof PROVIDERS)[number];

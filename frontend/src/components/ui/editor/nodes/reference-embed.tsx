@@ -14,10 +14,10 @@ import {
   $showAsLink,
 } from "@/components/ui/editor/nodes/reference-embed-node";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useReferenceEmbed } from "@/hooks/useSmartChips";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
 import { hasBody } from "@/lib/posts";
 import { hitIcon } from "@/lib/searchResults";
 import { entityRefRoute } from "@/lib/tools";
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 // Lazy for the reason a post's body is, and because the editor is what draws
 // this component: importing it here would make the two modules each other's.
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 /**
@@ -85,11 +85,11 @@ export function ReferenceEmbed({
   collapsed,
   nodeKey,
 }: ReferenceEmbedProps) {
-  const { t } = useTranslation(["documents", "search"]);
+  const { t } = useTranslation(["editor", "search"]);
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const navigate = useNavigate();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { data: embed, isFetched } = useReferenceEmbed(entityType, entityId);
   const depth = useContext(EmbedDepth);
   // A reader who cannot edit the page folds it for themselves; the page's
@@ -137,7 +137,9 @@ export function ReferenceEmbed({
             type="button"
             onClick={() => {
               if (reachable && refType) {
-                void navigate({ to: guildPath(guildId, entityRefRoute(refType, entityId)) });
+                void navigate({
+                  to: communityPath(communityId, entityRefRoute(refType, entityId)),
+                });
               }
             }}
             aria-disabled={!reachable}

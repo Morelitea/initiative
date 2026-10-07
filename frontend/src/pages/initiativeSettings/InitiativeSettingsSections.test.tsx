@@ -10,19 +10,19 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  buildGuild,
+  buildCommunity,
   buildInitiative,
   buildInitiativeJoinRequest,
   buildInitiativeRole,
   buildUserSummary,
   initiativeCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -46,9 +46,9 @@ function stubInitiative({
     ...overrides,
   });
   server.use(
-    guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
-    guildHttp.get("/initiatives/:id", () => HttpResponse.json(initiative)),
-    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([]))
+    communityHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
+    communityHttp.get("/initiatives/:id", () => HttpResponse.json(initiative)),
+    communityHttp.get("/initiatives/:id/roles", () => HttpResponse.json([]))
   );
 }
 
@@ -58,21 +58,21 @@ const renderSection = (
   role: "admin" | "member" = "admin"
 ) =>
   renderPage(Section, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: `/c/$guildId/i/$initiativeId/settings/${path}`,
-    routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
+    communities: { activeCommunityId: 1, activeCommunity: buildCommunity({ id: 1, role }) },
+    initialRoute: `/c/$communityId/i/$initiativeId/settings/${path}`,
+    routeParams: { communityId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
 describe("initiative settings sections", () => {
   it("serves the roster, and the queue feeding it, at /settings/members", async () => {
     stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/:id/join-requests", () =>
+      communityHttp.get("/initiatives/:id/join-requests", () =>
         HttpResponse.json([
           buildInitiativeJoinRequest({
             id: 11,
             initiative_id: INITIATIVE_ID,
-            user: buildUserSummary({ id: 42, full_name: "Ada Lovelace" }),
+            user: buildUserSummary({ id: 42, display_name: "Ada Lovelace" }),
           }),
         ])
       )
@@ -100,7 +100,7 @@ describe("initiative settings sections", () => {
   it("gives the moderator a card with no tool switches on /settings/roles", async () => {
     stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
             name: "moderator",
@@ -136,7 +136,7 @@ describe("initiative settings sections", () => {
   it("gives the project manager a card with no tool switches either", async () => {
     stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
             name: "project_manager",
@@ -165,7 +165,7 @@ describe("initiative settings sections", () => {
   it("keeps Delete on a custom manager role", async () => {
     stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
             name: "producer",
@@ -192,7 +192,7 @@ describe("initiative settings sections", () => {
     const patches: Record<string, unknown>[] = [];
     stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
             id: 2,
@@ -203,7 +203,7 @@ describe("initiative settings sections", () => {
           }),
         ])
       ),
-      guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request }) => {
+      communityHttp.patch("/initiatives/:id/roles/:roleId", async ({ request }) => {
         patches.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json({ id: 2 });
       })
@@ -235,7 +235,7 @@ describe("initiative settings sections", () => {
   it("says on /settings/roles when a tool's permissions grant nothing yet", async () => {
     stubInitiative({ posts_enabled: false });
     server.use(
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([buildInitiativeRole({ display_name: "Member" })])
       )
     );
@@ -250,11 +250,13 @@ describe("initiative settings sections", () => {
 
   it("serves custom properties at /settings/properties", async () => {
     stubInitiative();
-    server.use(guildHttp.get("/property-definitions/", () => HttpResponse.json([])));
+    server.use(communityHttp.get("/property-definitions/", () => HttpResponse.json([])));
 
     renderSection(InitiativeSettingsPropertiesPage, "properties");
 
-    expect(await screen.findByText("Custom properties")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Define reusable metadata for anything in this initiative.")
+    ).toBeInTheDocument();
   });
 
   it("serves the export wizard at /settings/export", async () => {
@@ -270,7 +272,9 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsDangerPage, "danger");
 
-    expect(await screen.findByText("Danger zone")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Deleting an initiative removes all of its projects/)
+    ).toBeInTheDocument();
   });
 
   it.each([

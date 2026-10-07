@@ -1,7 +1,7 @@
 import { apiClient } from "@/api/client";
-import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Recover the server-chosen filename from a Content-Disposition header —
  * the single source of truth for export names (a file passthrough keeps an
@@ -52,18 +52,18 @@ export async function normalizeBlobError(err: unknown): Promise<unknown> {
 }
 
 /** Fetch a finished export job's artifact and hand it to the browser as a
- * download. Shared by the export button and the notification bell — the loose
+ * download. Shared by the export button and `openNotification` — the loose
  * ``t`` shape (same as NotificationBell's helpers) admits any caller's bound
  * namespaces, since the toast keys here are namespace-prefixed. */
 export async function downloadExportArtifact(
-  guildId: number,
+  communityId: number,
   jobId: number,
   t: (key: string, options?: Record<string, unknown>) => string,
   source = "tasks",
   format = "pdf"
 ): Promise<void> {
   try {
-    const res = await apiClient.get<Blob>(`/c/${guildId}/exports/${jobId}/download`, {
+    const res = await apiClient.get<Blob>(`/c/${communityId}/exports/jobs/${jobId}/download`, {
       responseType: "blob",
     });
     const serverName = filenameFromDisposition(res.headers["content-disposition"]);

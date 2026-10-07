@@ -33,7 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
 from app.api.deps import GuildAccessError, establish_guild_access
-from app.core.security import SESSION_COOKIE_NAME
+from app.core.identify import presented_credential
 from app.core.tools import Tool
 from app.db.cohorts import request_sessionmaker
 from app.db.session import require_guild_context
@@ -100,7 +100,12 @@ async def read_auth_frame(
     if not isinstance(payload, dict):
         await _refuse(websocket)
         return None
-    token = payload.get("token") or websocket.cookies.get(SESSION_COOKIE_NAME)
+    token = payload.get("token")
+    if not token:
+        # The session cookie, where it is what the handshake presents.
+        presented = presented_credential(websocket)
+        if presented is not None and not presented.bearer:
+            token = presented.token
     if not token or not isinstance(token, str):
         await _refuse(websocket)
         return None

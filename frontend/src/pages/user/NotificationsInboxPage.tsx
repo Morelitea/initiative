@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { notificationLink, notificationText } from "@/components/notifications/notificationLine";
+import { notificationText, openNotification } from "@/components/notifications/notificationLine";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import {
   useDismissNotification,
   useMarkAllNotificationsRead,
@@ -16,29 +16,13 @@ import {
   useMarkNotificationUnread,
   useNotificationHistory,
 } from "@/hooks/useNotifications";
+import { formatDayHeading, localDayKey } from "@/lib/formatDate";
+import { useStoreSellingAnswer } from "@/lib/storeSelling";
+import type { TranslateFn } from "@/types/i18n";
 
 type Filter = "all" | "unread" | "personal";
 
 const FILTERS: Filter[] = ["all", "unread", "personal"];
-
-/** Day buckets, so a long list reads as a timeline rather than a wall. */
-const dayKey = (iso: string): string => iso.slice(0, 10);
-
-const dayLabel = (
-  key: string,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === today.toISOString().slice(0, 10)) return t("notifications.inbox.today");
-  if (key === yesterday.toISOString().slice(0, 10)) return t("notifications.inbox.yesterday");
-  return new Date(`${key}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-};
 
 /**
  * The record: everything that has happened, read and unread.
@@ -48,18 +32,22 @@ const dayLabel = (
  * "what is left for me" and "what happened".
  */
 export const NotificationsInboxPage = () => {
-  const { t } = useTranslation(["guilds", "common"]);
+  // Plan lines are worded by whether this device may sell; re-render once a
+  // phone's store has said.
+  useStoreSellingAnswer();
+  // "exports" is loaded alongside for a finished export's download toasts.
+  const { t } = useTranslation(["communities", "common", "exports"]);
   const { user } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
-  const [guildId, setGuildId] = useState<number | undefined>(undefined);
+  const [communityId, setCommunityId] = useState<number | undefined>(undefined);
 
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const history = useNotificationHistory({
     enabled: Boolean(user),
     unreadOnly: filter === "unread",
     personalOnly: filter === "personal",
-    guildId,
+    communityId,
   });
 
   const markRead = useMarkNotificationRead();
@@ -75,7 +63,7 @@ export const NotificationsInboxPage = () => {
   const days = useMemo(() => {
     const buckets = new Map<string, NotificationRead[]>();
     for (const row of rows) {
-      const key = dayKey(row.created_at);
+      const key = localDayKey(row.created_at);
       const bucket = buckets.get(key);
       if (bucket) bucket.push(row);
       else buckets.set(key, [row]);
@@ -83,25 +71,24 @@ export const NotificationsInboxPage = () => {
     return [...buckets.entries()];
   }, [rows]);
 
-  const guildName = (id: number | null | undefined): string | null => {
+  const communityName = (id: number | null | undefined): string | null => {
     if (id === null || id === undefined) return null;
-    return guilds?.find((guild) => guild.id === id)?.name ?? null;
+    return communities?.find((community) => community.id === id)?.name ?? null;
   };
 
-  const open = (notification: NotificationRead) => {
-    if (!notification.read_at) markRead.mutate(notification.id);
-    const target = notificationLink(notification);
-    // A target carrying a query string (an app's consent screen opens from
-    // `?app=`) goes as an href, so the query stays search rather than path.
-    if (target) router.navigate(target.includes("?") ? { href: target } : { to: target });
-  };
+  const open = (notification: NotificationRead) =>
+    openNotification(notification, {
+      markRead: markRead.mutate,
+      navigate: (options) => router.navigate(options),
+      t: t as TranslateFn,
+    });
 
   if (!user) return null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-semibold text-xl">{t("notifications.inbox.title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("notifications.inbox.title")}</h1>
         <Button
           variant="ghost"
           size="sm"
@@ -127,19 +114,19 @@ export const NotificationsInboxPage = () => {
             </Button>
           ))}
         </div>
-        {(guilds?.length ?? 0) > 1 && (
+        {(communities?.length ?? 0) > 1 && (
           <select
             className="h-8 rounded-md border bg-background px-2 text-sm"
-            value={guildId ?? ""}
+            value={communityId ?? ""}
             aria-label={t("notifications.inbox.filterByCommunity")}
             onChange={(event) =>
-              setGuildId(event.target.value ? Number(event.target.value) : undefined)
+              setCommunityId(event.target.value ? Number(event.target.value) : undefined)
             }
           >
             <option value="">{t("notifications.inbox.allCommunities")}</option>
-            {guilds?.map((guild) => (
-              <option key={guild.id} value={guild.id}>
-                {guild.name}
+            {communities?.map((community) => (
+              <option key={community.id} value={community.id}>
+                {community.name}
               </option>
             ))}
           </select>
@@ -159,8 +146,8 @@ export const NotificationsInboxPage = () => {
         <div className="space-y-6">
           {days.map(([key, bucket]) => (
             <section key={key} className="space-y-1">
-              <h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-                {dayLabel(key, t as (k: string, o?: Record<string, unknown>) => string)}
+              <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                {formatDayHeading(key, t as TranslateFn)}
               </h2>
               <ul className="divide-y rounded-md border">
                 {bucket.map((notification) => (
@@ -176,14 +163,11 @@ export const NotificationsInboxPage = () => {
                       <p
                         className={`text-sm ${notification.read_at ? "text-muted-foreground" : "text-foreground"}`}
                       >
-                        {notificationText(
-                          notification,
-                          t as (k: string, o?: Record<string, unknown>) => string
-                        )}
+                        {notificationText(notification, t as TranslateFn)}
                       </p>
                       <p className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
-                        {guildName(notification.guild_id) && (
-                          <span>{guildName(notification.guild_id)}</span>
+                        {communityName(notification.community_id) && (
+                          <span>{communityName(notification.community_id)}</span>
                         )}
                         <RelativeTime date={notification.created_at} />
                       </p>

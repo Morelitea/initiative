@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import {
   canCapturePhoto,
   capturePhoto,

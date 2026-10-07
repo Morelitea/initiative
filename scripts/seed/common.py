@@ -17,7 +17,7 @@ from app.models.platform.user import User
 from app.models.tenant._mixins import ArchiveMixin
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import CounterGroup
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -55,7 +55,7 @@ class Community:
     tags: dict[str, Tag] = field(default_factory=dict)
     projects: dict[str, Project] = field(default_factory=dict)
     tasks: dict[str, Task] = field(default_factory=dict)
-    docs: dict[str, Document] = field(default_factory=dict)
+    files: dict[str, File] = field(default_factory=dict)
     counter_groups: dict[str, CounterGroup] = field(default_factory=dict)
     events: dict[str, CalendarEvent] = field(default_factory=dict)
     #: Rows to archive, and the date to stamp, once the community is filled.

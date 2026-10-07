@@ -1,8 +1,8 @@
 """Guild-owned AI connections (guild config mode).
 
-Used when ``ai_config_mode == "guild"``: a guild admin configures the
+Used when ``ai_config_mode == "community"``: a guild admin configures the
 guild's AI providers here (guild schema). Members attach their own keys
-referencing these by ``(scope="guild", id)``. Guild-level table (guild-wide
+referencing these by ``(scope="community", id)``. Guild-level table (guild-wide
 config, schema-boundary protected). ``base_url`` is validated public-only —
 a guild admin can never persist a private/internal target.
 
@@ -15,6 +15,7 @@ from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.encryption import FERNET_SALT, SALT_AI_API_KEY
 from app.models.platform.ai_connection import AIConnectionColumns
 from app.models.tenant._mixins import CreatedByMixin
 
@@ -42,4 +43,8 @@ class GuildAIConnectionKey(SQLModel, table=True):
             autoincrement=False,
         )
     )
-    api_key_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
+    api_key_encrypted: str = Field(
+        sa_column=Column(
+            String(2000), nullable=False, info={FERNET_SALT: SALT_AI_API_KEY}
+        )
+    )

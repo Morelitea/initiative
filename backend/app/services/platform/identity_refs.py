@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
     REF_GRACE_PERIOD,
@@ -38,9 +38,8 @@ from app.db.request_context import Unattributed
 
 __all__ = [
     "REF_GRACE_PERIOD",
-    "billing_guild_ref",
+    "billing_ref",
     "billing_refs",
-    "billing_user_ref",
     "drop_entity_refs",
     "drop_guild_refs",
     "drop_sector_refs",
@@ -56,7 +55,7 @@ __all__ = [
     "sweep_identity_refs",
     "reissue_all_refs",
     "reissue_ref",
-    "resolve_billing_guild",
+    "resolve_billing_ref",
     "resolve_ref",
 ]
 
@@ -138,38 +137,20 @@ async def ensure_ref(
     return stored.ref
 
 
-async def billing_user_ref(*, user_id: int) -> str:
-    """The reference billing knows one user by, minting on first use.
+async def billing_ref(entity_type: IdentityEntity, entity_id: int) -> str:
+    """The reference billing knows one user or guild by, minting on first use.
 
-    For the people a handoff names besides the one presenting it — the
-    approver of a support visit — who need the same treatment and no more.
+    For the paths that name one entity to billing: the membership nudge, and
+    the people a handoff names besides the one presenting it — the approver of
+    a support visit. A system-engine session of its own, as ``billing_refs``.
     """
     from app.db.session import SystemSessionLocal
 
     async with SystemSessionLocal() as session:
         ref = await ensure_ref(
             session,
-            entity_type=IdentityEntity.user,
-            entity_id=user_id,
-            purpose=IdentityPurpose.billing,
-        )
-        await session.commit()
-    return ref
-
-
-async def billing_guild_ref(*, guild_id: int) -> str:
-    """The reference billing knows one guild by, minting on first use.
-
-    For the paths that name a guild to billing without a person attached — the
-    membership nudge, and the tests that post what billing would.
-    """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as session:
-        ref = await ensure_ref(
-            session,
-            entity_type=IdentityEntity.guild,
-            entity_id=guild_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
             purpose=IdentityPurpose.billing,
         )
         await session.commit()
@@ -232,46 +213,27 @@ async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
     return user_ref, guild_ref
 
 
-async def resolve_billing_guild(*, ref: str) -> int | None:
-    """Which guild one billing reference names, or None.
+async def resolve_billing_ref(ref: str, entity_type: IdentityEntity) -> int | None:
+    """Which user or guild one billing reference names, or None.
 
     The inverse of ``billing_refs``, for the endpoints billing calls: it names
-    the guild by the reference it was given, and this is where that becomes the
-    row id everything inside works on. Opens a system-engine session of its own
-    for the same reason ``billing_refs`` does — the callers are request
-    handlers routed to other roles.
+    a guild, or the person a notice is for, by the reference it was given, and
+    this is where that becomes the row id everything inside works on. Opens a
+    system-engine session of its own for the same reason ``billing_refs`` does
+    — the callers are request handlers routed to other roles.
 
-    Narrower than ``resolve_ref``: a reference minted for a user, or for
-    another purpose, is not an answer to this question.
+    Narrower than ``resolve_ref``: a reference minted for the other kind of
+    entity, or for another purpose, is not an answer to this question.
     """
     from app.db.session import SystemSessionLocal
 
     async with SystemSessionLocal() as session:
         row = await resolve_ref(session, ref=ref)
-    if row is None:
-        return None
     if (
-        row.entity_type != IdentityEntity.guild
+        row is None
+        or row.entity_type != entity_type
         or row.purpose != IdentityPurpose.billing
     ):
-        return None
-    return row.entity_id
-
-
-async def resolve_billing_user(*, ref: str) -> int | None:
-    """Which user one billing reference names, or None.
-
-    The user half of :func:`resolve_billing_guild`, for a notice billing
-    addresses to a person by the reference a portal handoff gave it. A
-    reference minted for a guild, or for another purpose, names nobody here.
-    """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as session:
-        row = await resolve_ref(session, ref=ref)
-    if row is None:
-        return None
-    if row.entity_type != IdentityEntity.user or row.purpose != IdentityPurpose.billing:
         return None
     return row.entity_id
 
@@ -460,7 +422,7 @@ async def drop_guild_refs(
     """Everything a deleted guild leaves in this table. Returns the count.
 
     Two halves, because a guild appears here in two ways. The sectors INSIDE
-    it name its members to each app installed there. The guild itself is also
+    it name its members to each plug-in installed there. The guild itself is also
     named — by billing, whose sector is the whole deployment and whose rows
     therefore carry no ``sector_guild_id`` to find them by.
 
@@ -479,9 +441,9 @@ async def drop_guild_refs(
 async def forget_user(*, user_id: int) -> int:
     """Drop every reference to one person, reporting rather than raising.
 
-    Called once the account is erased and after the apps holding those
+    Called once the account is erased and after the plug-ins holding those
     references have been told, so a revocation already on its way still names
-    somebody. Opens its own session for the reason ``billing_user_ref`` does —
+    somebody. Opens its own session for the reason ``billing_ref`` does —
     the callers are request handlers routed to other roles — and runs after the
     commit, where a failure must not undo the erasure;
     :func:`purge_orphaned_entity_refs` removes what it leaves.
@@ -509,7 +471,7 @@ async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
     removed by the deletion path rather than by a cascade. This reclaims the
     ones that path did not manage to remove — it runs after the deletion has
     committed, where there is nothing left to roll back. A guild that is
-    deleted but not yet purged has let its apps go already, so its sectors are
+    deleted but not yet purged has let its plug-ins go already, so its sectors are
     taken too.
     """
     result = await session.exec(
@@ -518,7 +480,7 @@ async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
             ~exists(
                 select(Guild.id).where(
                     Guild.id == IdentityRef.sector_guild_id,
-                    Guild.status != GuildStatus.deleted.value,
+                    Guild.status != CommunityStatus.deleted.value,
                 )
             ),
         )

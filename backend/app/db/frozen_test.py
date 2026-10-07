@@ -20,7 +20,7 @@ from app.db.frozen import FROZEN_SQLSTATE
 from app.db.session import raise_flag
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.testing import (
     create_comment,
@@ -43,7 +43,7 @@ async def workspace(session):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=user)
     project = await create_project(session, initiative=initiative, owner=user)
@@ -76,7 +76,7 @@ async def admin_routed(session, role_session, workspace):
     _user, guild, initiative, *_ = workspace
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_initiative_member(session, initiative=initiative, user=admin)
     s = await role_session("app_user")
@@ -286,7 +286,7 @@ class TestAncestorFreeze:
 
         bystander = await create_user(session)
         await create_guild_membership(
-            session, user=bystander, guild=guild, role=GuildRole.member
+            session, user=bystander, guild=guild, role=CommunityRole.member
         )
         await create_initiative_member(session, initiative=initiative, user=bystander)
         await session.commit()
@@ -619,7 +619,7 @@ class TestTrashedRowsAreOutOfSight:
         _u, guild, initiative, _p, _t = workspace
         user = await create_user(session)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.member
+            session, user=user, guild=guild, role=CommunityRole.member
         )
         await create_initiative_member(session, initiative=initiative, user=user)
         return user
@@ -630,7 +630,7 @@ class TestTrashedRowsAreOutOfSight:
         _u, guild, initiative, _p, _t = workspace
         user = await create_user(session)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.admin
+            session, user=user, guild=guild, role=CommunityRole.admin
         )
         await create_initiative_member(session, initiative=initiative, user=user)
         return user

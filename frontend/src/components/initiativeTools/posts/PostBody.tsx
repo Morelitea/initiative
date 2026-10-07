@@ -1,14 +1,14 @@
-import type { SerializedEditorState } from "lexical";
 import { lazy, Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeEditorState } from "@/lib/editorState";
 import { hasBody } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
 // The editor is the largest thing in the bundle and a board is often the first
 // page someone lands on, so it arrives on demand rather than in the route chunk.
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 interface PostBodyProps {
@@ -31,7 +31,7 @@ export const PostBody = ({ body, className }: PostBodyProps) => {
     <div className={cn("text-sm", className)}>
       <Suspense fallback={<Skeleton className="h-16 w-full" />}>
         <Editor
-          editorSerializedState={body as unknown as SerializedEditorState}
+          editorSerializedState={normalizeEditorState(body)}
           readOnly
           showToolbar={false}
           variant="post"

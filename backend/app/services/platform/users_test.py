@@ -16,7 +16,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability
-from app.models.platform.guild import GuildRole
+from app.core.errors import CodedError
+from app.core.messages import UserMessages
+from app.models.platform.guild import CommunityRole
 from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
 from app.services.platform import users as user_service
@@ -33,11 +35,11 @@ async def test_the_sole_seat_is_reported(session: AsyncSession):
     seat = await create_user(session)
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     # Somebody to strand: a community of one is the exception, tested below.
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
@@ -50,7 +52,7 @@ async def test_another_seat_holder_clears_it(session: AsyncSession):
     guild = await create_guild(session, creator=first)
     for user in (first, second):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.superadmin
+            session, user=user, guild=guild, role=CommunityRole.superadmin
         )
 
     assert await user_service.is_last_guild_superadmin(session, first.id) == []
@@ -63,10 +65,10 @@ async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
 
     assert await user_service.is_last_guild_superadmin(session, admin.id) == []
@@ -77,85 +79,19 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
     seat = await create_user(session)
     alone = await create_guild(session, name="Alone", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=alone, role=GuildRole.superadmin
+        session, user=seat, guild=alone, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=alone, role=GuildRole.member
+        session, user=await create_user(session), guild=alone, role=CommunityRole.member
     )
     other = await create_user(session, email="other@example.com")
     shared = await create_guild(session, name="Shared", creator=other)
     for user in (seat, other):
         await create_guild_membership(
-            session, user=user, guild=shared, role=GuildRole.superadmin
+            session, user=user, guild=shared, role=CommunityRole.superadmin
         )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
-
-
-async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
-    """Test that user can be deleted when they have no blocking conditions."""
-    # Create a regular member user
-    member = await create_user(session)
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, creator=admin)
-
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    # Check deletion eligibility
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        member.id,
-    )
-
-    assert can_delete is True
-    assert len(blockers) == 0
-
-
-async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
-    """Holding a community's only seat is what stops an account going."""
-    seat = await create_user(session)
-    guild = await create_guild(session, name="My Guild", creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
-    )
-
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        seat.id,
-    )
-
-    assert can_delete is False
-    assert any("My Guild" in blocker for blocker in blockers)
-    assert any("superadmin" in blocker.lower() for blocker in blockers)
-
-
-async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
-    """Being a community's last *admin* stops nobody: its seat is still there
-    and can promote somebody else."""
-    seat = await create_user(session, email="seat@example.com")
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="My Guild", creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    can_delete, blockers = await user_service.check_deletion_eligibility(
-        session, admin.id
-    )
-
-    assert can_delete is True
-    assert blockers == []
 
 
 async def test_removing_the_only_seat_is_refused_where_the_rows_go(
@@ -167,10 +103,10 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     seat = await create_user(session)
     guild = await create_guild(session, name="Stranded", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
 
     with pytest.raises(user_service.SeatWouldBeEmptied) as refusal:
@@ -188,7 +124,7 @@ async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     alone = await create_user(session)
     guild = await create_guild(session, name="Just Me", creator=alone)
     await create_guild_membership(
-        session, user=alone, guild=guild, role=GuildRole.superadmin
+        session, user=alone, guild=guild, role=CommunityRole.superadmin
     )
 
     assert await user_service.is_last_guild_superadmin(session, alone.id) == []
@@ -206,10 +142,10 @@ async def test_one_other_member_brings_the_block_back(session: AsyncSession):
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session, name="Not Just Me", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [
@@ -226,7 +162,7 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     guild = await create_guild(session, creator=leaving)
     for user in (leaving, staying):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.superadmin
+            session, user=user, guild=guild, role=CommunityRole.superadmin
         )
 
     leaving_id = leaving.id
@@ -242,17 +178,15 @@ async def test_deactivate_user(session: AsyncSession, monkeypatch):
     reactivate."""
     from app.services.platform import billing_ping
 
-    user = await create_user(
-        session, email="todeactivate@example.com", full_name="Original Name"
-    )
+    user = await create_user(session, email="todeactivate@example.com")
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
 
     original_token_version = user.token_version
@@ -269,7 +203,6 @@ async def test_deactivate_user(session: AsyncSession, monkeypatch):
     assert deactivated.status == UserStatus.deactivated
     assert deactivated.token_version == original_token_version + 1
     # PII preserved — an operator can reactivate.
-    assert deactivated.full_name == "Original Name"
     assert await addresses.holds_address(
         session, user_id=deactivated.id, email="todeactivate@example.com"
     )
@@ -291,7 +224,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     user = await create_user(
         session,
         email="toanonymize@example.com",
-        full_name="Anonymizer Test",
         avatar_url="https://example.com/avatar.png",
         role=UserRole.operator,
     )
@@ -307,10 +239,10 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     guild = await create_guild(session, creator=admin)
 
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
 
     # Seed auth artifacts that should be revoked.
@@ -350,7 +282,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     # elevated privileges.
     assert anonymized.role == UserRole.member
     # PII gone.
-    assert anonymized.full_name is None
     assert anonymized.avatar_url is None
     # The picture is a row of its own, so the column going null is not enough.
     assert (
@@ -395,7 +326,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     """The names outside parties know somebody by are part of the erasure.
 
     Billing holds one and keeps it — it is the key an account's history hangs
-    on — and each installed app holds its own. Once the person is gone, none of
+    on — and each installed plug-in holds its own. Once the person is gone, none of
     them has anyone left to resolve to, and the mapping is the only thing that
     could still join them back to a row.
 
@@ -414,11 +345,11 @@ async def test_erasing_a_user_stops_their_references_resolving(
         entity_id=victim.id,
         purpose=IdentityPurpose.billing,
     )
-    app_ref = await ensure_ref(
+    plugin_ref = await ensure_ref(
         session,
         entity_type=IdentityEntity.user,
         entity_id=victim.id,
-        purpose=IdentityPurpose.app,
+        purpose=IdentityPurpose.plugin,
         sector_guild_id=1,
         sector_id=1,
     )
@@ -433,7 +364,7 @@ async def test_erasing_a_user_stops_their_references_resolving(
     await user_service.soft_delete_user(session, victim.id)
 
     assert await resolve_ref(session, ref=billing_ref) is None
-    assert await resolve_ref(session, ref=app_ref) is None
+    assert await resolve_ref(session, ref=plugin_ref) is None
     # One person's erasure is not everybody's.
     assert await resolve_ref(session, ref=kept) is not None
 
@@ -454,7 +385,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     admin = await create_user(session, email="inviteadmin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
 
     # Active invite addressed to the victim — the recoverable PII trace.
@@ -537,7 +468,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     admin = await create_user(session, email="hardadmin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
 
     invite = await guild_service.create_guild_invite(
@@ -650,6 +581,9 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is True
     )
+    with pytest.raises(CodedError) as refusal:
+        await user_service.ensure_config_manager_remains(session, active_owner.id)
+    assert refusal.value.code == UserMessages.CANNOT_REMOVE_LAST_OWNER
 
     # The deactivated owner is never "the last owner" — they're not in
     # the count to begin with, so removing them changes nothing.
@@ -659,6 +593,7 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
         )
         is False
     )
+    await user_service.ensure_config_manager_remains(session, deact_owner.id)
 
 
 async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):
@@ -752,25 +687,28 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert refreshed.status == UserStatus.anonymized
 
 
-async def test_soft_delete_scrubs_embedded_mentions(
+async def test_soft_delete_takes_their_name_out_of_collaboration(
     session: AsyncSession, role_session
 ):
-    """Anonymizing a user rewrites their display name wherever content embedded
-    it as literal text — on every surface somebody writes on: @-mention markup
-    in comments, descriptions and checklist items, Lexical mention nodes in
-    documents and wiki pages (with yjs_state cleared), and digest-row name
-    snapshots (issue #794)."""
-    from app.models.tenant.comment import Comment
-    from app.models.tenant.document import Document
-    from app.models.tenant.task import Task
+    """Anonymizing a user leaves content as it is, since a mention holds no
+    name, and takes the names out of the collaboration state of every file
+    and wiki page that mentions them, archived ones included: an editor from
+    before names were left out can have written one into it. A state that
+    cannot be read is left as it is. Digest rows lose
+    the assigner's name snapshot and id (issue #794)."""
+    from sqlalchemy import text
+
+    from app.db.session import set_rls_context
+    from app.models.tenant.file import File
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.models.tenant.wiki import WikiPage
-    from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
-    from app.models.tenant.project import Project
+    from app.services.tenant.mention_parser import (
+        ANONYMIZED_MENTION_NAME,
+        nameless_state,
+    )
+    from app.testing import MENTIONING_YJS_STATE
     from app.testing.factories import (
-        checklist_items,
-        create_comment,
-        create_document,
+        create_file,
         create_initiative,
         create_initiative_member,
         create_project,
@@ -778,77 +716,47 @@ async def test_soft_delete_scrubs_embedded_mentions(
         create_wiki,
         create_wiki_page,
         enable_all_tools,
+        lexical_body,
     )
     from app.testing.schema_harness import route_session_to_guild
 
     author = await create_user(session, email="author@example.com")
-    victim = await create_user(session, email="victim@example.com", full_name="Vic Tim")
+    victim = await create_user(session, email="victim@example.com")
     guild = await create_guild(session, creator=author)
     await create_guild_membership(session, user=victim, guild=guild)
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
-    project = await create_project(
-        session, initiative, author, description=f"lead: @[Vic Tim]({victim.id})"
+    project = await create_project(session, initiative, author)
+    task = await create_task(session, project)
+    mentioning = lexical_body("Thanks ", mentioning=victim.id)
+    file = await create_file(
+        session, initiative, author, content=mentioning, yjs_state=MENTIONING_YJS_STATE
     )
-    task = await create_task(
+    archived = await create_file(
         session,
-        project,
-        description=f"pair with @[Vic Tim]({victim.id})",
-        checklist=checklist_items(f"ask @[Vic Tim]({victim.id})"),
-    )
-    # Finished work is scrubbed too: an archived task keeps its words, so it
-    # would keep the name.
-    archived_task = await create_task(
-        session,
-        project,
-        description=f"was @[Vic Tim]({victim.id})'s",
+        initiative,
+        author,
+        content=mentioning,
+        yjs_state=MENTIONING_YJS_STATE,
         archived_at=datetime.now(timezone.utc),
     )
-
-    comment = await create_comment(
-        session, author, task=task, content=f"ping @[Vic Tim]({victim.id}) thanks"
-    )
-    archived_comment = await create_comment(
+    elsewhere = await create_file(
         session,
+        initiative,
         author,
-        task=archived_task,
-        content=f"ask @[Vic Tim]({victim.id})",
+        content=lexical_body("Thanks ", mentioning=author.id),
+        yjs_state=b"kept-state",
     )
-    trashed_comment = await create_comment(
-        session,
-        author,
-        task=task,
-        content=f"bin @[Vic Tim]({victim.id})",
-        deleted_at=datetime.now(timezone.utc),
-    )
-    mention_body = {
-        "root": {
-            "type": "root",
-            "children": [
-                {
-                    "type": "paragraph",
-                    "children": [
-                        {
-                            "type": "mention",
-                            "mentionName": "Vic Tim",
-                            "mentionUserId": victim.id,
-                            "text": "Vic Tim",
-                        }
-                    ],
-                }
-            ],
-        }
-    }
-    document = await create_document(
-        session, initiative, author, content=mention_body, yjs_state=b"stale-state"
+    unreadable = await create_file(
+        session, initiative, author, content=mentioning, yjs_state=b"unreadable"
     )
     await enable_all_tools(session, initiative)
     page = await create_wiki_page(
         session,
         await create_wiki(session, initiative, author),
         author,
-        content=mention_body,
-        yjs_state=b"stale-state",
+        content=mentioning,
+        yjs_state=MENTIONING_YJS_STATE,
     )
     digest = TaskAssignmentDigestItem(
         user_id=author.id,
@@ -861,20 +769,17 @@ async def test_soft_delete_scrubs_embedded_mentions(
     )
     session.add(digest)
     await session.commit()
+    digest_id = digest.id
     victim_id = victim.id
 
     # Account erasure is trusted system work and must not be narrowed by an
-    # evolving tenant UPDATE policy.  This restrictive policy independently
+    # evolving tenant UPDATE policy. This restrictive policy independently
     # proves the lifecycle path retains its system identity while routed into
     # the guild schema.
-    from sqlalchemy import text
-
-    from app.db.session import set_rls_context
-
     await set_rls_context(session, Unattributed())
     await session.exec(
         text(
-            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".files '
             "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
         )
     )
@@ -885,77 +790,42 @@ async def test_soft_delete_scrubs_embedded_mentions(
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
-
-    refreshed_comment = (
-        await session.exec(select(Comment).where(Comment.id == comment.id))
-    ).one()
-    assert (
-        refreshed_comment.content
-        == f"ping @[{ANONYMIZED_MENTION_NAME}]({victim_id}) thanks"
-    )
-
-    refreshed_archived_comment = (
-        await session.exec(select(Comment).where(Comment.id == archived_comment.id))
-    ).one()
-    assert refreshed_archived_comment.content == (
-        f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-    )
-
-    refreshed_trashed_comment = (
-        await session.exec(
-            select(Comment)
-            .where(Comment.id == trashed_comment.id)
-            .execution_options(include_deleted=True)
-        )
-    ).one()
-    assert refreshed_trashed_comment.content == (
-        f"bin @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-    )
-
-    descriptions = dict(
+    states = dict(
         (
             await session.exec(
-                select(Task.id, Task.description)
-                .where(Task.id.in_([task.id, archived_task.id]))  # type: ignore[union-attr]
+                select(File.id, File.yjs_state)
+                .where(
+                    File.id.in_(  # type: ignore[union-attr]
+                        [file.id, archived.id, elsewhere.id, unreadable.id]
+                    )
+                )
                 .execution_options(include_archived=True)
             )
         ).all()
     )
-    assert descriptions == {
-        task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
-        archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
-    }
-    checklist = (
-        await session.exec(select(Task.checklist).where(Task.id == task.id))
-    ).one()
-    assert checklist[0]["text"] == f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-    project_description = (
-        await session.exec(select(Project.description).where(Project.id == project.id))
-    ).one()
-    assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-
-    for model, row_id in ((Document, document.id), (WikiPage, page.id)):
-        refreshed = (
-            await session.exec(
-                select(model)
-                .where(model.id == row_id)
-                .options(undefer(model.content), undefer(model.yjs_state))
-            )
-        ).one()
-        node = refreshed.content["root"]["children"][0]["children"][0]
-        assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
-        assert node["text"] == ANONYMIZED_MENTION_NAME, model
-        assert node["mentionUserId"] == victim_id, model
-        assert refreshed.yjs_state is None, model
-
-    refreshed_digest = (
+    assert states.pop(elsewhere.id) == b"kept-state"
+    assert states.pop(unreadable.id) == b"unreadable"
+    refreshed_page = (
         await session.exec(
-            select(TaskAssignmentDigestItem).where(
-                TaskAssignmentDigestItem.assigned_by_id == victim_id
-            )
+            select(WikiPage)
+            .where(WikiPage.id == page.id)
+            .options(undefer(WikiPage.content), undefer(WikiPage.yjs_state))
         )
     ).one()
-    assert refreshed_digest.assigned_by_name == ANONYMIZED_MENTION_NAME
+    assert refreshed_page.content == mentioning
+    for state in (*states.values(), refreshed_page.yjs_state):
+        assert state != MENTIONING_YJS_STATE and nameless_state(state) is None
+
+    digest_name, digest_by = (
+        await session.exec(
+            select(
+                TaskAssignmentDigestItem.assigned_by_name,
+                TaskAssignmentDigestItem.assigned_by_id,
+            ).where(TaskAssignmentDigestItem.id == digest_id)
+        )
+    ).one()
+    assert digest_name == ANONYMIZED_MENTION_NAME
+    assert digest_by is None
 
 
 async def test_hard_delete_anonymized_user_cleans_guild_data(
@@ -1121,6 +991,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
     from app.models.platform.email_outbox import EmailOutboxItem
     from app.models.platform.notification import Notification
     from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_birthdate import UserBirthdate
     from app.models.platform.user_cookie_consent import UserCookieConsent
     from app.models.platform.user_decoration import UserDecoration
     from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -1160,6 +1031,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
             ),
             AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
             UserCookieConsent(user_id=user.id, version=1),
+            UserBirthdate(user_id=user.id, birthdate_encrypted="sealed"),
             DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
             DmConversationMember(conversation_id=conversation.id, user_id=user.id),
             DmConversationMember(conversation_id=conversation.id, user_id=other.id),
@@ -1192,6 +1064,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
         (EmailOutboxItem, EmailOutboxItem.user_id),
         (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
         (UserCookieConsent, UserCookieConsent.user_id),
+        (UserBirthdate, UserBirthdate.user_id),
         (DmDevice, DmDevice.user_id),
         (DmConversationMember, DmConversationMember.user_id),
         (UserDmSettings, UserDmSettings.user_id),
@@ -1272,3 +1145,50 @@ async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypat
     session.expire_all()
     after = await session.get(type(user), user_id)
     assert after.status == UserStatus.anonymized
+
+
+async def test_a_kept_birthdate_is_never_replaced(session: AsyncSession):
+    """Keeping is one insert: of two answers, exactly one is kept, and a second
+    leaves the first as it is."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        first = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        second = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(2015, 1, 1)
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert first is not None and second is None
+    assert kept == date(1990, 5, 4)
+
+
+async def test_taking_back_a_date_leaves_a_newer_one(session: AsyncSession):
+    """A failed answer takes back only the date it kept, never one a later
+    answer kept after a reset."""
+    from datetime import date
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session)
+    async with SystemSessionLocal() as system_session:
+        failed = await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1990, 5, 4)
+        )
+        await user_service.forget_birthdate(system_session, user_id=user.id)
+        await user_service.keep_birthdate(
+            system_session, user_id=user.id, birthdate=date(1991, 6, 5)
+        )
+        await user_service.forget_birthdate(
+            system_session, user_id=user.id, only=failed
+        )
+        await system_session.commit()
+        kept = await user_service.birthdate_of(system_session, user_id=user.id)
+
+    assert kept == date(1991, 6, 5)

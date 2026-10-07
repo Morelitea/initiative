@@ -1,5 +1,5 @@
 /**
- * `/settings/properties` — the custom fields this initiative's documents,
+ * `/settings/properties` — the custom fields this initiative's files,
  * tasks, and events can carry.
  */
 

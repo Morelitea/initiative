@@ -4,7 +4,7 @@ from typing import Annotated, List, Optional, Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload, selectinload, undefer
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
@@ -17,7 +17,7 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -39,6 +39,8 @@ from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
+    CaseMessageRead,
+    TaskCaseRead,
     TaskCreate,
     TaskListResponse,
     TaskMoveRequest,
@@ -46,16 +48,20 @@ from app.schemas.tenant.task import (
     TaskReorderRequest,
     TaskUpdate,
 )
+from app.schemas.platform.user import UserPublic
 from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import cases as cases_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_creation as task_creation_service
+from app.core.tools import Tool
+from app.services.tenant import named_people
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_queries
 from app.services.tenant import task_series
@@ -65,10 +71,10 @@ from app.services.tenant.task_completion import sync_completed_at
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. A task is the project's, so it
+#: The routes an installed plug-in may call. A task is the project's, so it
 #: answers to the projects scopes.
-ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
-ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
+ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
+ProjectsWrite = Annotated[ActorContext, Depends(plugin_scope("projects:write"))]
 
 
 # Cross-guild "my tasks" aggregates (My Tasks / Created Tasks pages). Mounted
@@ -154,37 +160,6 @@ def _touch_project(project: Project, now: datetime) -> None:
 #: ``tasks`` policy is rendered from, so the routes and the policy cannot
 #: disagree about a task's parent.
 _GOVERNING = resource_access.governing_tool("tasks")
-
-
-async def _load_for_change(
-    session: SessionDep, task_id: int, user: User | None, context: ActorContext
-) -> Task:
-    """The task with what changing it reads — its project and initiative, its
-    status and its assignees — refused unless the request may edit the project.
-
-    What only a response reads (counts, tags, properties, the creator) is left
-    to :func:`task_queries.load_task` once the change has landed.
-    """
-    statement = (
-        select(Task)
-        .where(Task.id == task_id)
-        .options(
-            joinedload(Task.project).options(
-                joinedload(Project.initiative), undefer(Project.actions)
-            ),
-            joinedload(Task.task_status),
-            selectinload(Task.assignees),
-        )
-    )
-    task = (await session.exec(statement)).one_or_none()
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-    resource_access.authorize(
-        _GOVERNING, task.project, user, context=context, access="write"
-    )
-    return task
 
 
 async def _response(session: SessionDep, task_id: int, missing: str) -> Task:
@@ -417,6 +392,51 @@ async def read_task(
     return task
 
 
+@router.get("/{task_id}/case", response_model=TaskCaseRead)
+async def read_task_case(
+    task_id: int,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+) -> TaskCaseRead:
+    """How an operations case was filed: its stream, who filed it, and what
+    the stream allows with them. 404 for a task no stream opened."""
+    await resource_access.load_child(session, Task, task_id, access="read")
+    case = await cases_service.read_case(session, task_id)
+    if case is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_A_CASE
+        )
+    return TaskCaseRead(
+        stream=case.stream,
+        opened_at=case.opened_at,
+        filer=(
+            UserPublic.model_validate(case.filer, from_attributes=True)
+            if case.filer is not None
+            else None
+        ),
+        filer_subject=case.filer_subject,
+        conversation=case.conversation,
+        awaiting_filer_status_id=case.awaiting_filer_status_id,
+        active_status_id=case.active_status_id,
+        messages=[
+            CaseMessageRead(
+                id=message.id,
+                author=(
+                    UserPublic.model_validate(message.author, from_attributes=True)
+                    if message.author is not None
+                    else None
+                ),
+                from_requester=(
+                    case.filer is not None and message.created_by == case.filer.id
+                ),
+                content=message.content,
+                created_at=message.created_at,
+            )
+            for message in case.messages
+        ],
+    )
+
+
 @router.patch("/{task_id}", response_model=TaskRead)
 async def update_task(
     task_id: int,
@@ -425,7 +445,7 @@ async def update_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     update_data = task_in.model_dump(exclude_unset=True)
@@ -573,7 +593,7 @@ async def update_task(
         task,
         previous_status_category=previous_status_category,
         now=now,
-        # An installed app has no zone of its own; a rolling recurrence it
+        # An installed plug-in has no zone of its own; a rolling recurrence it
         # completes counts days in UTC.
         user_timezone=current_user.timezone if current_user is not None else None,
     )
@@ -586,7 +606,7 @@ async def update_task(
             previous=previous_description,
             author=current_user,
         )
-        # An installed app does not manage the community's uploads; a picture
+        # An installed plug-in does not manage the community's uploads; a picture
         # its edit took out of the description stays for a person to clear.
         if current_user is not None:
             let_go = attachments_service.upload_urls_in_markdown(
@@ -612,7 +632,7 @@ async def move_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     if task.project_id == move_in.target_project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -632,6 +652,7 @@ async def move_task(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=TaskMessages.CANNOT_MOVE_TO_TEMPLATE,
         )
+    await resource_access.require_may_move(session, task, target_project)
 
     default_status = await task_statuses_service.get_default_status(
         session, target_project.id
@@ -662,7 +683,9 @@ async def move_task(
     # The files the task and its conversation show are kept for the
     # destination's initiative.
     comments = await session.exec(select(Comment).where(Comment.task_id == task.id))
-    await attachments_service.claim_uploads(session, task, *comments.all())
+    await attachments_service.claim_uploads(
+        session, task, *comments.all(), carried=True
+    )
 
     _touch_project(source_project, now)
     _touch_project(target_project, now)
@@ -675,68 +698,27 @@ async def move_task(
 )
 async def duplicate_task(
     task_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
-    original_task = await _load_for_change(
-        session, task_id, current_user, guild_context
-    )
-    project = original_task.project
-    position = await task_creation_service.next_position(session, project.id)
-
-    # Create the new task with the same properties
-    new_task = Task(
-        title=f"{original_task.title} (copy)",
-        description=original_task.description,
-        project_id=original_task.project_id,
-        task_status_id=original_task.task_status_id,
-        priority=original_task.priority,
-        start_date=original_task.start_date,
-        due_date=original_task.due_date,
-        recurrence=original_task.recurrence,
-        recurrence_shift=original_task.recurrence_shift,
-        recurrence_strategy=original_task.recurrence_strategy,
-        position=position,
-        created_by=current_user.id,
-        checklist=checklist_service.cloned(original_task.checklist),
-    )
-    # The copy keeps the source's status, so a duplicated done task is complete
-    # from the moment it exists — stamped now, not inherited: the copy was not
-    # the thing that finished when the original did.
-    sync_completed_at(
-        new_task,
-        original_task.task_status.category if original_task.task_status else None,
-        now=datetime.now(timezone.utc),
-    )
-    session.add(new_task)
-    await session.flush()
-
-    # Copy assignees
-    assignee_ids = [assignee.id for assignee in original_task.assignees]
-    await task_creation_service.set_task_assignees(
-        session, new_task, assignee_ids, project=project, carried=True
-    )
-
-    # Copy tags (active only — links to trashed tags are not carried forward)
-    await tags_service.copy_entity_tags(
+    """Copy the task beside itself, at the end of its project, as
+    "<title> (Copy)", with its assignees, tags, links and properties; its
+    checklist starts unticked."""
+    task = await resource_access.load_child(session, Task, task_id, access="write")
+    # The copy stays in the project, whose sharing is already committed, so
+    # who it may name is asked of the copy's own assignees alone.
+    keep = await named_people.readers(
         session,
-        tags_service.TAG_LINKS["task"],
-        {original_task.id: new_task.id},
+        named_people.Governing.of(Tool.project, task.project),
+        {assignee.id for assignee in task.assignees},
     )
-
-    # Copy property values — duplicate stays in the same project and
-    # therefore the same initiative, so definitions always resolve.
-    await properties_service.copy_values(session, original_task, new_task)
-
-    if new_task.description:
-        await task_description_service.record_references(
-            session, new_task, author_id=current_user.id
-        )
-
-    _touch_project(project, datetime.now(timezone.utc))
+    (copy,) = await task_creation_service.copy_tasks(
+        session, [task], task.project, assignees=keep
+    )
+    _touch_project(task.project, datetime.now(timezone.utc))
     await session.commit()
-    return await _response(session, new_task.id, TaskMessages.DUPLICATE_NOT_FOUND)
+    return await _response(session, copy.id, TaskMessages.DUPLICATE_NOT_FOUND)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -751,7 +733,7 @@ async def delete_task(
     goes on (trashing it when the series has no more), ``following`` (the
     default) trashes it and so ends the repeat, and ``all`` trashes every
     other task of the series too."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
     now = datetime.now(timezone.utc)
     skipped = (
@@ -785,7 +767,7 @@ async def skip_task(
     guild_context: ProjectsWrite,
 ) -> Task:
     """Move a repeating task on to its next occurrence without completing it."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     if not task.recurrence:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -796,7 +778,7 @@ async def skip_task(
         session,
         task,
         now=now,
-        # An installed app has no zone of its own; a rolling repeat it skips
+        # An installed plug-in has no zone of its own; a rolling repeat it skips
         # counts days in UTC.
         user_timezone=current_user.timezone if current_user is not None else None,
     ):
@@ -959,7 +941,7 @@ async def toggle_checklist_item(
     several people make to the same task at once: it names one item and rewrites
     only that item, so two ticks on different items both land.
     """
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     now = datetime.now(timezone.utc)
     result = await session.exec(
         checklist_service.toggle_statement(),
@@ -1030,7 +1012,7 @@ async def generate_task_checklist(
     guild_context: GuildContextDep,
 ) -> GenerateChecklistResponse:
     """Suggest checklist steps for a task."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     await _record_ai_request(
@@ -1042,18 +1024,15 @@ async def generate_task_checklist(
         initiative_id=project.initiative_id,
     )
 
-    try:
-        items = await ai_generation_service.generate_checklist(
-            session,
-            current_user,
-            guild_context.guild_id,
-            task,
-            initiative_name=project.initiative.name if project.initiative else None,
-            project_name=project.name,
-        )
-        return GenerateChecklistResponse(items=items)
-    except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.code)
+    items = await ai_generation_service.generate_checklist(
+        session,
+        current_user,
+        guild_context.guild_id,
+        task,
+        initiative_name=project.initiative.name if project.initiative else None,
+        project_name=project.name,
+    )
+    return GenerateChecklistResponse(items=items)
 
 
 @router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
@@ -1064,7 +1043,7 @@ async def generate_task_description(
     guild_context: GuildContextDep,
 ) -> GenerateDescriptionResponse:
     """Generate AI-powered description for a task."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     await _record_ai_request(
@@ -1076,15 +1055,12 @@ async def generate_task_description(
         initiative_id=project.initiative_id,
     )
 
-    try:
-        description = await ai_generation_service.generate_description(
-            session,
-            current_user,
-            guild_context.guild_id,
-            task,
-            initiative_name=project.initiative.name if project.initiative else None,
-            project_name=project.name,
-        )
-        return GenerateDescriptionResponse(description=description)
-    except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.code)
+    description = await ai_generation_service.generate_description(
+        session,
+        current_user,
+        guild_context.guild_id,
+        task,
+        initiative_name=project.initiative.name if project.initiative else None,
+        project_name=project.name,
+    )
+    return GenerateDescriptionResponse(description=description)

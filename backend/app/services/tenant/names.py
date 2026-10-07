@@ -57,6 +57,15 @@ def unique_slug(
     return candidate
 
 
+def copy_name(name: str, max_length: int | None = None) -> str:
+    """What a copy beside its source is called, shortened where it has to fit
+    in ``max_length``."""
+    suffix = " (Copy)"
+    if max_length is not None:
+        name = name[: max_length - len(suffix)].rstrip()
+    return f"{name}{suffix}".lstrip()
+
+
 async def ensure_name_free(
     session: AsyncSession, column: Any, name: str, *where: Any, detail: str
 ) -> None:

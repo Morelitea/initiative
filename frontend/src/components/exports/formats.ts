@@ -1,15 +1,15 @@
-import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
+import type { FileType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
 import { NON_EXPORTABLE_TOOLS, SIDEBAR_TOOLS } from "@/lib/tools";
 
-// Engine formats per document type — mirrors the backend adapter's rules.
-export const DOCUMENT_TYPE_FORMATS: Record<DocumentType, ExportFormatOption[]> = {
+// Engine formats per file type — mirrors the backend adapter's rules.
+export const FILE_TYPE_FORMATS: Record<FileType, ExportFormatOption[]> = {
   native: [
     { format: "pdf", labelKey: "export.formatPdf" },
     { format: "md", labelKey: "export.formatMarkdown" },
     { format: "docx", labelKey: "export.formatDocx" },
-    // The lossless one: the document envelope, round-trippable through the
+    // The lossless one: the file envelope, round-trippable through the
     // editor toolbar's import.
     { format: "json", labelKey: "export.formatJson" },
   ],
@@ -38,17 +38,17 @@ const GENERIC_FORMAT_LABELS: Record<string, string> = {
   file: "export.formatOriginal",
 };
 
-/** Formats a document selection can export: the backend requires the format
- * to be valid for EVERY selected document's type, so offer the intersection.
+/** Formats a file selection can export: the backend requires the format
+ * to be valid for EVERY selected file's type, so offer the intersection.
  * A single-type selection keeps its type's own (more precise) labels; a
  * mixed selection gets generic ones. Empty when the types share nothing
  * (e.g. an upload + a text document). */
-export function documentSelectionFormats(types: DocumentType[]): ExportFormatOption[] {
+export function fileSelectionFormats(types: FileType[]): ExportFormatOption[] {
   const unique = [...new Set(types)];
   if (unique.length === 0) return [];
-  if (unique.length === 1) return DOCUMENT_TYPE_FORMATS[unique[0]] ?? [];
+  if (unique.length === 1) return FILE_TYPE_FORMATS[unique[0]] ?? [];
   const formatSets = unique.map(
-    (type) => new Set((DOCUMENT_TYPE_FORMATS[type] ?? []).map((f) => f.format))
+    (type) => new Set((FILE_TYPE_FORMATS[type] ?? []).map((f) => f.format))
   );
   const shared = [...formatSets[0]].filter((format) => formatSets.every((set) => set.has(format)));
   return shared.map((format) => ({
@@ -58,9 +58,9 @@ export function documentSelectionFormats(types: DocumentType[]): ExportFormatOpt
 }
 
 // Per-tool export formats, keyed by the canonical Tool enum — each mirrors
-// its backend adapter's format set. Documents are deliberately ABSENT: their
-// formats depend on the selected documents' types (documentSelectionFormats
-// above / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
+// its backend adapter's format set. Files are deliberately ABSENT: their
+// formats depend on the selected files' types (selectionExportFormats
+// below / FILE_TYPE_FORMATS). The registry drift test holds this table to
 // NON_EXPORTABLE_TOOLS's bulkExport flags.
 export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
   [Tool.post]: [
@@ -70,7 +70,7 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
   ],
   [Tool.wiki]: [
     // Every page as one document, as a text document exports, then the
-    // importable envelope. Always a zip: the documents filed in the wiki ride
+    // importable envelope. Always a zip: the files filed in the wiki ride
     // beside either.
     { format: "pdf", labelKey: "export.formatWikiPdf" },
     { format: "md", labelKey: "export.formatWikiMarkdown" },
@@ -118,8 +118,22 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
   ],
 };
 
+/** Formats a selection of one tool's rows can export: the tool's own, or for
+ * files the ones every selected file's type shares. Null for a tool
+ * with no export source. */
+export function selectionExportFormats(
+  tool: Tool,
+  items: { file_type?: FileType }[]
+): ExportFormatOption[] | null {
+  if (NON_EXPORTABLE_TOOLS.has(tool)) return null;
+  if (tool === Tool.file) {
+    return fileSelectionFormats(items.flatMap((item) => item.file_type ?? []));
+  }
+  return TOOL_EXPORT_FORMATS[tool] ?? null;
+}
+
 // ---------------------------------------------------------------------------
-// Aggregate (initiative / guild) export wizard
+// Aggregate (initiative / community) export wizard
 // ---------------------------------------------------------------------------
 
 /** Wizard tool order: the sidebar's order, filtered to engine-exportable
@@ -130,8 +144,8 @@ export const AGGREGATE_EXPORT_TOOLS: Tool[] = SIDEBAR_TOOLS.filter(
 );
 
 /** Report-mode format choices per tool — mirrors the backend aggregate
- * adapter's ``_REPORT_FORMATS`` (adapters/backup.py). Documents are absent:
- * they choose per document type (REPORT_DOCUMENT_FORMATS). */
+ * adapter's ``_REPORT_FORMATS`` (adapters/backup.py). Files are absent:
+ * they choose per file type (REPORT_FILE_FORMATS). */
 export const REPORT_TOOL_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
   [Tool.project]: [
     { format: "pdf", labelKey: "export.formatPdf" },
@@ -156,10 +170,10 @@ export const REPORT_TOOL_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
   ],
 };
 
-/** Report-mode per-type document formats — mirrors the backend's
- * ``_DOCUMENT_REPORT_FORMATS``. Whiteboards/links/uploads ride in their
+/** Report-mode per-type file formats — mirrors the backend's
+ * ``_FILE_REPORT_FORMATS``. Whiteboards/links/uploads ride in their
  * canonical format and offer no choice. */
-export const REPORT_DOCUMENT_FORMATS: Record<"native" | "spreadsheet", ExportFormatOption[]> = {
+export const REPORT_FILE_FORMATS: Record<"native" | "spreadsheet", ExportFormatOption[]> = {
   native: [
     { format: "pdf", labelKey: "export.formatPdf" },
     { format: "md", labelKey: "export.formatMarkdown" },

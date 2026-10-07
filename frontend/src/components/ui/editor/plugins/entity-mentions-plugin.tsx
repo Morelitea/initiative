@@ -13,11 +13,11 @@ import { useTranslation } from "react-i18next";
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
 import { activeMention, ENTITY_TRIGGER, MENTIONABLE_TYPES } from "@/lib/mentions";
 import { hitIcon } from "@/lib/searchResults";
 import { entityRefRoute } from "@/lib/tools";
@@ -54,7 +54,7 @@ export function entityMatch(text: string): MenuTextMatch | null {
 export interface EntityMentionsPluginProps {
   /** Initiative the document belongs to — what a mention may reach. */
   initiativeId?: number | null;
-  /** The thing being written in, as a reference (`document:12`). Never
+  /** The thing being written in, as a reference (`file:12`). Never
    *  offered: a thing does not point at itself. */
   subject?: string | null;
 }
@@ -71,9 +71,9 @@ export function EntityMentionsPlugin({
   subject,
 }: EntityMentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const navigate = useNavigate();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const [queryString, setQueryString] = useState<string | null>(null);
   // Read back through the same parser the comment composer uses, so `#task:`
   // narrows here exactly as it does there.
@@ -86,7 +86,7 @@ export function EntityMentionsPlugin({
   // The one lookup every picker in the app goes through, narrowed to this
   // initiative's live work. A bare `#` names nothing yet, so it opens on what
   // was most recently worked on rather than on a menu with nothing in it.
-  const { items, isFetching, stale } = useGuildPickerSuggestions(debouncedQuery, {
+  const { items, isFetching, stale } = useCommunityPickerSuggestions(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     is_template: false,
@@ -143,12 +143,12 @@ export function EntityMentionsPlugin({
         const refType = entityRefTypeFor(type as SearchSuggestion["entity_type"]);
         if (!refType) return false;
         event.preventDefault();
-        void navigate({ to: guildPath(guildId, entityRefRoute(refType, id)) });
+        void navigate({ to: communityPath(communityId, entityRefRoute(refType, id)) });
         return true;
       },
       COMMAND_PRIORITY_LOW
     );
-  }, [editor, navigate, guildId]);
+  }, [editor, navigate, communityId]);
 
   if (!initiativeId) return null;
 
@@ -187,7 +187,7 @@ export function EntityMentionsPlugin({
                     ) : (
                       // Rendering nothing here is what made `#` look broken: a
                       // reference is scoped to this document's initiative, so a
-                      // guild full of matches can still leave a reader staring
+                      // community full of matches can still leave a reader staring
                       // at an unchanged caret with no idea why.
                       <div className="space-y-1 px-3 py-2">
                         <p className="text-muted-foreground text-sm">

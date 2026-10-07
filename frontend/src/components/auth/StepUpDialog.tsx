@@ -13,20 +13,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuthChallenge } from "@/hooks/useAuthChallenge";
-import { useGuildLoginProviders, useLoginProviders } from "@/hooks/useGuildAuthPolicy";
+import { useCommunityLoginProviders, useLoginProviders } from "@/hooks/useCommunityAuthPolicy";
+import { providerSignInHref } from "@/lib/returnPath";
 
 /** The path the sign-in should return to: where the challenge happened. */
 const currentSpaPath = (): string => `${window.location.pathname}${window.location.search}`;
 
 /**
- * Global handler for guild sign-in requirements. When any request is refused
- * with `GUILD_AUTH_STEP_UP_REQUIRED` (dispatched by the API client as a
+ * Global handler for community sign-in requirements. When any request is refused
+ * with `COMMUNITY_AUTH_STEP_UP_REQUIRED` (dispatched by the API client as a
  * window event carrying the required provider's slug), this dialog offers
  * that provider's sign-in and returns the browser to the interrupted page
  * afterwards via the login route's `next` parameter.
  *
  * Web only: the native login flow does not yet mint sessions that can
- * satisfy a guild requirement, so the event is ignored there rather than
+ * satisfy a community requirement, so the event is ignored there rather than
  * sending the user through a sign-in that cannot help.
  */
 export const StepUpDialog = () => {
@@ -40,11 +41,13 @@ export const StepUpDialog = () => {
   // A community's listing names the ways in it counts as its own; the
   // deployment's own listing serves everything else. Both lead to the same
   // sign-in — a community does not authenticate anybody.
-  const guildId = challenge?.guildId ?? 0;
-  const guildProvidersQuery = useGuildLoginProviders(guildId, { enabled: open && guildId > 0 });
-  const platformProvidersQuery = useLoginProviders({ enabled: open && guildId <= 0 });
+  const communityId = challenge?.communityId ?? 0;
+  const communityProvidersQuery = useCommunityLoginProviders(communityId, {
+    enabled: open && communityId > 0,
+  });
+  const platformProvidersQuery = useLoginProviders({ enabled: open && communityId <= 0 });
   const providerSlug = challenge?.providerSlug ?? null;
-  const listing = guildId > 0 ? guildProvidersQuery.data : platformProvidersQuery.data;
+  const listing = communityId > 0 ? communityProvidersQuery.data : platformProvidersQuery.data;
   const provider = listing?.providers.find((entry) => entry.slug === providerSlug);
   const providerName = provider?.display_name ?? providerSlug ?? "";
 
@@ -54,7 +57,7 @@ export const StepUpDialog = () => {
     }
     const loginUrl =
       provider?.login_url ?? `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
-    window.location.href = `${loginUrl}?next=${encodeURIComponent(currentSpaPath())}`;
+    window.location.href = providerSignInHref(loginUrl, currentSpaPath());
   };
 
   return (

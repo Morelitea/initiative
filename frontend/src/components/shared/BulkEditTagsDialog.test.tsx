@@ -3,32 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
+import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { TagBulkEditRequest } from "@/api/generated/initiativeAPI.schemas";
 
 import { BulkEditTagsDialog } from "./BulkEditTagsDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 const LABELS = {
-  title: "Edit tags",
-  descriptionAdd: "Add tags to items",
-  descriptionRemove: "Remove tags from items",
-  tabAdd: "Add",
-  tabRemove: "Remove",
-  addPlaceholder: "Pick tags",
-  removePlaceholder: "Pick tags to remove",
-  noTags: "No tags",
-  tagsAdded: "Tags added",
-  tagsRemoved: "Tags removed",
-  applying: "Applying…",
-  apply: "Apply",
-  cancel: "Cancel",
-  updateError: "Update failed",
+  tabRemove: i18n.t("bulkTags.tabRemove", { ns: "common" }),
+  apply: i18n.t("bulkTags.apply", { ns: "common" }),
 };
 
 const alpha = { id: 1, name: "alpha", color: "#6366F1" };
@@ -38,10 +27,10 @@ describe("BulkEditTagsDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     server.use(
-      guildHttp.get("/tags/", () =>
+      communityHttp.get("/tags/", () =>
         HttpResponse.json([
-          { ...alpha, guild_id: 1, created_at: "", updated_at: "" },
-          { ...beta, guild_id: 1, created_at: "", updated_at: "" },
+          { ...alpha, community_id: 1, created_at: "", updated_at: "" },
+          { ...beta, community_id: 1, created_at: "", updated_at: "" },
         ])
       )
     );
@@ -50,7 +39,7 @@ describe("BulkEditTagsDialog", () => {
   it("adds tags with ONE bulk call carrying every selected item", async () => {
     const bodies: TagBulkEditRequest[] = [];
     server.use(
-      guildHttp.post("/tags/bulk", async ({ request }) => {
+      communityHttp.post("/tags/bulk", async ({ request }) => {
         bodies.push((await request.json()) as TagBulkEditRequest);
         return HttpResponse.json({ updated_count: 2 });
       })
@@ -68,9 +57,8 @@ describe("BulkEditTagsDialog", () => {
           { id: 12, tags: [beta] },
         ]}
         targetType="task"
-        guildId={1}
+        communityId={1}
         onInvalidate={onInvalidate}
-        labels={LABELS}
       />
     );
 
@@ -95,7 +83,7 @@ describe("BulkEditTagsDialog", () => {
   it("removes tags via the remove tab with a remove-only payload", async () => {
     const bodies: TagBulkEditRequest[] = [];
     server.use(
-      guildHttp.post("/tags/bulk", async ({ request }) => {
+      communityHttp.post("/tags/bulk", async ({ request }) => {
         bodies.push((await request.json()) as TagBulkEditRequest);
         return HttpResponse.json({ updated_count: 2 });
       })
@@ -110,10 +98,9 @@ describe("BulkEditTagsDialog", () => {
           { id: 11, tags: [beta] },
           { id: 12, tags: [beta] },
         ]}
-        targetType="document"
-        guildId={1}
+        targetType="file"
+        communityId={1}
         onInvalidate={vi.fn()}
-        labels={LABELS}
       />
     );
 
@@ -125,7 +112,7 @@ describe("BulkEditTagsDialog", () => {
     await waitFor(() =>
       expect(bodies).toEqual([
         {
-          target_type: "document",
+          target_type: "file",
           target_ids: [11, 12],
           add_tag_ids: [],
           remove_tag_ids: [beta.id],
@@ -136,7 +123,7 @@ describe("BulkEditTagsDialog", () => {
 
   it("surfaces a failed bulk call and leaves the dialog open", async () => {
     server.use(
-      guildHttp.post("/tags/bulk", () =>
+      communityHttp.post("/tags/bulk", () =>
         HttpResponse.json({ detail: "INVALID_TAG_IDS" }, { status: 400 })
       )
     );
@@ -150,9 +137,8 @@ describe("BulkEditTagsDialog", () => {
         onSuccess={onSuccess}
         items={[{ id: 11, tags: [] }]}
         targetType="task"
-        guildId={1}
+        communityId={1}
         onInvalidate={vi.fn()}
-        labels={LABELS}
       />
     );
 
@@ -160,7 +146,7 @@ describe("BulkEditTagsDialog", () => {
     await userEvent.click(await screen.findByText("alpha"));
     await userEvent.click(screen.getByRole("button", { name: LABELS.apply }));
 
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);

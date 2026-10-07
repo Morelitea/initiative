@@ -9,8 +9,8 @@ import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useAddWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, wikiPageRoute } from "@/lib/tools";
 
 /**
@@ -24,7 +24,7 @@ import { toolListRoute, wikiPageRoute } from "@/lib/tools";
  */
 export const WikiDetailPage = () => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { wikiId: wikiIdParam, initiativeId: initiativeIdParam } = useParams({
     strict: false,
   }) as { wikiId?: string; initiativeId?: string };
@@ -36,7 +36,7 @@ export const WikiDetailPage = () => {
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pagesQuery = useWikiPages(validIds ? wikiId : null);
   useReadOnOpen(Tool.wiki, wikiQuery.data?.id);
-  const createPage = useCreateWikiPage(wikiId);
+  const createPage = useAddWikiPage(wikiId, initiativeId);
 
   const pages = pagesQuery.data?.items ?? [];
   const addPage = () => createPage.mutate({});
@@ -45,7 +45,7 @@ export const WikiDetailPage = () => {
 
   // Inside a wiki, the thing to create is a page. Without this the button in
   // the corner keeps whatever the list before it registered — a second wiki.
-  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("pages.newPage") } : null);
 
   if (!validIds || wikiQuery.isError) {
     return (
@@ -86,7 +86,7 @@ export const WikiDetailPage = () => {
         </CardHeader>
         {canWrite ? (
           <CardContent>
-            <Button onClick={() => createPage.mutate({})} disabled={createPage.isPending}>
+            <Button onClick={addPage} disabled={createPage.isPending}>
               <Plus className="size-4" aria-hidden />
               {t("pages.createFirst")}
             </Button>

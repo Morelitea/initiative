@@ -9,7 +9,7 @@ their own key and pick a connection, but never set a destination.
 from enum import Enum
 from typing import Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -23,20 +23,20 @@ class AIProvider(str, Enum):
 
 class AIConfigMode(str, Enum):
     """Who owns AI config, app-wide. ``platform`` = the operator's connections
-    apply to every guild; ``guild`` = each guild admin configures its own;
+    apply to every guild; ``community`` = each community admin configures its own;
     ``disabled`` = AI off."""
 
     disabled = "disabled"
     platform = "platform"
-    guild = "guild"
+    community = "community"
 
 
 class ConnectionScope(str, Enum):
     """Which table a connection lives in — ``platform`` = the shared
-    ``platform_ai_connections`` row, ``guild`` = a ``guild_ai_connections`` row."""
+    ``platform_ai_connections`` row, ``community`` = a ``guild_ai_connections`` row."""
 
     platform = "platform"
-    guild = "guild"
+    community = "community"
 
 
 # --- Connections (owner-controlled destination) ------------------------------
@@ -132,8 +132,10 @@ class MyAIConnectionRow(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     scope: ConnectionScope
     connection_id: int
     label: str
@@ -170,7 +172,7 @@ class ResolvedAISettings(SanitizedBaseModel):
     allow_private: bool = False
     scope: Optional[ConnectionScope] = None
     connection_id: Optional[int] = None
-    source: str = "disabled"  # "platform" | "guild" | "disabled"
+    source: str = "disabled"  # "platform" | "community" | "disabled"
 
 
 class ResolvedAISettingsResponse(SanitizedBaseModel):

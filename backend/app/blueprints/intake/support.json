@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Support",
-    "icon": "🛟",
+    "icon": "\ud83d\udedf",
     "description": "Help requests from people using this deployment. Each case is one request: answer it, and close it when the person has what they needed.",
     "is_template": false,
     "archived_at": null,
@@ -33,17 +33,25 @@
       "is_default": false
     },
     {
-      "name": "Awaiting response",
+      "name": "Waiting on requester",
       "category": "in_progress",
       "position": 2,
       "color": "#8B5CF6",
-      "icon": "clock",
+      "icon": "hourglass",
+      "is_default": false
+    },
+    {
+      "name": "Requester replied",
+      "category": "in_progress",
+      "position": 3,
+      "color": "#EC4899",
+      "icon": "message-circle-reply",
       "is_default": false
     },
     {
       "name": "Resolved",
       "category": "done",
-      "position": 3,
+      "position": 4,
       "color": "#10B981",
       "icon": "circle-check",
       "is_default": false
@@ -75,7 +83,7 @@
   "tasks": [
     {
       "title": "How this project is fed",
-      "description": "Cases arrive here when somebody asks for help. The request is in the case in their own words, because that is what they chose to send us.\n\nMove a case to **Awaiting response** while the ball is in their court, and **Resolved** when they have what they needed.\n\nThis is also the channel for a customer asking us to produce evidence about their own community \u2014 the request arrives here, somebody produces it, and the case closing is itself the record that we did.\n\nYou can restructure this project however you like. The binding only names the project.",
+      "description": "Cases arrive here when somebody asks for help. The request is in the case in their own words, because that is what they chose to send us.\n\nAnswer whoever filed a case from the panel above its comments. **Send and wait for them** moves it to **Waiting on requester**, which they see as waiting on them; when they answer, it moves to **Requester replied** so the board shows it is back with us. Move it to **Resolved** when they have what they needed.\n\nThis is also the channel for a customer asking us to produce evidence about their own community \u2014 the request arrives here, somebody produces it, and the case closing is itself the record that we did.\n\nYou can restructure this project however you like. The binding only names the project.",
       "priority": "medium",
       "start_date": null,
       "due_date": null,

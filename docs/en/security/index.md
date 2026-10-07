@@ -21,11 +21,11 @@ In everyday terms, Initiative is built so that:
 
 ### Your group's data is separate from every other group's
 
-Each community is a sealed space. Another group using the same Initiative server cannot see your projects, documents, or tasks — and you can't see theirs. This separation isn't a setting that could be toggled off by accident: every community's content lives in its own dedicated area of the database (a separate *schema*), created with the community and removed with it. The finer layers — which effort, which role, which item — are enforced inside that space by the database as well (more in the technical pages).
+Each community is a sealed space. Another group using the same Initiative server cannot see your projects, files, or tasks — and you can't see theirs. This separation isn't a setting that could be toggled off by accident: every community's content lives in its own dedicated area of the database (a separate *schema*), created with the community and removed with it. The finer layers — which effort, which role, which item — are enforced inside that space by the database as well (more in the technical pages).
 
 ### Sensitive work stays with the people involved
 
-Inside a community, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the community seeing it — a business's finances away from its seasonal staff, a hiring committee's notes away from the rest of the team. And individual projects and documents can be narrowed further still — see [Sharing & access](../sharing/index.md).
+Inside a community, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the community seeing it — a business's finances away from its seasonal staff, a hiring committee's notes away from the rest of the team. And individual projects and files can be narrowed further still — see [Sharing & access](../sharing/index.md).
 
 This is the layer most groups rely on day to day, and it needs no configuration: someone who isn't in an initiative simply doesn't have it.
 
@@ -47,9 +47,11 @@ The trade is that your history lives on your devices rather than on a server, so
 
 ### You stay in control of your account
 
-- See **where you're signed in** and sign out any device you don't recognize, from **User settings → Security**.
+- See **where you're signed in** and sign out or remove any device you don't recognize, from **My Settings → Security**.
+- Every email about a change to how you sign in carries a **This wasn't me** button. It signs your account out on every browser, phone and computer and turns off its API keys. When the change looks out of place, the emails to your older addresses can also undo it. See ["This wasn't me"](../account/profile-and-preferences.md#this-wasnt-me).
+- Some changes wait two days when they're made from somewhere your account hasn't been signed in for long: moving your primary address, removing a confirmed address, turning off two-factor authentication, and removing your last passkey. Every confirmed address is emailed with a link to cancel, and the change shows at the top of **Account** and **Security** in your settings with **Cancel the change**. See [Changes that wait](../account/profile-and-preferences.md#changes-that-wait).
 - Create and **revoke access keys** for apps and scripts at any time (see [API keys & integrations](../account/api-keys-and-integrations.md)).
-- **Deactivate or delete your account** whenever you choose, from **User settings → Danger Zone**. You decide whether your content is preserved or removed. See [Data & compliance](data-and-compliance.md).
+- **Deactivate or delete your account** whenever you choose, from the bottom of **My Settings → Account**. You decide whether your content is preserved or removed. See [Data & compliance](data-and-compliance.md).
 
 ## A few habits that do most of the work
 

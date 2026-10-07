@@ -321,7 +321,7 @@ async def test_progress_hears_each_space_and_can_stop_the_walk(monkeypatch):
     assert heard == [1]
 
 
-async def test_a_pages_attachments_come_as_uploads_and_documents_in_its_wiki(
+async def test_a_pages_attachments_come_as_uploads_and_files_in_its_wiki(
     monkeypatch,
 ):
     calls = _site(
@@ -360,7 +360,7 @@ async def test_a_pages_attachments_come_as_uploads_and_documents_in_its_wiki(
         manifest = json.loads(archive.read("manifest.json"))
     wiki_entry, file_entry = manifest["entries"]
     pdf_key = file_entry["asset"].removeprefix("assets/")
-    assert file_entry["type"] == "file" and file_entry["tool"] == "document"
+    assert file_entry["type"] == "file" and file_entry["tool"] == "file"
     assert (
         file_entry["title"] == "spec.pdf" and file_entry["path"] == file_entry["asset"]
     )
@@ -371,7 +371,7 @@ async def test_a_pages_attachments_come_as_uploads_and_documents_in_its_wiki(
     }
     assert manifest["initiatives"][0]["tools"] == {
         "wiki": "included",
-        "document": "included",
+        "file": "included",
     }
     assert {a["original_filename"] for a in manifest["assets"]} == {
         "chart.png",

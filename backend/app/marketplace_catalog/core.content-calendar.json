@@ -1,0 +1,464 @@
+{
+  "uid": "83BFS5PJGMTQHS",
+  "public_id": "core.content-calendar",
+  "kind": "project",
+  "name": "Content calendar",
+  "publisher": "Initiative",
+  "description": "What you are publishing, where, and when. Mostly when.",
+  "long_description": "Every post, newsletter, video or episode is a card that moves from Ideas through Drafting, Editing and Scheduled to Published. Each one says which channels it goes out on and the day it goes out, and that day is its due date, so the calendar view of the project is the content calendar.\n\nThe Ideas column has no due dates on purpose. Ideas are free. Deadlines are for the ones you picked.",
+  "avatar_url": "/marketplace/core-content-calendar.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Content calendar",
+      "icon": "📰",
+      "description": "Ideas on the left, published on the right. The due date is the publish date.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Ideas",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Drafting",
+        "category": "in_progress",
+        "position": 1,
+        "color": null,
+        "icon": "pen-line",
+        "is_default": false
+      },
+      {
+        "name": "Editing",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "eye",
+        "is_default": false
+      },
+      {
+        "name": "Scheduled",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "calendar-clock",
+        "is_default": false
+      },
+      {
+        "name": "Published",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Channels",
+        "type": "multi_select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "blog",
+            "label": "Blog",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "newsletter",
+            "label": "Newsletter",
+            "color": "#10B981"
+          },
+          {
+            "value": "social",
+            "label": "Social",
+            "color": "#EC4899"
+          },
+          {
+            "value": "video",
+            "label": "Video",
+            "color": "#EF4444"
+          },
+          {
+            "value": "podcast",
+            "label": "Podcast",
+            "color": "#8B5CF6"
+          }
+        ]
+      },
+      {
+        "name": "Publish date",
+        "type": "date",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Link",
+        "type": "url",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": []
+  },
+  "example": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Content calendar",
+      "icon": "📰",
+      "description": "Ideas on the left, published on the right. The due date is the publish date.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Ideas",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Drafting",
+        "category": "in_progress",
+        "position": 1,
+        "color": null,
+        "icon": "pen-line",
+        "is_default": false
+      },
+      {
+        "name": "Editing",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": "eye",
+        "is_default": false
+      },
+      {
+        "name": "Scheduled",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "calendar-clock",
+        "is_default": false
+      },
+      {
+        "name": "Published",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Channels",
+        "type": "multi_select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "blog",
+            "label": "Blog",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "newsletter",
+            "label": "Newsletter",
+            "color": "#10B981"
+          },
+          {
+            "value": "social",
+            "label": "Social",
+            "color": "#EC4899"
+          },
+          {
+            "value": "video",
+            "label": "Video",
+            "color": "#EF4444"
+          },
+          {
+            "value": "podcast",
+            "label": "Podcast",
+            "color": "#8B5CF6"
+          }
+        ]
+      },
+      {
+        "name": "Publish date",
+        "type": "date",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Link",
+        "type": "url",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Ten questions customers ask us every week",
+        "description": "Pull them from the support inbox. There are more than ten.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Ideas",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "blog"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Behind the scenes: how we pack an order",
+        "description": "Short, vertical, with the dog.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Ideas",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "video",
+              "social"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Spring product roundup",
+        "description": "Six new things, one paragraph each.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-13T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Drafting",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Draft",
+            "done": false
+          },
+          {
+            "text": "Edit",
+            "done": false
+          },
+          {
+            "text": "Images",
+            "done": false
+          },
+          {
+            "text": "Schedule",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "blog",
+              "newsletter"
+            ]
+          },
+          {
+            "property_name": "Publish date",
+            "property_type": "date",
+            "value_text": "2000-01-13"
+          }
+        ]
+      },
+      {
+        "title": "Interview with our longest customer",
+        "description": "Recorded. Needs the edit and a transcript.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-10T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Editing",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Draft",
+            "done": true
+          },
+          {
+            "text": "Edit",
+            "done": false
+          },
+          {
+            "text": "Images",
+            "done": false
+          },
+          {
+            "text": "Schedule",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "podcast",
+              "blog"
+            ]
+          },
+          {
+            "property_name": "Publish date",
+            "property_type": "date",
+            "value_text": "2000-01-10"
+          }
+        ]
+      },
+      {
+        "title": "Monthly newsletter",
+        "description": "Goes out at 9am. The subject line is final, unless someone has a better one.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-06T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Scheduled",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Draft",
+            "done": true
+          },
+          {
+            "text": "Edit",
+            "done": true
+          },
+          {
+            "text": "Images",
+            "done": true
+          },
+          {
+            "text": "Schedule",
+            "done": true
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "newsletter"
+            ]
+          },
+          {
+            "property_name": "Publish date",
+            "property_type": "date",
+            "value_text": "2000-01-06"
+          }
+        ]
+      },
+      {
+        "title": "Holiday opening hours",
+        "description": "Same post on every account.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-05T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Scheduled",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "social"
+            ]
+          },
+          {
+            "property_name": "Publish date",
+            "property_type": "date",
+            "value_text": "2000-01-05"
+          }
+        ]
+      },
+      {
+        "title": "We moved to a new workshop",
+        "description": "Photos of the new space, and the old one for comparison.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": "2000-01-03T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "Published",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Channels",
+            "property_type": "multi_select",
+            "value_json": [
+              "blog",
+              "social"
+            ]
+          },
+          {
+            "property_name": "Publish date",
+            "property_type": "date",
+            "value_text": "2000-01-03"
+          }
+        ]
+      }
+    ]
+  }
+}

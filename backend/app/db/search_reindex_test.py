@@ -17,7 +17,7 @@ from app.db import session as db_session
 from app.db.schema_provisioning import backfill_guild_search, reindex_guild_search
 from app.db.search_index import search_generation
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_project, create_tag, create_task
 from app.db.request_context import SystemGuild
@@ -52,7 +52,7 @@ async def _wipe(guild_id: int) -> None:
 
 
 async def test_it_indexes_content_that_predates_the_index(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="vendor renewal terms")
     tag = await create_tag(session, a.guild, name="urgent")
     await _wipe(a.guild.id)
@@ -74,7 +74,7 @@ async def test_the_swept_rows_carry_the_same_identity_the_trigger_writes(
 ):
     """A swept row and a trigger-written row must be interchangeable, or search
     would rank and gate them differently."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="quarterly report")
     before = next(
         r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
@@ -93,7 +93,7 @@ async def test_the_swept_rows_carry_the_same_identity_the_trigger_writes(
 async def test_soft_deleted_content_is_not_swept_in(session, acting_user):
     from datetime import datetime, timezone
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="trashed")
     task.deleted_at = datetime.now(timezone.utc)
     session.add(task)
@@ -108,7 +108,7 @@ async def test_soft_deleted_content_is_not_swept_in(session, acting_user):
 
 async def test_a_current_guild_is_left_alone(session, acting_user):
     """The marker is what keeps a boot from rewriting every guild's index."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="already indexed")
     await _wipe(a.guild.id)
 
@@ -119,7 +119,7 @@ async def test_a_current_guild_is_left_alone(session, acting_user):
 
 
 async def test_the_marker_records_the_generation(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, a.initiative, a.user, name="p")
     await _wipe(a.guild.id)
     await _reindex(a.guild.id)
@@ -154,7 +154,7 @@ def test_every_reindex_statement_locks_the_rows_it_rewrites():
 async def test_a_write_during_the_sweep_wins(session, acting_user):
     """A trigger write is always newer than what a sweep batch read, so the
     sweep must not put the older text back."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="original")
     await _wipe(a.guild.id)
 
@@ -172,7 +172,7 @@ async def test_a_write_during_the_sweep_wins(session, acting_user):
 
 
 async def test_the_boot_sweep_reindexes_each_stale_guild(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="swept at boot")
     await _wipe(a.guild.id)
 

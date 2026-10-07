@@ -121,11 +121,13 @@ async def test_a_mention_from_an_ignored_account_writes_no_notification(
 ):
     """End to end through a comment: the mention is written and rendered, and
     the person who is ignoring hears nothing about it."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
 
-    bram = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    bram = await acting_user(
+        guild_role=CommunityRole.admin, initiative=True, project=True
+    )
     ada = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=bram.guild,
         initiative=bram.initiative,
         initiative_role="member",

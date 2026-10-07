@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock, advisory_unlock
 from app.db import session as db_session
 from app.db.schema_provisioning import guild_schema_name
 from app.services import storage_config
@@ -167,12 +168,6 @@ async def _guild_upload_meta(
     return {row[0]: (row[1], row[2]) for row in rows if row[0]}
 
 
-# Cluster-wide advisory-lock key (arbitrary constant) so at most one backfill runs
-# at a time across every worker/process — the in-process status guard can't see a
-# run started on another worker.
-_BACKFILL_LOCK_KEY = 0x1014_5311
-
-
 async def backfill_uploads_to_s3(
     *,
     dry_run: bool = False,
@@ -197,15 +192,13 @@ async def backfill_uploads_to_s3(
     # The lock and the guild list are read on a platform connection, and each
     # guild's uploads on a system session from that guild's cohort.
     async with db_session.system_engine.connect() as conn:
-        # One backfill at a time, cluster-wide. pg_try_advisory_lock is held for
-        # this connection; a second worker that can't take it backs off rather
-        # than double-copying every guild.
-        locked = (
-            await conn.execute(
-                text("SELECT pg_try_advisory_lock(:k)"), {"k": _BACKFILL_LOCK_KEY}
-            )
-        ).scalar()
-        if not locked:
+        # One backfill at a time across every worker/process: the in-process
+        # status guard sees only this one. The lock is held for this
+        # connection; a second worker that can't take it backs off rather than
+        # double-copying every guild.
+        if not await advisory_lock(
+            conn, LockNamespace.UPLOAD_BACKFILL, wait=False, xact=False
+        ):
             logger.warning("backfill skipped: another run holds the advisory lock")
             summary.already_running = True
             return summary
@@ -240,9 +233,7 @@ async def backfill_uploads_to_s3(
             # Roll back first, so the unlock below runs in a fresh transaction.
             # The advisory lock is session-scoped and survives the rollback.
             await conn.rollback()
-            await conn.execute(
-                text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}
-            )
+            await advisory_unlock(conn, LockNamespace.UPLOAD_BACKFILL)
     return summary
 
 

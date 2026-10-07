@@ -19,7 +19,7 @@ import pytest
 from sqlmodel import select
 
 from app.core.config import settings
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import operator_catalog as service
 from app.services.marketplace.catalog import upsert_listing
@@ -30,7 +30,7 @@ from app.services.marketplace.catalog import upsert_listing
 OPERATOR_UID = "0PRT0R00000001"
 BUILTIN_UID = "BB11TT00000001"
 REGISTRY_UID = "REG15TRY000001"
-APP_UID = "APP00000000001"
+PLUGIN_UID = "APP00000000001"
 BUNDLED_DASH_UID = "DASHB0ARD00001"
 
 
@@ -61,14 +61,14 @@ def _manifest(**overrides) -> dict:
     return manifest
 
 
-#: The read the bundled tile draws, namespaced under the app's own service id.
-OPEN_ITEMS = "app.acme.tracker.open-items"
+#: The read the bundled tile draws, namespaced under the plug-in's own service id.
+OPEN_ITEMS = "plugin.acme.tracker.open-items"
 
 
-def _app_manifest(dashboards=None, **overrides) -> dict:
-    """An app manifest, optionally carrying the dashboards it bundles."""
+def _plugin_manifest(dashboards=None, **overrides) -> dict:
+    """A plug-in manifest, optionally carrying the dashboards it bundles."""
     definition: dict = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "acme.tracker", "protocol": 1},
         "features": ["endpoints", "widgets"],
         "endpoints": [{"id": OPEN_ITEMS, "direction": "read"}],
@@ -85,9 +85,9 @@ def _app_manifest(dashboards=None, **overrides) -> dict:
         definition["features"] = [*definition["features"], "dashboards"]
         definition["dashboards"] = dashboards
     manifest = {
-        "uid": APP_UID,
+        "uid": PLUGIN_UID,
         "public_id": "acme.tracker",
-        "kind": "app",
+        "kind": "plugin",
         "name": "Tracker",
         "publisher": "Acme",
         "description": "Track the things.",
@@ -139,18 +139,59 @@ async def _listings(session) -> dict[str, MarketplaceListing]:
 
 
 class TestUnconfigured:
-    async def test_no_directory_means_no_feature(self, session, monkeypatch):
-        """Unset is absent: nothing is read, nothing is published, and — the
-        part worth pinning — nothing already in the catalog is withdrawn."""
+    async def test_no_directory_withdraws_what_a_directory_once_published(
+        self, session, monkeypatch
+    ):
+        """Unset reads as empty. The directory is the only source of operator
+        listings, so one left from a directory that is no longer set — the
+        Automations listing earlier releases copied into every deployment — is
+        withdrawn rather than offered forever."""
         monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
         await upsert_listing(session, _manifest(), source="operator")
         await session.commit()
 
         result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.configured is False
+        assert (result.published, result.withdrawn, result.skipped) == (0, 1, 0)
+        assert (await _listings(session))["acme.standup"].available is False
+
+    async def test_no_directory_and_no_operator_listings_is_a_no_op(
+        self, session, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
 
         assert result.configured is False
         assert (result.published, result.withdrawn, result.skipped) == (0, 0, 0)
-        assert (await _listings(session))["acme.standup"].available is True
+        assert await _listings(session) == {}
+
+    async def test_no_directory_leaves_other_sources_alone(self, session, monkeypatch):
+        """Only what the directory published is the directory's to withdraw;
+        a built-in or a registry listing is out of its scope either way."""
+        monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
+        await upsert_listing(
+            session,
+            _manifest(uid=BUILTIN_UID, public_id="core.shipped"),
+            source="builtin",
+        )
+        await upsert_listing(
+            session,
+            _manifest(uid=REGISTRY_UID, public_id="acme.registered"),
+            source="registry",
+        )
+        await session.commit()
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.withdrawn == 0
+        listings = await _listings(session)
+        assert listings["core.shipped"].available is True
+        assert listings["acme.registered"].available is True
 
     async def test_a_blank_setting_reads_as_unset(self, session, monkeypatch):
         monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", "   ")
@@ -216,13 +257,13 @@ class TestPublishing:
 
         assert (await _listings(session))["acme.standup"].name == "Daily standup"
 
-    async def test_an_apps_registration_block_gives_its_registration_the_app_facts(
+    async def test_a_plugins_registration_block_gives_its_registration_the_plugin_facts(
         self, session, catalog_dir
     ):
         """The same block a registry listing carries: the operator's file is
         the trust, and its ceiling is their approval."""
         block = {"kind": "container", "scope_ceiling": ["projects:read"]}
-        _write(catalog_dir, "tracker.json", _app_manifest(registration=block))
+        _write(catalog_dir, "tracker.json", _plugin_manifest(registration=block))
 
         result = await service.scan_operator_catalog(session)
         await session.commit()
@@ -230,13 +271,13 @@ class TestPublishing:
         assert result.problems == ()
         row = (
             await session.exec(
-                select(AppServiceRegistration).where(
-                    AppServiceRegistration.public_id == "acme.tracker"
+                select(PluginServiceRegistration).where(
+                    PluginServiceRegistration.public_id == "acme.tracker"
                 )
             )
         ).one()
         assert (row.listing_uid, row.scope_ceiling, row.source) == (
-            APP_UID,
+            PLUGIN_UID,
             ["projects:read"],
             "operator",
         )
@@ -445,9 +486,9 @@ class TestBundledDashboards:
     async def test_a_bundled_dashboard_survives_the_scan_that_publishes_it(
         self, session, catalog_dir
     ):
-        """Its uid is only ever written inside its app's file, so the scan has
+        """Its uid is only ever written inside its plug-in's file, so the scan has
         to read the file to know the directory claims it."""
-        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+        _write(catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()]))
 
         result = await service.scan_operator_catalog(session)
         await session.commit()
@@ -457,12 +498,12 @@ class TestBundledDashboards:
         assert listings["acme.tracker"].available is True
         dashboard = listings["acme.tracker-overview"]
         assert dashboard.available is True
-        assert dashboard.bundled_with_uid == APP_UID
+        assert dashboard.bundled_with_uid == PLUGIN_UID
 
     async def test_a_rescan_leaves_the_bundled_dashboard_alone(
         self, session, catalog_dir
     ):
-        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+        _write(catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()]))
         await service.scan_operator_catalog(session)
         await session.commit()
 
@@ -475,13 +516,13 @@ class TestBundledDashboards:
     async def test_dropping_the_entry_still_withdraws_the_dashboard(
         self, session, catalog_dir
     ):
-        """The app no longer ships that arrangement, so it stops being offered
-        — while the app itself carries on."""
-        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+        """The plug-in no longer ships that arrangement, so it stops being offered
+        — while the plug-in itself carries on."""
+        _write(catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()]))
         await service.scan_operator_catalog(session)
         await session.commit()
 
-        _write(catalog_dir, "tracker.json", _app_manifest([]))
+        _write(catalog_dir, "tracker.json", _plugin_manifest([]))
         await service.scan_operator_catalog(session)
         await session.commit()
 
@@ -493,7 +534,7 @@ class TestBundledDashboards:
         """Claiming the dashboard's uid is not exempting it: with the file gone,
         nothing claims either row."""
         path = _write(
-            catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()])
+            catalog_dir, "tracker.json", _plugin_manifest([_bundled_dashboard()])
         )
         await service.scan_operator_catalog(session)
         await session.commit()

@@ -17,7 +17,7 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { summarizeStored } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
@@ -27,13 +27,16 @@ import { entityRefRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/l
 import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   /** Whether THIS row has a status change in flight — one row saving must not
    *  disable the rest of the table. */
   isUpdatingTask: (task: TaskListRead) => boolean;
   changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
   changeTaskStatusById: (task: TaskListRead, statusId: number) => Promise<void>;
-  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
+  fetchProjectStatuses: (
+    projectId: number,
+    communityId: number | null
+  ) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
@@ -127,7 +130,7 @@ export function sharedTaskColumns<T extends TaskListRead>({
 }
 
 export function globalTaskColumns({
-  activeGuildId,
+  activeCommunityId,
   isUpdatingTask,
   changeTaskStatus,
   changeTaskStatusById,
@@ -138,25 +141,27 @@ export function globalTaskColumns({
   togglePin,
   propertyColumns,
 }: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
-  const guildDefaultLabel = t("myTasks.noGuild");
-  const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
+  const communityDefaultLabel = t("myTasks.noCommunity");
+  const getCommunityGroupLabel = (task: TaskListRead) =>
+    task.community_name ?? communityDefaultLabel;
 
-  const taskGuildPath = (task: TaskListRead, path: string) => {
-    const guildId = task.guild_id ?? activeGuildId;
-    return guildId ? guildPath(guildId, path) : path;
+  const taskCommunityPath = (task: TaskListRead, path: string) => {
+    const communityId = task.community_id ?? activeCommunityId;
+    return communityId ? communityPath(communityId, path) : path;
   };
   const shared = sharedTaskColumns<TaskListRead>({
     t,
-    tagHref: (task, tagId) => taskGuildPath(task, `/tags/${tagId}`),
+    tagHref: (task, tagId) => taskCommunityPath(task, `/tags/${tagId}`),
     isPriorityDisabled: isUpdatingTask,
   });
 
   return [
     shared.dateGroup,
     {
+      // The id is kept in device-stored column and grouping state.
       id: "guild",
-      accessorFn: (task) => getGuildGroupLabel(task),
-      header: ({ column }) => <SortHeader column={column} label={t("columns.guild")} />,
+      accessorFn: (task) => getCommunityGroupLabel(task),
+      header: ({ column }) => <SortHeader column={column} label={t("columns.community")} />,
       cell: ({ getValue }) => <span className="font-medium text-base">{getValue<string>()}</span>,
       sortFn: "alphanumeric",
     },
@@ -236,9 +241,9 @@ export function globalTaskColumns({
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to={taskGuildPath(
+                to={taskCommunityPath(
                   task,
-                  // Cross-guild rows without an initiative resolve through /go.
+                  // Cross-community rows without an initiative resolve through /go.
                   task.initiative_id != null
                     ? taskRoute(task.initiative_id, task.project_id, task.id)
                     : entityRefRoute("task", task.id)
@@ -272,16 +277,16 @@ export function globalTaskColumns({
         const task = row.original;
         const projectLabel = task.project_name ?? t("projectFallback", { id: task.project_id });
         const projectIdentifier = task.project_id;
-        const guildName = task.guild_name;
+        const communityName = task.community_name;
         const initiativeId = task.initiative_id;
         const initiativeName = task.initiative_name;
         const initiativeColor = task.initiative_color;
         return (
           <div className="min-w-30">
             <div className="flex flex-wrap items-center gap-2">
-              {guildName ? (
+              {communityName ? (
                 <>
-                  <span className="text-muted-foreground text-xs sm:text-sm">{guildName}</span>
+                  <span className="text-muted-foreground text-xs sm:text-sm">{communityName}</span>
                   <span className="text-muted-foreground text-sm" aria-hidden>
                     &gt;
                   </span>
@@ -290,7 +295,7 @@ export function globalTaskColumns({
               {initiativeId && initiativeName ? (
                 <>
                   <Link
-                    to={taskGuildPath(task, initiativeRoute(initiativeId))}
+                    to={taskCommunityPath(task, initiativeRoute(initiativeId))}
                     className="flex items-center gap-2 text-muted-foreground text-sm"
                   >
                     <InitiativeColorDot color={initiativeColor ?? undefined} />
@@ -303,11 +308,11 @@ export function globalTaskColumns({
                 </>
               ) : null}
               <Link
-                to={taskGuildPath(
+                to={taskCommunityPath(
                   task,
                   initiativeId != null
                     ? toolDetailRoute(Tool.project, initiativeId, projectIdentifier)
-                    : entityRefRoute("project", projectIdentifier)
+                    : entityRefRoute(Tool.project, projectIdentifier)
                 )}
                 className="font-medium text-primary text-sm hover:underline"
               >
@@ -330,7 +335,7 @@ export function globalTaskColumns({
           <div className="space-y-1">
             <TaskStatusSelector
               task={task}
-              activeGuildId={activeGuildId}
+              activeCommunityId={activeCommunityId}
               isUpdatingTaskStatus={isUpdatingTask(task)}
               changeTaskStatusById={changeTaskStatusById}
               fetchProjectStatuses={fetchProjectStatuses}

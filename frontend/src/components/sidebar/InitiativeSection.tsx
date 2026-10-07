@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildAppRead,
+  CommunityPluginRead,
   InitiativeRead,
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -22,8 +22,8 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { initiativeAppPath } from "@/lib/appSurfaces";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
+import { initiativePluginPath } from "@/lib/pluginSurfaces";
 import { getItem, setItem } from "@/lib/storage";
 import {
   initiativeRoute,
@@ -45,10 +45,10 @@ export interface InitiativeSectionProps {
   /** One count per tool. Required keys, not `Partial`: a tool left out of
    *  this map renders a permanent 0 with nothing to catch it. */
   counts: Record<Tool, number>;
-  /** The guild's installed apps. Those declaring a surface for this reader
+  /** The community's installed plug-ins. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
-  apps: GuildAppRead[];
-  activeGuildId: number | null;
+  plugins: CommunityPluginRead[];
+  activeCommunityId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
 }
@@ -59,27 +59,28 @@ export const InitiativeSection = memo(
     projects,
     activeProjectId,
     counts,
-    apps,
-    activeGuildId,
+    plugins,
+    activeCommunityId,
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     // The same signal the community rail carries, one level in and then one
     // more: a dot on the initiative, and on the tool inside it.
     const unread = useUnreadTree();
-    // Helper to create guild-scoped paths
-    const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+    // Helper to create community-scoped paths
+    const gp = (path: string) =>
+      activeCommunityId ? communityPath(activeCommunityId, path) : path;
     /** Whether a tool's row renders at all. */
     const showTool = (tool: Tool): boolean => initiative.can.view.includes(tool);
 
     /** Whether to surface a create affordance for a tool. */
     const canCreateTool = (tool: Tool): boolean => initiative.can.create.includes(tool);
 
-    // Apps offering this reader a surface inside *this* initiative, as the
+    // Plug-ins offering this reader a surface inside *this* initiative, as the
     // server computed it for them.
-    const appRows = apps
-      .map((app) => ({ app, path: initiativeAppPath(app, initiative.id) }))
-      .filter((row): row is { app: GuildAppRead; path: string } => row.path !== null);
+    const pluginRows = plugins
+      .map((plugin) => ({ plugin, path: initiativePluginPath(plugin, initiative.id) }))
+      .filter((row): row is { plugin: CommunityPluginRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -148,7 +149,7 @@ export const InitiativeSection = memo(
                 className="flex min-w-0 items-center gap-2"
               >
                 <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
-                {unread.hasInitiative(activeGuildId, initiative.id) ? <UnreadDot /> : null}
+                {unread.hasInitiative(activeCommunityId, initiative.id) ? <UnreadDot /> : null}
               </Link>
             </Button>
           </div>
@@ -232,16 +233,16 @@ export const InitiativeSection = memo(
                 </SidebarMenuItem>
               )}
 
-              {/* Apps first, above the tools, the same way the guild's apps sit
+              {/* Plug-ins first, above the tools, the same way the community's plug-ins sit
                   above its initiatives — and because the tool rows end with
                   projects, whose list has to expand directly beneath them. */}
-              {appRows.map(({ app, path }) => (
-                <SidebarMenuItem key={`app-${app.id}`}>
+              {pluginRows.map(({ plugin, path }) => (
+                <SidebarMenuItem key={`plugin-${plugin.id}`}>
                   <SidebarMenuButton asChild size="sm" className="min-w-0">
                     <Link to={gp(path)} className="flex min-w-0 items-center gap-2">
-                      {app.avatar_url ? (
+                      {plugin.avatar_url ? (
                         <img
-                          src={resolveArtworkUrl(app.avatar_url) ?? undefined}
+                          src={resolveArtworkUrl(plugin.avatar_url) ?? undefined}
                           alt=""
                           aria-hidden
                           className="h-4 w-4 shrink-0 rounded-sm object-cover"
@@ -250,7 +251,7 @@ export const InitiativeSection = memo(
                       ) : (
                         <Blocks className="h-4 w-4 shrink-0" />
                       )}
-                      <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{plugin.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -270,7 +271,7 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">
                             {t(toolNavLabelKey(tool))}
                           </span>
-                          {unread.hasTool(activeGuildId, initiative.id, tool) ? (
+                          {unread.hasTool(activeCommunityId, initiative.id, tool) ? (
                             <UnreadDot />
                           ) : null}
                           <span className="text-muted-foreground text-xs">{counts[tool] ?? 0}</span>

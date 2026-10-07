@@ -1,6 +1,7 @@
 {
   "title": "Catalogue",
   "subtitle": "Des tableaux de bord prêts à l'emploi, à ajouter à une initiative.",
+  "subtitleProjects": "Des projets prêts à l'emploi, à copier dans une initiative. Chaque installation crée un nouveau projet qui vous appartient.",
   "searchPlaceholder": "Rechercher dans le catalogue…",
   "backToMarketplace": "Retour au catalogue",
   "browse": "Parcourir le catalogue",
@@ -24,13 +25,21 @@
   "detail": {
     "installs_one": "{{count}} installation",
     "installs_other": "{{count}} installations",
+    "minimumAge": "Dès {{age}} ans",
     "install": "Ajouter à une initiative",
     "preview": "Aperçu",
     "previewIsSample": "Exemple affiché avec des données d'exemple",
     "needsUpdate": "Nécessite une version plus récente de l'application.",
     "withdrawn": "N'est plus proposé.",
     "notFound": "Fiche introuvable",
-    "notFoundDescription": "Elle a peut-être été retirée, ou le lien est incorrect."
+    "notFoundDescription": "Elle a peut-être été retirée, ou le lien est incorrect.",
+    "notAvailableHere": "Indisponible dans cette application",
+    "notAvailableHereDescription": "Cette fiche ne fait pas partie du catalogue proposé par cette application."
+  },
+  "projectPreview": {
+    "showing": "Afficher le projet vide ou l'exemple",
+    "blank": "Vide",
+    "example": "Exemple"
   },
   "install": {
     "title": "Ajouter {{name}}",
@@ -40,7 +49,13 @@
     "action": "Ajouter",
     "done": "{{name}} ajouté.",
     "failed": "Impossible d'ajouter cette fiche.",
-    "noInitiatives": "Vous ne pouvez encore créer de tableaux de bord dans aucune initiative. Demandez l'accès à une personne responsable de l'initiative."
+    "noInitiatives": "Vous ne pouvez encore ajouter ceci à aucune initiative. Demandez l'accès à une personne responsable de l'initiative.",
+    "descriptionCopy": "Choisissez sa destination. Il arrive comme votre propre copie, que vous pourrez renommer et modifier ensuite.",
+    "startFrom": "Point de départ",
+    "startBlank": "Commencer à vide",
+    "startExample": "Commencer à partir de l'exemple",
+    "startsOn": "Date de début",
+    "startsOnHelp": "Ses dates sont décalées pour que la plus ancienne tombe ce jour-là."
   },
   "update": {
     "available": "Version {{version}} disponible",
@@ -52,6 +67,6 @@
     "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
   },
   "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé.",
-  "subtitleApps": "Les applications ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut les ajouter.",
+  "subtitlePlugins": "Les plug-ins ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut les ajouter.",
   "subtitleAuto": "Les automatisations s'exécutent en arrière-plan pour toute la communauté."
 }

@@ -13,10 +13,10 @@ from datetime import datetime, timedelta, timezone
 
 
 from app.core.messages import QueryMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.query import executor
-from app.services.tenant.published_views_test import dashboard_body, dashboards_on
+from app.services.tenant.view_as_test import dashboard_body, dashboards_on
 from app.testing import create_project, create_task
 
 
@@ -42,9 +42,10 @@ async def _data(client, actor, dashboard_id: int) -> dict:
     return response.json()["widgets"]
 
 
-async def _one(client, actor, dashboard_id: int, widget_id: str) -> dict:
-    response = await client.get(
-        actor.g(f"/dashboards/{dashboard_id}/widgets/{widget_id}/query"),
+async def _one(client, actor, sql: str) -> dict:
+    response = await client.post(
+        actor.g("/query"),
+        json={"sql": sql, "initiative_id": actor.initiative.id},
         headers=actor.headers,
     )
     assert response.status_code == 200, response.text
@@ -52,7 +53,7 @@ async def _one(client, actor, dashboard_id: int, widget_id: str) -> dict:
 
 
 async def _author_with_tasks(session, acting_user):
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await dashboards_on(session, author.initiative)
     project = await create_project(session, author.initiative, author.user)
     for offset, category in enumerate(
@@ -93,18 +94,19 @@ async def test_the_canvas_answers_what_each_widget_answers(
         canvas = await _data(client, author, dashboard_id)
 
     assert set(canvas) == {f"w{index + 1}" for index in range(len(statements))}
-    for widget_id, entry in canvas.items():
-        assert entry["error"] is None, (widget_id, entry)
-        assert entry["result"] == await _one(client, author, dashboard_id, widget_id)
+    for index, sql in enumerate(statements):
+        entry = canvas[f"w{index + 1}"]
+        assert entry["error"] is None, (sql, entry)
+        assert entry["result"] == await _one(client, author, sql)
     assert canvas["w1"]["result"]["rows"] == [[3]]
 
 
-async def test_a_reader_sees_their_own_rows_and_what_is_published(
+async def test_a_reader_sees_their_own_rows_or_the_initiatives(
     client, session, acting_user
 ):
     author, project = await _author_with_tasks(session, acting_user)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=author.guild,
         initiative=author.initiative,
         initiative_role="member",
@@ -119,12 +121,12 @@ async def test_a_reader_sees_their_own_rows_and_what_is_published(
     before = await _data(client, reader, dashboard_id)
     assert [before[w]["result"]["rows"] for w in ("w1", "w2")] == [[[0]], [[0]]]
 
-    published = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        json={"resources": [{"resource_type": "project", "resource_id": project.id}]},
+    shared = await client.put(
+        author.g(f"/dashboards/{dashboard_id}/view-mode"),
+        json={"mode": "initiative"},
         headers=author.headers,
     )
-    assert published.status_code == 200, published.text
+    assert shared.status_code == 200, shared.text
 
     after = await _data(client, reader, dashboard_id)
     assert [after[w]["result"]["rows"] for w in ("w1", "w2")] == [[[3]], [[1]]]

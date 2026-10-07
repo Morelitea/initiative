@@ -37,26 +37,23 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.core.tools import Tool
-from app.db.session import require_guild_context
 from app.models.platform.marketplace import (
     MarketplaceListingVersion,
 )
 from app.models.platform.user import User
-from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.dashboard import Dashboard, DashboardViewMode
 from app.schemas.tenant.dashboard import (
     DashboardDataResponse,
     DashboardWidgetData,
-    PublishedOver,
-    PublishRequest,
     DashboardInstalledListings,
     DashboardCreate,
     DashboardRead,
     DashboardUpdate,
+    DashboardViewModeRequest,
     WidgetCatalog,
     build_widget_catalog,
 )
 from app.schemas.tenant.tool import serialize_tool
-from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services.tenant import properties as properties_service
@@ -68,12 +65,11 @@ from app.services.marketplace.installs import (
     resolve_listing_install,
 )
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import published_views
+from app.services.tenant import view_as
 from app.services.tenant import tags as tags_service
-from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace.app_data import row_columns
+from app.models.tenant.guild_plugin import GuildPlugin
+from app.services.marketplace.plugin_data import row_columns
 from app.services.tenant.dashboard_definition import (
-    DashboardDefinitionError,
     normalize_dashboard_config,
     normalize_dashboard_definition,
 )
@@ -89,24 +85,24 @@ router = APIRouter()
 
 
 async def _endpoint_columns(session: AsyncSession):
-    """What each installed app says its read endpoints hand back.
+    """What each installed plug-in says its read endpoints hand back.
 
-    Read once per save rather than per widget: a canvas of app tiles is a
+    Read once per save rather than per widget: a canvas of plug-in tiles is a
     handful of installs, and this is what lets a statement over an endpoint's
     rows be refused while its author is looking at it.
     """
-    installed = (await session.exec(select(GuildApp))).all()
+    installed = (await session.exec(select(GuildPlugin))).all()
     declared: dict[tuple[str, str], tuple] = {}
-    for app in installed:
-        for endpoint in (app.definition or {}).get("endpoints") or []:
+    for plugin in installed:
+        for endpoint in (plugin.definition or {}).get("endpoints") or []:
             if not isinstance(endpoint, dict) or endpoint.get("direction") != "read":
                 continue
             endpoint_id = endpoint.get("id")
             if isinstance(endpoint_id, str):
-                declared[(app.listing_uid, endpoint_id)] = row_columns(endpoint)
+                declared[(plugin.listing_uid, endpoint_id)] = row_columns(endpoint)
 
-    def columns(app_uid: str, endpoint_id: str):
-        return declared.get((app_uid, endpoint_id))
+    def columns(plugin_uid: str, endpoint_id: str):
+        return declared.get((plugin_uid, endpoint_id))
 
     return columns
 
@@ -116,16 +112,10 @@ def _normalize_body(
 ) -> tuple[dict, dict]:
     """Validate a definition + its config together. Raises 422 with the
     validator's machine code so the client can localize it."""
-    try:
-        clean_definition = normalize_dashboard_definition(
-            definition or {}, endpoint_columns=endpoint_columns
-        )
-        clean_config = normalize_dashboard_config(config or {}, clean_definition)
-    except DashboardDefinitionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
+    clean_definition = normalize_dashboard_definition(
+        definition or {}, endpoint_columns=endpoint_columns
+    )
+    clean_config = normalize_dashboard_config(config or {}, clean_definition)
     return clean_definition, clean_config
 
 
@@ -138,18 +128,6 @@ def _listing_canvas(version: MarketplaceListingVersion) -> dict:
     *now*.
     """
     return dict((version.definition or {}).get("definition") or {})
-
-
-async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashboard:
-    dashboard = await dashboards_service.get_dashboard(
-        session, dashboard_id, populate_existing=True
-    )
-    if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.dashboard.not_found_code,
-        )
-    return dashboard
 
 
 # ---------------------------------------------------------------------------
@@ -212,12 +190,15 @@ async def read_dashboard(
     include_deleted: IncludeDeletedDep = False,
 ) -> DashboardRead:
     dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        hydrated=True,
     )
-    # With what it publishes over: a reader has to be able to tell that some of
-    # these numbers are not their own.
-    return await _serialized_with_published(
-        session, dashboard, current_user, guild_context.guild_id
+    return serialize_tool(
+        DashboardRead, dashboard, user_id=current_user.id, context=guild_context
     )
 
 
@@ -294,10 +275,7 @@ async def create_dashboard(
     await session.commit()
     if listing_id is not None:
         await count_install(guild_context.guild_id, listing_id)
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_tool(
-        DashboardRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
 @router.patch("/{dashboard_id}", response_model=DashboardRead)
@@ -337,14 +315,8 @@ async def update_dashboard(
         normalized, normalized_config = _normalize_body(
             definition, config, await _endpoint_columns(session)
         )
-        await _check_publishing_allows(
-            session,
-            dashboard_id,
-            normalized,
-            normalized_config,
-            current_user,
-            guild_context,
-        )
+        if (normalized, normalized_config) != (dashboard.definition, dashboard.config):
+            _check_view_mode_allows(dashboard, guild_context)
         dashboard.definition, dashboard.config = normalized, normalized_config
         updated = True
 
@@ -354,10 +326,7 @@ async def update_dashboard(
         await attachments_service.claim_uploads(session, dashboard)
         await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_tool(
-        DashboardRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
 @router.post("/{dashboard_id}/upgrade", response_model=DashboardRead)
@@ -405,13 +374,9 @@ async def upgrade_dashboard(
     definition, config = _normalize_body(
         _listing_canvas(version), dashboard.config, await _endpoint_columns(session)
     )
-    # A new version replaces what this dashboard asks, over resources it may be
-    # publishing. That is the same act as editing it, and answers to the same
-    # two rules — a listing whose new version asks about the reader cannot be
-    # taken by a dashboard that publishes, until it stops publishing.
-    await _check_publishing_allows(
-        session, dashboard_id, definition, config, current_user, guild_context
-    )
+    # A new version replaces what this dashboard asks, which is the same act as
+    # editing it.
+    _check_view_mode_allows(dashboard, guild_context)
     dashboard.definition = definition
     dashboard.config = config
     dashboard.listing_version = version.version
@@ -419,42 +384,23 @@ async def upgrade_dashboard(
     session.add(dashboard)
     await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard.id)
-    return await _serialized_with_published(
-        session, hydrated, current_user, guild_context.guild_id
-    )
+    return await read_after_write(session, dashboard.id, current_user, guild_context)
 
 
-async def _check_publishing_allows(
-    session: Any,
-    dashboard_id: int,
-    definition: dict[str, Any] | None,
-    config: dict[str, Any] | None,
-    user: User,
-    guild_context: Any,
-) -> None:
-    """What a publishing dashboard may be rewritten to, and by whom.
+def _check_view_mode_allows(dashboard: Dashboard, guild_context: GuildContext) -> None:
+    """Whether the caller may change what this dashboard's widgets ask.
 
-    Asked wherever a canvas is replaced. Two rules, and both are about the
-    statements rather than the widgets around them: the person doing it has to
-    reach what is published, because the statement decides which of those rows
-    a reader sees; and what they write has to stay one set of numbers.
-
-    Silent for a dashboard that publishes nothing, which is almost all of them.
+    A dashboard that runs as its initiative reads everything in it, so what its
+    statements ask is what everybody who opens it sees. Changing them takes
+    the same permission as turning it on; anybody else with write access can
+    switch it back to Individual first.
     """
-    if not await published_views.published_by(session, dashboard_id):
-        return
-    if not await published_views.editor_reaches_what_is_published(
-        session, dashboard_id, user, guild_context
+    if view_as.runs_as_initiative(dashboard) and not view_as.may_run_as_initiative(
+        guild_context, dashboard.initiative_id
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=DashboardMessages.EDIT_NEEDS_THE_PUBLISHED_ACCESS,
-        )
-    if published_views.names_the_reader(definition, config):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+            detail=DashboardMessages.VIEW_MODE_EDIT_NOT_ALLOWED,
         )
 
 
@@ -514,7 +460,9 @@ def _widget_ids(definition: dict[str, Any] | None) -> list[str]:
 def _query_response(result: query_service.QueryResult) -> QueryResponse:
     return QueryResponse(
         columns=[
-            QueryColumnDescription(name=column.name, type=column.type)
+            QueryColumnDescription(
+                name=column.name, type=column.type, grain=column.grain
+            )
             for column in result.columns
         ],
         rows=[list(row) for row in result.rows],
@@ -523,30 +471,12 @@ def _query_response(result: query_service.QueryResult) -> QueryResponse:
     )
 
 
-async def _published_through(
-    session: Any, dashboard: Dashboard, guild_id: int
-) -> Optional[int]:
-    """The dashboard this canvas's statements may read through, if any.
-
-    Asked only after the dashboard's own gates have admitted the reader: a
-    grant made to this dashboard answers while this is set and at no other
-    time."""
-    through = await published_views.serves_through(session, dashboard.id, guild_id)
-    if through is not None and published_views.names_the_reader(
-        dashboard.definition, dashboard.config
-    ):
-        # A statement about the reader is not one set of numbers, so a canvas
-        # holding one does not publish — none of it, not just that widget.
-        #
-        # Canvas-wide because the notice is: a reader is told once that these
-        # figures are shared, and per-widget publishing would leave ordinary
-        # tiles serving published rows with nothing saying so. One predicate
-        # decides both, so what the dashboard says and what it does cannot come
-        # apart. Saving such a statement on a publishing dashboard is refused
-        # where it is written; this is the same rule where it is run, so it
-        # holds however the statement arrived.
-        return None
-    return through
+def _answered_as(session: Any, dashboard: Dashboard) -> Any:
+    """Who this canvas's statements run as: the initiative's full read access
+    when the dashboard runs as its initiative, otherwise the viewer's own.
+    Asked only after the dashboard's own gates have admitted the reader."""
+    routed = routed_context(session)
+    return view_as.initiative_context(dashboard, routed) or routed
 
 
 @router.get("/{dashboard_id}/data", response_model=DashboardDataResponse)
@@ -562,12 +492,24 @@ async def load_dashboard_data(
     statements run as one statement in one transaction, and every tile reads
     the same moment. A widget whose statement is refused says so in its own
     entry; the rest still answer. What runs is each widget's own stored
-    statement, as for :func:`run_widget_query`.
+    statement, never one the request supplies.
     """
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    through = await _published_through(session, dashboard, guild_context.guild_id)
+    widgets = await canvas_widget_data(session, dashboard, guild_context.guild_id)
+    return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
+
+
+async def canvas_widget_data(
+    session: AsyncSession, dashboard: Dashboard, guild_id: int
+) -> dict[str, DashboardWidgetData]:
+    """Every query widget on a dashboard the reader may already read, answered
+    together: the canvas route's work.
+
+    Raises :class:`query_service.QueryError` when the canvas as a whole is
+    refused; a single widget's refusal is its own entry."""
+    context = _answered_as(session, dashboard)
 
     widgets: dict[str, DashboardWidgetData] = {}
     statements: dict[str, query_service.ResolvedQuery] = {}
@@ -580,128 +522,35 @@ async def load_dashboard_data(
         except query_service.QueryError as refused:
             widgets[widget_id] = DashboardWidgetData(error=refused.code)
 
-    try:
-        outcomes = await query_service.execute_canvas(
-            statements,
-            context=routed_context(session),
-            initiative_id=dashboard.initiative_id,
-            via_dashboard_id=through,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    outcomes = await query_service.execute_canvas(
+        statements,
+        context=context,
+        initiative_id=dashboard.initiative_id,
+    )
     for widget_id, outcome in outcomes.items():
         widgets[widget_id] = (
             DashboardWidgetData(error=outcome.code)
             if isinstance(outcome, query_service.QueryError)
             else DashboardWidgetData(result=_query_response(outcome))
         )
-    return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
+    return widgets
 
 
-@router.get("/{dashboard_id}/widgets/{widget_id}/query", response_model=QueryResponse)
-async def run_widget_query(
+@router.put("/{dashboard_id}/view-mode", response_model=DashboardRead)
+async def set_view_mode(
     dashboard_id: int,
-    widget_id: str,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueryResponse:
-    """Run the statement stored on one of this dashboard's widgets.
-
-    What runs is the widget's own, never one the request supplies. That is what
-    makes a published view safe to serve: the rows a dashboard's grants reach
-    are shown through the question somebody published, and a reader cannot ask
-    a different one of them.
-
-    The dashboard's own four gates decide whether this caller sees anything at
-    all, and they run first. The canvas loads through
-    :func:`load_dashboard_data`; this answers one widget, for the builder.
-    """
-    dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
-    )
-    sql = _stored_sql(dashboard.definition, dashboard.config, widget_id)
-    if sql is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
-        )
-    through = await _published_through(session, dashboard, guild_context.guild_id)
-    try:
-        result = await query_service.run(
-            sql,
-            context=routed_context(session),
-            initiative_id=dashboard.initiative_id,
-            via_dashboard_id=through,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
-    return _query_response(result)
-
-
-# ---------------------------------------------------------------------------
-# Published views — what a dashboard shows that is not the reader's own
-# ---------------------------------------------------------------------------
-
-
-async def _record_published_change(
-    session: Any,
-    *,
-    dashboard_id: int,
-    guild_id: int,
-    initiative_id: int | None,
-    actor_user_id: int,
-    kind: Tool,
-    resource_id: int,
-    to_level: str | None,
-) -> None:
-    """Record one resource joining or leaving what a dashboard publishes.
-
-    The same event a share carries, with the dashboard as the grantee: the
-    level a reader holds on that resource through it moved between ``read``
-    and nothing.
-    """
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.SHARING_GRANT_CHANGED,
-        actor_user_id=actor_user_id,
-        guild_id=guild_id,
-        target_type=kind.value,
-        target_id=resource_id,
-        detail={
-            "initiative_id": initiative_id,
-            "grantee": {"kind": "dashboard", "id": dashboard_id},
-            "from": None if to_level else "read",
-            "to": to_level,
-        },
-    )
-
-
-@router.put("/{dashboard_id}/published", response_model=DashboardRead)
-async def set_published_view(
-    dashboard_id: int,
-    payload: PublishRequest,
+    payload: DashboardViewModeRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DashboardRead:
-    """Say what this dashboard shows to everybody who can open it.
+    """Choose whose access this dashboard's query widgets answer from.
 
-    The whole list each time. Every resource named here becomes readable
-    *through* this dashboard: its tiles stop answering from each viewer's own
-    access for those rows and answer the same way for all of them.
-
-    Three things this refuses, and each is one of the rules the feature rests
-    on. It reaches no further than the author, so a resource they cannot read
-    themselves cannot be published. It stays fixed, so a dashboard whose
-    statements ask about the reader cannot become one. And it is authoring, so
-    it takes write access to the dashboard like any other change to it.
+    ``individual`` is each viewer's own. ``initiative`` is full read access to
+    the dashboard's initiative, the same for everyone who can open it — the
+    dashboard's access, not the caller's. Either takes write access to the
+    dashboard; turning ``initiative`` on also takes the initiative role
+    permission for it, which managers always hold.
     """
     dashboard = await resource_access.load_authorized(
         session,
@@ -711,120 +560,34 @@ async def set_published_view(
         guild_context,
         access="write",
     )
-    if payload.resources and published_views.names_the_reader(
-        dashboard.definition, dashboard.config
+    wanted = payload.mode.value
+    if wanted == DashboardViewMode.initiative.value and not (
+        view_as.may_run_as_initiative(guild_context, dashboard.initiative_id)
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DashboardMessages.VIEW_MODE_NOT_ALLOWED,
         )
-
-    wanted: list[tuple[Tool, int]] = []
-    for entry in payload.resources:
-        try:
-            kind = Tool(entry.resource_type)
-        except ValueError as unknown:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=DashboardMessages.BINDING_INVALID,
-            ) from unknown
-        # Read as the person publishing, through the ordinary path: what they
-        # hand on is their own reach and never more than it.
-        try:
-            await resource_access.load_authorized(
-                session, kind, entry.resource_id, current_user, guild_context
-            )
-        except HTTPException as refused:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=DashboardMessages.PUBLISH_BEYOND_YOUR_REACH,
-            ) from refused
-        wanted.append((kind, entry.resource_id))
-
-    held = {
-        published_views.target(grant): grant
-        for grant in await published_views.published_by(session, dashboard_id)
-    }
-    for key, grant in held.items():
-        if key not in wanted:
-            await session.delete(grant)
-            await _record_published_change(
-                session,
-                dashboard_id=dashboard_id,
-                guild_id=routed_guild_id(session),
-                initiative_id=dashboard.initiative_id,
-                actor_user_id=current_user.id,
-                kind=key[0],
-                resource_id=key[1],
-                to_level=None,
-            )
-    for kind, resource_id in wanted:
-        if (kind, resource_id) in held:
-            continue
-        session.add(
-            published_views.read_grant(
-                dashboard_id,
-                kind,
-                resource_id,
-                guild_id=routed_guild_id(session),
-                initiative_id=dashboard.initiative_id,
-                created_by=current_user.id,
-            )
-        )
-        await _record_published_change(
+    if dashboard.view_mode != wanted:
+        previous = dashboard.view_mode
+        dashboard.view_mode = wanted
+        dashboard.updated_at = datetime.now(timezone.utc)
+        session.add(dashboard)
+        await audit_service.record(
             session,
-            dashboard_id=dashboard_id,
-            guild_id=routed_guild_id(session),
-            initiative_id=dashboard.initiative_id,
+            event_type=AuditEventType.SHARING_GRANT_CHANGED,
             actor_user_id=current_user.id,
-            kind=kind,
-            resource_id=resource_id,
-            to_level="read",
+            guild_id=routed_guild_id(session),
+            target_type=Tool.dashboard.value,
+            target_id=dashboard_id,
+            detail={
+                "initiative_id": dashboard.initiative_id,
+                "view_mode": {"from": previous, "to": wanted},
+            },
         )
-    await session.commit()
+        await session.commit()
 
-    hydrated = await _refetch_dashboard(session, dashboard_id)
-    return await _serialized_with_published(
-        session, hydrated, current_user, guild_context.guild_id
-    )
-
-
-async def _serialized_with_published(
-    session: Any, dashboard: Dashboard, user: User, guild_id: int
-) -> DashboardRead:
-    """A dashboard read, saying what it publishes over and whether that stands.
-
-    Both, because they answer different questions. The list is what somebody
-    published, which its author manages whether or not it is serving; the flag
-    is whether these tiles are currently showing it, which is what a reader is
-    told.
-    """
-    read = serialize_tool(
-        DashboardRead,
-        dashboard,
-        context=require_guild_context(session),
-        user_id=user.id,
-    )
-    grants = await published_views.published_by(session, dashboard.id)
-    read.published_over = [
-        PublishedOver(
-            resource_type=str(grant.resource_type),
-            resource_id=grant.resource_id,
-        )
-        for grant in grants
-    ]
-    # Three things have to hold for a reader to be told these figures are
-    # shared, and they are the three the fetch itself asks: something is
-    # published, the person who published it still reaches it, and nothing here
-    # asks about the reader — a statement that does is served from the reader's
-    # own access however it got onto the canvas, so saying otherwise would be
-    # the notice contradicting the tile under it.
-    read.published_active = (
-        bool(grants)
-        and not published_views.names_the_reader(dashboard.definition, dashboard.config)
-        and await published_views.author_still_reaches(grants, guild_id)
-    )
-    return read
+    return await read_after_write(session, dashboard_id, current_user, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -843,7 +606,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_dashboard(session, dashboard_id)
+    dashboard = await dashboards_service.get_dashboard_hydrated(
+        session, dashboard_id, populate_existing=True
+    )
+    if not dashboard:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.dashboard.not_found_code,
+        )
     return serialize_tool(
-        DashboardRead, hydrated, user_id=user.id, context=guild_context
+        DashboardRead, dashboard, user_id=user.id, context=guild_context
     )

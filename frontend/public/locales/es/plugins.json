@@ -1,0 +1,315 @@
+{
+  "title": "Complementos",
+  "add": "Añadir un complemento",
+  "none": "Aún no hay complementos.",
+  "error": "Algo ha fallado con ese complemento.",
+  "manage": {
+    "title": "Complementos",
+    "description": "Los complementos añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlos o quitarlos.",
+    "empty": "Todavía no hay complementos instalados.",
+    "browse": "Explorar complementos",
+    "installed": "Añadida el {{date}}",
+    "disabled": "Desactivada",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "rename": "Cambiar el nombre",
+    "remove": "Quitar",
+    "removeTitle": "¿Quitar {{name}}?",
+    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Se borran todas las credenciales que tenía —las de la comunidad y las de cada miembro— y se le pide al complemento que deje de usarlas.",
+    "removed": "{{name}} quitada.",
+    "saved": "Guardado.",
+    "needsConfig": "Falta configurarla",
+    "configInvalid": "Problema de configuración",
+    "provided": "Viene con Initiative",
+    "unavailable": "No está configurada en este servidor",
+    "configure": "Abrir los ajustes",
+    "version": "Versión {{version}}",
+    "autoUpdate": "Actualizar automáticamente",
+    "autoUpdateHelp": "Las nuevas versiones del editor se aplican solas. Desactívalo para leer cada una primero y actualizar a mano.",
+    "autoUpdateOn": "Las actualizaciones se aplicarán automáticamente.",
+    "autoUpdateOff": "Las actualizaciones ahora se aplican a mano.",
+    "upgradeTo": "Actualizar a {{version}}",
+    "upToDate": "Actualizada",
+    "upgraded": "Actualizada a {{version}}."
+  },
+  "updates": {
+    "wants": "La versión {{version}} quiere:",
+    "newSurface": "Mostrar «{{name}}» dentro de las iniciativas",
+    "accept": "Aceptar y actualizar",
+    "decline": "Rechazar",
+    "declined": "Rechazaste la versión {{version}}. El complemento se queda en su versión actual.",
+    "declinedDone": "Versión {{version}} rechazada.",
+    "moved": "Ahora hay otra versión disponible. Revisa lo que pide."
+  },
+  "install": {
+    "title": "Añadir {{name}}",
+    "description": "Esto añade algo para todo la comunidad. Puedes cambiarle el nombre ahora o más tarde.",
+    "name": "Nombre",
+    "action": "Añadir a la comunidad",
+    "done": "{{name}} añadida.",
+    "adminOnly": "Pide al superadministrador de tu comunidad que añada este complemento.",
+    "unknownState": "No se pudo comprobar si este complemento ya está añadido.",
+    "reachTitle": "A qué puede acceder",
+    "whereTitle": "Dónde trabaja",
+    "whereDescription": "Muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
+    "whereDescriptionNoPage": "Lee y cambia contenido solo en las iniciativas que elijas.",
+    "whoTitle": "Quién puede abrirla allí",
+    "roles": {
+      "moderator": "Moderadores",
+      "project_manager": "Responsables de proyecto",
+      "member": "Miembros"
+    }
+  },
+  "connections": {
+    "none": "Este complemento no pide nada que configurar.",
+    "communityScope": "Credencial de la comunidad",
+    "personalScope": "Tu cuenta",
+    "set": "Configurada",
+    "notSet": "Sin configurar",
+    "accessHint": "Usa {{api}} — {{scopes}}",
+    "noScopes": "no indica permisos",
+    "secretSet": "Ya configurada: escribe para sustituirla",
+    "empty": "Sin configurar",
+    "choose": "Elige una",
+    "saved": "Guardado.",
+    "clear": "Borrar",
+    "cleared": "Credencial borrada.",
+    "memberSet": "Un administrador de la comunidad ya la ha configurado.",
+    "memberNotSet": "Un administrador de la comunidad todavía tiene que configurarla.",
+    "communityFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver este complemento.",
+    "personalExplainer": "Esta te identifica a ti, así que cada miembro conecta su propia cuenta. Nadie más ve la tuya.",
+    "connect": "Conectar",
+    "reconnect": "Volver a conectar",
+    "disconnect": "Desconectar",
+    "disconnected": "Desconectada.",
+    "connectOpened": "Termina de conectar en la pestaña que se acaba de abrir.",
+    "connectUnavailable": "Este complemento aún no está configurado en este servidor, así que no hay dónde iniciar sesión.",
+    "connectedAs": "Conectada como {{account}}",
+    "blocked": "Un administrador de la comunidad te ha impedido conectar esto.",
+    "status": {
+      "pending": "Pendiente de terminar",
+      "connected": "Conectada",
+      "blocked": "Bloqueada",
+      "expired": "Caducada"
+    },
+    "expired": "Esta conexión ha caducado. Vuelve a conectar para seguir usándola."
+  },
+  "members": {
+    "title": "Miembros",
+    "noPersonal": "Este complemento no tiene nada a lo que los miembros se conecten por separado.",
+    "nobodyYet": "Todavía no se ha conectado nadie.",
+    "connectedCount": "{{connected}} de {{total}} miembros conectados",
+    "blockedCount_one": "{{count}} bloqueado",
+    "blockedCount_other": "{{count}} bloqueados",
+    "member": "Miembro",
+    "account": "Cuenta",
+    "since": "Conectado",
+    "unknownMember": "Miembro n.º {{id}}",
+    "blocked": "Bloqueado",
+    "revoke": "Revocar",
+    "revoked": "Acceso revocado.",
+    "block": "Bloquear",
+    "blockedDone": "Bloqueado para volver a conectarse.",
+    "unblock": "Desbloquear",
+    "unblocked": "Bloqueo levantado.",
+    "revokeAll": "Revocar a todo el mundo",
+    "revokeAllTitle": "¿Revocar la conexión de todos los miembros?",
+    "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide al complemento que deje de usarla. El complemento sigue instalado y conserva los ajustes de la comunidad. Después los miembros pueden volver a conectarse.",
+    "revokedAll": "Todas las conexiones revocadas."
+  },
+  "showMore": "{{count}} más",
+  "showFewer": "Mostrar menos",
+  "consent": {
+    "title": "Lo que ha pedido hacer en tu nombre",
+    "description": "{{name}} pide cada propósito por separado. Permite solo lo que quieras que haga en tu nombre. Puedes cambiar tu respuesta cuando quieras.",
+    "inTheirWords": "{{name}}: «{{label}}»",
+    "pluginWide": "Todo lo que hace",
+    "anywhere": "Dondequiera que esté",
+    "inInitiative": "Solo en {{initiative}}",
+    "inOneInitiative": "Solo en una iniciativa",
+    "askedRead": "Pide leer",
+    "askedReadWrite": "Pide leer y hacer cambios",
+    "statusPending": "Esperando tu respuesta",
+    "statusRead": "Puede leer en tu nombre",
+    "statusReadWrite": "Puede leer y hacer cambios en tu nombre",
+    "statusDeclined": "Rechazado",
+    "statusRevoked": "Detenido",
+    "allowRead": "Dejar que lea en mi nombre",
+    "allowReadWrite": "Dejar que lea y haga cambios en mi nombre",
+    "readOnly": "Solo dejar que lea",
+    "decline": "Rechazar",
+    "withdraw": "Detener",
+    "allowed": "Guardado. {{name}} puede hacer esto en tu nombre.",
+    "declinedToast": "Rechazado. {{name}} no hará esto en tu nombre.",
+    "withdrawnToast": "{{name}} ha dejado de hacer esto en tu nombre.",
+    "failed": "No se pudo guardar tu respuesta.",
+    "membersTitle": "Actuar en nombre de los miembros",
+    "allowedCount_one": "{{count}} miembro lo permite",
+    "allowedCount_other": "{{count}} miembros lo permiten",
+    "requestsColumn": "Solicitudes",
+    "memberRevoked": "El complemento ha dejado de actuar en nombre de ese miembro.",
+    "revokeAll": "Que deje de actuar por todos",
+    "revokeAllTitle": "¿Que este complemento deje de actuar por todos?",
+    "revokeAllBody": "El complemento deja de hacer peticiones en nombre de cualquier miembro de inmediato. Sigue instalado y conserva sus ajustes, y los miembros pueden volver a permitirlo ellos mismos.",
+    "revokedAll": "El complemento ha dejado de actuar por todos."
+  },
+  "settings": {
+    "description": "Configura cómo se conecta este complemento.",
+    "open": "Ajustes de {{name}}",
+    "adminTitle": "Ajustes de la comunidad",
+    "adminDescription": "Lo que la comunidad controla en este complemento. Solo lo ve el superadministrador."
+  },
+  "embed": {
+    "connecting": "Conectando…",
+    "handoffFailed": "No se pudo abrir este complemento. Inténtalo de nuevo en un momento.",
+    "failed": "No se pudo abrir este complemento",
+    "notFound": "Complemento no encontrado",
+    "disabled": "{{name}} está desactivada",
+    "unavailable": "{{name}} no está configurada en este servidor",
+    "unavailableDescription": "Quien gestiona este servidor debe conectar el servicio de este complemento antes de poder abrirlo.",
+    "noSurface": "{{name}} no tiene una página propia"
+  },
+  "browse": "Explorar el mercado",
+  "placement": {
+    "title": "Dónde trabaja este complemento",
+    "description": "Este complemento muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
+    "descriptionNoPage": "Este complemento lee y cambia contenido solo en las iniciativas que elijas.",
+    "all": "Todas las iniciativas actuales",
+    "some": "Solo las iniciativas que yo elija",
+    "none": "No se eligió ninguna iniciativa, así que este complemento no alcanza nada dentro de las iniciativas.",
+    "roles": {
+      "open": "Quién puede abrirla en {{name}}",
+      "title": "Quién puede abrirla aquí",
+      "adminsAlways": "Los administradores de la comunidad siempre pueden abrirla.",
+      "adminsOnly": "Solo administradores de la comunidad",
+      "count_one": "{{count}} rol",
+      "count_other": "{{count}} roles"
+    }
+  },
+  "connected": {
+    "connected": {
+      "title": "Conectado",
+      "body": "Tu cuenta está vinculada. Initiative lo ha registrado, así que las tarjetas del complemento empezarán a mostrarte datos."
+    },
+    "refused": {
+      "title": "Sin conectar",
+      "body": "El otro servicio no completó el inicio de sesión. Aquí no ha cambiado nada: inténtalo de nuevo desde los ajustes del complemento."
+    },
+    "expired": {
+      "title": "Ese enlace ha caducado",
+      "body": "Los enlaces de conexión duran poco. Vuelve a empezar desde los ajustes del complemento."
+    },
+    "not_recorded": {
+      "title": "Casi",
+      "body": "El otro servicio te ha identificado, pero Initiative no lo ha registrado. Conéctate de nuevo desde los ajustes del complemento: no se ha perdido nada."
+    },
+    "awaiting_approval": {
+      "title": "Esperando una aprobación",
+      "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe este complemento. No ha fallado nada y aún no hay nada configurado: cuando lo aprueben, vuelve a conectar desde los ajustes del complemento."
+    },
+    "sign_in_required": {
+      "title": "Inicia sesión para terminar",
+      "body": "Termina de conectar en el navegador donde has iniciado sesión en Initiative, como la persona que lo empezó."
+    },
+    "closeTab": "Puedes cerrar esta pestaña."
+  },
+  "scopes": {
+    "title": "A qué puede acceder este complemento",
+    "description": "Elige qué puede leer y cambiar este complemento en esta comunidad.",
+    "read": "Leer",
+    "write": "Leer y cambiar",
+    "notAllowed": "Este servidor no lo permite",
+    "usePlugin": "Usar {{name}} en esta comunidad",
+    "saved": "Acceso guardado",
+    "error": "No se pudo guardar a qué puede acceder este complemento.",
+    "resources": {
+      "comments": "Comentarios",
+      "relationships": "Vínculos",
+      "tags": "Etiquetas",
+      "properties": "Propiedades",
+      "sharing": "Uso compartido",
+      "members": "Miembros",
+      "initiatives": "Iniciativas",
+      "community": "Comunidad"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Leer proyectos",
+        "write": "Leer y cambiar proyectos"
+      },
+      "files": {
+        "read": "Leer archivos",
+        "write": "Leer y cambiar archivos"
+      },
+      "queues": {
+        "read": "Leer colas",
+        "write": "Leer y cambiar colas"
+      },
+      "counter_groups": {
+        "read": "Leer contadores",
+        "write": "Leer y cambiar contadores"
+      },
+      "calendars": {
+        "read": "Leer calendarios",
+        "write": "Leer y cambiar calendarios"
+      },
+      "dashboards": {
+        "read": "Leer paneles",
+        "write": "Leer y cambiar paneles"
+      },
+      "posts": {
+        "read": "Leer publicaciones",
+        "write": "Leer y cambiar publicaciones"
+      },
+      "galleries": {
+        "read": "Leer galerías",
+        "write": "Leer y cambiar galerías"
+      },
+      "wikis": {
+        "read": "Leer wikis",
+        "write": "Leer y cambiar wikis"
+      },
+      "comments": {
+        "read": "Leer comentarios",
+        "write": "Leer y escribir comentarios"
+      },
+      "relationships": {
+        "read": "Leer enlaces entre elementos",
+        "write": "Leer y cambiar enlaces entre elementos"
+      },
+      "tags": {
+        "read": "Leer etiquetas",
+        "write": "Leer y cambiar etiquetas"
+      },
+      "properties": {
+        "read": "Leer propiedades personalizadas y sus opciones",
+        "write": "Leer, crear y cambiar propiedades personalizadas"
+      },
+      "sharing": {
+        "read": "Ver quién tiene acceso a qué",
+        "write": "Ver y cambiar quién tiene acceso a qué"
+      },
+      "members": {
+        "read": "Ver quién está en tu comunidad, con sus nombres"
+      },
+      "initiatives": {
+        "read": "Ver las iniciativas de tu comunidad",
+        "moderate": "Actuar como moderador en las iniciativas donde está ubicada"
+      },
+      "community": {
+        "admin": "Actuar como administrador en toda tu comunidad"
+      },
+      "fallback": {
+        "read": "Leer: {{resource}}",
+        "write": "Leer y cambiar: {{resource}}"
+      }
+    }
+  },
+  "providerNotice": {
+    "title": "Antes de abrir {{name}}",
+    "madeBy": "{{name}} lo hace {{publisher}}.",
+    "provided": "Esta comunidad lo añadió y lo ofrece su editor, no Initiative.",
+    "report": "¿Algo va mal? Denúncialo.",
+    "continue": "Continuar"
+  }
+}

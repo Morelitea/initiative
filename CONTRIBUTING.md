@@ -15,7 +15,7 @@ The project includes a VS Code task configuration that starts everything with a 
 This will:
 - Start PostgreSQL via Docker
 - Run migrations and create a dev superuser (`admin@example.com` / `changeme`)
-- Seed TTRPG-themed test data (campaigns, quests, NPCs, documents, tags)
+- Seed TTRPG-themed test data (campaigns, quests, NPCs, files, tags)
 - Start the backend (uvicorn) and frontend (Vite) dev servers
 - Open the app in your browser
 
@@ -113,7 +113,7 @@ cd frontend && ./scripts/test-changed.sh --staged
 
 The published app only installs updates signed with the release key, so it stays put on a server running the `dev` image. Use the dev app instead:
 
-1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/Morelitea/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
+1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/beyonders-studio/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
 2. Point it at a server running the `dev` (or `dev-<sha>`) image. Every push to `dev` then reaches it over the air.
 
 Install a newer dev APK when `dev` changes native code (a Capacitor plugin, anything under `frontend/android`), since an update can only swap web assets. The two apps share the `initiative://` sign-in link, so Android asks which one to open it with.
@@ -261,9 +261,22 @@ npx cap open ios
 
 In the Android emulator the local backend is available at `http://10.0.0.2:8000`.
 
+## Desktop App Development
+
+The desktop app is the same build running in Electron, through the [Capawesome Electron platform](https://github.com/capawesome-team/capacitor-electron). Its project lives in `frontend/electron/` and installs on its own, so installing the frontend never downloads Electron.
+
+```bash
+cd frontend
+pnpm cap:desktop
+```
+
+That builds the web app, installs the Electron project, builds the app's own plugins (`frontend/electron/plugins/`), syncs and opens the app. It signs in like the phone app; a local backend is at `http://localhost:8000`.
+
+After that, `pnpm --dir electron run build:installer` builds the installer for the computer you are on into `frontend/electron/dist/`. Releases build all three (Windows, macOS, Debian) in `.github/workflows/desktop-app.yml`, which also runs on pull requests that change `frontend/electron/`.
+
 ## Reporting Issues
 
-Use the [issue templates](https://github.com/Morelitea/initiative/issues/new/choose) to file bug reports or feature requests.
+Use the [issue templates](https://github.com/beyonders-studio/initiative/issues/new/choose) to file bug reports or feature requests.
 
 ## Security Vulnerabilities
 

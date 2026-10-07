@@ -1,5 +1,5 @@
 {
-  "placeholder": "Rechercher dans {{activeGuildName}}...",
+  "placeholder": "Rechercher dans {{activeCommunityName}}...",
   "noResults": "Aucun résultat trouvé.",
   "groups": {
     "actions": "Actions",
@@ -7,7 +7,7 @@
     "pages": "Pages",
     "projects": "Projets",
     "tasks": "Tâches",
-    "documents": "Documents",
+    "files": "Fichiers",
     "queues": "Files",
     "counterGroups": "Groupes de compteurs",
     "calendars": "Calendriers",
@@ -19,16 +19,17 @@
   },
   "actions": {
     "addTask": "Ajouter une tâche",
-    "addDocument": "Ajouter un document"
+    "addFile": "Ajouter un fichier"
   },
   "pages": {
     "myTasks": "Mes tâches",
     "myCalendar": "Mon calendrier",
+    "myTickets": "Mes tickets",
     "myTools": "Mes outils",
     "myMessages": "Mes messages",
     "myStats": "Mes statistiques",
     "mySettings": "Mes paramètres",
-    "guildSettings": "Paramètres de la communauté",
+    "communitySettings": "Paramètres de la communauté",
     "allInitiatives": "Toutes les initiatives",
     "platformSettings": "Paramètres de la plateforme",
     "operatorDashboard": "Tableau de bord opérateur"

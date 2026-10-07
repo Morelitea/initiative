@@ -14,9 +14,9 @@
     "titleLine1": "Sortez du chat de groupe.",
     "titleLine2": "Tout au même endroit.",
     "titleAria": "Sortez du chat de groupe. Tout au même endroit.",
-    "subtitle": "Les projets, tâches, documents et plans de votre groupe, au même endroit. Plutôt qu'éparpillés entre un chat de groupe, deux tableurs, un fil d'e-mails de mars et la tête de la personne qui s'en occupe depuis le plus longtemps.",
+    "subtitle": "Les projets, tâches, fichiers et plans de votre groupe, au même endroit. Plutôt qu'éparpillés entre un chat de groupe, deux tableurs, un fil d'e-mails de mars et la tête de la personne qui s'en occupe depuis le plus longtemps.",
     "freeTitle": "L'inscription est gratuite",
-    "freeBody": "Votre compte est gratuit, et chaque communauté que vous créez a droit à 30 jours d'essai gratuits.",
+    "freeBody": "Votre compte et votre première communauté sont gratuits, et chaque forfait payant commence par 14 jours d'essai gratuits.",
     "signUp": "S'inscrire",
     "signIn": "Se connecter",
     "download": "Télécharger",
@@ -61,7 +61,7 @@
     "description": "Tout dans une communauté est un outil. On les partage, les étiquette et les commente de la même façon, donc le deuxième vous semble familier avant même de l'ouvrir.",
     "note": "Activez ceux dont votre groupe a besoin. En désactiver un plus tard ne supprime rien.",
     "projects": "Tableaux, listes et calendriers des mêmes tâches, avec des confettis si le cœur vous en dit.",
-    "documents": "Pages, tableurs et tableaux blancs que vous modifiez ensemble en direct.",
+    "files": "Pages, tableurs et tableaux blancs que vous modifiez ensemble en direct.",
     "queues": "Gardez la trace de qui a son tour, puisque apparemment ce n'est jamais personne.",
     "counterGroups": "Billets vendus, gâteaux promis, chaises toujours introuvables.",
     "calendars": "Des événements avec réponses et rappels, pour que ce ne soit pas vous qui relanciez tout le monde.",
@@ -255,7 +255,7 @@
     "iosTitle": "Initiative pour iPhone et iPad",
     "iosBody": "Touchez Partager, puis Sur l'écran d'accueil. C'est le même Initiative, mais les iPhone ne reçoivent pas encore de notifications push.",
     "desktopTitle": "Initiative pour votre ordinateur",
-    "desktopBody": "Sa propre fenêtre et sa propre icône dans le Dock ou la barre des tâches. Il s'installe directement depuis le navigateur.",
+    "desktopBody": "Sa propre fenêtre et sa propre icône dans le Dock ou la barre des tâches, connecté comme l'un de vos appareils.",
     "androidButton": "Télécharger pour Android",
     "iosButton": "Ajouter à votre iPhone",
     "windowsButton": "Télécharger pour Windows",
@@ -265,6 +265,7 @@
     "version": "Version {{version}}, celle de ce serveur",
     "releases": "Voir toutes les versions",
     "desktopMeta": "Windows, Mac et Linux",
+    "browserInstall": "Ou installez-le depuis le navigateur",
     "cardsAria": "Toutes les façons d'obtenir Initiative",
     "android": {
       "title": "Android",
@@ -284,8 +285,7 @@
     "desktop": {
       "title": "Ordinateur",
       "sub": "Windows, Mac, Linux",
-      "body": "Chrome et Edge l'installent en un clic. Dans Safari, c'est Fichier, puis Ajouter au Dock.",
-      "button": "Installer Initiative"
+      "body": "Un programme d'installation pour Windows, Mac ou Linux. Chrome et Edge l'installent aussi directement depuis le navigateur, et Safari via Fichier, puis Ajouter au Dock."
     },
     "browser": {
       "title": "Navigateur",
@@ -306,13 +306,8 @@
   "pricing": {
     "sectionLabel": "Formules",
     "seeAll": "Voir toutes les formules et ce que chacune débloque",
-    "storage": "Stockage",
-    "automations": "Automatisations",
-    "members": "Personnes",
-    "support": "Assistance",
     "loading": "Chargement de la grille tarifaire…",
     "tierListAria": "Formules",
-    "selfHostBody": "Vous préférez l'héberger sur votre propre serveur ? C'est gratuit et open source.",
     "everyPlanAria": "Toutes les formules",
     "sameTitle": "Le même Initiative dans les deux cas",
     "sameBody": "Hébergé par nous ou sur votre propre serveur, vous utilisez le même logiciel.",
@@ -357,7 +352,7 @@
   },
   "meta": {
     "homeTitle": "Initiative : sortez du chat de groupe, tout au même endroit",
-    "homeDescription": "Les projets, tâches, documents, événements et discussions de votre groupe au même endroit, sur le web, Android, iPhone et votre ordinateur.",
+    "homeDescription": "Les projets, tâches, fichiers, événements et discussions de votre groupe au même endroit, sur le web, Android, iPhone et votre ordinateur.",
     "downloadTitle": "Télécharger Initiative",
     "downloadDescription": "Installez Initiative sur Android, iPhone, iPad ou votre ordinateur, ou continuez dans le navigateur.",
     "pricingTitle": "Tarifs · Initiative",

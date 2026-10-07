@@ -2,11 +2,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type GuildCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
-import { toast } from "@/lib/chesterToast";
-import { guildPath } from "@/lib/guildUrl";
+import { useCommunities } from "@/hooks/useCommunities";
+import { communityPath } from "@/lib/communityUrl";
+import { type NearPlace, nearOfPlace, nearSearchOf, saveNear } from "@/lib/directoryNear";
+import { toast } from "@/lib/mascotToast";
 import {
   clearStart,
   findStartedCommunity,
@@ -22,10 +23,10 @@ import { toolDetailRoute } from "@/lib/tools";
 export const useLandOnStarter = () => {
   const navigate = useNavigate();
   return useCallback(
-    async (guildId: number, starter: Starter | null) => {
+    async (communityId: number, starter: Starter | null) => {
       await navigate({
-        to: guildPath(
-          guildId,
+        to: communityPath(
+          communityId,
           starter?.projectId
             ? toolDetailRoute(Tool.project, starter.initiativeId, starter.projectId)
             : "/"
@@ -39,12 +40,21 @@ export const useLandOnStarter = () => {
 /** The directory, on the shelves they picked. */
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Read when the directory opens, which can be just after the account that
+  // is opening it was signed in.
+  const userRef = useRef(user);
+  userRef.current = user;
   return useCallback(
-    (categories: GuildCategory[]) =>
-      navigate({
+    (categories: CommunityCategory[], near: NearPlace | null = null) => {
+      // Kept for next time too, so the directory keeps opening near them. The
+      // address carries it either way.
+      if (near) saveNear(near, userRef.current?.id ?? null);
+      return navigate({
         to: "/communities",
-        search: categories.length ? { category: categories } : {},
-      }),
+        search: { ...(categories.length ? { category: categories } : {}), ...nearSearchOf(near) },
+      });
+    },
     [navigate]
   );
 };
@@ -53,9 +63,9 @@ export const useOpenDirectory = () => {
 export const useSeedStarter = () => {
   const { t } = useTranslation("auth");
   return useCallback(
-    async (guildId: number, answers: StartAnswers): Promise<Starter | null> => {
+    async (communityId: number, answers: StartAnswers): Promise<Starter | null> => {
       try {
-        return await seedStarter(guildId, answers);
+        return await seedStarter(communityId, answers);
       } catch {
         toast.error(t("start.starterError"));
         return null;
@@ -71,7 +81,7 @@ export const useSeedStarter = () => {
  */
 export const useFinishPendingStart = (): void => {
   const { user } = useAuth();
-  const { guilds, loading, refreshGuilds } = useGuilds();
+  const { communities, loading, refreshCommunities } = useCommunities();
   const seed = useSeedStarter();
   const landOn = useLandOnStarter();
   const openDirectory = useOpenDirectory();
@@ -87,25 +97,25 @@ export const useFinishPendingStart = (): void => {
       void (async () => {
         await clearStart();
         if (answers.path === "join" && !user.age_below_minimum_at) {
-          await openDirectory(answers.categories);
+          await openDirectory(answers.categories, nearOfPlace(answers.near));
         }
       })();
       return;
     }
     // Kept until the new community is in the list; a list read before it
     // existed is read once more.
-    const guild = findStartedCommunity(guilds, answers);
-    if (!guild) {
+    const community = findStartedCommunity(communities, answers);
+    if (!community) {
       if (!refetched.current) {
         refetched.current = true;
-        void refreshGuilds().catch(() => undefined);
+        void refreshCommunities().catch(() => undefined);
       }
       return;
     }
     done.current = true;
     void (async () => {
       await clearStart();
-      await landOn(guild.id, await seed(guild.id, answers));
+      await landOn(community.id, await seed(community.id, answers));
     })();
-  }, [user, loading, guilds, refreshGuilds, seed, landOn, openDirectory]);
+  }, [user, loading, communities, refreshCommunities, seed, landOn, openDirectory]);
 };

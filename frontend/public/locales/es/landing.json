@@ -14,9 +14,9 @@
     "titleLine1": "Fuera del chat de grupo.",
     "titleLine2": "Todo en un solo sitio.",
     "titleAria": "Fuera del chat de grupo. Todo en un solo sitio.",
-    "subtitle": "Los proyectos, tareas, documentos y planes de tu grupo, en un solo sitio. En vez de repartidos entre un chat de grupo, dos hojas de cálculo, un hilo de correos de marzo y la cabeza de quien lleva más tiempo haciendo esto.",
+    "subtitle": "Los proyectos, tareas, archivos y planes de tu grupo, en un solo sitio. En vez de repartidos entre un chat de grupo, dos hojas de cálculo, un hilo de correos de marzo y la cabeza de quien lleva más tiempo haciendo esto.",
     "freeTitle": "Registrarse es gratis",
-    "freeBody": "Tu cuenta es gratis, y cada comunidad que crees tiene 30 días de prueba gratis.",
+    "freeBody": "Tu cuenta y tu primera comunidad son gratis, y cada plan de pago empieza con 14 días de prueba gratis.",
     "signUp": "Registrarse",
     "signIn": "Iniciar sesión",
     "download": "Descargar",
@@ -61,7 +61,7 @@
     "description": "Todo en una comunidad es una herramienta. Se comparten, etiquetan y comentan igual, así que la segunda te resulta familiar antes de abrirla.",
     "note": "Activa las que necesite tu grupo. Desactivar una más tarde no borra nada.",
     "projects": "Tableros, tablas y calendarios con las mismas tareas, con confeti si quieres.",
-    "documents": "Páginas, hojas de cálculo y pizarras que editáis juntos en directo.",
+    "files": "Páginas, hojas de cálculo y pizarras que editáis juntos en directo.",
     "queues": "Lleva la cuenta de a quién le toca, porque al parecer nunca le toca a nadie.",
     "counterGroups": "Entradas vendidas, pasteles prometidos, sillas que siguen faltando.",
     "calendars": "Eventos con confirmaciones y recordatorios, para que no tengas que recordárselo tú a todo el mundo.",
@@ -255,7 +255,7 @@
     "iosTitle": "Initiative para iPhone y iPad",
     "iosBody": "Toca Compartir y luego Añadir a la pantalla de inicio. Es el mismo Initiative, pero los iPhone todavía no reciben notificaciones push.",
     "desktopTitle": "Initiative para tu ordenador",
-    "desktopBody": "Su propia ventana y su propio icono en el dock o la barra de tareas. Se instala directamente desde el navegador.",
+    "desktopBody": "Su propia ventana y su propio icono en el dock o la barra de tareas, con la sesión iniciada como uno de tus dispositivos.",
     "androidButton": "Descargar para Android",
     "iosButton": "Añadir a tu iPhone",
     "windowsButton": "Descargar para Windows",
@@ -265,6 +265,7 @@
     "version": "Versión {{version}}, la que usa este servidor",
     "releases": "Ver todas las versiones",
     "desktopMeta": "Windows, Mac y Linux",
+    "browserInstall": "O instálalo desde el navegador",
     "cardsAria": "Todas las formas de conseguir Initiative",
     "android": {
       "title": "Android",
@@ -284,8 +285,7 @@
     "desktop": {
       "title": "Ordenador",
       "sub": "Windows, Mac, Linux",
-      "body": "Chrome y Edge lo instalan con un clic. En Safari es Archivo y luego Añadir al Dock.",
-      "button": "Instalar Initiative"
+      "body": "Un instalador para Windows, Mac o Linux. Chrome y Edge también lo instalan directamente desde el navegador, y Safari desde Archivo y luego Añadir al Dock."
     },
     "browser": {
       "title": "Navegador",
@@ -306,13 +306,8 @@
   "pricing": {
     "sectionLabel": "Planes",
     "seeAll": "Ver todos los planes y lo que desbloquea cada uno",
-    "storage": "Almacenamiento",
-    "automations": "Automatizaciones",
-    "members": "Personas",
-    "support": "Soporte",
     "loading": "Cargando la lista de precios…",
     "tierListAria": "Planes",
-    "selfHostBody": "¿Prefieres ejecutarlo en tu propio servidor? Es gratis y de código abierto.",
     "everyPlanAria": "Todos los planes",
     "sameTitle": "El mismo Initiative en ambos casos",
     "sameBody": "Alojado por nosotros o en tu propio servidor, usas el mismo software.",
@@ -357,7 +352,7 @@
   },
   "meta": {
     "homeTitle": "Initiative: fuera del chat de grupo, todo en un solo sitio",
-    "homeDescription": "Los proyectos, tareas, documentos, eventos y conversaciones de tu grupo en un solo sitio, en la web, Android, iPhone y tu ordenador.",
+    "homeDescription": "Los proyectos, tareas, archivos, eventos y conversaciones de tu grupo en un solo sitio, en la web, Android, iPhone y tu ordenador.",
     "downloadTitle": "Descarga Initiative",
     "downloadDescription": "Instala Initiative en Android, iPhone, iPad o tu ordenador, o sigue usándolo en el navegador.",
     "pricingTitle": "Precios · Initiative",

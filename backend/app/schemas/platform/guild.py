@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
-from pydantic import field_validator, ConfigDict, EmailStr, Field
+from pydantic import (
+    AliasChoices,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.core.login_methods import LoginMethod
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
@@ -14,15 +21,16 @@ from app.schemas.query import PageMeta
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
     DEFAULT_BANNER,
+    MEMBER_DISPLAY_NAME_MAX_LENGTH,
     BannerFade,
     BannerTextAlign,
-    GuildCategory,
-    GuildRole,
-    GuildStatus,
+    CommunityCategory,
+    CommunityRole,
+    CommunityStatus,
 )
 
 
-class GuildBannerRead(SanitizedBaseModel):
+class CommunityBannerRead(SanitizedBaseModel):
     """A guild's banner, whole — the picture and the look around it.
 
     ``image_url`` is where to fetch the artwork, never the bytes: a banner is
@@ -41,7 +49,7 @@ class GuildBannerRead(SanitizedBaseModel):
     fade: BannerFade = BannerFade(DEFAULT_BANNER["fade"])
 
 
-class GuildBannerWrite(SanitizedBaseModel):
+class CommunityBannerWrite(SanitizedBaseModel):
     """The banner a guild admin sets, whole.
 
     Every field is required: the banner is one value and this replaces it, so a
@@ -61,12 +69,61 @@ class GuildBannerWrite(SanitizedBaseModel):
     fade: BannerFade
 
 
-class GuildBase(SanitizedBaseModel):
+class CommunityLocation(SanitizedBaseModel):
+    """Where a community is, as precisely as its admin cares to say.
+
+    The country is the one required part: everything finer is optional, so a
+    community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+    address. The parts are generic rather than one country's address form —
+    ``region`` is whatever the country's first-level division is (a state, a
+    province, a prefecture, a county), and a country without one leaves it out.
+
+    ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+    which lets a card say "Seattle, WA" where the country writes its regions
+    that way. ``label`` is the admin's own name for the place
+    ("Queen Anne Neighborhood"), shown ahead of it.
+
+    The same shape is read and written: the whole location is one value, and a
+    PATCH replaces it.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: ISO 3166-1 alpha-2, upper case.
+    country: str = Field(pattern=r"^[A-Za-z]{2}$")
+    region: Optional[str] = Field(default=None, max_length=100)
+    region_code: Optional[str] = Field(default=None, max_length=10)
+    city: Optional[str] = Field(default=None, max_length=100)
+    #: The street part of an exact address. Shown only on request, never on a
+    #: card's own line.
+    address: Optional[str] = Field(default=None, max_length=200)
+    #: Kept with the address for whoever opens the details; never on a card.
+    postal_code: Optional[str] = Field(default=None, max_length=20)
+    #: The community's own name for the place. Short, because it shares one
+    #: line of a card with the place itself.
+    label: Optional[TitleStr] = Field(default=None, max_length=60)
+
+    @field_validator("country", mode="after")
+    @classmethod
+    def _upper_country(cls, value: str) -> str:
+        return value.upper()
+
+    @field_validator(
+        "region", "region_code", "city", "address", "postal_code", "label", mode="after"
+    )
+    @classmethod
+    def _blank_is_absent(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return " ".join(value.split()) or None
+
+
+class CommunityBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
 
 
-class NewCommunity(GuildBase):
+class NewCommunity(CommunityBase):
     """A community, as somebody names it when they make one."""
 
     name: TitleStr
@@ -75,17 +132,17 @@ class NewCommunity(GuildBase):
     plan: Optional[str] = Field(default=None, max_length=64)
 
 
-class GuildCreate(NewCommunity):
+class CommunityCreate(NewCommunity):
     #: Make another account the guild's admin instead of the caller.
     #:
-    #: Honoured only for a caller holding ``guilds.manage``; anyone else
+    #: Honoured only for a caller holding ``communities.manage``; anyone else
     #: sending it is refused rather than quietly ignored, so a request that
     #: names an owner never succeeds under a different one. The account must
     #: already exist — this never creates one.
     owner_user_id: Optional[int] = Field(default=None, ge=1)
 
 
-class GuildCan(SanitizedBaseModel):
+class CommunityCan(SanitizedBaseModel):
     """What the caller may do in a community, as the server answers it.
 
     Each flag is the check the routes that do the thing run, so a client reads
@@ -109,11 +166,11 @@ class GuildCan(SanitizedBaseModel):
     #: community's own calendars. The membership row's administrator; no
     #: grant makes one.
     administer_content: bool = False
-    #: Hold its top seat: sign-in, billing, AI, apps, data and deletion.
+    #: Hold its top seat: sign-in, billing, AI, plug-ins, data and deletion.
     seat: bool = False
 
 
-class GuildRead(GuildBase):
+class CommunityRead(CommunityBase):
     """A guild as its own members see it (``GET /communities/`` and friends).
 
     The payload has two tiers, decided in one place — ``_serialize_guild`` in
@@ -125,7 +182,7 @@ class GuildRead(GuildBase):
       retention window, lifecycle status, sign-in entitlement. They back
       admin-gated surfaces, so a regular member's payload leaves them ``None``.
       (Operators read the same underlying columns through
-      :class:`PlatformGuildStorageRead` instead, which is capability-gated.)
+      :class:`PlatformCommunityStorageRead` instead, which is capability-gated.)
     """
 
     model_config = ConfigDict(
@@ -136,9 +193,12 @@ class GuildRead(GuildBase):
     #: The rung this caller holds in the community: the membership row's own,
     #: or the one a live settings grant confers for its window. Shown as it
     #: stands; what it lets them do is ``can``.
-    role: GuildRole
-    can: GuildCan = Field(default_factory=GuildCan)
+    role: CommunityRole
+    can: CommunityCan = Field(default_factory=CommunityCan)
     position: int
+    #: What the caller has asked to be called here, as they set it; ``None``
+    #: when they have not, which is most people.
+    display_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     # ADMIN-ONLY. Trash retention window, set from the guild's trash settings tab.
@@ -158,7 +218,7 @@ class GuildRead(GuildBase):
     # community as closed and a read-only one with its notice. ``None`` for
     # non-admin members — the moderation hold is never disclosed to them
     # (suspended guilds are also filtered from their guild list entirely).
-    status: Optional[GuildStatus] = None
+    status: Optional[CommunityStatus] = None
     # True when content writes are frozen (read_only lifecycle status). Unlike
     # ``status`` this IS serialized to every member: writes fail at the
     # database role level regardless, so the UI must be able to drop its write
@@ -172,33 +232,29 @@ class GuildRead(GuildBase):
     # ADMIN-ONLY. What this guild may do about its own sign-in (operator
     # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).
-    auth_options: Optional[List[GuildAuthOption]] = None
-    # ADMIN-ONLY. Whether a personal API key may be used against this guild.
-    # ``None`` for non-admin members: it is read by the settings surface that
-    # sets it, and nothing a member does depends on the answer.
-    allow_api_keys: Optional[bool] = None
+    auth_options: Optional[List[CommunityAuthOption]] = None
     # ADMIN-ONLY. Whether this guild holds its members to the twelve-hour
-    # session standard. ``None`` for non-admin members, like the one above:
-    # the settings surface that sets it is what reads it.
+    # session standard. ``None`` for non-admin members: the settings surface
+    # that sets it is what reads it, and nothing a member does depends on the
+    # answer.
     enforce_compliance_session: Optional[bool] = None
     # ADMIN-ONLY. Whether reaching this guild asks for a second factor.
-    # ``None`` for non-admin members, like the two above.
+    # ``None`` for non-admin members, like the one above.
     require_second_factor: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
     is_community: bool = False
-    categories: List[GuildCategory] = []
-    # Whether this guild renders members' real names. Off — the default —
-    # means it renders handles. A listed guild is always off and cannot be
-    # switched on.
-    show_member_names: bool = True
+    categories: List[CommunityCategory] = []
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None
     # The guild's banner, at full size. Never absent — every guild has one, so
     # nothing downstream renders a guild that has none.
-    banner: GuildBannerRead = GuildBannerRead()
+    banner: CommunityBannerRead = CommunityBannerRead()
+    # Where the community is, or ``None`` for one that has not said. Identity,
+    # like the banner: every member sees it, and a listed community publishes it.
+    location: Optional[CommunityLocation] = None
     # How many of this guild's members have it open right now. A live reading
     # taken from the process answering the request rather than a stored
     # column — the same figure the directory card shows, and the same caveat: a
@@ -210,24 +266,27 @@ class GuildRead(GuildBase):
     # the banner's: this payload lists every guild the caller is in, and the
     # icon used to be a data URI inlined into all of them.
     icon_url: Optional[str] = None
+    # The banner's card rendition, for the guild's card in the switcher — the
+    # strip its directory card shows. ``None`` when the banner has no artwork.
+    banner_card_url: Optional[str] = None
 
 
-class GuildPaymentIssueRead(SanitizedBaseModel):
+class CommunityPaymentIssueRead(SanitizedBaseModel):
     payment_failed: bool = False
 
 
-class GuildBillingChargeRead(SanitizedBaseModel):
+class CommunityBillingChargeRead(SanitizedBaseModel):
     # Minor units of ``currency`` (cents for USD).
     total: int
     currency: str
 
 
-class GuildBillingChangeRead(SanitizedBaseModel):
+class CommunityBillingChangeRead(SanitizedBaseModel):
     action: Literal["cancel", "pause", "resume"]
     on: date
 
 
-class GuildBillingSummaryRead(SanitizedBaseModel):
+class CommunityBillingSummaryRead(SanitizedBaseModel):
     """The guild's plan as billing told it, fetched for this response alone.
 
     ``available`` is False when billing could not be asked or did not answer
@@ -239,25 +298,25 @@ class GuildBillingSummaryRead(SanitizedBaseModel):
     tier_name: Optional[str] = None
     trial_ends_on: Optional[date] = None
     renews_on: Optional[date] = None
-    next_charge: Optional[GuildBillingChargeRead] = None
-    scheduled_change: Optional[GuildBillingChangeRead] = None
+    next_charge: Optional[CommunityBillingChargeRead] = None
+    scheduled_change: Optional[CommunityBillingChangeRead] = None
     payment_failed: bool = False
 
 
-class GuildInviteCreate(SanitizedBaseModel):
+class CommunityInviteCreate(SanitizedBaseModel):
     expires_at: Optional[datetime] = None
     max_uses: Optional[int] = Field(default=1, ge=1)
     invitee_email: Optional[EmailStr] = None
 
 
-class GuildInviteRead(SanitizedBaseModel):
+class CommunityInviteRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
     id: int
     code: str
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     created_by: Optional[int]
     expires_at: Optional[datetime]
     max_uses: Optional[int]
@@ -274,16 +333,20 @@ class GuildInviteRead(SanitizedBaseModel):
         return mask_email(value)
 
 
-class GuildInviteAcceptRequest(SanitizedBaseModel):
+class CommunityInviteAcceptRequest(SanitizedBaseModel):
     code: str
 
 
-class GuildInviteStatus(SanitizedBaseModel):
+class CommunityInviteStatus(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     code: str
-    guild_id: Optional[int] = None
-    guild_name: Optional[str] = None
+    community_id: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
     is_valid: bool
     reason: Optional[str] = None
     expires_at: Optional[datetime] = None
@@ -291,7 +354,7 @@ class GuildInviteStatus(SanitizedBaseModel):
     uses: Optional[int] = None
 
 
-class GuildUpdate(SanitizedBaseModel):
+class CommunityUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
@@ -305,15 +368,14 @@ class GuildUpdate(SanitizedBaseModel):
     # UI sends that — while a null ``is_community`` is a no-op (a boolean
     # opt-in has no third state).
     is_community: Optional[bool] = None
-    categories: Optional[List[GuildCategory]] = None
-    # Whether to render members' real names instead of their handles. Listing
-    # the guild turns it off in the same write and the endpoint refuses to set
-    # both, which ck_guilds_community_member_names also enforces.
-    show_member_names: Optional[bool] = None
+    categories: Optional[List[CommunityCategory]] = None
     # The whole banner, replaced. Omit-to-skip like the fields above; an
     # explicit null puts it back to the default rather than clearing it, since
     # a banner is never colourless and never without a layout.
-    banner: Optional[GuildBannerWrite] = None
+    banner: Optional[CommunityBannerWrite] = None
+    # The whole location, replaced. Omit-to-skip; an explicit null clears it,
+    # since having no location is the default rather than a fallback.
+    location: Optional[CommunityLocation] = None
     # The 18+ declaration, and the one field here where null is an ANSWER
     # rather than a skip — it puts the guild back to undeclared. Omitting the
     # field is how you leave it alone, so this is read from
@@ -326,10 +388,10 @@ class GuildUpdate(SanitizedBaseModel):
     # the database enforce that even if a field regressed into this schema.
 
 
-class PlatformGuildStorageRead(SanitizedBaseModel):
+class PlatformCommunityStorageRead(SanitizedBaseModel):
     """Operator view of a guild's storage cap (platform settings → Guilds tab).
 
-    Unlike :class:`GuildRead`, this carries no per-user membership fields
+    Unlike :class:`CommunityRead`, this carries no per-user membership fields
     (``role``/``position``): the platform operator lists every guild regardless
     of whether they belong to it, so only platform-wide attributes apply.
     """
@@ -351,24 +413,24 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Max number of members for this guild. None means "unlimited".
     max_users: Optional[int] = None
     # Lifecycle status (active / read_only / suspended / deleted). Surfaced
-    # only to platform operators here — never to guild members (GuildRead omits it).
-    status: GuildStatus = GuildStatus.active
+    # only to platform operators here — never to guild members (CommunityRead omits it).
+    status: CommunityStatus = CommunityStatus.active
     status_changed_at: Optional[datetime] = None
     # The statuses the operator may move this guild to, the current one
     # included where it is one of them (``operator_status_choices``). Empty
     # for a deleted guild.
-    status_choices: List[GuildStatus] = Field(default_factory=list)
+    status_choices: List[CommunityStatus] = Field(default_factory=list)
     # When a deleted guild is destroyed: its deletion time plus the retention
     # window. Null unless ``status`` is ``deleted``. Computed from the two
     # columns beside it rather than stored, so the window is stated in one
-    # place (``guild_purge.GUILD_RETENTION_DAYS``).
+    # place (``retention.COMMUNITY_DELETION``).
     purge_at: Optional[datetime] = None
     # Whether anybody left in the guild can still run it — a ``superadmin``
     # seat. False after a deletion that cleared the roster, which is what makes
     # a restore ask the operator to seat somebody.
     has_seat: bool = True
     # Per-guild sign-in entitlements, set from the platform Guilds dashboard.
-    auth_options: List[GuildAuthOption] = Field(default_factory=list)
+    auth_options: List[CommunityAuthOption] = Field(default_factory=list)
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.
     banner_image_enabled: bool = True
@@ -378,14 +440,17 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     support_enabled: bool = False
 
 
-class PlatformGuildStorageListResponse(PageMeta):
+class PlatformCommunityStorageListResponse(PageMeta):
     """One page of the operator's community list."""
 
-    items: List[PlatformGuildStorageRead]
+    items: List[PlatformCommunityStorageRead]
+    #: Whether the deployment has somewhere to send help requests. A
+    #: community's help requests can only be switched on while it does.
+    support_bound: bool = False
 
 
-class PlatformGuildRestore(SanitizedBaseModel):
-    """Bring a deleted guild back (platform ``guilds.manage``).
+class PlatformCommunityRestore(SanitizedBaseModel):
+    """Bring a deleted guild back (platform ``communities.manage``).
 
     ``status`` is what it returns at — the operator decides, because a
     community suspended for nonpayment and then deleted should not come back
@@ -398,48 +463,50 @@ class PlatformGuildRestore(SanitizedBaseModel):
     that rather than trusting the client's reading of it.
     """
 
-    status: GuildStatus = GuildStatus.active
+    status: CommunityStatus = CommunityStatus.active
     seat_user_id: Optional[int] = Field(default=None, ge=1)
 
     @field_validator("status")
     @classmethod
-    def _not_deleted(cls, value: GuildStatus) -> GuildStatus:
-        if value == GuildStatus.deleted:
-            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+    def _not_deleted(cls, value: CommunityStatus) -> CommunityStatus:
+        if value == CommunityStatus.deleted:
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_INVALID)
         return value
 
 
-class PlatformGuildStorageUpdate(SanitizedBaseModel):
+class PlatformCommunityStorageUpdate(SanitizedBaseModel):
     """Set a guild's storage caps and/or lifecycle status from the Guilds tab.
 
     The cap fields use omit-to-skip sentinel semantics (the endpoint inspects
     ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
     reset that cap to unlimited, or send a number to set it. ``status`` is
     omit-to-skip too (a lifecycle status is never null), validated against
-    :class:`GuildStatus`. A PATCH may carry any subset.
+    :class:`CommunityStatus`. A PATCH may carry any subset.
     """
 
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
-    status: Optional[GuildStatus] = None
+    status: Optional[CommunityStatus] = None
 
     @field_validator("status")
     @classmethod
-    def _status_is_settable(cls, value: GuildStatus | None) -> GuildStatus | None:
+    def _status_is_settable(
+        cls, value: CommunityStatus | None
+    ) -> CommunityStatus | None:
         """``deleted`` is not an operator setting.
 
         It is reached by deleting a guild and left by restoring one, both of
         which do a good deal more than move this column: clearing the guild's
-        app grants as it goes, seating somebody who can run it as it returns.
+        plug-in grants as it goes, seating somebody who can run it as it returns.
         Those two endpoints own the transition; this field does not.
         """
-        if value == GuildStatus.deleted:
-            raise ValueError(GuildMessages.GUILD_STATUS_NOT_SETTABLE)
+        if value == CommunityStatus.deleted:
+            raise ValueError(GuildMessages.COMMUNITY_STATUS_NOT_SETTABLE)
         return value
 
     # Per-guild sign-in entitlements. Omit-to-skip; a sent list replaces the
     # set outright, and an empty one grants nothing.
-    auth_options: Optional[List[GuildAuthOption]] = None
+    auth_options: Optional[List[CommunityAuthOption]] = None
     # Banner-artwork entitlement. Omit-to-skip, same as the one above.
     banner_image_enabled: Optional[bool] = None
     # Help-request entitlement. Omit-to-skip, same as the one above.
@@ -458,7 +525,7 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 GuildRequirableMethod = Literal[LoginMethod.sso, LoginMethod.totp, LoginMethod.passkey]
 
 
-class GuildAuthPolicyRead(SanitizedBaseModel):
+class CommunityAuthPolicyRead(SanitizedBaseModel):
     """The guild's sign-in requirement. ``open`` is the default (no stored
     row). ``required`` names a provider a session must have satisfied, asks for
     the guild's own single sign-on without naming which provider serves it, or
@@ -478,7 +545,7 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
     factor_required_by_platform: bool = False
 
 
-class GuildAuthPolicyUpdate(SanitizedBaseModel):
+class CommunityAuthPolicyUpdate(SanitizedBaseModel):
     policy: Literal["open", "required"]
     provider_id: Optional[int] = None
     #: ``["sso"]`` asks for the community's own single sign-on and ``["totp"]``
@@ -488,17 +555,14 @@ class GuildAuthPolicyUpdate(SanitizedBaseModel):
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
-class GuildAuthSettingsRead(SanitizedBaseModel):
+class CommunityAuthSettingsRead(SanitizedBaseModel):
     """Every control on the superadmin seat's Security page, and what the
     deployment already asks beside them."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    auth_options: List[GuildAuthOption] = Field(default_factory=list)
-    auth_policy: GuildAuthPolicyRead
-    #: Whether a personal API key may reach this community. ``false`` means
-    #: none can be minted into it and none already minted reaches it.
-    allow_api_keys: bool
+    auth_options: List[CommunityAuthOption] = Field(default_factory=list)
+    auth_policy: CommunityAuthPolicyRead
     #: Whether its members sign in again every twelve hours, whatever the
     #: deployment's own limit says.
     enforce_compliance_session: bool
@@ -517,7 +581,7 @@ class GuildAuthSettingsRead(SanitizedBaseModel):
     redacted_by_platform: bool = False
 
 
-class GuildAuthSettingsUpdate(SanitizedBaseModel):
+class CommunityAuthSettingsUpdate(SanitizedBaseModel):
     """The rules to change. An omitted field is left as it is.
 
     The whole request is one change: it is applied together or refused
@@ -527,8 +591,7 @@ class GuildAuthSettingsUpdate(SanitizedBaseModel):
     """
 
     #: The sign-in requirement, replaced as a whole.
-    auth_policy: Optional[GuildAuthPolicyUpdate] = None
-    allow_api_keys: Optional[bool] = None
+    auth_policy: Optional[CommunityAuthPolicyUpdate] = None
     enforce_compliance_session: Optional[bool] = None
     require_second_factor: Optional[bool] = None
     allow_push_notifications: Optional[bool] = None
@@ -536,11 +599,11 @@ class GuildAuthSettingsUpdate(SanitizedBaseModel):
     redact_notification_content: Optional[bool] = None
 
 
-class GuildDeletionRequest(SanitizedBaseModel):
+class CommunityDeletionRequest(SanitizedBaseModel):
     """Body for ``DELETE /communities/{id}``.
 
     Deleting a guild cascades through every initiative, project, task,
-    document, membership, invite, and settings row it owns, so the
+    file, membership, invite, and settings row it owns, so the
     endpoint gates on two confirmations:
 
     - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
@@ -556,15 +619,14 @@ class GuildDeletionRequest(SanitizedBaseModel):
     confirmation_text: str
 
 
-class GuildOrderUpdate(SanitizedBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    guild_ids: list[int] = Field(min_length=1, alias="guildIds")
+class CommunityOrderUpdate(SanitizedBaseModel):
+    community_ids: list[int] = Field(min_length=1)
 
 
-class GuildEntitlementsRead(SanitizedBaseModel):
+class CommunityEntitlementsRead(SanitizedBaseModel):
     """What an operator has turned on for one guild, for its own admins.
 
-    Deliberately its own read rather than fields on :class:`GuildRead`: these
+    Deliberately its own read rather than fields on :class:`CommunityRead`: these
     are the operator's decisions about a guild, they live on the separate
     ``guild_administration`` row, and only a guild admin has any use for them —
     a member's guild payload should not be carrying them at all.
@@ -572,19 +634,42 @@ class GuildEntitlementsRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     # Whether this guild may upload banner artwork. Off means the settings page
     # offers the banner colour alone; a banner already uploaded keeps showing.
     banner_image_enabled: bool = True
 
 
-class GuildMembershipUpdate(SanitizedBaseModel):
+class CommunityMembershipUpdate(SanitizedBaseModel):
     """Schema for updating a user's guild membership role."""
 
-    role: GuildRole
+    role: CommunityRole
 
 
-class LeaveGuildEligibilityResponse(SanitizedBaseModel):
+class MemberDisplayNameUpdate(SanitizedBaseModel):
+    """What a member is called in one community. ``None`` or blank clears it,
+    and their handle shows again."""
+
+    display_name: Optional[TitleStr] = Field(
+        default=None, max_length=MEMBER_DISPLAY_NAME_MAX_LENGTH
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_is_none(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("display_name"), str):
+            if not data["display_name"].strip():
+                data = {**data, "display_name": None}
+        return data
+
+
+class MemberApiAccessUpdate(SanitizedBaseModel):
+    """Whether one member's personal API keys reach this community."""
+
+    api_keys_allowed: bool
+
+
+class LeaveCommunityEligibilityResponse(SanitizedBaseModel):
     """Response for checking if a user can leave a guild.
 
     Two things stop them, and the caller is told which. Being the guild's last
@@ -602,10 +687,10 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     is_last_superadmin: bool = False
 
 
-class CommunityGuildRead(SanitizedBaseModel):
+class DirectoryCommunityRead(SanitizedBaseModel):
     """One card in the community directory.
 
-    Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
+    Deliberately not a :class:`CommunityRead`: the reader is a stranger, so this
     carries only what the guild published by opting in — its identity, its
     shelves, and how many people are already there. No membership fields (they
     have none), no lifecycle status, no administration. ``already_member`` is
@@ -623,7 +708,7 @@ class CommunityGuildRead(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
     icon_url: Optional[str] = None
-    categories: List[GuildCategory] = []
+    categories: List[CommunityCategory] = []
     member_count: int = 0
     online_count: int = 0
     already_member: bool = False
@@ -631,13 +716,12 @@ class CommunityGuildRead(SanitizedBaseModel):
     # than the full one: a directory page is up to sixty of these, so the bytes
     # stay out of the payload and are fetched (and then cached) per card. The
     # rest of it needs no fetch at all.
-    banner: GuildBannerRead = GuildBannerRead()
+    banner: CommunityBannerRead = CommunityBannerRead()
+    # Where the community is, if it said. Published like the rest of the card.
+    location: Optional[CommunityLocation] = None
 
 
-class CommunityGuildPage(SanitizedBaseModel):
-    """A page of directory results, plus how many matched in total."""
+class DirectoryCommunityPage(PageMeta):
+    """A page of directory results."""
 
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    items: List[CommunityGuildRead]
-    total: int
+    items: List[DirectoryCommunityRead]

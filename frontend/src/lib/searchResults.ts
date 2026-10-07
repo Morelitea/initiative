@@ -5,10 +5,9 @@
  * (`tool`/`tool_id`), which is everything an address needs — so a result links
  * straight to its page rather than through the `/go` resolver.
  *
- * A tool's own row derives from the `Tool` enum. The four entities that live
- * INSIDE a tool are stated once here, in {@link TOOL_CHILDREN}, and that one
- * entry supplies all three things a child needs: which tool it belongs to, the
- * icon it renders with, and how its address is built.
+ * A tool's own row derives from the `Tool` enum. What lives INSIDE a tool is
+ * stated here, in {@link TOOL_CHILDREN}: the icon it renders with and how its
+ * address is built. Which tool it is in comes on the hit.
  */
 
 import {
@@ -40,14 +39,12 @@ export type SearchTarget = Pick<
   "entity_type" | "entity_id" | "initiative_id" | "tool" | "tool_id"
 >;
 
-/** The guild's vocabulary — the one result that lives in no tool. */
+/** The community's vocabulary — the one result that lives in no tool. */
 export const TAG_ENTITY_TYPE = SearchEntityType.tag;
 /** What people said on the content. */
 export const COMMENT_ENTITY_TYPE = SearchEntityType.comment;
 
 interface ToolChild {
-  /** The tool this lives in — the `tool` a hit carries. */
-  tool: Tool;
   icon: LucideIcon;
   /** Address, from the initiative, the parent's id, the child's own, and the
    *  tool the hit named — which is fixed for most, and per-row for a comment. */
@@ -61,22 +58,19 @@ interface ToolChild {
  * lands on its queue.
  */
 const TOOL_CHILDREN: Partial<Record<SearchEntityType, ToolChild>> = {
-  [SearchEntityType.task]: { tool: Tool.project, icon: SquareCheckBig, path: taskRoute },
+  [SearchEntityType.task]: { icon: SquareCheckBig, path: taskRoute },
   [SearchEntityType.calendar_event]: {
-    tool: Tool.calendar,
     icon: CalendarClock,
     path: eventRoute,
   },
-  [SearchEntityType.counter]: { tool: Tool.counter_group, icon: Hash, path: counterRoute },
+  [SearchEntityType.counter]: { icon: Hash, path: counterRoute },
   [SearchEntityType.queue_item]: {
-    tool: Tool.queue,
     icon: Ticket,
     path: (initiativeId, queueId) => toolDetailRoute(Tool.queue, initiativeId, queueId),
   },
   // A picture is browsed in its gallery rather than on a page of its own, so
   // a hit lands on the gallery.
   [SearchEntityType.gallery_image]: {
-    tool: Tool.gallery,
     icon: Image,
     path: (initiativeId, galleryId) => toolDetailRoute(Tool.gallery, initiativeId, galleryId),
   },
@@ -85,14 +79,12 @@ const TOOL_CHILDREN: Partial<Record<SearchEntityType, ToolChild>> = {
   // would fall through to the tool rule and be addressed as if the page id
   // were the wiki's.
   [SearchEntityType.wiki_page]: {
-    tool: Tool.wiki,
     icon: FileText,
     path: wikiPageRoute,
   },
   // A comment is read on the thing it is on, so it goes there. Its own id
   // addresses nothing: there is no page for one comment.
   [SearchEntityType.comment]: {
-    tool: Tool.project,
     icon: MessageSquare,
     path: (initiativeId, parentId, _entityId, tool) =>
       toolDetailRoute(tool, initiativeId, parentId),
@@ -152,14 +144,14 @@ export const hitIcon = (target: SearchTarget): LucideIcon => {
   const child = TOOL_CHILDREN[target.entity_type];
   if (child) return child.icon;
   // A tool's own row names its tool twice — as the tool and as the kind — so a
-  // caller that filled in only the kind still gets the right mark. The guild's
+  // caller that filled in only the kind still gets the right mark. The community's
   // vocabulary is the one thing that sits outside a tool, and falls through.
   const tool = target.tool ?? (target.entity_type as unknown as Tool);
   return TOOL_ICONS[tool] ?? Tag;
 };
 
 /**
- * The guild-relative address of a hit, or `null` when it has none — an entity
+ * The community-relative address of a hit, or `null` when it has none — an entity
  * type this build doesn't route, or a child whose parent didn't come back.
  */
 export const searchHitPath = (target: SearchTarget): string | null => {

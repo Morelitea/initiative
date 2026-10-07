@@ -38,11 +38,10 @@ def _inline_references(node: Any) -> Any:
         return node
     kind = node.get("type")
     if kind == "mention":
-        name = str(node.get("mentionName") or node.get("text") or "").lstrip("@")
         user_id = node.get("mentionUserId")
-        label = name.replace("[", "").replace("]", "")
         if isinstance(user_id, int) and not isinstance(user_id, bool):
-            return _text(f"@[{label}]({user_id})", node)
+            return _text(f"@[]({user_id})", node)
+        name = str(node.get("mentionName") or node.get("text") or "").lstrip("@")
         return _text(f"@{name}", node)
     if kind == "entity-mention":
         text = str(node.get("text") or "")

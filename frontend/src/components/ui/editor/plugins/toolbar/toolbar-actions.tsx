@@ -52,8 +52,8 @@ import {
   IndentIncreaseIcon,
   ItalicIcon,
   PenTool,
+  RectangleEllipsis,
   ScissorsIcon,
-  Sparkles,
   StrikethroughIcon,
   SubscriptIcon,
   SuperscriptIcon,
@@ -191,10 +191,10 @@ export const useBlockFormatActions = (types: readonly BlockFormatType[]): Editor
 };
 
 const TEXT_FORMATS = [
-  { id: "bold", labelKey: "editor.bold", Icon: BoldIcon },
-  { id: "italic", labelKey: "editor.italic", Icon: ItalicIcon },
-  { id: "underline", labelKey: "editor.underline", Icon: UnderlineIcon },
-  { id: "strikethrough", labelKey: "editor.strikethrough", Icon: StrikethroughIcon },
+  { id: "bold", labelKey: "bold", Icon: BoldIcon },
+  { id: "italic", labelKey: "italic", Icon: ItalicIcon },
+  { id: "underline", labelKey: "underline", Icon: UnderlineIcon },
+  { id: "strikethrough", labelKey: "strikethrough", Icon: StrikethroughIcon },
 ] as const;
 
 /** The ids, for reading them off a selection. */
@@ -203,7 +203,7 @@ export const TEXT_FORMAT_IDS = TEXT_FORMATS.map((format) => format.id);
 /** Bold, italic, underline and strikethrough, with what the selection has. */
 export const useTextFormatActions = (activeFormats: string[]): EditorAction[] => {
   const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return TEXT_FORMATS.map(({ id, labelKey, Icon }) => ({
     id,
@@ -216,18 +216,18 @@ export const useTextFormatActions = (activeFormats: string[]): EditorAction[] =>
 
 export const useSubSuperActions = (): EditorAction[] => {
   const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return [
     {
       id: "subscript",
-      label: t("editor.subscript"),
+      label: t("subscript"),
       icon: <SubscriptIcon className="size-4" />,
       run: () => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript"),
     },
     {
       id: "superscript",
-      label: t("editor.superscript"),
+      label: t("superscript"),
       icon: <SuperscriptIcon className="size-4" />,
       run: () => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript"),
     },
@@ -282,10 +282,10 @@ export const useClearFormatting = () => {
 };
 
 const ALIGNMENTS = [
-  { id: "left", labelKey: "editor.alignLeft", Icon: AlignLeftIcon },
-  { id: "center", labelKey: "editor.alignCenter", Icon: AlignCenterIcon },
-  { id: "right", labelKey: "editor.alignRight", Icon: AlignRightIcon },
-  { id: "justify", labelKey: "editor.alignJustify", Icon: AlignJustifyIcon },
+  { id: "left", labelKey: "alignLeft", Icon: AlignLeftIcon },
+  { id: "center", labelKey: "alignCenter", Icon: AlignCenterIcon },
+  { id: "right", labelKey: "alignRight", Icon: AlignRightIcon },
+  { id: "justify", labelKey: "alignJustify", Icon: AlignJustifyIcon },
 ] as const;
 
 export type AlignmentType = (typeof ALIGNMENTS)[number]["id"];
@@ -293,7 +293,7 @@ export type AlignmentType = (typeof ALIGNMENTS)[number]["id"];
 /** The alignment options, and the icon standing for whichever is in force. */
 export const useAlignmentActions = (current: AlignmentType): EditorAction[] => {
   const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return ALIGNMENTS.map(({ id, labelKey, Icon }) => ({
     id,
@@ -306,18 +306,18 @@ export const useAlignmentActions = (current: AlignmentType): EditorAction[] => {
 
 export const useIndentActions = (): EditorAction[] => {
   const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return [
     {
       id: "indent",
-      label: t("editor.indent"),
+      label: t("indent"),
       icon: <IndentIncreaseIcon className="size-4" />,
       run: () => activeEditor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined),
     },
     {
       id: "outdent",
-      label: t("editor.outdent"),
+      label: t("outdent"),
       icon: <IndentDecreaseIcon className="size-4" />,
       run: () => activeEditor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined),
     },
@@ -335,14 +335,14 @@ export const useBlockInsertActions = ({
   initiativeId: number | null;
 }): EditorAction[] => {
   const { activeEditor, showModal } = useToolbarContext();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   const actions: EditorAction[] = [];
 
   if (rich) {
     actions.push({
       id: "horizontal-rule",
-      label: t("editor.horizontalRule"),
+      label: t("horizontalRule"),
       icon: <ScissorsIcon className="size-4" />,
       run: () => activeEditor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
     });
@@ -351,19 +351,19 @@ export const useBlockInsertActions = ({
   actions.push(
     {
       id: "image",
-      label: t("editor.image"),
+      label: t("image"),
       icon: <ImageIcon className="size-4" />,
       run: () =>
-        showModal(t("editor.insertImage"), (onClose) => (
+        showModal(t("insertImage"), (onClose) => (
           <InsertImageDialog activeEditor={activeEditor} onClose={onClose} />
         )),
     },
     {
       id: "table",
-      label: t("editor.table"),
+      label: t("table"),
       icon: <TableIcon className="size-4" />,
       run: () =>
-        showModal(t("editor.insertTable"), (onClose) => (
+        showModal(t("insertTable"), (onClose) => (
           <InsertTableDialog activeEditor={activeEditor} onClose={onClose} />
         )),
     }
@@ -372,28 +372,28 @@ export const useBlockInsertActions = ({
   if (rich) {
     actions.push({
       id: "status",
-      label: t("editor.status"),
+      label: t("status"),
       icon: <Tag className="size-4" />,
       run: () => activeEditor.dispatchCommand(INSERT_STATUS_COMMAND, undefined),
     });
     actions.push({
       id: "drawing",
-      label: t("editor.drawing"),
+      label: t("drawing"),
       icon: <PenTool className="size-4" />,
       run: () => activeEditor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),
     });
     actions.push({
       id: "callout",
-      label: t("editor.callout"),
+      label: t("callout"),
       icon: <CalloutIcon variant="info" className="size-4" />,
       run: () => activeEditor.dispatchCommand(INSERT_CALLOUT_COMMAND, "info"),
     });
     actions.push({
       id: "columns",
-      label: t("editor.columnsLayout"),
+      label: t("columnsLayout"),
       icon: <Columns3Icon className="size-4" />,
       run: () =>
-        showModal(t("editor.insertColumnsLayout"), (onClose) => (
+        showModal(t("insertColumnsLayout"), (onClose) => (
           <InsertLayoutDialog activeEditor={activeEditor} onClose={onClose} />
         )),
     });
@@ -414,7 +414,7 @@ export const useBlockInsertActions = ({
     actions.push({
       id: "smart-chip",
       label: t("smartChips.insert"),
-      icon: <Sparkles className="size-4" />,
+      icon: <RectangleEllipsis className="size-4" />,
       run: () =>
         showModal(t("smartChips.insert"), (onClose) => (
           <SmartChipInsertDialog
@@ -431,32 +431,32 @@ export const useBlockInsertActions = ({
 
 /** The swatches the menu offers for text colour and for highlight. */
 export const useColorSwatches = (): { text: EditorSwatch[]; background: EditorSwatch[] } => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return useMemo(
     () => ({
       text: [
-        { label: t("editor.colorDefault"), value: "" },
-        { label: t("editor.colorBlack"), value: "#000000" },
-        { label: t("editor.colorGray"), value: "#6b7280" },
-        { label: t("editor.colorRed"), value: "#ef4444" },
-        { label: t("editor.colorOrange"), value: "#f97316" },
-        { label: t("editor.colorYellow"), value: "#eab308" },
-        { label: t("editor.colorGreen"), value: "#22c55e" },
-        { label: t("editor.colorBlue"), value: "#3b82f6" },
-        { label: t("editor.colorPurple"), value: "#a855f7" },
-        { label: t("editor.colorPink"), value: "#ec4899" },
+        { label: t("colorDefault"), value: "" },
+        { label: t("colorBlack"), value: "#000000" },
+        { label: t("colorGray"), value: "#6b7280" },
+        { label: t("colorRed"), value: "#ef4444" },
+        { label: t("colorOrange"), value: "#f97316" },
+        { label: t("colorYellow"), value: "#eab308" },
+        { label: t("colorGreen"), value: "#22c55e" },
+        { label: t("colorBlue"), value: "#3b82f6" },
+        { label: t("colorPurple"), value: "#a855f7" },
+        { label: t("colorPink"), value: "#ec4899" },
       ],
       background: [
-        { label: t("editor.colorNone"), value: "" },
-        { label: t("editor.colorGray"), value: "#f3f4f6" },
-        { label: t("editor.colorRed"), value: "#fee2e2" },
-        { label: t("editor.colorOrange"), value: "#ffedd5" },
-        { label: t("editor.colorYellow"), value: "#fef9c3" },
-        { label: t("editor.colorGreen"), value: "#dcfce7" },
-        { label: t("editor.colorBlue"), value: "#dbeafe" },
-        { label: t("editor.colorPurple"), value: "#f3e8ff" },
-        { label: t("editor.colorPink"), value: "#fce7f3" },
+        { label: t("colorNone"), value: "" },
+        { label: t("colorGray"), value: "#f3f4f6" },
+        { label: t("colorRed"), value: "#fee2e2" },
+        { label: t("colorOrange"), value: "#ffedd5" },
+        { label: t("colorYellow"), value: "#fef9c3" },
+        { label: t("colorGreen"), value: "#dcfce7" },
+        { label: t("colorBlue"), value: "#dbeafe" },
+        { label: t("colorPurple"), value: "#f3e8ff" },
+        { label: t("colorPink"), value: "#fce7f3" },
       ],
     }),
     [t]

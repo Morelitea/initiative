@@ -12,7 +12,6 @@ from app.core.login_methods import LoginMethod
 from app.db.query import build_paginated_response, paginated_query
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
-from app.core.usernames import UsernameError
 from app.core.capabilities import (
     Capability,
     capabilities_for,
@@ -34,15 +33,17 @@ from app.schemas.platform.operator import (
     PlatformRoleUpdate,
     OperatorUserDeleteRequest,
     OperatorDeletionEligibilityResponse,
-    GuildBlockerInfo,
+    CommunityBlockerInfo,
 )
 from app.core.messages import (
+    GuildMessages,
     OperatorMessages,
     AuthMessages,
     SettingsMessages,
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -76,7 +77,12 @@ ContentModerateDep = Annotated[
     User, Depends(require_capability(Capability.CONTENT_MODERATE))
 ]
 UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
-GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
+GuildsManageDep = Annotated[
+    User, Depends(require_capability(Capability.COMMUNITIES_MANAGE))
+]
+BillingInsightsDep = Annotated[
+    User, Depends(require_capability(Capability.BILLING_INSIGHTS))
+]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.
@@ -151,7 +157,7 @@ async def list_all_users(
     closest = None
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(
-            term, shows_names=False, profile=User
+            term, match_names=False, profile=User
         )
         base = base.where(matches)
 
@@ -188,7 +194,7 @@ async def list_all_users(
 _PLATFORM_CSV_HEADERS = [
     "user_id",
     "email",
-    "full_name",
+    "handle",
     "platform_role",
     "status",
     "email_verified",
@@ -229,7 +235,7 @@ async def export_platform_users_csv(
             [
                 record.id,
                 record.email,
-                record.full_name or "",
+                handle_of(record),
                 record.role.value if hasattr(record.role, "value") else record.role,
                 record.status.value
                 if hasattr(record.status, "value")
@@ -347,7 +353,8 @@ async def trigger_password_reset(
         ) from None
     except RuntimeError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=SettingsMessages.EMAIL_SEND_FAILED,
         ) from exc
     return VerificationSendResponse(status="sent")
 
@@ -415,7 +422,8 @@ async def resend_verification_email(
     except RuntimeError as exc:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=SettingsMessages.EMAIL_SEND_FAILED,
         ) from exc
     await session.commit()
     return VerificationSendResponse(status="sent")
@@ -484,7 +492,7 @@ async def restore_deleted_user(
     a deletion they made on somebody's behalf.
 
     Nothing is restored as such: the account never lost anything. It kept its
-    memberships, its initiative roles and the documents it owns for the whole
+    memberships, its initiative roles and the files it owns for the whole
     window, so this puts it back exactly where it was.
 
     Separate from ``reactivate``, which is for a *deactivated* account and
@@ -580,14 +588,9 @@ async def set_user_username(
     user = await _account_within_rank(session, user_id, current_user)
 
     previous_handle = handle_of(user)
-    try:
-        await username_service.set_for_user(
-            session, user=user, name=payload.username, keep_discriminator=True
-        )
-    except UsernameError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-        ) from exc
+    await username_service.set_for_user(
+        session, user=user, name=payload.username, keep_discriminator=True
+    )
 
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
@@ -736,6 +739,31 @@ async def lift_sign_in_lock(
     return await users_service.to_operator_read_one(user)
 
 
+@router.delete("/users/{user_id}/api-keys", response_model=OperatorUserRead)
+async def revoke_user_api_keys(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> OperatorUserRead:
+    """Switch off every API key on an account that still works.
+
+    The keys stay on the account's own list, marked off, so its holder can see
+    what stopped and make new ones. Gated on ``users.manage``, like a
+    suspension.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    revoked = await api_keys_service.deactivate_user_api_keys(
+        session, user_id=user_id, revoked_by=current_user.id
+    )
+    if not revoked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.NO_LIVE_API_KEYS,
+        )
+    await session.commit()
+    return await users_service.to_operator_read_one(user)
+
+
 @router.delete("/users/{user_id}/age-block", response_model=OperatorUserRead)
 async def clear_age_block(
     user_id: int,
@@ -744,11 +772,11 @@ async def clear_age_block(
 ) -> OperatorUserRead:
     """Let an account answer the age question again.
 
-    An account that answered as under age keeps that answer, and the question
-    is not re-asked — otherwise it is not a question. This is the way back for
-    the case that is nearly all of them: a mistyped year. It clears the record
-    of the answer and nothing else; the account answers again from scratch, and
-    the deployment has no more idea of anybody's birthday than it did before.
+    An answer stands — an under-age one, and any kept date of birth — and the
+    question is not re-asked, otherwise it is not a question. This is the way
+    back for the case that is nearly all of them: a mistyped year. It clears
+    the under-age record, the confirmation and the kept date, and nothing
+    else; the account answers again from scratch.
 
     Gated on ``users.age_unblock``, which the support tier holds — the lowest
     rung, because getting somebody back into their account after a typo is
@@ -757,13 +785,17 @@ async def clear_age_block(
     a log is for.
     """
     user = await _account_within_rank(session, user_id, current_user)
-    if user.age_below_minimum_at is None:
+    kept = await users_service.birthdate_of(session, user_id=user_id) is not None
+    if user.age_below_minimum_at is None and not kept:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.AGE_NOT_BLOCKED,
         )
 
+    await users_service.forget_birthdate(session, user_id=user_id)
+    # The account answers from scratch, so every part of the earlier answer goes.
     user.age_below_minimum_at = None
+    user.age_confirmed_at = None
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
 
@@ -835,17 +867,10 @@ async def update_platform_role(
 
     # Don't strip config-management from the last user who has it — that would
     # lock the platform out of its own configuration. (FOR UPDATE acquired above.)
-    losing_config = Capability.CONFIG_MANAGE in capabilities_for(
-        user.role
-    ) and Capability.CONFIG_MANAGE not in capabilities_for(payload.role)
-    if losing_config:
-        if await users_service.is_last_capability_holder(
-            session, user_id, Capability.CONFIG_MANAGE, for_update=True
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=OperatorMessages.CANNOT_DEMOTE_LAST_OWNER,
-            )
+    if Capability.CONFIG_MANAGE not in capabilities_for(payload.role):
+        await users_service.ensure_config_manager_remains(
+            session, user_id, for_update=True
+        )
 
     previous_role = user.role
     user.role = payload.role
@@ -880,10 +905,10 @@ async def check_user_deletion_eligibility(
 ) -> OperatorDeletionEligibilityResponse:
     """Check if a user can be deleted (``users.delete``).
 
-    Returns the blockers: the communities the user holds the only superadmin
-    seat of. That is the only one: owning content does not stop a deletion,
-    because ownership is released on the way out and the content is left
-    unowned for a guild admin to claim.
+    Returns the blockers ``delete_user`` refuses on: being the last platform
+    owner, and the communities the user holds the only superadmin seat of.
+    Owning content does not stop a deletion, because ownership is released on
+    the way out and the content is left unowned for a guild admin to claim.
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -891,31 +916,21 @@ async def check_user_deletion_eligibility(
             detail=OperatorMessages.USE_SELF_DELETION,
         )
 
-    user = await _account_within_rank(session, user_id, current_user)
+    await _account_within_rank(session, user_id, current_user)
 
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, user_id, operator_context=True
+    last_owner = await users_service.is_last_capability_holder(
+        session, user_id, Capability.CONFIG_MANAGE
     )
-
-    # Check if target is the last platform owner (last config manager)
-    if Capability.CONFIG_MANAGE in capabilities_for(user.role):
-        if await users_service.is_last_capability_holder(
-            session, user_id, Capability.CONFIG_MANAGE
-        ):
-            blockers.append(
-                "User is the last platform owner. Promote another user first."
-            )
-            can_delete = False
-
+    community_blockers = [
+        CommunityBlockerInfo(community_id=guild_id, community_name=guild_name)
+        for guild_id, guild_name in await guilds_service.stranded_seats(
+            session, user_id=user_id
+        )
+    ]
     return OperatorDeletionEligibilityResponse(
-        can_delete=can_delete,
-        blockers=blockers,
-        guild_blockers=[
-            GuildBlockerInfo(guild_id=guild_id, guild_name=guild_name)
-            for guild_id, guild_name in await guilds_service.stranded_seats(
-                session, user_id=user_id
-            )
-        ],
+        can_delete=not last_owner and not community_blockers,
+        last_owner=last_owner,
+        community_blockers=community_blockers,
     )
 
 
@@ -938,7 +953,7 @@ async def delete_user(
     anonymized owner row can't act on them.
 
     Restrictions:
-    - Cannot delete yourself (use /users/me/delete-account)
+    - Cannot delete yourself (use /me/delete-account)
     - Cannot delete the last owner
     """
     if user_id == current_user.id:
@@ -949,26 +964,15 @@ async def delete_user(
 
     user = await _account_within_rank(session, user_id, current_user, lock=True)
 
-    # Check if target is the last platform owner (last config manager)
-    if Capability.CONFIG_MANAGE in capabilities_for(user.role):
-        if await users_service.is_last_capability_holder(
-            session, user_id, Capability.CONFIG_MANAGE, for_update=True
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=OperatorMessages.CANNOT_DELETE_LAST_OWNER,
-            )
+    await users_service.ensure_config_manager_remains(session, user_id, for_update=True)
 
     # Holding a guild's only superadmin seat is the only blocker. Content the
     # user owns is released as their memberships go and left unowned for a guild
     # admin to claim, so there is nothing for this endpoint to collect first.
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, user_id, operator_context=True
-    )
-    if not can_delete:
+    if await users_service.is_last_guild_superadmin(session, user_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=blockers[0] if blockers else OperatorMessages.USER_CANNOT_BE_DELETED,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     # An already-anonymized row is a permanently empty husk; the only
@@ -1007,9 +1011,8 @@ async def delete_user(
             message=f"User {user.username} has been deleted",
         )
 
-    # hard_delete: ownership is released as the memberships go, and the
-    # authorship columns are re-pointed at the system user because the row they
-    # named is about to stop existing.
+    # hard_delete: the same per-guild erasure the purge runs, then the row
+    # itself goes. Ownership is released; authorship keeps naming the id.
     await users_service.hard_delete_user(
         session, user_id, actor_user_id=current_user.id
     )

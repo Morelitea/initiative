@@ -4,18 +4,14 @@ from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import text as sa_text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
-from app.core.app_scopes import (
-    UnknownAppScope,
+from app.core.plugin_access_token import InstallAccessToken
+from app.core.plugin_scopes import (
+    UnknownPluginScope,
     parse_scope,
     validate_scopes,
 )
@@ -23,17 +19,21 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
+from app.services.tenant import plugin_age
+from app.services.tenant.plugin_age import AgeViewer
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
-from app.services.auth.credentials import (
-    DEVICE_TOKEN_SCHEME,
-    HEADER_CREDENTIALS,
-    URL_CREDENTIALS,
-    Authenticated,
+from app.core.identify import (
     CredentialKind,
+    Identified,
+    bearer_plugin_token,
+    identify,
+    identify_url_token,
+)
+from app.services.auth.credentials import (
+    Authenticated,
     CredentialRefused,
     asked_of_an_account,
-    clear_recorded_credential,
 )
 from app.services.auth.assurance import (
     SECOND_FACTOR_AMR,
@@ -41,14 +41,14 @@ from app.services.auth.assurance import (
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
     AccessGrantMessages,
-    AppMessages,
+    PluginMessages,
     AuthMessages,
     DirectMessageMessages,
     GuildMessages,
@@ -58,7 +58,11 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     STEP_UP_CHALLENGE,
 )
-from app.core.identity_boundary import InstallBoundary, admit_install
+from app.core.identity_boundary import (
+    InstallBoundary,
+    admit_install,
+    written_mention_refs,
+)
 from app.db import cohorts
 from app.db.guild_standing import (
     ActorContext,
@@ -67,8 +71,9 @@ from app.db.guild_standing import (
     named_ref_candidates,
 )
 from app.models.platform.identity_ref import IdentityEntity
-from app.db.schema_provisioning import PLATFORM_SUSPENDED
+from app.db.public_rls import PLATFORM_SUSPENDED
 from app.db.request_context import (
+    Filer,
     ContentGrantee,
     SignIn,
     Install,
@@ -94,8 +99,8 @@ from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
     GuildMembership,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
@@ -122,16 +127,9 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: credential is a party to the decision rather than a way of transporting it.
 CREDENTIAL_SESSION = CredentialKind.session.value
 CREDENTIAL_API_KEY = CredentialKind.api_key.value
-CREDENTIAL_DEVICE_TOKEN = CredentialKind.device_token.value
-#: An installed app's access token. Only a route that names an app scope
-#: admits one (:func:`app_scope`).
+#: An installed plug-in's access token. Only a route that names a plug-in scope
+#: admits one (:func:`plugin_scope`).
 CREDENTIAL_INSTALL = "install"
-
-#: The credentials that are somebody signing in, as opposed to something acting
-#: for them in their absence. The native app trades an email and password for a
-#: device token and then uses it for everything, so it belongs here beside the
-#: web session — the person is just as present either way.
-FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
 
 
 def _admit(request: Request, authenticated: Authenticated) -> User:
@@ -161,30 +159,15 @@ def _admit(request: Request, authenticated: Authenticated) -> User:
     return authenticated.user
 
 
-def _presented(
-    request: Request, bearer_token: str | None, session_cookie: str | None
-) -> tuple[str | None, frozenset[CredentialKind]]:
-    """The credential a request's headers or cookie carry, and the kinds it
-    may be. The ``DeviceToken`` scheme names its own kind; a bearer token or
-    the session cookie may be a session or a personal API key."""
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("DeviceToken "):
-        return auth_header.removeprefix("DeviceToken "), DEVICE_TOKEN_SCHEME
-    return bearer_token or session_cookie, HEADER_CREDENTIALS
-
-
-async def get_current_user(
-    request: Request,
-    session: SessionDep,
-    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+async def _authenticate(
+    request: Request, session: AsyncSession, identified: Identified | None
 ) -> User:
+    """The account the credential a request presented names, admitted."""
     # Nothing recorded until a credential is read, so a request that presents
     # none reads as something other than a session.
-    clear_recorded_credential()
+    auth_context.reset()
     request.state.credential = None
-    token, allow = _presented(request, bearer_token, session_cookie)
-    if not token:
+    if identified is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
@@ -193,10 +176,21 @@ async def get_current_user(
     # A credential that cannot be read is 401 "please re-authenticate", not
     # 403: the SPA's 401 interceptor sends an expired session to /welcome.
     try:
-        authenticated = await credentials.authenticate(session, token, allow=allow)
+        authenticated = await credentials.authenticate(session, identified)
     except CredentialRefused as exc:
         raise exc.as_http() from exc
     return _admit(request, authenticated)
+
+
+async def get_current_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> User:
+    # ``bearer_token`` and ``session_cookie`` declare the schemes for the API
+    # description; the credential itself is read once, by ``identify``.
+    return await _authenticate(request, session, identify(request))
 
 
 def require_first_party_session(request: Request) -> str:
@@ -209,15 +203,14 @@ def require_first_party_session(request: Request) -> str:
     says how far a standing credential reaches, so it is made by the person, in
     a session of their own, rather than by the thing being granted.
 
-    Two credentials qualify, because both are somebody signing in: a web session
-    and a device token, which is what the native app exchanges an email and
-    password for and then uses for everything after.
+    Only a session qualifies: it is somebody signing in, on the web or in the
+    app.
 
     Returns the credential kind, which is what a grant records as the factor it
     was confirmed by.
     """
     credential = getattr(request.state, "credential", None)
-    if credential not in FIRST_PARTY_CREDENTIALS:
+    if credential != CREDENTIAL_SESSION:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -279,18 +272,18 @@ async def platform_factor_unmet(
 
     ``guild_id`` is the community the request serves, or ``None``.
     """
-    if SECOND_FACTOR_AMR in auth_context.session_amr():
-        auth_context.set_platform_factor(True)
+    if SECOND_FACTOR_AMR in auth_context.current().session_amr:
+        auth_context.record(platform_factor=True)
         return False
     if level is None:
-        level = auth_context.asked_of_account()
+        level = auth_context.current().asked_of_account
     if level is None:
         level = await auth_posture.second_factor_requirement(session)
     if not auth_posture.rule_covers(level, user.role):
-        auth_context.set_platform_factor(True)
+        auth_context.record(platform_factor=True)
         return False
     held = await _account_holds_factor(user, guild_id)
-    auth_context.set_platform_factor(held)
+    auth_context.record(platform_factor=held)
     return not held
 
 
@@ -401,6 +394,15 @@ async def get_active_user_exempt_from_factor(
 
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+
+
+async def get_age_viewer(request: Request, current_user: CurrentUser) -> AgeViewer:
+    """The person making the request, as a plug-in's minimum age reads them:
+    their age from the kept date of birth, their country from the request."""
+    return await plugin_age.viewer_for(request, current_user.id)
+
+
+AgeViewerDep = Annotated[AgeViewer, Depends(get_age_viewer)]
 #: For the handful of routes above. Everything else takes ``CurrentUser``.
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
@@ -444,15 +446,15 @@ class GuildAccessError(Exception):
 
     def __init__(
         self,
-        detail: str = GuildMessages.GUILD_ACCESS_DENIED,
+        detail: str = GuildMessages.COMMUNITY_ACCESS_DENIED,
         *,
         step_up_provider_slug: str | None = None,
         step_up_guild_id: int | None = None,
     ) -> None:
         self.detail = detail
-        # Set for GUILD_AUTH_STEP_UP_REQUIRED: which provider the session must
+        # Set for COMMUNITY_AUTH_STEP_UP_REQUIRED: which provider the session must
         # satisfy (X-Auth-Step-Up) and which guild's login flow serves it
-        # (X-Auth-Step-Up-Guild) — guild-scoped providers resolve their login
+        # (X-Auth-Step-Up-Community) — guild-scoped providers resolve their login
         # URL through the guild, not a global slug.
         self.step_up_provider_slug = step_up_provider_slug
         self.step_up_guild_id = step_up_guild_id
@@ -463,11 +465,12 @@ def _sign_in(satisfied: frozenset[int], on_behalf: bool) -> SignIn:
     """How this request's session signed in, as the routing records it: the
     providers ``satisfied`` names, and the rest as the credential validator
     recorded it."""
+    recorded = auth_context.current()
     return SignIn(
         providers=tuple(satisfied),
-        claims=auth_context.satisfied_claims(),
-        amr=auth_context.session_amr(),
-        platform_factor=auth_context.platform_factor(),
+        claims=recorded.satisfied_claims,
+        amr=recorded.session_amr,
+        platform_factor=recorded.platform_factor,
         on_behalf=on_behalf,
     )
 
@@ -503,8 +506,12 @@ async def _enforce_guild_auth_policy(
     restricts, factors_apply = (
         await session.exec(
             select(
-                guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions),
-                guild_entitlements.holds_option(guild_id, GuildAuthOption.providers),
+                guild_entitlements.holds_option(
+                    guild_id, CommunityAuthOption.restrictions
+                ),
+                guild_entitlements.holds_option(
+                    guild_id, CommunityAuthOption.providers
+                ),
             )
         )
     ).one()
@@ -514,7 +521,7 @@ async def _enforce_guild_auth_policy(
     # step-up says a factor is what is wanted.
     if require_second_factor and restricts and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
         )
     if policy is None or policy.policy == "open":
@@ -522,7 +529,7 @@ async def _enforce_guild_auth_policy(
 
     def _refuse() -> None:
         raise GuildAccessError(
-            detail=GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED,
+            detail=GuildMessages.COMMUNITY_AUTH_STEP_UP_REQUIRED,
             step_up_provider_slug=policy.provider_slug,
             step_up_guild_id=guild_id,
         )
@@ -553,7 +560,7 @@ async def _enforce_guild_auth_policy(
         and SECOND_FACTOR_AMR not in markers
     ):
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
@@ -566,59 +573,69 @@ async def _enforce_guild_auth_policy(
         and not carries_passkey(markers)
     ):
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
 
-async def refuses_api_keys(session: AsyncSession, guild: Guild) -> bool:
-    """Whether ``guild`` refuses personal API keys: switched off, while it
-    holds the ``restrictions`` option that switch needs."""
-    if guild.allow_api_keys:
+async def refuses_api_keys(session: AsyncSession, membership: GuildMembership) -> bool:
+    """Whether ``membership``'s community refuses its member's personal API
+    keys: turned off for them, while the community holds the ``restrictions``
+    option that setting needs."""
+    if membership.api_keys_allowed:
         return False
     return bool(
         await session.scalar(
             select(
-                guild_entitlements.holds_option(guild.id, GuildAuthOption.restrictions)
+                guild_entitlements.holds_option(
+                    membership.guild_id, CommunityAuthOption.restrictions
+                )
             )
         )
     )
 
 
-async def declines_this_credential(session: AsyncSession, guild: Guild) -> bool:
-    """Whether ``guild`` declines the credential this request was made with.
+async def declines_this_credential(
+    session: AsyncSession, membership: GuildMembership
+) -> bool:
+    """Whether the community declines the credential this request was made
+    with.
 
-    True only for a personal API key against a community that refuses them.
-    The key's own ``guild_id`` says nothing here: a key pinned elsewhere and a
-    key pinned nowhere both address this guild the same way. The cross-guild
-    aggregates, which pick their guilds in one query, ask the same question
-    there (see ``app.services.cross_guild``).
+    True only for a personal API key whose holder's API access the community
+    turned off. The key's own ``guild_id`` says nothing here: a key pinned
+    elsewhere and a key pinned nowhere both address this guild the same way.
+    The cross-guild aggregates, which pick their guilds in one query, ask the
+    same question there (see ``app.services.cross_guild``).
     """
-    return auth_context.api_key_credential() and await refuses_api_keys(session, guild)
+    return auth_context.current().api_key_credential and await refuses_api_keys(
+        session, membership
+    )
 
 
 def pinned_elsewhere(guild_id: int) -> bool:
     """Whether this request's API key is limited to a guild other than
     ``guild_id``. False for a key limited to no guild and for every other
     credential."""
-    pinned = auth_context.api_key_guild_id()
+    pinned = auth_context.current().api_key_guild_id
     return pinned is not None and pinned != guild_id
 
 
-async def _enforce_guild_api_access(session: AsyncSession, guild: Guild) -> None:
-    """A community that declines personal API keys is not reached with one.
+async def _enforce_guild_api_access(
+    session: AsyncSession, membership: GuildMembership
+) -> None:
+    """A member whose API access the community turned off does not reach it
+    with a personal API key.
 
-    Runs beside the sign-in gate and binds the same callers — members and
-    grantees alike — because the question is what the request was made with,
-    not who made it.
+    Runs beside the sign-in gate, for members. A grantee is never reached with
+    a personal API key at all; the grant branch refuses one before this.
 
     Covers every path that resolves its guild through
-    :func:`_load_guild_context`: REST, uploads and document downloads, the
+    :func:`_load_guild_context`: REST, uploads and file downloads, the
     realtime sockets and the keepalive. The cross-guild aggregates, which pick
     their guilds themselves, ask the same question where they do it.
     """
-    if await declines_this_credential(session, guild):
-        raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
+    if await declines_this_credential(session, membership):
+        raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
 
 
 async def _read_membership_gate(
@@ -654,7 +671,7 @@ async def _read_membership_gate(
         return None
     membership, guild, settings_row = row
     if guild is None:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     # The age switch rides along for the same reason the factor requirement
     # does: it is decided from this same row, and reading it separately would
     # be a round trip on every guild request there is.
@@ -679,7 +696,7 @@ async def _read_grant_gate(
         )
     ).one_or_none()
     if row is None:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return row[0], asked_of_an_account(row[1])
 
 
@@ -695,7 +712,7 @@ async def _load_guild_context(
     """Resolve and validate the guild context for one guild.
 
     ``guild_id`` is the single guild the request operates in (on REST it comes
-    from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
+    from the ``/c/{community_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
     fails closed. The caller has already coerced ``guild_id`` to ``int``; it
@@ -751,6 +768,10 @@ async def _load_guild_context(
         settings_grant = grants.get(AccessGrantPurpose.settings)
         if grant is None and settings_grant is None:
             raise GuildAccessError()
+        # A grant is reached by the person in a session of their own, never
+        # with a personal API key, whatever the community's options.
+        if auth_context.current().api_key_credential:
+            raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
         is_read_write = (
             grant is not None and grant.access_level == AccessLevel.read_write.value
         )
@@ -762,7 +783,6 @@ async def _load_guild_context(
             ),
         )
         guild, asked = await _read_grant_gate(session, guild_id)
-        await _enforce_guild_api_access(session, guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
         # because the sockets, the keepalive and the stream re-check resolve
@@ -795,12 +815,12 @@ async def _load_guild_context(
     # asks for that and no other.
     held_for_payment = (
         for_payment
-        and guild.status == GuildStatus.on_hold.value
-        and membership.role == GuildRole.superadmin
+        and guild.status == CommunityStatus.on_hold.value
+        and membership.role == CommunityRole.superadmin
     )
     if guild.status not in LIVE_STATUS_VALUES and not held_for_payment:
         raise GuildAccessError()
-    await _enforce_guild_api_access(session, guild)
+    await _enforce_guild_api_access(session, membership)
     # A listed community is open to anyone signed in, so the deployment's age
     # question is owed by the people in it — and the ways in that had nobody at
     # a keyboard could not put it to them. It is put here instead: at the door
@@ -832,21 +852,28 @@ async def _load_guild_context(
         membership=membership,
         guild_role=membership.role.value,
         content_read_only=(
-            not for_settings and guild.status == GuildStatus.read_only.value
+            not for_settings and guild.status == CommunityStatus.read_only.value
         ),
     )
+
+
+#: The community a ``/c/{community_id}`` or ``/communities/{community_id}``
+#: route addresses. Handlers keep the Python name ``guild_id``.
+CommunityIdPath = Annotated[
+    int, Path(alias="community_id", description="Community this request addresses")
+]
 
 
 async def get_guild_membership(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_id: Annotated[int, Path(description="Guild this request operates in")],
+    guild_id: CommunityIdPath,
 ) -> GuildContext:
     """The establishment seam for a REST request: who this reader is in the
     community the path addresses, and the session routed to match.
 
-    Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
+    Every guild-scoped router mounts under ``/c/{community_id}``, so FastAPI injects
     the segment here. Membership (or a live PAM grant) is validated fresh; a
     non-member or stale grant gets 403. A guild-scoped route mounted *outside*
     the prefix fails at startup (missing path param) — a useful guard that every
@@ -875,8 +902,8 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
     present it, and 403 for everything else.
     """
     if exc.detail in (
-        GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
-        GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+        GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
+        GuildMessages.COMMUNITY_AUTH_PASSKEY_REQUIRED,
         GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
     ):
         # 401 for the same reason as the provider step-up below, and apart
@@ -890,14 +917,14 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
             detail=exc.detail,
             headers={
                 "WWW-Authenticate": STEP_UP_CHALLENGE,
-                "X-Auth-Step-Up-Guild": (
+                "X-Auth-Step-Up-Community": (
                     str(exc.step_up_guild_id)
                     if exc.step_up_guild_id is not None
                     else ""
                 ),
             },
         ) from exc
-    if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
+    if exc.detail == GuildMessages.COMMUNITY_AUTH_STEP_UP_REQUIRED:
         # 401, not 403: the session lacks an auth factor, not a permission.
         #
         # Said twice, for two audiences. ``WWW-Authenticate`` is the
@@ -911,7 +938,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
             headers={
                 "WWW-Authenticate": STEP_UP_CHALLENGE,
                 "X-Auth-Step-Up": exc.step_up_provider_slug or "",
-                "X-Auth-Step-Up-Guild": (
+                "X-Auth-Step-Up-Community": (
                     str(exc.step_up_guild_id)
                     if exc.step_up_guild_id is not None
                     else ""
@@ -924,7 +951,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
 
 
 def holds_guild_role(
-    context: GuildContext, *roles: GuildRole, settings: bool = False
+    context: GuildContext, *roles: CommunityRole, settings: bool = False
 ) -> bool:
     """Whether this request reaches any of ``roles``, by the standing.
 
@@ -941,7 +968,7 @@ def holds_guild_role(
 
 
 def require_seat(
-    context: GuildContext, *, detail: str = GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    context: GuildContext, *, detail: str = GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 ) -> None:
     """Raise 403 unless this request holds the community's seat, by the
     standing — the membership row's, or lent by a settings grant at that
@@ -950,19 +977,19 @@ def require_seat(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
-def _rung_refusal(roles: tuple[GuildRole, ...]) -> str:
+def _rung_refusal(roles: tuple[CommunityRole, ...]) -> str:
     """The code a guard answers with, from the rung it names: a guard for
     the seat says so, one for an administrator says so, and one naming
     anything else says a permission is missing."""
-    if roles == (GuildRole.superadmin,):
-        return GuildMessages.GUILD_SUPERADMIN_REQUIRED
-    if roles == (GuildRole.admin,):
-        return GuildMessages.GUILD_ADMIN_REQUIRED
-    return GuildMessages.GUILD_PERMISSION_REQUIRED
+    if roles == (CommunityRole.superadmin,):
+        return GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
+    if roles == (CommunityRole.admin,):
+        return GuildMessages.COMMUNITY_ADMIN_REQUIRED
+    return GuildMessages.COMMUNITY_PERMISSION_REQUIRED
 
 
 def require_guild_roles(
-    *roles: GuildRole, settings: bool = False, write: bool = False
+    *roles: CommunityRole, settings: bool = False, write: bool = False
 ) -> Callable:
     """Guard an endpoint on the caller's rung in the guild named by the path.
 
@@ -990,7 +1017,7 @@ def require_guild_roles(
 
 
 GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+    GuildContext, Depends(require_guild_roles(CommunityRole.admin))
 ]
 
 
@@ -1117,7 +1144,7 @@ async def get_guild_settings_context(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_id: Annotated[int, Path(description="Guild this request configures")],
+    guild_id: CommunityIdPath,
 ) -> GuildContext:
     """The establishment seam for a request to the community's own
     configuration and roster.
@@ -1209,7 +1236,7 @@ async def establish_guild_access(
     ``for_payment`` and ``factor_asked`` are :func:`_load_guild_context`'s.
     """
     satisfied = (
-        auth_context.satisfied_providers()
+        auth_context.current().satisfied_providers
         if satisfied_providers is None
         else satisfied_providers
     )
@@ -1260,7 +1287,7 @@ async def _refuse_sign_in(
         await session.get(GuildAuthPolicy, guild_id),
         guild_id,
         satisfied,
-        auth_context.session_amr(),
+        auth_context.current().session_amr,
         require_second_factor=guild_context.guild.require_second_factor,
     )
     raise GuildAccessError()
@@ -1291,18 +1318,66 @@ class InstallAccessError(Exception):
     """
 
 
+class FilerAccessError(Exception):
+    """There is no operations community to read a filed case in."""
+
+
+async def establish_filer_access(session: AsyncSession, user: User) -> int:
+    """Route ``session`` as ``user`` reading the cases they filed — the
+    establishment seam for a filer, beside :func:`establish_guild_access`.
+
+    Into the operations community's ``guild_<id>_filer`` role, which is what
+    decides what they read; nothing is looked up for them first, because a
+    filer has no standing to compute. ``session`` comes from that community's
+    cohort on the request engine. Returns the community's id.
+
+    Raises :class:`FilerAccessError` where no operations community is set, or
+    it has no filer role to assume.
+    """
+    from app.services.platform.intake import configured_operations_guild_id
+
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None:
+        raise FilerAccessError("no operations community")
+    try:
+        await set_rls_context(session, Filer(guild_id=guild_id, user_id=int(user.id)))
+        # Their cases, read through the role's own row on intake_cases: the
+        # one read the other filer rows are then keyed on.
+        cases = (
+            await session.exec(
+                sa_text("SELECT task_id FROM intake_cases ORDER BY task_id")
+            )
+        ).all()
+        # End the transaction, which leaves the role, before routing again:
+        # the role holds nothing to write a routing with.
+        await session.rollback()
+        await set_rls_context(
+            session,
+            Filer(
+                guild_id=guild_id,
+                user_id=int(user.id),
+                cases=tuple(row[0] for row in cases),
+            ),
+        )
+    except DBAPIError as exc:
+        clear_rls_context(session)
+        await session.rollback()
+        raise FilerAccessError("operations community cannot be routed") from exc
+    return guild_id
+
+
 async def establish_install_access(
     session: AsyncSession,
     install: VerifiedInstall,
     named_refs: Sequence[str] = (),
 ) -> InstallContext:
-    """Route ``session`` as an installed app and compute its standing — the
+    """Route ``session`` as an installed plug-in and compute its standing — the
     establishment seam for an install, beside :func:`establish_guild_access`.
     On a request, ``session`` is the one :func:`get_session` hands out, which
     is from the cohort of the community the install's token names.
 
     Two statements and no lookup ahead of them: the routing (the community's
-    ``guild_<id>_app`` role, the install, its client, its token's scopes, the
+    ``guild_<id>_plugin`` role, the install, its client, its token's scopes, the
     narrowed initiative and, for a member token, the member and the purpose,
     all from ``install``), and the install standing statement, which reads
     everything else from rows — for a member token, the member's membership,
@@ -1324,7 +1399,7 @@ async def establish_install_access(
     """
     try:
         scopes = validate_scopes(install.scopes)
-    except UnknownAppScope as exc:
+    except UnknownPluginScope as exc:
         raise InstallAccessError("unknown scope") from exc
     pending = InstallContext(
         guild_id=int(install.guild_id),
@@ -1365,11 +1440,17 @@ async def establish_install_access(
 
 #: The attribute a scoped route's dependency carries its scope on, for a walk
 #: over the routes.
-APP_SCOPE_ATTRIBUTE = "__app_scope__"
+PLUGIN_SCOPE_ATTRIBUTE = "__plugin_scope__"
 #: Every scope the dependency may ask of a request, for the same walk: the one
-#: scope of :func:`app_scope`, each of :func:`app_scope_by`'s and of
-#: :func:`app_scope_checked`'s.
-APP_SCOPES_ATTRIBUTE = "__app_scopes__"
+#: scope of :func:`plugin_scope`, each of :func:`plugin_scope_by`'s and of
+#: :func:`plugin_scope_checked`'s.
+PLUGIN_SCOPES_ATTRIBUTE = "__plugin_scopes__"
+#: What the dependency declares, as the API's documents publish it: the scope
+#: of :func:`plugin_scope`; the parameter and its scope per value of
+#: :func:`plugin_scope_by` (``{"by": …, "scopes": {…}}``); what decides
+#: :func:`plugin_scope_checked`'s and the scopes it may ask (``{"per": …,
+#: "any_of": […]}``).
+PLUGIN_SCOPE_DECLARATION_ATTRIBUTE = "__plugin_scope_declaration__"
 
 
 def _refuse_install_credential() -> HTTPException:
@@ -1397,8 +1478,8 @@ def _strings_in(value: Any) -> list[str]:
 
 
 async def _named_refs(request: Request) -> list[str]:
-    """The references an installed app's request names: in its path, its query
-    string and its JSON body.
+    """The references an installed plug-in's request names: in its path, its query
+    string and its JSON body, a mention in its text included.
 
     Read before FastAPI validates any of them, so the standing statement can
     resolve them in the same round trip. Starlette keeps the body it read, so
@@ -1410,17 +1491,19 @@ async def _named_refs(request: Request) -> list[str]:
     content_type = request.headers.get("content-type", "")
     if "json" in content_type and await request.body():
         try:
-            values.extend(_strings_in(await request.json()))
+            strings = _strings_in(await request.json())
         except ValueError:
-            pass
+            strings = []
+        values.extend(strings)
+        values.extend(ref for text in strings for ref in written_mention_refs(text))
     return named_ref_candidates(values)
 
 
 async def _establish_install_request(
-    request: Request, session: AsyncSession, token: str, scope: str | None
+    request: Request, session: AsyncSession, scope: str | None
 ) -> InstallContext:
-    """Admit an installed app's request to a route that names ``scope``, or
-    to an :func:`app_scope_checked` route, which names none here (``None``)
+    """Admit an installed plug-in's request to a route that names ``scope``, or
+    to an :func:`plugin_scope_checked` route, which names none here (``None``)
     and checks what the request asks for itself.
 
     The token is read locally; nothing reaches the database until it has been
@@ -1430,10 +1513,7 @@ async def _establish_install_request(
     resolves the references the request names, which the route's identity
     types read while FastAPI validates it (``app.core.identity_boundary``).
     """
-    try:
-        unsealed = unseal_access_token(token)
-    except AccessTokenError as exc:
-        raise _refuse_install_credential() from exc
+    unsealed = bearer_plugin_token(request)
     if not isinstance(unsealed, InstallAccessToken):
         raise _refuse_install_credential()
 
@@ -1454,13 +1534,13 @@ async def _establish_install_request(
 
     request.state.credential = CREDENTIAL_INSTALL
     audit_context.note_install(
-        app=context.client_id,
+        plugin=context.client_id,
         guild_id=context.guild_id,
         install_id=context.install_id,
     )
     # Whose request this is, for the rate limiter's key (see
     # ``app.core.rate_limit.get_user_or_ip_key``).
-    request.state.app_install = (
+    request.state.plugin_install = (
         context.client_id,
         context.guild_id,
         context.install_id,
@@ -1471,7 +1551,7 @@ async def _establish_install_request(
     if scope is not None and not context.holds(scope):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SCOPE_REQUIRED,
+            detail=PluginMessages.SCOPE_REQUIRED,
         )
     admit_install(
         InstallBoundary(
@@ -1482,22 +1562,24 @@ async def _establish_install_request(
                 ref: (IdentityEntity(entity_type), entity_id)
                 for ref, entity_type, entity_id in context.named_refs
             },
+            members=context.named_members,
+            reads_names=context.holds("members:read"),
             session=session,
         )
     )
     return context
 
 
-def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
-    """The dependency a route names to admit an installed app, at ``scope``.
+def plugin_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
+    """The dependency a route names to admit an installed plug-in, at ``scope``.
 
     A person passes through to the ordinary seam, exactly as
     :data:`GuildContextDep` would take them, so one route serves both. An
     installation token is admitted only here: :func:`get_current_user` refuses
-    one, so a route that names no scope cannot be reached by an app. For an
-    install, the guild comes from the token and the path's ``{guild_id}`` is
+    one, so a route that names no scope cannot be reached by a plug-in. For an
+    install, the guild comes from the token and the path's ``{community_id}`` is
     not read; a token whose scopes
-    do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
+    do not cover ``scope`` gets 403 (``PLUGIN_SCOPE_REQUIRED``).
 
     Either way the request's session — the one :data:`SessionDep` hands out,
     which FastAPI resolves once per request — is routed before the handler
@@ -1508,53 +1590,49 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     ``PersonId`` and ``GuildId`` fields translate through; an install's request
     on a route served by any other class is refused.
 
-    The returned callable carries ``scope`` on :data:`APP_SCOPE_ATTRIBUTE`.
+    The returned callable carries ``scope`` on :data:`PLUGIN_SCOPE_ATTRIBUTE`.
     A route names it the way the type checker reads, as a module-level alias
     or inline::
 
-        DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
+        FilesRead = Annotated[ActorContext, Depends(plugin_scope("files:read"))]
 
-        async def list_documents(actor: DocumentsRead, session: ActorSessionDep): ...
+        async def list_files(actor: FilesRead, session: ActorSessionDep): ...
     """
     parse_scope(scope)
 
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
             # ``get_actor_user`` answers ``None`` only for an access token.
-            if not bearer_token:
-                raise _refuse_install_credential()
-            return await _establish_install_request(
-                request, session, bearer_token, scope
-            )
+            return await _establish_install_request(request, session, scope)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
-    setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
-    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset({scope}))
-    dependency.__name__ = f"app_scope_{scope.replace(':', '_')}"
+    setattr(dependency, PLUGIN_SCOPE_ATTRIBUTE, scope)
+    setattr(dependency, PLUGIN_SCOPES_ATTRIBUTE, frozenset({scope}))
+    setattr(dependency, PLUGIN_SCOPE_DECLARATION_ATTRIBUTE, scope)
+    dependency.__name__ = f"plugin_scope_{scope.replace(':', '_')}"
     dependency.__qualname__ = dependency.__name__
     return dependency
 
 
-def app_scope_by(
+def plugin_scope_by(
     param: str, scopes: Mapping[str, str]
 ) -> Callable[..., Awaitable[ActorContext]]:
-    """:func:`app_scope` for a route that serves several kinds of thing, named
-    by the path parameter ``param``: an installed app's request needs
-    ``scopes[<the parameter's value>]``. A value with no entry is one no app
-    may ask about, and an installation token gets 403 (``APP_SCOPE_REQUIRED``)
+    """:func:`plugin_scope` for a route that serves several kinds of thing, named
+    by the path parameter ``param``: an installed plug-in's request needs
+    ``scopes[<the parameter's value>]``. A value with no entry is one no plug-in
+    may ask about, and an installation token gets 403 (``PLUGIN_SCOPE_REQUIRED``)
     for it. A person passes through to the ordinary seam, as with
-    :func:`app_scope`.
+    :func:`plugin_scope`.
 
     The returned callable carries every scope it may ask on
-    :data:`APP_SCOPES_ATTRIBUTE`, and ``by <param>`` on
-    :data:`APP_SCOPE_ATTRIBUTE`.
+    :data:`PLUGIN_SCOPES_ATTRIBUTE`, and ``by <param>`` on
+    :data:`PLUGIN_SCOPE_ATTRIBUTE`.
     """
     for scope in scopes.values():
         parse_scope(scope)
@@ -1562,80 +1640,78 @@ def app_scope_by(
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
-            if not bearer_token:
-                raise _refuse_install_credential()
             scope = scopes.get(str(request.path_params.get(param)))
             if scope is None:
                 # Read locally first, so a token that is not one answers 401
                 # whatever it asked for.
-                try:
-                    unseal_access_token(bearer_token)
-                except AccessTokenError as exc:
-                    raise _refuse_install_credential() from exc
+                if bearer_plugin_token(request) is None:
+                    raise _refuse_install_credential()
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=AppMessages.SCOPE_REQUIRED,
+                    detail=PluginMessages.SCOPE_REQUIRED,
                 )
-            return await _establish_install_request(
-                request, session, bearer_token, scope
-            )
+            return await _establish_install_request(request, session, scope)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
-    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
-    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
-    dependency.__name__ = f"app_scope_by_{param}"
+    setattr(dependency, PLUGIN_SCOPE_ATTRIBUTE, f"by {param}")
+    setattr(dependency, PLUGIN_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
+    setattr(
+        dependency,
+        PLUGIN_SCOPE_DECLARATION_ATTRIBUTE,
+        {"by": param, "scopes": dict(sorted(scopes.items()))},
+    )
+    dependency.__name__ = f"plugin_scope_by_{param}"
     dependency.__qualname__ = dependency.__name__
     return dependency
 
 
-def app_scope_checked(
+def plugin_scope_checked(
     scopes: Iterable[str], *, per: str
 ) -> Callable[..., Awaitable[ActorContext]]:
-    """:func:`app_scope` for a route whose scope depends on what the request
+    """:func:`plugin_scope` for a route whose scope depends on what the request
     asks for, so no one scope fits the route: ``per`` names what decides it
     (``"event type"``). An installation token is admitted here without a
     scope asked of it, and the route's own code — its service, once it has
     read the request — asks each scope the request needs of the install's
     standing (:meth:`InstallContext.holds`), answering 403
-    (``APP_SCOPE_REQUIRED``) for one it does not hold. A person passes through
-    to the ordinary seam, as with :func:`app_scope`.
+    (``PLUGIN_SCOPE_REQUIRED``) for one it does not hold. A person passes through
+    to the ordinary seam, as with :func:`plugin_scope`.
 
     ``scopes`` is every scope such a check may ask, carried on
-    :data:`APP_SCOPES_ATTRIBUTE` for the walk over the routes; ``per <per>``
-    is carried on :data:`APP_SCOPE_ATTRIBUTE`.
+    :data:`PLUGIN_SCOPES_ATTRIBUTE` for the walk over the routes; ``per <per>``
+    is carried on :data:`PLUGIN_SCOPE_ATTRIBUTE`.
     """
     asked = frozenset(scopes)
     if not asked:
-        raise ValueError("a checked app scope names the scopes it may ask")
+        raise ValueError("a checked plug-in scope names the scopes it may ask")
     for scope in asked:
         parse_scope(scope)
 
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
-            if not bearer_token:
-                raise _refuse_install_credential()
-            return await _establish_install_request(
-                request, session, bearer_token, None
-            )
+            return await _establish_install_request(request, session, None)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
     label = per.replace(" ", "_")
-    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"per {per}")
-    setattr(dependency, APP_SCOPES_ATTRIBUTE, asked)
-    dependency.__name__ = f"app_scope_per_{label}"
+    setattr(dependency, PLUGIN_SCOPE_ATTRIBUTE, f"per {per}")
+    setattr(dependency, PLUGIN_SCOPES_ATTRIBUTE, asked)
+    setattr(
+        dependency,
+        PLUGIN_SCOPE_DECLARATION_ATTRIBUTE,
+        {"per": label, "any_of": sorted(asked)},
+    )
+    dependency.__name__ = f"plugin_scope_per_{label}"
     dependency.__qualname__ = dependency.__name__
     return dependency
 
@@ -1646,70 +1722,75 @@ async def get_actor_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> Optional[User]:
-    """The person a scoped route serves, or ``None`` for an installed app.
+    """The person a scoped route serves, or ``None`` for an installed plug-in.
 
     For a person, the same two dependencies a content route composes, in the
-    same order. An installation token is not read here and costs nothing: the
-    route's :func:`app_scope` dependency admits it. FastAPI resolves this once
-    per request, so a handler that takes :data:`ActorUserDep` beside its scope
-    gets the account the scope dependency authenticated.
+    same order. An installation token is admitted by the route's
+    :func:`plugin_scope` dependency, not here. FastAPI resolves this once per
+    request, so a handler that takes :data:`ActorUserDep` beside its scope gets
+    the account the scope dependency authenticated.
     """
-    if bearer_token and is_access_token(bearer_token):
+    if bearer_plugin_token(request) is not None:
         return None
     user = await get_current_user(request, session, bearer_token, session_cookie)
     return await get_current_active_user(request, session, user)
 
 
-#: The account a scoped route serves; ``None`` when an installed app calls it.
+#: The account a scoped route serves; ``None`` when an installed plug-in calls it.
 ActorUserDep = Annotated[Optional[User], Depends(get_actor_user)]
 
 
-def route_app_scope(route: Any) -> str | None:
-    """The app scope a route names, or ``None``: read from its dependencies."""
+def _route_dependency_value(route: Any, attribute: str) -> Any:
+    """The first value of ``attribute`` among a route's dependencies, or
+    ``None``."""
     dependant = getattr(route, "dependant", None)
     pending = list(getattr(dependant, "dependencies", ()) or ())
     while pending:
         current = pending.pop()
-        found = getattr(current.call, APP_SCOPE_ATTRIBUTE, None)
-        if isinstance(found, str):
+        found = getattr(current.call, attribute, None)
+        if found is not None:
             return found
         pending.extend(current.dependencies or ())
     return None
 
 
-def route_app_scopes(route: Any) -> frozenset[str]:
-    """Every app scope a route may ask of a request: read from its
+def route_plugin_scope(route: Any) -> str | None:
+    """The plug-in scope a route names, or ``None``: read from its dependencies."""
+    return _route_dependency_value(route, PLUGIN_SCOPE_ATTRIBUTE)
+
+
+def route_plugin_scopes(route: Any) -> frozenset[str]:
+    """Every plug-in scope a route may ask of a request: read from its
     dependencies. Empty for a route that names none."""
-    dependant = getattr(route, "dependant", None)
-    pending = list(getattr(dependant, "dependencies", ()) or ())
-    while pending:
-        current = pending.pop()
-        found = getattr(current.call, APP_SCOPES_ATTRIBUTE, None)
-        if isinstance(found, frozenset):
-            return found
-        pending.extend(current.dependencies or ())
-    return frozenset()
+    return _route_dependency_value(route, PLUGIN_SCOPES_ATTRIBUTE) or frozenset()
+
+
+def route_plugin_scope_declaration(route: Any) -> str | dict[str, Any] | None:
+    """What a route's plug-in scope dependency declares
+    (:data:`PLUGIN_SCOPE_DECLARATION_ATTRIBUTE`), or ``None`` for a route that
+    names no plug-in scope."""
+    return _route_dependency_value(route, PLUGIN_SCOPE_DECLARATION_ATTRIBUTE)
 
 
 async def get_actor_session(request: Request, session: SessionDep) -> AsyncSession:
-    """The session a scoped route's :func:`app_scope` dependency routed.
+    """The session a scoped route's :func:`plugin_scope` dependency routed.
 
     The same instance, since FastAPI resolves :data:`SessionDep` once per
     request, and every dependency resolves before the handler runs, so by then
     it is routed as the person or the install. A route that takes this without
     naming a scope is a wiring mistake, and is refused as one.
     """
-    if route_app_scope(request.scope.get("route")) is None:
-        raise RuntimeError("ActorSessionDep is for a route that names an app scope")
+    if route_plugin_scope(request.scope.get("route")) is None:
+        raise RuntimeError("ActorSessionDep is for a route that names a plug-in scope")
     return session
 
 
-#: The routed session of a route that names an app scope.
+#: The routed session of a route that names a plug-in scope.
 ActorSessionDep = Annotated[AsyncSession, Depends(get_actor_session)]
 
 
 async def get_guild_seat_context(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildContext:
@@ -1748,7 +1829,7 @@ async def _establish_seat(
     if not context.guild_seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
+            detail=GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED,
         )
     return context
 
@@ -1796,7 +1877,7 @@ async def get_guild_seat_write_session(
 
 
 async def get_guild_seat_payment_context(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildContext:
@@ -1826,15 +1907,15 @@ SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)
 # that changes something — asking a grantee for the read_write grant beside
 # the rung.
 SettingsAdminContextDep = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin, settings=True))
+    GuildContext, Depends(require_guild_roles(CommunityRole.admin, settings=True))
 ]
 SettingsAdminWriteContextDep = Annotated[
     GuildContext,
-    Depends(require_guild_roles(GuildRole.admin, settings=True, write=True)),
+    Depends(require_guild_roles(CommunityRole.admin, settings=True, write=True)),
 ]
 SettingsSeatWriteContextDep = Annotated[
     GuildContext,
-    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+    Depends(require_guild_roles(CommunityRole.superadmin, settings=True, write=True)),
 ]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 SettingsWriteSessionDep = Annotated[
@@ -1868,7 +1949,7 @@ async def _include_deleted_flag(
     the DAC loaders, can resolve a trashed row. Discloses nothing new: RLS and
     the per-resource access checks run unchanged, and the trash surface already
     shows these rows to the same audience. The route's own seam routes the
-    session — a person's or an installed app's — so this only sets the flag.
+    session — a person's or an installed plug-in's — so this only sets the flag.
     """
     if include_deleted:
         session.info["include_deleted"] = True
@@ -1963,44 +2044,6 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
-async def _resolve_upload_user(
-    request: Request,
-    session: SessionDep,
-    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    token_param: Annotated[Optional[str], Query(alias="token")] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
-) -> User:
-    """Auth dependency for /uploads/* and authenticated document downloads.
-
-    Two trust tiers, by where the credential arrives:
-
-      * Authorization header or HttpOnly cookie — not exposed in URLs, so what
-        every other route accepts is accepted here.
-      * ``?token=`` query param — part of the URL, so only a
-        short-lived uploads-scoped token or a device token is accepted. A
-        session token or API key there is refused; native clients fetch a
-        scoped token from ``POST /auth/upload-token`` instead.
-
-    Held to the same account status rule as every other route.
-    """
-    clear_recorded_credential()
-    request.state.credential = None
-    token, allow = _presented(request, bearer_token, session_cookie)
-    if not token and token_param:
-        token, allow = token_param, URL_CREDENTIALS
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.NOT_AUTHENTICATED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    try:
-        authenticated = await credentials.authenticate(session, token, allow=allow)
-    except CredentialRefused as exc:
-        raise exc.as_http() from exc
-    return await _active_user(request, _admit(request, authenticated))
-
-
 async def get_upload_user(
     request: Request,
     session: SessionDep,
@@ -2008,22 +2051,25 @@ async def get_upload_user(
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
-    """The media path's caller, held to the deployment's second-factor rule.
+    """Auth dependency for /uploads/* and authenticated file downloads.
 
-    The resolution itself is next door and unchanged; this is where the one
-    question every other request answers is asked of this one too, once the
-    credential has named somebody.
+    Two trust tiers, by where the credential arrives:
+
+      * Authorization header or HttpOnly cookie — not exposed in URLs, so what
+        every other route accepts is accepted here.
+      * ``?token=`` query param — part of the URL, so only a short-lived
+        uploads-scoped token is accepted. A session token or API key there is
+        refused; native clients fetch a scoped token from
+        ``POST /auth/upload-token`` instead.
+
+    Held to the same account status and second-factor rules as every other
+    route.
     """
-    user = await _resolve_upload_user(
-        request, session, bearer_token, token_param, session_cookie
+    identified = identify(request) or identify_url_token(request)
+    user = await _active_user(
+        request, await _authenticate(request, session, identified)
     )
-    guild_id = cohorts.addressed_guild_id(request.path_params)
-    if await platform_factor_unmet(session, user, guild_id=guild_id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
-            headers={"WWW-Authenticate": STEP_UP_CHALLENGE},
-        )
+    await _require_platform_factor(request, session, user)
     return user
 
 

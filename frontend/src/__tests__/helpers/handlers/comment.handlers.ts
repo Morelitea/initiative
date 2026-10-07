@@ -1,11 +1,11 @@
 import { HttpResponse } from "msw";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 export const commentHandlers = [
-  // The guild home's activity strip asks for this on every render; tests that
+  // The community home's activity strip asks for this on every render; tests that
   // care about the feed override it with their own entries.
-  guildHttp.get("/comments/recent", () => {
+  communityHttp.get("/comments/recent", () => {
     return HttpResponse.json([]);
   }),
 ];

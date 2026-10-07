@@ -15,22 +15,26 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel
+from sqlalchemy import ColumnElement
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
 from app.models.platform.user import User
-from app.models.tenant.document import Document
+from app.models.tenant._mixins import tool_models
+from app.models.tenant.file import File, FileVersion
+from app.models.tenant.gallery import GalleryImageVersion
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import (
     DAC_RESOURCES,
@@ -38,7 +42,12 @@ from app.services.permissions import (
     require_export_access,
 )
 from app.services.platform.csv_export import safe_filename_component
+from app.services.tenant.initiatives import keeps_content_in
+from app.services.tenant.tool_listing import initiative_switch_clause
 from app.core.user_input_validators import resolve_zone
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.services.storage import StorageBackend
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
 # each id costs a fetch+authorize round trip at count AND build time.
@@ -61,11 +70,21 @@ def selection_ids(params: dict, *, single_key: str, multi_key: str) -> list[int]
     return list(dict.fromkeys(ids))
 
 
+async def require_may_leave(
+    session: AsyncSession, initiative_ids: Iterable[int]
+) -> frozenset[int]:
+    """``initiative_ids``, once none of them keeps its content in: a list
+    export may span initiatives, and the file is refused if one does."""
+    if await keeps_content_in(session, initiative_ids):
+        raise ExportError(InitiativeMessages.CONTENT_KEPT_IN, status_code=403)
+    return frozenset(initiative_ids)
+
+
 async def related_reach(session: AsyncSession, related: Iterable[Related]) -> set[int]:
-    """The initiatives of the documents and tasks at the far end of these
-    edges: a document's own, and a task's by its project."""
+    """The initiatives of the files and tasks at the far end of these
+    edges: a file's own, and a task's by its project."""
     entities = [r.entity for r in related if r.entity is not None]
-    reach = {e.initiative_id for e in entities if isinstance(e, Document)}
+    reach = {e.initiative_id for e in entities if isinstance(e, File)}
     project_ids = {e.project_id for e in entities if isinstance(e, Task)}
     if project_ids:
         reach |= set(
@@ -127,6 +146,28 @@ def envelope_key(tool: Tool, name: str, date: str) -> str:
     return f"{export_stem(name, date)}.{tool_envelope_type(tool)}"
 
 
+def storage_key_of(url: str | None) -> str:
+    """The stored blob's key, as the manifest and the importer name it."""
+    return (url or "").split("/")[-1]
+
+
+def asset_item(
+    storage: "StorageBackend",
+    version: FileVersion | GalleryImageVersion | None,
+) -> RenderItem | None:
+    """A stored file's bytes, zipped under ``assets/`` by its storage key
+    beside the envelope naming it — or ``None`` when the file is gone."""
+    key = storage_key_of(version.file_url) if version is not None else ""
+    if not key or not storage.exists(key):
+        return None
+    return RenderItem(
+        key=key,
+        data={"storage_key": key, "content_type": version.file_content_type},
+        filename=f"assets/{key}",
+        format="file",
+    )
+
+
 @dataclass(frozen=True)
 class BuildContext:
     """What one batch of render items is built against: the requested format,
@@ -152,9 +193,9 @@ class ToolExportAdapter:
 
     A subclass names its ``Tool`` and fills in the tool-shaped hooks —
     :meth:`get_row` (how one row loads, when not the tool's registered
-    loader), :meth:`initiative_ids` (which of them one initiative holds),
-    :meth:`rows` (how many rows one entity is worth) and :meth:`item` (how one
-    entity serialises). Everything else — the registry key, the selection
+    loader), :meth:`in_initiative` (which of them one initiative's export
+    holds, when not every row the initiative has), :meth:`rows` (how many
+    rows one entity is worth) and :meth:`item` (how one entity serialises). Everything else — the registry key, the selection
     params, counting, and the ``RenderRequest`` — is the same for every tool
     and lives here.
     """
@@ -208,12 +249,29 @@ class ToolExportAdapter:
         config = RESOURCE_ACCESS[self.tool]
         return await (config.hydrated_loader or config.loader)(session, entity_id)
 
+    def in_initiative(self, initiative_id: int, /) -> list[ColumnElement[bool]]:
+        """The WHERE legs naming this tool's rows that an initiative or
+        community export of one initiative may include: that initiative's,
+        where it has the tool switched on."""
+        model = tool_models()[self.tool.plural]
+        return [
+            model.initiative_id == initiative_id,
+            initiative_switch_clause(self.tool, model),
+        ]
+
     async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+        self, session: AsyncSession, initiative_id: int, /
     ) -> list[int]:
         """The ids of this tool's entities in one initiative that an initiative
-        or community export may include, in a stable order."""
-        raise NotImplementedError
+        or community export may include, in id order."""
+        model = tool_models()[self.tool.plural]
+        return list(
+            await session.exec(
+                select(model.id)
+                .where(*self.in_initiative(initiative_id))
+                .order_by(model.id.asc())
+            )
+        )
 
     def title(self, entity: Any, /) -> str:
         """The entity's own name — what its archive entry is titled and its
@@ -345,6 +403,18 @@ class ToolExportAdapter:
             for item in batch:
                 await detach_envelope_mentions(session, item.data)
                 detach_envelope_references(item.data, guild_id=guild_id)
+        else:
+            # A report is read away from the app, so each mention is written
+            # with the name it reads as now.
+            from app.services.import_engine.mentions import mention_namer
+
+            named = await mention_namer(
+                session,
+                [item.data for item in batch],
+                missing=et("fallback.formerMember", export_locale(user)),
+            )
+            for item in batch:
+                item.data.update(named(item.data))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,

@@ -2,7 +2,7 @@
 
 A device registers and unregisters under its owner's platform tier, whose
 policies admit that account's own rows. Delivery reads and prunes a
-recipient's rows on the system engine (``push_notifications.send_push_to_user``).
+recipient's rows on the system engine (``push_notifications.send_pushes``).
 """
 
 import uuid
@@ -16,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.push_token import PushToken
 from app.services.auth import sessions as session_service
-from app.services.platform import user_tokens
 
 
 async def register_push_token(
@@ -25,7 +24,6 @@ async def register_push_token(
     user_id: int,
     push_token: str,
     platform: str,
-    device_token_id: Optional[int] = None,
     session_id: Optional[uuid.UUID] = None,
 ) -> PushToken:
     """Register or update a push notification token for a user.
@@ -40,7 +38,6 @@ async def register_push_token(
             user_id=user_id,
             push_token=push_token,
             platform=platform,
-            device_token_id=device_token_id,
             session_id=session_id,
             created_at=now,
             updated_at=now,
@@ -49,7 +46,6 @@ async def register_push_token(
             index_elements=["user_id", "push_token"],
             set_=dict(
                 platform=platform,
-                device_token_id=device_token_id,
                 session_id=session_id,
                 updated_at=now,
             ),
@@ -81,10 +77,9 @@ async def get_push_tokens_for_user(
 async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToken]:
     """The recipient's devices whose sign-in still stands.
 
-    A row stands while the session that registered it has a live chain, or,
-    registered under a device token, while that token is good. A row that
-    names neither stands for nothing; the app registers again each time it
-    starts. Rows whose sign-in has ended are removed, and a row whose session
+    A row stands while the session that registered it has a live chain. A
+    row that names none stands for nothing; the app registers again each time
+    it starts. Rows whose sign-in has ended are removed, and a row whose session
     was renewed moves to the live row. Does not commit — the caller owns the
     transaction.
     """
@@ -92,24 +87,16 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
     tips = await session_service.live_chain_tips(
         session, session_ids={r.session_id for r in rows if r.session_id}
     )
-    devices = await user_tokens.live_device_token_ids(
-        session, token_ids={r.device_token_id for r in rows if r.device_token_id}
-    )
     live: List[PushToken] = []
     ended: List[PushToken] = []
     for row in rows:
-        if row.session_id is not None:
-            tip = tips.get(row.session_id)
-            if tip is None:
-                ended.append(row)
-                continue
-            if tip != row.session_id:
-                await follow_session(session, from_id=row.session_id, to_id=tip)
-            live.append(row)
-        elif row.device_token_id in devices:
-            live.append(row)
-        else:
+        tip = tips.get(row.session_id) if row.session_id is not None else None
+        if tip is None:
             ended.append(row)
+            continue
+        if tip != row.session_id:
+            await follow_session(session, from_id=row.session_id, to_id=tip)
+        live.append(row)
     if ended:
         # Only a row still naming the sign-in read above: one registered again
         # in the meantime names its new session and stays.
@@ -121,9 +108,6 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
                         and_(
                             PushToken.id == row.id,
                             PushToken.session_id.is_not_distinct_from(row.session_id),
-                            PushToken.device_token_id.is_not_distinct_from(
-                                row.device_token_id
-                            ),
                         )
                         for row in ended
                     )

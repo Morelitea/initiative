@@ -6,12 +6,18 @@ from __future__ import annotations
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.image_headers import validate_image
 from app.db.schema_provisioning import provision_guild
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.db.tenancy import GUILD_SCOPED_TABLES
-from app.models.platform.guild import Guild, GuildCategory, GuildMembership, GuildRole
-from app.models.platform.guild_image import GuildImageVariant
+from app.models.platform.guild import (
+    Guild,
+    CommunityCategory,
+    GuildMembership,
+    CommunityRole,
+)
+from app.models.platform.guild_image import IMAGE_SPECS, GuildImageVariant
 from app.models.platform.user import User
 from app.services.platform import guild_images
 from app.services.platform import guilds as guilds_service
@@ -168,7 +174,7 @@ async def add_members(
     await set_rls_context(session, Unattributed())
     admin_ids = {u.id for u in admins or []}
     for user in users:
-        role = GuildRole.admin if user.id in admin_ids else GuildRole.member
+        role = CommunityRole.admin if user.id in admin_ids else CommunityRole.member
         session.add(GuildMembership(guild_id=guild.id, user_id=user.id, role=role))
     await session.flush()
 
@@ -197,22 +203,20 @@ async def set_images(
 ) -> None:
     """Give a community an icon and a banner, through the upload path itself.
 
-    Each rendition goes through ``validate_rendition``, so seeded artwork is
-    held to the rules an uploaded one is; the banner is stored as both of its
-    renditions. Writes ``public.guild_images``, so the session must not be
-    routed into a guild schema.
+    Each rendition is held to its ``IMAGE_SPECS`` entry, as an uploaded one
+    is; the banner is stored as both of its renditions. Writes
+    ``public.guild_images``, so the session must not be routed into a guild
+    schema.
     """
-    renditions = [
-        guild_images.validate_rendition(
-            GuildImageVariant.icon, gradient_png(256, 256, *icon), None
-        ),
-        guild_images.validate_rendition(
-            GuildImageVariant.full, gradient_png(2400, 600, *banner), None
-        ),
-        guild_images.validate_rendition(
-            GuildImageVariant.card, gradient_png(1040, 260, *banner), None
-        ),
-    ]
+    pictures = {
+        GuildImageVariant.icon: gradient_png(256, 256, *icon),
+        GuildImageVariant.full: gradient_png(2400, 600, *banner),
+        GuildImageVariant.card: gradient_png(1040, 260, *banner),
+    }
+    renditions = {
+        variant: validate_image(IMAGE_SPECS[variant], data)
+        for variant, data in pictures.items()
+    }
     await guild_images.set_images(session, guild_id=guild.id, renditions=renditions)
 
 
@@ -225,7 +229,7 @@ async def enable_directory(session: AsyncSession) -> None:
 
 
 async def list_in_directory(
-    session: AsyncSession, guild: Guild, *, categories: list[GuildCategory]
+    session: AsyncSession, guild: Guild, *, categories: list[CommunityCategory]
 ) -> None:
     """Opt a community into the directory.
 
@@ -239,7 +243,6 @@ async def list_in_directory(
         [c.value for c in categories]
     )
     guild.has_adult_content = False
-    guild.show_member_names = False
     session.add(guild)
     await session.flush()
 
@@ -265,13 +268,13 @@ async def seat_superadmin(session: AsyncSession, user: User) -> int:
             )
         ).first()
         if existing is not None:
-            if existing.role != GuildRole.superadmin:
-                existing.role = GuildRole.superadmin
+            if existing.role != CommunityRole.superadmin:
+                existing.role = CommunityRole.superadmin
                 session.add(existing)
             continue
         session.add(
             GuildMembership(
-                guild_id=guild_id, user_id=user.id, role=GuildRole.superadmin
+                guild_id=guild_id, user_id=user.id, role=CommunityRole.superadmin
             )
         )
         seated += 1

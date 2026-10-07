@@ -27,21 +27,22 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    CommunityIdPath,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     get_current_active_user,
     SystemSessionDep,
 )
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
-    GuildClaimRuleCreate,
-    GuildClaimRuleRead,
-    GuildClaimRulesResponse,
-    GuildProviderConnectionCreate,
-    GuildProviderConnectionRead,
-    GuildProviderConnectionUpdate,
+    CommunityClaimRuleCreate,
+    CommunityClaimRuleRead,
+    CommunityClaimRulesResponse,
+    CommunityProviderConnectionCreate,
+    CommunityProviderConnectionRead,
+    CommunityProviderConnectionUpdate,
 )
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import guild_provider_connections as connections
@@ -59,30 +60,31 @@ async def _require_connection_option(
     :data:`~app.api.deps.SeatWriteSessionDep`, which routed the request here — who
     may enter a community is that seat's to decide."""
     await guild_entitlements.require_auth_option(
-        system_session, guild_id, GuildAuthOption.providers
+        system_session, guild_id, CommunityAuthOption.providers
     )
 
 
 @router.get(
-    "/{guild_id}/auth/connections", response_model=List[GuildProviderConnectionRead]
+    "/{community_id}/auth/connections",
+    response_model=List[CommunityProviderConnectionRead],
 )
-async def list_guild_provider_connections(
-    guild_id: int,
+async def list_community_provider_connections(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
-) -> List[GuildProviderConnectionRead]:
+) -> List[CommunityProviderConnectionRead]:
     await guild_entitlements.require_auth_option(
-        system_session, guild_id, GuildAuthOption.providers
+        system_session, guild_id, CommunityAuthOption.providers
     )
     return await connections.list_connections(system_session, guild_id=guild_id)
 
 
 @router.get(
-    "/{guild_id}/auth/connections/available",
+    "/{community_id}/auth/connections/available",
     response_model=List[ConnectableProviderRead],
 )
 async def list_connectable_providers(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
 ) -> List[ConnectableProviderRead]:
@@ -91,23 +93,23 @@ async def list_connectable_providers(
     by name, and one registered for a single customer is nobody else's to
     see."""
     await guild_entitlements.require_auth_option(
-        system_session, guild_id, GuildAuthOption.providers
+        system_session, guild_id, CommunityAuthOption.providers
     )
     return await connections.list_connectable(system_session, guild_id=guild_id)
 
 
 @router.post(
-    "/{guild_id}/auth/connections",
-    response_model=GuildProviderConnectionRead,
+    "/{community_id}/auth/connections",
+    response_model=CommunityProviderConnectionRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_provider_connection(
-    guild_id: int,
-    payload: GuildProviderConnectionCreate,
+async def create_community_provider_connection(
+    guild_id: CommunityIdPath,
+    payload: CommunityProviderConnectionCreate,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
     current_user: CurrentUserDep,
-) -> GuildProviderConnectionRead:
+) -> CommunityProviderConnectionRead:
     await _require_connection_option(system_session, guild_id)
     return await connections.create_connection(
         system_session, payload, guild_id=guild_id, actor_user_id=current_user.id
@@ -115,17 +117,17 @@ async def create_guild_provider_connection(
 
 
 @router.patch(
-    "/{guild_id}/auth/connections/{connection_id}",
-    response_model=GuildProviderConnectionRead,
+    "/{community_id}/auth/connections/{connection_id}",
+    response_model=CommunityProviderConnectionRead,
 )
-async def update_guild_provider_connection(
-    guild_id: int,
+async def update_community_provider_connection(
+    guild_id: CommunityIdPath,
     connection_id: int,
-    payload: GuildProviderConnectionUpdate,
+    payload: CommunityProviderConnectionUpdate,
     session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
     current_user: CurrentUserDep,
-) -> GuildProviderConnectionRead:
+) -> CommunityProviderConnectionRead:
     await _require_connection_option(system_session, guild_id)
     if payload.enabled is False:
         await guilds_service.lock_guild_seats(session, guild_id)
@@ -139,11 +141,11 @@ async def update_guild_provider_connection(
 
 
 @router.delete(
-    "/{guild_id}/auth/connections/{connection_id}",
+    "/{community_id}/auth/connections/{connection_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_guild_provider_connection(
-    guild_id: int,
+async def delete_community_provider_connection(
+    guild_id: CommunityIdPath,
     connection_id: int,
     session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
@@ -164,31 +166,31 @@ async def delete_guild_provider_connection(
     )
 
 
-@router.get("/{guild_id}/auth/rules", response_model=GuildClaimRulesResponse)
-async def list_guild_claim_rules(
-    guild_id: int,
+@router.get("/{community_id}/auth/rules", response_model=CommunityClaimRulesResponse)
+async def list_community_claim_rules(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
-) -> GuildClaimRulesResponse:
+) -> CommunityClaimRulesResponse:
     """Where this community places the people its providers vouch for."""
     await guild_entitlements.require_auth_option(
-        system_session, guild_id, GuildAuthOption.providers
+        system_session, guild_id, CommunityAuthOption.providers
     )
     return await claim_rules.list_rules(system_session, guild_id=guild_id)
 
 
 @router.post(
-    "/{guild_id}/auth/rules",
-    response_model=GuildClaimRuleRead,
+    "/{community_id}/auth/rules",
+    response_model=CommunityClaimRuleRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_claim_rule(
-    guild_id: int,
-    payload: GuildClaimRuleCreate,
+async def create_community_claim_rule(
+    guild_id: CommunityIdPath,
+    payload: CommunityClaimRuleCreate,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
     current_user: CurrentUserDep,
-) -> GuildClaimRuleRead:
+) -> CommunityClaimRuleRead:
     """Place the people carrying one group. The rule reads a provider this
     community already counts as its own — saying what a group means is the
     same sentence as saying whose people arrive through it."""
@@ -202,10 +204,10 @@ async def create_guild_claim_rule(
 
 
 @router.delete(
-    "/{guild_id}/auth/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{community_id}/auth/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-async def delete_guild_claim_rule(
-    guild_id: int,
+async def delete_community_claim_rule(
+    guild_id: CommunityIdPath,
     rule_id: int,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,

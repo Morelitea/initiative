@@ -182,7 +182,7 @@ describe("AnnouncementCenter", () => {
   it("holds a route-triggered notice until the reader is on that page", async () => {
     listResponds([announcement({ trigger_route: "/c/*/settings" })]);
 
-    renderCenter({ route: "/c/7/documents" });
+    renderCenter({ route: "/c/7/files" });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });

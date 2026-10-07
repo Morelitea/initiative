@@ -10,9 +10,9 @@ None of that is a task, and it isn't really a document either. It's a notice —
 
 ## Writing one
 
-**Posts → New post** in an initiative's sidebar. Give it a headline, write the notice in the full editor — pictures, links, the lot — and post it.
+**New Post** on the initiative's **Posts** tab. Give it a **Headline**, write the notice in the full editor — pictures, links, the lot — and post it.
 
-The editor is the same one documents use, which means a notice can carry a live **smart chip**: type `#` and point at a task, and the chip goes on showing that task's current column long after you wrote about it. See [Mentions & links](mentions-and-links.md).
+The editor is the same one text documents use, which means a notice can carry a live **smart chip**: type `#` and point at a task, and the chip goes on showing that task's current column long after you wrote about it. See [Mentions & links](mentions-and-links.md).
 
 You can post a notice with no body at all. A headline and a poll is a perfectly good notice.
 
@@ -28,7 +28,7 @@ They're told in the bell, and by email or push if they've asked for those — th
 
 ## Pinning
 
-A manager can **pin** a notice to the top of the board, and give the pin an **end date**.
+A manager can **pin** a notice to the top of the board — **Pin to top**, in the strip at the top of the notice — and give the pin an end date with **Stop pinning on**.
 
 The end date is the part worth knowing about. A notice about Sunday should stop shouting on Monday, and if it's relying on somebody remembering to unpin it, it won't. Set the date when you pin it and the notice drops quietly back into the feed by its own age.
 
@@ -79,12 +79,12 @@ Land on a month and the board starts there. Pins step aside while you're back th
 
 Notices share exactly like everything else: **Viewer**, **Editor** or **Owner** per notice, or open to the whole initiative.
 
-Every notice has its own comment thread and its own reactions. Switch the thread off under **Settings → Details** for the notice that's genuinely just an announcement — the room booking doesn't need a discussion.
+Every notice has its own comment thread and its own reactions. Switch the thread off under **Settings → Details** for the notice that's genuinely just an announcement — the room booking doesn't need a discussion. **Enable reactions** sits beside it, for the notice that doesn't need a row of thumbs either. Switching either off keeps what's already there, ready for when it comes back on.
 
 ## Related
 
 - [Tools](tools.md) — the other tools an initiative can turn on.
 - [Notifications](notifications.md) — the Posts switches for email and push.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — the access levels in full.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — the access levels in full.
 - [Mentions & links](mentions-and-links.md) — smart chips inside a notice.
 - [Your space](your-space.md#my-tools) — every board that's reached you, from every community.

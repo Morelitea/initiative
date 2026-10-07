@@ -41,7 +41,7 @@ GATES = (
     ("Pull request", "ci.yml", "pull_request", None),
     ("Integration (dev)", "ci.yml", "push", r"dev"),
     ("Release candidate", "release-candidate.yml", "push", r"release/v.+"),
-    ("Nightly", "nightly.yml", "schedule", None),
+    ("Nightly", "nightly.yml", "workflow_dispatch", r"dev"),
 )
 
 #: How far past the month runs are read, to find the green run that ends a

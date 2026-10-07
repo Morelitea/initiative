@@ -8,4 +8,3 @@
 # A value already in the environment wins.
 export FIRST_OWNER_EMAIL="${FIRST_OWNER_EMAIL:-admin@example.com}"
 export FIRST_OWNER_PASSWORD="${FIRST_OWNER_PASSWORD:-changeme}"
-export FIRST_OWNER_FULL_NAME="${FIRST_OWNER_FULL_NAME:-Admin User}"

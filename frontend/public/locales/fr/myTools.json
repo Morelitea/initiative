@@ -1,6 +1,5 @@
 {
   "title": "Mes outils",
-  "subtitle": "Tout ce qui vous parvient, un outil à la fois, dans toutes vos communautés.",
   "toolRail": "Vos outils",
   "view": {
     "label": "Afficher",
@@ -21,7 +20,7 @@
   },
   "noTools": {
     "title": "Rien à parcourir pour l'instant",
-    "description": "Dès que vous participez à un projet, un document ou autre chose, cela apparaît ici.",
+    "description": "Dès que vous participez à un projet, un fichier ou autre chose, cela apparaît ici.",
     "descriptionMine": "Dès que vous créez quelque chose, cela apparaît ici."
   }
 }

@@ -99,9 +99,9 @@ class TestNobodyIsCarried:
         assert task["description"] == "Ask @alice about Budget"
 
     def test_a_body_mention_and_reference_become_text_and_uploads_go(self):
-        document = {
-            "type": "initiative-document",
-            "document_type": "native",
+        file = {
+            "type": "initiative-file",
+            "file_type": "native",
             "name": "Notes",
             "mention_handles": ["alice#1234"],
             "content": _editor(
@@ -120,7 +120,7 @@ class TestNobodyIsCarried:
                 {"type": "image", "src": "/uploads/3/abc.png"},
             ),
         }
-        document["content"]["root"]["children"].append(
+        file["content"]["root"]["children"].append(
             {
                 "type": "reference-embed",
                 "entityType": "task",
@@ -128,7 +128,7 @@ class TestNobodyIsCarried:
                 "text": "Budget",
             }
         )
-        stripped = strip_for_listing(Tool.document, document)
+        stripped = strip_for_listing(Tool.file, file)
         paragraph, embed = stripped["content"]["root"]["children"]
         assert [node["type"] for node in paragraph["children"]] == ["text", "text"]
         assert [node["text"] for node in paragraph["children"]] == ["@Alice", "Budget"]

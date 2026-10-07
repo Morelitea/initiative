@@ -17,7 +17,7 @@ import {
   buildUser,
   initiativeCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
@@ -60,12 +60,12 @@ vi.mock("sigma/rendering", () => ({ drawDiscNodeLabel: () => {} }));
 /**
  * The upload itself, stubbed where the app calls it: jsdom's multipart bodies
  * are not something MSW can read back, and what is under test is what the
- * panel does with the document that comes back.
+ * panel does with the file that comes back.
  */
-const uploadDocumentFile = vi.hoisted(() => vi.fn());
-vi.mock("@/api/generated/documents/documents", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/api/generated/documents/documents")>()),
-  uploadDocumentFileApiV1CGuildIdDocumentsUploadPost: uploadDocumentFile,
+const uploadFile = vi.hoisted(() => vi.fn());
+vi.mock("@/api/generated/files/files", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/files/files")>()),
+  uploadFile: uploadFile,
 }));
 
 import { RelationsSection } from "./RelationsSection";
@@ -82,7 +82,7 @@ const farEnd = {
   image_urls: [],
   icon: null,
   color: null,
-  document_type: null,
+  file_type: null,
   mime_type: null,
   original_filename: null,
   smart_link_url: null,
@@ -142,39 +142,39 @@ const renderSection = (
   canEdit = true,
   defaultLayout: Layout = "tiles"
 ) => {
-  server.use(guildHttp.get("/relationships/", () => HttpResponse.json(rows)));
+  server.use(communityHttp.get("/relationships/", () => HttpResponse.json(rows)));
   return mount(canEdit, defaultLayout);
 };
 
 /**
- * The section for somebody who may make documents in its initiative, so the
+ * The section for somebody who may make files in its initiative, so the
  * dialog may offer an upload. Records what was uploaded and linked.
  */
-const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = {}) => {
+const mountUploader = ({ canCreateFiles = true, canViewFiles = true } = {}) => {
   const user = buildUser();
   const writes: { links: unknown[] } = { links: [] };
-  uploadDocumentFile.mockReset();
-  uploadDocumentFile.mockResolvedValue({ id: 77, name: "Floor plan" });
+  uploadFile.mockReset();
+  uploadFile.mockResolvedValue({ id: 77, name: "Floor plan" });
   server.use(
-    guildHttp.get("/relationships/", () => HttpResponse.json([])),
-    guildHttp.get("/initiatives/", () =>
+    communityHttp.get("/relationships/", () => HttpResponse.json([])),
+    communityHttp.get("/initiatives/", () =>
       HttpResponse.json([
         buildInitiative({
           id: 3,
           can: initiativeCan({
-            view: canViewDocuments ? [Tool.document] : [],
-            create: canCreateDocuments ? [Tool.document] : [],
+            view: canViewFiles ? [Tool.file] : [],
+            create: canCreateFiles ? [Tool.file] : [],
           }),
         }),
       ])
     ),
-    guildHttp.put("/documents/:id/grants", () => HttpResponse.json({})),
-    guildHttp.post("/relationships/", async ({ request }) => {
+    communityHttp.put("/files/:id/grants", () => HttpResponse.json({})),
+    communityHttp.post("/relationships/", async ({ request }) => {
       const body = await request.json();
       writes.links.push(body);
       return HttpResponse.json({
         ...row("attached", "outbound", "Floor plan"),
-        other: { ...farEnd, type: SearchEntityType.document, id: 77, title: "Floor plan" },
+        other: { ...farEnd, type: SearchEntityType.file, id: 77, title: "Floor plan" },
       });
     })
   );
@@ -314,7 +314,7 @@ describe("RelationsSection", () => {
     const user = userEvent.setup();
     const asked: string[] = [];
     server.use(
-      guildHttp.get("/relationships/", ({ request }) => {
+      communityHttp.get("/relationships/", ({ request }) => {
         const entity = new URL(request.url).searchParams.get("entity") ?? "";
         asked.push(entity);
         return HttpResponse.json(
@@ -372,7 +372,7 @@ describe("RelationsSection", () => {
         initiative_name: "Farmhands",
       });
     server.use(
-      guildHttp.get("/search/recent", () =>
+      communityHttp.get("/search/recent", () =>
         HttpResponse.json([offered(11, 1, "Harvest"), offered(12, 2, "Winterhold")])
       )
     );
@@ -405,7 +405,7 @@ describe("RelationsSection", () => {
       other: { ...built.other, type: SearchEntityType.project, id: 7 },
     };
     server.use(
-      guildHttp.get("/smart-chips/", () =>
+      communityHttp.get("/smart-chips/", () =>
         HttpResponse.json({
           items: [
             {
@@ -461,10 +461,10 @@ describe("RelationsSection", () => {
   it("writes the link out as a sentence naming both ends", async () => {
     const user = userEvent.setup();
     server.use(
-      guildHttp.get("/search/recent", () =>
+      communityHttp.get("/search/recent", () =>
         HttpResponse.json([
           buildSearchSuggestion({
-            entity_type: SearchEntityType.document,
+            entity_type: SearchEntityType.file,
             entity_id: 11,
             title: "Harvest",
             initiative_id: 3,
@@ -487,7 +487,7 @@ describe("RelationsSection", () => {
   });
 
   describe("uploading a file to link", () => {
-    it("makes the file a document and links it, in one step", async () => {
+    it("makes the upload a file and links it, in one step", async () => {
       const user = userEvent.setup();
       const writes = mountUploader();
 
@@ -507,15 +507,15 @@ describe("RelationsSection", () => {
       await user.click(within(dialog).getByRole("button", { name: "Upload and link" }));
 
       await waitFor(() => expect(writes.links).toHaveLength(1));
-      expect(uploadDocumentFile).toHaveBeenCalledTimes(1);
-      expect(uploadDocumentFile.mock.calls[0]?.[1]).toMatchObject({
+      expect(uploadFile).toHaveBeenCalledTimes(1);
+      expect(uploadFile.mock.calls[0]?.[1]).toMatchObject({
         name: "floor-plan",
         initiative_id: 3,
       });
       expect(writes.links[0]).toMatchObject({
         source: { type: "task", id: 1 },
         relationship_type: "attached",
-        target: { type: "document", id: 77 },
+        target: { type: "file", id: 77 },
       });
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
@@ -553,8 +553,8 @@ describe("RelationsSection", () => {
     });
 
     it.each([
-      ["may not make documents here", { canCreateDocuments: false }],
-      ["does not have documents here", { canViewDocuments: false }],
+      ["may not make files here", { canCreateFiles: false }],
+      ["does not have files here", { canViewFiles: false }],
     ])("does not offer an upload to somebody who %s", async (_label, access) => {
       const user = userEvent.setup();
       mountUploader(access);
@@ -567,14 +567,14 @@ describe("RelationsSection", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("links the document it already uploaded when the link is tried again", async () => {
+    it("links the file it already uploaded when the link is tried again", async () => {
       // The upload landed and the link did not. Trying again must not leave a
       // second copy of the file behind.
       const user = userEvent.setup();
       const writes = mountUploader();
       let refused = false;
       server.use(
-        guildHttp.post("/relationships/", async ({ request }) => {
+        communityHttp.post("/relationships/", async ({ request }) => {
           if (!refused) {
             refused = true;
             return HttpResponse.json({ detail: "nope" }, { status: 500 });
@@ -595,7 +595,7 @@ describe("RelationsSection", () => {
       await user.click(submit);
 
       await waitFor(() => expect(writes.links).toHaveLength(1));
-      expect(uploadDocumentFile).toHaveBeenCalledTimes(1);
+      expect(uploadFile).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -1,15 +1,15 @@
 """Handles, end to end: picking one, being given one, and finding someone by it.
 
 Also the two rules that decide what a guild-scoped payload says about a person:
-an address never appears in one, and a real name appears only where the guild
-has asked for it.
+an address never appears in one, and a name appears only where the person set
+one in that guild.
 """
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.factories import get_auth_headers
 
@@ -18,7 +18,6 @@ REGISTRATION = {
     "email": "handle-new@example.com",
     "password": "a-long-enough-password-123",
     "username": "newcomer",
-    "full_name": "New Comer",
 }
 
 
@@ -163,7 +162,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=False)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "mine-now"},
         )
@@ -178,7 +177,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=True)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "second-thoughts"},
         )
@@ -192,7 +191,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=False)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "owner"},
         )
@@ -204,16 +203,14 @@ class TestClaimingAHandle:
 class TestWhatAGuildPayloadSays:
     @pytest.fixture
     async def guild_with_member(self, session):
-        admin = await create_user(session, full_name="Ada Admin")
+        admin = await create_user(session)
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
-            session, user=admin, guild=guild, role=GuildRole.admin
+            session, user=admin, guild=guild, role=CommunityRole.admin
         )
-        member = await create_user(
-            session, full_name="Mem Ber", username="member", discriminator=77
-        )
+        member = await create_user(session, username="member", discriminator=77)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.member
+            session, user=member, guild=guild, role=CommunityRole.member
         )
         return admin, member, guild
 
@@ -241,78 +238,49 @@ class TestWhatAGuildPayloadSays:
         assert row["username"] == "member"
         assert row["discriminator"] == 77
 
-    async def test_a_guild_shows_names_by_default(self, client, guild_with_member):
-        admin, member, guild = guild_with_member
-
-        response = await client.get(
-            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
-        )
-
-        row = next(r for r in response.json()["items"] if r["id"] == member.id)
-        assert row["full_name"] == "Mem Ber"
-
-    async def test_a_guild_that_turned_them_off_sends_none(
+    async def test_the_name_set_in_the_guild_does(
         self, client, session, guild_with_member
     ):
         admin, member, guild = guild_with_member
-        guild.show_member_names = False
-        session.add(guild)
-        await session.commit()
+        await create_guild_membership(
+            session, user=member, guild=guild, display_name="Mem"
+        )
 
         response = await client.get(
             f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         row = next(r for r in response.json()["items"] if r["id"] == member.id)
-        assert row["full_name"] is None
-
-    async def test_a_listed_guild_shows_none_without_being_asked(
-        self, client, session, guild_with_member
-    ):
-        """Listing a guild turns its names off in the same write, so the
-        payload follows without an admin having to do it in two steps."""
-        admin, member, guild = guild_with_member
-        guild.is_community = True
-        guild.categories = ["other"]
-        guild.has_adult_content = False
-        session.add(guild)
-        await session.commit()
-
-        response = await client.get(
-            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
-        )
-
-        row = next(r for r in response.json()["items"] if r["id"] == member.id)
-        assert row["full_name"] is None
+        assert row["display_name"] == "Mem"
 
 
 class TestFindingSomeone:
     @pytest.fixture
     async def searchable_guild(self, session):
-        # The searcher is a member too, so their own handle and name are in the
+        # The searcher is a member too, so their own handle is in the
         # corpus. Pinned rather than generated: matching is fuzzy, and a random
         # name that happens to share three letters with a search term ("Three"
         # against "ivory-thrush") would fail an assertion about somebody else.
-        admin = await create_user(
-            session, username="zeph", discriminator=9001, full_name="Zeph Quill"
-        )
+        admin = await create_user(session, username="zeph", discriminator=9001)
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
-            session, user=admin, guild=guild, role=GuildRole.admin
+            session, user=admin, guild=guild, role=CommunityRole.admin
         )
-        for username, discriminator, full_name in [
+        for username, discriminator, display_name in [
             ("jordan", 1234, "Jordan One"),
             ("jordan", 5678, "Jordan Two"),
             ("morgan", 12, "Morgan Three"),
+            ("riley", 3, None),
         ]:
             member = await create_user(
-                session,
-                username=username,
-                discriminator=discriminator,
-                full_name=full_name,
+                session, username=username, discriminator=discriminator
             )
             await create_guild_membership(
-                session, user=member, guild=guild, role=GuildRole.member
+                session,
+                user=member,
+                guild=guild,
+                role=CommunityRole.member,
+                display_name=display_name,
             )
         return admin, guild
 
@@ -352,27 +320,9 @@ class TestFindingSomeone:
 
         assert [item["discriminator"] for item in items] == [12]
 
-    async def test_a_name_is_searchable_where_it_is_showable(
-        self, client, searchable_guild
-    ):
+    async def test_a_display_name_is_searchable(self, client, searchable_guild):
         admin, guild = searchable_guild
 
         items = await self._search(client, admin, guild, "Three")
 
         assert [item["username"] for item in items] == ["morgan"]
-
-    async def test_and_not_where_it_is_not(self, client, session, searchable_guild):
-        """A guild that does not show names does not match on them either.
-
-        Asserted as "the person whose name that is does not come back" rather
-        than "nothing comes back": handles are still matched, and loosely, so
-        someone whose handle merely resembles the word is a legitimate hit.
-        """
-        admin, guild = searchable_guild
-        guild.show_member_names = False
-        session.add(guild)
-        await session.commit()
-
-        items = await self._search(client, admin, guild, "Three")
-
-        assert "morgan" not in [item["username"] for item in items]

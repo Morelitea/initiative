@@ -9,7 +9,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.platform.user import UserRole
 from app.services.rls import (
@@ -34,7 +34,9 @@ from app.testing import (
 async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     # create_initiative already adds the creator as project_manager
 
@@ -48,7 +50,7 @@ async def test_is_initiative_manager_with_member_role(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     initiative = await create_initiative(session, guild, admin)
 
@@ -69,7 +71,7 @@ async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_initiative(session, guild, admin)
 
@@ -96,7 +98,7 @@ async def test_check_initiative_permission_no_standing_bypass(session: AsyncSess
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_initiative(session, guild, admin)
 
@@ -115,7 +117,9 @@ async def test_check_initiative_permission_manager_has_all(
 ):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     # creator is PM (is_manager=True)
 
@@ -125,7 +129,7 @@ async def test_check_initiative_permission_manager_has_all(
         asking,
         initiative_id=initiative.id,
         user=user,
-        permission_key=PermissionKey.create_documents,
+        permission_key=PermissionKey.create_files,
     )
 
     assert result is True
@@ -137,7 +141,7 @@ async def test_check_initiative_permission_member_explicit_enabled(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     initiative = await create_initiative(session, guild, admin)
 
@@ -145,14 +149,14 @@ async def test_check_initiative_permission_member_explicit_enabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has documents_enabled=True and projects_enabled=True by default
+    # The member role has files_enabled=True and projects_enabled=True by default
     asking = await role_session("app_user")
     await route_as(asking, user_id=member.id, guild_id=guild.id)
     result = await check_initiative_permission(
         asking,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.documents_enabled,
+        permission_key=PermissionKey.files_enabled,
     )
 
     assert result is True
@@ -164,7 +168,7 @@ async def test_check_initiative_permission_member_explicit_disabled(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     initiative = await create_initiative(session, guild, admin)
 
@@ -172,14 +176,14 @@ async def test_check_initiative_permission_member_explicit_disabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has create_documents=False and create_projects=False by default
+    # The member role has create_files=False and create_projects=False by default
     asking = await role_session("app_user")
     await route_as(asking, user_id=member.id, guild_id=guild.id)
     result = await check_initiative_permission(
         asking,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.create_documents,
+        permission_key=PermissionKey.create_files,
     )
 
     assert result is False
@@ -191,7 +195,7 @@ async def test_check_initiative_permission_falls_back_to_default(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     # The product's own defaults are what this checks, so the factory's
     # ordinary-member convenience is turned off.
@@ -226,7 +230,7 @@ async def test_check_initiative_permission_non_member(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_initiative(session, guild, admin)
 

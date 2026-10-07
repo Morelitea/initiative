@@ -21,9 +21,9 @@ export const createEmptyEditorState = (): SerializedEditorState => ({
   } as SerializedEditorState["root"],
 });
 
-export const normalizeEditorState = (
-  state?: SerializedEditorState | null
-): SerializedEditorState => {
+/** A stored body as the editor can open it: anything that is not a Lexical
+ *  tree, or one with no children, opens as an empty document. */
+export const normalizeEditorState = (state: unknown): SerializedEditorState => {
   // Check if state is a valid Lexical editor state with a root property
   const isValidEditorState =
     state &&

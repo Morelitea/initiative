@@ -25,7 +25,7 @@ const kindsWritten = (links: LinkedRef[], previous: LinkedRef[], force = false) 
   return written;
 };
 
-const doc = (id: number) => ref(SearchEntityType.document, id);
+const doc = (id: number) => ref(SearchEntityType.file, id);
 const task = (id: number) => ref(SearchEntityType.task, id);
 
 describe("which kinds a save writes", () => {
@@ -50,13 +50,13 @@ describe("which kinds a save writes", () => {
     // A retry: the kind that failed asks for exactly what it asked for before,
     // so without this it would be skipped as unchanged and never land.
     expect(kindsWritten([doc(1), task(2)], [doc(1), task(2)], true).sort()).toEqual(
-      [SearchEntityType.document, SearchEntityType.task].sort()
+      [SearchEntityType.file, SearchEntityType.task].sort()
     );
   });
 
   it("still clears a removed kind when forced", () => {
     expect(kindsWritten([doc(1)], [doc(1), task(2)], true).sort()).toEqual(
-      [SearchEntityType.document, SearchEntityType.task].sort()
+      [SearchEntityType.file, SearchEntityType.task].sort()
     );
   });
 });

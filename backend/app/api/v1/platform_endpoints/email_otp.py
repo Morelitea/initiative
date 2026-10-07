@@ -43,10 +43,13 @@ from app.api.v1.platform_endpoints.session_opening import (
     second_factor_outstanding,
     upgrade_session,
 )
+from app.core.config import is_device
+from app.core.encryption import normalize_email
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
-from app.core.rate_limit import get_real_client_ip, get_user_or_ip_key, limiter
+from app.core import audit_context
+from app.core.rate_limit import MAIL_SENDS, limiter
 from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
@@ -63,8 +66,6 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.auth import sign_in_locks
-from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,6 @@ async def _post_code_letter(
 
 
 @router.post("/email-otp/send", response_model=EmailOtpSent)
-@limiter.limit("5/15minutes")
 async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
@@ -159,12 +159,12 @@ async def send_sign_in_code(
     """Post a code to an address, and hand back the handle that names it.
 
     The captcha is answered before the address is resolved: it says something
-    about the request, not about the address, so it is the one refusal this
-    route makes.
+    about the request, not about the address. Past it, the one refusal is the
+    address's mail allowance, taken whether or not anybody holds the address.
     """
     await require_login_method(session, LoginMethod.email_otp)
     await captcha_service.verify_or_raise(
-        payload.captcha_token, remote_ip=get_real_client_ip(request)
+        payload.captcha_token, remote_ip=audit_context.client_ip()
     )
     if not await email_service.email_configured(system_session):
         raise HTTPException(
@@ -172,7 +172,12 @@ async def send_sign_in_code(
             detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
         )
 
-    address = payload.email.lower().strip()
+    address = normalize_email(payload.email)
+    if not await MAIL_SENDS.take(address):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.RATE_LIMITED,
+        )
     user = await addresses.account_holding(system_session, address)
     # An account that cannot sign in is not one to send a code to, and reads
     # from here exactly like an address nobody holds.
@@ -192,7 +197,7 @@ async def send_sign_in_code(
         system_session,
         user_id=recipient.id if recipient is not None else None,
         user_email_id=row.id if row is not None else None,
-        native=payload.native,
+        native=is_device(request),
         email=address if signing_up else None,
     )
     await system_session.commit()
@@ -209,7 +214,6 @@ async def send_sign_in_code(
 
 
 @router.post("/email-otp/verify", response_model=Token)
-@limiter.limit("10/15minutes")
 async def verify_sign_in_code(
     request: Request,
     response: Response,
@@ -290,16 +294,10 @@ async def verify_sign_in_code(
 
     # Arriving at the address is what proves it, so an address the account had
     # never proved is proved now — and what the account held before that goes.
-    retired = False
     if challenge.user_email_id is not None:
-        first_proof = await addresses.mark_proved(
-            system_session, address_id=challenge.user_email_id
+        await addresses.prove_at_sign_in(
+            system_session, user=user, address_id=challenge.user_email_id
         )
-        if first_proof:
-            await addresses.retire_credentials_predating_proof(
-                system_session, user=user
-            )
-            retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:
             row.last_login_at = datetime.now(timezone.utc)
@@ -313,11 +311,9 @@ async def verify_sign_in_code(
         session, system_session, user_id=user_id, leg=EMAIL_CODE_LEG, native=native
     )
     if challenge_response is not None:
-        if retired:
-            await content_sockets.revoke_user_everywhere(user_id)
         return challenge_response
 
-    opened = await open_session(
+    return await open_session(
         request,
         response,
         system_session,
@@ -325,12 +321,7 @@ async def verify_sign_in_code(
         token_version=token_version,
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method},
-        return_refresh_token=native,
     )
-    if retired:
-        # Connections opened on the credentials retired above close now.
-        await content_sockets.revoke_user_everywhere(user_id)
-    return opened
 
 
 @router.post(
@@ -338,7 +329,6 @@ async def verify_sign_in_code(
     response_model=Token,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("5/15minutes")
 async def register_with_code(
     request: Request,
     response: Response,
@@ -385,7 +375,6 @@ async def register_with_code(
         details=RegistrationDetails(
             email=address,
             username=payload.username,
-            full_name=payload.full_name,
             timezone=payload.timezone,
             community=payload.community,
             birthdate=payload.birthdate,
@@ -404,12 +393,11 @@ async def register_with_code(
         token_version=registered.user.token_version,
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method, "during": "registration"},
-        return_refresh_token=email_otp_service.is_native(ticket),
     )
 
 
 @router.post("/step-up/email-otp/send", response_model=EmailOtpSent)
-@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("5/15minutes")
 async def send_step_up_code(
     request: Request,
     background: BackgroundTasks,
@@ -454,7 +442,7 @@ async def send_step_up_code(
 
 
 @router.post("/step-up/email-otp/verify", response_model=Token)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def verify_step_up_code(
     request: Request,
     response: Response,
@@ -493,9 +481,6 @@ async def verify_step_up_code(
             detail=AuthMessages.EMAIL_OTP_INVALID,
         )
 
-    # The right code starts the count over, as a sign-in does; it commits with
-    # the upgrade.
-    await sign_in_locks.record_success(system_session, current_user.id)
     return await upgrade_session(
         request,
         response,

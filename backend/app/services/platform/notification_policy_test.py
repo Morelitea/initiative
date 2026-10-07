@@ -1,10 +1,9 @@
 """What a notification may leave the app carrying.
 
 Two levels answer three questions, and the stricter of each pair binds. The
-tests below cover the resolution itself and then the two seams that apply it —
-the one every push goes through and the one every notification email is written
-at — because a switch that resolves correctly and is not read anywhere is not a
-switch.
+tests below cover the resolution itself and then where it is applied — as a
+push and a notification email are written down — because a switch that
+resolves correctly and is not read anywhere is not a switch.
 """
 
 from unittest.mock import AsyncMock
@@ -13,19 +12,18 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import NotificationCategory
+from app.core.notification_categories import NotificationCategory, category_of
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import (
     email_outbox,
+    notice_outbox,
     notification_policy,
-    push_notifications,
 )
 from app.testing import (
     create_guild,
-    create_push_token,
     create_user,
     push_switched_on,
 )
@@ -146,7 +144,9 @@ async def test_a_community_that_no_longer_exists_is_answered_by_the_deployment(
 
 
 async def test_a_redacted_line_says_the_kind_of_thing_and_stops() -> None:
-    title, body = notification_policy.redacted_push(NotificationType.mention, "en")
+    title, body = notification_policy.redacted_line(
+        category_of(NotificationType.mention), "en"
+    )
     assert title == "You were mentioned"
     assert body == "Open Initiative to see where."
 
@@ -154,8 +154,7 @@ async def test_a_redacted_line_says_the_kind_of_thing_and_stops() -> None:
 async def test_every_category_has_a_redacted_line() -> None:
     """A category with no line of its own would push its own key at somebody."""
     for category in NotificationCategory:
-        subject = notification_policy.redacted_subject(category, "en")
-        body = notification_policy.redacted_body(category, "en")
+        subject, body = notification_policy.redacted_line(category, "en")
         assert not subject.startswith("redacted."), category
         assert not body.startswith("redacted."), category
 
@@ -164,115 +163,76 @@ async def test_every_category_has_a_redacted_line() -> None:
 
 
 @pytest.fixture
-def fcm(monkeypatch):
-    """A deployment wired to FCM, capturing what would go on the wire."""
-    calls: list[dict] = []
-
-    async def _send(client, push_token, title, body, data=None, channel_id=None):
-        calls.append({"title": title, "body": body})
-        return (True, False)
-
-    monkeypatch.setattr(push_notifications, "send_push_notification", _send)
+def push_on():
+    """A deployment wired to FCM."""
     with push_switched_on():
-        yield calls
+        yield
 
 
-async def _with_a_phone(session: AsyncSession, email: str):
-    user = await create_user(session, email=email)
-    await create_push_token(session, user)
-    return user
+async def _mention_push(session: AsyncSession, user, guild_id: int) -> tuple:
+    """The push a notice of a mention writes down for ``user``."""
+    row = await notice_outbox.notice(
+        session,
+        user,
+        NotificationType.mention,
+        {},
+        guild_id=guild_id,
+        push=(
+            "Ana mentioned you in Q3 budget",
+            "Ana mentioned you in a comment on Q3 budget",
+        ),
+    )
+    return row["push_title"], row["push_body"]
 
 
 async def test_a_community_that_declines_push_gets_none(
-    session: AsyncSession, fcm
+    session: AsyncSession, push_on
 ) -> None:
     guild = await create_guild(session)
     guild.allow_push_notifications = False
     session.add(guild)
     await session.commit()
-    user = await _with_a_phone(session, "declines-push@example.com")
+    user = await create_user(session, email="declines-push@example.com")
 
-    sent = await push_notifications.send_push_to_user(
-        session=session,
-        user_id=user.id,
-        notification_type=NotificationType.mention,
-        title="Ana mentioned you in Q3 budget",
-        body="Ana mentioned you in a comment on Q3 budget",
-        guild_id=guild.id,
-        locale="en",
-    )
-
-    assert sent == 0
-    assert fcm == []
+    assert await _mention_push(session, user, guild.id) == (None, None)
 
 
 async def test_a_redacting_community_sends_the_kind_of_thing(
-    session: AsyncSession, fcm
+    session: AsyncSession, push_on
 ) -> None:
     guild = await create_guild(session)
     guild.redact_notification_content = True
     session.add(guild)
     await session.commit()
-    user = await _with_a_phone(session, "redacts@example.com")
+    user = await create_user(session, email="redacts@example.com")
 
-    sent = await push_notifications.send_push_to_user(
-        session=session,
-        user_id=user.id,
-        notification_type=NotificationType.mention,
-        title="Ana mentioned you in Q3 budget",
-        body="Ana mentioned you in a comment on Q3 budget",
-        guild_id=guild.id,
-        locale="en",
+    assert await _mention_push(session, user, guild.id) == (
+        "You were mentioned",
+        "Open Initiative to see where.",
     )
-
-    assert sent == 1
-    assert fcm == [
-        {"title": "You were mentioned", "body": "Open Initiative to see where."}
-    ]
 
 
 async def test_an_unrestricted_community_pushes_what_it_was_given(
-    session: AsyncSession, fcm
+    session: AsyncSession, push_on
 ) -> None:
     guild = await create_guild(session)
-    user = await _with_a_phone(session, "unrestricted-push@example.com")
+    user = await create_user(session, email="unrestricted-push@example.com")
 
-    await push_notifications.send_push_to_user(
-        session=session,
-        user_id=user.id,
-        notification_type=NotificationType.mention,
-        title="Ana mentioned you in Q3 budget",
-        body="Ana mentioned you in a comment on Q3 budget",
-        guild_id=guild.id,
-        locale="en",
-    )
-
-    assert fcm[0]["title"] == "Ana mentioned you in Q3 budget"
+    title, _body = await _mention_push(session, user, guild.id)
+    assert title == "Ana mentioned you in Q3 budget"
 
 
 async def test_a_redacted_push_reads_the_recipients_language(
-    session: AsyncSession, fcm
+    session: AsyncSession, push_on
 ) -> None:
-    """The caller had no locale in hand, so the account's own is read."""
     guild = await create_guild(session)
     guild.redact_notification_content = True
     session.add(guild)
     await session.commit()
-    user = await _with_a_phone(session, "french-push@example.com")
-    user.locale = "fr"
-    session.add(user)
-    await session.commit()
+    user = await create_user(session, email="french-push@example.com", locale="fr")
 
-    await push_notifications.send_push_to_user(
-        session=session,
-        user_id=user.id,
-        notification_type=NotificationType.mention,
-        title="Ana mentioned you in Q3 budget",
-        body="Ana mentioned you in a comment on Q3 budget",
-        guild_id=guild.id,
-    )
-
-    assert fcm[0]["title"] == "Vous avez été mentionné"
+    title, _body = await _mention_push(session, user, guild.id)
+    assert title == "Vous avez été mentionné"
 
 
 # --- the email seam ----------------------------------------------------------
@@ -369,22 +329,30 @@ async def test_the_deployment_can_decline_email_for_everybody(
 def reads(monkeypatch) -> list[int | None]:
     """Every time the switches are actually read, by community."""
     calls: list[int | None] = []
-    real = notification_policy.load
+    real, real_many = notification_policy.load, notification_policy.load_many
 
     async def _load(guild_id):
         calls.append(guild_id)
         return await real(guild_id)
 
+    async def _load_many(guild_ids):
+        guild_ids = set(guild_ids)
+        calls.extend(sorted(gid for gid in guild_ids if gid is not None))
+        return await real_many(guild_ids)
+
     monkeypatch.setattr(notification_policy, "load", _load)
+    monkeypatch.setattr(notification_policy, "load_many", _load_many)
     return calls
 
 
 async def test_a_fan_out_reads_the_switches_once(
-    session: AsyncSession, fcm, configured, reads
+    session: AsyncSession, push_on, configured, reads
 ) -> None:
     """Fifty recipients in one transaction are one question, not a hundred."""
     guild = await create_guild(session)
-    users = [await _with_a_phone(session, f"fan-out-{n}@example.com") for n in range(3)]
+    users = [
+        await create_user(session, email=f"fan-out-{n}@example.com") for n in range(3)
+    ]
     await session.exec(select(1))  # the sender's transaction
 
     for user in users:
@@ -395,47 +363,26 @@ async def test_a_fan_out_reads_the_switches_once(
             guild_id=guild.id,
             pieces=_pieces(),
         )
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.mention,
-            title="Ana mentioned you in Q3 budget",
-            body="Ana mentioned you in a comment on Q3 budget",
-            guild_id=guild.id,
-            locale="en",
-        )
+        title, _body = await _mention_push(session, user, guild.id)
+        assert title == "Ana mentioned you in Q3 budget"
 
     assert reads == [guild.id]
-    assert len(fcm) == 3
 
 
 async def test_the_next_transaction_reads_the_switches_again(
-    session: AsyncSession, fcm, reads
+    session: AsyncSession, push_on, reads
 ) -> None:
     """A community that starts redacting is redacted from its next send on."""
     guild = await create_guild(session)
-    user = await _with_a_phone(session, "switch-between@example.com")
+    user = await create_user(session, email="switch-between@example.com")
 
-    async def _send() -> None:
-        await session.exec(select(1))
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.mention,
-            title="Ana mentioned you in Q3 budget",
-            body="Ana mentioned you in a comment on Q3 budget",
-            guild_id=guild.id,
-            locale="en",
-        )
-
-    await _send()
+    await session.exec(select(1))
+    first, _body = await _mention_push(session, user, guild.id)
     guild.redact_notification_content = True
     session.add(guild)
     await session.commit()
-    await _send()
+    await session.exec(select(1))
+    second, _body = await _mention_push(session, user, guild.id)
 
     assert reads == [guild.id, guild.id]
-    assert [call["title"] for call in fcm] == [
-        "Ana mentioned you in Q3 budget",
-        "You were mentioned",
-    ]
+    assert [first, second] == ["Ana mentioned you in Q3 budget", "You were mentioned"]

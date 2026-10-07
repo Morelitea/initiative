@@ -69,14 +69,15 @@ export interface DashboardCanvasProps {
   catalog: WidgetCatalog | undefined;
   /** The dashboard's own initiative. Every widget reads within it. */
   initiativeId: number | undefined;
-  /** The dashboard row. Only `app` widgets need it — their data is guild-level,
+  /** The dashboard row. Only `plugin` widgets need it — their data is community-level,
    *  so the proxy is told which initiative-scoped surface is asking. A preview
    *  has none, which is one of the reasons it fetches nothing. */
   dashboardId?: number;
   /** DAC write on this dashboard. Arranging is authoring. */
   canEdit: boolean;
   /** Render every widget from the sample library instead of its binding — the
-   *  marketplace preview's mode. Nothing is fetched; see `DashboardWidget`. */
+   *  marketplace preview's and a list card's mode. Nothing is fetched; see
+   *  `DashboardWidget`. */
   sampleData?: boolean;
   /** The dashboard row is still on its way. The canvas is the only region that
    *  shows this — the page around it is already correct and must not flicker. */

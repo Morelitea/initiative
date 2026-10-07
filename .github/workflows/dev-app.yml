@@ -95,6 +95,11 @@ jobs:
         if: always()
         run: rm -rf "${RUNNER_TEMP:?}/signing"
 
+      - name: Check dev images name this APK
+        run: >-
+          scripts/ci/apk-listed frontend/android/app/build/outputs/apk/release/app-release.apk
+          ANDROID_DEV_FINGERPRINTS
+
       # app-release.apk exists only when Gradle signed it.
       - name: Stage the APK for upload
         run: |

@@ -8,11 +8,12 @@
  * it with a dialog and tries again.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SecondFactorAnswer } from "@/api/generated/initiativeAPI.schemas";
-import { createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
+import { createPlatformCommunityBillingServiceHandoff } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,20 +27,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBreakGlassRequirements } from "@/hooks/useAccessGrants";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
 type BillingConsole = "support" | "operator";
 
+/** The billing portal is opened from the website and the other apps, never from the iPhone app. */
+export const opensBillingHere = () => Capacitor.getPlatform() !== "ios";
+
 export const BillingConsoleButton = ({
-  guild,
+  community,
   console,
   children,
   ...buttonProps
 }: {
-  guild: { id: number; name: string };
+  community: { id: number; name: string };
   console: BillingConsole;
   children: ReactNode;
 } & Omit<ComponentProps<typeof Button>, "onClick" | "children">) => {
@@ -55,15 +59,14 @@ export const BillingConsoleButton = ({
     const tab = window.open("about:blank", "_blank");
     if (tab) tab.opener = null;
     try {
-      const { handoff_token } =
-        await createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost(
-          guild.id,
-          answer,
-          { console }
-        );
+      const { handoff_token } = await createPlatformCommunityBillingServiceHandoff(
+        community.id,
+        answer,
+        { console }
+      );
       const lang = i18n.resolvedLanguage ?? i18n.language;
       // The token rides in the fragment, which never leaves the browser. The
-      // console reads the guild off the exchanged session, so the URL does not
+      // console reads the community off the exchanged session, so the URL does not
       // name one — only the language carries over.
       const url = `${billing.url}/${console}?lang=${encodeURIComponent(
         lang
@@ -77,11 +80,15 @@ export const BillingConsoleButton = ({
         setAsking(true);
         return;
       }
-      toast.error(getErrorMessage(err, "settings:guilds.billing.openError"));
+      toast.error(getErrorMessage(err, "settings:communities.billing.openError"));
     } finally {
       setOpening(false);
     }
   };
+
+  if (!opensBillingHere()) {
+    return <span className="text-sm">{children}</span>;
+  }
 
   return (
     <>
@@ -90,7 +97,7 @@ export const BillingConsoleButton = ({
       </Button>
       {asking ? (
         <SecondFactorDialog
-          guildName={guild.name}
+          communityName={community.name}
           busy={opening}
           onAnswer={(answer) => void open(answer)}
           onOpenChange={setAsking}
@@ -101,12 +108,12 @@ export const BillingConsoleButton = ({
 };
 
 const SecondFactorDialog = ({
-  guildName,
+  communityName,
   busy,
   onAnswer,
   onOpenChange,
 }: {
-  guildName: string;
+  communityName: string;
   busy: boolean;
   onAnswer: (answer: SecondFactorAnswer) => void;
   onOpenChange: (open: boolean) => void;
@@ -135,9 +142,9 @@ const SecondFactorDialog = ({
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("guilds.billing.factor.title")}</DialogTitle>
+          <DialogTitle>{t("communities.billing.factor.title")}</DialogTitle>
           <DialogDescription>
-            {t("guilds.billing.factor.description", { name: guildName })}
+            {t("communities.billing.factor.description", { name: communityName })}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -180,7 +187,7 @@ const SecondFactorDialog = ({
               </Button>
             ) : null}
             <Button type="submit" disabled={busy || presenting || !code.trim()}>
-              {busy ? t("common:submitting") : t("guilds.billing.factor.submit")}
+              {busy ? t("common:submitting") : t("communities.billing.factor.submit")}
             </Button>
           </DialogFooter>
         </form>

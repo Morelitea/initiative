@@ -17,7 +17,7 @@ vi.mock("@/lib/nativeCamera", async () => {
 });
 
 const toastError = vi.fn();
-vi.mock("@/lib/chesterToast", () => ({ toast: { error: (m: string) => toastError(m) } }));
+vi.mock("@/lib/mascotToast", () => ({ toast: { error: (m: string) => toastError(m) } }));
 
 const photo = () => new File(["binary"], "photo-1.jpg", { type: "image/jpeg" });
 

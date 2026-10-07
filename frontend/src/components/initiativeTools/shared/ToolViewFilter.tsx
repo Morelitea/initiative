@@ -55,8 +55,8 @@ export const ToolViewFilter = ({
 }: ToolViewFilterProps) => {
   const { t } = useTranslation("common");
 
-  // Templates deliberately avoid document iconography — that belongs to the
-  // documents tool.
+  // Templates deliberately avoid file iconography — that belongs to the
+  // files tool.
   const icons = {
     all: Layers,
     active: TOOL_ICONS[tool],
@@ -74,7 +74,6 @@ export const ToolViewFilter = ({
       onValueChange={(next) =>
         next && (onChange as (value: ToolView | "all") => void)(next as ToolView | "all")
       }
-      variant="outline"
       aria-label={t("toolViewFilter.label")}
       className="h-9 shrink-0 justify-start"
     >

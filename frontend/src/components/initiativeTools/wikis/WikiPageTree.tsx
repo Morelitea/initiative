@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  SearchEntityType,
   Tool,
   type WikiPageHeading,
   WikiPageKind,
@@ -27,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { documentIcon } from "@/lib/documentIcon";
+import { fileIcon } from "@/lib/fileIcon";
 import { cn } from "@/lib/utils";
 
 /** Which of a row's three bands a dragged page is over. */
@@ -43,7 +44,7 @@ interface Landing {
 /**
  * What names a row in a drag.
  *
- * Not the id: a page and a borrowed document are different rows of the same
+ * Not the id: a page and a borrowed file are different rows of the same
  * list and can both be number 11, so the kind goes in the name — otherwise a
  * drag on one marks the other.
  */
@@ -57,7 +58,7 @@ const rowKey = (row: Pick<WikiPageSummary, "id" | "kind">) => `${row.kind}:${row
  * A page cannot be filed inside itself or inside anything filed under it —
  * that would take the branch out of the wiki, and the server refuses it too.
  *
- * A borrowed document is filed like a page — at the top or under any page,
+ * A borrowed file is filed like a page — at the top or under any page,
  * this wiki's record of where it put it — but it never holds anything itself,
  * so only its edges answer a drag.
  */
@@ -69,7 +70,7 @@ export const dropIntents = (
   if (rowKey(dragged) === rowKey(target)) return [];
   // Only pages have anything under them, so only a page can be a descendant.
   if (target.kind === WikiPageKind.page && descendantsOfDragged.has(target.id)) return [];
-  return target.kind === WikiPageKind.document ? ["before", "after"] : ["before", "into", "after"];
+  return target.kind === WikiPageKind.file ? ["before", "after"] : ["before", "into", "after"];
 };
 
 /**
@@ -195,7 +196,7 @@ const WikiPageRow = ({
   /** The rows for what is filed under this page. */
   children: ReactNode[];
 }) => {
-  const { t } = useTranslation("wikis");
+  const { t } = useTranslation(["wikis", "common"]);
   const unread = useUnreadTree();
   const showing = landing?.key === rowKey(page) ? landing.intent : null;
   // Every page's headings come with the page, so a row is collapsible from the
@@ -207,18 +208,18 @@ const WikiPageRow = ({
   // behind the one disclosure — the pages first, because they are places and
   // the headings are only parts of this one.
   const expandable = headings.length > 0 || children.length > 0;
-  const isDocument = page.kind === WikiPageKind.document;
-  // A borrowed document is marked as the kind of document it is — a PDF, a
+  const isFile = page.kind === WikiPageKind.file;
+  // A borrowed file is marked as the kind of file it is — a PDF, a
   // spreadsheet, a link to a design tool — the same mark it has everywhere.
-  const { Icon: DocumentIcon, colorClass: documentColor } = documentIcon({
-    document_type: page.document_type,
+  const { Icon: FileIcon, colorClass: fileColor } = fileIcon({
+    file_type: page.file_type,
     mime_type: page.file_content_type,
     original_filename: page.original_filename,
     smart_link_url: page.smart_link_url,
   });
 
-  // Pages and borrowed documents are one list, and one list is arranged as a
-  // whole — so a document is dragged, and dropped onto, like anything else.
+  // Pages and borrowed files are one list, and one list is arranged as a
+  // whole — so a file is dragged, and dropped onto, like anything else.
   const movable = draggableRows;
   const key = rowKey(page);
   const draggable = useDraggable({ id: key, disabled: !movable });
@@ -251,7 +252,7 @@ const WikiPageRow = ({
           <div className="flex min-w-0 flex-1 items-center">
             {/* One column at the head of every row, saying what the row is and
                 opening what is inside it. A page shows a disclosure; a
-                document shows the tool it comes from, because that is the more
+                file shows the tool it comes from, because that is the more
                 useful of the two things to know about a row you did not write
                 here — and it opens the headings all the same. */}
             {expandable ? (
@@ -262,8 +263,8 @@ const WikiPageRow = ({
                   className="h-7 w-7 shrink-0"
                   aria-label={open ? t("pages.collapse") : t("pages.expand")}
                 >
-                  {isDocument ? (
-                    <DocumentIcon className={cn("size-4", documentColor)} />
+                  {isFile ? (
+                    <FileIcon className={cn("size-4", fileColor)} />
                   ) : (
                     <CircleChevronRight
                       className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
@@ -272,10 +273,10 @@ const WikiPageRow = ({
                   )}
                 </Button>
               </CollapsibleTrigger>
-            ) : isDocument ? (
+            ) : isFile ? (
               <span className="flex h-7 w-7 shrink-0 items-center justify-center">
-                <span className="sr-only">{t("documents.openDocument")}</span>
-                <DocumentIcon className={cn("size-4", documentColor)} aria-hidden />
+                <span className="sr-only">{t("files.openFile")}</span>
+                <FileIcon className={cn("size-4", fileColor)} aria-hidden />
               </span>
             ) : (
               <span className="h-7 w-7 shrink-0" />
@@ -291,18 +292,18 @@ const WikiPageRow = ({
                     page.is_draft && "text-muted-foreground"
                   )}
                 >
-                  {page.title || t("pages.untitled")}
+                  {page.title || t("common:untitled")}
                 </span>
-                {/* A borrowed document is read as the document it is. */}
+                {/* A borrowed file is read as the file it is. */}
                 {unread.hasSubject(
-                  page.guild_id,
-                  isDocument ? Tool.document : "wiki_page",
+                  page.community_id,
+                  isFile ? Tool.file : SearchEntityType.wiki_page,
                   page.id
                 ) ? (
                   <UnreadDot />
                 ) : null}
                 {page.is_draft ? (
-                  <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
+                  <span className="shrink-0 rounded border px-1 text-3xs text-muted-foreground uppercase">
                     {t("pages.draft")}
                   </span>
                 ) : null}
@@ -477,7 +478,7 @@ export const WikiPageTree = ({
     // caller's — so naming it here costs nothing and keeps the rule honest.
   }, [activePageId, pages, setExpanded]);
 
-  // The same activation distances the guild rail uses, so a drag started
+  // The same activation distances the community rail uses, so a drag started
   // anywhere in the sidebar feels the same.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -508,7 +509,7 @@ export const WikiPageTree = ({
       const id = frontier.pop();
       if (id === undefined) continue;
       for (const child of filed.get(id) ?? []) {
-        // A document is filed under pages but holds nothing itself.
+        // A file is filed under pages but holds nothing itself.
         if (child.kind !== WikiPageKind.page || found.has(child.id)) continue;
         found.add(child.id);
         frontier.push(child.id);
@@ -600,7 +601,7 @@ export const WikiPageTree = ({
         accentColor={accentColor}
         rowMenu={renderRowMenu?.(page)}
       >
-        {/* Only a page has rows under it — a document's id can be a page's
+        {/* Only a page has rows under it — a file's id can be a page's
             too, and must not collect that page's children. */}
         {page.kind === WikiPageKind.page ? rowsUnder(page.id) : []}
       </WikiPageRow>

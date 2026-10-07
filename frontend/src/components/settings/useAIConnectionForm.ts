@@ -9,8 +9,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { useServerForm } from "@/hooks/useServerForm";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 import type { ConnectionMutations } from "./aiConnection.types";
 

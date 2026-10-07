@@ -6,6 +6,7 @@ import json
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
@@ -16,12 +17,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.main as main_module
 from app.core.config import API_V1_STR, Settings, settings
+from app.core.errors import CodedError
 from app.main import (
     McpBarePathMiddleware,
     SecurityHeadersMiddleware,
+    coded_error_handler,
     validation_exception_handler,
 )
-from app.testing import captcha_switched_on, create_app_service_registration
+from app.testing import captcha_switched_on, create_plugin_service_registration
 
 
 async def test_validation_handler_strips_input_and_url() -> None:
@@ -56,6 +59,15 @@ async def test_validation_handler_strips_input_and_url() -> None:
     # The echoed secret and the pydantic docs URL must be gone entirely.
     assert "do not echo" not in response.body.decode()
     assert "errors.pydantic.dev" not in response.body.decode()
+
+
+async def test_coded_error_is_answered_with_its_code_and_status() -> None:
+    assert main_module.app.exception_handlers[CodedError] is coded_error_handler
+
+    response = await coded_error_handler(None, CodedError("SOME_REFUSAL", 409))
+
+    assert response.status_code == 409
+    assert json.loads(response.body) == {"detail": "SOME_REFUSAL"}
 
 
 async def test_responses_carry_content_security_policy(client: AsyncClient) -> None:
@@ -144,21 +156,21 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
     assert "script-src 'self'" in other_csp
 
 
-# --- The registered app frame origins (named on documents, and only there) ---
+# --- The registered plug-in frame origins (named on documents, and only there) ---
 
 
 @pytest.mark.parametrize(
     "route",
-    ["/c/7/apps/12", "/c/7/initiatives/3/apps/12", "/"],
+    ["/c/7/plugins/12", "/c/7/initiatives/3/plugins/12", "/"],
 )
-async def test_every_document_frames_the_registered_apps(
+async def test_every_document_frames_the_registered_plugins(
     client: AsyncClient, session: AsyncSession, route: str
 ) -> None:
-    """One header, whatever the route. An app opens the same way from a guild
+    """One header, whatever the route. A plug-in opens the same way from a guild
     page, from inside an initiative, and from a tab the SPA navigated to after
     loading somewhere else — so the permission cannot be a property of which
     document the browser happened to ask for."""
-    await create_app_service_registration(
+    await create_plugin_service_registration(
         session,
         public_id="tests.framed",
         base_url="https://framed.example.test",
@@ -252,11 +264,10 @@ async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
     assert "strict-transport-security" not in resp.headers
 
 
-# --- API docs gating ---
+# --- API docs ---
 
 
-async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None:
-    # ENABLE_API_DOCS defaults True, so docs + schema are reachable in dev.
+async def test_docs_and_openapi_are_served(client: AsyncClient) -> None:
     docs = await client.get("/api/v1/docs")
     schema = await client.get("/api/v1/openapi.json")
     assert docs.status_code == 200
@@ -278,42 +289,6 @@ async def test_docs_page_serves_scoped_csp(client: AsyncClient) -> None:
     other_csp = config_resp.headers.get("content-security-policy", "")
     assert "script-src" in other_csp
     assert "cdn.jsdelivr.net" not in other_csp.split("script-src")[1].split(";")[0]
-
-
-def test_docs_routes_return_404_when_disabled() -> None:
-    """HTTP-level check for the disabled path.
-
-    ``app.main`` builds its app at import time, so the real app can't be
-    reconstructed with ``ENABLE_API_DOCS=False`` inside the suite. Instead this
-    constructs FastAPI with the exact wiring ``app.main`` uses and proves over
-    HTTP that the docs/openapi routes don't exist (404), not merely that the
-    attributes are ``None``. The enabled path is covered against the real app
-    by ``test_docs_and_openapi_served_when_enabled``.
-
-    Mirrors the real wiring: ``docs_url`` is always ``None`` (docs are served by
-    a custom route, registered only when enabled), and with docs disabled that
-    route is never added, so ``openapi_url`` is ``None`` too.
-    """
-    cfg = Settings(ENABLE_API_DOCS=False)  # ty: ignore[missing-argument]
-    disabled = FastAPI(
-        docs_url=None,
-        openapi_url=(f"{API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
-        redoc_url=None,
-    )
-    http = TestClient(disabled)
-    assert http.get("/api/v1/docs").status_code == 404
-    assert http.get("/api/v1/openapi.json").status_code == 404
-
-
-def test_real_app_serves_docs_only_when_enabled() -> None:
-    # The deployed app object reflects the (default-on) setting — guards
-    # against the wiring in app.main drifting from ENABLE_API_DOCS. docs_url is
-    # None because docs are served by a custom route (with a scoped CSP), so we
-    # assert that route is registered rather than the built-in attribute.
-    assert main_module.app.docs_url is None
-    assert main_module.app.openapi_url == "/api/v1/openapi.json"
-    docs_routes = {getattr(r, "path", None) for r in main_module.app.routes}
-    assert "/api/v1/docs" in docs_routes
 
 
 def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:
@@ -343,3 +318,74 @@ def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:
 
     # The rewrite is that one path and nothing around it.
     assert http.get(f"{prefix}other", follow_redirects=False).status_code == 404
+
+
+@pytest.mark.always
+def test_every_operation_has_its_own_name() -> None:
+    names = [
+        route.name
+        for route in main_module.app.routes
+        if isinstance(route, APIRoute) and route.include_in_schema
+    ]
+    assert sorted({n for n in names if names.count(n) > 1}) == []
+
+
+#: Query parameter names a list does not take, and what it takes instead.
+_LIST_PARAM_SPELLINGS = {
+    "q": "search",
+    "query": "search",
+    "offset": "page",
+    "skip": "page",
+    "per_page": "page_size",
+}
+
+
+@pytest.mark.always
+def test_every_list_pages_and_searches_the_same_way() -> None:
+    """A list takes ``search`` for its search box and ``page``/``page_size`` for
+    its pages, and a paged answer says whether there is more (``has_next``) —
+    either itself, or in each group of a grouped answer. A feed that pages by
+    ``cursor`` takes ``limit``, and is not a paged list."""
+    spec = main_module.app.openapi()
+    schemas = spec["components"]["schemas"]
+
+    def resolved(schema: dict) -> dict:
+        ref = schema.get("$ref")
+        return schemas[ref.rsplit("/", 1)[-1]] if ref else schema
+
+    def says_if_more(schema: dict) -> bool:
+        fields = resolved(schema).get("properties", {})
+        return "has_next" in fields or any(
+            "has_next" in resolved(field.get("items", {})).get("properties", {})
+            for field in fields.values()
+            if field.get("type") == "array"
+        )
+
+    misspelt, unpaired, unpaged = [], [], []
+    for path, operations in spec["paths"].items():
+        for method, operation in operations.items():
+            route = f"{method.upper()} {path}"
+            params = {
+                p["name"] for p in operation.get("parameters", []) if p["in"] == "query"
+            }
+            misspelt += [
+                f"{route}: {name} -> {_LIST_PARAM_SPELLINGS[name]}"
+                for name in sorted(params & _LIST_PARAM_SPELLINGS.keys())
+            ]
+            if ("page" in params) != ("page_size" in params):
+                unpaired.append(route)
+            if "page" in params:
+                answer = (
+                    operation["responses"]
+                    .get("200", {})
+                    .get("content", {})
+                    .get("application/json", {})
+                    .get("schema", {})
+                )
+                if not says_if_more(answer):
+                    unpaged.append(route)
+
+    assert misspelt == []
+    assert unpaired == []
+    # Subclass ``PageMeta`` and build the answer with ``build_paginated_response``.
+    assert unpaged == []

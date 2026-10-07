@@ -11,12 +11,12 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildProjectTaskStatus } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
@@ -67,7 +67,7 @@ const buildLegacyStatuses = (): TaskStatusRead[] => [
 const captureDeletes = () => {
   const bodies: Array<{ statusId: string; body: unknown }> = [];
   server.use(
-    guildHttp.delete(
+    communityHttp.delete(
       "/projects/:projectId/task-statuses/:statusId",
       async ({ params, request }) => {
         bodies.push({
@@ -83,7 +83,7 @@ const captureDeletes = () => {
 
 const renderManager = (statuses: TaskStatusRead[] = buildLegacyStatuses()) => {
   server.use(
-    guildHttp.get("/projects/:projectId/task-statuses/", () => HttpResponse.json(statuses))
+    communityHttp.get("/projects/:projectId/task-statuses/", () => HttpResponse.json(statuses))
   );
   const Page = () => <ProjectTaskStatusesManager projectId={PROJECT_ID} canManage={true} />;
   return renderPage(Page);

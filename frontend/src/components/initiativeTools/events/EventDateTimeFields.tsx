@@ -86,7 +86,7 @@ export const EventDateTimeFields = ({
   value: EventTiming;
   onChange: (patch: Partial<EventTiming>) => void;
 }) => {
-  const { t } = useTranslation("calendars");
+  const { t } = useTranslation(["calendars", "common"]);
   const allDayId = useId();
   const { allDay, startDate, startTime, endDate, endTime } = value;
 
@@ -127,7 +127,7 @@ export const EventDateTimeFields = ({
           checked={allDay}
           onCheckedChange={(next) => onChange({ allDay: next })}
         />
-        <Label htmlFor={allDayId}>{t("allDay")}</Label>
+        <Label htmlFor={allDayId}>{t("common:calendar.allDay")}</Label>
       </div>
 
       {allDay ? (

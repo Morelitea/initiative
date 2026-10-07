@@ -2,13 +2,9 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { EntityLinkField } from "@/components/entities/EntityLinkField";
+import { QueueItemFields } from "@/components/initiativeTools/queues/QueueItemFields";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
-import { MemberSelect } from "@/components/members/MemberSearchSelect";
-import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
-import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
   Dialog,
   DialogContent,
@@ -17,12 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { LinkedRef } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 
@@ -39,26 +31,10 @@ export const AddQueueItemDialog = ({
   initiativeId,
   onSuccess,
 }: AddQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common", "relations"]);
+  const { t } = useTranslation(["queues", "common"]);
 
-  const {
-    label,
-    setLabel,
-    position,
-    setPosition,
-    color,
-    setColor,
-    notes,
-    setNotes,
-    isVisible,
-    setIsVisible,
-    selectedTags,
-    setSelectedTags,
-    userId,
-    setUserId,
-    links,
-    setLinks,
-  } = useQueueItemForm({ open, initiativeId });
+  const form = useQueueItemForm({ open, initiativeId });
+  const { label, position, color, notes, isVisible, selectedTags, userId, links } = form;
 
   const setLinksMutation = useSetQueueItemLinks(queueId);
 
@@ -143,123 +119,18 @@ export const AddQueueItemDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("addItem")}</DialogTitle>
-          <DialogDescription>{t("noItemsDescription")}</DialogDescription>
+          <DialogDescription className="sr-only">{t("noItemsDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Label */}
-          <div className="space-y-2">
-            <Label htmlFor="add-item-label">{t("label")}</Label>
-            <Input
-              id="add-item-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={t("labelPlaceholder")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && canSubmit) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              autoFocus
-            />
-          </div>
-
-          {/* Position (Initiative Roll) */}
-          <div className="space-y-2">
-            <Label htmlFor="add-item-position">{t("position")}</Label>
-            <Input
-              id="add-item-position"
-              type="number"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="0"
-            />
-            <p className="text-muted-foreground text-xs">{t("positionHelp")}</p>
-          </div>
-
-          {/* Color */}
-          <div className="space-y-2">
-            <Label>{t("color")}</Label>
-            <ColorPickerPopover
-              value={color}
-              onChange={setColor}
-              triggerLabel={t("color")}
-              className="h-9"
-            />
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="add-item-notes">{t("notes")}</Label>
-            <Textarea
-              id="add-item-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={t("notesPlaceholder")}
-              rows={2}
-            />
-          </div>
-
-          {/* Visible toggle */}
-          <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-3">
-            <div>
-              <p className="font-medium text-sm">{t("visible")}</p>
-              <p className="text-muted-foreground text-xs">
-                {isVisible ? t("visible") : t("hidden")}
-              </p>
-            </div>
-            <Switch checked={isVisible} onCheckedChange={setIsVisible} aria-label={t("visible")} />
-          </div>
-
-          {/* Tags */}
-          <div className="space-y-2">
-            <Label>{t("tags")}</Label>
-            <TagPicker
-              selectedTags={selectedTags}
-              onChange={setSelectedTags}
-              placeholder={t("tags")}
-            />
-          </div>
-
-          {/* Linked User */}
-          <div className="space-y-2">
-            <Label>{t("linkedUser")}</Label>
-            <div className="flex items-center gap-2">
-              <MemberSelect
-                scope={{ type: "canOpen", tool: Tool.queue, id: queueId }}
-                value={userId}
-                onChange={setUserId}
-                placeholder={t("selectUser")}
-                emptyMessage={t("noUser")}
-              />
-              {userId !== null && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setUserId(null)}
-                  className="shrink-0"
-                >
-                  {t("clearUser")}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* One list, any kind — in place of a documents-only picker beside a
-              tasks-only one. No subject to leave out: the item does not exist
-              yet. */}
-          <EntityLinkField
-            label={t("relations:groups.attached.title")}
-            initiativeId={initiativeId}
-            value={links}
-            onChange={setLinks}
-          />
-        </div>
+        <QueueItemFields
+          form={form}
+          queueId={queueId}
+          initiativeId={initiativeId}
+          onEnter={canSubmit ? handleSubmit : undefined}
+        />
 
         <DialogFooter>
           <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>

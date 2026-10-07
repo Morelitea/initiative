@@ -36,19 +36,19 @@ const inheritedRow = (overrides: Record<string, unknown> = {}) => ({
 let connections: unknown[] = [];
 let available: unknown[] = [];
 
-vi.mock("@/hooks/useGuildAuthPolicy", () => ({
+vi.mock("@/hooks/useCommunityAuthPolicy", () => ({
   useConnectableProviders: () => ({ data: available, isLoading: false }),
-  useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
+  useCommunityProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectProvider: () => ({ mutateAsync: connect, isPending: false }),
   useCreateClaimRule: () => ({ mutateAsync: createRule, isPending: false }),
-  useUpdateGuildAuthSettings: () => ({ mutateAsync: updatePolicy, isPending: false }),
+  useUpdateCommunityAuthSettings: () => ({ mutateAsync: updatePolicy, isPending: false }),
 }));
 
 import { ConnectSignInWizard } from "./ConnectSignInWizard";
 
 const render = (canRequire = true) =>
   renderWithProviders(
-    <ConnectSignInWizard guildId={1} open onOpenChange={vi.fn()} canRequire={canRequire} />,
+    <ConnectSignInWizard communityId={1} open onOpenChange={vi.fn()} canRequire={canRequire} />,
     { auth: { user: buildUser() } }
   );
 
@@ -102,7 +102,7 @@ describe("ConnectSignInWizard", () => {
     expect(createRule).toHaveBeenCalledWith({
       provider_id: 11,
       claim_value: "eng-platform",
-      guild_role: "member",
+      community_role: "member",
     });
     expect(updatePolicy).toHaveBeenCalledWith({
       auth_policy: { policy: "required", provider_id: 11, require_methods: [] },

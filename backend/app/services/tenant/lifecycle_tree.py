@@ -162,9 +162,11 @@ async def set_columns(
 @cache
 def _orm_dependents(model: type) -> tuple[tuple[type, Any], ...]:
     """The rows a model's relationships delete along with it, as
-    ``(table, key column)`` — its task statuses, its members, its file
-    versions. A bulk DELETE never loads them the way ``session.delete`` does,
-    so it removes them itself, before the rows they hang off."""
+    ``(table, key column)`` — its task statuses, its members. A bulk DELETE
+    never loads them the way ``session.delete`` does, so it removes them
+    itself, before the rows they hang off. A key the database cascades (a
+    file's versions, which the file also points at) is left to it: those go
+    with the parent, in the same statement."""
     found: list[tuple[type, Any]] = []
     for rel in sa_inspect(model).relationships:
         target = rel.mapper.class_
@@ -177,6 +179,10 @@ def _orm_dependents(model: type) -> tuple[tuple[type, Any], ...]:
         for local, remote in rel.local_remote_pairs or ():
             if local.name != "id":  # pragma: no cover — every one keys on the id
                 raise RuntimeError(f"{model.__name__}.{rel.key} is not keyed on id")
+            if any(
+                (fk.ondelete or "").upper() == "CASCADE" for fk in remote.foreign_keys
+            ):
+                continue
             found.append((target, remote))
     return tuple(found)
 

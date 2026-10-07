@@ -4,14 +4,14 @@ import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  buildDocumentSummary,
-  buildGuild,
+  buildCommunity,
+  buildFileSummary,
   buildInitiative,
   buildProject,
   buildUser,
 } from "@/__tests__/factories";
 import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { queryClient } from "@/lib/queryClient";
@@ -20,8 +20,8 @@ import { MyToolsPage } from "./MyToolsPage";
 
 const READER = buildUser({ id: 42 });
 
-const HOME = buildGuild({ id: 1, name: "Ravenloft" });
-const AWAY = buildGuild({ id: 2, name: "Barovia" });
+const HOME = buildCommunity({ id: 1, name: "Ravenloft" });
+const AWAY = buildCommunity({ id: 2, name: "Barovia" });
 
 const page = (items: unknown[], totalCount = items.length) =>
   HttpResponse.json({
@@ -36,12 +36,12 @@ const page = (items: unknown[], totalCount = items.length) =>
 function stubMyTools({
   counts = {},
   projects = [],
-  documents = [],
+  files = [],
   queues = [],
 }: {
   counts?: Record<string, number>;
   projects?: unknown[];
-  documents?: unknown[];
+  files?: unknown[];
   queues?: unknown[];
 } = {}) {
   server.use(
@@ -49,7 +49,7 @@ function stubMyTools({
       HttpResponse.json({
         counts: {
           project: 0,
-          document: 0,
+          file: 0,
           queue: 0,
           counter_group: 0,
           calendar: 0,
@@ -59,19 +59,19 @@ function stubMyTools({
       })
     ),
     http.get("/api/v1/me/projects", () => page(projects)),
-    http.get("/api/v1/me/documents", () => page(documents)),
+    http.get("/api/v1/me/files", () => page(files)),
     http.get("/api/v1/me/queues", () => page(queues)),
     http.get("/api/v1/me/counter-groups", () => page([])),
     http.get("/api/v1/me/calendars", () => page([])),
     http.get("/api/v1/me/dashboards", () => page([])),
-    guildHttp.get("/initiatives/", () => HttpResponse.json([]))
+    communityHttp.get("/initiatives/", () => HttpResponse.json([]))
   );
 }
 
-const render = (search?: Record<string, unknown>, guilds = [HOME]) =>
+const render = (search?: Record<string, unknown>, communities = [HOME]) =>
   renderPage(MyToolsPage, {
     auth: { user: READER },
-    guilds: { guilds, activeGuildId: HOME.id, activeGuild: HOME },
+    communities: { communities, activeCommunityId: HOME.id, activeCommunity: HOME },
     initialRoute: "/my-tools",
     routerSearch: search,
   });
@@ -84,7 +84,7 @@ describe("MyToolsPage", () => {
   it("offers a tab only for the tools the reader has something of", async () => {
     stubMyTools({
       counts: { project: 3, queue: 1 },
-      projects: [buildProject({ name: "Apollo", guild_id: HOME.id })],
+      projects: [buildProject({ name: "Apollo", community_id: HOME.id })],
     });
 
     render();
@@ -92,7 +92,7 @@ describe("MyToolsPage", () => {
     expect(await screen.findByRole("link", { name: "Projects" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Queues" })).toBeInTheDocument();
     // Nothing in any of these anywhere, so no tab onto an empty table.
-    expect(screen.queryByRole("link", { name: "Documents" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Calendars" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboards" })).not.toBeInTheDocument();
   });
@@ -108,14 +108,14 @@ describe("MyToolsPage", () => {
 
   it("addresses each row in its own community", async () => {
     stubMyTools({
-      counts: { document: 2 },
-      documents: [buildDocumentSummary({ id: 5, name: "Campaign notes", guild_id: AWAY.id })],
+      counts: { file: 2 },
+      files: [buildFileSummary({ id: 5, name: "Campaign notes", community_id: AWAY.id })],
     });
 
-    render({ tool: "documents" }, [HOME, AWAY]);
+    render({ tool: "files" }, [HOME, AWAY]);
 
     const link = await screen.findByRole("link", { name: "Campaign notes" });
-    // The reader is standing in guild 1; the row lives in guild 2 and says so.
+    // The reader is standing in community 1; the row lives in community 2 and says so.
     expect(link).toHaveAttribute("href", expect.stringContaining("/c/2/"));
     expect(screen.getByRole("link", { name: "Barovia" })).toBeInTheDocument();
   });
@@ -141,31 +141,31 @@ describe("MyToolsPage", () => {
   });
 
   it("narrows the list to the chosen communities", async () => {
-    let lastGuildIds: string[] = [];
+    let lastCommunityIds: string[] = [];
     stubMyTools({ counts: { project: 1 } });
     server.use(
       http.get("/api/v1/me/projects", ({ request }) => {
-        lastGuildIds = new URL(request.url).searchParams.getAll("guild_ids");
-        return page([buildProject({ name: "Apollo", guild_id: AWAY.id })]);
+        lastCommunityIds = new URL(request.url).searchParams.getAll("community_ids");
+        return page([buildProject({ name: "Apollo", community_id: AWAY.id })]);
       })
     );
 
     render({ tool: "projects", communities: String(AWAY.id) }, [HOME, AWAY]);
 
     await screen.findByRole("link", { name: "Apollo" });
-    await waitFor(() => expect(lastGuildIds).toEqual([String(AWAY.id)]));
+    await waitFor(() => expect(lastCommunityIds).toEqual([String(AWAY.id)]));
   });
 
   it("names each row's initiative, wherever it lives", async () => {
     stubMyTools({
       counts: { project: 1 },
-      projects: [buildProject({ name: "Apollo", guild_id: AWAY.id, initiative_id: 9 })],
+      projects: [buildProject({ name: "Apollo", community_id: AWAY.id, initiative_id: 9 })],
     });
     server.use(
-      guildHttp.get("/initiatives/", ({ params }) =>
+      communityHttp.get("/initiatives/", ({ params }) =>
         HttpResponse.json(
-          Number(params.guildId) === AWAY.id
-            ? [buildInitiative({ id: 9, name: "Mists", guild_id: AWAY.id })]
+          Number(params.communityId) === AWAY.id
+            ? [buildInitiative({ id: 9, name: "Mists", community_id: AWAY.id })]
             : []
         )
       )

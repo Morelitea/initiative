@@ -5,26 +5,32 @@
  * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
- * What only one tool's list takes — a queue's status — is asked of that tool
- * alone, at the bottom.
+ * What only one tool's list takes — a queue's status, a file's type — is
+ * asked of that tool alone, at the bottom. So is what only one tool configures
+ * today (files dropped on the list, the reader's own order): the page does it
+ * for any tool whose entry asks, and files and projects are the ones that do.
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildNotificationPlace, buildProject, ownerCan, readerCan } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
-import { renderPage } from "@/__tests__/helpers/render";
+import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ToolIndexEntry,
   ToolIndexPage,
   toolIndexEntry,
 } from "@/components/tools/ToolIndexPage";
-import { TOOLS, toolRouteSegment } from "@/lib/tools";
+import { toolTableStorageKey } from "@/components/tools/ToolIndexTable";
+import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
+import { queryClient } from "@/lib/queryClient";
+import { setItem } from "@/lib/storage";
+import { TOOLS, toolCamelPlural, toolRouteSegment, toolViews } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 const INITIATIVE_ID = 1;
@@ -39,8 +45,8 @@ const CASES = TOOLS.flatMap((tool) => {
 const translate = i18n.t.bind(i18n) as TranslateFn;
 
 /** One of the tool's own strings, read through the key the table declares. */
-const copy = (entry: ToolIndexEntry, key: keyof ToolIndexEntry["text"]) =>
-  translate(entry.text[key], { ns: entry.text.ns });
+const copy = (tool: Tool, key: keyof ToolIndexEntry["text"]) =>
+  translate(toolIndexEntry(tool)?.text[key] ?? "", { ns: toolCamelPlural(tool) });
 
 /** A string from the shared toolbar/panel chrome. */
 const shared = (key: string) => translate(key, { ns: "common" });
@@ -51,16 +57,30 @@ const shared = (key: string) => translate(key, { ns: "common" });
  * loudly rather than render a blank.
  */
 const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
-  wiki: { page_count: 0 },
-  gallery: { image_count: 0, cover: null, preview: [] },
-  queue: { item_count: 0, current_round: 1, is_active: true },
-  counter_group: { counter_count: 0 },
+  file: {
+    file_type: "native",
+    featured_image_url: null,
+    is_template: false,
+    properties: [],
+    file_content_type: null,
+    original_filename: null,
+    smart_link_url: null,
+  },
+  gallery: { cover: null, preview: [] },
+  project: {
+    icon: null,
+    is_template: false,
+    pinned_at: null,
+    is_favorited: false,
+    task_summary: { total: 0, completed: 0 },
+  },
+  queue: { current_round: 1, is_active: true },
 };
 
 const row = (tool: Tool, fields: { id: number; name: string; archived_at?: string | null }) => ({
   description: null,
   initiative_id: INITIATIVE_ID,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
@@ -79,10 +99,10 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
  * for: which archive state, a search, and a page. Every request is kept, so a
  * test can read what the page sent.
  */
-const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
+const stubList = (tool: Tool, rows: { name: string; archived_at?: string | null }[]) => {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get(`/${toolRouteSegment(tool)}/`, ({ request }) => {
+    communityHttp.get(`/${toolRouteSegment(tool)}/`, ({ request }) => {
       const params = new URL(request.url).searchParams;
       requests.push(params);
       const wantArchived = params.get("archived") === "true";
@@ -112,13 +132,13 @@ const renderIndex = (tool: Tool, routerSearch?: Record<string, unknown>) =>
   });
 
 describe("the tool index page", () => {
-  it.each(CASES)("$tool names its own empty shelf", async ({ tool, entry }) => {
+  it.each(CASES)("$tool names its own empty shelf", async ({ tool }) => {
     stubList(tool, []);
 
     renderIndex(tool);
 
-    expect(await screen.findByText(copy(entry, "emptyTitle"))).toBeInTheDocument();
-    expect(screen.getByText(copy(entry, "emptyBody"))).toBeInTheDocument();
+    expect(await screen.findByText(copy(tool, "emptyTitle"))).toBeInTheDocument();
+    expect(screen.getByText(copy(tool, "emptyBody"))).toBeInTheDocument();
   });
 
   it.each(CASES)("$tool reaches its archived rows from the toolbar", async ({ tool }) => {
@@ -127,7 +147,7 @@ describe("the tool index page", () => {
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
     ]);
     server.use(
-      guildHttp.get(`/tools/${tool}/counts`, ({ request }) => {
+      communityHttp.get(`/tools/${tool}/counts`, ({ request }) => {
         expect(new URL(request.url).searchParams.get("initiative_id")).toBe(`${INITIATIVE_ID}`);
         return HttpResponse.json({
           views: { active: 1, archived: 1 },
@@ -148,13 +168,15 @@ describe("the tool index page", () => {
 
     expect(await screen.findByText("Put away")).toBeInTheDocument();
     await waitFor(() => expect(requests.at(-1)?.get("archived")).toBe("true"));
+    // Nothing is made into the archive.
+    expect(screen.queryByRole("button", { name: copy(tool, "create") })).not.toBeInTheDocument();
   });
 
-  it.each(CASES)("$tool opens its filters from the toolbar", async ({ tool, entry }) => {
+  it.each(CASES)("$tool opens its filters from the toolbar", async ({ tool }) => {
     stubList(tool, []);
 
     renderIndex(tool);
-    await screen.findByText(copy(entry, "emptyTitle"));
+    await screen.findByText(copy(tool, "emptyTitle"));
 
     const button = screen.getByRole("button", { name: shared("toolbar.filters") });
     expect(button).toHaveAttribute("aria-expanded", "false");
@@ -166,20 +188,20 @@ describe("the tool index page", () => {
 
   it.each(CASES)(
     "$tool searches on the server, and says so when nothing matches",
-    async ({ tool, entry }) => {
+    async ({ tool }) => {
       const requests = stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
 
       renderIndex(tool);
       expect(await screen.findByText("Findable")).toBeInTheDocument();
 
       await userEvent.type(
-        screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
+        screen.getByLabelText(translate("filters.searchLabel", { ns: toolCamelPlural(tool) })),
         "nothing here"
       );
 
       // Not the empty shelf: the tool has rows, they are just not these.
-      expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
-      expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
+      expect(await screen.findByText(copy(tool, "noMatches"))).toBeInTheDocument();
+      expect(screen.queryByText(copy(tool, "emptyTitle"))).not.toBeInTheDocument();
       // Sent once, after the typing stopped, rather than once a keystroke.
       expect(requests.map((params) => params.get("search")).filter(Boolean)).toEqual([
         "nothing here",
@@ -187,31 +209,34 @@ describe("the tool index page", () => {
     }
   );
 
-  it.each(CASES)("$tool is created from the shared dialog", async ({ tool, entry }) => {
-    stubList(tool, []);
-    let sent: unknown;
-    server.use(
-      guildHttp.post(`/${toolRouteSegment(tool)}/`, async ({ request }) => {
-        sent = await request.json();
-        return HttpResponse.json(row(tool, { id: 9, name: "Fresh" }));
-      })
-    );
+  it.each(CASES.filter(({ entry }) => !entry.CreateDialog))(
+    "$tool is created from the shared dialog",
+    async ({ tool }) => {
+      stubList(tool, []);
+      let sent: unknown;
+      server.use(
+        communityHttp.post(`/${toolRouteSegment(tool)}/`, async ({ request }) => {
+          sent = await request.json();
+          return HttpResponse.json(row(tool, { id: 9, name: "Fresh" }));
+        })
+      );
 
-    renderIndex(tool);
-    await userEvent.click(await screen.findByRole("button", { name: copy(entry, "create") }));
+      renderIndex(tool);
+      await userEvent.click(await screen.findByRole("button", { name: copy(tool, "create") }));
 
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(copy(entry, "createDescription"))).toBeInTheDocument();
-    await userEvent.type(
-      within(dialog).getByLabelText(translate("name", { ns: entry.text.ns })),
-      "Fresh"
-    );
-    await userEvent.click(within(dialog).getByRole("button", { name: copy(entry, "create") }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText(copy(tool, "createDescription"))).toBeInTheDocument();
+      await userEvent.type(
+        within(dialog).getByLabelText(translate("name", { ns: toolCamelPlural(tool) })),
+        "Fresh"
+      );
+      await userEvent.click(within(dialog).getByRole("button", { name: copy(tool, "create") }));
 
-    await waitFor(() =>
-      expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
-    );
-  });
+      await waitFor(() =>
+        expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
+      );
+    }
+  );
 
   it.each(CASES)("$tool asks for its list a page at a time", async ({ tool }) => {
     const requests = stubList(tool, [row(tool, { id: 1, name: "Paged" })]);
@@ -261,8 +286,10 @@ describe("the tool index page", () => {
     renderIndex(tool);
 
     await screen.findByText("Quiet");
-    const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
-    expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
+    const dot = await screen.findByRole("img", { name: translate("communities:unreadHere") });
+    expect(screen.getAllByRole("img", { name: translate("communities:unreadHere") })).toHaveLength(
+      1
+    );
     expect(dot.parentElement).toHaveTextContent("Talked about");
   });
 });
@@ -272,7 +299,7 @@ describe("the tool index page's property filter", () => {
     stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
     const asked: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/property-definitions/", ({ request }) => {
+      communityHttp.get("/property-definitions/", ({ request }) => {
         asked.push(new URL(request.url).searchParams);
         return HttpResponse.json([]);
       })
@@ -311,5 +338,310 @@ describe("the queue index page", () => {
     await waitFor(() => expect(requests.at(-1)?.get("is_active")).toBe("true"));
     await pick("filters.allStatuses");
     await waitFor(() => expect(requests.at(-1)?.has("is_active")).toBe(false));
+  });
+});
+
+describe("the tool index page's templates", () => {
+  it.each(CASES.filter(({ tool }) => toolViews(tool).includes("templates")))(
+    "$tool keeps its templates in a view of their own, with nothing to create there",
+    async ({ tool }) => {
+      const requests = stubList(tool, []);
+
+      renderIndex(tool);
+      await screen.findByText(copy(tool, "emptyTitle"));
+      expect(requests.at(-1)?.get("is_template")).toBe("false");
+
+      await userEvent.click(
+        screen.getByRole("radio", { name: shared("toolViewFilter.templates") })
+      );
+
+      await waitFor(() => expect(requests.at(-1)?.get("is_template")).toBe("true"));
+      expect(await screen.findByText(shared("toolIndex.emptyTemplatesTitle"))).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: translate("createFirst", { ns: toolCamelPlural(tool) }),
+        })
+      ).not.toBeInTheDocument();
+    }
+  );
+});
+
+describe("the tool index page's bulk actions", () => {
+  const select = async (name: string) => {
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.moreActions") }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: shared("toolbar.selectItems") })
+    );
+    await userEvent.click(await screen.findByRole("button", { name, pressed: false }));
+  };
+
+  it("duplicates and deletes a selection through the tool's own routes", async () => {
+    stubList(Tool.queue, [
+      row(Tool.queue, { id: 4, name: "Standup" }),
+      row(Tool.queue, { id: 5, name: "Retro" }),
+    ]);
+    const duplicated: string[] = [];
+    const deleted: string[] = [];
+    server.use(
+      communityHttp.post("/queues/:id/duplicate", ({ params }) => {
+        duplicated.push(String(params.id));
+        return HttpResponse.json({ id: 40, initiative_id: INITIATIVE_ID });
+      }),
+      communityHttp.delete("/queues/:id", ({ params }) => {
+        deleted.push(String(params.id));
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderIndex(Tool.queue);
+    await screen.findByText("Standup");
+
+    await select("Standup");
+    await userEvent.click(screen.getByRole("button", { name: shared("bulkActions.duplicate") }));
+    await waitFor(() => expect(duplicated).toEqual(["4"]));
+
+    await select("Retro");
+    await userEvent.click(screen.getByRole("button", { name: shared("delete") }));
+    await waitFor(() => expect(deleted).toEqual(["5"]));
+  });
+
+  it("refuses sharing on an archived selection, and says why", async () => {
+    stubList(Tool.project, [
+      buildProject({
+        name: "Planescape Detour",
+        // What an archived project arrives as: nothing on it may be changed
+        // but taking it back out.
+        can: { ...readerCan({ unarchive: true }), configure: false },
+        archived_at: "2026-06-01T00:00:00.000Z",
+      }),
+    ]);
+
+    renderIndex(Tool.project, { status: "archived" });
+    await screen.findByText("Planescape Detour");
+    await select("Planescape Detour");
+
+    const editAccess = screen.getByRole("button", { name: translate("access:bulkBar.editAccess") });
+    expect(editAccess).toBeDisabled();
+    expect(editAccess).toHaveAttribute("title", translate("access:bulkBar.archived"));
+  });
+
+  it("copies templates it can only read, and refreshes the list when part of a batch fails", async () => {
+    const readOnly = { ...ownerCan(), edit: false, delete: false };
+    const templates = [
+      {
+        ...row(Tool.file, { id: 6, name: "Brief template" }),
+        is_template: true,
+        can: readOnly,
+      },
+      { ...row(Tool.file, { id: 7, name: "Memo template" }), is_template: true, can: readOnly },
+    ];
+    const requests = stubList(Tool.file, templates);
+    server.use(
+      communityHttp.post("/files/:id/duplicate", ({ params }) =>
+        params.id === "6"
+          ? HttpResponse.json({ id: 60, initiative_id: INITIATIVE_ID })
+          : new HttpResponse(null, { status: 500 })
+      )
+    );
+
+    // The app's own client, which the bulk action's refresh reaches.
+    renderPage(
+      () => <ToolIndexPage tool={Tool.file} fixedInitiativeId={INITIATIVE_ID} canCreate />,
+      { routerSearch: { status: "templates" }, queryClient }
+    );
+    onTestFinished(() => queryClient.clear());
+    await screen.findByText("Brief template");
+    await select("Brief template");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Memo template", pressed: false })
+    );
+
+    const listed = requests.length;
+    const duplicate = screen.getByRole("button", { name: shared("bulkActions.duplicate") });
+    expect(duplicate).toBeEnabled();
+    await userEvent.click(duplicate);
+    // The copy that landed is real: the list is read again despite the failure.
+    await waitFor(() => expect(requests.length).toBeGreaterThan(listed));
+  });
+});
+
+describe("the file index page", () => {
+  const files = (key: string) => translate(key, { ns: "files" });
+
+  /** Rendered in the layout a reader left the list in. */
+  const renderIn = (layout: "grid" | "list" | "tags", canCreate = true) => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
+      items: { [`${Tool.file}:view-mode`]: layout },
+    });
+    return renderPage(
+      () => (
+        <ToolIndexPage tool={Tool.file} fixedInitiativeId={INITIATIVE_ID} canCreate={canCreate} />
+      ),
+      { queryClient }
+    );
+  };
+
+  it("narrows by type within the view being shown", async () => {
+    const requests = stubList(Tool.file, []);
+
+    renderIndex(Tool.file);
+    await screen.findByText(copy(Tool.file, "emptyTitle"));
+    expect(requests.at(-1)?.get("file_type")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
+    await userEvent.click(screen.getByRole("combobox", { name: files("filters.type") }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: files("filters.types.whiteboard") })
+    );
+
+    await waitFor(() => expect(requests.at(-1)?.get("file_type")).toBe("whiteboard"));
+    expect(requests.at(-1)?.get("is_template")).toBe("false");
+  });
+
+  it("is made from a dialog of its own", async () => {
+    stubList(Tool.file, []);
+
+    renderIndex(Tool.file);
+    await userEvent.click(await screen.findByRole("button", { name: copy(Tool.file, "create") }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("tab", { name: files("create.tabUpload") })
+    ).toBeInTheDocument();
+  });
+
+  it("opens its table newest first, and remembers another order for the next visit", async () => {
+    const requests = stubList(Tool.file, [row(Tool.file, { id: 1, name: "Brief" })]);
+
+    const first = renderIn("list");
+    await screen.findByText("Brief");
+    expect(requests.at(-1)?.get("sort_by")).toBe("updated_at");
+    expect(requests.at(-1)?.get("sort_dir")).toBe("desc");
+
+    await userEvent.click(screen.getByRole("button", { name: shared("name") }));
+    await waitFor(() => expect(requests.at(-1)?.get("sort_by")).toBe("name"));
+    expect(requests.at(-1)?.get("sort_dir")).toBe("asc");
+
+    first.unmount();
+    requests.length = 0;
+    renderIn("list");
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    expect(requests.at(-1)?.get("sort_by")).toBe("name");
+    expect(requests.at(-1)?.get("sort_dir")).toBe("asc");
+  });
+
+  describe("file drop", () => {
+    const brief = () => new File(["%PDF"], "site-brief.pdf", { type: "application/pdf" });
+    const drag = (files: File[]) => ({ dataTransfer: { types: ["Files"], files } });
+
+    it.each(["tags", "grid", "list"] as const)(
+      "opens an upload holding a file dropped on the %s layout",
+      async (layout) => {
+        stubList(Tool.file, [row(Tool.file, { id: 1, name: "Existing" })]);
+
+        const { container } = renderIn(layout);
+        await screen.findByText("Existing");
+        const root = container.querySelector(".relative.space-y-6") as HTMLElement;
+        fireEvent.dragEnter(root, drag([]));
+        expect(screen.getByText(files("dropToUpload"))).toBeInTheDocument();
+        fireEvent.drop(root, drag([brief()]));
+
+        const dialog = await screen.findByRole("dialog");
+        expect(
+          within(dialog).getByRole("tab", { name: files("create.tabUpload") })
+        ).toHaveAttribute("aria-selected", "true");
+        expect(within(dialog).getByText("site-brief.pdf")).toBeInTheDocument();
+        expect(within(dialog).getByLabelText(files("create.titleLabel"))).toHaveValue("site-brief");
+      }
+    );
+
+    it("takes no drop from somebody who may not create files", async () => {
+      stubList(Tool.file, [row(Tool.file, { id: 1, name: "Existing" })]);
+
+      const { container } = renderIn("list", false);
+      await screen.findByText("Existing");
+      const root = container.querySelector(".relative.space-y-6") as HTMLElement;
+      fireEvent.dragEnter(root, drag([]));
+      expect(screen.queryByText(files("dropToUpload"))).not.toBeInTheDocument();
+      fireEvent.drop(root, drag([brief()]));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("the project index page", () => {
+  const handles = () =>
+    screen.queryAllByRole("button", { name: translate("projects:preview.reorder") });
+
+  it("lists in the reader's own order, and offers the live cards to drag", async () => {
+    const requests = stubList(Tool.project, [
+      buildProject({ name: "Barovia Arc" }),
+      buildProject({ name: "Planescape Detour", archived_at: "2026-06-01T00:00:00.000Z" }),
+    ]);
+
+    renderIndex(Tool.project);
+    await screen.findByText("Barovia Arc");
+
+    // Asked for no order, the server lists in the reader's own.
+    expect(requests.at(-1)?.has("sort_by")).toBe(false);
+    expect(handles()).toHaveLength(1);
+
+    // A search narrows the list, and a cleared one still does until the full
+    // list is back: a drop would send only the narrowed rows.
+    const search = screen.getByLabelText(translate("projects:filters.searchLabel"));
+    await userEvent.type(search, "Barovia");
+    await waitFor(() => expect(requests.at(-1)?.get("search")).toBe("Barovia"));
+    expect(handles()).toHaveLength(0);
+    await userEvent.clear(search);
+    expect(handles()).toHaveLength(0);
+    await waitFor(() => expect(handles()).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole("radio", { name: shared("toolViewFilter.archived") }));
+    expect(await screen.findByText("Planescape Detour")).toBeInTheDocument();
+    expect(handles()).toHaveLength(0);
+  });
+
+  it("is made from a dialog of its own, in the initiative it is listed in", async () => {
+    stubList(Tool.project, []);
+    let sent: unknown;
+    server.use(
+      communityHttp.post("/projects/", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(buildProject({ id: 9, name: "Fresh" }));
+      })
+    );
+
+    renderIndex(Tool.project);
+    await userEvent.click(
+      await screen.findByRole("button", { name: translate("projects:addProject") })
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(translate("common:name")), "Fresh");
+    await userEvent.click(
+      within(dialog).getByRole("button", {
+        name: translate("projects:createDialog.createProject"),
+      })
+    );
+
+    await waitFor(() =>
+      expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
+    );
+  });
+
+  it("drags nothing once the reader picks an order in the table", async () => {
+    setItem(
+      toolTableStorageKey(Tool.project, "order"),
+      JSON.stringify({ grouping: [], sorting: [{ id: "name", desc: false }] })
+    );
+    const requests = stubList(Tool.project, [buildProject({ name: "Barovia Arc" })]);
+
+    renderIndex(Tool.project);
+    await screen.findByText("Barovia Arc");
+
+    expect(requests.at(-1)?.get("sort_by")).toBe("name");
+    expect(handles()).toHaveLength(0);
   });
 });

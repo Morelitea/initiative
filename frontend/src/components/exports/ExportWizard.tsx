@@ -2,12 +2,12 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } fr
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
+import { useEstimateAggregateExport } from "@/api/generated/exports/exports";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 import {
   AGGREGATE_EXPORT_TOOLS,
-  REPORT_DOCUMENT_FORMATS,
+  REPORT_FILE_FORMATS,
   REPORT_TOOL_FORMATS,
 } from "@/components/exports/formats";
 import { FilterCountBadge } from "@/components/initiativeTools/shared/ToolFilterPanel";
@@ -30,7 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useWizard } from "@/hooks/useWizard";
@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils";
  *  entities of one tool (a tool's export card, a bulk selection). */
 export type ExportWizardScope =
   | { kind: "initiative"; initiativeId: number }
-  | { kind: "guild" }
+  | { kind: "community" }
   | {
       kind: "entities";
       tool: Tool;
@@ -69,7 +69,7 @@ export interface ExportWizardProps {
 type AggregateScope = Exclude<ExportWizardScope, { kind: "entities" }>;
 type EntitiesScope = Extract<ExportWizardScope, { kind: "entities" }>;
 
-const DEFAULT_DOCUMENT_FORMATS = { native: "pdf", spreadsheet: "xlsx" };
+const DEFAULT_FILE_FORMATS = { native: "pdf", spreadsheet: "xlsx" };
 
 /** An export's `archived`: omitted exports live and archived alike. */
 const ARCHIVED_FOR: Record<ToolArchiveChoice, boolean | undefined> = {
@@ -84,8 +84,8 @@ const archiveChoice = (archived: boolean | null | undefined): ToolArchiveChoice 
 /** Filters only an export offers. A list page reaches the same rows through
  *  its view filter and tag tree, so they stay out of the shared filter fields:
  *  templates, for a tool with a templates view, and untagged rows, which only
- *  the documents list takes. */
-const UNTAGGED_TOOLS: ReadonlySet<Tool> = new Set([Tool.document]);
+ *  the files list takes. */
+const UNTAGGED_TOOLS: ReadonlySet<Tool> = new Set([Tool.file]);
 
 /** A tool's export-only list params, as one record over every tool's. */
 type ExportOnlyParams = { is_template?: boolean; untagged?: boolean };
@@ -179,7 +179,7 @@ function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) 
       <p className="font-medium text-xs">{t("wizard.filter.tasks")}</p>
       <ProjectTasksFilters
         memberScope={
-          initiativeId == null ? { type: "guild" } : { type: "initiative", initiativeId }
+          initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId }
         }
         taskStatuses={[]}
         initiativeId={initiativeId}
@@ -309,7 +309,7 @@ function ToolFilterSection({
   backup: boolean;
   initiativeId?: number;
 }) {
-  const { t } = useTranslation(["exports", "nav", "common", "projects", "documents"]);
+  const { t } = useTranslation(["exports", "nav", "common", "projects", "files"]);
   const id = useId();
   const [open, setOpen] = useState(false);
   const filters = toolExportFilters(tool, value, content, backup);
@@ -464,14 +464,14 @@ function AggregateExportWizard({
   onOpenChange,
 }: ExportWizardProps & { scope: AggregateScope }) {
   const { t } = useTranslation(["exports", "nav"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const describeFilters = useDescribeFilters();
 
   const [mode, setMode] = useState<"backup" | "report">("backup");
   const [include, setInclude] = useState<Record<string, boolean>>({});
   const [includeUploads, setIncludeUploads] = useState(true);
   const [formats, setFormats] = useState<Record<string, string>>({});
-  const [documentFormats, setDocumentFormats] = useState(DEFAULT_DOCUMENT_FORMATS);
+  const [fileFormats, setFileFormats] = useState(DEFAULT_FILE_FORMATS);
   const [listFilters, setListFilters] = useState<Partial<Record<Tool, ToolListFilters>>>({});
   const [content, setContent] = useState(() => emptyContent(true));
 
@@ -482,7 +482,7 @@ function AggregateExportWizard({
     setInclude({});
     setIncludeUploads(true);
     setFormats({});
-    setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
+    setFileFormats(DEFAULT_FILE_FORMATS);
     setListFilters({});
     setContent(emptyContent(true));
   });
@@ -505,10 +505,10 @@ function AggregateExportWizard({
   // A keystroke in a search box is not a request.
   const estimateFilters = useDebouncedValue(filtersParam, 300);
 
-  const estimateQuery = useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet(
-    guildId,
+  const estimateQuery = useEstimateAggregateExport(
+    communityId,
     {
-      scope: scope.kind,
+      scope: scope.kind === "community" ? "community" : scope.kind,
       initiative_id: scope.kind === "initiative" ? scope.initiativeId : null,
       include_uploads: includeUploads,
       ...(estimateFilters ? { filters: estimateFilters } : {}),
@@ -577,7 +577,7 @@ function AggregateExportWizard({
     if (mode === "backup") {
       params.include_uploads = includeUploads;
     } else {
-      const formatParam: Record<string, unknown> = { document: documentFormats };
+      const formatParam: Record<string, unknown> = { file: fileFormats };
       for (const tool of visibleTools) {
         const options = REPORT_TOOL_FORMATS[tool];
         if (options) {
@@ -588,7 +588,7 @@ function AggregateExportWizard({
     }
     commit("progress");
     void exportJob.start({
-      endpoint: scope.kind === "guild" ? "/exports/community" : "/exports/initiative",
+      endpoint: scope.kind === "community" ? "/exports/community" : "/exports/initiative",
       params,
       fallbackFilename: `${scope.kind}-export.zip`,
     });
@@ -601,7 +601,7 @@ function AggregateExportWizard({
       case "backup":
         return t("wizard.backup.prompt");
       case "report":
-        return t("wizard.report.documentOthersNote");
+        return t("wizard.report.fileOthersNote");
       case "confirm":
         return t("wizard.confirm.prompt");
       case "progress":
@@ -618,7 +618,7 @@ function AggregateExportWizard({
       open={open}
       onOpenChange={onOpenChange}
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
-      title={scope.kind === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
+      title={scope.kind === "community" ? t("wizard.titleCommunity") : t("wizard.titleInitiative")}
       description={stepDescription}
       progress={position === null ? undefined : { current: position, total: 3 }}
       onBack={canGoBack ? back : undefined}
@@ -763,7 +763,7 @@ function AggregateExportWizard({
           <div className="space-y-2">
             {visibleTools.map((tool) => {
               const options = REPORT_TOOL_FORMATS[tool];
-              const isDocuments = options == null;
+              const isFiles = options == null;
               return (
                 <fieldset
                   key={tool}
@@ -780,7 +780,7 @@ function AggregateExportWizard({
                       onCheckedChange={(checked) => setIncluded(tool, checked)}
                     />
                   </div>
-                  {included(tool) && !isDocuments && (
+                  {included(tool) && !isFiles && (
                     <RadioGroup
                       value={formats[tool] ?? options[0].format}
                       onValueChange={(value) => setFormats((prev) => ({ ...prev, [tool]: value }))}
@@ -796,23 +796,23 @@ function AggregateExportWizard({
                       ))}
                     </RadioGroup>
                   )}
-                  {included(tool) && isDocuments && (
+                  {included(tool) && isFiles && (
                     <div className="space-y-2">
                       {(["native", "spreadsheet"] as const).map((docType) => (
                         <div key={docType} className="space-y-1">
                           <p className="text-muted-foreground text-xs">
                             {docType === "native"
-                              ? t("wizard.report.documentNative")
-                              : t("wizard.report.documentSpreadsheet")}
+                              ? t("wizard.report.fileNative")
+                              : t("wizard.report.fileSpreadsheet")}
                           </p>
                           <RadioGroup
-                            value={documentFormats[docType]}
+                            value={fileFormats[docType]}
                             onValueChange={(value) =>
-                              setDocumentFormats((prev) => ({ ...prev, [docType]: value }))
+                              setFileFormats((prev) => ({ ...prev, [docType]: value }))
                             }
                             className="flex flex-wrap gap-3"
                           >
-                            {REPORT_DOCUMENT_FORMATS[docType].map((option) => (
+                            {REPORT_FILE_FORMATS[docType].map((option) => (
                               <div key={option.format} className="flex items-center gap-1.5">
                                 <RadioGroupItem
                                   value={option.format}

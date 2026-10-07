@@ -27,112 +27,72 @@ Runs two ways:
         python -m app.db.secret_key_rotation             # rotate
         # 3. restart, confirm login / SMTP / AI keys work, then UNSET PREVIOUS_SECRET_KEY
 
-Schema-per-guild: ``guild_settings`` is guild-scoped, so its rows live in every
-``guild_<id>`` schema; the sweep re-keys them there. Runs on the
-provisioning (superuser) engine so it reaches every guild schema and bypasses RLS.
+What it re-keys is read from the models: every column whose ``info`` declares
+a ``FERNET_SALT`` (``app.core.encryption``). A shared table's column is re-keyed
+in ``public``; a guild-content table's in every ``guild_<id>`` schema, on system
+sessions routed into that guild.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import text
+from sqlalchemy import JSON, Column, Text, cast, select, text, update
 from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.sql.expression import TableClause
+from sqlalchemy.sql.expression import column as column_clause
+from sqlalchemy.sql.expression import table as table_clause
+from sqlmodel import SQLModel
 
+import app.db.base  # noqa: F401 — registers every model on the metadata
 from app.core.config import settings
 from app.core.encryption import (
-    SALT_AI_API_KEY,
-    SALT_APP_CONFIG,
-    SALT_APP_VENDOR,
-    SALT_EMAIL,
-    SALT_IMPORT_CREDENTIAL,
-    SALT_OIDC_CLIENT_SECRET,
-    SALT_OIDC_REFRESH_TOKEN,
-    SALT_CAPTCHA_SECRET_KEY,
-    SALT_FCM_SERVICE_ACCOUNT,
-    SALT_S3_SECRET_KEY,
-    SALT_SMTP_PASSWORD,
-    SALT_TOTP_SECRET,
+    EMAIL_HASH_COLUMN,
+    FERNET_PATHS,
+    FERNET_SALT,
     decrypt_field,
     encrypt_field,
     hash_email,
 )
 from app.db import cohorts
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_schema_name
 from app.db.request_context import SystemGuild
+from app.db.schema_provisioning import guild_schema_name
+from app.db.tenancy import SHARED_TABLES
 
 logger = logging.getLogger(__name__)
 
-# Every Fernet column EXCEPT user_emails.email_encrypted, which is handled specially
-# because its plaintext also feeds the email_hash HMAC (the two must move together).
-# (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
-# columns (e.g. guild_settings) are re-keyed per guild schema via
-# _GUILD_SCHEMA_COLUMNS.
-_PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
-    # Operator AI connection keys (platform config mode).
-    ("platform_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
-    # The IdP refresh token lives on the identity link (the legacy
-    # users.oidc_refresh_token_encrypted column is dropped).
-    ("federated_identity_secrets", "refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
-    # The OIDC client secret lives on the provider registry's companion (the
-    # legacy app_settings.oidc_client_secret_encrypted column is dropped).
-    ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
-    # The seed behind an account's authenticator factor, Fernet at rest like
-    # the secrets above it and re-keyed with them.
-    ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
-    # The settings singleton's credentials, on their own companion row.
-    ("app_setting_secrets", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
-    ("app_setting_secrets", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
-    ("app_setting_secrets", "captcha_secret_key_encrypted", SALT_CAPTCHA_SECRET_KEY),
-    (
-        "app_setting_secrets",
-        "fcm_service_account_json_encrypted",
-        SALT_FCM_SERVICE_ACCOUNT,
-    ),
-    ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
-    # The address a sign-in code was sent to before any account held it. Same
-    # ciphertext and same salt as the two address columns above, so it is
-    # re-keyed with them.
-    ("auth_challenges", "email_encrypted", SALT_EMAIL),
-]
 
-# Shared-table JSONB columns holding one ciphertext per key: what an operator
-# supplied for an app's vendor client.
-_PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
-    ("app_service_registrations", "vendor_values", SALT_APP_VENDOR),
-]
+def _encrypted_columns(*, shared: bool) -> tuple[Column[Any], ...]:
+    """Every model column whose ``info`` declares a Fernet salt, on the shared
+    tables or on the guild-content ones, in the order the models register."""
+    return tuple(
+        column
+        for table in SQLModel.metadata.tables.values()
+        if (table.name in SHARED_TABLES) is shared
+        for column in table.columns
+        if FERNET_SALT in column.info
+    )
 
-# Columns rotated once per ``guild_<id>`` schema (the live copies). The member
-# key table carries own-row RLS; the sweep runs on the system engine, whose
-# login is what that policy's system leg names, so the SET ROLE into
-# guild_<id> reaches every member's row.
-_GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
-    # One import job's secret for a foreign site. Almost always empty — a
-    # value lives for the length of one fetch — but a rotation that lands
-    # mid-import must not be what fails it.
-    ("import_jobs", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
-    ("guild_ai_connection_keys", "api_key_encrypted", SALT_AI_API_KEY),
-    ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
-]
 
-# Guild-schema columns holding SEVERAL ciphertexts inside one JSONB map, rather
-# than one per column. An app declares many connection fields, so its values
-# cannot each have a column of their own; they are keyed instead, and every
-# string leaf of the map is a Fernet token. (table, column, salt, key) —
-# rewritten by the primary key column ``key``, because the value as a whole is
-# not a token and so cannot be its own WHERE clause the way a single-column
-# ciphertext can.
-_GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes, str]] = [
-    ("guild_app_secrets", "secrets", SALT_APP_CONFIG, "install_id"),
-    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG, "id"),
-]
+#: Re-keyed once, in ``public``.
+_PUBLIC_COLUMNS = _encrypted_columns(shared=True)
+#: Re-keyed once per ``guild_<id>`` schema. The member key table carries
+#: own-row RLS; the sweep runs on the system engine, whose login is what that
+#: policy's system leg names, so the SET ROLE into guild_<id> reaches every
+#: member's row.
+_GUILD_COLUMNS = _encrypted_columns(shared=False)
+
+#: Whether ``schema.table`` exists. A guild schema can lag a migration that
+#: added a table, so the sweep looks before it reads.
+_RELATION_EXISTS = text(
+    "SELECT to_regclass(quote_ident(:schema) || '.' || quote_ident(:table)) IS NOT NULL"
+)
 
 
 @dataclass
@@ -195,69 +155,98 @@ def _rotate_value(
     return ("rotated", encrypt_field(plaintext, salt, secret_key=new_key))
 
 
-async def _rotate_fernet_column(
+def _in_schema(schema: str, *columns: Column[Any]) -> TableClause:
+    """The table ``columns`` belong to, addressed in ``schema`` and carrying
+    only those columns, so an UPDATE through it writes exactly the values it
+    is given and none of the model's Python-side defaults."""
+    return table_clause(
+        columns[0].table.name,
+        *(column_clause(c.name, c.type) for c in columns),
+        schema=schema,
+    )
+
+
+async def _rotate_column(
     read_conn: AsyncConnection,
     write_conn: AsyncConnection,
     schema: str,
-    table: str,
-    column: str,
-    salt: bytes,
+    column: Column[Any],
     old_key: str,
     new_key: str,
     dry_run: bool,
 ) -> ColumnResult:
+    """Re-encrypt one declared column in ``schema``: a JSON column's ciphertext
+    leaves, or a text column's whole value. A relation the schema does not
+    have yet has nothing to re-key."""
+    table = column.table
+    hash_name = column.info.get(EMAIL_HASH_COLUMN)
+    result = ColumnResult(
+        schema, table.name, f"{column.name}+{hash_name}" if hash_name else column.name
+    )
+    if not await read_conn.scalar(
+        _RELATION_EXISTS, {"schema": schema, "table": table.name}
+    ):
+        return result
+    rotate = _rotate_json_column if isinstance(column.type, JSON) else _rotate_tokens
+    await rotate(
+        read_conn, write_conn, schema, column, old_key, new_key, dry_run, result
+    )
+    return result
+
+
+async def _rotate_tokens(
+    read_conn: AsyncConnection,
+    write_conn: AsyncConnection,
+    schema: str,
+    column: Column[Any],
+    old_key: str,
+    new_key: str,
+    dry_run: bool,
+    result: ColumnResult,
+) -> None:
     """Re-encrypt every non-null value of one Fernet column. Reads are streamed (a
     server-side cursor on ``read_conn``) so a large table isn't pulled into memory at
     once; writes go to a separate ``write_conn`` because asyncpg can't interleave an
     UPDATE on the same connection as an open cursor. The ciphertext itself is the
     UPDATE key (Fernet's random IV makes each value unique), so this needs no
-    knowledge of the table's primary key."""
-    result = ColumnResult(schema, table, column)
-    # Skip a guild-schema relation that isn't there yet: a guild schema can lag a
-    # migration that added a table/column, and reading a missing relation would
-    # abort the whole streamed sweep. Absent → nothing to re-key for this column.
-    if (
-        await read_conn.scalar(
-            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
-        )
-        is None
-    ):
-        return result
-    stream = await read_conn.stream(
-        text(
-            f'SELECT "{column}" FROM "{schema}"."{table}" WHERE "{column}" IS NOT NULL'
-        )
-    )
+    knowledge of the table's primary key.
+
+    A column that names an ``EMAIL_HASH_COLUMN`` has that hash recomputed from the
+    same plaintext in the same UPDATE, so the two never disagree. The hash is a
+    deterministic HMAC, so the new hashes stay unique (one per unique address)
+    and disjoint from the old ones — no unique-constraint conflict."""
+    salt: bytes = column.info[FERNET_SALT]
+    hash_name: str | None = column.info.get(EMAIL_HASH_COLUMN)
+    hashed = (column.table.c[hash_name],) if hash_name else ()
+    clause = _in_schema(schema, column, *hashed)
+    target = clause.c[column.name]
+    stream = await read_conn.stream(select(target).where(target.is_not(None)))
     async for (value,) in stream:
         status, new_value = _rotate_value(value, salt, old_key, new_key)
         if status == "skipped":
             result.skipped += 1
-        elif status == "failed":
+        elif new_value is None:
             result.failed += 1
             logger.warning(
                 "secret-key rotation: %s.%s.%s holds a value decryptable under "
                 "neither key — skipping (already unreadable)",
                 schema,
-                table,
-                column,
+                result.table,
+                column.name,
             )
         elif dry_run:
             result.rotated += 1
         else:
+            values = {column.name: new_value}
+            if hash_name:
+                plaintext = decrypt_field(new_value, salt, secret_key=new_key)
+                values[hash_name] = hash_email(plaintext, secret_key=new_key)
             # Count actual writes: a concurrent rotation may have already re-keyed
             # this value (WHERE no longer matches → rowcount 0), so don't overcount.
             res = await write_conn.execute(
-                # Identifiers come from this module's hardcoded Fernet-column
-                # registry (and guild_schema_name(int)) — never user input;
-                # values are bind params.
-                text(
-                    f'UPDATE "{schema}"."{table}" SET "{column}" = :new '  # noqa: S608
-                    f'WHERE "{column}" = :old'
-                ),
-                {"new": new_value, "old": value},
+                update(clause).where(target == value).values(values)
             )
             result.rotated += res.rowcount or 0
-    return result
 
 
 def _rotate_map(
@@ -296,116 +285,68 @@ def _rotate_map(
     return new_value, True
 
 
-async def _rotate_fernet_json_map(
-    read_conn: AsyncConnection,
-    write_conn: AsyncConnection,
-    schema: str,
-    table: str,
-    column: str,
+def _rotate_paths(
+    value: Any,
+    paths: tuple[tuple[str, ...], ...],
     salt: bytes,
     old_key: str,
     new_key: str,
-    dry_run: bool,
-    key: str = "id",
-) -> ColumnResult:
-    """Re-encrypt the ciphertexts held inside one JSONB column.
+    result: ColumnResult,
+) -> tuple[Any, bool]:
+    """Re-key the ciphertext at each of ``paths`` in one JSONB document,
+    leaving every other value as it is. Rewrites ``value`` in place; returns
+    it and whether anything moved."""
+    changed = False
+    for path in paths:
+        parent = value
+        for step in path[:-1]:
+            parent = parent.get(step) if isinstance(parent, dict) else None
+        if not isinstance(parent, dict) or not isinstance(parent.get(path[-1]), str):
+            continue
+        rotated, moved = _rotate_map(parent[path[-1]], salt, old_key, new_key, result)
+        if moved:
+            parent[path[-1]] = rotated
+            changed = True
+    return value, changed
 
-    Rewritten by the primary key ``key`` rather than by matching the old value:
+
+async def _rotate_json_column(
+    read_conn: AsyncConnection,
+    write_conn: AsyncConnection,
+    schema: str,
+    column: Column[Any],
+    old_key: str,
+    new_key: str,
+    dry_run: bool,
+    result: ColumnResult,
+) -> None:
+    """Re-encrypt the ciphertexts held inside one JSON column: every string
+    in it, or only those at its ``FERNET_PATHS``.
+
+    Rewritten by the table's primary key rather than by matching the old value:
     the column holds a document, not a token, so it has no single ciphertext to
     key the UPDATE on. Reads stream and writes go to a second connection, for
     the same reason the single-column sweep does.
     """
-    result = ColumnResult(schema, table, column)
-    if (
-        await read_conn.scalar(
-            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
-        )
-        is None
-    ):
-        return result
+    salt: bytes = column.info[FERNET_SALT]
+    paths: tuple[tuple[str, ...], ...] = column.info.get(FERNET_PATHS, ())
+    (key,) = column.table.primary_key.columns
+    clause = _in_schema(schema, key, column)
+    row_key, target = clause.c[key.name], clause.c[column.name]
     stream = await read_conn.stream(
-        text(
-            f'SELECT "{key}", "{column}" FROM "{schema}"."{table}" '  # noqa: S608
-            f'WHERE "{column}" IS NOT NULL AND "{column}"::text <> \'{{}}\''
-        )
+        select(row_key, target).where(target.is_not(None), cast(target, Text) != "{}")
     )
     async for row_id, value in stream:
-        # The driver decodes JSONB to a Python object, but a raw text() query is
-        # not guaranteed to have that codec in place, so accept either form.
-        if isinstance(value, str):
-            value = json.loads(value)
-        rewritten, changed = _rotate_map(value, salt, old_key, new_key, result)
+        rewritten, changed = (
+            _rotate_paths(value, paths, salt, old_key, new_key, result)
+            if paths
+            else _rotate_map(value, salt, old_key, new_key, result)
+        )
         if not changed or dry_run:
             continue
         await write_conn.execute(
-            # Identifiers come from this module's hardcoded registry; values are
-            # bind params.
-            text(
-                f'UPDATE "{schema}"."{table}" SET "{column}" = CAST(:new AS jsonb) '  # noqa: S608
-                f'WHERE "{key}" = :id'
-            ),
-            {"new": json.dumps(rewritten), "id": row_id},
+            update(clause).where(row_key == row_id).values({column.name: rewritten})
         )
-    return result
-
-
-async def _rotate_user_emails(
-    read_conn: AsyncConnection,
-    write_conn: AsyncConnection,
-    old_key: str,
-    new_key: str,
-    dry_run: bool,
-    table: str = "user_emails",
-) -> ColumnResult:
-    """Re-encrypt ``email_encrypted`` AND recompute ``email_hash`` from the same
-    plaintext, in one UPDATE so the two never disagree. email_hash is a deterministic
-    HMAC, so the new hashes stay unique (one per unique email) and disjoint from the
-    old ones — no unique-constraint conflict. Streamed read / separate write like
-    ``_rotate_fernet_column``.
-
-    ``user_emails`` is where an account's addresses live. A row missed here would
-    still decrypt, but its hash would no longer match what a lookup computes."""
-    result = ColumnResult("public", table, "email_encrypted+email_hash")
-    stream = await read_conn.stream(
-        text(
-            # Identifier from this module's own call sites, never user input.
-            f"SELECT email_encrypted FROM public.{table} "  # noqa: S608
-            "WHERE email_encrypted IS NOT NULL"
-        )
-    )
-    async for (enc,) in stream:
-        try:
-            decrypt_field(enc, SALT_EMAIL, secret_key=new_key)
-            result.skipped += 1
-            continue
-        except InvalidToken:
-            pass
-        try:
-            email = decrypt_field(enc, SALT_EMAIL, secret_key=old_key)
-        except InvalidToken:
-            result.failed += 1
-            logger.warning(
-                "secret-key rotation: a stored address decrypts under "
-                "neither key — skipping (already unreadable)"
-            )
-            continue
-        if dry_run:
-            result.rotated += 1
-            continue
-        res = await write_conn.execute(
-            text(
-                f"UPDATE public.{table} "  # noqa: S608
-                "SET email_encrypted = :new_enc, email_hash = :new_hash "
-                "WHERE email_encrypted = :old_enc"
-            ),
-            {
-                "new_enc": encrypt_field(email, SALT_EMAIL, secret_key=new_key),
-                "new_hash": hash_email(email, secret_key=new_key),
-                "old_enc": enc,
-            },
-        )
-        result.rotated += res.rowcount or 0
-    return result
 
 
 async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
@@ -435,35 +376,10 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
-        summary.columns.append(
-            await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
-        )
-        for table, column, salt in _PUBLIC_FERNET_COLUMNS:
+        for column in _PUBLIC_COLUMNS:
             summary.columns.append(
-                await _rotate_fernet_column(
-                    read_conn,
-                    write_conn,
-                    "public",
-                    table,
-                    column,
-                    salt,
-                    old_key,
-                    new_key,
-                    dry_run,
-                )
-            )
-        for table, column, salt in _PUBLIC_JSON_MAPS:
-            summary.columns.append(
-                await _rotate_fernet_json_map(
-                    read_conn,
-                    write_conn,
-                    "public",
-                    table,
-                    column,
-                    salt,
-                    old_key,
-                    new_key,
-                    dry_run,
+                await _rotate_column(
+                    read_conn, write_conn, "public", column, old_key, new_key, dry_run
                 )
             )
 
@@ -486,33 +402,16 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     await db_session.set_rls_context(session, SystemGuild(gid))
                 read_conn = await reader.connection()
                 write_conn = await writer.connection()
-                for table, column, salt in _GUILD_SCHEMA_COLUMNS:
+                for column in _GUILD_COLUMNS:
                     summary.columns.append(
-                        await _rotate_fernet_column(
+                        await _rotate_column(
                             read_conn,
                             write_conn,
                             schema,
-                            table,
                             column,
-                            salt,
                             old_key,
                             new_key,
                             dry_run,
-                        )
-                    )
-                for table, column, salt, key in _GUILD_SCHEMA_JSON_MAPS:
-                    summary.columns.append(
-                        await _rotate_fernet_json_map(
-                            read_conn,
-                            write_conn,
-                            schema,
-                            table,
-                            column,
-                            salt,
-                            old_key,
-                            new_key,
-                            dry_run,
-                            key,
                         )
                     )
                 await writer.commit()

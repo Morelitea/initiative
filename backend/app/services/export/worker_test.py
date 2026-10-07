@@ -11,7 +11,7 @@ import pytest
 from sqlmodel import select
 
 from app.core.config import settings
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import engine as export_engine
@@ -32,7 +32,9 @@ def _tmp_uploads(monkeypatch, tmp_path):
 
 
 async def _actor(acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(session, a.project, title="Task")
     return a
 

@@ -34,7 +34,7 @@ _FRONTEND = _REPO_ROOT / "frontend"
 _BACKEND_CONTRACT = (
     Path(__file__).resolve().parents[3]
     / "vendor"
-    / "app-kit"
+    / "plugin-kit"
     / "manifest.contract.json"
 )
 _FRONTEND_CONTRACT = _FRONTEND / "src" / "contract" / "manifest.contract.json"
@@ -62,7 +62,7 @@ class TestTheBrowserTrimsByTheSameNumbers:
         )
         assert _BACKEND_CONTRACT.read_text(encoding="utf-8") == (
             _FRONTEND_CONTRACT.read_text(encoding="utf-8")
-        ), "the two vendored copies differ — run backend/scripts/refresh_app_kit.py"
+        ), "the two vendored copies differ — run backend/scripts/refresh_plugin_kit.py"
 
     def test_every_limit_this_module_uses_comes_from_the_contract(self):
         """Each name below is read by ``validate_widget_meta``; a limit that

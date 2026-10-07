@@ -5,17 +5,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { catalogUrl, portalPricingUrl } from "@/hooks/useBillingCatalog";
-import { androidApkUrl, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
+import { androidApkUrl, DOCS_URL, desktopInstallerUrl, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOLS, toolCamelPlural } from "@/lib/tools";
 
 import landing from "../../../public/locales/en/landing.json";
 import { DownloadPage } from "./DownloadPage";
 import { HomePage } from "./HomePage";
+import { EMBED_CTA, EMBED_HEIGHT, FRAME_TIMEOUT_MS, SELF_HOST_GUIDE } from "./PricingGridFrame";
 import { PricingPage } from "./PricingPage";
 import { WhatsNewPage, WhatsNewPostPage } from "./WhatsNewPage";
 
 const PORTAL = "https://billing.example.com";
 const NATIVE_FLOOR = "0.69.0";
+const DESKTOP_FLOOR = "0.74.0";
 
 const tier = (overrides: Record<string, unknown>) => ({
   tagline: "A tagline",
@@ -84,6 +86,7 @@ const stubConfig = (billing: { url: string } | null, extra: Record<string, unkno
       community_age_gate_enabled: true,
       login_methods: ["password"],
       min_native_version: NATIVE_FLOOR,
+      min_desktop_version: DESKTOP_FLOOR,
       ...extra,
     })
   );
@@ -299,21 +302,34 @@ describe("DownloadPage", () => {
     expect(await screen.findByText(landing.download.descriptionPush)).toBeInTheDocument();
   });
 
+  it("offers this computer's installer from the release its own floor names", async () => {
+    renderDownload();
+
+    // jsdom says Linux.
+    const [installer] = await screen.findAllByTestId("desktop-installer");
+    expect(installer).toHaveAttribute("href", desktopInstallerUrl(DESKTOP_FLOOR, "linux"));
+    expect(installer).toHaveAttribute("download");
+  });
+
   it("shows the browser's install prompt once, then points at the guide", async () => {
     renderDownload();
-    const install = await screen.findByRole("link", { name: landing.download.desktop.button });
+    const [install] = await screen.findAllByRole("link", {
+      name: landing.download.browserInstall,
+    });
 
     const prompt = vi.fn().mockResolvedValue(undefined);
     act(() => {
       window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), { prompt }));
     });
-    fireEvent.click(await screen.findByRole("button", { name: landing.download.desktop.button }));
+    const [button] = await screen.findAllByRole("button", {
+      name: landing.download.browserInstall,
+    });
+    fireEvent.click(button);
     expect(prompt).toHaveBeenCalledTimes(1);
 
     // Spent after one use, whatever the answer: the guide again.
-    expect(
-      await screen.findByRole("link", { name: landing.download.desktop.button })
-    ).toHaveAttribute("href", install.getAttribute("href"));
+    const [again] = await screen.findAllByRole("link", { name: landing.download.browserInstall });
+    expect(again).toHaveAttribute("href", install.getAttribute("href"));
   });
 
   it("mentions passkeys only where the server offers them", async () => {
@@ -334,58 +350,139 @@ describe("PricingPage", () => {
     });
   });
 
-  it("leads with the free plan and closes with running it yourself", async () => {
-    server.use(stubConfig({ url: PORTAL }), stubCatalog());
+  const frameOf = async () =>
+    (await screen.findByTitle(landing.pricing.tierListAria)) as HTMLIFrameElement;
+
+  const fromFrame = (frame: HTMLIFrameElement, data: unknown, origin = PORTAL) =>
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", { data, origin, source: frame.contentWindow })
+      );
+    });
+
+  it("frames the portal's grid in the reader's language and theme", async () => {
+    const asked: string[] = [];
+    server.use(
+      stubConfig({ url: PORTAL }),
+      http.get(catalogUrl(PORTAL), ({ request }) => {
+        asked.push(request.url);
+        return HttpResponse.json(CATALOG);
+      })
+    );
     renderPricing();
 
     expect(await screen.findByRole("heading", { name: CATALOG.headline })).toBeInTheDocument();
-    const plans = screen.getByRole("list", { name: landing.pricing.tierListAria });
-    const order = [...plans.querySelectorAll("[data-tier]")].map((el) => [
-      el.getAttribute("data-tier"),
-      el.getAttribute("data-layout"),
-    ]);
-    expect(order).toEqual([
-      ["pewter", "banner"],
-      ["brass", "card"],
-      ["obsidian", "banner"],
-      ["self_hosted", "line"],
-    ]);
-    expect(within(plans).getByText("Most groups land here")).toBeInTheDocument();
-    expect(within(plans).getByText("Just you")).toBeInTheDocument();
+    const frame = await frameOf();
+    const src = new URL(frame.src);
+    expect(`${src.origin}${src.pathname}`).toBe(`${PORTAL}/embed/pricing`);
+    expect(src.searchParams.get("lang")).toBe("en");
+    expect(["light", "dark"]).toContain(src.searchParams.get("theme"));
+    expect(new URL(asked[0]).searchParams.get("lang")).toBe("en");
+  });
+
+  it("fits the frame to the grid", async () => {
+    server.use(stubConfig({ url: PORTAL }), stubCatalog());
+    renderPricing();
+
+    const frame = await frameOf();
+    fromFrame(frame, { type: EMBED_HEIGHT, height: 1834.4 });
+    await waitFor(() => expect(frame.style.height).toBe("1835px"));
   });
 
   it("sends each plan's button where it belongs", async () => {
     server.use(stubConfig({ url: PORTAL }), stubCatalog());
-    renderPricing();
+    const tab = { opener: {} as unknown };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const before = window.location.href;
+    const { router } = renderPricing();
 
-    const plans = await screen.findByRole("list", { name: landing.pricing.tierListAria });
-    // Signing up is this app's own door; buying goes to the portal; running
-    // it yourself goes to the install guide.
-    expect(within(plans).getByRole("link", { name: "Make your free community" })).toHaveAttribute(
-      "href",
-      "/start"
-    );
-    expect(within(plans).getByRole("link", { name: /Choose Brass/ })).toHaveAttribute(
-      "href",
-      portalPricingUrl(PORTAL)
-    );
-    expect(within(plans).getByRole("link", { name: /Read the self-host guide/ })).toHaveAttribute(
-      "href",
-      docsUrl("running-a-server/installation/")
-    );
+    const frame = await frameOf();
+    // Buying goes to the portal; running it yourself goes to the install
+    // guide; signing up is this app's own door.
+    fromFrame(frame, { type: EMBED_CTA, tier: "brass", kind: "checkout" });
+    expect(open).toHaveBeenLastCalledWith(portalPricingUrl(PORTAL), "_blank");
+    // A new tab, cut loose from this page, and this page stays put.
+    expect(tab.opener).toBeNull();
+    expect(window.location.href).toBe(before);
+    fromFrame(frame, { type: EMBED_CTA, tier: "self_hosted", kind: "external" });
+    expect(open).toHaveBeenLastCalledWith(SELF_HOST_GUIDE, "_blank");
+    expect(SELF_HOST_GUIDE).toBe(docsUrl("running-a-server/installation/"));
+    fromFrame(frame, { type: EMBED_CTA, tier: "pewter", kind: "signup" });
+    await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+    open.mockRestore();
+  });
+
+  it("offers a link to the plans when the grid never arrives", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog());
+      renderPricing();
+
+      await frameOf();
+      act(() => {
+        vi.advanceTimersByTime(FRAME_TIMEOUT_MS);
+      });
+      const fallback = await screen.findByRole("status");
+      expect(within(fallback).getByText(landing.pricing.unavailableTitle)).toBeInTheDocument();
+      expect(within(fallback).getByRole("link", { name: /See every plan/ })).toHaveAttribute(
+        "href",
+        portalPricingUrl(PORTAL)
+      );
+      expect(screen.queryByTitle(landing.pricing.tierListAria)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the grid once it has arrived", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog());
+      renderPricing();
+
+      const frame = await frameOf();
+      fromFrame(frame, { type: EMBED_HEIGHT, height: 1200 });
+      act(() => {
+        vi.advanceTimersByTime(FRAME_TIMEOUT_MS * 2);
+      });
+      expect(screen.getByTitle(landing.pricing.tierListAria)).toBe(frame);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sends a free plan's sign-up to the login page when registration is closed", async () => {
     server.use(stubConfig({ url: PORTAL }), stubCatalog(), stubBootstrap(false));
-    renderPricing();
+    const { router } = renderPricing();
 
-    const plans = await screen.findByRole("list", { name: landing.pricing.tierListAria });
-    await waitFor(() => {
-      expect(within(plans).getByRole("link", { name: "Make your free community" })).toHaveAttribute(
-        "href",
-        "/login"
+    const frame = await frameOf();
+    await waitFor(async () => {
+      fromFrame(frame, { type: EMBED_CTA, tier: "pewter", kind: "signup" });
+      expect(router.state.location.pathname).toBe("/login");
+    });
+  });
+
+  it("ignores messages from anywhere but the portal's frame", async () => {
+    server.use(stubConfig({ url: PORTAL }), stubCatalog());
+    const open = vi.spyOn(window, "open").mockReturnValue({} as Window);
+    const { router } = renderPricing();
+
+    const frame = await frameOf();
+    fromFrame(frame, { type: EMBED_CTA, kind: "checkout" }, "https://elsewhere.example.com");
+    fromFrame(frame, { type: EMBED_HEIGHT, height: 50 }, "https://elsewhere.example.com");
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: EMBED_CTA, kind: "signup" },
+          origin: PORTAL,
+          source: window,
+        })
       );
     });
+    expect(open).not.toHaveBeenCalled();
+    expect(frame.style.height).not.toBe("50px");
+    expect(router.state.location.pathname).toBe("/pricing");
+    open.mockRestore();
   });
 
   it("says so when the price book cannot be read", async () => {

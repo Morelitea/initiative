@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import LexicalState, MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.file import smart_link_url
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
     PropertiesOnUpdate,
@@ -21,12 +22,12 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
 
 
 class WikiBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
 
 
 class WikiCreate(WikiBase, PropertiesOnCreate):
@@ -48,7 +49,6 @@ class WikiSettings(SanitizedBaseModel):
 
     #: How siblings are ordered in the tree.
     page_order: Optional[WikiPageOrder] = None
-    #: Whether the tree shows how many pages sit under each one.
     #: How deep the contents rail goes — 2 to 4 heading levels.
     contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
     #: Whether a page shows what links to it.
@@ -65,16 +65,13 @@ class WikiSettings(SanitizedBaseModel):
 
 class WikiUpdate(WikiSettings):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
     #: The page the wiki opens on. ``null`` clears the choice and it opens on
     #: the first top-level page; a set value has to be one of its own pages.
     home_page_id: Optional[int] = None
 
 
 class WikiSummary(WikiBase, ToolSummaryBase):
-    #: How many pages it holds. Served with the row so a list of wikis can say
-    #: so without a request per card.
-    page_count: int = 0
     #: The page it opens on, or ``null`` where none was chosen.
     home_page_id: Optional[int] = None
     #: What this wiki is for — see :class:`WikiSettings`.
@@ -111,7 +108,7 @@ class WikiPageCreate(PropertiesOnCreate):
     #: wiki people read should not be showing them that — so the default is the
     #: safe half of the answer, and publishing is a decision.
     is_draft: bool = True
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[LexicalState] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -124,7 +121,12 @@ class WikiPageUpdate(PropertiesOnUpdate):
 
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     is_draft: Optional[bool] = None
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[LexicalState] = None
+    #: The ``content_version`` of the read this ``content`` was made from.
+    #: Given and still current, the write merges in, into a live editing
+    #: session too; given and out of date, it is refused with
+    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
+    content_version: Optional[str] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -147,16 +149,16 @@ class WikiPageMove(SanitizedBaseModel):
 class WikiPageKind(str, Enum):
     """What a row in a wiki's navigation actually is.
 
-    A wiki holds pages of its own and documents somebody put in it. The second
-    kind is a document still — it is not copied in, it keeps its own address,
+    A wiki holds pages of its own and files somebody put in it. The second
+    kind is a file still — it is not copied in, it keeps its own address,
     its own sharing and its own history — so the navigation has to say which it
     is looking at rather than pretend they are the same row.
     """
 
     #: A page belonging to this wiki, written here.
     page = "page"
-    #: A document placed in this wiki by a ``part_of`` edge.
-    document = "document"
+    #: A file placed in this wiki by a ``part_of`` edge.
+    file = "file"
 
 
 class WikiPageHeading(SanitizedBaseModel):
@@ -190,20 +192,22 @@ class WikiPageSummary(SanitizedBaseModel):
 
     id: int
     wiki_id: int
-    guild_id: int
-    #: Which of the two things this row is. A document keeps its own id, so a
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
+    #: Which of the two things this row is. A file keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
     #: What this row is filed under: a page, or ``None`` for the top. A
-    #: document is filed like a page is, but never holds anything itself.
+    #: file is filed like a page is, but never holds anything itself.
     parent_page_id: Optional[int] = None
     position: int = 0
-    #: A document placed in a wiki is never a draft: it is not this wiki's to
+    #: A file placed in a wiki is never a draft: it is not this wiki's to
     #: hold back, and it is readable wherever else it already lives.
     is_draft: bool = False
     title: str
     slug: str
-    created_by: int | None = None
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     #: What is written on the page, so the navigation can nest it without
@@ -211,10 +215,10 @@ class WikiPageSummary(SanitizedBaseModel):
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
-    #: A document row's kind of document and the facts its icon is drawn
+    #: A file row's kind of file and the facts its icon is drawn
     #: from — a PDF, a spreadsheet and a link to a design tool each look like
     #: what they are. ``None`` on a page.
-    document_type: Optional[str] = None
+    file_type: Optional[str] = None
     file_content_type: Optional[str] = None
     original_filename: Optional[str] = None
     smart_link_url: Optional[str] = None
@@ -223,8 +227,11 @@ class WikiPageSummary(SanitizedBaseModel):
 class WikiPageRead(WikiPageSummary):
     """One page, opened."""
 
-    content: Dict[str, Any] = Field(default_factory=dict)
-    comment_count: int = 0
+    content: LexicalState = Field(default_factory=dict)
+    #: The version of ``content`` this read returns. Send it back with a
+    #: ``PATCH`` of ``content`` so the write merges into the body only if
+    #: nobody has changed it since. ``null`` when the body was left out.
+    content_version: Optional[str] = None
 
 
 class WikiPageTree(SanitizedBaseModel):
@@ -240,48 +247,8 @@ class WikiPageTree(SanitizedBaseModel):
     items: List[WikiPageSummary]
 
 
-class WikiPageLink(SanitizedBaseModel):
-    """One end of a connection a page has.
-
-    Deliberately not a page-shaped object: the other end of an edge is often
-    not a page at all — a task, a calendar event — so this is what any of them
-    have in common, and the kind says which route addresses it.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    #: The ``SearchEntityType`` value — ``task``, ``wiki_page``, ``document``, …
-    entity_type: str
-    entity_id: int
-    title: str
-    #: How the two are connected: ``references`` for a link somebody wrote in
-    #: the body, or the relationship type they asserted by hand.
-    relationship_type: str
-    #: Where the far end lives, so a client can address it without a second
-    #: request. A page of another wiki is reached through that wiki, and a task
-    #: through its project — which is what ``tool``/``tool_id`` name. Null where
-    #: the target belongs to no initiative (a guild-level tag).
-    initiative_id: Optional[int] = None
-    #: The governing tool and its id — the resolver works both out already.
-    tool: Optional[str] = None
-    tool_id: Optional[int] = None
-
-
-class WikiPageLinks(SanitizedBaseModel):
-    """What a page connects to, both ways.
-
-    ``outgoing`` is what this page names; ``incoming`` is what names it — the
-    backlinks, which are the thing that makes a wiki more than a folder.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    outgoing: List[WikiPageLink] = Field(default_factory=list)
-    incoming: List[WikiPageLink] = Field(default_factory=list)
-
-
 def serialize_wiki_page_summary(
-    page: "Any", *, context: GuildContext, heading_nodes: Optional[list] = None
+    page: "Any", *, context: ActorContext, heading_nodes: Optional[list] = None
 ) -> WikiPageSummary:
     """A page as a row. ``heading_nodes`` are its headings as the tree read
     them (``wikis.heading_nodes``), in place of its body."""
@@ -298,48 +265,47 @@ def serialize_wiki_page_summary(
     )
 
 
-def serialize_document_as_page(
-    document: "Any",
+def serialize_file_as_page(
+    file: "Any",
     *,
-    context: GuildContext,
+    context: ActorContext,
     wiki_id: int,
     position: int,
     heading_nodes: list,
     parent_page_id: Optional[int] = None,
 ) -> WikiPageSummary:
-    """A document, as the wiki's navigation draws it.
+    """A file, as the wiki's navigation draws it.
 
-    Everything a row needs, read off the document itself — including its
-    headings (``heading_nodes``, as the tree read them), so a document in a
+    Everything a row needs, read off the file itself — including its
+    headings (``heading_nodes``, as the tree read them), so a file in a
     wiki opens in the sidebar exactly as a page written here does.
     """
     from app.services.tenant.names import slugify
     from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
-        id=document.id,
+        id=file.id,
         wiki_id=wiki_id,
-        guild_id=context.guild_id,
-        kind=WikiPageKind.document,
+        community_id=context.guild_id,
+        kind=WikiPageKind.file,
         parent_page_id=parent_page_id,
         position=position,
         is_draft=False,
-        title=document.name,
-        slug=slugify(document.name, fallback=f"document-{document.id}"),
-        created_by=document.created_by,
-        created_at=document.created_at,
-        updated_at=document.updated_at,
+        title=file.name,
+        slug=slugify(file.name, fallback=f"file-{file.id}"),
+        created_by=file.created_by,
+        created_at=file.created_at,
+        updated_at=file.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(heading_nodes)],
-        document_type=getattr(document.document_type, "value", document.document_type),
-        file_content_type=document.file_content_type,
-        original_filename=document.original_filename,
-        smart_link_url=smart_link_url(document),
+        file_type=getattr(file.file_type, "value", file.file_type),
+        file_content_type=getattr(file.current_version, "file_content_type", None),
+        original_filename=getattr(file.current_version, "original_filename", None),
+        smart_link_url=smart_link_url(file),
     )
 
 
-def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:
+def serialize_wiki_page(page: "Any", *, context: ActorContext) -> WikiPageRead:
     return WikiPageRead(
         **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},
-        comment_count=getattr(page, "comment_count", 0),
     )

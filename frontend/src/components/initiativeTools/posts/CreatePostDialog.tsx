@@ -34,7 +34,7 @@ import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import type { DialogProps } from "@/types/dialog";
 
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 type CreatePostDialogProps = DialogProps & {
@@ -111,7 +111,7 @@ export const CreatePostDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("createPost")}</DialogTitle>
           <DialogDescription>{t("noPostsDescription")}</DialogDescription>
@@ -192,7 +192,7 @@ export const CreatePostDialog = ({
               create.mutate({
                 name: name.trim(),
                 initiative_id: initiativeId,
-                body: (body ?? {}) as unknown as Record<string, unknown>,
+                body: { ...body },
                 grants,
                 scheduled_for: fromLocalDateTimeInput(scheduledFor),
                 poll: poll ? pollDraftToWrite(poll) : null,

@@ -24,7 +24,6 @@ matching lives there because the routes do.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -37,13 +36,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, BuiltinAnnouncement
 from app.core.capabilities import role_rank
-from app.core.image_headers import read_image_header
+from app.core.image_headers import validate_image
 from app.core.version import compare_versions
-from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
-    ANNOUNCEMENT_IMAGE_CONTENT_TYPES,
+    ANNOUNCEMENT_IMAGE_SPEC,
     AnnouncementAudienceAccounts,
-    ANNOUNCEMENT_IMAGE_MAX_DIMENSION,
     Announcement,
     AnnouncementImage,
     AnnouncementReadReceipt,
@@ -72,10 +69,6 @@ ORPHAN_IMAGE_GRACE = timedelta(days=1)
 #: next announcement is written would leave an abandoned editor's bytes for as
 #: long as nobody writes another one — which could be forever.
 IMAGE_PURGE_POLL_SECONDS = 3600
-
-
-class AnnouncementImageError(Exception):
-    """An uploaded picture is not usable. Carries a message constant."""
 
 
 # --- audience ----------------------------------------------------------------
@@ -222,7 +215,7 @@ def to_operator_read(announcement: Announcement) -> AnnouncementOperatorRead:
         dismissals_required=announcement.dismissals_required,
         trigger_route=announcement.trigger_route,
         min_platform_role=UserRole(announcement.min_platform_role),
-        guild_admins_only=announcement.guild_admins_only,
+        community_admins_only=announcement.guild_admins_only,
         audience_accounts=AnnouncementAudienceAccounts(announcement.audience_accounts),
         expires_at=announcement.expires_at,
         created_at=announcement.created_at,
@@ -243,7 +236,7 @@ def builtin_operator_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorR
         dismissals_required=builtin.dismissals_required,
         trigger_route=builtin.trigger_route,
         min_platform_role=builtin.min_platform_role,
-        guild_admins_only=builtin.guild_admins_only,
+        community_admins_only=builtin.guild_admins_only,
         audience_accounts=builtin.audience_accounts,
         expires_at=builtin.expires_at,
     )
@@ -458,7 +451,7 @@ async def create(session: AsyncSession, *, payload: AnnouncementWrite) -> Announ
         category=payload.category.value,
         sections=[s.model_dump(mode="json") for s in payload.sections],
         min_platform_role=payload.min_platform_role.value,
-        guild_admins_only=payload.guild_admins_only,
+        guild_admins_only=payload.community_admins_only,
         audience_accounts=payload.audience_accounts.value,
         published_at=payload.published_at,
         expires_at=payload.expires_at,
@@ -483,8 +476,8 @@ async def update(
         announcement.sections = [s.model_dump(mode="json") for s in payload.sections]
     if payload.min_platform_role is not None:
         announcement.min_platform_role = payload.min_platform_role.value
-    if payload.guild_admins_only is not None:
-        announcement.guild_admins_only = payload.guild_admins_only
+    if payload.community_admins_only is not None:
+        announcement.guild_admins_only = payload.community_admins_only
     if payload.audience_accounts is not None:
         announcement.audience_accounts = payload.audience_accounts.value
     if payload.dismissals_required is not None:
@@ -555,16 +548,8 @@ async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImag
     the client's claim, and what gets served back is decided by what the file
     actually is.
     """
-    header = read_image_header(data)
-    if header is None or header.content_type not in ANNOUNCEMENT_IMAGE_CONTENT_TYPES:
-        raise AnnouncementImageError(AnnouncementMessages.IMAGE_UNSUPPORTED_TYPE)
-    if (
-        header.width > ANNOUNCEMENT_IMAGE_MAX_DIMENSION
-        or header.height > ANNOUNCEMENT_IMAGE_MAX_DIMENSION
-    ):
-        raise AnnouncementImageError(AnnouncementMessages.IMAGE_TOO_LARGE)
-    digest = hashlib.sha256(data).hexdigest()
-    existing = await session.get(AnnouncementImage, digest)
+    image = validate_image(ANNOUNCEMENT_IMAGE_SPEC, data)
+    existing = await session.get(AnnouncementImage, image.sha256)
     if existing is not None:
         # The same bytes are kept once, and re-uploading them is somebody
         # putting this picture here *now* — so the clock the pruner reads
@@ -575,18 +560,18 @@ async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImag
         await session.flush()
         return existing
 
-    image = AnnouncementImage(
-        sha256=digest,
-        content_type=header.content_type,
-        byte_size=len(data),
-        width=header.width,
-        height=header.height,
+    stored = AnnouncementImage(
+        sha256=image.sha256,
+        content_type=image.content_type,
+        byte_size=image.byte_size,
+        width=image.width,
+        height=image.height,
         data=data,
         created_at=datetime.now(timezone.utc),
     )
-    session.add(image)
+    session.add(stored)
     await session.flush()
-    return image
+    return stored
 
 
 async def read_image(

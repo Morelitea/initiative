@@ -11,19 +11,19 @@ import type {
   PropertyTarget,
   PropertyValueInput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut } from "@/api/generated/properties/properties";
+import { setProperties } from "@/api/generated/properties/properties";
 import {
-  createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost,
-  deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete,
-  getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey,
-  listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet,
-  updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch,
+  createPropertyDefinition,
+  deletePropertyDefinition,
+  getListPropertyDefinitionsQueryKey,
+  listPropertyDefinitions,
+  updatePropertyDefinition,
 } from "@/api/generated/property-definitions/property-definitions";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
-import { toast } from "@/lib/chesterToast";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -34,25 +34,18 @@ import type { MutationOpts } from "@/types/mutation";
  * - ``initiativeId`` bound: scopes to that one initiative (for per-entity
  *   pickers and the initiative settings manager page).
  * - ``initiativeId`` omitted: returns the union across every initiative the
- *   caller is a member of — used by global views (My Tasks, Documents list,
+ *   caller is a member of — used by global views (My Tasks, Files list,
  *   events list) so property columns and filters aggregate across initiatives.
  */
 export const useProperties = (options?: { initiativeId?: number; enabled?: boolean }) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const initiativeId = options?.initiativeId;
   const params: { initiative_id?: number } = {};
   if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey(
-      guildId,
-      hasParams ? params : undefined
-    ),
-    queryFn: () =>
-      listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet(
-        guildId,
-        hasParams ? params : undefined
-      ),
+    queryKey: getListPropertyDefinitionsQueryKey(communityId, hasParams ? params : undefined),
+    queryFn: () => listPropertyDefinitions(communityId, hasParams ? params : undefined),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
@@ -63,10 +56,9 @@ export const useProperties = (options?: { initiativeId?: number; enabled?: boole
 export const useCreateProperty = (
   options?: MutationOpts<PropertyDefinitionRead, PropertyDefinitionCreate>
 ) =>
-  useGuildMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
+  useCommunityMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
     {
-      mutationFn: (guildId, data) =>
-        createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost(guildId, data),
+      mutationFn: (communityId, data) => createPropertyDefinition(communityId, data),
       invalidate: () => invalidate(q.allProperties()),
       errorKey: "properties:manager.createError",
     },
@@ -79,17 +71,13 @@ export const useUpdateProperty = (
     { propertyId: number; data: PropertyDefinitionUpdate }
   >
 ) =>
-  useGuildMutation<
+  useCommunityMutation<
     PropertyDefinitionUpdateResponse,
     { propertyId: number; data: PropertyDefinitionUpdate }
   >(
     {
-      mutationFn: (guildId, { propertyId, data }) =>
-        updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
-          guildId,
-          propertyId,
-          data
-        ),
+      mutationFn: (communityId, { propertyId, data }) =>
+        updatePropertyDefinition(communityId, propertyId, data),
       // Every row's embedded summaries carry the definition's name, options
       // and color.
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
@@ -99,13 +87,9 @@ export const useUpdateProperty = (
   );
 
 export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, propertyId) =>
-        deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete(
-          guildId,
-          propertyId
-        ),
+      mutationFn: (communityId, propertyId) => deletePropertyDefinition(communityId, propertyId),
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
       errorKey: "properties:manager.deleteError",
     },
@@ -121,7 +105,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
  */
 export const useAppendPropertyOption = () => {
   const { t } = useTranslation("properties");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const mutation = useMutation({
     mutationFn: async (vars: {
@@ -145,13 +129,9 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      const saved = await updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
-        guildId,
-        vars.definition.id,
-        {
-          options: nextOptions,
-        }
-      );
+      const saved = await updatePropertyDefinition(communityId, vars.definition.id, {
+        options: nextOptions,
+      });
       // The server keeps options it already holds as they are, so the one
       // asked for is only there if it came back under this label.
       const stored = findOptionByLabel(saved.definition, label);
@@ -190,10 +170,10 @@ export interface SetPropertiesVariables {
 export const useSetProperties = (
   options?: MutationOpts<PropertySummary[], SetPropertiesVariables>
 ) =>
-  useGuildMutation<PropertySummary[], SetPropertiesVariables>(
+  useCommunityMutation<PropertySummary[], SetPropertiesVariables>(
     {
-      mutationFn: (guildId, { target, id, values }) =>
-        setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut(guildId, target, id, { values }),
+      mutationFn: (communityId, { target, id, values }) =>
+        setProperties(communityId, target, id, { values }),
       invalidate: (_data, vars) => invalidate(q.propertyHolder(vars.target)),
       errorKey: "properties:manager.setValuesError",
     },

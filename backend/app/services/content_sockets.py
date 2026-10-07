@@ -2,7 +2,7 @@
 
 A guild page opens up to three kinds of socket: the events bus
 (``/c/{guild}/events/updates``), a change signal for one queue or counter group
-(``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one document body.
+(``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one file body.
 Every page also holds the account's own socket (``/notifications/stream``),
 which belongs to no guild: it is registered with ``guild_id=None`` in its
 account's room, and ``app.services.platform.user_stream`` sends to that room.
@@ -35,7 +35,7 @@ What they share is everything else, and that lives here once:
 
 A re-check groups sockets by the account, guild and sign-in that opened them,
 and runs one guild entry per group on one session — a person with a board, a
-queue and a document open costs one entry, not three — with at most
+queue and a file open costs one entry, not three — with at most
 ``RECHECK_CONCURRENCY`` groups in flight.
 
 What this holds is one process's own sockets. Where the API runs as several
@@ -62,13 +62,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core import auth_context
 from app.core.tools import Tool
+from app.db import post_commit
 from app.db import session as db_session
 from app.db.cohorts import request_sessionmaker
 from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS
 from app.models.platform.user import Presence, User, UserStatus
-from app.services.auth import credentials
 from app.services.auth import sessions as session_service
-from app.services.platform import presence, user_tokens
+from app.services.platform import presence
 
 logger = logging.getLogger(__name__)
 
@@ -156,18 +156,17 @@ class Credential:
     satisfied_claims: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     session_id: Optional[uuid.UUID] = None
     token_version: Optional[int] = None
-    device_token_id: Optional[int] = None
 
     @classmethod
     def captured(cls) -> "Credential":
-        session = auth_context.session_credential()
+        recorded = auth_context.current()
+        session = recorded.session_credential
         return cls(
-            satisfied_providers=auth_context.satisfied_providers(),
-            session_amr=auth_context.session_amr(),
-            satisfied_claims=auth_context.satisfied_claims(),
+            satisfied_providers=recorded.satisfied_providers,
+            session_amr=recorded.session_amr,
+            satisfied_claims=recorded.satisfied_claims,
             session_id=session.session_id if session else None,
             token_version=session.token_version if session else None,
-            device_token_id=auth_context.device_token_id(),
         )
 
     def presented(self) -> tuple[Any, ...]:
@@ -198,7 +197,7 @@ class Subscriber:
     credential: Credential
     rooms: frozenset[RoomKey] = frozenset()
     #: Whether this socket counts its user as online, and as present in its
-    #: guild. The events bus and the account socket do; a tool or document
+    #: guild. The events bus and the account socket do; a tool or file
     #: socket is a page inside a guild already counted.
     presence: bool = False
     #: Whatever the channel attached at join: collaboration keeps the display
@@ -263,7 +262,6 @@ class ContentSockets:
         # open here. Two tabs are one person.
         self._present: dict[int, dict[int, int]] = {}
         self._loop_task: Optional[asyncio.Task[None]] = None
-        self._background: set[asyncio.Task[None]] = set()
 
     # ── membership ─────────────────────────────────────────────────────────
 
@@ -351,7 +349,9 @@ class ContentSockets:
                 sub.user_id,
                 sub.guild_id,
             )
-            self._spawn(self._disconnect(sub, code=status.WS_1013_TRY_AGAIN_LATER))
+            post_commit.spawn(
+                self._disconnect(sub, code=status.WS_1013_TRY_AGAIN_LATER)
+            )
 
     def emit_json(self, room: RoomKey, message: Mapping[str, Any]) -> None:
         """Send one JSON frame to every JSON socket in a room."""
@@ -509,9 +509,12 @@ class ContentSockets:
                     # Present this socket's sign-in and nothing else: whatever
                     # the task that asked for the re-check had recorded (an
                     # API key, another session) is not this socket's.
-                    credentials.clear_recorded_credential()
-                    auth_context.set_session_amr(first.credential.session_amr)
-                    auth_context.set_satisfied_claims(first.credential.satisfied_claims)
+                    auth_context.reset(
+                        auth_context.AuthContext(
+                            session_amr=first.credential.session_amr,
+                            satisfied_claims=first.credential.satisfied_claims,
+                        )
+                    )
                     try:
                         await establish_guild_access(
                             session,
@@ -543,29 +546,20 @@ class ContentSockets:
     async def _ended_credentials(self, targets: list[Subscriber]) -> set[Subscriber]:
         """The sockets among ``targets`` whose credential no longer stands.
 
-        One statement per kind of credential for the whole batch, on the system
-        engine. A session's id moves to the live row its chain has reached.
+        One statement for the whole batch, on the system engine. A session's id moves to the live row its chain has reached.
         Fail closed: a lookup that errors ends every credential it was asked
         about.
         """
         session_ids = {s.session_id for s in targets if s.session_id is not None}
-        device_ids = {
-            s.credential.device_token_id
-            for s in targets
-            if s.credential.device_token_id is not None
-        }
         versioned = {
             s.user_id for s in targets if s.credential.token_version is not None
         }
-        if not session_ids and not device_ids:
+        if not session_ids:
             return set()
         try:
             async with db_session.SystemSessionLocal() as system_session:
                 tips = await session_service.live_chain_tips(
                     system_session, session_ids=session_ids
-                )
-                live_devices = await user_tokens.live_device_token_ids(
-                    system_session, token_ids=device_ids
                 )
                 versions: dict[int, int] = {}
                 if versioned:
@@ -579,11 +573,7 @@ class ContentSockets:
             logger.exception(
                 "content socket credential check failed; closing to fail closed"
             )
-            return {
-                s
-                for s in targets
-                if s.session_id is not None or s.credential.device_token_id is not None
-            }
+            return {s for s in targets if s.session_id is not None}
 
         ended: set[Subscriber] = set()
         for sub in targets:
@@ -596,9 +586,6 @@ class ContentSockets:
                     ended.add(sub)
                     continue
                 sub.session_id = tip
-            device = sub.credential.device_token_id
-            if device is not None and device not in live_devices:
-                ended.add(sub)
         return ended
 
     async def _disconnect(
@@ -607,11 +594,6 @@ class ContentSockets:
         self.leave(sub.websocket)
         with contextlib.suppress(Exception):
             await sub.websocket.close(code=code)
-
-    def _spawn(self, coro: Awaitable[None]) -> None:
-        task = asyncio.ensure_future(coro)
-        self._background.add(task)
-        task.add_done_callback(self._background.discard)
 
     def _ensure_loop(self) -> None:
         if self._loop_task is None or self._loop_task.done():

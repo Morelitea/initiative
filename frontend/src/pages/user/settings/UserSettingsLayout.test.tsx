@@ -18,9 +18,9 @@ const mocks = vi.hoisted(() => ({ ai: vi.fn() }));
 vi.mock("@/hooks/useAISettings", () => ({ useMyAI: () => mocks.ai() }));
 
 const connection = (overrides: Record<string, unknown> = {}) => ({
-  guild_id: 1,
-  guild_name: "Tabletop",
-  scope: "guild",
+  community_id: 1,
+  community_name: "Tabletop",
+  scope: "community",
   connection_id: 1,
   label: "House key",
   provider: "anthropic",

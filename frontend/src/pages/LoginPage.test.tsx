@@ -1,6 +1,11 @@
 /**
- * The sign-in card's two steps beyond a password: the second factor, and the
- * passkey.
+ * The sign-in card: the password form, and the two steps beyond it — the
+ * second factor, and the passkey.
+ *
+ * For the password form, what is pinned is what a password manager does to it:
+ * filling the fields without the change reaching the page's state, and
+ * submitting several times in one moment. Each wrong answer counts toward
+ * locking the account, so the form sends one sign-in, of what the fields hold.
  *
  * For the factor, what is worth pinning is what the card does with a challenge
  * — that it stops asking for a password, that a refused code leaves the person
@@ -18,7 +23,7 @@
  * here too.
  */
 import { Browser } from "@capacitor/browser";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,10 +34,13 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   completeSecondFactor: vi.fn(),
   applyPasskeySignIn: vi.fn(),
+  completeOidcLogin: vi.fn(),
+  redeemNativeSignIn: vi.fn(),
   get: vi.fn(),
   signInWithPasskey: vi.fn(),
   cancelPendingPasskeyPrompt: vi.fn(),
   browserOffersPasskeys: vi.fn(() => true),
+  appRunsPasskeys: vi.fn(() => false),
   browserOffersPasskeyAutofill: vi.fn(() => Promise.resolve(false)),
   /** The real mapping, so the card is asserted on the copy it would show. */
   describePasskeyPromptError: vi.fn((error: unknown) => {
@@ -42,16 +50,18 @@ const mocks = vi.hoisted(() => ({
   }),
   /** Read on every render, so a test can say what the deployment offers. */
   config: { passwordLoginEnabled: true, passkeyLoginEnabled: true },
-  server: { isNativePlatform: false },
+  server: { isNativePlatform: false } as {
+    isNativePlatform: boolean;
+    isServerConfigured?: boolean;
+  },
 }));
 
-// The bootstrap probe and the provider list, answered by path through one mock.
+// The provider list. The bootstrap probe is the default handler's: a server
+// that already has users, so the page shows the sign-in card.
 vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
-  bootstrapStatusApiV1AuthBootstrapGet: () =>
-    mocks.get("/auth/bootstrap").then((r: { data: unknown }) => r.data),
-  listLoginProvidersApiV1AuthProvidersGet: () =>
-    mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
+  listLoginProviders: () => mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
+  redeemNativeSignIn: (body: unknown) => mocks.redeemNativeSignIn(body),
 }));
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
@@ -60,6 +70,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
     login: mocks.login,
     completeSecondFactor: mocks.completeSecondFactor,
     applyPasskeySignIn: mocks.applyPasskeySignIn,
+    completeOidcLogin: mocks.completeOidcLogin,
   }),
 }));
 
@@ -67,7 +78,7 @@ vi.mock("@/hooks/useServer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useServer")>()),
   useServer: () => ({
     isNativePlatform: mocks.server.isNativePlatform,
-    isServerConfigured: true,
+    isServerConfigured: mocks.server.isServerConfigured ?? true,
     getServerHostname: () => "example.com",
     getServerOrigin: () => "https://example.com",
     clearServerUrl: vi.fn(),
@@ -83,6 +94,8 @@ vi.mock("@/hooks/useAppConfig", async (importOriginal) => ({
 // Every conversation with the browser's credential API goes through this one
 // module, so the whole ceremony is one mock.
 vi.mock("@/lib/passkeys", () => ({
+  appRunsPasskeys: () => mocks.appRunsPasskeys(),
+  PasskeyNeedsBrowserError: class PasskeyNeedsBrowserError extends Error {},
   browserOffersPasskeys: () => mocks.browserOffersPasskeys(),
   browserOffersPasskeyAutofill: () => mocks.browserOffersPasskeyAutofill(),
   signInWithPasskey: (options?: unknown) => mocks.signInWithPasskey(options),
@@ -92,6 +105,7 @@ vi.mock("@/lib/passkeys", () => ({
 
 import { SecondFactorRequiredError } from "@/hooks/useAuth";
 import { takePendingSignIn } from "@/lib/nativeSignIn";
+import { PasskeyNeedsBrowserError } from "@/lib/passkeys";
 
 import { LoginPage } from "./LoginPage";
 
@@ -135,13 +149,8 @@ const watchWhereItLeavesFor = () => {
   };
 };
 
-/** The bootstrap probe and the provider list share one client. */
 const offering = (providers: unknown[]) => {
-  mocks.get.mockImplementation((url: string) =>
-    Promise.resolve(
-      url === "/auth/providers" ? { data: { providers } } : { data: { has_users: true } }
-    )
-  );
+  mocks.get.mockResolvedValue({ data: { providers } });
 };
 
 const passkeyButton = () => screen.findByRole("button", { name: /sign in with a passkey/i });
@@ -178,6 +187,9 @@ const resetLoginMocks = () => {
   mocks.login.mockReset();
   mocks.completeSecondFactor.mockReset().mockResolvedValue(undefined);
   mocks.applyPasskeySignIn.mockReset().mockResolvedValue(undefined);
+  mocks.completeOidcLogin.mockReset().mockResolvedValue(undefined);
+  mocks.redeemNativeSignIn.mockReset();
+  mocks.appRunsPasskeys.mockReset().mockReturnValue(false);
   mocks.signInWithPasskey.mockReset();
   mocks.cancelPendingPasskeyPrompt.mockReset();
   mocks.browserOffersPasskeys.mockReset().mockReturnValue(true);
@@ -185,10 +197,64 @@ const resetLoginMocks = () => {
   mocks.config = { passwordLoginEnabled: true, passkeyLoginEnabled: true };
   mocks.server = { isNativePlatform: false };
   vi.mocked(Browser.open).mockClear();
-  // The bootstrap probe and the provider list both go through mocks.get.
-  // has_users false would send the page to first-run registration instead.
-  mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+  mocks.get.mockReset().mockResolvedValue({ data: { providers: [] } });
 };
+
+/** Put a value in a field the way an autofill can: in the field, with no
+ *  event the page hears. */
+const fillWithoutTelling = (field: HTMLElement, value: string) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
+};
+
+describe("LoginPage server", () => {
+  beforeEach(resetLoginMocks);
+
+  it("asks the app for a server before anything else", async () => {
+    mocks.server = { isNativePlatform: true, isServerConfigured: false };
+    renderLogin();
+
+    expect(await screen.findByRole("combobox", { name: /^server$/i })).toHaveTextContent(
+      /self-hosted/i
+    );
+    expect(screen.getByRole("textbox", { name: /server address/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("LoginPage password", () => {
+  beforeEach(resetLoginMocks);
+
+  it("sends one sign-in however many times the form is submitted at once", async () => {
+    const user = userEvent.setup();
+    // Still waiting on the server while the other submits arrive.
+    mocks.login.mockReturnValue(new Promise(() => {}));
+    renderLogin();
+    await user.type(await screen.findByLabelText(/email/i), "someone@example.com");
+    await user.type(screen.getByLabelText(/password/i), "a-password");
+    const form = screen.getByRole("button", { name: /^sign in$/i }).closest("form");
+
+    for (let i = 0; i < 5; i++) fireEvent.submit(form as HTMLFormElement);
+
+    expect(mocks.login).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends what the fields hold, though the fill never reached the page", async () => {
+    mocks.login.mockReturnValue(new Promise(() => {}));
+    renderLogin();
+    const email = await screen.findByLabelText(/email/i);
+    const password = screen.getByLabelText(/password/i);
+
+    fillWithoutTelling(email, "Someone@Example.com");
+    fillWithoutTelling(password, "the-saved-password");
+    fireEvent.submit(password.closest("form") as HTMLFormElement);
+
+    expect(mocks.login).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "someone@example.com", password: "the-saved-password" })
+    );
+    // And the fields keep it once the page renders again.
+    await waitFor(() => expect(password).toHaveValue("the-saved-password"));
+  });
+});
 
 describe("LoginPage second factor", () => {
   beforeEach(resetLoginMocks);
@@ -234,6 +300,20 @@ describe("LoginPage second factor", () => {
     const field = screen.getByLabelText(/authentication code/i);
     expect(field).toBeInTheDocument();
     expect(field).toHaveValue("");
+  });
+
+  it("sends a code filled in without the page hearing it", async () => {
+    const user = userEvent.setup();
+    mocks.login.mockRejectedValue(new SecondFactorRequiredError("a-challenge"));
+    renderLogin();
+    await signIn(user);
+
+    fillWithoutTelling(await screen.findByLabelText(/authentication code/i), "123456");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(mocks.completeSecondFactor).toHaveBeenCalledWith(
+      expect.objectContaining({ challenge: "a-challenge", code: "123456" })
+    );
   });
 
   it("starting over puts the password back", async () => {
@@ -491,6 +571,53 @@ describe("LoginPage passkey", () => {
         .replace(/=+$/, "")
     );
     expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("runs the ceremony in the app where the app can", async () => {
+    // The server hands back a code bound to this app's challenge, as it does
+    // for the relay, and the app redeems it itself.
+    const user = userEvent.setup();
+    mocks.server = { isNativePlatform: true };
+    mocks.appRunsPasskeys.mockReturnValue(true);
+    mocks.signInWithPasskey.mockResolvedValue({
+      redirect_to: "initiative://oidc/callback?code=one-time",
+    });
+    mocks.redeemNativeSignIn.mockResolvedValue({
+      access_token: "access",
+      refresh_token: "refresh",
+      token_type: "bearer",
+    });
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    await waitFor(() =>
+      expect(mocks.completeOidcLogin).toHaveBeenCalledWith({
+        accessToken: "access",
+        refreshToken: "refresh",
+      })
+    );
+    expect(mocks.signInWithPasskey).toHaveBeenCalledWith(
+      expect.objectContaining({ mobile: true, deviceName: "Test Device" })
+    );
+    expect(mocks.redeemNativeSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "one-time" })
+    );
+    expect(Browser.open).not.toHaveBeenCalled();
+  });
+
+  it("goes to the browser when the phone will not let the app act for the server", async () => {
+    const user = userEvent.setup();
+    mocks.server = { isNativePlatform: true };
+    mocks.appRunsPasskeys.mockReturnValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(new PasskeyNeedsBrowserError());
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    await waitFor(() => expect(Browser.open).toHaveBeenCalledTimes(1));
+    expect(new URL(vi.mocked(Browser.open).mock.calls[0][0].url).pathname).toBe("/login");
+    expect(mocks.describePasskeyPromptError).not.toHaveBeenCalled();
   });
 });
 

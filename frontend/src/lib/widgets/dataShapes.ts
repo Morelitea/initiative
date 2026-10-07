@@ -9,9 +9,9 @@
  *
  * **There are two envelopes, not nine.** A statement and a spreadsheet range
  * both answer with columns and rows, so both arrive as {@link TabularData} and
- * a widget never learns which it was given. An installed app's data is its own
+ * a widget never learns which it was given. An installed plug-in's data is its own
  * shape, declared in its own manifest, and its widget ships alongside — that is
- * {@link AppRows}, and no built-in widget reads it.
+ * {@link PluginRows}, and no built-in widget reads it.
  *
  * **All timestamps are epoch milliseconds, UTC.** The sandbox has a frozen
  * clock and no timezone, deliberately: rendering a timestamp for a human is the
@@ -28,10 +28,16 @@
  */
 export type ColumnType = "text" | "number" | "date" | "boolean" | "enum" | "reference";
 
+/** The period a date column is rounded to, when the statement rounded it. */
+export type ColumnGrain = "day" | "week" | "month" | "quarter" | "year";
+
 /** One output column: what it is called, and what it holds. */
 export interface DataColumn {
   name: string;
   type: ColumnType;
+  /** For a date the statement rounded with `date_trunc`, the unit it rounded
+   *  to. A chart labels its points by this; absent means a plain date. */
+  grain?: ColumnGrain;
 }
 
 /** A cell. Dates are epoch milliseconds, like every other timestamp here. */
@@ -56,7 +62,7 @@ export interface TabularData {
 }
 
 /**
- * An installed app's data source, in the two shapes its manifest declared.
+ * An installed plug-in's data source, in the two shapes its manifest declared.
  *
  * The one source whose *keys* this build does not describe, and deliberately
  * so: they are the endpoint's own `returns`, and the widget that draws them
@@ -68,10 +74,10 @@ export interface TabularData {
  *
  * They are still *data*. The sandbox receives values, and the SceneSpec it has
  * to return has no `html` mark, no raw-string passthrough and no way to name a
- * URL, so an app cannot turn its own rows into rendering.
+ * URL, so a plug-in cannot turn its own rows into rendering.
  */
-export interface AppRows {
-  source: "app";
+export interface PluginRows {
+  source: "plugin";
   /** One entry per index across the endpoint's `list` returns. */
   rows: Record<string, unknown>[];
   /** The endpoint's single-valued returns, once. */
@@ -95,10 +101,10 @@ export interface DataMeta {
   truncated?: boolean;
 }
 
-export type WidgetData = (TabularData | AppRows) & { meta?: DataMeta };
+export type WidgetData = (TabularData | PluginRows) & { meta?: DataMeta };
 
 /** What a *binding* may name — as distinct from the envelope it produces. */
-export type WidgetSource = "query" | "sheet_range" | "app";
+export type WidgetSource = "query" | "sheet_range" | "plugin";
 
 /** Widget-level display options, already validated by the backend against the
  *  primitive's allow-list (`WIDGET_SPECS[...].options`). Values are strings —

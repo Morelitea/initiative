@@ -20,6 +20,7 @@ dependencies {
     implementation project(':capacitor-preferences')
     implementation project(':capacitor-push-notifications')
     implementation project(':capacitor-splash-screen')
+    implementation project(':capawesome-capacitor-passkeys')
     implementation project(':capgo-capacitor-updater')
 
 }

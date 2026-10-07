@@ -20,11 +20,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/api/generated/auth/auth", () => ({
-  useReadSecondFactorApiV1AuthTotpGet: () => mocks.status(),
-  getReadSecondFactorApiV1AuthTotpGetQueryKey: () => ["/api/v1/auth/totp"],
-  useBeginSecondFactorApiV1AuthTotpEnrollPost: (options?: {
-    mutation?: { onSuccess?: (data: unknown) => void };
-  }) => ({
+  useReadSecondFactor: () => mocks.status(),
+  getReadSecondFactorQueryKey: () => ["/api/v1/auth/totp"],
+  useBeginSecondFactor: (options?: { mutation?: { onSuccess?: (data: unknown) => void } }) => ({
     mutate: (vars: unknown) => {
       mocks.begin(vars);
       options?.mutation?.onSuccess?.({
@@ -34,25 +32,22 @@ vi.mock("@/api/generated/auth/auth", () => ({
     },
     isPending: false,
   }),
-  useConfirmSecondFactorApiV1AuthTotpConfirmPost: (options?: {
-    mutation?: { onSuccess?: (data: unknown) => void };
-  }) => ({
+  useConfirmSecondFactor: (options?: { mutation?: { onSuccess?: (data: unknown) => void } }) => ({
     mutate: (vars: unknown) => {
       mocks.confirm(vars);
       options?.mutation?.onSuccess?.({ codes: ["aaaaa-bbbbb", "ccccc-ddddd"] });
     },
     isPending: false,
   }),
-  useDisableSecondFactorApiV1AuthTotpDisablePost: (options?: {
-    mutation?: { onSuccess?: () => void };
-  }) => ({
+  useDisableSecondFactor: (options?: { mutation?: { onSuccess?: (data: unknown) => void } }) => ({
     mutate: (vars: unknown) => {
       mocks.disable(vars);
-      options?.mutation?.onSuccess?.();
+      // What the endpoint answers: the change was made, with nothing held.
+      options?.mutation?.onSuccess?.({ held: null });
     },
     isPending: false,
   }),
-  useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost: (options?: {
+  useRegenerateRecoveryCodes: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void };
   }) => ({
     mutate: (vars: unknown) => {

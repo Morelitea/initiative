@@ -1,5 +1,5 @@
 {
-  "title": "Verknüpft mit",
+  "title": "Verbindungen",
   "description": "Alles, womit dies verbunden ist — und wie.",
   "untitled": "Ohne Titel",
   "empty": "Noch nichts verknüpft.",
@@ -82,23 +82,24 @@
       "title": "Erwähnt in",
       "option": "wird erwähnt in"
     },
+    "references": {
+      "title": "Verlinkt auf",
+      "option": "verlinkt auf"
+    },
     "tagged": {
       "title": "Markiert",
       "option": "ist markiert"
     }
   },
   "loading": "Wird geladen…",
-  "title_task": "Verbindungen",
-  "title_document": "Verbindungen",
-  "title_project": "Angehängt & verknüpft",
-  "empty_task": "Noch nichts verknüpft. Verknüpfe das Dokument, das diese Aufgabe beschreibt, oder die Aufgabe, von der sie blockiert wird.",
-  "empty_document": "Noch nichts verknüpft. Verknüpfe das Projekt, das dies erklärt, oder die Aufgabe, aus der es entstanden ist.",
-  "empty_project": "Noch nichts verknüpft. Häng die Dokumente und Dateien an, auf denen dieses Projekt aufbaut.",
+  "empty_task": "Noch nichts verknüpft. Verknüpfe die Datei, die diese Aufgabe beschreibt, oder die Aufgabe, von der sie blockiert wird.",
+  "empty_file": "Noch nichts verknüpft. Verknüpfe das Projekt, das dies erklärt, oder die Aufgabe, aus der es entstanden ist.",
+  "empty_project": "Noch nichts verknüpft. Häng die Dateien an, auf denen dieses Projekt aufbaut.",
   "count": "{{count}}",
   "openOf": "{{open}} von {{total}} noch offen",
   "help": {
     "title": "Was eine Verknüpfung ist",
-    "body": "Eine Verknüpfung hält fest, wie zwei Dinge zusammenhängen — worauf eine Aufgabe wartet, welches Dokument ein Projekt erklärt, was was erwähnt.",
+    "body": "Eine Verknüpfung hält fest, wie zwei Dinge zusammenhängen — worauf eine Aufgabe wartet, welche Datei ein Projekt erklärt, was was erwähnt.",
     "derived": "Manche Verknüpfungen schreiben sich selbst: # und [[ ]] im Text werden zu „Erwähnt in“.",
     "learnMore": "Mehr erfahren"
   },
@@ -108,7 +109,7 @@
     "counter": "Dieser Zähler",
     "counter_group": "Diese Gruppe",
     "dashboard": "Dieses Dashboard",
-    "document": "Dieses Dokument",
+    "file": "Diese Datei",
     "gallery": "Diese Galerie",
     "gallery_image": "Dieses Bild",
     "generic": "Dies",
@@ -125,24 +126,15 @@
     "label_other": "{{count}} Sachen halten dies auf",
     "icon": "Was dies aufhält"
   },
-  "title_calendar": "Verbindungen",
-  "title_calendar_event": "Verbindungen",
-  "title_counter": "Verbindungen",
-  "title_counter_group": "Verbindungen",
-  "title_dashboard": "Verbindungen",
-  "title_gallery": "Angehängt & verknüpft",
-  "title_gallery_image": "Verbindungen",
-  "title_post": "Verbindungen",
-  "title_queue": "Verbindungen",
-  "title_queue_item": "Verbindungen",
-  "empty_calendar": "Noch nichts verknüpft. Verknüpfe das Projekt, das dieser Kalender plant, oder das Dokument, das ihn erklärt.",
-  "empty_calendar_event": "Noch nichts verknüpft. Verknüpfe die Aufgabe, um die es geht, oder das Dokument, mit dem du arbeitest.",
+  "empty_calendar": "Noch nichts verknüpft. Verknüpfe das Projekt, das dieser Kalender plant, oder die Datei, die ihn erklärt.",
+  "empty_calendar_event": "Noch nichts verknüpft. Verknüpfe die Aufgabe, um die es geht, oder die Datei, mit der du arbeitest.",
   "empty_counter": "Noch nichts verknüpft. Verknüpfe die Aufgabe, auf die das einzahlt, oder das Projekt, über das es berichtet.",
   "empty_counter_group": "Noch nichts verknüpft. Verknüpfe das Projekt, um dessen Zahlen es geht.",
-  "empty_dashboard": "Noch nichts verknüpft. Verknüpfe das Projekt, über das dies berichtet, oder das Dokument, das es auswertet.",
+  "empty_dashboard": "Noch nichts verknüpft. Verknüpfe das Projekt, über das dies berichtet, oder die Datei, die es auswertet.",
   "empty_gallery": "Noch nichts verknüpft. Verknüpfe das Projekt, für das diese Bilder sind.",
-  "empty_gallery_image": "Noch nichts verknüpft. Verknüpfe die Aufgabe, für die das Bild ist, oder das Dokument, in das es gehört.",
-  "empty_post": "Noch nichts verknüpft. Verknüpfe das Projekt, das hier angekündigt wird, oder das Dokument dahinter.",
+  "empty_gallery_image": "Noch nichts verknüpft. Verknüpfe die Aufgabe, für die das Bild ist, oder die Datei, in die es gehört.",
+  "empty_post": "Noch nichts verknüpft. Verknüpfe das Projekt, das hier angekündigt wird, oder die Datei dahinter.",
   "empty_queue": "Noch nichts verknüpft. Verknüpfe das Projekt, das diese Warteschlange speist.",
-  "empty_queue_item": "Noch nichts verknüpft. Verknüpfe die Aufgabe, die daraus wurde, oder das Dokument, aus dem es stammt."
+  "empty_queue_item": "Noch nichts verknüpft. Verknüpfe die Aufgabe, die daraus wurde, oder die Datei, aus der es stammt.",
+  "empty_wiki_page": "Noch nichts verknüpft. Erwähne diese Seite mit [[ von irgendwo – dann erscheint sie hier."
 }

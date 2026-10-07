@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { getVersionApiV1VersionGet } from "@/api/generated/version/version";
-import { compareVersions } from "@/hooks/useDockerHubVersion";
+import { getVersion } from "@/api/generated/version/version";
+import { compareVersions } from "@/hooks/useLatestVersion";
 import { getItem, setItem } from "@/lib/storage";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -18,7 +18,7 @@ export const useVersionCheck = () => {
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        const result = await getVersionApiV1VersionGet();
+        const result = await getVersion();
         const serverVersion = result.version;
 
         // Only show update popup if server version is newer than client version

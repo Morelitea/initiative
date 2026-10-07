@@ -16,51 +16,24 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
-  getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
-  readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
+  getReadCalendarEventQueryKey,
+  readCalendarEvent,
 } from "@/api/generated/calendar-events/calendar-events";
-import {
-  getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-  readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
-} from "@/api/generated/calendars/calendars";
-import {
-  getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-  readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
-} from "@/api/generated/counters/counters";
-import {
-  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
-} from "@/api/generated/dashboards/dashboards";
-import {
-  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
-} from "@/api/generated/documents/documents";
-import {
-  getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-  readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
-} from "@/api/generated/galleries/galleries";
+import { getReadCalendarQueryKey, readCalendar } from "@/api/generated/calendars/calendars";
+import { getReadCounterGroupQueryKey, readCounterGroup } from "@/api/generated/counters/counters";
+import { getReadDashboardQueryKey, readDashboard } from "@/api/generated/dashboards/dashboards";
+import { getReadFileQueryKey, readFile } from "@/api/generated/files/files";
+import { getReadGalleryQueryKey, readGallery } from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { getReadPostQueryKey, readPost } from "@/api/generated/posts/posts";
+import { getReadProjectQueryKey, readProject } from "@/api/generated/projects/projects";
+import { getReadQueueQueryKey, readQueue } from "@/api/generated/queues/queues";
+import { getReadTaskQueryKey, readTask } from "@/api/generated/tasks/tasks";
 import {
-  getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-  readPostApiV1CGuildIdPostsPostIdGet,
-} from "@/api/generated/posts/posts";
-import {
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1CGuildIdProjectsProjectIdGet,
-} from "@/api/generated/projects/projects";
-import {
-  getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-  readQueueApiV1CGuildIdQueuesQueueIdGet,
-} from "@/api/generated/queues/queues";
-import {
-  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1CGuildIdTasksTaskIdGet,
-} from "@/api/generated/tasks/tasks";
-import {
-  getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
-  readWikiApiV1CGuildIdWikisWikiIdGet,
-  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
+  getReadWikiPageQueryKey,
+  getReadWikiQueryKey,
+  readWiki,
+  readWikiPage,
 } from "@/api/generated/wikis/wikis";
 import {
   eventRoute,
@@ -84,61 +57,61 @@ type Read = <T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) => Prom
 const TOOL_READS: Record<
   Tool,
   {
-    key: (guildId: number, id: number) => readonly unknown[];
-    read: (guildId: number, id: number) => Promise<{ initiative_id?: number | null }>;
+    key: (communityId: number, id: number) => readonly unknown[];
+    read: (communityId: number, id: number) => Promise<{ initiative_id?: number | null }>;
   }
 > = {
   [Tool.project]: {
-    key: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-    read: readProjectApiV1CGuildIdProjectsProjectIdGet,
+    key: getReadProjectQueryKey,
+    read: readProject,
   },
-  [Tool.document]: {
-    key: getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-    read: readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
+  [Tool.file]: {
+    key: getReadFileQueryKey,
+    read: readFile,
   },
   [Tool.queue]: {
-    key: getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-    read: readQueueApiV1CGuildIdQueuesQueueIdGet,
+    key: getReadQueueQueryKey,
+    read: readQueue,
   },
   [Tool.counter_group]: {
-    key: getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-    read: readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
+    key: getReadCounterGroupQueryKey,
+    read: readCounterGroup,
   },
   [Tool.calendar]: {
-    key: getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-    read: readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
+    key: getReadCalendarQueryKey,
+    read: readCalendar,
   },
   [Tool.dashboard]: {
-    key: getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-    read: readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
+    key: getReadDashboardQueryKey,
+    read: readDashboard,
   },
   [Tool.post]: {
-    key: getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-    read: readPostApiV1CGuildIdPostsPostIdGet,
+    key: getReadPostQueryKey,
+    read: readPost,
   },
   [Tool.gallery]: {
-    key: getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-    read: readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
+    key: getReadGalleryQueryKey,
+    read: readGallery,
   },
   [Tool.wiki]: {
-    key: getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-    read: readWikiApiV1CGuildIdWikisWikiIdGet,
+    key: getReadWikiQueryKey,
+    read: readWiki,
   },
 };
 
-/** The initiative a tool row lives in. `null` is a guild-level row (an
- *  app-installed calendar), which keeps a guild address — not a failure. */
+/** The initiative a tool row lives in. `null` is a community-level row (an
+ *  plugin-installed calendar), which keeps a community address — not a failure. */
 const toolInitiative = async (
   read: Read,
-  guildId: number,
+  communityId: number,
   tool: Tool,
   id: number
 ): Promise<number | null> => {
   const { key, read: readRow } = TOOL_READS[tool];
-  return (await read(key(guildId, id), () => readRow(guildId, id))).initiative_id ?? null;
+  return (await read(key(communityId, id), () => readRow(communityId, id))).initiative_id ?? null;
 };
 
-type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
+type Resolve = (read: Read, communityId: number, id: number) => Promise<string>;
 
 /**
  * The kinds that live inside a tool and can be read by their own id, keyed by
@@ -148,30 +121,26 @@ type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
  * so neither has a resolver.
  */
 const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
-  task: async (read, guildId, id) => {
-    const task = await read(getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, id), () =>
-      readTaskApiV1CGuildIdTasksTaskIdGet(guildId, id)
-    );
+  task: async (read, communityId, id) => {
+    const task = await read(getReadTaskQueryKey(communityId, id), () => readTask(communityId, id));
     // The embedded project summary usually names the initiative; when the
     // task read omits it, the project itself is the authority.
     const initiativeId =
       task.project?.initiative_id ??
-      (await toolInitiative(read, guildId, Tool.project, task.project_id));
+      (await toolInitiative(read, communityId, Tool.project, task.project_id));
     return taskRoute(initiativeId, task.project_id, id);
   },
-  calendar_event: async (read, guildId, id) => {
-    const event = await read(
-      getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, id),
-      () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, id)
+  calendar_event: async (read, communityId, id) => {
+    const event = await read(getReadCalendarEventQueryKey(communityId, id), () =>
+      readCalendarEvent(communityId, id)
     );
     return eventRoute(event.initiative_id, event.calendar_id, id);
   },
-  wiki_page: async (read, guildId, id) => {
-    const page = await read(
-      getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
-      () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
+  wiki_page: async (read, communityId, id) => {
+    const page = await read(getReadWikiPageQueryKey(communityId, id), () =>
+      readWikiPage(communityId, id)
     );
-    const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
+    const initiativeId = await toolInitiative(read, communityId, Tool.wiki, page.wiki_id);
     return wikiPageRoute(initiativeId, page.wiki_id, id);
   },
 };
@@ -185,8 +154,8 @@ const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
 const RESOLVERS = new Map<string, Resolve>([
   ...TOOLS.map((tool): [string, Resolve] => [
     toolKebabSingular(tool),
-    async (read, guildId, id) =>
-      toolDetailRoute(tool, await toolInitiative(read, guildId, tool, id), id),
+    async (read, communityId, id) =>
+      toolDetailRoute(tool, await toolInitiative(read, communityId, tool, id), id),
   ]),
   ...Object.entries(CHILD_RESOLVERS).map(([kind, resolve]): [string, Resolve] => [
     kind.replaceAll("_", "-"),
@@ -210,13 +179,13 @@ export const entityRefTypeFor = (type: SearchEntityType): string | null => {
 };
 
 /**
- * The guild-relative path an entity lives at, or `null` when it can't be
+ * The community-relative path an entity lives at, or `null` when it can't be
  * resolved — it was deleted, the reader can't see it, or its parent is gone.
- * Callers send `null` to the guild home rather than guessing at an address.
+ * Callers send `null` to the community home rather than guessing at an address.
  */
 export async function resolveEntityPath(
   queryClient: QueryClient,
-  guildId: number,
+  communityId: number,
   refType: string,
   entityId: number
 ): Promise<string | null> {
@@ -227,15 +196,15 @@ export async function resolveEntityPath(
     queryClient.ensureQueryData({ queryKey, queryFn, staleTime: STALE_TIME });
 
   try {
-    return await resolve(read, guildId, entityId);
+    return await resolve(read, communityId, entityId);
   } catch {
-    // Deleted, or the reader can't see it. The caller lands on the guild home.
+    // Deleted, or the reader can't see it. The caller lands on the community home.
     return null;
   }
 }
 
 /**
- * Rewrite a guild-relative path written before tools were addressed inside
+ * Rewrite a community-relative path written before tools were addressed inside
  * their initiative onto the `/go` resolver.
  *
  * Notification rows persist their `target_path`, so links minted by an older
@@ -245,7 +214,7 @@ export async function resolveEntityPath(
 const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/tasks\/(\d+)(\/.*)?$/, (id) => `/go/task/${id}`],
   [/^\/projects\/(\d+)(\/.*)?$/, (id) => `/go/project/${id}`],
-  [/^\/documents\/(\d+)(\/.*)?$/, (id) => `/go/document/${id}`],
+  [/^\/files\/(\d+)(\/.*)?$/, (id) => `/go/file/${id}`],
   [/^\/calendar-events\/(\d+)(\/.*)?$/, (id) => `/go/calendar-event/${id}`],
   // A calendar event's ref type was `event` before every ref type became its
   // kind's kebab singular.
@@ -253,13 +222,13 @@ const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/initiatives\/(\d+)(\/.*)?$/, (id) => initiativeRoute(Number(id))],
 ];
 
-/** Guild-relative paths that used to name a list page and no longer exist.
- *  (`/initiatives` among them: that list is part of the guild home now.) */
+/** Community-relative paths that used to name a list page and no longer exist.
+ *  (`/initiatives` among them: that list is part of the community home now.) */
 const LEGACY_LISTS = new Set([
   "/initiatives",
   "/tasks",
   "/projects",
-  "/documents",
+  "/files",
   "/queues",
   "/dashboards",
   "/counter-groups",
@@ -268,22 +237,22 @@ const LEGACY_LISTS = new Set([
 ]);
 
 /**
- * App-level (guild-less) paths that a notification may still name.
+ * App-level (community-less) paths that a notification may still name.
  *
  * `/settings/profile` never existed as a route — your account lives under
  * `/profile`. Notification rows persist the path they were written with, so
  * the ones already sent have to be rewritten on the way out; the server no
  * longer mints it.
  */
-const LEGACY_APP_TARGETS = new Map([
+const LEGACY_PLUGIN_TARGETS = new Map([
   ["/settings/profile", "/profile/account"],
   ["/settings/account", "/profile/account"],
 ]);
 
-/** As {@link normalizeLegacyTarget}, for a path that names no guild. */
-export function normalizeAppTarget(path: string): string {
+/** As {@link normalizeLegacyTarget}, for a path that names no community. */
+export function normalizePluginTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return LEGACY_APP_TARGETS.get(normalized) ?? normalized;
+  return LEGACY_PLUGIN_TARGETS.get(normalized) ?? normalized;
 }
 
 export function normalizeLegacyTarget(path: string): string {

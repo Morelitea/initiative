@@ -62,7 +62,7 @@ async def route_as(
     # passes it on to the GUC the policies read.
     satisfied = None if satisfied_providers is None else frozenset(satisfied_providers)
     if satisfied is not None:
-        auth_context.set_satisfied_providers(satisfied)
+        auth_context.record(satisfied_providers=satisfied)
     await set_rls_context(session, Platform(user_id=user_id))
     user = (await session.exec(select(User).where(User.id == user_id))).one()
     return await establish_guild_access(
@@ -87,7 +87,7 @@ async def route_as_install(
     user_id: Optional[int] = None,
     purpose: Optional[str] = None,
 ):
-    """Route ``session`` as an installed app, through the install seam.
+    """Route ``session`` as an installed plug-in, through the install seam.
 
     What the token path will hand the seam once it verifies a token, built
     here from the values a test chose; ``user_id`` makes it a member token.

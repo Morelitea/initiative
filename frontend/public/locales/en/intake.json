@@ -11,7 +11,7 @@
     "saved": "Contacts saved.",
     "saveError": "Could not save the contacts."
   },
-  "guild": {
+  "community": {
     "title": "Operations community",
     "description": "The community that receives this deployment's security, moderation, support and feedback work.",
     "label": "Community",
@@ -24,7 +24,7 @@
     "clearConfirm": "Stop routing"
   },
   "streams": {
-    "chooseGuildFirst": "Choose a community above, then say where each stream lands.",
+    "chooseCommunityFirst": "Choose a community above, then say where each stream lands.",
     "security": {
       "title": "Security",
       "description": "Cases raised by rules watching this deployment."
@@ -68,7 +68,14 @@
     "saveError": "Could not save that change.",
     "destinationArchived": "Destination archived",
     "archivedOption": "{{name}} (archived)",
-    "archivedNote": "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
+    "archivedNote": "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project.",
+    "awaitingLabel": "Waiting on the requester",
+    "activeLabel": "When they answer, move to",
+    "noStatusRole": "None",
+    "statusRolesHelp": "A case in the first status shows its requester “Waiting on you”. When they answer, it moves to the second.",
+    "noAwaitingHelp": "With no status picked, requesters see Received, In progress and Closed, never “Waiting on you”.",
+    "sharesIsolated": "Another stream lands in this initiative too. Security and moderation cases should have an initiative of their own, so only the people working them can read them.",
+    "sharesWithIsolated": "This initiative also holds security or moderation cases, which should have an initiative of their own. Point one of them somewhere else."
   },
   "loadFailed": {
     "title": "Could not load these settings",
@@ -87,5 +94,51 @@
     "submit": "Send",
     "thanks": "Sent. Somebody will pick it up.",
     "error": "Could not send that. Try again in a moment."
+  },
+  "contact": {
+    "title": "Get in touch",
+    "description": "Write to the people who run this server at this address, and they'll get back to you.",
+    "copy": "Copy address",
+    "copyDraft": "Copy what you wrote",
+    "write": "Write an email"
+  },
+  "tickets": {
+    "state": {
+      "received": "Received",
+      "in_progress": "In progress",
+      "waiting_on_you": "Waiting on you",
+      "closed": "Closed"
+    },
+    "you": "You",
+    "team": "The team",
+    "back": "Back to My Tickets",
+    "notFound": "We couldn't find that ticket.",
+    "opened": "opened {{when}}",
+    "waitingNote": "The team is waiting to hear back from you.",
+    "replyLabel": "Your reply",
+    "replyPlaceholder": "Write your reply…",
+    "send": "Send reply",
+    "sending": "Sending…",
+    "replyError": "Could not send your reply. Try again in a moment.",
+    "closedNote": "This ticket is closed. If something else comes up, ask for help again.",
+    "noConversation": "Thanks for the report. The team looks into every one, but they don't reply to reports here.",
+    "staffFirst": "Thanks for telling us. You can reply here once the team has followed up.",
+    "empty": "You haven't filed any tickets. When you ask for help, it shows up here so you can follow it.",
+    "loadError": "Could not load your tickets."
+  },
+  "case": {
+    "filedBy": "Filed by",
+    "noFiler": "Opened automatically",
+    "theyCalledIt": "Their subject:",
+    "noConversation": "This kind of case doesn't open a conversation with whoever filed it.",
+    "staffFirst": "They can reply once the team has said something to them.",
+    "replyLabel": "Reply to {{name}}",
+    "replyPlaceholder": "Write to {{name}}…",
+    "replyHelp": "They see only this conversation, never the comments below, and they see your replies from the team rather than from you by name.",
+    "reply": "Send reply",
+    "replyAndWait": "Send and wait for them",
+    "fromTeam": "The team ({{name}})",
+    "someone": "Someone",
+    "conversationLabel": "Conversation with {{name}}"
   }
 }

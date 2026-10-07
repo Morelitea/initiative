@@ -5,8 +5,8 @@ restored by the ordinary backup apply under a storage key made here — so it
 is quota-checked, deduplicated and registered like any other upload — and
 the markdown shows it where the description or a comment embedded it.
 
-Any other file — a PDF, a spreadsheet — becomes a file document of its own,
-attached to the task: a file has one home, the initiative's documents, and
+Any other file — a PDF, a spreadsheet — becomes an uploaded file of its own,
+attached to the task: a file has one home, the initiative's files, and
 the task is linked to it. Images up to :data:`MAX_IMAGE_BYTES`, other files
 up to :data:`MAX_FILE_BYTES`. SVG is left out on purpose: it is markup, and
 these are files from somebody else's site.
@@ -120,14 +120,14 @@ class ImageReport:
     #: Images over the per-image cap, or past the bundle's byte budget.
     oversize: int = 0
     #: Files that are not images, left behind: attachments were brought for
-    #: their pictures only, the initiative cannot take documents, or a
-    #: document cannot hold the file's type.
+    #: their pictures only, the initiative cannot take files, or a
+    #: file cannot hold its type.
     other_files: int = 0
     #: Attachments the site would not hand over.
     unreadable: int = 0
     #: What each issue's images became, by issue key.
     by_issue: dict[str, list[StoredImage]] = field(default_factory=dict)
-    #: Every other file that came over, to become a document attached to its
+    #: Every other file that came over, to become a file attached to its
     #: task, by issue key.
     files: int = 0
     file_bytes: int = 0
@@ -183,19 +183,19 @@ def file_extension(filename: str) -> str:
     return extension if 1 < len(extension) <= 10 and extension[1:].isalnum() else ""
 
 
-def document_can_hold(filename: str, media_type: str) -> bool:
-    """Whether a file that is not a picture can become a document here: a
-    file document of a type one may hold, or a table of text, which becomes a
+def file_can_hold(filename: str, media_type: str) -> bool:
+    """Whether a file that is not a picture can become a file here: a
+    uploaded file of a type one may hold, or a table of text, which becomes a
     spreadsheet."""
     from app.services.tenant.attachments import (
-        ALLOWED_DOCUMENT_MIME_TYPES,
+        ALLOWED_FILE_MIME_TYPES,
         EXTENSION_TO_MIME,
     )
     from app.services.tenant.spreadsheet_import import TEXT_TABLE_SUFFIXES
 
     extension = file_extension(filename)
     return (
-        media_type in ALLOWED_DOCUMENT_MIME_TYPES
+        media_type in ALLOWED_FILE_MIME_TYPES
         or extension in EXTENSION_TO_MIME
         or extension in TEXT_TABLE_SUFFIXES
     )
@@ -219,7 +219,7 @@ async def download_images(
     store: AssetSink,
     budget_bytes: int,
     max_files: int,
-    documents: bool = False,
+    files_allowed: bool = False,
     tick: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> ImageReport:
     """Fetch every issue's images, within the per-image cap and a total budget.
@@ -229,7 +229,7 @@ async def download_images(
     will not hand over is counted and skipped — one broken attachment is not
     a reason to lose the project — but being throttled stops the fetch, as it
     does everywhere else. What would take the bundle past ``budget_bytes`` or
-    ``max_files`` is skipped and counted as oversize. ``documents`` brings the
+    ``max_files`` is skipped and counted as oversize. ``files_allowed`` brings the
     files that are not pictures too; without it they are counted.
     """
     report = ImageReport()
@@ -241,8 +241,8 @@ async def download_images(
             if attachment.mime_type in REFUSED_TYPES or (
                 not is_image
                 and not (
-                    documents
-                    and document_can_hold(attachment.filename, attachment.mime_type)
+                    files_allowed
+                    and file_can_hold(attachment.filename, attachment.mime_type)
                 )
             ):
                 report.other_files += 1

@@ -30,8 +30,8 @@ import {
   useUpdateAuthProvider,
   useUpdatePlatformAuthSettings,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** The three answers, in the order they widen. */
 const LEVELS = ["nobody", "platform_roles", "everyone"] as const;
@@ -114,7 +114,7 @@ const SecondFactorRequirementForm = ({
         disabled={!answerable}
       >
         {LEVELS.map((level) => (
-          <div key={level} className="flex items-start gap-3 rounded-md border px-3 py-3">
+          <div key={level} className="flex items-start gap-3 rounded-md border px-4 py-3">
             <RadioGroupItem id={`second-factor-${level}`} value={level} className="mt-1" />
             <div className="space-y-1">
               <Label htmlFor={`second-factor-${level}`} className="font-medium text-base">
@@ -151,7 +151,7 @@ const SecondFactorRequirementForm = ({
               onClick={() =>
                 window.dispatchEvent(
                   new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
-                    detail: { guildId: null, kind: "totp" },
+                    detail: { communityId: null, kind: "totp" },
                   })
                 )
               }
@@ -190,7 +190,7 @@ const ProvidersThatCount = () => {
   if (providersQuery.isLoading || providers.length === 0) return null;
 
   return (
-    <div className="space-y-3 rounded-md border px-3 py-3">
+    <div className="space-y-3 rounded-md border px-4 py-3">
       <div className="space-y-1">
         <p className="font-medium text-sm">{t("auth.secondFactorRequirement.providers.title")}</p>
         <p className="text-muted-foreground text-sm">

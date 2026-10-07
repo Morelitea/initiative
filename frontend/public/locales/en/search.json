@@ -1,7 +1,7 @@
 {
   "title": "Search",
-  "titleInGuild": "Search {{guildName}}",
-  "placeholder": "Search {{guildName}}",
+  "titleInCommunity": "Search {{communityName}}",
+  "placeholder": "Search {{communityName}}",
   "prompt": {
     "title": "Search this community",
     "description": "Find anything by its name, or by what is written inside it."
@@ -23,7 +23,7 @@
   "types": {
     "project": "Project",
     "task": "Task",
-    "document": "Document",
+    "file": "File",
     "queue": "Queue",
     "queue_item": "Queue item",
     "counter_group": "Counter group",

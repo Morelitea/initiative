@@ -13,7 +13,7 @@ import pytest
 from sqlmodel import select
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.event_outbox import EventOutbox
 from app.testing import create_resource_grant, create_tag, create_task, route_as
 from app.db.request_context import SystemGuild, Unattributed
@@ -25,7 +25,7 @@ async def _outbox(session, guild_id: int) -> list[EventOutbox]:
 
 
 async def test_creating_a_task_is_captured(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     rows = [
@@ -41,7 +41,7 @@ async def test_creating_a_task_is_captured(session, acting_user):
 
 
 async def test_updating_a_task_names_the_changed_columns(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     task.title = "renamed"
@@ -60,7 +60,7 @@ async def test_updating_a_task_names_the_changed_columns(session, acting_user):
 
 
 async def test_soft_delete_is_reported_as_deleted(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     from datetime import datetime, timezone
@@ -80,7 +80,7 @@ async def test_soft_delete_is_reported_as_deleted(session, acting_user):
 
 async def test_tagging_a_task_is_reported_against_the_task(session, acting_user):
     """A junction row has no id of its own, so it reports its owner."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     tag = await create_tag(session, a.guild)
 
@@ -112,7 +112,7 @@ async def test_a_task_status_is_reported_against_its_project(session, acting_use
     """
     from app.models.tenant.task import TaskStatus, TaskStatusCategory
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     before = len(await _outbox(session, a.guild.id))
     session.add(
@@ -137,12 +137,12 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     """Sharing is polymorphic: the event lands on whichever tool was shared.
 
     ``resource_grants`` rows have their own ids and no route, so a grant reports
-    against the project (or document, queue, …) named in the row — which the
+    against the project (or file, queue, …) named in the row — which the
     subscriber can fetch, and which is the thing that actually changed.
     """
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     before = len(await _outbox(session, a.guild.id))
     await create_resource_grant(session, a.project, user=b.user)
@@ -164,7 +164,7 @@ async def test_creating_an_initiative_is_captured(session, acting_user):
     be gated by the check it backs — but that exemption must not also mean an
     automation can never see an initiative being created.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     rows = [
         r
@@ -183,7 +183,7 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
     is also the change a subscriber can act on."""
     from app.testing import create_initiative_member, create_user
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
     # Back to the shared baseline before building a person: an account is a
@@ -214,7 +214,7 @@ async def test_a_tag_is_captured_as_a_guild_wide_event(session, acting_user):
     """
     from app.testing import create_tag
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     tag = await create_tag(session, a.guild)
     await session.commit()
 
@@ -229,42 +229,42 @@ async def test_a_tag_is_captured_as_a_guild_wide_event(session, acting_user):
 
 
 async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user):
-    """Installed apps belong to no initiative, so their events carry a NULL one.
+    """Installed plug-ins belong to no initiative, so their events carry a NULL one.
 
     Same disclosure rule as tags: the install row is readable by every member
     (the sidebar lists it), so an event naming it reveals nothing new. An
     install appearing, changing state, or going away is what a subscriber
-    connects on, and ``config_state`` moving is the moment an app becomes
+    connects on, and ``config_state`` moving is the moment a plug-in becomes
     usable rather than merely present.
 
-    Published as ``apps`` — the segment the install's detail route lives at —
+    Published as ``plugins`` — the segment the install's detail route lives at —
     so the id every event carries resolves by the derivable route rule.
     """
-    from app.testing import create_guild_app
+    from app.testing import create_guild_plugin
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    app = await create_guild_app(
-        session, a.guild, a.user, definition={"app_kind": "service"}
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    plugin = await create_guild_plugin(
+        session, a.guild, a.user, definition={"plugin_kind": "service"}
     )
 
     rows = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps" and r.resource_id == app.id
+        if r.resource_type == "plugins" and r.resource_id == plugin.id
     ]
-    assert rows, "installing an app produced no outbox row"
+    assert rows, "installing a plug-in produced no outbox row"
     assert rows[0].action == "created"
     assert rows[0].initiative_id is None
 
-    app.config_state = "ok"
-    session.add(app)
+    plugin.config_state = "ok"
+    session.add(plugin)
     await session.commit()
 
     updated = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps"
-        and r.resource_id == app.id
+        if r.resource_type == "plugins"
+        and r.resource_id == plugin.id
         and r.action == "updated"
     ]
     assert updated, "changing config_state produced no outbox row"
@@ -300,7 +300,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
 
     from app.services.tenant.soft_delete import hard_purge_entity
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     task.deleted_at = datetime.now(timezone.utc)
@@ -336,7 +336,7 @@ async def test_a_hard_delete_that_was_never_trashed_still_announces(
     column: a row removed outright is still a delete a subscriber must hear."""
     from app.testing import create_initiative_member, create_user
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     joiner = await create_user(session)
     membership = await create_initiative_member(session, a.initiative, joiner)
     await session.commit()
@@ -357,7 +357,7 @@ async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user
     soft-deletable row hard-deleted without ever reaching the trash — a cascade
     from its purged parent — still says nothing, because the parent's own
     delete is the event a subscriber acts on."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     before = len(await _outbox(session, a.guild.id))
@@ -382,7 +382,7 @@ async def test_a_member_removing_themselves_is_captured(
     """
     from sqlalchemy import text
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
     s = await role_session("app_user")
@@ -411,7 +411,7 @@ async def test_the_log_is_written_only_by_the_trigger(
     from sqlalchemy import text
     from sqlalchemy.exc import ProgrammingError
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     s = await role_session("app_user")
     await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
@@ -444,7 +444,7 @@ def _chain(row: EventOutbox) -> list[tuple[str, int]]:
 
 async def test_a_tool_entity_names_no_parents(session, acting_user):
     """A project hangs off nothing but its initiative."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     rows = [
         r
@@ -456,7 +456,7 @@ async def test_a_tool_entity_names_no_parents(session, acting_user):
 
 
 async def test_a_task_names_its_project(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
 
     rows = [
@@ -476,7 +476,7 @@ async def test_a_comment_on_a_task_names_the_task_and_its_project(session, actin
     """
     from app.testing import create_comment
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     comment = await create_comment(session, a.user, task=task)
 
@@ -491,18 +491,46 @@ async def test_a_comment_on_a_task_names_the_task_and_its_project(session, actin
 
 async def test_a_comment_on_a_tool_entity_names_that_entity(session, acting_user):
     """One parent, and the COALESCE picks it — a comment has exactly one."""
-    from app.testing import create_comment, create_document
+    from app.testing import create_comment, create_file
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
-    comment = await create_comment(session, a.user, document=document)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    file = await create_file(session, a.initiative, a.user)
+    comment = await create_comment(session, a.user, file=file)
 
     rows = [
         r
         for r in await _outbox(session, a.guild.id)
         if r.resource_type == "comments" and r.resource_id == comment.id
     ]
-    assert _chain(rows[0]) == [("documents", document.id)]
+    assert _chain(rows[0]) == [("files", file.id)]
+
+
+async def test_a_wiki_page_names_itself_once_it_is_not_a_draft(session, acting_user):
+    """A page is addressed by its own id, so it reports as itself under its
+    wiki, and a comment on it names the page before the wiki. A draft is the
+    wiki writers' alone: it says nothing until it is finished."""
+    from app.testing import create_comment, create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, is_draft=True)
+
+    def about(rows, kind, row_id):
+        return [r for r in rows if r.resource_type == kind and r.resource_id == row_id]
+
+    assert about(await _outbox(session, a.guild.id), "wiki_pages", page.id) == []
+
+    page.is_draft = False
+    session.add(page)
+    await session.commit()
+    comment = await create_comment(session, a.user, wiki_page=page)
+
+    rows = await _outbox(session, a.guild.id)
+    [published] = about(rows, "wiki_pages", page.id)
+    assert published.action == "created"
+    assert _chain(published) == [("wikis", wiki.id)]
+    [commented] = about(rows, "comments", comment.id)
+    assert _chain(commented) == [("wiki_pages", page.id), ("wikis", wiki.id)]
 
 
 async def test_a_facet_carries_its_owner_chain(session, acting_user):
@@ -513,7 +541,7 @@ async def test_a_facet_carries_its_owner_chain(session, acting_user):
     """
     from app.services.tenant import tags as tags_service
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     tag = await create_tag(session, a.guild)
 
@@ -543,7 +571,7 @@ async def test_a_reaction_borrows_the_chain_of_what_it_is_on(session, acting_use
     from app.services.tenant import reactions as reactions_service
     from app.testing import create_comment
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     comment = await create_comment(session, a.user, task=task)
 
@@ -572,7 +600,7 @@ async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_us
     """Same rule as the rest of the row: names and ids, never a value."""
     from app.testing import create_comment
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     await create_comment(session, a.user, task=task, content="secret text")
 
@@ -584,41 +612,41 @@ async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_us
 
 
 async def test_an_install_write_names_the_install(session, acting_user, role_session):
-    """A change an installed app's request wrote names the install, and no
-    person: the app acts as its community. A person's write names the person
+    """A change an installed plug-in's request wrote names the install, and no
+    person: the plug-in acts as its community. A person's write names the person
     and no install."""
     from app.db.install_standing_test import _install, _route
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
 
     install = await _install(
-        session, acting_user, role_session, granted=["documents:write"]
+        session, acting_user, role_session, granted=["files:write"]
     )
 
-    s, _ = await _route(role_session, install, ["documents:write"])
-    made = Document(
+    s, _ = await _route(role_session, install, ["files:write"])
+    made = File(
         initiative_id=install.a.id,
-        name="Made by the app",
-        document_type=DocumentType.native,
+        name="Made by the plug-in",
+        file_type=FileType.native,
     )
     s.add(made)
     await s.commit()
     made_id = made.id
 
-    person = await _create_document_as(session, install)
+    person = await _create_file_as(session, install)
 
     rows = await _outbox(session, install.guild.id)
-    by_app = [
-        r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
+    by_plugin = [
+        r for r in rows if r.resource_type == "files" and r.resource_id == made_id
     ]
-    assert by_app, "an install's write produced no outbox row"
-    # The document, and the owner grant the database wrote for the install
-    # beside it: both are the app's writes.
-    assert {(r.actor_install_id, r.actor_user_id) for r in by_app} == {
-        (install.app.id, None)
+    assert by_plugin, "an install's write produced no outbox row"
+    # The file, and the owner grant the database wrote for the install
+    # beside it: both are the plug-in's writes.
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_plugin} == {
+        (install.plugin.id, None)
     }
 
     by_person = [
-        r for r in rows if r.resource_type == "documents" and r.resource_id == person
+        r for r in rows if r.resource_type == "files" and r.resource_id == person
     ]
     assert by_person
     assert {(r.actor_install_id, r.actor_user_id) for r in by_person} == {
@@ -626,15 +654,15 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     }
 
 
-async def _create_document_as(session, install) -> int:
-    """A document the install's seat creates through the request path."""
-    from app.models.tenant.document import Document, DocumentType
+async def _create_file_as(session, install) -> int:
+    """A file the install's seat creates through the request path."""
+    from app.models.tenant.file import File, FileType
 
     await route_as(session, user_id=install.seat.user.id, guild_id=install.guild.id)
-    made = Document(
+    made = File(
         initiative_id=install.a.id,
         name="Made by a person",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
     )
     session.add(made)
     await session.commit()

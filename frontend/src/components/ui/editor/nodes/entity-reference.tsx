@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { $showAsEmbed } from "@/components/ui/editor/nodes/reference-embed-node";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useReferenceTitle } from "@/hooks/useSmartChips";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
 import { hitIcon } from "@/lib/searchResults";
 import { entityRefRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -44,9 +44,9 @@ export function EntityReference({
   fallback,
   showIcon = true,
 }: EntityReferenceProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const navigate = useNavigate();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const live = useReferenceTitle(entityType, entityId);
 
   const refType = entityRefTypeFor(entityType);
@@ -76,7 +76,9 @@ export function EntityReference({
   return (
     <button
       type="button"
-      onClick={() => void navigate({ to: guildPath(guildId, entityRefRoute(refType, entityId)) })}
+      onClick={() =>
+        void navigate({ to: communityPath(communityId, entityRefRoute(refType, entityId)) })
+      }
       className={cn(
         shared,
         "cursor-pointer bg-primary/10 font-medium text-primary hover:bg-primary/20"
@@ -97,7 +99,7 @@ export function EditorEntityReference({
   nodeKey,
   ...props
 }: EntityReferenceProps & { nodeKey: NodeKey }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const link = <EntityReference {...props} />;

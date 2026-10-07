@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import platform_tier, role_name
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_guild, create_user
 
@@ -33,7 +33,7 @@ async def test_member_sees_only_own_user_row(session):
     their own ``users`` row but not anyone else's."""
     u1 = await create_user(session)
     u2 = await create_user(session)
-    async with as_role(session, platform_role_name("member"), u1.id):
+    async with as_role(session, role_name(platform_tier("member")), u1.id):
         ids = {
             r[0] for r in (await session.exec(text("SELECT id FROM users"))).fetchall()
         }
@@ -45,7 +45,7 @@ async def test_support_reads_all_users(session):
     """``users.read`` — support+ can SELECT every user row (``users_platform_read``)."""
     u1 = await create_user(session)
     u2 = await create_user(session)
-    async with as_role(session, platform_role_name("support"), u1.id):
+    async with as_role(session, role_name(platform_tier("support")), u1.id):
         ids = {
             r[0] for r in (await session.exec(text("SELECT id FROM users"))).fetchall()
         }
@@ -61,9 +61,9 @@ async def test_no_tier_updates_another_account(session, tier):
     actor = await create_user(session)
     target = await create_user(session)
 
-    async with as_role(session, platform_role_name(tier), actor.id):
+    async with as_role(session, role_name(platform_tier(tier)), actor.id):
         res = await session.exec(
-            text("UPDATE users SET full_name = 'sx' WHERE id = :id"),
+            text("UPDATE users SET timezone = 'UTC' WHERE id = :id"),
             params={"id": target.id},
         )
     assert res.rowcount == 0
@@ -74,9 +74,9 @@ async def test_every_tier_updates_its_own_account(session, tier):
     """The same policy is what lets a moderator edit their own profile."""
     actor = await create_user(session)
 
-    async with as_role(session, platform_role_name(tier), actor.id):
+    async with as_role(session, role_name(platform_tier(tier)), actor.id):
         res = await session.exec(
-            text("UPDATE users SET full_name = 'mine' WHERE id = :id"),
+            text("UPDATE users SET timezone = 'UTC' WHERE id = :id"),
             params={"id": actor.id},
         )
     assert res.rowcount == 1
@@ -89,7 +89,7 @@ async def test_no_tier_can_delete_users(session):
     (insufficient-privilege), not merely filtered to 0 rows."""
     actor = await create_user(session)
     target = await create_user(session)
-    async with as_role(session, platform_role_name("owner"), actor.id):
+    async with as_role(session, role_name(platform_tier("owner")), actor.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(
@@ -121,7 +121,7 @@ async def test_access_grants_self_vs_approver(session):
     await _insert_grant(session, u1.id, guild.id)
     await _insert_grant(session, u2.id, guild.id)
 
-    async with as_role(session, platform_role_name("member"), u1.id):
+    async with as_role(session, role_name(platform_tier("member")), u1.id):
         own = {
             r[0]
             for r in (
@@ -130,7 +130,7 @@ async def test_access_grants_self_vs_approver(session):
         }
     assert own == {u1.id}
 
-    async with as_role(session, platform_role_name("operator"), u1.id):
+    async with as_role(session, role_name(platform_tier("operator")), u1.id):
         allrows = {
             r[0]
             for r in (
@@ -152,7 +152,7 @@ async def test_app_settings_write_is_owner_only(session):
         text("INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
     )
 
-    async with as_role(session, platform_role_name("member"), member.id):
+    async with as_role(session, role_name(platform_tier("member")), member.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(
@@ -161,7 +161,7 @@ async def test_app_settings_write_is_owner_only(session):
                     )
                 )
 
-    async with as_role(session, platform_role_name("owner"), owner.id):
+    async with as_role(session, role_name(platform_tier("owner")), owner.id):
         res = await session.exec(
             text("UPDATE app_settings SET light_accent_color = '#abcdef' WHERE id = 1")
         )
@@ -175,7 +175,7 @@ async def test_app_settings_readable_by_every_tier(session):
         text("INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
     )
     member = await create_user(session, role=UserRole.member)
-    async with as_role(session, platform_role_name("member"), member.id):
+    async with as_role(session, role_name(platform_tier("member")), member.id):
         rows = (
             await session.exec(text("SELECT id FROM app_settings WHERE id = 1"))
         ).fetchall()

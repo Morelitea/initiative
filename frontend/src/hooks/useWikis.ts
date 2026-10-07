@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 import type {
   WikiPageCreate,
-  WikiPageLinks,
   WikiPageMove,
   WikiPageRead,
   WikiPageTree,
@@ -10,24 +10,25 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addDocumentToWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdPut,
-  createWikiPageApiV1CGuildIdWikisWikiIdPagesPost,
-  deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete,
-  getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey,
-  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
-  getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey,
-  listWikiPagesApiV1CGuildIdWikisWikiIdPagesGet,
-  moveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
-  moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost,
-  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
-  readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet,
-  removeDocumentFromWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdDelete,
-  updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch,
+  addFileToWiki,
+  createWikiPage,
+  deleteWikiPage,
+  duplicateWikiPage,
+  getListWikiPagesQueryKey,
+  getReadWikiPageQueryKey,
+  listWikiPages,
+  moveWikiFile,
+  moveWikiPage,
+  readWikiPage,
+  removeFileFromWiki,
+  updateWikiPage,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { wikiPageRoute } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -51,46 +52,23 @@ export const useSetWikiGrants = wikis.useSetGrants;
  * the rows carry no bodies, so this stays small however much has been written.
  */
 export const useWikiPages = (wikiId: number | null, options?: QueryOpts<WikiPageTree>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<WikiPageTree>({
-    queryKey: getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey(guildId, wikiId!),
-    queryFn: () => listWikiPagesApiV1CGuildIdWikisWikiIdPagesGet(guildId, wikiId!),
+    queryKey: getListWikiPagesQueryKey(communityId, wikiId!),
+    queryFn: () => listWikiPages(communityId, wikiId!),
     enabled: wikiId !== null && Number.isFinite(wikiId) && userEnabled,
     ...rest,
   });
 };
 
 export const useWikiPage = (pageId: number | null, options?: QueryOpts<WikiPageRead>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   const ready = pageId !== null && Number.isFinite(pageId);
   return useQuery<WikiPageRead>({
-    queryKey: getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, pageId!),
-    queryFn: () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, pageId!),
-    enabled: ready && userEnabled,
-    ...rest,
-  });
-};
-
-/** What a page links to, and what links back — the backlinks panel. */
-export const useWikiPageLinks = (
-  wikiId: number | null,
-  pageId: number | null,
-  options?: QueryOpts<WikiPageLinks>
-) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  const ready =
-    wikiId !== null && pageId !== null && Number.isFinite(wikiId) && Number.isFinite(pageId);
-  return useQuery<WikiPageLinks>({
-    queryKey: getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey(
-      guildId,
-      wikiId!,
-      pageId!
-    ),
-    queryFn: () =>
-      readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet(guildId, wikiId!, pageId!),
+    queryKey: getReadWikiPageQueryKey(communityId, pageId!),
+    queryFn: () => readWikiPage(communityId, pageId!),
     enabled: ready && userEnabled,
     ...rest,
   });
@@ -102,48 +80,65 @@ export const useCreateWikiPage = (
   wikiId: number,
   options?: MutationOpts<WikiPageRead, WikiPageCreate>
 ) =>
-  useGuildMutation<WikiPageRead, WikiPageCreate>(
+  useCommunityMutation<WikiPageRead, WikiPageCreate>(
     {
-      mutationFn: (guildId, data) =>
-        createWikiPageApiV1CGuildIdWikisWikiIdPagesPost(guildId, wikiId, data),
-      // The tree gains a row and the wiki's page count changes with it.
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      mutationFn: (communityId, data) => createWikiPage(communityId, wikiId, data),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
   );
 
 /**
- * Put an existing document in this wiki, or take it back out.
- *
- * Neither writes the document. A document joins a wiki by an edge, so what
- * changes is what the wiki contains — which is why both invalidate the page
- * list and the wiki, and nothing belonging to the document itself.
+ * The "New page" action: makes a page and opens it for writing, because a
+ * page nobody has written yet has nothing to read.
  */
-export const useAddWikiDocument = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
-  useGuildMutation<WikiPageTree, number>(
+export const useAddWikiPage = (wikiId: number, initiativeId: number) => {
+  const gp = useCommunityPath();
+  const navigate = useNavigate();
+  return useCreateWikiPage(wikiId, {
+    onSuccess: (page) =>
+      void navigate({
+        to: gp(wikiPageRoute(initiativeId, wikiId, page.id)),
+        search: { edit: true },
+      }),
+  });
+};
+
+export const useDuplicateWikiPage = (
+  wikiId: number,
+  options?: MutationOpts<WikiPageRead, number>
+) =>
+  useCommunityMutation<WikiPageRead, number>(
     {
-      mutationFn: (guildId, documentId) =>
-        addDocumentToWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdPut(
-          guildId,
-          wikiId,
-          documentId
-        ),
-      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      mutationFn: (communityId, pageId) => duplicateWikiPage(communityId, pageId),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
   );
 
-export const useRemoveWikiDocument = (wikiId: number, options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+/**
+ * Put an existing file in this wiki, or take it back out.
+ *
+ * Neither writes the file. A file joins a wiki by an edge, so what
+ * changes is what the wiki contains — which is why both invalidate the page
+ * list, and nothing belonging to the file itself.
+ */
+export const useAddWikiFile = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, documentId) =>
-        removeDocumentFromWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdDelete(
-          guildId,
-          wikiId,
-          documentId
-        ),
+      mutationFn: (communityId, fileId) => addFileToWiki(communityId, wikiId, fileId),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      errorKey: "wikis:error",
+    },
+    options
+  );
+
+export const useRemoveWikiFile = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useCommunityMutation<void, number>(
+    {
+      mutationFn: (communityId, fileId) => removeFileFromWiki(communityId, wikiId, fileId),
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
     },
@@ -155,13 +150,12 @@ export const useUpdateWikiPage = (
   pageId: number,
   options?: MutationOpts<WikiPageRead, WikiPageUpdate>
 ) =>
-  useGuildMutation<WikiPageRead, WikiPageUpdate>(
+  useCommunityMutation<WikiPageRead, WikiPageUpdate>(
     {
-      mutationFn: (guildId, data) =>
-        updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch(guildId, wikiId, pageId, data),
+      mutationFn: (communityId, data) => updateWikiPage(communityId, pageId, data),
       // A rename changes the tree, and a body edit changes what links out of
       // this page — so both the tree and the connections are stale.
-      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.relationships()),
       errorKey: "wikis:error",
     },
     options
@@ -177,33 +171,24 @@ export const useMoveWikiPage = (
   wikiId: number,
   options?: MutationOpts<WikiPageRead, MoveWikiPageVars>
 ) =>
-  useGuildMutation<WikiPageRead, MoveWikiPageVars>(
+  useCommunityMutation<WikiPageRead, MoveWikiPageVars>(
     {
-      mutationFn: (guildId, { pageId, ...move }) =>
-        moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost(guildId, wikiId, pageId, move),
+      mutationFn: (communityId, { pageId, ...move }) => moveWikiPage(communityId, pageId, move),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
     options
   );
 
-export type MoveWikiDocumentVars = WikiPageMove & { documentId: number };
+export type MoveWikiFileVars = WikiPageMove & { fileId: number };
 
-/** A borrowed document is a row of the same list, so it moves the same way —
- *  the wiki records where it put it, and the document is not touched. */
-export const useMoveWikiDocument = (
-  wikiId: number,
-  options?: MutationOpts<WikiPageTree, MoveWikiDocumentVars>
-) =>
-  useGuildMutation<WikiPageTree, MoveWikiDocumentVars>(
+/** A borrowed file is a row of the same list, so it moves the same way —
+ *  the wiki records where it put it, and the file is not touched. */
+export const useMoveWikiFile = (wikiId: number, options?: MutationOpts<void, MoveWikiFileVars>) =>
+  useCommunityMutation<void, MoveWikiFileVars>(
     {
-      mutationFn: (guildId, { documentId, ...move }) =>
-        moveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMovePost(
-          guildId,
-          wikiId,
-          documentId,
-          move
-        ),
+      mutationFn: (communityId, { fileId, ...move }) =>
+        moveWikiFile(communityId, wikiId, fileId, move),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
@@ -211,12 +196,10 @@ export const useMoveWikiDocument = (
   );
 
 export const useDeleteWikiPage = (wikiId: number, options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, pageId) =>
-        deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete(guildId, wikiId, pageId).then(
-          () => undefined
-        ),
+      mutationFn: (communityId, pageId) =>
+        deleteWikiPage(communityId, pageId).then(() => undefined),
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
     },

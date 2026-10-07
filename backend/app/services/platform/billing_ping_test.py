@@ -14,7 +14,6 @@ Pinned properties:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -23,6 +22,7 @@ import httpx
 import pytest
 
 from app.core import config as config_module
+from app.db import post_commit
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
@@ -53,25 +53,19 @@ def sent_pings(monkeypatch):
     return calls
 
 
-async def _drain_pings():
-    # Let fire-and-forget tasks run to completion.
-    for _ in range(3):
-        await asyncio.sleep(0)
-
-
 def test_disabled_by_default():
     assert billing_ping.billing_ping_enabled() is False
 
 
 async def test_unconfigured_is_a_strict_noop(sent_pings):
     billing_ping.notify_membership_changed(123)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == []
 
 
 async def test_configured_dispatches_one_ping(billing_configured, sent_pings):
     billing_ping.notify_membership_changed(123)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [123]
 
 
@@ -82,8 +76,8 @@ def test_payload_has_no_pii_and_verifiable_signature(billing_configured):
     payload = json.loads(body)
     # The guild's reference + an event id ONLY: no emails, names, user ids or
     # member counts, and no row id of ours either.
-    assert set(payload) == {"guild_ref", "event_id"}
-    assert payload["guild_ref"] == "gbil_test42"
+    assert set(payload) == {"community_ref", "event_id"}
+    assert payload["community_ref"] == "gbil_test42"
     assert payload["event_id"]
 
     message = "\n".join(
@@ -131,21 +125,21 @@ async def test_membership_insert_fires_exactly_one_ping(
     user = await create_user(session, email="ping-join@example.com")
 
     await guilds_service.ensure_membership(session, guild_id=guild.id, user_id=user.id)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id]
 
     # Re-join / role refresh is not a membership change: no second ping.
     await guilds_service.ensure_membership(session, guild_id=guild.id, user_id=user.id)
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id]
 
     # Removal also cleans the guild's initiative memberships (tenant schema),
     # so the session must be routed to the guild first.
     await route_session_to_guild(session, guild.id)
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild.id, user_id=user.id
+        session, guild_id=guild.id, user_id=user.id, actor_user_id=user.id
     )
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == [guild.id, guild.id]
     await session.rollback()
 
@@ -158,9 +152,9 @@ async def test_noop_removal_does_not_ping(session, billing_configured, sent_ping
 
     await route_session_to_guild(session, guild.id)
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild.id, user_id=stranger.id
+        session, guild_id=guild.id, user_id=stranger.id, actor_user_id=stranger.id
     )
-    await _drain_pings()
+    await post_commit.settle_all()
     assert sent_pings == []
     await session.rollback()
 
@@ -191,79 +185,6 @@ def known_ref(monkeypatch):
     monkeypatch.setattr(billing_ping, "existing_ref", _existing_ref)
 
 
-async def test_payment_issue_unconfigured_makes_no_call(monkeypatch, known_ref):
-    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
-    assert await billing_ping.guild_payment_failed(7) is False
-    assert seen == []
-
-
-async def test_payment_issue_without_a_ref_makes_no_call_and_mints_nothing(
-    session, billing_configured, monkeypatch
-):
-    guild = await create_guild(session)
-    await session.commit()
-    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
-    assert await billing_ping.guild_payment_failed(guild.id) is False
-    assert seen == []
-    assert (
-        await existing_ref(
-            entity_type=IdentityEntity.guild,
-            entity_id=guild.id,
-            purpose=IdentityPurpose.billing,
-        )
-        is None
-    )
-
-
-async def test_payment_issue_sends_only_the_ref_signed(
-    billing_configured, known_ref, monkeypatch
-):
-    seen = _answering(
-        monkeypatch, lambda r: httpx.Response(200, json={"payment_failed": True})
-    )
-    assert await billing_ping.guild_payment_failed(7) is True
-    (request,) = seen
-    assert request.method == "POST"
-    assert str(request.url) == "https://billing.internal/api/v1/payment-issue"
-    body = request.content
-    assert json.loads(body) == {"guild_ref": "gbil_known"}
-    ts = request.headers["X-Billing-Timestamp"]
-    message = "\n".join(
-        ["POST", "/api/v1/payment-issue", ts, hashlib.sha256(body).hexdigest()]
-    ).encode()
-    expected = hmac.new(_SECRET.encode(), message, hashlib.sha256).hexdigest()
-    assert request.headers["X-Billing-Signature"] == expected
-
-
-@pytest.mark.parametrize(
-    "response",
-    [
-        httpx.Response(200, json={"payment_failed": False}),
-        httpx.Response(200, json={"payment_failed": "true"}),
-        httpx.Response(200, json=[True]),
-        httpx.Response(200, content=b"not json"),
-        httpx.Response(200, json={"payment_failed": True, "pad": "x" * 300}),
-        httpx.Response(302, headers={"Location": "https://elsewhere"}),
-        httpx.Response(500, json={"payment_failed": True}),
-    ],
-)
-async def test_payment_issue_anything_but_a_plain_true_is_false(
-    billing_configured, known_ref, monkeypatch, response
-):
-    _answering(monkeypatch, lambda r: response)
-    assert await billing_ping.guild_payment_failed(7) is False
-
-
-async def test_payment_issue_unreachable_is_false(
-    billing_configured, known_ref, monkeypatch
-):
-    def _down(request):
-        raise httpx.ConnectError("down")
-
-    _answering(monkeypatch, _down)
-    assert await billing_ping.guild_payment_failed(7) is False
-
-
 _SUMMARY = {
     "tier_name": "Gold",
     "trial_ends_on": None,
@@ -272,6 +193,25 @@ _SUMMARY = {
     "scheduled_change": {"action": "cancel", "on": "2026-11-01"},
     "payment_failed": False,
 }
+
+
+@pytest.mark.parametrize(
+    "response,failed",
+    [
+        (httpx.Response(200, json={**_SUMMARY, "payment_failed": True}), True),
+        (httpx.Response(200, json=_SUMMARY), False),
+        (httpx.Response(200, json={**_SUMMARY, "payment_failed": "true"}), False),
+        (httpx.Response(500, json={**_SUMMARY, "payment_failed": True}), False),
+    ],
+)
+async def test_payment_failed_is_the_plan_summary_flag(
+    billing_configured, known_ref, monkeypatch, response, failed
+):
+    """Read from the plan summary: a summary billing cannot give says no."""
+    seen = _answering(monkeypatch, lambda r: response)
+    assert await billing_ping.guild_payment_failed(7) is failed
+    (request,) = seen
+    assert str(request.url) == "https://billing.internal/api/v1/plan-summary"
 
 
 async def test_plan_summary_unconfigured_makes_no_call(monkeypatch, known_ref):
@@ -311,7 +251,7 @@ async def test_plan_summary_sends_only_the_ref_signed(
     assert request.method == "POST"
     assert str(request.url) == "https://billing.internal/api/v1/plan-summary"
     body = request.content
-    assert json.loads(body) == {"guild_ref": "gbil_known"}
+    assert json.loads(body) == {"community_ref": "gbil_known"}
     ts = request.headers["X-Billing-Timestamp"]
     message = "\n".join(
         ["POST", "/api/v1/plan-summary", ts, hashlib.sha256(body).hexdigest()]
@@ -400,9 +340,9 @@ async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
     assert posted == []
 
     known = await create_guild(session)
-    ref = await billing_ping.billing_guild_ref(guild_id=known.id)
+    ref = await billing_ping.billing_ref(IdentityEntity.guild, known.id)
     await billing_ping._send_lifecycle_ping(known.id)
-    assert [json.loads(body)["guild_ref"] for body in posted] == [ref]
+    assert [json.loads(body)["community_ref"] for body in posted] == [ref]
 
 
 def test_each_ping_goes_to_its_own_path(billing_configured):

@@ -4,7 +4,7 @@
  * Names and option labels live in the module rather than in the app's locale
  * files: a marketplace widget has to be able to name itself without an app
  * release, and the built-ins get no special treatment. Binding *source* labels
- * stay app-owned — they name our endpoints and are shared by every widget.
+ * stay plugin-owned — they name our endpoints and are shared by every widget.
  */
 const meta = {
   name: {
@@ -280,7 +280,7 @@ function render(data, config, context) {
     return best;
   };
 
-  const chart = (series, xLabel, yLabel) => {
+  const chart = (series, xLabel, yLabel, xTime) => {
     const scene = {
       kind: "series",
       mark: mark,
@@ -288,6 +288,7 @@ function render(data, config, context) {
       stacked: stacked || undefined,
       xLabel: xLabel || undefined,
       yLabel: yLabel || undefined,
+      xTime: xTime || undefined,
       // A legend earns its space only once there is more than one series.
       showLegend: series.length > 1,
       labels: labels,
@@ -398,8 +399,25 @@ function render(data, config, context) {
 
   const columns = data.columns || [];
   const nameOf = (index) => (columns[index] ? columns[index].name : say("series"));
-  const labelOf = (row, rowIndex) =>
-    labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : rowIndex + 1;
+
+  // A date label is a moment in epoch milliseconds. It stays a number, and the
+  // scene says which period each point is — the unit the statement rounded
+  // the column to, or a day for a plain date — so the app can label it
+  // "Mar 2026" or "Q1 2026" rather than printing the raw number.
+  const GRAINS = ["day", "week", "month", "quarter", "year"];
+  const labelColumn = labelAt !== undefined ? columns[labelAt] : undefined;
+  const xTime =
+    labelColumn && labelColumn.type === "date"
+      ? GRAINS.indexOf(labelColumn.grain) >= 0
+        ? labelColumn.grain
+        : "day"
+      : undefined;
+
+  const labelOf = (row, rowIndex) => {
+    if (labelAt === undefined || row[labelAt] === null) return rowIndex + 1;
+    if (xTime && typeof row[labelAt] === "number") return row[labelAt];
+    return String(row[labelAt]);
+  };
 
   const series = valueColumns.slice(0, 12).map((index) => ({
     name: nameOf(index),
@@ -411,6 +429,8 @@ function render(data, config, context) {
 
   return chart(
     arrangeAll(series),
-    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined
+    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined,
+    undefined,
+    xTime
   );
 }

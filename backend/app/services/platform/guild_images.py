@@ -11,8 +11,8 @@ front page, which is not. That asymmetry is the whole of this module:
 
 "belong" throughout includes a live PAM/break-glass grantee, who reaches the
 guild for their window exactly as a member does. Which variants are published
-is read from ``IMAGE_SPECS`` rather than restated here, so adding one is a
-single edit in the registry.
+is read from ``PUBLISHED_VARIANTS`` rather than restated here, so adding one is
+a single edit beside the registry.
 
 The check runs on the system engine for the reason the directory itself does:
 the caller is a stranger to the guild, so there is no guild-scoped role to read
@@ -24,45 +24,19 @@ rather than spread across the endpoints that serve it.
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.image_headers import read_image_header
-from app.core.messages import GuildMessages
+from app.core.image_headers import ValidatedImage
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
 from app.models.platform.guild_image import (
-    IMAGE_CONTENT_TYPES,
-    IMAGE_SPECS,
+    PUBLISHED_VARIANTS,
     GuildImage,
     GuildImageVariant,
 )
-
-#: How far a rendition may drift from its nominal proportions before it is
-#: refused. Wide enough for the rounding a browser's canvas does, narrow enough
-#: that a differently-shaped image cannot be passed off as one of these.
-_RATIO_TOLERANCE = 0.02
-
-
-class GuildImageError(Exception):
-    """An uploaded image is not what it claims. Carries a message constant."""
-
-
-@dataclass(frozen=True)
-class Rendition:
-    """One validated rendition, ready to store."""
-
-    variant: GuildImageVariant
-    data: bytes
-    content_type: str
-
-    @property
-    def sha256(self) -> str:
-        return hashlib.sha256(self.data).hexdigest()
 
 
 # --- reading -----------------------------------------------------------------
@@ -94,14 +68,15 @@ async def may_read_image(
         guild = await session.get(Guild, guild_id)
         return guild is not None and guild.status in LIVE_STATUS_VALUES
 
-    grant = await access_grants_service.get_live_grant(
+    if await access_grants_service.get_live_grants(
         session, user_id=user_id, guild_id=guild_id
-    )
-    if grant is not None:
-        # PAM deliberately overrides lifecycle status, as everywhere else.
+    ):
+        # PAM deliberately overrides lifecycle status, as everywhere else. A
+        # grant of either purpose: the pictures are what the guild's front page
+        # shows and part of the configuration its settings hold.
         return True
 
-    if not IMAGE_SPECS[variant].published:
+    if variant not in PUBLISHED_VARIANTS:
         return False
     # The directory's own question, not a copy of it: what a guild publishes by
     # being listed stops being published the moment it stops being listed —
@@ -132,7 +107,7 @@ async def read_image(
 def image_url(guild_id: int, sha256: str) -> str:
     """The serving URL for one image.
 
-    A platform path, not ``/c/{guild_id}/…``: these are public-plane identity,
+    A platform path, not ``/c/{community_id}/…``: these are public-plane identity,
     and the caller they are served to may hold no guild context at all.
     """
     return f"/api/v1/communities/{guild_id}/image/{sha256}"
@@ -181,7 +156,7 @@ async def set_images(
     session: AsyncSession,
     *,
     guild_id: int,
-    renditions: list[Rendition],
+    renditions: dict[GuildImageVariant, ValidatedImage],
 ) -> dict[GuildImageVariant, str]:
     """Replace exactly the variants named by ``renditions``. Returns their URLs.
 
@@ -196,31 +171,26 @@ async def set_images(
     reconcile them into an UPDATE, which is a statement this table grants
     nobody.
     """
-    await clear_images(
-        session,
-        guild_id=guild_id,
-        variants=[rendition.variant for rendition in renditions],
-    )
+    await clear_images(session, guild_id=guild_id, variants=list(renditions))
     now = datetime.now(timezone.utc)
-    urls: dict[GuildImageVariant, str] = {}
-    rows = []
-    for rendition in renditions:
-        digest = rendition.sha256
-        rows.append(
-            {
-                "guild_id": guild_id,
-                "variant": rendition.variant.value,
-                "sha256": digest,
-                "content_type": rendition.content_type,
-                "byte_size": len(rendition.data),
-                "data": rendition.data,
-                "created_at": now,
-            }
-        )
-        urls[rendition.variant] = image_url(guild_id, digest)
+    rows = [
+        {
+            "guild_id": guild_id,
+            "variant": variant.value,
+            "sha256": image.sha256,
+            "content_type": image.content_type,
+            "byte_size": image.byte_size,
+            "data": image.data,
+            "created_at": now,
+        }
+        for variant, image in renditions.items()
+    ]
     if rows:
         await session.exec(insert(GuildImage).values(rows))
-    return urls
+    return {
+        variant: image_url(guild_id, image.sha256)
+        for variant, image in renditions.items()
+    }
 
 
 async def clear_images(
@@ -244,60 +214,3 @@ async def clear_images(
         )
     )
     return int(result.rowcount or 0)
-
-
-# --- validating what arrived --------------------------------------------------
-
-
-def validate_rendition(
-    variant: GuildImageVariant, data: bytes, declared_content_type: str | None
-) -> Rendition:
-    """Check one uploaded rendition and return it ready to store.
-
-    Four things are established here, and the declared content type is not one
-    of them — it is a claim by the client, so the format is read from the bytes
-    and the claim is discarded:
-
-    * the bytes are PNG, JPEG, WebP, or GIF. Notably not SVG: these are
-      rendered rather than downloaded, so the force-download handling that
-      makes an SVG attachment safe has nothing to apply to.
-    * they are no bigger than the variant's cap.
-    * they are no larger than the variant's nominal size — a "card" carrying
-      the full banner would defeat the point of having two.
-    * they are the variant's shape, within a rounding tolerance.
-    """
-    spec = IMAGE_SPECS[variant]
-    if not data:
-        raise GuildImageError(GuildMessages.IMAGE_EMPTY)
-    if len(data) > spec.max_bytes:
-        raise GuildImageError(GuildMessages.IMAGE_TOO_LARGE)
-
-    probed = probe_image(data)
-    if probed is None or probed[0] not in IMAGE_CONTENT_TYPES:
-        raise GuildImageError(GuildMessages.IMAGE_INVALID)
-    content_type, width, height = probed
-    del declared_content_type  # the bytes decide, not the client
-
-    if width > spec.width or height > spec.height:
-        raise GuildImageError(GuildMessages.IMAGE_WRONG_SIZE)
-    if height <= 0:
-        raise GuildImageError(GuildMessages.IMAGE_INVALID)
-    if abs(width / height - spec.aspect) > spec.aspect * _RATIO_TOLERANCE:
-        raise GuildImageError(GuildMessages.IMAGE_WRONG_RATIO)
-
-    return Rendition(variant=variant, data=data, content_type=content_type)
-
-
-def probe_image(data: bytes) -> tuple[str, int, int] | None:
-    """``(content_type, width, height)`` read from an image header, or None.
-
-    Header parsing rather than decoding: the formats a guild image may be in
-    all state their dimensions in the first few dozen bytes, so this needs no
-    image library and hands no uploaded pixels to one. The reader itself is
-    shared with the other upload paths — see ``app.core.image_headers``; which
-    formats are *allowed* here is still ``_ALLOWED_CONTENT_TYPES`` below.
-    """
-    header = read_image_header(data)
-    if header is None:
-        return None
-    return header.content_type, header.width, header.height

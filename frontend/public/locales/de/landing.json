@@ -14,9 +14,9 @@
     "titleLine1": "Raus aus dem Gruppenchat.",
     "titleLine2": "Rein an einen Ort.",
     "titleAria": "Raus aus dem Gruppenchat. Rein an einen Ort.",
-    "subtitle": "Die Projekte, Aufgaben, Dokumente und Pläne deiner Gruppe an einem Ort. Statt verteilt auf einen Gruppenchat, zwei Tabellen, einen E-Mail-Verlauf vom März und den Kopf der Person, die das hier am längsten macht.",
+    "subtitle": "Die Projekte, Aufgaben, Dateien und Pläne deiner Gruppe an einem Ort. Statt verteilt auf einen Gruppenchat, zwei Tabellen, einen E-Mail-Verlauf vom März und den Kopf der Person, die das hier am längsten macht.",
     "freeTitle": "Kostenlos registrieren",
-    "freeBody": "Dein Konto ist kostenlos, und jede Community, die du gründest, bekommt 30 Tage kostenlos zum Testen.",
+    "freeBody": "Dein Konto und deine erste Community sind kostenlos, und jeder bezahlte Tarif startet mit 14 Tagen kostenlos zum Testen.",
     "signUp": "Registrieren",
     "signIn": "Anmelden",
     "download": "Download",
@@ -61,7 +61,7 @@
     "description": "Alles in einer Community ist ein Werkzeug. Sie werden gleich geteilt, getaggt und kommentiert, also kommt dir das zweite schon bekannt vor, bevor du es öffnest.",
     "note": "Schalte die ein, die deine Gruppe braucht. Ausschalten löscht später nichts.",
     "projects": "Boards, Tabellen und Kalender derselben Aufgaben, mit Konfetti, wenn du willst.",
-    "documents": "Seiten, Tabellen und Whiteboards, die ihr gemeinsam live bearbeitet.",
+    "files": "Seiten, Tabellen und Whiteboards, die ihr gemeinsam live bearbeitet.",
     "queues": "Behalte im Blick, wer dran ist, denn anscheinend ist es nie jemand.",
     "counterGroups": "Verkaufte Tickets, zugesagte Kuchen, immer noch fehlende Stühle.",
     "calendars": "Termine mit Zusagen und Erinnerungen, damit nicht du alle erinnern musst.",
@@ -255,7 +255,7 @@
     "iosTitle": "Initiative für iPhone und iPad",
     "iosBody": "Tippe auf Teilen und dann auf Zum Home-Bildschirm. Es ist dasselbe Initiative, nur bekommen iPhones noch keine Push-Benachrichtigungen.",
     "desktopTitle": "Initiative für deinen Computer",
-    "desktopBody": "Ein eigenes Fenster und ein eigenes Symbol im Dock oder in der Taskleiste. Es installiert sich direkt aus dem Browser.",
+    "desktopBody": "Ein eigenes Fenster und ein eigenes Symbol im Dock oder in der Taskleiste, angemeldet als eines deiner Geräte.",
     "androidButton": "Download für Android",
     "iosButton": "Aufs iPhone holen",
     "windowsButton": "Download für Windows",
@@ -265,6 +265,7 @@
     "version": "Version {{version}}, die dieser Server nutzt",
     "releases": "Alle Versionen ansehen",
     "desktopMeta": "Windows, Mac und Linux",
+    "browserInstall": "Oder direkt aus dem Browser installieren",
     "cardsAria": "Alle Wege zu Initiative",
     "android": {
       "title": "Android",
@@ -284,8 +285,7 @@
     "desktop": {
       "title": "Computer",
       "sub": "Windows, Mac, Linux",
-      "body": "Chrome und Edge installieren es mit einem Klick. In Safari geht's über Ablage und dann Zum Dock hinzufügen.",
-      "button": "Initiative installieren"
+      "body": "Ein Installationsprogramm für Windows, Mac oder Linux. Chrome und Edge installieren es auch direkt aus dem Browser, Safari über Ablage und dann Zum Dock hinzufügen."
     },
     "browser": {
       "title": "Browser",
@@ -306,13 +306,8 @@
   "pricing": {
     "sectionLabel": "Tarife",
     "seeAll": "Alle Tarife und was sie freischalten",
-    "storage": "Speicher",
-    "automations": "Automatisierungen",
-    "members": "Personen",
-    "support": "Support",
     "loading": "Preisliste wird geladen…",
     "tierListAria": "Tarife",
-    "selfHostBody": "Lieber auf deinem eigenen Server? Das ist kostenlos und Open Source.",
     "everyPlanAria": "Jeder Tarif",
     "sameTitle": "Dasselbe Initiative, so oder so",
     "sameBody": "Gehostet oder auf deinem eigenen Server, du nutzt dieselbe Software.",
@@ -357,7 +352,7 @@
   },
   "meta": {
     "homeTitle": "Initiative: raus aus dem Gruppenchat, rein an einen Ort",
-    "homeDescription": "Projekte, Aufgaben, Dokumente, Termine und Gespräche deiner Gruppe an einem Ort, im Web, auf Android, iPhone und deinem Computer.",
+    "homeDescription": "Projekte, Aufgaben, Dateien, Termine und Gespräche deiner Gruppe an einem Ort, im Web, auf Android, iPhone und deinem Computer.",
     "downloadTitle": "Initiative herunterladen",
     "downloadDescription": "Hol dir Initiative auf Android, iPhone, iPad oder deinen Computer, oder nutze es einfach weiter im Browser.",
     "pricingTitle": "Preise · Initiative",

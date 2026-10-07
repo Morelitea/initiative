@@ -1,9 +1,10 @@
 """Queue source adapter: importable backup envelope (json) and turn-order
 reports (pdf/csv/xlsx/md).
 
-The json envelope round-trips the queue's own state — items with rotation
-order, colors, notes, visibility, and held/current markers, tags by name.
-Member assignments and linked documents/tasks ship as display text only
+The json envelope round-trips the queue's own state — its tags by name, and
+items with rotation order, colors, notes, visibility, held/current markers and
+tags by name.
+Member assignments and linked files/tasks ship as display text only
 (names and titles): they reference guild-local rows that won't exist wherever
 the envelope is imported, so an import can't rebind them.
 
@@ -27,9 +28,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.tenant.task import Task
 from app.services.tenant import relationships
 from app.models.tenant.queue import Queue, QueueItem
@@ -40,6 +41,7 @@ from app.services.export.adapters._common import (
     export_stem,
     related_reach,
 )
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
@@ -68,15 +70,6 @@ class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
     formats = ("json", "pdf", "csv", "xlsx", "md")
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.queues import list_queue_ids_for_export
-
-        return await list_queue_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
-
     def rows(self, queue: Queue, /) -> int:
         return len(queue.items)
 
@@ -101,7 +94,7 @@ class QueueAdapter(ToolExportAdapter):
             session,
             (
                 related
-                for by_item in (attachments.documents, attachments.tasks)
+                for by_item in (attachments.files, attachments.tasks)
                 for items in by_item.values()
                 for related in items
             ),
@@ -114,15 +107,15 @@ class QueueAdapter(ToolExportAdapter):
 async def queue_attachments_for(
     session: AsyncSession, items: list[QueueItem]
 ) -> "Attachments":
-    """Documents and tasks for many queue items, two queries each."""
+    """Files and tasks for many queue items, two queries each."""
     ids = [item.id for item in items if item.id is not None]
-    documents = await relationships.related_for_many(
+    files = await relationships.related_for_many(
         session,
         SearchEntityType.queue_item,
         ids,
         relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        model=Document,
+        other_kind=SearchEntityType.file,
+        model=File,
     )
     tasks = await relationships.related_for_many(
         session,
@@ -132,14 +125,14 @@ async def queue_attachments_for(
         other_kind=SearchEntityType.task,
         model=Task,
     )
-    return Attachments(documents=documents, tasks=tasks)
+    return Attachments(files=files, tasks=tasks)
 
 
 @dataclass(frozen=True)
 class Attachments:
     """What each queue item has pinned to it, keyed by item id."""
 
-    documents: dict[int, list[Related]]
+    files: dict[int, list[Related]]
     tasks: dict[int, list[Related]]
 
 
@@ -171,12 +164,13 @@ def _envelope(
     queue: Queue, items: list[QueueItem], attachments: Attachments
 ) -> dict[str, Any]:
     return {
-        "type": "initiative-queue",
+        "type": tool_envelope_type(Tool.queue),
         "schema_version": 1,
         "name": queue.name,
         "description": queue.description,
         "is_active": queue.is_active,
         "current_round": queue.current_round,
+        "tags": _tags(queue),
         "properties": exported_properties(queue),
         "items": [
             {
@@ -187,14 +181,14 @@ def _envelope(
                 "is_visible": item.is_visible,
                 "held_at_round": item.held_at_round,
                 "is_current": item.id == queue.current_item_id,
-                # Informational only: user/document/task ids are guild-local,
+                # Informational only: user/file/task ids are guild-local,
                 # so an import can't rebind them — names and titles it is.
                 "member": _member(item),
                 "tags": _tags(item),
                 "properties": exported_properties(item),
-                "documents": sorted(
+                "files": sorted(
                     related.entity.name
-                    for related in attachments.documents.get(item.id, [])
+                    for related in attachments.files.get(item.id, [])
                     if related.entity is not None
                 ),
                 "tasks": sorted(
@@ -258,5 +252,5 @@ def _member(item: QueueItem) -> str | None:
     return display_name(item.user) or None
 
 
-def _tags(item: QueueItem) -> list[str]:
-    return sorted(tag.name for tag in item.tags or [])
+def _tags(row: Queue | QueueItem) -> list[str]:
+    return sorted(tag.name for tag in annotated_tags(row))

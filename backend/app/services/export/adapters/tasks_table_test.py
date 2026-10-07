@@ -73,7 +73,7 @@ def test_detail_flattens_mentions_in_the_description():
     # Only the fields the report reads; the loader supplies the rest.
     task = SimpleNamespace(
         title="Ship it",
-        description="Pair with @[Ada L](7) on **#task[Fix boss](12)**",
+        description="Pair with @[](7) on **#task[Fix boss](12)**",
         project=None,
         task_status=None,
         priority=None,
@@ -84,7 +84,11 @@ def test_detail_flattens_mentions_in_the_description():
         checklist=[],
     )
 
-    blocks = str(_detail(task, [], "en")["description_blocks"])  # type: ignore[arg-type]
+    # The name each mention reads as now is written in before it flattens.
+    def named(text):
+        return text.replace("@[](7)", "@[Ada L](7)")
+
+    blocks = str(_detail(task, [], "en", named)["description_blocks"])  # type: ignore[arg-type]
 
     assert "@Ada L" in blocks
     assert "Fix boss" in blocks

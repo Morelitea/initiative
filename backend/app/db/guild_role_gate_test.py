@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from sqlmodel import select
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.queue import Queue
 from app.testing import create_queue, create_resource_grant, grant_role_permission
 
@@ -25,9 +25,9 @@ async def test_a_role_that_cannot_engage_the_tool_is_refused(
 ):
     """Shared with them, in their initiative — and still not theirs to reach,
     because their role does not hold Queues."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -42,9 +42,9 @@ async def test_a_role_that_cannot_engage_the_tool_is_refused(
 
 
 async def test_the_role_permission_admits_them(session, acting_user, reading_as):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -59,9 +59,9 @@ async def test_the_role_permission_admits_them(session, acting_user, reading_as)
 async def test_a_manager_role_needs_no_row(session, acting_user, reading_as):
     """A manager holds every key whether or not one is stored — the same rule
     the application's resolver applies."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="project_manager",
@@ -76,7 +76,7 @@ async def test_the_routed_guild_admin_still_reaches_it(
     session, acting_user, reading_as
 ):
     """Guild admin sits above all four gates."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_queue(session, a.initiative, a.user, name="Vendor intake")
 
     assert await _names(reading_as, a.guild.id, a) == ["Vendor intake"]

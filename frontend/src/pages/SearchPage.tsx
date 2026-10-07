@@ -1,9 +1,9 @@
 /**
- * Guild-wide search results.
+ * Community-wide search results.
  *
  * Tabs by KIND of thing rather than one per tool, and no counts on any of
  * them: a tab is a place to look, not a reported quantity. Per-tool tabs would
- * privilege projects and documents — an artifact of them being the two core
+ * privilege projects and files — an artifact of them being the two core
  * tools — and would reflow every time a tool is added.
  *
  * A tab is a differently scoped query, not a filter over one, so the tab a
@@ -17,18 +17,17 @@ import { Search, SearchX, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MemberResultRow } from "@/components/search/MemberResultRow";
-import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { SearchResultList } from "@/components/search/SearchResultRow";
 import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useGuildSearch } from "@/hooks/useSearch";
+import { useCommunitySearch } from "@/hooks/useSearch";
 import { useUserSearch } from "@/hooks/useUsers";
 import {
   categoryEntityTypes,
@@ -45,7 +44,7 @@ const PAGE_SIZE = 20;
 export function SearchPage() {
   const { t } = useTranslation(["search", "common"]);
   const navigate = useNavigate();
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   const search = useSearch({ strict: false }) as {
     q?: string;
     tab?: string;
@@ -91,7 +90,7 @@ export function SearchPage() {
       to: ".",
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        tab: next === DEFAULT_SEARCH_CATEGORY ? undefined : next,
+        tab: isSearchCategory(next) && next !== DEFAULT_SEARCH_CATEGORY ? next : undefined,
         page: undefined,
       }),
     });
@@ -125,12 +124,12 @@ export function SearchPage() {
   // `null` for members, who are not in the index: they are asked for from the
   // roster instead, a tab further down.
   const indexTypes = categoryEntityTypes(tab);
-  const results = useGuildSearch(
+  const results = useCommunitySearch(
     {
-      q: query,
+      search: query,
       types: indexTypes ?? TOOL_ENTITY_TYPES,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      page,
+      page_size: PAGE_SIZE,
       ...(includeArchived ? { include_archived: true } : {}),
     },
     { enabled: enabled && indexTypes !== null }
@@ -160,8 +159,8 @@ export function SearchPage() {
     <div className="space-y-6">
       <div className="space-y-4">
         <h1 className="font-semibold text-3xl tracking-tight">
-          {activeGuild
-            ? t("search:titleInGuild", { guildName: activeGuild.name })
+          {activeCommunity
+            ? t("search:titleInCommunity", { communityName: activeCommunity.name })
             : t("search:title")}
         </h1>
         <div className="relative max-w-2xl">
@@ -173,7 +172,7 @@ export function SearchPage() {
             autoFocus
             aria-label={t("search:title")}
             placeholder={t("search:placeholder", {
-              guildName: activeGuild?.name ?? t("common:appName"),
+              communityName: activeCommunity?.name ?? t("common:appName"),
             })}
           />
         </div>
@@ -236,10 +235,12 @@ export function SearchPage() {
                       {t("search:closeMatches", { query })}
                     </p>
                   )}
-                  {items.map((hit) => (
-                    <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-                  ))}
-                  <Pager page={page} hasNext={hasNextPage(results.data)} onPageChange={setPage} />
+                  <SearchResultList hits={items} />
+                  <Pager
+                    page={page}
+                    hasNext={results.data?.has_next ?? false}
+                    onPageChange={setPage}
+                  />
                 </>
               )}
             </TabsContent>
@@ -260,9 +261,9 @@ export function SearchPage() {
  * arriving one has, or whether its tab holds anything. Anything drawing a
  * conclusion from a total reads it through here.
  */
-function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefined {
+function settledTotal(query: ReturnType<typeof useCommunitySearch>): number | undefined {
   if (query.isPlaceholderData || !query.isFetched) return undefined;
-  return query.data?.total;
+  return query.data?.total_count;
 }
 
 function Loading() {
@@ -333,12 +334,6 @@ function Pager({
       </Button>
     </div>
   );
-}
-
-/** Whether a page of index results has one after it. */
-function hasNextPage(results?: SearchResults): boolean {
-  if (!results) return false;
-  return results.offset + results.items.length < results.total;
 }
 
 /** The member roster's own total, once it belongs to this query. */

@@ -54,10 +54,10 @@
     "redactedItem": "A task was assigned to you"
   },
   "mention": {
-    "document": {
-      "subject": "You were mentioned in {{document}}",
+    "file": {
+      "subject": "You were mentioned in {{file}}",
       "title": "You were mentioned",
-      "body": "<strong>{{actor}}</strong> mentioned you in <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> mentioned you in <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "You were mentioned in a comment",
@@ -254,6 +254,11 @@
       "subject": "Two-factor authentication is off",
       "title": "Two-factor authentication is off",
       "body": "Your account no longer asks for a code when you sign in, and the recovery codes you had have been discarded. You were signed out everywhere else."
+    },
+    "disableHeld": {
+      "subject": "Two-factor authentication will be turned off",
+      "title": "Two-factor authentication will be turned off",
+      "body": "Two-factor authentication will be turned off on <strong>{{date}}</strong>. Until then your account still asks for a code when you sign in, and you can cancel it under Security in your settings."
     }
   },
   "passwordRemoved": {
@@ -279,7 +284,43 @@
       "subject": "A passkey was removed from your account",
       "title": "A passkey was removed from your account",
       "body": "The passkey called <strong>{{passkey}}</strong> can no longer be used to sign in. The other ways you sign in are unchanged, and you are still signed in everywhere you were."
+    },
+    "removalHeld": {
+      "subject": "Your last passkey will be removed",
+      "title": "Your last passkey will be removed",
+      "body": "The passkey called <strong>{{passkey}}</strong>, the last one on your account, will be removed on <strong>{{date}}</strong>. Until then it still signs you in, and you can cancel the removal under Security in your settings."
     }
+  },
+  "address": {
+    "fallbackText": "If this wasn't you, sign in and check the addresses on your account straight away, and get in touch with whoever runs this site.",
+    "proved": {
+      "subject": "An address was added to your account",
+      "title": "An address was added to your account",
+      "body": "<strong>{{address}}</strong> is now confirmed on your account and can be used to sign in."
+    },
+    "primary": {
+      "subject": "Your primary email address changed",
+      "title": "Your primary email address changed",
+      "body": "<strong>{{address}}</strong> is now your account's primary address. Password resets and sign-in codes go there first."
+    },
+    "removed": {
+      "subject": "An address was removed from your account",
+      "title": "An address was removed from your account",
+      "body": "<strong>{{address}}</strong> was removed from your account and can no longer be used to sign in."
+    },
+    "primaryHeld": {
+      "subject": "Your primary email address will change",
+      "title": "Your primary email address will change",
+      "body": "<strong>{{address}}</strong> becomes your account's primary address on <strong>{{date}}</strong>. Until then nothing changes, and you can cancel it under Account in your settings."
+    },
+    "removalHeld": {
+      "subject": "An address will be removed from your account",
+      "title": "An address will be removed from your account",
+      "body": "<strong>{{address}}</strong> will be removed from your account on <strong>{{date}}</strong>. Until then it still signs you in, and you can cancel the removal under Account in your settings."
+    }
+  },
+  "accountNotice": {
+    "notMe": "This wasn't me"
   },
   "digest": {
     "hourly": {
@@ -370,23 +411,17 @@
   "communityOnHold": {
     "subject": "{{community}} is on hold",
     "title": "{{community}} is on hold",
-    "greeting": "Hello,",
     "body": "<strong>{{community}}</strong> is on hold, so nobody can open it for now — its members and its administrators alike. Nothing in it has been changed or removed.",
     "bodyDeleting": "<strong>{{community}}</strong> is on hold and will be deleted on <strong>{{date}}</strong> unless its plan is restored. Until then nobody can open it — its members and its administrators alike — and nothing in it has been changed or removed.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> is on hold and will be deleted on <strong>{{date}}</strong> unless the hold is lifted. Until then nobody can open it — its members and its administrators alike — and nothing in it has been changed or removed.",
     "contact": "Contact <strong>{{contact}}</strong> to sort it out.",
     "contactNobody": "Contact whoever runs this server to sort it out.",
-    "textBody": "{{community}} is on hold, so nobody can open it for now. Nothing in it has been changed or removed.",
-    "textBodyDeleting": "{{community}} is on hold and will be deleted on {{date}} unless its plan is restored. Until then nobody can open it, and nothing in it has been changed or removed.",
-    "textBodyDeletingUnlessLifted": "{{community}} is on hold and will be deleted on {{date}} unless the hold is lifted. Until then nobody can open it, and nothing in it has been changed or removed.",
-    "textContact": "Contact {{contact}} to sort it out.",
-    "textContactNobody": "Contact whoever runs this server to sort it out.",
     "buttonLabel": "Restore the plan"
   },
   "communityTrialEnding": {
     "subject": "{{community}}'s trial ends on {{date}}",
     "title": "{{community}}'s trial ends on {{date}}",
-    "body": "<strong>{{community}}</strong>'s trial ends on <strong>{{date}}</strong>. Subscribe in the billing portal before then to keep editing — after that the community becomes read-only until a plan is chosen.",
+    "body": "<strong>{{community}}</strong>'s trial ends on <strong>{{date}}</strong>. After that its plan continues and is billed to the payment method on file. Check your billing details, or cancel before then if you don't want to continue.",
     "buttonLabel": "Open the billing portal"
   },
   "communityTrialEnded": {

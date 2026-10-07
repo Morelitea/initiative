@@ -1,8 +1,8 @@
-import type { ExportTasksApiV1CGuildIdExportsTasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type { ExportTasksParams } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 
 export type ExportParams = Pick<
-  ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  ExportTasksParams,
   "conditions" | "sorting" | "tz" | "include_archived"
 >;
 

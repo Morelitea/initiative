@@ -18,8 +18,7 @@ must call ``validate_new_password`` immediately before hashing.
 
 from __future__ import annotations
 
-from fastapi import HTTPException, status
-
+from app.core.errors import CodedError
 from app.core.messages import PasswordMessages
 from app.services import hibp
 
@@ -34,17 +33,11 @@ from app.services import hibp
 PASSWORD_MIN_LENGTH = 12
 
 
-class PasswordPolicyError(Exception):
-    """Raised when a candidate password fails the policy.
+class PasswordPolicyError(CodedError):
+    """Raised when a candidate password fails the policy, with one of the
+    ``PasswordMessages`` constants as its code."""
 
-    ``code`` is one of the ``PasswordMessages`` constants and is the
-    same string the endpoint uses as the ``HTTPException`` detail, so
-    the frontend can map it via ``errors.json``.
-    """
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 422
 
 
 async def validate_new_password(password: str) -> None:
@@ -57,20 +50,3 @@ async def validate_new_password(password: str) -> None:
         raise PasswordPolicyError(PasswordMessages.TOO_SHORT)
     if await hibp.is_password_breached(password):
         raise PasswordPolicyError(PasswordMessages.BREACHED)
-
-
-async def enforce_password_policy(password: str) -> None:
-    """Endpoint-facing wrapper that converts ``PasswordPolicyError`` into
-    an ``HTTPException`` with the policy code as ``detail``.
-
-    Use this from API handlers; reserve ``validate_new_password`` for
-    callers that want to handle the exception themselves (services,
-    scripts, tests).
-    """
-    try:
-        await validate_new_password(password)
-    except PasswordPolicyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=exc.code,
-        ) from exc

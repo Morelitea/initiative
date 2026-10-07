@@ -15,14 +15,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import ENDPOINT_KINDS, RelationshipType, node_id
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.relationship import EntityRelationship
 from app.db.session import set_rls_context
 from app.services.tenant import tags as tags_service
 from app.services.tenant.soft_delete import hard_purge_entity
 from app.testing.factories import (
     assign_tag,
-    create_document,
+    create_file,
     create_tag,
     create_task,
 )
@@ -56,7 +56,9 @@ async def test_a_tag_is_stored_as_an_edge_the_tagged_thing_owns(
     """Direction is the whole of the write rule: a tag is a label, so the edge
     describes the thing carrying it. Source is the task, target is the tag —
     which is what makes tagging ask write on the task and nothing of the tag."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
     await assign_tag(session, task, tag, commit=True)
@@ -73,13 +75,15 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
     session: AsyncSession, acting_user
 ):
     """Ids are unique within a table, not across them. The packed node id is
-    what keeps a document's tags off a task that happens to have the same
+    what keeps a file's tags off a task that happens to have the same
     number — the one thing a per-entity junction got for free."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task_tag = await create_tag(session, a.guild, name="for-the-task")
     doc_tag = await create_tag(session, a.guild, name="for-the-doc")
     task = await create_task(session, a.project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     await assign_tag(session, task, task_tag)
     await assign_tag(session, doc, doc_tag)
     await session.commit()
@@ -89,7 +93,7 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
         session, tags_service.TAG_LINKS["task"], task.id
     ) == [task_tag.id]
     assert await tags_service.active_tag_ids(
-        session, tags_service.TAG_LINKS["document"], doc.id
+        session, tags_service.spec_for(doc), doc.id
     ) == [doc_tag.id]
 
 
@@ -99,7 +103,9 @@ async def test_a_trashed_tag_stops_being_an_assignment(
     """The junction era decided this by joining ``tags`` on every read; the
     edge era has to decide it the same way, or a trashed tag would come back
     everywhere at once."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
     await assign_tag(session, task, tag, commit=True)
@@ -125,7 +131,7 @@ async def test_purging_a_tag_takes_its_assignments(session: AsyncSession, acting
     """A junction row went with its tag by foreign key. Nothing carries an edge
     out now, so the purge path has to name it — and it does, from the endpoint
     registry rather than a second list of tables."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
     await assign_tag(session, task, tag, commit=True)
@@ -146,7 +152,9 @@ async def test_replacing_a_tag_set_leaves_no_tombstone(
     """A replace is the UI restating a set, not a person taking one link back.
     Reading every dropped assignment as a considered negative would flood the
     signal tombstones exist to keep."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first = await create_tag(session, a.guild, name="one")
     second = await create_tag(session, a.guild, name="two")
     task = await create_task(session, a.project)
@@ -171,14 +179,14 @@ async def test_a_tag_assignment_is_invisible_to_a_reader_outside_the_initiative(
     decides — which is why a guild-level endpoint had to declare its leg rather
     than default to one."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     tag = await create_tag(session, owner.guild, name="secret-project")
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_file(session, owner.initiative, owner.user)
     await assign_tag(session, doc, tag, commit=True)
 
     outsider = await acting_user(
-        guild_role=GuildRole.member, guild=owner.guild, initiative=True
+        guild_role=CommunityRole.member, guild=owner.guild, initiative=True
     )
     response = await client.get(
         outsider.g(f"/tags/{tag.id}/entities"), headers=outsider.headers
@@ -197,11 +205,13 @@ async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
     task by that id, and the answer has to be no."""
     from sqlalchemy import text
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     task_id = task.id
     other = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     # The same reader belongs to both, so what changes between the two calls
     # below is the routing and nothing else.

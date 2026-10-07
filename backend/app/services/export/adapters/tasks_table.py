@@ -12,29 +12,33 @@ an ExportJob row persists, and what the worker replays here at render time.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import re
 
+from app.core.identity_boundary import STORED_MENTION
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
+from app.services.export.adapters._common import require_may_leave
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale
 from app.services.export.markdown import blocks_from_markdown
+from app.services.import_engine.mentions import mention_namer
 from app.core.user_display import display_name
 from app.services.export import limits as export_limits
 from app.services.tenant import task_queries
 
-# Mentions are stored as ``@[Display Name](id)`` / ``#kind[Text](id)`` — in a
-# comment and in a task's description alike. A printed report shows
-# ``@Display Name`` / the display text, not the reference markup. The ``#``
-# half reads through the reference vocabulary the app writes with, so every
-# kind that can be mentioned flattens; a ``#`` word naming no kind stays
+# Mentions reach a report as ``@[Display Name](id)`` / ``#kind[Text](id)`` —
+# in a comment and in a task's description alike, a person's with the name
+# written in as the report was made (``mention_namer``). A printed report
+# shows ``@Display Name`` / the display text, not the reference markup. The
+# ``#`` half reads through the reference vocabulary the app writes with, so
+# every kind that can be mentioned flattens; a ``#`` word naming no kind stays
 # literal, as it does on screen.
-_USER_MENTION_RE = re.compile(r"@\[([^\]]+)\]\(\d+\)")
 
 #: A picture in a comment — a pasted screenshot — prints as its alt text,
 #: the way the description's Markdown blocks print one.
@@ -43,7 +47,7 @@ _IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 
 def _flatten_mentions(content: str) -> str:
     content = _IMAGE_RE.sub(lambda m: m.group(1) or "[image]", content)
-    content = _USER_MENTION_RE.sub(lambda m: f"@{m.group(1)}", content)
+    content = STORED_MENTION.sub(lambda m: f"@{m.group(1)}", content)
     return TEXT_REFERENCE.sub(
         lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0),
         content,
@@ -112,6 +116,7 @@ class TasksTableAdapter:
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
+        reach = await require_may_leave(session, _reach(tasks))
         loc = export_locale(user)
         data = {
             "title": et("title.tasks", loc),
@@ -132,7 +137,7 @@ class TasksTableAdapter:
             template_id=self.template_id,
             format=format,
             batch=(RenderItem(key="tasks", data=data),),
-            initiative_ids=_reach(tasks),
+            initiative_ids=reach,
         )
 
     async def _build_detailed(
@@ -144,7 +149,16 @@ class TasksTableAdapter:
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
+        reach = await require_may_leave(session, _reach(tasks))
         loc = export_locale(user)
+        named = await mention_namer(
+            session,
+            [
+                [task.description, *(c.content for c in comments.get(task.id, []))]
+                for task in tasks
+            ],
+            missing=et("fallback.formerMember", loc),
+        )
         data = {
             "title": et("title.tasks", loc),
             "subtitle": et("summary.tasks", loc, count=len(tasks)),
@@ -166,14 +180,14 @@ class TasksTableAdapter:
                 "checklist": et("detail.checklist", loc),
                 "comments": et("detail.comments", loc),
             },
-            "tasks": [_detail(t, comments.get(t.id, []), loc) for t in tasks],
+            "tasks": [_detail(t, comments.get(t.id, []), loc, named) for t in tasks],
         }
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.detail_template_id,
             format="pdf",
             batch=(RenderItem(key="tasks", data=data),),
-            initiative_ids=_reach(tasks),
+            initiative_ids=reach,
         )
 
 
@@ -213,11 +227,14 @@ def _row(task: Task, locale: str) -> dict[str, Any]:
     }
 
 
-def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
+def _detail(
+    task: Task, comments: list, locale: str, named: Callable[[Any], Any]
+) -> dict[str, Any]:
     """One task's full record for the detailed report. Free-text fields
     (title, description, checklist lines, comment bodies, names) are user data
     and stay verbatim (the description is *parsed* as the Markdown it is, but
-    its text is untouched); only the priority enum localizes."""
+    its text is untouched); only the priority enum localizes. ``named`` writes
+    each mention's name in (``mention_namer``)."""
     return {
         "title": task.title,
         "project": task.project.name if task.project else "",
@@ -233,7 +250,7 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         # — parse into blocks so **bold** renders bold, not literally. Mention
         # markup flattens to its display text first, as a comment's does.
         "description_blocks": blocks_from_markdown(
-            _flatten_mentions(task.description or "")
+            _flatten_mentions(named(task.description or ""))
         ),
         "checklist": [
             {"text": item.get("text", ""), "done": bool(item.get("done"))}
@@ -248,7 +265,7 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
                 # -null value would reach the template's multiline() as `none`
                 # (unlike an absent key, which takes the default) and abort the
                 # compile. Mention markup flattens to its display text.
-                "content": _flatten_mentions(c.content or ""),
+                "content": _flatten_mentions(named(c.content or "")),
                 # Nesting level: a reply renders indented under its parent, so
                 # the thread reads like the on-screen discussion, not a flat
                 # chronological dump.

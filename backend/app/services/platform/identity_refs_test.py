@@ -49,7 +49,7 @@ class TestTheRenderedValue:
     def test_the_prefix_names_the_entity_and_the_purpose(self):
         assert ref_prefix(IdentityEntity.user, BILLING) == "ubil"
         assert ref_prefix(IdentityEntity.guild, BILLING) == "gbil"
-        assert ref_prefix(IdentityEntity.user, IdentityPurpose.app) == "uapp"
+        assert ref_prefix(IdentityEntity.user, IdentityPurpose.plugin) == "uplu"
 
     def test_two_mints_never_agree(self):
         assert mint_ref(IdentityEntity.user, BILLING) != mint_ref(
@@ -100,15 +100,15 @@ class TestMintingAndResolving:
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
         )
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
-        assert billing != at_app
+        assert billing != at_plugin
 
     async def test_a_user_and_a_guild_of_the_same_id_differ(self, session):
         as_user = await ensure_ref(
@@ -179,7 +179,7 @@ class TestReissuingOne:
             session,
             entity_type=IdentityEntity.guild,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -198,7 +198,7 @@ class TestReissuingOne:
                 session,
                 entity_type=IdentityEntity.guild,
                 entity_id=1,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=3,
                 sector_id=7,
             )
@@ -241,11 +241,11 @@ class TestReissuingEvery:
             assert (await resolve_ref(session, ref=old)) is not None
 
     async def test_it_leaves_other_purposes_and_entities_alone(self, session):
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -265,11 +265,11 @@ class TestReissuingEvery:
                 session,
                 entity_type=IdentityEntity.user,
                 entity_id=1,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=3,
                 sector_id=7,
             )
-            == at_app
+            == at_plugin
         )
         assert (
             await ensure_ref(
@@ -307,11 +307,11 @@ class TestRemoval:
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
         )
-        at_app = await ensure_ref(
+        at_plugin = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
             entity_id=1,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=3,
             sector_id=7,
         )
@@ -321,12 +321,12 @@ class TestRemoval:
         )
         assert dropped == 2
         assert await resolve_ref(session, ref=billing) is None
-        assert await resolve_ref(session, ref=at_app) is None
+        assert await resolve_ref(session, ref=at_plugin) is None
 
     async def test_a_deleted_guild_leaves_neither_half(self, session):
         """A guild is in this table twice and both have to go.
 
-        Its members are named to each app installed there, in sectors the guild
+        Its members are named to each plug-in installed there, in sectors the guild
         owns. The guild itself is named by billing, whose sector is the whole
         deployment — so those rows carry no ``sector_guild_id`` and a sweep
         looking for one never finds them.
@@ -338,7 +338,7 @@ class TestRemoval:
             session,
             entity_type=IdentityEntity.user,
             entity_id=9,
-            purpose=IdentityPurpose.app,
+            purpose=IdentityPurpose.plugin,
             sector_guild_id=5,
             sector_id=2,
         )
@@ -411,7 +411,7 @@ class TestTheSweep:
     async def test_it_takes_what_names_nobody_and_keeps_what_can_come_back(
         self, session
     ):
-        from app.models.platform.guild import GuildStatus
+        from app.models.platform.guild import CommunityStatus
         from app.models.platform.user import UserStatus
         from sqlmodel import select
 
@@ -424,7 +424,7 @@ class TestTheSweep:
         erased = await create_user(session, status=UserStatus.anonymized)
         live_guild = await create_guild(session, creator=active)
         retained_guild = await create_guild(session, creator=active)
-        retained_guild.status = GuildStatus.deleted.value
+        retained_guild.status = CommunityStatus.deleted.value
         session.add(retained_guild)
         await session.commit()
         gone_id = retained_guild.id + 1000
@@ -445,12 +445,12 @@ class TestTheSweep:
                 purpose=BILLING,
             )
 
-        async def app_ref(guild_id: int) -> str:
+        async def plugin_ref(guild_id: int) -> str:
             return await ensure_ref(
                 session,
                 entity_type=IdentityEntity.user,
                 entity_id=active.id,
-                purpose=IdentityPurpose.app,
+                purpose=IdentityPurpose.plugin,
                 sector_guild_id=guild_id,
                 sector_id=1,
             )
@@ -460,14 +460,14 @@ class TestTheSweep:
             await user_ref(leaving.id),
             await guild_ref(live_guild.id),
             await guild_ref(retained_guild.id),
-            await app_ref(live_guild.id),
+            await plugin_ref(live_guild.id),
         ]
         swept = [
             await user_ref(erased.id),
             await user_ref(gone_id),
             await guild_ref(gone_id),
-            await app_ref(retained_guild.id),
-            await app_ref(gone_id),
+            await plugin_ref(retained_guild.id),
+            await plugin_ref(gone_id),
         ]
         await session.commit()
 

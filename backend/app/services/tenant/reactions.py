@@ -20,16 +20,18 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, cast
 
-from sqlalchemy import String, bindparam, delete as sa_delete, func
+from sqlalchemy import delete as sa_delete, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import ReactionMessages
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
 from app.db import session as db_session
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
 from app.services.platform import accounts as accounts_service
@@ -46,20 +48,20 @@ MAX_NAMED_REACTORS = 8
 MAX_REACTIONS_PER_USER = 20
 
 
-#: Bind parameter for the toggle lock key — bound, never interpolated.
-_TOGGLE_KEY = bindparam("toggle_key", type_=String)
-
-
-class ReactionError(Exception):
+class ReactionError(CodedError):
     """Base error for reaction operations."""
 
 
 class ReactionNotFoundError(ReactionError):
     """The target does not exist (or is not visible)."""
 
+    status_code = 404
+
 
 class ReactionPermissionError(ReactionError):
     """The user may not react here."""
+
+    status_code = 403
 
 
 class ReactionValidationError(ReactionError):
@@ -68,6 +70,8 @@ class ReactionValidationError(ReactionError):
 
 class ReactionDisabledError(ReactionError):
     """The target takes no reactions — its own switch is off."""
+
+    status_code = 409
 
 
 @dataclass(frozen=True)
@@ -305,10 +309,10 @@ async def toggle_reaction(
     # The key names the person AND the target, so two people reacting to the
     # same comment never wait on each other — only a request racing itself
     # does, which is the only case with anything to serialize.
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(func.hashtextextended(_TOGGLE_KEY, 0))
-        ).params(toggle_key=f"reaction:{target.value}:{ctx.target_id}:{user.id}")
+    await advisory_lock(
+        session,
+        LockNamespace.REACTION_TOGGLE,
+        f"{target.value}:{ctx.target_id}:{user.id}",
     )
 
     mine = (

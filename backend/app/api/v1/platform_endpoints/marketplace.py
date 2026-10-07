@@ -1,7 +1,7 @@
 """Maintaining the catalog, and serving the artwork it is drawn with.
 
 Reading the marketplace is not here: what a guild is offered depends on which
-apps it has installed, so the shelf and a listing's page are guild-addressed
+plug-ins it has installed, so the shelf and a listing's page are guild-addressed
 and live in ``tenant_endpoints/marketplace.py``.
 
 What is here is everything that decides *what this deployment carries*, which
@@ -320,15 +320,6 @@ async def upload_registry_bundle(
 # --- what this deployment adds itself (local) --------------------------------
 
 
-def _local_error(exc: local_listings.LocalListingError) -> HTTPException:
-    return HTTPException(
-        status_code=(
-            status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-        ),
-        detail=exc.code,
-    )
-
-
 @router.get("/local/settings", response_model=MarketplaceLocalSettings)
 async def read_local_marketplace_settings(
     session: UserSessionDep, _owner: ConfigManageDep
@@ -388,13 +379,10 @@ async def list_pending_shares(
 async def _review(
     session: AsyncSession, owner_id: int, uid: str, version: str, *, approve: bool
 ) -> None:
-    try:
-        if approve:
-            await local_listings.approve_version(session, uid, version)
-        else:
-            await local_listings.reject_version(session, uid, version)
-    except local_listings.LocalListingError as exc:
-        raise _local_error(exc) from exc
+    if approve:
+        await local_listings.approve_version(session, uid, version)
+    else:
+        await local_listings.reject_version(session, uid, version)
     await audit_service.record(
         session,
         event_type=AuditEventType.MARKETPLACE_LISTING_REVIEWED,
@@ -513,10 +501,7 @@ async def withdraw_my_share(
 ) -> Response:
     """Take down a listing the signed-in member shared. Communities that
     installed a copy keep it."""
-    try:
-        await local_listings.withdraw_share(session, uid, current_user.id)
-    except local_listings.LocalListingError as exc:
-        raise _local_error(exc) from exc
+    await local_listings.withdraw_share(session, uid, current_user.id)
     await audit_service.record(
         session,
         event_type=AuditEventType.MARKETPLACE_LISTING_WITHDRAWN,

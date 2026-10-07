@@ -41,8 +41,7 @@ vi.mock("@/crypto/messaging", () => ({
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  markConversationReadApiV1MeDmConversationsConversationIdReadPost: (...args: unknown[]) =>
-    mocks.reportThreadRead(...args),
+  markConversationRead: (...args: unknown[]) => mocks.reportThreadRead(...args),
 }));
 
 vi.mock("@/hooks/useDirectMessages", () => ({

@@ -54,10 +54,10 @@
     "redactedItem": "Une tâche vous a été attribuée"
   },
   "mention": {
-    "document": {
-      "subject": "Vous avez été mentionné(e) dans {{document}}",
+    "file": {
+      "subject": "Vous avez été mentionné(e) dans {{file}}",
       "title": "Vous avez été mentionné(e)",
-      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Vous avez été mentionné(e) dans un commentaire",
@@ -254,6 +254,11 @@
       "subject": "La double authentification est désactivée",
       "title": "La double authentification est désactivée",
       "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs."
+    },
+    "disableHeld": {
+      "subject": "L'authentification à deux facteurs va être désactivée",
+      "title": "L'authentification à deux facteurs va être désactivée",
+      "body": "L'authentification à deux facteurs sera désactivée le <strong>{{date}}</strong>. D'ici là, votre compte demande toujours un code à la connexion, et vous pouvez l'annuler dans Sécurité, dans vos paramètres."
     }
   },
   "passwordRemoved": {
@@ -279,7 +284,43 @@
       "subject": "Une clé d'accès a été retirée de votre compte",
       "title": "Une clé d'accès a été retirée de votre compte",
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez."
+    },
+    "removalHeld": {
+      "subject": "Votre dernière clé d'accès va être retirée",
+      "title": "Votre dernière clé d'accès va être retirée",
+      "body": "La clé d'accès <strong>{{passkey}}</strong>, la dernière de votre compte, sera retirée le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Sécurité, dans vos paramètres."
     }
+  },
+  "address": {
+    "fallbackText": "Si ce n'était pas vous, connectez-vous et vérifiez sans attendre les adresses de votre compte, puis contactez la personne qui gère ce site.",
+    "proved": {
+      "subject": "Une adresse a été ajoutée à votre compte",
+      "title": "Une adresse a été ajoutée à votre compte",
+      "body": "<strong>{{address}}</strong> est désormais confirmée sur votre compte et peut servir à vous connecter."
+    },
+    "primary": {
+      "subject": "Votre adresse e-mail principale a changé",
+      "title": "Votre adresse e-mail principale a changé",
+      "body": "<strong>{{address}}</strong> est désormais l'adresse principale de votre compte. Les réinitialisations de mot de passe et les codes de connexion y arrivent en premier."
+    },
+    "removed": {
+      "subject": "Une adresse a été retirée de votre compte",
+      "title": "Une adresse a été retirée de votre compte",
+      "body": "<strong>{{address}}</strong> a été retirée de votre compte et ne peut plus servir à vous connecter."
+    },
+    "primaryHeld": {
+      "subject": "Votre adresse e-mail principale va changer",
+      "title": "Votre adresse e-mail principale va changer",
+      "body": "<strong>{{address}}</strong> deviendra l'adresse principale de votre compte le <strong>{{date}}</strong>. D'ici là, rien ne change, et vous pouvez l'annuler dans Compte, dans vos paramètres."
+    },
+    "removalHeld": {
+      "subject": "Une adresse va être retirée de votre compte",
+      "title": "Une adresse va être retirée de votre compte",
+      "body": "<strong>{{address}}</strong> sera retirée de votre compte le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Compte, dans vos paramètres."
+    }
+  },
+  "accountNotice": {
+    "notMe": "Ce n'était pas moi"
   },
   "digest": {
     "hourly": {
@@ -370,23 +411,17 @@
   "communityOnHold": {
     "subject": "{{community}} est en attente",
     "title": "{{community}} est en attente",
-    "greeting": "Bonjour,",
     "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
     "bodyDeleting": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
     "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
-    "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
-    "textBodyDeleting": "{{community}} est en attente et sera supprimée le {{date}} si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textBodyDeletingUnlessLifted": "{{community}} est en attente et sera supprimée le {{date}} si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textContact": "Contactez {{contact}} pour régler la situation.",
-    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
     "buttonLabel": "Rétablir le forfait"
   },
   "communityTrialEnding": {
     "subject": "L’essai de {{community}} se termine le {{date}}",
     "title": "L’essai de {{community}} se termine le {{date}}",
-    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
+    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Ensuite, son forfait continue et est facturé au moyen de paiement enregistré. Vérifiez vos informations de facturation, ou annulez d’ici là si vous ne souhaitez pas continuer.",
     "buttonLabel": "Ouvrir le portail de facturation"
   },
   "communityTrialEnded": {

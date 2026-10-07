@@ -42,7 +42,7 @@ def test_the_place_is_read_off_the_payload():
     )
     assert user_notifications._place(
         {
-            "guild_id": 3,
+            "community_id": 3,
             "initiative_id": 9,
             "tool": "project",
             "entity_type": "task",
@@ -58,7 +58,7 @@ def test_the_place_is_read_off_the_payload():
         "subject_type": "task",
         "subject_id": 7,
     }
-    assert user_notifications._place({"guild_id": 3, "entity_type": "queue"}) == {
+    assert user_notifications._place({"community_id": 3, "entity_type": "queue"}) == {
         **nowhere,
         "guild_id": 3,
         "tool": "queue",
@@ -78,7 +78,7 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
         session,
         user_id=member.id,
         notification_type=NotificationType.initiative_added,
-        data={"guild_id": guild.id},
+        data={"community_id": guild.id},
     )
     await session.commit()
 
@@ -94,7 +94,7 @@ async def _thing(session: AsyncSession, kind: str, initiative, creator):
     from app.testing import (
         create_calendar,
         create_calendar_event,
-        create_document,
+        create_file,
         create_project,
         create_task,
         create_wiki,
@@ -104,9 +104,9 @@ async def _thing(session: AsyncSession, kind: str, initiative, creator):
     if kind == "task":
         project = await create_project(session, initiative, creator)
         return await create_task(session, project), Tool.project, project.id
-    if kind == "document":
-        document = await create_document(session, initiative, creator)
-        return document, Tool.document, document.id
+    if kind == "file":
+        file = await create_file(session, initiative, creator)
+        return file, Tool.file, file.id
     if kind == "calendar_event":
         calendar = await create_calendar(session, initiative, creator)
         event = await create_calendar_event(session, calendar, creator)
@@ -115,7 +115,7 @@ async def _thing(session: AsyncSession, kind: str, initiative, creator):
     return await create_wiki_page(session, wiki, creator), Tool.wiki, wiki.id
 
 
-@pytest.mark.parametrize("kind", ["task", "document", "calendar_event", "wiki_page"])
+@pytest.mark.parametrize("kind", ["task", "file", "calendar_event", "wiki_page"])
 async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kind: str):
     """Every notice records where it sits all the way down — the initiative, the
     tool and the tool's row that govern the thing it names (a task's project,

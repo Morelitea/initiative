@@ -4,43 +4,54 @@ import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
-import { useGuildPath } from "@/lib/guildUrl";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListingKind } from "@/lib/tools";
 
 type BrowseMarketplaceButtonProps = {
   /** Whose shelf to open. A tool with no listing kind renders nothing, so a
    *  list can offer the button unconditionally. */
   tool: Tool;
-  /** Full-height variant for an empty state, where it sits beside the page's
-   *  own "create your first…" button rather than in the toolbar. */
-  size?: "sm" | "default";
 };
 
 /**
- * "Browse the marketplace", next to the create button rather than behind the
- * overflow menu: adding a ready-made one is the same kind of answer as making
- * one from scratch, and a reader who never opens the overflow menu never
- * learns the shelf is there.
- *
- * In the toolbar it goes in `trailing`, not `actions` — `actions` is hidden
- * below `sm`, where the bottom-nav add pill stands in for create but has no
- * equivalent for this. The label collapses to the icon at that width so the
- * row still fits on one line.
+ * "Browse the marketplace", beside the "create your first…" button of a tool
+ * list that is still empty: adding a ready-made one is the same kind of answer
+ * as making one from scratch. Once the list has something in it, the shelf is
+ * an entry in the toolbar's More actions menu instead
+ * ({@link BrowseMarketplaceMenuItem}).
  */
-export const BrowseMarketplaceButton = ({ tool, size = "sm" }: BrowseMarketplaceButtonProps) => {
+export const BrowseMarketplaceButton = ({ tool }: BrowseMarketplaceButtonProps) => {
   const { t } = useTranslation("marketplace");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const kind = toolListingKind(tool);
 
   if (!kind) return null;
 
   const label = t("browse");
   return (
-    <Button variant="outline" size={size} className={size === "sm" ? "h-9" : undefined} asChild>
-      <Link to={gp("/marketplace")} search={{ kind }} aria-label={label} title={label}>
+    <Button variant="outline" asChild>
+      <Link to={gp("/marketplace")} search={{ kind }}>
         <Store className="h-4 w-4" />
-        <span className={size === "sm" ? "hidden sm:inline" : undefined}>{label}</span>
+        {label}
       </Link>
     </Button>
+  );
+};
+
+/** "Browse the marketplace" as an entry in a toolbar's More actions menu.
+ *  A tool with no listing kind renders nothing. */
+export const BrowseMarketplaceMenuItem = ({ tool }: { tool: Tool }) => {
+  const { t } = useTranslation("marketplace");
+  const gp = useCommunityPath();
+  const kind = toolListingKind(tool);
+  if (!kind) return null;
+  return (
+    <DropdownMenuItem asChild>
+      <Link to={gp("/marketplace")} search={{ kind }}>
+        <Store className="h-4 w-4" />
+        {t("browse")}
+      </Link>
+    </DropdownMenuItem>
   );
 };

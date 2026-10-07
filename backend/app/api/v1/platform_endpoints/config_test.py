@@ -14,8 +14,8 @@ from httpx import AsyncClient
 from app.core.config import settings
 from app.services import captcha_config
 from app.services.captcha_config import ResolvedCaptchaConfig
-from app.core.version import get_min_native_version
-from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
+from app.core.version import get_min_desktop_version, get_min_native_version
+from app.services.tenant.attachments import MAX_FILE_SIZE
 
 
 async def test_config_exposes_upload_cap(client: AsyncClient):
@@ -24,16 +24,17 @@ async def test_config_exposes_upload_cap(client: AsyncClient):
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
-    assert response.json()["max_upload_bytes"] == MAX_DOCUMENT_FILE_SIZE
+    assert response.json()["max_upload_bytes"] == MAX_FILE_SIZE
 
 
 async def test_config_exposes_native_version_floor(client: AsyncClient):
-    """The landing page builds its Android download link from the release the
-    APK was last rebuilt for, which is the floor this server already ships."""
+    """The landing page builds its Android and desktop download links from the
+    releases those apps were last rebuilt for, the floors this server ships."""
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
     assert response.json()["min_native_version"] == get_min_native_version()
+    assert response.json()["min_desktop_version"] == get_min_desktop_version()
 
 
 async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypatch):
@@ -89,6 +90,7 @@ async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypa
         "url": "https://billing.example.com",
         "operator_handoff": False,
         "manages_plans": False,
+        "insights": False,
     }
 
 
@@ -160,10 +162,37 @@ async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient)
     assert response.json()["cookie_consent_enabled"] is False
 
 
-async def test_config_asks_about_nothing_a_deployment_does_not_do(client: AsyncClient):
+async def test_config_asks_about_nothing_a_deployment_does_not_do(
+    client: AsyncClient, monkeypatch
+):
     """The chooser offers a switch per category here. Self-host default:
     nothing optional is configured, so there is nothing to offer."""
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", None)
+
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
     assert response.json()["cookie_categories"] == []
+    assert response.json()["faro_collector_url"] is None
+
+
+async def test_config_names_the_collector_and_asks_about_analytics(
+    client: AsyncClient, monkeypatch
+):
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", "/collect")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["faro_collector_url"] == "/collect"
+    assert response.json()["cookie_categories"] == ["analytics"]
+
+
+async def test_config_asks_for_page_views_only_where_metrics_are_read(
+    client: AsyncClient, monkeypatch
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", None)
+    assert (await client.get("/api/v1/config")).json()["count_page_views"] is False
+
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
+    assert (await client.get("/api/v1/config")).json()["count_page_views"] is True

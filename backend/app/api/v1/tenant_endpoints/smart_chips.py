@@ -1,4 +1,4 @@
-"""`/api/v1/c/{guild_id}/smart-chips` — what a document's chips say now.
+"""`/api/v1/c/{community_id}/smart-chips` — what a file's chips say now.
 
 Guild-scoped like any other content read: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so a chip answers under the same
@@ -42,7 +42,7 @@ async def read_smart_chips(
 
     A reference that names something gone, or something this caller may not
     see, is absent from the answer — the two are the same reply, and the chip
-    falls back to the words the document stored beside it.
+    falls back to the words the file stored beside it.
     """
     return SmartChipStateList(
         items=await smart_chips_service.read_smart_chips(

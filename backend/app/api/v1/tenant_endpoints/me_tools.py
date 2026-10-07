@@ -8,7 +8,7 @@ serialized by the same registry entry — so what reaches you here is what its
 page in that community shows. The made-by-me toggle is the one thing added.
 
 ``GET /me/{tool}`` is one route, mounted once for every tool out of
-:data:`MY_TOOL_LISTS`. Projects, documents and calendars each had a cross-guild
+:data:`MY_TOOL_LISTS`. Projects, files and calendars each had a cross-guild
 list of their own before this page existed — for the task wizard, for My
 Calendar — and each was its own copy of the same merge. They answer here now,
 so the nine lists cannot drift. What survives per tool is what a merge across
@@ -24,7 +24,7 @@ so the published surface — its operation id included — is unchanged.
 All nine run on ``UserSessionDep``: the caller is resolved against the shared
 tables as their own platform role, and each guild is then entered with the
 membership role they hold there (``cross_guild.gather_across_guilds``), which
-is the same ``SET ROLE guild_<id>`` a ``/c/{guild_id}`` request makes.
+is the same ``SET ROLE guild_<id>`` a ``/c/{community_id}`` request makes.
 """
 
 # NOT ``from __future__ import annotations``: the list handlers are built per
@@ -89,7 +89,9 @@ def _params(tool: Tool, page_size: ListParam) -> tuple[ListParam, ...]:
     """
     plural = tool.plural.replace("_", " ")
     return (
-        ListParam("guild_ids", Optional[List[int]], Query(default=None)),
+        ListParam(
+            "guild_ids", Optional[List[int]], Query(default=None, alias="community_ids")
+        ),
         search_param(None),
         ListParam(
             "created_by_me",
@@ -141,11 +143,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
             "made-by-me filters."
         ),
     ),
-    Tool.document: MyToolList(
+    Tool.file: MyToolList(
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
-            "Documents that reach the current user across every guild they "
+            "Files that reach the current user across every guild they "
             "belong to.\n"
             "\n"
             "An optional ``guild_ids`` filter narrows to a subset of guilds, "
@@ -248,7 +250,7 @@ async def _conditions(
 ) -> list:
     """What the tool's list answers ``request`` with, and, for the page's other
     view, only what the reader wrote. Authorship, not ownership: handing a
-    document to someone else does not take it out of the things you wrote."""
+    file to someone else does not take it out of the things you wrote."""
     spec = TOOL_LISTS[tool]
     conditions = await list_conditions(spec, request)
     if created_by_me:
@@ -404,10 +406,8 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
             page=page,
             page_size=page_size,
         )
-        response_extras = TOOL_LISTS[tool].response_extras
-        extras = response_extras(values) if response_extras else {}
         return response_model(
-            **build_paginated_response(items, total_count, page, page_size, **extras)
+            **build_paginated_response(items, total_count, page, page_size)
         )
 
     list_rows.__signature__ = _signature(_params(tool, spec.page_size))
@@ -425,7 +425,7 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
 async def get_my_tool_counts(
     session: UserSessionDep,
     current_user: CurrentUserDep,
-    guild_ids: Optional[List[int]] = Query(default=None),
+    guild_ids: Optional[List[int]] = Query(default=None, alias="community_ids"),
     created_by_me: bool = Query(
         default=False,
         description="Count only what the caller wrote, matching the list views.",

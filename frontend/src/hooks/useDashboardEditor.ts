@@ -9,7 +9,7 @@
  * flickering back mid-drag.
  *
  * No CRDT here on purpose: a dashboard layout is small and rarely co-edited, so
- * last-write-wins on the row is the right cost — unlike documents.
+ * last-write-wins on the row is the right cost — unlike files.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

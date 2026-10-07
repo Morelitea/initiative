@@ -1,6 +1,6 @@
 """Run a statement over rows that never came from Postgres.
 
-An installed app answers with rows of its own — JSON objects the proxy hands
+An installed plug-in answers with rows of its own — JSON objects the proxy hands
 back, bounded by the response cap. They are not in a table, so there is nothing
 to plan and nothing to hand the server; but the question somebody wants to ask
 of them is the same question they ask of a task list. Group these by that,
@@ -11,7 +11,7 @@ and then *evaluated here* rather than deparsed. Two halves:
 
 **Planning** checks the statement and resolves its names — against the columns
 the endpoint declares it returns, rather than against the field registry, since
-an app's shape is the app's to state. It is pure, so a widget whose statement
+a plug-in's shape is the plug-in's to state. It is pure, so a widget whose statement
 names a column its endpoint does not return is refused while its author is
 looking at it, exactly as a Postgres one is.
 
@@ -21,7 +21,7 @@ about what a statement may contain — the node types and the functions are the
 ones :mod:`app.services.query.resolve` already admits, so a construct reaches
 this only by being on that list.
 
-One relation, named ``rows``: the rows this binding fetched. Which app, which
+One relation, named ``rows``: the rows this binding fetched. Which plug-in, which
 endpoint and with what parameters is the binding's to say and not the
 statement's, so there is nothing here to join and nothing to look up.
 """
@@ -248,7 +248,7 @@ def _resolve_names(select: ast.SelectStmt, declared: Mapping[str, RowColumn]) ->
             raise QueryError(QueryMessages.QUALIFIED_RELATION, ".".join(names))
         name = names[0]
         if name == VIEWER:
-            # The reader is a row of ours, and these rows are an app's. There
+            # The reader is a row of ours, and these rows are a plug-in's. There
             # is nothing here for the word to mean.
             raise QueryError(QueryMessages.RESERVED_NAME, VIEWER)
         if name in declared:
@@ -417,7 +417,7 @@ def evaluate(
     """Run *plan* over *rows*, in the order a statement means.
 
     The residual ``WHERE``, then grouping and its aggregates, then ordering,
-    then the limit. Rows arrive as the app returned them — objects keyed by the
+    then the limit. Rows arrive as the plug-in returned them — objects keyed by the
     names it declared — and leave positional against :attr:`RowPlan.columns`,
     which is the shape every other read of this surface answers with.
     """
@@ -940,7 +940,7 @@ def _extract(part: Any, value: Any) -> Any:
 
 
 def _as_datetime(value: Any) -> Optional[datetime]:
-    """A moment, from whatever spelling the app sent it in."""
+    """A moment, from whatever spelling the plug-in sent it in."""
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     if isinstance(value, date):
@@ -991,7 +991,7 @@ def _wire(value: Any, declared: Optional[FieldType] = None) -> Any:
 
     The same spellings the Postgres path answers with, so a widget cannot tell
     the two apart — which is why the *declared* type decides rather than the
-    Python one. An app sends a moment as whatever it likes, most often an ISO
+    Python one. A plug-in sends a moment as whatever it likes, most often an ISO
     string; a column the endpoint called a date comes back as epoch
     milliseconds either way, because that is the one spelling the widgets take.
     """
@@ -1030,7 +1030,7 @@ def describe_statement(
     The live path asks the database about any output the registry cannot name.
     A caller with no database to ask — a marketplace listing previewing on
     sample rows — reads the same tree the way this module reads a statement
-    over an app's rows: a field is the field the registry declares, and an
+    over a plug-in's rows: a field is the field the registry declares, and an
     expression is typed by what it is built from.
     """
     from app.services.fields import dataset

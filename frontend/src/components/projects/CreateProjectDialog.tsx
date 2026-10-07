@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectCreate, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -25,59 +25,38 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useCreateProject, useTemplateProjects } from "@/hooks/useProjects";
 import { dateRangeBounds } from "@/lib/dateRange";
+import type { DialogProps } from "@/types/dialog";
 
 const NO_TEMPLATE_VALUE = "template-none";
 
-type CreateProjectDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  lockedInitiativeId: number | null;
-  lockedInitiativeName: string | null;
-  creatableInitiatives: InitiativeRead[];
-  initiativesQuery: { isLoading: boolean; isError: boolean };
-  defaultInitiativeId: string | null;
-  onCreated: () => void;
+type CreateProjectDialogProps = DialogProps & {
+  initiativeId: number;
+  onSuccess: (project: { id: number }) => void;
 };
 
 export const CreateProjectDialog = ({
   open,
   onOpenChange,
-  lockedInitiativeId,
-  lockedInitiativeName,
-  creatableInitiatives,
-  initiativesQuery,
-  defaultInitiativeId,
-  onCreated,
+  initiativeId,
+  onSuccess,
 }: CreateProjectDialogProps) => {
   const { t } = useTranslation(["projects", "common"]);
+  // The initiative page's own cached read, for the dialog's label.
+  const initiativeName = useInitiative(initiativeId).data?.name ?? null;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
-  const templatesQuery = useTemplateProjects();
-
-  // Sync initiative ID from parent when dialog opens or default changes.
-  // A locked initiative (e.g. from the Initiative Details page) always wins so
-  // the project is created in the initiative shown in the dialog, even when the
-  // parent's default lags behind due to effect ordering / cached query data.
-  useEffect(() => {
-    if (lockedInitiativeId != null) {
-      setInitiativeId(String(lockedInitiativeId));
-      return;
-    }
-    if (defaultInitiativeId) {
-      setInitiativeId(defaultInitiativeId);
-    }
-  }, [lockedInitiativeId, defaultInitiativeId]);
+  const templatesQuery = useTemplateProjects(open);
 
   // Sync description from selected template
   useEffect(() => {
@@ -107,7 +86,13 @@ export const CreateProjectDialog = ({
       if (datesInverted) {
         return;
       }
-      const payload: Record<string, unknown> = { name, description };
+      const payload: ProjectCreate = {
+        name,
+        description,
+        initiative_id: initiativeId,
+        is_template: isTemplateProject,
+        grants,
+      };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
@@ -118,39 +103,23 @@ export const CreateProjectDialog = ({
       if (endDate) {
         payload.end_date = endDate;
       }
-      const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
-      if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
-        return;
-      }
-      payload.initiative_id = selectedInitiativeId;
-      payload.is_template = isTemplateProject;
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
         payload.template_id = Number(selectedTemplateId);
       }
-      payload.grants = grants;
-      createProjectMutation.mutate(
-        payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
-        {
-          onSuccess: () => {
-            setName("");
-            setDescription("");
-            setIcon("");
-            setStartDate("");
-            setEndDate("");
-            // Restore the default initiative rather than clearing it: the dialog
-            // stays mounted, and the sync effect won't re-run on reopen (its deps
-            // are unchanged), so clearing would leave a subsequent create with no
-            // initiative — silently returning early — until a page refresh.
-            setInitiativeId(
-              lockedInitiativeId != null ? String(lockedInitiativeId) : defaultInitiativeId
-            );
-            setSelectedTemplateId(NO_TEMPLATE_VALUE);
-            setIsTemplateProject(false);
-            setGrants([...DEFAULT_GRANTS]);
-            onCreated();
-          },
-        }
-      );
+      createProjectMutation.mutate(payload, {
+        onSuccess: (project) => {
+          setName("");
+          setDescription("");
+          setIcon("");
+          setStartDate("");
+          setEndDate("");
+          setSelectedTemplateId(NO_TEMPLATE_VALUE);
+          setIsTemplateProject(false);
+          setGrants([...DEFAULT_GRANTS]);
+          onOpenChange(false);
+          onSuccess(project);
+        },
+      });
     },
     isPending: createProjectMutation.isPending,
     isError: createProjectMutation.isError,
@@ -163,7 +132,7 @@ export const CreateProjectDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen overflow-y-auto bg-card">
+      <DialogContent className="bg-card">
         <DialogHeader>
           <DialogTitle>{t("createDialog.title")}</DialogTitle>
           <DialogDescription>{t("createDialog.description")}</DialogDescription>
@@ -179,7 +148,7 @@ export const CreateProjectDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-name">{t("createDialog.nameLabel")}</Label>
+              <Label htmlFor="project-name">{t("common:name")}</Label>
               <Input
                 id="project-name"
                 placeholder={t("createDialog.namePlaceholder")}
@@ -207,32 +176,9 @@ export const CreateProjectDialog = ({
             />
             <div className="space-y-2">
               <Label>{t("createDialog.initiativeLabel")}</Label>
-              {lockedInitiativeId ? (
-                <div className="rounded-md border px-3 py-2 text-sm">
-                  {lockedInitiativeName ?? t("filters.selectedInitiative")}
-                </div>
-              ) : initiativesQuery.isLoading ? (
-                <p className="text-muted-foreground text-sm">
-                  {t("createDialog.loadingInitiatives")}
-                </p>
-              ) : initiativesQuery.isError ? (
-                <p className="text-destructive text-sm">{t("createDialog.initiativeLoadError")}</p>
-              ) : creatableInitiatives.length > 0 ? (
-                <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("createDialog.selectInitiative")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {creatableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-muted-foreground text-sm">{t("createDialog.noInitiatives")}</p>
-              )}
+              <div className="rounded-md border px-3 py-2 text-sm">
+                {initiativeName ?? t("filters.selectedInitiative")}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="project-template">{t("createDialog.templateLabel")}</Label>
@@ -290,11 +236,7 @@ export const CreateProjectDialog = ({
                 }}
               />
             </div>
-            <CreateAccessSection
-              initiativeId={initiativeId ? Number(initiativeId) : null}
-              grants={grants}
-              onChange={setGrants}
-            />
+            <CreateAccessSection initiativeId={initiativeId} grants={grants} onChange={setGrants} />
             <div className="flex flex-wrap items-center gap-2">
               {createProject.isError ? (
                 <p className="text-destructive text-sm">{t("createDialog.createError")}</p>

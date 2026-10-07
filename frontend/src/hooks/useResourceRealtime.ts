@@ -1,15 +1,18 @@
 import { useEffect } from "react";
 
 import { getAuthToken } from "@/api/client";
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { openLiveSocket } from "@/lib/liveSocket";
-import { buildGuildWsUrl } from "@/lib/wsUrl";
+import { toolRouteSegment } from "@/lib/tools";
+import { buildCommunityWsUrl } from "@/lib/wsUrl";
 
 /**
- * Subscribe to one resource's change signal and refetch it on every change, so
- * React Query reads the latest state through the normal endpoints. A frame
- * names a change and never carries the resource.
+ * Subscribe to one tool entity's change signal (a queue's or a counter
+ * group's) and refetch it and its lists on every change, so React Query reads
+ * the latest state through the normal endpoints. A frame names a change and
+ * never carries the resource.
  *
  * Built on the shared live socket, so it authenticates in its first frame,
  * reconnects with jittered backoff, and notices a connection that has gone
@@ -17,53 +20,30 @@ import { buildGuildWsUrl } from "@/lib/wsUrl";
  * token does not tear the socket down; a reconnect refetches, since whatever
  * changed while it was away was said to nobody.
  */
-const useResourceRealtime = (
-  resourceId: number | null,
-  resource: string,
-  refetch: (resourceId: number) => void
-): void => {
-  const { activeGuildId } = useGuilds();
+export function useToolRealtime(tool: Tool, id: number | null): void {
+  const { activeCommunityId } = useCommunities();
 
   useEffect(() => {
-    if (!resourceId || !activeGuildId) return;
+    if (!id || !activeCommunityId) return;
 
+    const refetch = () => void invalidate(q.tool(tool, id));
     let opened = 0;
     const connection = openLiveSocket({
-      url: buildGuildWsUrl(activeGuildId, `${resource}/${resourceId}/ws`),
+      url: buildCommunityWsUrl(activeCommunityId, `${toolRouteSegment(tool)}/${id}/ws`),
       // Null is fine — the server reads the session cookie, which is the web
       // path.
       auth: () => ({ token: getAuthToken() }),
       onFrame: (frame) => {
         if ((frame as { heartbeat?: boolean } | null)?.heartbeat) return;
-        refetch(resourceId);
+        refetch();
       },
       onStatus: (connected) => {
         if (!connected) return;
         opened += 1;
-        if (opened > 1) refetch(resourceId);
+        if (opened > 1) refetch();
       },
     });
 
     return () => connection.close();
-  }, [resourceId, resource, refetch, activeGuildId]);
-};
-
-// Module-level invalidators so the effect's dependency stays stable.
-
-const invalidateQueueRealtime = (queueId: number) => {
-  void invalidate(q.queue(queueId), q.allQueues());
-};
-
-/** Subscribe to real-time queue updates; refetches detail + list on any event. */
-export function useQueueRealtime(queueId: number | null): void {
-  useResourceRealtime(queueId, "queues", invalidateQueueRealtime);
-}
-
-const invalidateCounterGroupRealtime = (groupId: number) => {
-  void invalidate(q.counterGroup(groupId), q.allCounterGroups());
-};
-
-/** Subscribe to real-time counter group updates; refetches detail + list on any event. */
-export function useCounterGroupRealtime(groupId: number | null): void {
-  useResourceRealtime(groupId, "counter-groups", invalidateCounterGroupRealtime);
+  }, [tool, id, activeCommunityId]);
 }

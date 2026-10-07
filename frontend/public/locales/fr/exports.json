@@ -8,6 +8,7 @@
     "error": "Impossible d'exporter. Réessayez.",
     "selected": "Exporter la sélection",
     "ownerRequired": "Seule la personne qui peut tous les supprimer peut les exporter.",
+    "noCommonFormat": "Ces éléments ne partagent aucun format d'export.",
     "headingBackup": "Sauvegarde",
     "headingReport": "Rapport",
     "formatPdf": "Document PDF",
@@ -31,7 +32,7 @@
   },
   "wizard": {
     "titleInitiative": "Exporter l’initiative",
-    "titleGuild": "Exporter la communauté",
+    "titleCommunity": "Exporter la communauté",
     "titleEntities_one": "Exporter {{count}} élément",
     "titleEntities_other": "Exporter {{count}} éléments",
     "back": "Retour",
@@ -59,9 +60,9 @@
       "noDestination": "Cette exportation dépasse {{limit}} et aucun dossier d'exportation n'est configuré sur ce serveur, elle ne peut donc pas être téléchargée. Demandez à la personne qui gère ce serveur d'en configurer un."
     },
     "report": {
-      "documentNative": "Documents texte",
-      "documentSpreadsheet": "Tableurs",
-      "documentOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
+      "fileNative": "Documents texte",
+      "fileSpreadsheet": "Tableurs",
+      "fileOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
     },
     "format": {
       "prompt": "Choisissez un format"
@@ -124,9 +125,8 @@
     }
   },
   "entry": {
-    "guildTitle": "Exporter cette communauté",
-    "guildDescription": "Téléchargez les données de chaque initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
-    "initiativeTitle": "Exporter cette initiative",
+    "communityTitle": "Exporter cette communauté",
+    "communityDescription": "Téléchargez les données de chaque initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
     "initiativeDescription": "Téléchargez les données de cette initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
     "open": "Exporter…"
   },
@@ -162,13 +162,13 @@
       "tasks": "Tâches",
       "events": "Événements",
       "project": "Projet",
-      "document": "Document",
+      "file": "Fichier",
       "queue": "File",
       "calendar": "Calendrier",
       "post": "Publication",
       "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Communauté",
+      "community": "Communauté",
       "gallery": "Galerie",
       "counter-group": "Groupe de compteurs",
       "dashboard": "Tableau de bord"

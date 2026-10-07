@@ -58,7 +58,7 @@ class UserStatus(str, Enum):
     #: which is somebody taking a break and must never be erased by a timer:
     #: this one has a date on it.
     #:
-    #: Memberships, initiative roles and owned documents are all kept, so
+    #: Memberships, initiative roles and owned files are all kept, so
     #: coming back restores the account whole rather than to an empty one —
     #: which is what ``deactivated`` gives, its memberships having been
     #: dropped. What the account loses meanwhile is everybody else: it is
@@ -176,7 +176,6 @@ class User(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    full_name: Optional[str] = Field(default=None)
     # NULL = no password set (SSO-only account) — password verification treats
     # a missing hash as "never a match", so such an account can only sign in
     # through its identity provider until it explicitly sets a password.
@@ -373,8 +372,7 @@ class User(SQLModel, table=True):
     # those rows itself, guild by guild.
     #
     # ``guild_memberships`` is the exception, and stays: it is a ``public``
-    # table, and the cascade here is what removes a deleted account's
-    # memberships.
+    # table, and the cascade here goes with the row it names.
     guild_memberships: List["GuildMembership"] = Relationship(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

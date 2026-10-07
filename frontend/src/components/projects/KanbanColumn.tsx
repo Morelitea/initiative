@@ -31,9 +31,10 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { MentionText } from "@/components/user/MentionText";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeStored } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -72,7 +73,7 @@ export const KanbanColumn = ({
   onArchiveDoneTasks,
   isArchiving,
 }: KanbanColumnProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `column-${status.id}`,
     data: { type: "column", statusId: status.id },
@@ -198,7 +199,7 @@ export const KanbanColumn = ({
             disabled={isArchiving}
           >
             <Archive className="h-3.5 w-3.5" />
-            {isArchiving ? t("kanban.archiving") : t("kanban.archiveDone")}
+            {isArchiving ? t("common:toolSettings.archive.archiving") : t("kanban.archiveDone")}
           </Button>
         </div>
       )}
@@ -301,8 +302,8 @@ const KanbanCardContent = memo(
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
-    const gp = useGuildPath();
-    const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+    const gp = useCommunityPath();
+    const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
       <UnreadDot className="ml-2 inline-block align-middle" />
     ) : null;
 
@@ -345,7 +346,7 @@ const KanbanCardContent = memo(
           {shows("description") && task.description_excerpt ? (
             // Two lines of words, not a picture that fills the card.
             <p className="wrap-break-word line-clamp-2 w-full min-w-0 text-muted-foreground text-sm">
-              {task.description_excerpt}
+              <MentionText text={task.description_excerpt} />
             </p>
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">

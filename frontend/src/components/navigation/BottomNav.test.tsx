@@ -50,7 +50,7 @@ beforeEach(() => {
   mocks.waiting.mockReturnValue(0);
   mocks.mobile.mockReturnValue(true);
   mocks.notifications.mockReturnValue({ data: { unread_count: 0 } });
-  mocks.globalCreate.mockReturnValue({ document: true, task: true });
+  mocks.globalCreate.mockReturnValue({ tool: true, task: true });
 });
 
 describe("the bottom bar", () => {

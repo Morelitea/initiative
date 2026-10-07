@@ -5,7 +5,7 @@ per-guild schemas. These tests assert it routes into the guild schema rather
 than reading the empty ``public`` backup (which returned all-zero dashboards).
 """
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import stats_service
 from app.testing import (
@@ -24,7 +24,9 @@ async def test_user_stats_reads_guild_schema(session):
     the unrouted (public) schema this is 0 — the dashboard-zeros regression."""
     user = await create_user(session, email="stats-user@example.com")
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name="Stats Init")
     project = await create_project(session, initiative, user)
 
@@ -46,7 +48,8 @@ async def test_user_stats_reads_guild_schema(session):
         stats = await stats_service.get_user_stats(caller, user=user, guild_id=guild.id)
     assert stats.tasks_completed_total == 2
     assert any(
-        g.guild_id == guild.id and g.completed_count == 2 for g in stats.guild_breakdown
+        g.community_id == guild.id and g.completed_count == 2
+        for g in stats.community_breakdown
     )
 
 
@@ -57,7 +60,7 @@ async def test_user_stats_all_guilds_aggregates(session):
     for n, count in (("A", 1), ("B", 2)):
         guild = await create_guild(session, creator=user)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.admin
+            session, user=user, guild=guild, role=CommunityRole.admin
         )
         initiative = await create_initiative(session, guild, user, name=f"Init {n}")
         project = await create_project(session, initiative, user)
@@ -73,4 +76,4 @@ async def test_user_stats_all_guilds_aggregates(session):
     async with platform_session(user) as caller:
         stats = await stats_service.get_user_stats(caller, user=user, guild_id=None)
     assert stats.tasks_completed_total == totals  # 3, summed across both guilds
-    assert len(stats.guild_breakdown) == 2
+    assert len(stats.community_breakdown) == 2

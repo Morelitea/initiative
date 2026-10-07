@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Security",
-    "icon": "🛡️",
+    "icon": "\ud83d\udee1\ufe0f",
     "description": "Security cases raised by rules watching this deployment. Each case is one incident: assign it, investigate it, write up what you found, and close it.",
     "is_template": false,
     "archived_at": null,
@@ -33,9 +33,25 @@
       "is_default": false
     },
     {
-      "name": "Mitigated",
+      "name": "Waiting on requester",
       "category": "in_progress",
       "position": 2,
+      "color": "#8B5CF6",
+      "icon": "hourglass",
+      "is_default": false
+    },
+    {
+      "name": "Requester replied",
+      "category": "in_progress",
+      "position": 3,
+      "color": "#EC4899",
+      "icon": "message-circle-reply",
+      "is_default": false
+    },
+    {
+      "name": "Mitigated",
+      "category": "in_progress",
+      "position": 4,
       "color": "#3B82F6",
       "icon": "shield-check",
       "is_default": false
@@ -43,7 +59,7 @@
     {
       "name": "Closed",
       "category": "done",
-      "position": 3,
+      "position": 5,
       "color": "#10B981",
       "icon": "circle-check",
       "is_default": false
@@ -96,7 +112,7 @@
   "tasks": [
     {
       "title": "How this project is fed",
-      "description": "Cases arrive here when a rule watching this deployment decides something crossed a line worth a person's attention. A case is the work item; the audit log behind it is the record of what happened.\n\nA sustained run of the same thing is **one** case with a trail of recurrences inside it, not one case per event. If the case is closed and it happens again, a new case opens.\n\n**What the fields mean.** `subject_user` and `subject_guild` are ids, not names \u2014 resolving one to a person is a platform screen, and reaching the content it points at is a break-glass grant that records why it was taken. `source_event` names the audit row this case was projected from.\n\n**Closing a case** means somebody evaluated it and decided. Close it even when the answer is 'nothing happened' \u2014 the record that a person looked is the point. Somebody other than the subject of the event closes it.\n\nIf a case turns out to need a code change, put the finding's key in `tracker_key` so the two can be read together.\n\nYou can restructure this project however you like \u2014 rename the statuses, add fields, add your own tasks. The binding only names the project.",
+      "description": "Cases arrive here when a rule watching this deployment decides something crossed a line worth a person's attention. A case is the work item; the audit log behind it is the record of what happened.\n\nA sustained run of the same thing is **one** case with a trail of recurrences inside it, not one case per event. If the case is closed and it happens again, a new case opens.\n\n**What the fields mean.** `subject_user` and `subject_guild` are ids, not names \u2014 resolving one to a person is a platform screen, and reaching the content it points at is a break-glass grant that records why it was taken. `source_event` names the audit row this case was projected from.\n\n**Closing a case** means somebody evaluated it and decided. Close it even when the answer is 'nothing happened' \u2014 the record that a person looked is the point. Somebody other than the subject of the event closes it.\n\nIf a case turns out to need a code change, put the finding's key in `tracker_key` so the two can be read together.\n\nAnswer whoever filed a case from the panel above its comments. **Send and wait for them** moves it to **Waiting on requester**, which they see as waiting on them; when they answer, it moves to **Requester replied** so the board shows it is back with us.\n\nYou can restructure this project however you like \u2014 rename the statuses, add fields, add your own tasks. The binding only names the project.",
       "priority": "medium",
       "start_date": null,
       "due_date": null,

@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import TAG_TARGETS
@@ -74,7 +74,9 @@ class TagRead(TagBase):
     )
 
     id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -86,9 +88,11 @@ def serialize_tag(tag, *, guild_id: int) -> TagRead:
     own, so the guild is handed in by whoever routed the session.
     """
     fields = {
-        name: getattr(tag, name) for name in TagRead.model_fields if name != "guild_id"
+        name: getattr(tag, name)
+        for name in TagRead.model_fields
+        if name != "community_id"
     }
-    return TagRead(guild_id=guild_id, **fields)
+    return TagRead(community_id=guild_id, **fields)
 
 
 class TagSetRequest(SanitizedBaseModel):
@@ -146,7 +150,7 @@ class TaggedTaskSummary(SanitizedBaseModel):
     project_name: Optional[str] = None
 
 
-class TaggedDocumentSummary(SanitizedBaseModel):
+class TaggedFileSummary(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )

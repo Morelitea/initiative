@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Initiative</string>
     <string name="title_activity_main">Initiative</string>
-    <string name="package_name">com.morelitea.initiative</string>
-    <string name="custom_url_scheme">com.morelitea.initiative</string>
+    <string name="package_name">studio.beyonders.initiative</string>
+    <string name="custom_url_scheme">studio.beyonders.initiative</string>
 </resources>

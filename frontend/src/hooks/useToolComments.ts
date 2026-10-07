@@ -1,7 +1,7 @@
 import type { Tool, ToolCommentSettings } from "@/api/generated/initiativeAPI.schemas";
-import { setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut } from "@/api/generated/tools/tools";
+import { setToolCommentSettings } from "@/api/generated/tools/tools";
 import { invalidate, q } from "@/api/query-keys";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 /**
@@ -17,10 +17,10 @@ export const useSetToolComments = (
   tool: Tool,
   options?: MutationOpts<ToolCommentSettings, { id: number; enabled: boolean }>
 ) =>
-  useGuildMutation<ToolCommentSettings, { id: number; enabled: boolean }>(
+  useCommunityMutation<ToolCommentSettings, { id: number; enabled: boolean }>(
     {
-      mutationFn: (guildId, { id, enabled }) =>
-        setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut(guildId, tool, id, {
+      mutationFn: (communityId, { id, enabled }) =>
+        setToolCommentSettings(communityId, tool, id, {
           comments_enabled: enabled,
         }),
       invalidate: (_data, vars) => {

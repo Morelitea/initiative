@@ -4,23 +4,23 @@ import { UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-// Export moved to the document header's engine-backed Export menu; the toolbar
+// Export moved to the file header's engine-backed Export menu; the toolbar
 // keeps only the import side. Import accepts EVERY file shape the app has ever
-// exported: the generic initiative-document envelope (current engine export,
+// exported: the generic initiative-file envelope (current engine export,
 // editor state under `content`, discriminated by `type` — or `kind`, the
-// field's name in early exports) and the legacy @lexical/file .lexical shape
+// field's name in early exports), the same envelope under its earlier
+// initiative-document name, and the legacy @lexical/file .lexical shape
 // (editor state under `editorState`).
 function extractEditorState(parsed: unknown): unknown | null {
   if (typeof parsed !== "object" || parsed === null) {
     return null;
   }
   const record = parsed as Record<string, unknown>;
-  if (
-    (record.type === "initiative-document" || record.kind === "initiative-document") &&
-    record.document_type === "native" &&
-    typeof record.content === "object" &&
-    record.content !== null
-  ) {
+  const isEnvelope = (name: string): boolean => record.type === name || record.kind === name;
+  const native =
+    (isEnvelope("initiative-file") && record.file_type === "native") ||
+    (isEnvelope("initiative-document") && record.document_type === "native");
+  if (native && typeof record.content === "object" && record.content !== null) {
     return record.content;
   }
   if (typeof record.editorState === "object" && record.editorState !== null) {

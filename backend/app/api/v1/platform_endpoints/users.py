@@ -4,7 +4,6 @@ from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -14,6 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import JSONResponse
 from sqlalchemy import case, func, literal
 from sqlmodel import select
 
@@ -21,7 +21,7 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    app_scope,
+    plugin_scope,
     FactorExemptAccountHolder,
     FactorExemptAccountHolderSessionDep,
     RLSSessionDep,
@@ -37,23 +37,25 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
-    password_confirms,
     require_password_or_recent_proof,
 )
-from app.api.v1.platform_endpoints.session_opening import replace_session
-from app.core.password_policy import enforce_password_policy
+from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD,
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
+)
+from app.api.v1.platform_endpoints.session_opening import set_password
+from app.core.capabilities import Capability
+from app.core.password_policy import validate_new_password
 from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
+from app.db import cohorts
 from app.db.guild_standing import InstallContext
 from app.core import usernames
-from app.core.capabilities import Capability
-from app.core.usernames import UsernameError
 from app.core.rate_limit import limiter
-from app.core.security import (
-    read_handle_offer,
-    get_password_hash,
-    has_usable_password,
-)
+from app.core.security import read_handle_offer
 from app.core.user_input_validators import (
     normalize_reminder_minutes,
     normalize_timezone,
@@ -63,9 +65,8 @@ from app.core.user_input_validators import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
-    Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
@@ -74,15 +75,16 @@ from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
 from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
-    CommunityGuildRead,
-    GuildBannerRead,
-    GuildCategory,
+    DirectoryCommunityRead,
+    CommunityBannerRead,
+    CommunityCategory,
 )
 from app.schemas.platform.user import (
+    HeldChangeOutcome,
     AccountTimeOutRead,
-    AppMemberRead,
     CookieConsentRead,
     CookieConsentUpdate,
+    UserEmailChange,
     UserEmailCreate,
     UserEmailListResponse,
     UserEmailRead,
@@ -93,10 +95,10 @@ from app.schemas.platform.user import (
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
-    GuildRosterMember,
-    GuildRosterResponse,
-    UserGuildMember,
-    UserGuildMemberListResponse,
+    CommunityRosterMember,
+    CommunityRosterResponse,
+    UserCommunityMember,
+    UserCommunityMemberListResponse,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -114,42 +116,39 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.ownership import (
     OwnedContentItem,
     OwnedContentResponse,
-    OwnerAppSummary,
+    OwnerPluginSummary,
     OwnershipTransferRequest,
     OwnershipTransferResponse,
 )
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.encryption import SALT_EMAIL, decrypt_field
 from app.core.messages import (
-    AddressMessages,
     AuthMessages,
     GuildMessages,
+    ImageMessages,
     InitiativeMessages,
     LegalMessages,
     UserMessages,
 )
-from app.services.auth import addresses
+from app.models.platform.account_change_hold import HeldChangeKind
+from app.services.auth import addresses, held_changes
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
-from app.services.auth.identity import has_federated_identity
 from app.core.tools import Tool
 from app.api import resource_access
-from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_member_consents as consents_service
-from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
-from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_avatar import AVATAR_SPEC
+from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.models.platform.user_profile_view import (
     GuildMember,
     MemberProfile,
@@ -165,6 +164,7 @@ from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.auth import VerificationSendResponse
 from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import auth_posture
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 from app.db.query import (
@@ -184,21 +184,24 @@ TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
 
 logger = logging.getLogger(__name__)
 
+# Other people's public profiles. Mounted under /api/v1/users.
 router = APIRouter()
-# Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
-# (no guild context), with an optional guild_id filter.
+# The signed-in account: its profile, settings and stats. Mounted under
+# /api/v1/me; user-scoped (no guild context).
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
-# members of one guild). Mounted under /c/{guild_id}/users — the /me/* and
-# platform user endpoints stay on ``router`` (top-level /users). The member
-# search is also what an installed app reads people through, under
+# members of one guild). Mounted under /c/{community_id}/users. The member
+# search is also what an installed plug-in reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
+# A member's picture, by the reference an installed plug-in knows them by. Mounted
+# under /c/{community_id}/members.
+members_router = APIRouter(route_class=ActorRoute)
 
-MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
+MembersRead = Annotated[ActorContext, Depends(plugin_scope("members:read"))]
 
 
-@router.get("/me/time-out", response_model=AccountTimeOutRead)
+@me_router.get("/time-out", response_model=AccountTimeOutRead)
 async def read_my_time_out(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
@@ -220,8 +223,8 @@ async def read_my_time_out(
     )
 
 
-@router.get("/me", response_model=UserRead)
-async def read_users_me(
+@me_router.get("", response_model=UserRead)
+async def read_me(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
 ) -> UserRead:
@@ -229,16 +232,9 @@ async def read_users_me(
     unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
-    # Guild-scoped rosters (/c/{guild_id}/users/) still serve it; clients
+    # Guild-scoped rosters (/c/{community_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    payload = await users_service.to_self_read(current_user)
-    # Own-row read on the platform-tier session: whether any external identity
-    # is linked (drives the "SSO account" affordances in the profile UI).
-    payload.has_federated_identity = await has_federated_identity(
-        session, user_id=current_user.id
-    )
-    payload.has_password = has_usable_password(current_user.hashed_password)
-    payload.password_required = await password_confirms(session, current_user)
+    payload = await users_service.to_self_read(session, current_user)
     # The hosted deployment's terms. Short-circuits on the deployment switch
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
@@ -258,7 +254,9 @@ async def get_user_stats(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Optional[int] = Query(
-        default=None, description="Optional guild ID to filter stats"
+        default=None,
+        description="Optional guild ID to filter stats",
+        alias="community_id",
     ),
     days: int = Query(
         default=90, ge=1, le=365, description="Number of days to analyze"
@@ -274,7 +272,7 @@ async def get_user_stats(
     return stats
 
 
-@guild_router.get("/", response_model=UserGuildMemberListResponse)
+@guild_router.get("/", response_model=UserCommunityMemberListResponse)
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -283,13 +281,13 @@ async def list_users(
         default=None,
         description=(
             "Matches members the way ``/search`` does: the handle, a whole "
-            "handle pinning one member, and real names in a guild that shows "
-            "them."
+            "handle pinning one member, and the display names members set "
+            "here."
         ),
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> UserGuildMemberListResponse:
+) -> UserCommunityMemberListResponse:
     """The community's roster, a page at a time.
 
     On the configuration session rather than the content one: who is in a
@@ -299,23 +297,24 @@ async def list_users(
     Ordered like ``/search``: nearest first while searching, otherwise by name
     where the guild shows names, then by handle.
     """
-    base = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
-        )
+    base = users_service.guild_members(
+        select(
+            MemberProfile,
+            GuildMembership.role,
+            GuildMembership.oidc_provider_id,
+            GuildMembership.display_name,
+            GuildMembership.api_keys_allowed,
+        ),
+        guild_id=guild_context.guild_id,
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -327,15 +326,19 @@ async def list_users(
     await initiatives_service.load_user_initiative_roles(session, users)
 
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
-    # SSO placed somebody, not which provider did.
+    # SSO placed somebody, not which provider did. API access is the seat's to
+    # set, so only the seat is told it.
+    seat = guild_context.guild_seat
     items = []
-    for user, guild_role, oidc_provider_id in rows:
-        member = UserGuildMember.model_validate(user)
-        member.guild_role = guild_role.value
+    for user, guild_role, oidc_provider_id, display_name, api_keys_allowed in rows:
+        member = UserCommunityMember.model_validate(user)
+        member.community_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
+        member.display_name = display_name
+        member.api_keys_allowed = api_keys_allowed if seat else None
         member.initiative_roles = getattr(user, "initiative_roles", [])
         items.append(member)
-    return UserGuildMemberListResponse(
+    return UserCommunityMemberListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
@@ -349,7 +352,7 @@ def _in_initiative(initiative_id: int):
     )
 
 
-async def _search_members_for_app(
+async def _search_members_for_plugin(
     session: AsyncSession,
     *,
     search: Optional[str],
@@ -358,12 +361,12 @@ async def _search_members_for_app(
     page: int,
     page_size: int,
 ) -> UserSummaryListResponse:
-    """The member search, for an installed app.
+    """The member search, for an installed plug-in.
 
     Read through ``current_guild_members``, the projection of the routed
     community's own members, so it needs nothing of the membership table. The
     handle is what it matches and orders by: whether the guild shows real
-    names is the guild row's to say, which an app does not read; a name the
+    names is the guild row's to say, which a plug-in does not read; a name the
     guild shows still comes back on each row.
     """
     base = select(MemberProfile).where(
@@ -374,14 +377,14 @@ async def _search_members_for_app(
         base = base.where(_in_initiative(initiative_id))
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=False)
+        matches, closest = users_service.member_match(term, match_names=False)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=False),
+        *users_service.member_order(closest, match_names=False),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -389,21 +392,16 @@ async def _search_members_for_app(
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
-    items = [
-        UserSummary(
-            **AppMemberRead.from_public(UserSummary.model_validate(user)).model_dump()
-        )
-        for user in users
-    ]
+    items = [UserSummary.model_validate(user) for user in users]
     return UserSummaryListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
 
-def _membership_standing(role: GuildRole | None) -> dict[str, object]:
+def _membership_standing(role: CommunityRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
-    return {"guild_role": role.value if role is not None else None}
+    return {"community_role": role.value if role is not None else None}
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
@@ -415,8 +413,8 @@ async def search_users(
         description=(
             "Matches the handle's name part. Type the whole handle "
             "(`foobar#1234`) to pin one member; a partial number after `#` is a "
-            "prefix of the four digits as rendered. Real names are matched only "
-            "in a guild that shows them."
+            "prefix of the four digits as rendered. Display names members set "
+            "here are matched too."
         ),
     ),
     user_id: Annotated[
@@ -426,7 +424,7 @@ async def search_users(
         default=None,
         description=(
             "Only members of this initiative. The caller must reach it: be in "
-            "it, administer the community, or (an app) be placed there."
+            "it, administer the community, or (a plug-in) be placed there."
         ),
     ),
     tool: Optional[Tool] = Query(
@@ -435,10 +433,18 @@ async def search_users(
             "With ``resource_id``: only the people who can open that row, which "
             "is who may be named on content inside it (assignees, attendees, "
             "person properties). The caller must be able to open it too. For a "
-            "person's picker; an installed app's search does not take it."
+            "person's picker; an installed plug-in's search does not take it."
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
+    self_first: bool = Query(
+        default=False,
+        description=(
+            "List the caller first, wherever the rest of the order would put "
+            "them. For the community's members page, where your own row is "
+            "where you set your name."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -448,14 +454,14 @@ async def search_users(
     ``GuildContextDep``, membership re-validated per request): the params
     are additive filters on an already-RLS-gated query, so they only ever
     narrow the row set. Returns :class:`UserSummary` (no email, roles, or
-    ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+    ``initiative_roles`` enrichment) instead of the heavy ``UserCommunityMember``.
 
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
 
-    An installed app (``members:read``) names members by its own references
-    and reads what :class:`AppMemberRead` carries: the reference, the handle,
-    the name where the guild shows names, and a picture hosted elsewhere.
+    An installed plug-in (``members:read``) names members by its own references
+    and reads each as an :class:`PluginPerson`: the reference, the handle and the
+    display name set in the community.
     """
     if initiative_id is not None and not (
         initiative_id in guild_context.member_initiatives
@@ -469,7 +475,7 @@ async def search_users(
             detail=InitiativeMessages.NOT_A_MEMBER,
         )
     if isinstance(guild_context, InstallContext):
-        return await _search_members_for_app(
+        return await _search_members_for_plugin(
             session,
             search=search,
             user_id=user_id,
@@ -477,13 +483,8 @@ async def search_users(
             page=page,
             page_size=page_size,
         )
-    base = (
-        select(MemberProfile)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
-        )
+    base = users_service.guild_members(
+        select(MemberProfile), guild_id=guild_context.guild_id
     )
     if initiative_id is not None:
         base = base.where(_in_initiative(initiative_id))
@@ -499,20 +500,20 @@ async def search_users(
             )
         )
     #: Set while searching by name, and then what the page is ordered by.
-    # Both calls take the guild's own setting: a name is searchable and
-    # sortable only where the guild shows names, and a default here would
-    # decide that for it.
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
+    you_first = (
+        ((MemberProfile.id == guild_context.user_id).desc(),) if self_first else ()
+    )
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *you_first,
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -560,13 +561,13 @@ ROSTER_PRESENCE_ORDER = (
 )
 
 
-@guild_router.get("/roster", response_model=GuildRosterResponse)
+@guild_router.get("/roster", response_model=CommunityRosterResponse)
 async def list_roster(
     session: RLSSessionDep,
     guild_context: GuildContextDep,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> GuildRosterResponse:
+) -> CommunityRosterResponse:
     """The people in this community, as the sidebar lists them.
 
     Grouped by presence (online, idle, busy, then everyone else) and
@@ -586,17 +587,15 @@ async def list_roster(
     offline_rank = ROSTER_PRESENCE_ORDER.index(Presence.offline)
     group = case(*ranked, else_=offline_rank) if ranked else literal(offline_rank)
 
-    where = [
-        GuildMembership.guild_id == guild_context.guild_id,
-        users_service.visible_to_other_people(),
-    ]
+    where = []
     if await app_settings_service.direct_messages_enabled(session):
         where.append(MemberProfile.id.in_(select(func.public.roster_listed_members())))
 
     groups = (
-        select(group.label("presence_rank"))
-        .select_from(MemberProfile)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+        users_service.guild_members(
+            select(group.label("presence_rank")).select_from(MemberProfile),
+            guild_id=guild_context.guild_id,
+        )
         .where(*where)
         .subquery()
     )
@@ -614,16 +613,17 @@ async def list_roster(
         for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
     }
 
-    shows_names = bool(guild_context.guild.show_member_names)
     rows = (
         await session.exec(
             apply_pagination(
-                select(MemberProfile, GuildMembership.role)
-                .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+                users_service.guild_members(
+                    select(MemberProfile, GuildMembership.role),
+                    guild_id=guild_context.guild_id,
+                )
                 .where(*where)
                 .order_by(
                     group,
-                    *users_service.member_order(None, shows_names=shows_names),
+                    *users_service.member_order(None),
                     MemberProfile.username.asc(),
                     MemberProfile.discriminator.asc(),
                     MemberProfile.id.asc(),
@@ -635,7 +635,7 @@ async def list_roster(
     ).all()
 
     items = [
-        GuildRosterMember.model_validate(user).model_copy(
+        CommunityRosterMember.model_validate(user).model_copy(
             update={
                 **_membership_standing(role),
                 "presence": shown.get(user.id, Presence.offline),
@@ -643,7 +643,7 @@ async def list_roster(
         )
         for user, role in rows
     ]
-    return GuildRosterResponse(
+    return CommunityRosterResponse(
         **build_paginated_response(
             items,
             sum(presence_counts.values()),
@@ -654,7 +654,7 @@ async def list_roster(
     )
 
 
-@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+@me_router.get("/decorations", response_model=OwnedDecorationsResponse)
 async def list_my_decorations(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -710,7 +710,7 @@ def _pack_entry(
     )
 
 
-@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+@me_router.get("/decoration-packs", response_model=DecorationPackListResponse)
 async def list_decoration_packs(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -729,7 +729,7 @@ async def list_decoration_packs(
     )
 
 
-@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.post("/decoration-packs/{uid}", response_model=DecorationPack)
 async def install_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -760,7 +760,7 @@ async def install_decoration_pack(
     return _pack_entry(pack, installed=True)
 
 
-@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.delete("/decoration-packs/{uid}", response_model=DecorationPack)
 async def remove_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -845,12 +845,12 @@ async def read_user_profile(
     )
 
 
-@router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
+@router.get("/{handle}/communities", response_model=List[DirectoryCommunityRead])
 async def read_user_communities(
     handle: str,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> List[CommunityGuildRead]:
+) -> List[DirectoryCommunityRead]:
     """The listed communities one person belongs to.
 
     A separate read from the profile on purpose: the profile is the public
@@ -912,16 +912,17 @@ async def read_user_communities(
         GuildImageVariant.card,
     )
     return [
-        CommunityGuildRead(
+        DirectoryCommunityRead(
             id=guild.id,
             name=guild.name,
             description=guild.description,
             icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-            banner=GuildBannerRead(
+            banner=CommunityBannerRead(
                 image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
                 **guild.banner,
             ),
-            categories=[GuildCategory(value) for value in guild.categories],
+            categories=[CommunityCategory(value) for value in guild.categories],
+            location=guild.location,
             member_count=members.get(guild.id, 0),
             online_count=online.get(guild.id, 0),
             already_member=guild.id in mine,
@@ -936,8 +937,8 @@ async def read_user_communities(
 _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
-    "full_name",
-    "guild_role",
+    "display_name",
+    "community_role",
     "oidc_managed",
     "status",
     "created_at",
@@ -954,15 +955,10 @@ async def export_users_csv(
     """Export guild members as a CSV file. Pass `user_id` one or more times to
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
-    stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
-        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(MemberProfile.status),
-        )
-        .order_by(MemberProfile.created_at.asc())
-    )
+    stmt = users_service.guild_members(
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id),
+        guild_id=guild_context.guild_id,
+    ).order_by(MemberProfile.created_at.asc())
     if user_id:
         stmt = stmt.where(MemberProfile.id.in_(user_id))
     result = await session.exec(stmt)
@@ -976,14 +972,13 @@ async def export_users_csv(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
     for user, guild_role, oidc_provider_id in rows:
         csv_rows.append(
             [
                 user.id,
                 handle_of(user),
-                (user.full_name or "") if shows_names else "",
+                user.display_name or "",
                 guild_role.value,
                 oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,
@@ -1027,7 +1022,7 @@ async def export_users_csv(
     )
 
 
-@router.patch("/me/username", response_model=UserRead)
+@me_router.patch("/username", response_model=UserRead)
 async def claim_my_username(
     payload: UsernameClaim,
     session: UserSessionDep,
@@ -1046,29 +1041,25 @@ async def claim_my_username(
             detail=UserMessages.USERNAME_ALREADY_CHOSEN,
         )
 
-    try:
-        await username_service.claim_for_user(
-            session,
-            user=current_user,
-            name=payload.username,
-            prefer=read_handle_offer(payload.offer, payload.username),
-        )
-    except UsernameError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-        ) from exc
+    await username_service.claim_for_user(
+        session,
+        user=current_user,
+        name=payload.username,
+        prefer=read_handle_offer(payload.offer, payload.username),
+    )
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
-@router.post("/me/age-confirmation", response_model=UserRead)
+@me_router.post("/age-confirmation", response_model=UserRead)
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
@@ -1084,16 +1075,18 @@ async def confirm_my_age(
     answered under age, keeps every private community it belongs to and
     everything in them.
 
-    **The date is not kept.** It is read here, compared against the minimum, and
-    goes out of scope with the request — there is no column for it, nothing logs
-    it, and no audit record carries it. What is written is a timestamp saying
-    the question was answered, which is what shows the deployment asked.
+    **The date is kept, encrypted** (``user_birthdates``, system engine only),
+    because a plug-in's minimum age differs by country and one "old enough"
+    answer cannot say whether somebody may use it. Nothing logs it, no audit
+    record carries it, and no response returns it — ``birthdate_on_file`` says
+    only that it is there. Beside it is the timestamp saying the question was
+    answered, which is what shows the deployment asked.
+
+    **A kept date stands.** Answering again once one is on file is refused, as
+    an under-age answer is. Putting it right is the same support ticket.
 
     The comparison is the server's because it is the one that decides. A client
     could work out the same answer, and a client's answer is not evidence.
-
-    Saying it again is not an error and does not move the timestamp — the record
-    is when they first answered.
 
     **An answer of "under age" also stands.** It is recorded — the fact, not the
     date — and the question is not asked again, because a question you can
@@ -1107,8 +1100,11 @@ async def confirm_my_age(
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
+    # The date is kept first, and only one answer per account is kept.
     try:
-        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        kept = await users_service.keep_birthdate(
+            system_session, user_id=current_user.id, birthdate=payload.birthdate
+        )
     except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
@@ -1116,9 +1112,26 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
-    current_user.updated_at = datetime.now(timezone.utc)
-    session.add(current_user)
-    await session.commit()
+    if kept is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+    await system_session.commit()
+
+    # Then the answer. If it does not save, the date goes too, so the person can
+    # answer again.
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+    except BaseException:
+        await users_service.forget_birthdate(
+            system_session, user_id=current_user.id, only=kept
+        )
+        await system_session.commit()
+        raise
     if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1126,14 +1139,14 @@ async def confirm_my_age(
         )
     await session.refresh(current_user)
 
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
 def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | None:
     return None if row is None else CookieConsentRead.model_validate(row)
 
 
-@router.put("/me/cookie-consent", response_model=CookieConsentRead)
+@me_router.put("/cookie-consent", response_model=CookieConsentRead)
 async def set_cookie_consent(
     payload: CookieConsentUpdate,
     session: UserSessionDep,
@@ -1161,7 +1174,7 @@ async def set_cookie_consent(
     return CookieConsentRead.model_validate(row)
 
 
-@router.post("/me/legal-acceptance", response_model=UserRead)
+@me_router.post("/legal-acceptance", response_model=UserRead)
 async def accept_legal_documents(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1188,7 +1201,7 @@ async def accept_legal_documents(
     if await legal_service.acceptance_outstanding(session, user=current_user):
         await legal_service.record_acceptance(session, user_id=current_user.id)
         await session.commit()
-    payload = await users_service.to_self_read(current_user)
+    payload = await users_service.to_self_read(session, current_user)
     payload.legal_acceptance_required = False
     return payload
 
@@ -1206,7 +1219,7 @@ def _address_read(row) -> UserEmailRead:
     )
 
 
-@router.get("/me/emails", response_model=UserEmailListResponse)
+@me_router.get("/emails", response_model=UserEmailListResponse)
 async def list_my_addresses(
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1217,11 +1230,16 @@ async def list_my_addresses(
     because resolving an address happens before anybody is authenticated.
     """
     rows = await addresses.list_for_user(system_session, user_id=current_user.id)
-    return UserEmailListResponse(items=[_address_read(row) for row in rows])
+    return UserEmailListResponse(
+        items=[_address_read(row) for row in rows],
+        password_required=await auth_posture.password_confirms(
+            system_session, current_user
+        ),
+    )
 
 
-@router.post(
-    "/me/emails",
+@me_router.post(
+    "/emails",
     response_model=VerificationSendResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -1236,28 +1254,28 @@ async def add_my_address(
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
 
+    The password is asked for first, where there is one, and a recent sign-in
+    otherwise, as for every change to how the account is signed into.
+
     The answer is the same whoever holds the address already. What differs is
     where the mail goes: a free address gets a link to confirm it, and one that
     is taken gets nothing.
     """
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     # Whether this deployment can send at all is settled before the address is
     # looked at, so the refusal is about the server rather than about who holds
     # what. Everything after this point answers identically.
-    app_settings = await app_settings_service.get_app_settings(session)
-    if not (app_settings.smtp_host and app_settings.smtp_from_address):
+    if not await email_service.email_configured(session):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
 
-    try:
-        added = await addresses.add_for_user(
-            system_session, user_id=current_user.id, email=payload.email
-        )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    added = await addresses.add_for_user(
+        system_session, user_id=current_user.id, email=payload.email
+    )
     # ``added`` is the new claim, or the one this account already had — asking
     # again is how a letter that did not arrive is sent again. ``None`` means
     # somebody has proven the address, and nothing is written.
@@ -1269,6 +1287,9 @@ async def add_my_address(
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             user_email_id=added.id,
+            # Whether the change was risky is a fact about this request, and
+            # the address is proved by a link that carries no session.
+            change={"risky": await is_risky(request, system_session, current_user)},
         )
         try:
             await email_service.send_address_verification_email(
@@ -1284,58 +1305,86 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-@router.delete("/me/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.post(
+    "/emails/{address_id}/remove",
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
+)
+@limiter.limit("10/15minutes")
 async def remove_my_address(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> Response:
-    try:
-        await addresses.remove_for_user(
-            system_session, user_id=current_user.id, address_id=address_id
+) -> HeldChangeOutcome | JSONResponse:
+    """Stop holding one address. The password is asked for again, as it is for
+    a password change. A proved address removed from somewhere the account
+    does not yet know waits two days (``202``)."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
+    target = await addresses.removable(
+        system_session, user_id=current_user.id, address_id=address_id
+    )
+    if target.verified_at is not None and await is_risky(
+        request, system_session, current_user
+    ):
+        held = await hold_change(
+            request,
+            system_session,
+            current_user,
+            kind=HeldChangeKind.remove_address,
+            address_id=address_id,
         )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    await system_session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return held_response(HeldChangeOutcome(held=held))
+    await held_changes.remove_address(
+        system_session, current_user, address_id=address_id, risky=False
+    )
+    return HeldChangeOutcome()
 
 
-@router.put("/me/emails/{address_id}/primary", response_model=UserEmailRead)
+@me_router.put(
+    "/emails/{address_id}/primary", response_model=UserEmailRead, responses=HELD
+)
+@limiter.limit("10/15minutes")
 async def make_my_address_primary(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> UserEmailRead:
-    """Move where account mail goes."""
-    try:
-        row = await addresses.set_primary_for_user(
-            system_session, user_id=current_user.id, address_id=address_id
+) -> UserEmailRead | JSONResponse:
+    """Move where account mail goes. The password is asked for again, and every
+    address the account has proved is told, the one that was primary among
+    them. Asked for from somewhere the account does not yet know, the move
+    waits two days (``202``)."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
+    target = await addresses.primary_candidate(
+        system_session, user_id=current_user.id, address_id=address_id
+    )
+    if not target.is_primary and await is_risky(request, system_session, current_user):
+        return held_response(
+            await hold_change(
+                request,
+                system_session,
+                current_user,
+                kind=HeldChangeKind.primary,
+                address_id=address_id,
+            )
         )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    await system_session.commit()
-    await system_session.refresh(row)
+    row = await held_changes.make_primary(
+        system_session, current_user, address_id=address_id, risky=False
+    )
     return _address_read(row)
 
 
-@router.patch("/me", response_model=UserRead)
-async def update_users_me(
+@me_router.patch("", response_model=UserRead)
+async def update_me(
     request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
@@ -1344,61 +1393,33 @@ async def update_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     update_data = user_in.model_dump(exclude_unset=True)
-    # Fetched once: feeds both the password-gate exemption and the response
-    # payload (identities can't change within this request). The caller's own
-    # links, read on their platform tier.
-    is_sso_account = await has_federated_identity(session, user_id=current_user.id)
-    if not update_data:
-        payload = await users_service.to_self_read(current_user)
-        payload.has_federated_identity = is_sso_account
-        payload.has_password = has_usable_password(current_user.hashed_password)
-        payload.password_required = await password_confirms(session, current_user)
-        return payload
-
-    new_full_name = update_data.get("full_name")
-    if new_full_name is not None:
-        current_user.full_name = new_full_name or None
-
     password = update_data.get("password")
     if password:
-        # Read before the hash below replaces it: what the account held going
-        # in is what the re-check asks about and what the replacement session
-        # may claim was proved here.
-        held_password = has_usable_password(current_user.hashed_password)
         # Re-authenticate with the current password before changing it. An
         # account that holds none answers with a recent sign-in instead.
-        await require_password_or_recent_proof(
+        password_proved = await require_password_or_recent_proof(
             request,
             system_session,
             current_user,
             update_data.get("current_password"),
         )
-        await enforce_password_policy(password)
-        current_user.hashed_password = get_password_hash(password)
-        current_user.password_set_at = datetime.now(timezone.utc)
-        # Bump token_version and revoke device tokens + API keys + refresh
-        # sessions so no stale credential can survive the password change.
-        #
-        # Staged, not committed: the replacement session below joins them in
-        # one transaction, so the account keeps what it had if that fails.
-        await user_tokens_service.revoke_user_sessions(
-            system_session, user=current_user, commit=False
-        )
-        # ...but keep THIS device signed in: the revocation above took the
-        # caller's own access token AND refresh chain, so a fresh session is
-        # opened and both cookies re-issued — every *other* session/device
-        # still dies. ``amr`` records what this request proved: the current
-        # password where the account held one; nothing where it did not, since
-        # no factor was presented here.
-        await replace_session(
+        await validate_new_password(password)
+        # A request of its own (``UserSelfUpdate`` holds it to that), committed
+        # with the session that keeps this device signed in. Its commit is the
+        # request's only write; the account is read back for the answer.
+        await set_password(
             request,
-            response,
             system_session,
             user=current_user,
-            amr=["pwd"] if held_password else [],
-            satisfied_providers=[],
+            password=password,
+            via="self_service",
+            response=response,
+            password_proved=password_proved,
         )
-        await email_service.announce_password_changed(system_session, current_user)
+        await session.refresh(current_user)
+
+    if password or not update_data:
+        return await users_service.to_self_read(session, current_user)
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1489,56 +1510,36 @@ async def update_users_me(
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
-    if password:
-        # In the same transaction as the password itself, so the change and
-        # the record of it land together or not at all.
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-            actor_user_id=current_user.id,
-            detail={"via": "self_service"},
-        )
     await session.commit()
     await session.refresh(current_user)
-    if password:
-        # Open connections stand on the credentials the change has just ended,
-        # this device's included; its replacement session reconnects them.
-        await content_sockets.revoke_user_everywhere(current_user.id)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing
         # is shown on the strength of a write that did not land.
         presence.online.chose(current_user.id, current_user.presence)
-    # Platform path — no initiative_roles enrichment (see read_users_me).
-    # The SPA replaces its auth state with this response, so carry the same
-    # linked-identity signal /users/me serves.
-    payload = await users_service.to_self_read(current_user)
-    payload.has_federated_identity = is_sso_account
-    payload.has_password = has_usable_password(current_user.hashed_password)
-    payload.password_required = await password_confirms(session, current_user)
-    return payload
+    # Platform path — no initiative_roles enrichment (see read_me).
+    return await users_service.to_self_read(session, current_user)
 
 
-@router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
+@me_router.get("/deletion-eligibility", response_model=DeletionEligibilityResponse)
 async def check_deletion_eligibility(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
-    """Check if the current user can be deleted and what blockers exist."""
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, current_user.id
+    """Check if the current user can be deleted and what blockers exist:
+    the ones ``delete_own_account`` refuses on."""
+    last_owner = await users_service.is_last_capability_holder(
+        session, current_user.id, Capability.CONFIG_MANAGE
     )
-
+    sole_seats = await users_service.is_last_guild_superadmin(session, current_user.id)
     return DeletionEligibilityResponse(
-        can_delete=can_delete,
-        blockers=blockers,
-        sole_superadmin_guilds=await users_service.is_last_guild_superadmin(
-            session, current_user.id
-        ),
+        can_delete=not last_owner and not sole_seats,
+        last_owner=last_owner,
+        sole_superadmin_communities=sole_seats,
     )
 
 
-@router.post("/me/delete-account", response_model=AccountDeletionResponse)
+@me_router.post("/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
     http_request: Request,
     request: AccountDeletionRequest,
@@ -1548,13 +1549,9 @@ async def delete_own_account(
     """Delete or deactivate the current user's account."""
     # Keep at least one owner, who is the only rung that can manage platform
     # configuration (FOR UPDATE to prevent a race).
-    if await users_service.is_last_capability_holder(
-        session, current_user.id, Capability.CONFIG_MANAGE, for_update=True
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
-        )
+    await users_service.ensure_config_manager_remains(
+        session, current_user.id, for_update=True
+    )
 
     # Re-check the password, where the account holds one to re-check. An
     # account that signs in another way — a passkey, an identity provider —
@@ -1591,14 +1588,10 @@ async def delete_own_account(
     # Holding a guild's only superadmin seat is the only blocker. Content the
     # user owns is released on the way out and left unowned for a guild admin to
     # claim, so there is nothing to hand over first.
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, current_user.id
-    )
-
-    if not can_delete:
+    if await users_service.is_last_guild_superadmin(session, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete account: {'; '.join(blockers)}",
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     if request.action == "deactivate":
@@ -1617,7 +1610,7 @@ async def delete_own_account(
     # action == "soft_delete"
     #
     # Nothing is erased here. The account moves to ``deleted`` and keeps
-    # everything — memberships, initiative roles, the documents it owns — so
+    # everything — memberships, initiative roles, the files it owns — so
     # that coming back restores it whole. It stops existing for everybody
     # else immediately, and ``account_purge`` erases it when the deployment's
     # window runs out. Signing in before then calls the whole thing off.
@@ -1631,7 +1624,7 @@ async def delete_own_account(
     )
 
 
-@router.get("/me/api-keys", response_model=ApiKeyListResponse)
+@me_router.get("/api-keys", response_model=ApiKeyListResponse)
 async def list_my_api_keys(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1644,8 +1637,8 @@ async def list_my_api_keys(
     return ApiKeyListResponse(keys=keys)
 
 
-@router.post(
-    "/me/api-keys",
+@me_router.post(
+    "/api-keys",
     response_model=ApiKeyCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -1659,26 +1652,26 @@ async def create_my_api_key(
     # Runs on the system engine (user_api_keys has no request-path grant, see
     # list_my_api_keys); the current_user scoping below and in the service is
     # the ownership boundary.
-    if payload.guild_id is not None:
+    if payload.community_id is not None:
         # A guild-bound key must target a guild the caller belongs to. Membership
         # is in the public guild_memberships table (readable on the system
         # engine); the explicit user_id filter is the scope. Validating here also
         # turns an unknown guild into a 403 instead of a 500 (FK violation).
         membership = await guilds_service.get_membership(
-            session, guild_id=payload.guild_id, user_id=current_user.id
+            session, guild_id=payload.community_id, user_id=current_user.id
         )
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
             )
-        # And the guild has to accept the credential at all. Asked here as well
-        # as at the gate so a key that could never be used is never handed over.
-        guild = await session.get(Guild, payload.guild_id)
-        if guild is not None and await refuses_api_keys(session, guild):
+        # And the guild has to accept this member's keys at all. Asked here as
+        # well as at the gate so a key that could never be used is never handed
+        # over.
+        if await refuses_api_keys(session, membership):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_API_KEYS_REFUSED,
+                detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED,
             )
     secret, api_key = await api_keys_service.create_api_key(
         session,
@@ -1686,12 +1679,12 @@ async def create_my_api_key(
         name=payload.name,
         expires_at=payload.expires_at,
         read_only=payload.read_only,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 
 
-@router.delete("/me/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_api_key(
     api_key_id: int,
     session: SystemSessionDep,
@@ -1726,12 +1719,11 @@ async def _require_receiving_admin(
     """
     recipient = (
         await session.exec(
-            select(MemberProfile.id)
-            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-            .where(
+            users_service.guild_members(
+                select(MemberProfile.id), guild_id=guild_id
+            ).where(
                 MemberProfile.id == new_owner_id,
                 MemberProfile.status == UserStatus.active,
-                GuildMembership.guild_id == guild_id,
                 GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
         )
@@ -1739,12 +1731,12 @@ async def _require_receiving_admin(
     if recipient is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
 
 
 def _ownership_payload(
-    items: list, eligible_apps: list[OwnerAppSummary]
+    items: list, eligible_plugins: list[OwnerPluginSummary]
 ) -> OwnedContentResponse:
     counts: dict[str, int] = {}
     for item in items:
@@ -1756,7 +1748,7 @@ def _ownership_payload(
         ],
         counts=counts,
         total=len(items),
-        eligible_apps=eligible_apps,
+        eligible_plugins=eligible_plugins,
     )
 
 
@@ -1764,16 +1756,16 @@ async def _recipient(
     session: AsyncSession, *, guild_id: int, payload: OwnershipTransferRequest
 ) -> ownership_service.Owner:
     """Who the request names to receive the content. A person must be an
-    active admin of this guild; an app's eligibility is asked of the content
+    active admin of this guild; a plug-in's eligibility is asked of the content
     it would receive, by the move itself."""
-    if payload.new_owner_app_id is not None:
-        return ownership_service.Owner(app_install_id=payload.new_owner_app_id)
+    if payload.new_owner_plugin_id is not None:
+        return ownership_service.Owner(plugin_install_id=payload.new_owner_plugin_id)
     person_id = payload.new_owner_id
     if person_id is None:
         # The schema requires one of the two; nobody named is nobody eligible.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
     await _require_receiving_admin(session, guild_id=guild_id, new_owner_id=person_id)
     return ownership_service.Owner(user_id=person_id)
@@ -1790,8 +1782,8 @@ async def list_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
-    """Everything in this guild that no current member or live app owns, and
-    the apps that may own all of it.
+    """Everything in this guild that no current member or live plug-in owns, and
+    the plug-ins that may own all of it.
 
     Both the content released when someone left and anything orphaned before
     that — either way nobody who can act on it owns it.
@@ -1800,7 +1792,7 @@ async def list_unowned_content(
         session, guild_id=guild_context.guild_id
     )
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1811,8 +1803,8 @@ async def claim_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
-    """Give everything nobody owns to one guild admin, or to an app that may
-    own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise)."""
+    """Give everything nobody owns to one guild admin, or to a plug-in that may
+    own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise)."""
     recipient = await _recipient(
         session, guild_id=guild_context.guild_id, payload=payload
     )
@@ -1834,14 +1826,14 @@ async def list_owned_content(
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
     """What this user owns in this guild, for the transfer dialog to list,
-    and the apps that may own all of it.
+    and the plug-ins that may own all of it.
 
     Works for anyone the grants still name, member or not — accounts get
     abandoned as often as they get closed.
     """
     items = await ownership_service.summarize_owned_content(session, user_id)
     return _ownership_payload(
-        items, await ownership_service.eligible_app_owners(session, items)
+        items, await ownership_service.eligible_plugin_owners(session, items)
     )
 
 
@@ -1856,7 +1848,7 @@ async def transfer_ownership(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Move everything ``user_id`` owns in this guild to a guild admin, or to
-    an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+    a plug-in that may own all of it (422 ``OWNER_PLUGIN_NOT_ELIGIBLE`` otherwise).
 
     The only place ownership is moved by hand, and guild-admin only.
     """
@@ -1880,13 +1872,12 @@ async def transfer_ownership(
 
 
 @guild_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
+async def remove_member(
     user_id: int,
     session: SessionDep,
     system_session: SystemSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
-    background_tasks: BackgroundTasks,
 ) -> None:
     """Remove a member from this guild.
 
@@ -1895,18 +1886,6 @@ async def delete_user(
     reachable by them, until an admin re-homes it through
     ``POST /{user_id}/transfer-ownership``.
     """
-
-    # A platform question — whether the platform would be left with no config
-    # manager — so it is asked on the system engine rather than through the
-    # guild role this request has assumed. FOR UPDATE to prevent a race with a
-    # concurrent platform-role change.
-    if await users_service.is_last_capability_holder(
-        system_session, user_id, Capability.CONFIG_MANAGE, for_update=True
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CANNOT_REMOVE_LAST_OWNER,
-        )
     if user_id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1927,12 +1906,12 @@ async def delete_user(
     # Removing the seat-holder ends the seat exactly as demoting them does, so
     # it answers to the same authority: only the seat passes the seat on.
     if (
-        membership.role == GuildRole.superadmin
-        and guild_context.role != GuildRole.superadmin
+        membership.role == CommunityRole.superadmin
+        and guild_context.role != CommunityRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
     await guilds_service.lock_guild_seats(system_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:
@@ -1945,40 +1924,45 @@ async def delete_user(
             detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
-    await initiatives_service.remove_user_from_guild_initiatives(
+    await guilds_service.remove_user_from_guild(
         session,
         guild_id=guild_context.guild_id,
         user_id=user_id,
-    )
-    # Being removed ends what this guild's apps let this person reach at an
-    # outside vendor, exactly as leaving voluntarily does.
-    await app_connections_service.delete_member_connections(
-        session, user_id=user_id, reason="removed_from_guild"
-    )
-    # And what they let this guild's apps do as them, for the same reason.
-    await consents_service.delete_member_consents(session, user_id=user_id)
-
-    removed_role = membership.role
-    await session.delete(membership)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.GUILD_MEMBER_REMOVED,
         actor_user_id=current_admin.id,
-        target_user_id=user_id,
-        guild_id=guild_context.guild_id,
-        target_type="guild",
-        target_id=guild_context.guild_id,
-        detail={"role": removed_role.value, "via": "admin"},
     )
-    billing_ping.notify_membership_changed(guild_context.guild_id)
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    app_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------
+
+
+def _image_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=GuildMessages.IMAGE_NOT_FOUND,
+    )
+
+
+async def _avatar_response(
+    session: AsyncSession, user_id: int, digest: str
+) -> Response:
+    """``user_id``'s picture when ``digest`` is its current one, or a 404."""
+    if not user_avatars_service.is_valid_digest(digest):
+        raise _image_not_found()
+    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
+    if avatar is None or avatar.sha256 != digest:
+        raise _image_not_found()
+    return Response(
+        content=avatar.data,
+        media_type=avatar.content_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/{user_id}/avatar/{digest}", include_in_schema=False)
@@ -1995,28 +1979,48 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     than a redirect to whatever is current, because the response is cached
     under the URL that was asked for.
     """
-    if not user_avatars_service.is_valid_digest(digest):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
-        )
-    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
-    if avatar is None or avatar.sha256 != digest:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
-        )
-    return Response(
-        content=avatar.data,
-        media_type=avatar.content_type,
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    return await _avatar_response(session, user_id, digest)
 
 
-@router.put("/me/avatar", response_model=UserRead)
+@members_router.get(
+    "/{person}/avatar/{digest}",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "The picture.",
+            "content": {media: {} for media in sorted(AVATAR_SPEC.content_types)},
+        }
+    },
+)
+async def read_member_avatar(
+    person: PersonId,
+    digest: str,
+    session: ActorSessionDep,
+    guild_context: MembersRead,
+) -> Response:
+    """Serve the picture a member of this community uploaded.
+
+    Where an installed plug-in's ``avatar_url`` for a person points: the person is
+    named by the plug-in's reference for them. The same bytes and caching as the
+    profile picture route, and a 404 for a digest that is not the member's
+    current picture, or for somebody who is not a member here.
+    """
+    current = (
+        await session.exec(
+            select(GuildMember.avatar_url).where(GuildMember.id == person)
+        )
+    ).first()
+    if user_avatars_service.uploaded_digest(person, current) != digest:
+        raise _image_not_found()
+    # Membership is settled. The picture is read the way the profile picture
+    # route reads it, on a session of its own, once this one's connection is
+    # back in the pool.
+    await session.close()
+    async with cohorts.community_session(session, guild_context.guild_id) as reader:
+        return await _avatar_response(reader, person, digest)
+
+
+@me_router.put("/avatar", response_model=UserRead)
 async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
@@ -2024,7 +2028,7 @@ async def upload_my_avatar(
 ) -> UserRead:
     """Replace the caller's profile picture.
 
-    Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+    Multipart rather than a base64 field on ``PATCH /me``: sending the
     image inside JSON is the thing this endpoint exists to stop. The body is
     read under the cap so an oversized upload is refused rather than buffered
     whole, and the format and dimensions are read from the header — nothing
@@ -2033,13 +2037,14 @@ async def upload_my_avatar(
     Runs on the request-path session, where the row policies allow the caller
     to write their own avatar and no other.
     """
-    data = await file.read(AVATAR_MAX_BYTES + 1)
     try:
-        validated = user_avatars_service.validate_avatar(data)
-    except user_avatars_service.AvatarRejected as rejected:
+        data = await read_upload_bounded(file, AVATAR_SPEC.max_bytes)
+    except FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=rejected.code
-        ) from rejected
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImageMessages.IMAGE_TOO_LARGE,
+        )
+    validated = user_avatars_service.validate_avatar(data)
 
     # Records the serving URL on the user row too, so every payload that
     # carries a person can name the picture without a second query.
@@ -2048,10 +2053,10 @@ async def upload_my_avatar(
     )
     await session.commit()
     await session.refresh(current_user)
-    return await users_service.to_self_read(current_user)
+    return await users_service.to_self_read(session, current_user)
 
 
-@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_avatar(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

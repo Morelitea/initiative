@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { updateCommunity } from "@/api/generated/communities/communities";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export const RetentionSettingCard = () => {
-  const { activeGuild, updateGuildInState } = useGuilds();
-  const { t } = useTranslation(["guilds", "common"]);
+  const { activeCommunity, updateCommunityInState } = useCommunities();
+  const { t } = useTranslation(["communities", "common"]);
   const [retentionDays, setRetentionDays] = useState<number>(90);
   // Named for the switch's "Never auto-purge" label so checked={neverPurge}
   // reads directly. true = retention disabled (PATCH sends null); false =
@@ -24,42 +24,40 @@ export const RetentionSettingCard = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeGuild) return;
+    if (!activeCommunity) return;
     // retention_days is authoritative: a positive integer means
     // "auto-purge after N days"; explicit null means "user chose never".
-    // The backend seeds a guild_settings row at guild creation, so missing
+    // The backend seeds a guild_settings row at community creation, so missing
     // rows aren't a possibility here.
-    if (typeof activeGuild.retention_days === "number" && activeGuild.retention_days > 0) {
-      setRetentionDays(activeGuild.retention_days);
+    if (typeof activeCommunity.retention_days === "number" && activeCommunity.retention_days > 0) {
+      setRetentionDays(activeCommunity.retention_days);
       setNeverPurge(false);
-    } else if (activeGuild.retention_days === null) {
+    } else if (activeCommunity.retention_days === null) {
       setRetentionDays(90);
       setNeverPurge(true);
     }
-  }, [activeGuild]);
+  }, [activeCommunity]);
 
   const handleSave = async () => {
-    if (!activeGuild) return;
+    if (!activeCommunity) return;
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
-      const result = await (updateGuildApiV1CommunitiesGuildIdPatch(activeGuild.id, {
+      const result = await (updateCommunity(activeCommunity.id, {
         retention_days: neverPurge ? null : retentionDays,
-      } as Parameters<
-        typeof updateGuildApiV1CommunitiesGuildIdPatch
-      >[1]) as unknown as Promise<GuildRead>);
-      updateGuildInState(result);
+      } as Parameters<typeof updateCommunity>[1]) as unknown as Promise<CommunityRead>);
+      updateCommunityInState(result);
       setMessage(t("settings.retentionUpdatedSuccessfully"));
     } catch (err) {
       console.error(err);
-      setError(getErrorMessage(err, "guilds:settings.unableToUpdate"));
+      setError(getErrorMessage(err, "communities:settings.unableToUpdate"));
     } finally {
       setSaving(false);
     }
   };
 
-  if (!activeGuild) return null;
+  if (!activeCommunity) return null;
 
   return (
     <Card>

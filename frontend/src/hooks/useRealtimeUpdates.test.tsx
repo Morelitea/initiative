@@ -13,30 +13,30 @@ import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildComment } from "@/__tests__/factories/comment.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
-import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
+import { getListCommentsQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
-import { setInvalidationGuild } from "@/api/query-keys";
+import { setInvalidationCommunity } from "@/api/query-keys";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolIdParam, toolPlural, toolRouteSegment } from "@/lib/tools";
 
-const GUILD = 5;
+const COMMUNITY = 5;
 const ENTITY_ID = 42;
 // Must match the backend's MSG_AUTH.
 const MSG_AUTH = 5;
 
-// The hook keys its socket off the route's guild; the tests drive the socket
+// The hook keys its socket off the route's community; the tests drive the socket
 // rather than the router, so the param is stated directly.
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  useParams: () => ({ guildId: String(GUILD) }),
+  useParams: () => ({ communityId: String(COMMUNITY) }),
 }));
 
 /** Seed a query so it exists in the cache, then report whether it got invalidated. */
@@ -46,26 +46,20 @@ const seed = (key: readonly unknown[]) => {
 };
 
 /** A comment thread on one parent, as `useComments` keys and holds it; open
- *  (something on screen watching it) unless `open` is false, and `under` the
- *  tool entity it answers to when that is not its own parent. */
+ *  (something on screen watching it) unless `open` is false. */
 const seedThread = (
   param: string,
   id: number,
-  {
-    comments = [],
-    open = true,
-    under,
-  }: { comments?: CommentRead[]; open?: boolean; under?: { type: string; id: number } } = {}
+  { comments = [], open = true }: { comments?: CommentRead[]; open?: boolean } = {}
 ) => {
-  const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
+  const key = getListCommentsQueryKey(COMMUNITY, { [param]: id });
   queryClient.setQueryData(key, {
     pages: [{ comments, next_cursor: null }],
     pageParams: [undefined],
   });
   if (open) {
     new InfiniteQueryObserver(queryClient, {
-      ...commentThreadQueryOptions(GUILD, { [param]: id }),
-      meta: under ? { under } : undefined,
+      ...commentThreadQueryOptions(COMMUNITY, { [param]: id }),
       enabled: false,
     }).subscribe(() => {});
   }
@@ -88,7 +82,7 @@ const seedThread = (
 const serveComments = (byId: Record<number, CommentRead | null>) => {
   const asked: number[] = [];
   server.use(
-    guildHttp.get("/comments/:commentId", ({ params }) => {
+    communityHttp.get("/comments/:commentId", ({ params }) => {
       const id = Number(params.commentId);
       asked.push(id);
       const found = byId[id];
@@ -107,20 +101,20 @@ const comment = (id: number, parents: { type: string; id: number }[]) => ({
 describe("realtime comment frames", () => {
   beforeEach(() => {
     queryClient.clear();
-    setInvalidationGuild(GUILD);
+    setInvalidationCommunity(COMMUNITY);
   });
 
   afterEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
   it.each(TOOLS)("puts a new comment into a %s's thread and refreshes the entity", async (tool) => {
     const thread = seedThread(toolIdParam(tool), ENTITY_ID);
-    const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
+    const entity = seed([`/api/v1/c/${COMMUNITY}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
     serveComments({ 1: buildComment({ id: 1, [toolIdParam(tool)]: ENTITY_ID }) });
 
-    applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])], GUILD);
+    applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])], COMMUNITY);
 
     await vi.waitFor(() => expect(thread.ids(), `${tool} thread`).toEqual([1]));
     expect(thread.invalidated(), `${tool} thread is not read again`).toBe(false);
@@ -129,16 +123,16 @@ describe("realtime comment frames", () => {
 
   it("updates the thread, refreshes the task and its project, and nothing further out", async () => {
     const thread = seedThread("task_id", ENTITY_ID);
-    const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
+    const task = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}`]);
     // A task list row carries its comment count.
-    const taskList = seed([`/api/v1/c/${GUILD}/tasks/`, { project_id: 7 }]);
-    const activity = seed([`/api/v1/c/${GUILD}/projects/7/activity`]);
-    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
-    const otherActivity = seed([`/api/v1/c/${GUILD}/projects/70/activity`]);
-    const projectList = seed([`/api/v1/c/${GUILD}/projects/`, { page: 1 }]);
-    const counts = seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
-    const initiative = seed([`/api/v1/c/${GUILD}/initiatives/3`]);
-    const members = seed([`/api/v1/c/${GUILD}/initiatives/3/members`]);
+    const taskList = seed([`/api/v1/c/${COMMUNITY}/tasks/`, { project_id: 7 }]);
+    const activity = seed([`/api/v1/c/${COMMUNITY}/projects/7/activity`]);
+    const project = seed([`/api/v1/c/${COMMUNITY}/projects/7`]);
+    const otherActivity = seed([`/api/v1/c/${COMMUNITY}/projects/70/activity`]);
+    const projectList = seed([`/api/v1/c/${COMMUNITY}/projects/`, { page: 1 }]);
+    const counts = seed([`/api/v1/c/${COMMUNITY}/tools/counts/by-initiative`]);
+    const initiative = seed([`/api/v1/c/${COMMUNITY}/initiatives/3`]);
+    const members = seed([`/api/v1/c/${COMMUNITY}/initiatives/3/members`]);
     serveComments({ 1: buildComment({ id: 1, task_id: ENTITY_ID }) });
 
     applyChanges(
@@ -149,7 +143,7 @@ describe("realtime comment frames", () => {
           { type: "initiatives", id: 3 },
         ]),
       ],
-      GUILD
+      COMMUNITY
     );
 
     await vi.waitFor(() => expect(thread.ids(), "thread").toEqual([1]));
@@ -164,10 +158,10 @@ describe("realtime comment frames", () => {
     expect(members(), "roster").toBe(false);
   });
 
-  it("refreshes the guild's recent activity for any comment", () => {
-    const recent = seed([`/api/v1/c/${GUILD}/comments/recent`]);
+  it("refreshes the community's recent activity for any comment", () => {
+    const recent = seed([`/api/v1/c/${COMMUNITY}/comments/recent`]);
 
-    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
+    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], COMMUNITY);
 
     expect(recent()).toBe(true);
   });
@@ -177,7 +171,7 @@ describe("realtime comment frames", () => {
     const closed = seedThread("post_id", ENTITY_ID, { open: false });
     const asked = serveComments({ 1: buildComment({ id: 1, post_id: ENTITY_ID }) });
 
-    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
+    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], COMMUNITY);
 
     // A closed thread is only marked stale; it reads again when it is shown.
     await vi.waitFor(() => expect(closed.invalidated()).toBe(true));
@@ -187,19 +181,24 @@ describe("realtime comment frames", () => {
     expect(other.invalidated()).toBe(false);
   });
 
-  it("puts a wiki page's comment into that page's thread, which its wiki names", async () => {
-    const wiki = { type: "wikis", id: ENTITY_ID };
-    const page = seedThread("wiki_page_id", 7, { under: wiki });
-    const siblingPage = seedThread("wiki_page_id", 8, { under: wiki });
-    const otherWikisPage = seedThread("wiki_page_id", 9, { under: { type: "wikis", id: 99 } });
+  it("puts a wiki page's comment into that page's thread, which it names before its wiki", async () => {
+    const page = seedThread("wiki_page_id", 7);
+    const siblingPage = seedThread("wiki_page_id", 8);
     const asked = serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
 
-    applyChanges([comment(1, [wiki])], GUILD);
+    applyChanges(
+      [
+        comment(1, [
+          { type: "wiki_pages", id: 7 },
+          { type: "wikis", id: ENTITY_ID },
+        ]),
+      ],
+      COMMUNITY
+    );
 
     await vi.waitFor(() => expect(page.ids()).toEqual([1]));
     expect(siblingPage.ids()).toEqual([]);
-    expect(otherWikisPage.ids()).toEqual([]);
-    expect(otherWikisPage.invalidated(), "another wiki's page is not touched").toBe(false);
+    expect(siblingPage.invalidated(), "another page's thread is not touched").toBe(false);
     expect(asked).toEqual([1]);
   });
 
@@ -221,7 +220,7 @@ describe("realtime comment frames", () => {
 
     applyChanges(
       [comment(4, parents), comment(1, parents), comment(3, parents), comment(5, parents)],
-      GUILD
+      COMMUNITY
     );
 
     await vi.waitFor(() => expect(thread.ids()).toEqual([4, 3]));
@@ -231,31 +230,64 @@ describe("realtime comment frames", () => {
   });
 });
 
-describe("realtime resource frames", () => {
+describe("realtime frames for a case's conversation", () => {
   beforeEach(() => {
     queryClient.clear();
-    setInvalidationGuild(GUILD);
+    setInvalidationCommunity(COMMUNITY);
   });
 
   afterEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
+  });
+
+  it("keeps what is said with the requester out of the task's thread and reads the case again", async () => {
+    const onTask = { task_id: ENTITY_ID };
+    const thread = seedThread("task_id", ENTITY_ID);
+    const caseRead = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}/case`]);
+    serveComments({
+      1: buildComment({ id: 1, audience: "filer", ...onTask }),
+      2: buildComment({ id: 2, ...onTask }),
+    });
+
+    applyChanges(
+      [
+        comment(1, [{ type: "tasks", id: ENTITY_ID }]),
+        comment(2, [{ type: "tasks", id: ENTITY_ID }]),
+      ],
+      COMMUNITY
+    );
+
+    await vi.waitFor(() => expect(thread.ids()).toEqual([2]));
+    expect(caseRead()).toBe(true);
+  });
+});
+
+describe("realtime resource frames", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    setInvalidationCommunity(COMMUNITY);
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    setInvalidationCommunity(null);
   });
 
   it.each(TOOLS)("refreshes a %s that changed", (tool) => {
-    const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
+    const entity = seed([`/api/v1/c/${COMMUNITY}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
 
     applyChanges(
       [{ resource: { type: toolPlural(tool), id: ENTITY_ID }, parents: [], action: "updated" }],
-      GUILD
+      COMMUNITY
     );
 
     expect(entity()).toBe(true);
   });
 
   it("moves the counts only when a row arrives, leaves or changes where it counts", () => {
-    const list = seed([`/api/v1/c/${GUILD}/queues/`, { page: 1 }]);
-    const counts = seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
+    const list = seed([`/api/v1/c/${COMMUNITY}/queues/`, { page: 1 }]);
+    const counts = seed([`/api/v1/c/${COMMUNITY}/tools/counts/by-initiative`]);
     const queue = (action: string, changed: string[]) => ({
       resource: { type: "queues", id: ENTITY_ID },
       parents: [],
@@ -263,7 +295,7 @@ describe("realtime resource frames", () => {
       changed,
     });
 
-    applyChanges([queue("updated", ["current_round", "name"])], GUILD);
+    applyChanges([queue("updated", ["current_round", "name"])], COMMUNITY);
     expect(list(), "list after a rename").toBe(true);
     expect(counts(), "counts after a rename").toBe(false);
 
@@ -273,15 +305,15 @@ describe("realtime resource frames", () => {
       queue("created", []),
       queue("deleted", []),
     ]) {
-      seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
-      applyChanges([change], GUILD);
+      seed([`/api/v1/c/${COMMUNITY}/tools/counts/by-initiative`]);
+      applyChanges([change], COMMUNITY);
       expect(counts(), `counts after ${change.action} ${change.changed}`).toBe(true);
     }
   });
 
   it("refreshes a task's project from the task's own frame", () => {
-    const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
-    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
+    const task = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}`]);
+    const project = seed([`/api/v1/c/${COMMUNITY}/projects/7`]);
 
     applyChanges(
       [
@@ -291,7 +323,7 @@ describe("realtime resource frames", () => {
           action: "updated",
         },
       ],
-      GUILD
+      COMMUNITY
     );
 
     expect(task(), "task").toBe(true);
@@ -302,14 +334,14 @@ describe("realtime resource frames", () => {
     // Membership, role and property definition rows have no route of their
     // own, so these report as the initiative — one frame has to cover them.
     // What the roles permit is on the initiative's own read.
-    const initiative = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}`]);
-    const members = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/members`]);
-    const roles = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/roles`]);
-    const properties = seed([`/api/v1/c/${GUILD}/property-definitions`]);
+    const initiative = seed([`/api/v1/c/${COMMUNITY}/initiatives/${ENTITY_ID}`]);
+    const members = seed([`/api/v1/c/${COMMUNITY}/initiatives/${ENTITY_ID}/members`]);
+    const roles = seed([`/api/v1/c/${COMMUNITY}/initiatives/${ENTITY_ID}/roles`]);
+    const properties = seed([`/api/v1/c/${COMMUNITY}/property-definitions`]);
 
     applyChanges(
       [{ resource: { type: "initiatives", id: ENTITY_ID }, parents: [], action: "updated" }],
-      GUILD
+      COMMUNITY
     );
 
     expect(initiative(), "initiative").toBe(true);
@@ -318,40 +350,40 @@ describe("realtime resource frames", () => {
     expect(properties(), "properties").toBe(true);
   });
 
-  it("refreshes the app list and an install's own reads", () => {
-    // Guild-wide and parentless: nothing else on the client covers it.
-    const list = seed([`/api/v1/c/${GUILD}/apps/`]);
-    const detail = seed(["guild-app", GUILD, ENTITY_ID]);
-    const members = seed(["guild-app-members", GUILD, ENTITY_ID]);
+  it("refreshes the plug-in list and an install's own reads", () => {
+    // Community-wide and parentless: nothing else on the client covers it.
+    const list = seed([`/api/v1/c/${COMMUNITY}/plugins/`]);
+    const detail = seed(["community-plugin", COMMUNITY, ENTITY_ID]);
+    const members = seed(["community-plugin-members", COMMUNITY, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }],
-      GUILD
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "updated" }],
+      COMMUNITY
     );
 
-    expect(list(), "app list").toBe(true);
-    expect(detail(), "app detail").toBe(true);
-    expect(members(), "app members").toBe(true);
+    expect(list(), "plug-in list").toBe(true);
+    expect(detail(), "plug-in detail").toBe(true);
+    expect(members(), "plug-in members").toBe(true);
   });
 
-  it("leaves another guild's install reads alone", () => {
-    const other = seed(["guild-app", GUILD + 1, ENTITY_ID]);
+  it("leaves another community's install reads alone", () => {
+    const other = seed(["community-plugin", COMMUNITY + 1, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }],
-      GUILD
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "created" }],
+      COMMUNITY
     );
 
     expect(other()).toBe(false);
   });
 
   it("ignores a resource type it has no invalidation for", () => {
-    const untouched = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
+    const untouched = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}`]);
 
     expect(() =>
       applyChanges(
         [{ resource: { type: "something_new", id: 1 }, parents: [], action: "created" }],
-        GUILD
+        COMMUNITY
       )
     ).not.toThrow();
     expect(untouched()).toBe(false);
@@ -359,12 +391,12 @@ describe("realtime resource frames", () => {
 
   it("ignores a malformed frame rather than throwing", () => {
     expect(() =>
-      applyChanges([{}, { resource: undefined, parents: undefined }], GUILD)
+      applyChanges([{}, { resource: undefined, parents: undefined }], COMMUNITY)
     ).not.toThrow();
   });
 
   it("still refreshes the parents when the resource itself is unknown", () => {
-    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
+    const project = seed([`/api/v1/c/${COMMUNITY}/projects/7`]);
 
     applyChanges(
       [
@@ -374,7 +406,7 @@ describe("realtime resource frames", () => {
           action: "updated",
         },
       ],
-      GUILD
+      COMMUNITY
     );
 
     expect(project()).toBe(true);
@@ -402,7 +434,7 @@ describe("realtime socket lifecycle", () => {
     setAuthToken("test-token");
     MockWebSocket.instances = [];
     queryClient.clear();
-    setInvalidationGuild(GUILD);
+    setInvalidationCommunity(COMMUNITY);
     vi.stubGlobal("WebSocket", MockWebSocket);
     vi.useFakeTimers();
     // Reconnects are jittered; pin the draw so each lands mid-window.
@@ -413,7 +445,7 @@ describe("realtime socket lifecycle", () => {
     setAuthToken(null);
     vi.useRealTimers();
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
   it("authenticates in the first frame and names no gap", () => {
@@ -465,12 +497,12 @@ describe("realtime socket lifecycle", () => {
     expect(third.authPayload()).toEqual({ token: "test-token", away_seconds: 34 });
   });
 
-  it("reads the guild again when the server says it fell behind", () => {
+  it("reads the community again when the server says it fell behind", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    const project = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}`]);
-    const activity = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}/activity`]);
+    const project = seed([`/api/v1/c/${COMMUNITY}/projects/${ENTITY_ID}`]);
+    const activity = seed([`/api/v1/c/${COMMUNITY}/projects/${ENTITY_ID}/activity`]);
 
     socket.receive({ changes: [], more: true });
 
@@ -482,7 +514,7 @@ describe("realtime socket lifecycle", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    const project = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}`]);
+    const project = seed([`/api/v1/c/${COMMUNITY}/projects/${ENTITY_ID}`]);
 
     socket.receive({ heartbeat: true });
     await vi.advanceTimersByTimeAsync(1000);
@@ -504,8 +536,8 @@ describe("realtime frames and dashboards", () => {
       },
     },
   });
-  const seedCanvas = (guildId: number, relations: string[]) => {
-    const key = dashboardDataKey(guildId, DASHBOARD);
+  const seedCanvas = (communityId: number, relations: string[]) => {
+    const key = dashboardDataKey(communityId, DASHBOARD);
     queryClient.setQueryData(key, canvas(relations));
     return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
   };
@@ -520,26 +552,26 @@ describe("realtime frames and dashboards", () => {
   afterEach(() => queryClient.clear());
 
   it("refreshes a dashboard when something it reads changes in its initiative", () => {
-    const stale = seedCanvas(GUILD, ["tasks"]);
-    applyChanges([task(INITIATIVE)], GUILD);
+    const stale = seedCanvas(COMMUNITY, ["tasks"]);
+    applyChanges([task(INITIATIVE)], COMMUNITY);
     expect(stale()).toBe(true);
   });
 
   it("leaves it alone when the change is to something it does not read", () => {
-    const stale = seedCanvas(GUILD, ["projects"]);
-    applyChanges([task(INITIATIVE)], GUILD);
+    const stale = seedCanvas(COMMUNITY, ["projects"]);
+    applyChanges([task(INITIATIVE)], COMMUNITY);
     expect(stale()).toBe(false);
   });
 
   it("leaves it alone when the change is in another initiative", () => {
-    const stale = seedCanvas(GUILD, ["tasks"]);
-    applyChanges([task(INITIATIVE + 1)], GUILD);
+    const stale = seedCanvas(COMMUNITY, ["tasks"]);
+    applyChanges([task(INITIATIVE + 1)], COMMUNITY);
     expect(stale()).toBe(false);
   });
 
-  it("leaves another guild's dashboard alone, whose initiative ids are its own", () => {
-    const stale = seedCanvas(GUILD + 1, ["tasks"]);
-    applyChanges([task(INITIATIVE)], GUILD);
+  it("leaves another community's dashboard alone, whose initiative ids are its own", () => {
+    const stale = seedCanvas(COMMUNITY + 1, ["tasks"]);
+    applyChanges([task(INITIATIVE)], COMMUNITY);
     expect(stale()).toBe(false);
   });
 });

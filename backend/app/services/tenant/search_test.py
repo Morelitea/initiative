@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from sqlmodel import select
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_task
 
@@ -35,9 +35,9 @@ async def _search(reading_as, *, user_id: int, guild_id: int) -> list[str]:
 
 async def test_a_member_without_a_grant_gets_no_hits(session, acting_user, reading_as):
     """The initiative gate admits this row; sharing is what excludes it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -49,7 +49,7 @@ async def test_a_member_without_a_grant_gets_no_hits(session, acting_user, readi
 
 async def test_the_owner_does_get_the_hit(session, acting_user, reading_as):
     """...and the clause is not simply excluding everything."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="restricted vendor renewal")
 
     assert await _search(reading_as, user_id=a.user.id, guild_id=a.guild.id) == [
@@ -62,9 +62,9 @@ async def test_a_guild_admin_is_not_narrowed_by_sharing(
 ):
     """A guild admin reaches every aspect of their guild, so the clause is the
     one the sharing gate already collapses to true."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.admin,
+        guild_role=CommunityRole.admin,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

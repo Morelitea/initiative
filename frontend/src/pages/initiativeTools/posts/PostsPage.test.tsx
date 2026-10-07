@@ -25,7 +25,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildPage, buildTag } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -48,12 +48,12 @@ describe("the posts board's filters", () => {
     const feed: URLSearchParams[] = [];
     const rail: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/tags/", () => HttpResponse.json([buildTag({ id: 7, name: "Lore" })])),
-      guildHttp.get("/posts/", ({ request }) => {
+      communityHttp.get("/tags/", () => HttpResponse.json([buildTag({ id: 7, name: "Lore" })])),
+      communityHttp.get("/posts/", ({ request }) => {
         feed.push(new URL(request.url).searchParams);
         return HttpResponse.json(buildPage([]));
       }),
-      guildHttp.get("/posts/timeline", ({ request }) => {
+      communityHttp.get("/posts/timeline", ({ request }) => {
         rail.push(new URL(request.url).searchParams);
         return HttpResponse.json({ buckets: [] });
       })

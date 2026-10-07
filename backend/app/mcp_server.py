@@ -7,14 +7,14 @@ authentication and the six RLS gates apply by reuse — never re-implemented.
 The surface is curated and default-deny, so a newly added route can't silently
 become a tool:
   * **Reads** — every ``GET`` route for initiatives and for the tools they hold
-    (projects and tasks, documents, queues, counters, calendars and their
+    (projects and tasks, files, queues, counters, calendars and their
     events, wikis and their pages, notices, dashboards), plus the two comment
     reads that pair with the comment write (a parent's thread and a single
     comment by id), plus the one relationships read, which answers what a thing
     is linked to, plus the guild's general search, which finds a thing by name. A handful are carved back out: file downloads, who voted and
     who has read, and the dashboard editor's own palette.
   * **Writes** — an explicit allow-list, matched by path shape: create and edit
-    every tool (projects, documents, queues, counters, calendars, wikis,
+    every tool (projects, files, queues, counters, calendars, wikis,
     notices, dashboards) and the things they hold (tasks, queue items, counters,
     calendar events, wiki pages, comments), plus the two writes that shape alone
     doesn't reach — moving a task, and moving a counter's count — plus drawing
@@ -38,6 +38,7 @@ from fastmcp.server.providers.openapi import MCPType, RouteMap
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.config import PROJECT_NAME
 from app.core.tools import Tool
 
@@ -53,28 +54,21 @@ if TYPE_CHECKING:
 # Every tool an initiative holds is readable, not only the two it starts with.
 # An agent asked "how is this going" was previously answering from tasks alone,
 # which is the shape of the question rather than the shape of the work: the
-# rota is a queue, the write-up is a document, the numbers are counters, and
+# rota is a queue, the write-up is a file, the numbers are counters, and
 # what somebody would actually look at first is a dashboard. The write surface
 # in ``_WRITE_ROUTE_MAPS`` covers the same set, so what an agent can read it can
 # also author and edit.
 READ_TAGS = (
-    "projects",
+    # Every tool's own tag, as its list is published under.
+    *(TOOL_LISTS[tool].tag or tool.plural for tool in Tool),
     "tasks",
     "initiatives",
     "task-statuses",
-    "documents",
-    "queues",
-    "counters",
-    "calendars",
     "calendar-events",
     # A window of a calendar: its events, a repeating one expanded into its
     # occurrences, beside the tasks due in it. The events have no list of
     # their own; this is what "what's on this week" reads.
     "calendar-entries",
-    "posts",
-    "galleries",
-    "wikis",
-    "dashboards",
     # How many of each a page holds, and its tag tree: counted from the lists
     # above, for every tool at once.
     "tools",
@@ -94,21 +88,23 @@ READ_TAGS = (
 _ID = r"\{[^}]+\}"
 
 
-def _create_and_edit(segment: str) -> list[RouteMap]:
+def _create_and_edit(created_at: str, edited_at: str) -> list[RouteMap]:
     """The two route shapes that author and edit one kind of thing.
 
-    ``POST /<segment>`` creates and ``PATCH /<segment>/{id}`` edits. Both are
-    anchored at the end, so a suffixed route on the same collection — an
+    ``POST /<created_at>`` creates and ``PATCH /<edited_at>/{id}`` edits. Both
+    are anchored at the end, so a suffixed route on the same collection — an
     ``/archive``, a ``/grants``, a ``/properties``, a ``/reorder`` — matches
     neither and stays excluded.
     """
     return [
         RouteMap(
-            methods=["POST"], pattern=r".*/" + segment + r"/?$", mcp_type=MCPType.TOOL
+            methods=["POST"],
+            pattern=r".*/" + created_at + r"/?$",
+            mcp_type=MCPType.TOOL,
         ),
         RouteMap(
             methods=["PATCH"],
-            pattern=r".*/" + segment + "/" + _ID + "$",
+            pattern=r".*/" + edited_at + "/" + _ID + "$",
             mcp_type=MCPType.TOOL,
         ),
     ]
@@ -116,18 +112,19 @@ def _create_and_edit(segment: str) -> list[RouteMap]:
 
 _WRITABLE_SEGMENTS = (
     # Every tool an initiative holds, addressed by its own path segment.
-    *(tool.route_segment for tool in Tool),
+    *((tool.route_segment, tool.route_segment) for tool in Tool),
     # And what those tools hold in turn: a project's tasks, a calendar's
     # events, a queue's items, a counter group's counters, a wiki's pages. Not
     # derivable from the enum — each names its parent differently — so each is
-    # spelled out.
-    "tasks",
-    "calendar-events",
-    "queues/" + _ID + "/items",
-    "counter-groups/" + _ID + "/counters",
-    "wikis/" + _ID + "/pages",
+    # spelled out. Tasks and events name their parent in the body; the other
+    # three are added under it, and edited at their own id like the rest.
+    ("tasks", "tasks"),
+    ("calendar-events", "calendar-events"),
+    ("queues/" + _ID + "/items", "queue-items"),
+    ("counter-groups/" + _ID + "/counters", "counters"),
+    ("wikis/" + _ID + "/pages", "wiki-pages"),
     # The comment surface every tool shares.
-    "comments",
+    ("comments", "comments"),
 )
 
 # Two writes that ``create``/``edit`` doesn't reach, added by hand:
@@ -164,7 +161,7 @@ _EXTRA_WRITE_ROUTE_MAPS = [
 ]
 
 _WRITE_ROUTE_MAPS = [
-    *(m for segment in _WRITABLE_SEGMENTS for m in _create_and_edit(segment)),
+    *(m for segments in _WRITABLE_SEGMENTS for m in _create_and_edit(*segments)),
     *_EXTRA_WRITE_ROUTE_MAPS,
 ]
 
@@ -178,7 +175,7 @@ _WRITE_ROUTE_MAPS = [
 # The other two stay behind the default-deny catch-all. ``GET /comments/recent``
 # is a guild-wide activity feed rather than a working surface — the same reason
 # ``join-requests`` is carved out of the ``initiatives`` tag — and it reaches
-# comments on parents (documents, queues, counters, calendars, dashboards) that
+# comments on parents (files, queues, counters, calendars, dashboards) that
 # the tool surface otherwise doesn't cover, undirected by any task at hand.
 # ``GET /comments/mentions/search`` backs the editor's @-mention picker; the
 # member and task lookups an agent needs are already tools of their own.
@@ -209,14 +206,14 @@ _SEARCH_READ_ROUTE_MAPS = [
 #
 # ``GET /relationships/`` answers what no tool read can: a task's payload
 # carries its status, its people and its tags, but nothing about the task it
-# blocks, the document it was written from, or the queue item it came out of —
+# blocks, the file it was written from, or the queue item it came out of —
 # and that wiring is most of what "what is the state of this" means once a piece
 # of work touches more than one tool. It answers for one thing at a time
 # (``entity=task:12``), from that thing's side.
 #
 # ``POST /relationships/`` is the same create-and-edit reasoning the tool writes
 # follow: what an agent can read it can also author, and an agent that files a
-# task and writes the document behind it should be able to say so. There is no
+# task and writes the file behind it should be able to say so. There is no
 # PATCH to pair with it — an edge has no fields to edit, only ends and a type,
 # which are what it *is* — so the create stands alone. The endpoint refuses the
 # links that aren't anybody's to assert by hand (a ``references`` edge is read
@@ -236,7 +233,7 @@ _RELATIONSHIP_ROUTE_MAPS = [
 # Carved out of the tag rules below, each for a reason the tag itself cannot
 # express. Ordered ahead of them so the exclusion wins.
 _TOOL_READ_EXCLUSIONS = [
-    # Bytes rather than an answer. A download hands back a file — a document's
+    # Bytes rather than an answer. A download hands back a file — an uploaded file's
     # contents, or one of its versions — and an export hands back a calendar
     # file. Neither is something a tool result can carry usefully, and a large
     # one would fill a caller's context with an attachment it cannot open.
@@ -376,9 +373,9 @@ async def _forward_authorization(request: httpx.Request) -> None:
 
 
 # The list endpoints take ``conditions``/``sorting`` as a JSON *string* query
-# param, but ``main._inject_query_schemas`` retypes them to arrays-of-objects in
-# the OpenAPI so the frontend's axios serializer JSON-encodes them. The MCP
-# request builder doesn't do that JSON-encoding: handed an array argument it
+# param, which ``main._inject_query_schemas`` publishes as its decoded array
+# type under ``content: application/json``. The MCP request builder reads that
+# type but doesn't JSON-encode the value: handed an array argument it
 # serializes each item with Python ``str()`` (single-quoted, e.g.
 # ``{'field': 'due_date'}``), which the backend's ``json.loads`` rejects — every
 # filtered/sorted list call 400s. Presenting the param to the model as a plain

@@ -8,8 +8,8 @@ and the tool's own re-read, so the route is mounted per ``Tool`` straight out of
 the resource-access registry rather than written nine times over.
 
 The decision itself stays in ``resource_access.set_resource_grants`` — load,
-authorize managing access, rebuild every non-owner grant, run the tool's
-post-change side effect — so this module adds no gate of its own.
+authorize managing access, rebuild every non-owner grant, let go of anyone the
+new sharing no longer reaches — so this module adds no gate of its own.
 
 Afterwards every tool tells its room that sharing moved. The event carries the
 new grant list and nothing else; each open window refetches, and what it may
@@ -22,7 +22,7 @@ Each route keeps the path, method, tag, name, summary, description and
 parameters its tool already had, so the published surface and the generated
 client are unchanged.
 
-An installed app reaches the route for each tool that serves apps, under
+An installed plug-in reaches the route for each tool that serves plug-ins, under
 ``sharing:write``. What it may change is decided as for a person, by its rung
 on the resource, with the tool's write scope beside the sharing scope
 (``resource_access.require_install_may_share``).
@@ -44,7 +44,7 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -58,7 +58,7 @@ router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 SharingWrite = Annotated[
-    ActorContext, Depends(app_scope(resource_access.SHARING_WRITE))
+    ActorContext, Depends(plugin_scope(resource_access.SHARING_WRITE))
 ]
 
 
@@ -94,7 +94,7 @@ def _mount(
         sockets.signal(guild_context.guild_id, tool, entity_id, "permissions_changed")
         return result
 
-    if spec.serves_apps:
+    if spec.serves_plugins:
 
         async def set_grants(
             entity_id: entity_id_param,
@@ -127,9 +127,23 @@ def _mount(
         methods=["PUT"],
         response_model=spec.read_model,
         name=f"set_{tool.value}_grants",
-        description=spec.grants_doc,
+        description=_grants_doc(tool, spec.grants_note),
         tags=tags,
     )
+
+
+def _grants_doc(tool: Tool, note: str | None) -> str:
+    """The sharing route's published description."""
+    name = tool.value.replace("_", " ")
+    doc = (
+        f"Replace the {name}'s entire sharing state in one call — the body is the\n"
+        "full list of grants (all-initiative-members / per-user / per-role). Every\n"
+        "non-owner grant is rebuilt from it; the owner is always preserved.\n"
+        "\n"
+        f"Anyone the new sharing no longer lets open the {name} is taken off\n"
+        "whatever in it names them."
+    )
+    return f"{doc}\n\n{note}" if note else doc
 
 
 for _tool, _cfg in resource_access.RESOURCE_ACCESS.items():

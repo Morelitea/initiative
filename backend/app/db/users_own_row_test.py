@@ -18,9 +18,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.schema_provisioning import guild_role_name, platform_role_name
+from app.db.public_rls import platform_tier, role_name
+from app.db.schema_provisioning import guild_role_name
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.testing import create_guild, create_guild_membership, create_user, route_as
 from app.db.request_context import Platform, Unattributed
@@ -75,7 +76,7 @@ async def _assumed_role(session: AsyncSession) -> str:
 
 class TestGuildSession:
     """A guild-scoped session — ``SET ROLE guild_<id>``, the request path for
-    everything under ``/c/{guild_id}``.
+    everything under ``/c/{community_id}``.
 
     It does not reach ``public.users`` at all. People are read through
     ``public.guild_member_profiles``, the projection that carries who somebody
@@ -89,7 +90,7 @@ class TestGuildSession:
         guild = await create_guild(session, creator=admin)
         member = await create_user(session)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.member
+            session, user=member, guild=guild, role=CommunityRole.member
         )
         return admin, member, guild
 
@@ -124,7 +125,7 @@ class TestGuildSession:
         guild — so the own-row write goes with the rest."""
         admin, _member, _guild = guild_with_two_members
         with pytest.raises(ProgrammingError):
-            await _update_returning(guild_session, admin.id, "full_name", "Renamed")
+            await _update_returning(guild_session, admin.id, "timezone", "UTC")
         await guild_session.rollback()
 
     async def test_reads_another_member_through_the_projection(
@@ -220,13 +221,13 @@ class TestReestablishedContext:
         member, other = two_accounts
         s = await role_session("app_user")
         await set_rls_context(s, Platform(user_id=member.id, tier="member"))
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
         # The shape of every "back to the platform path" call in the services.
         await set_rls_context(s, Platform(user_id=member.id))
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_a_guild_trip_comes_back_at_the_same_tier(
@@ -245,7 +246,7 @@ class TestReestablishedContext:
 
         await set_rls_context(s, Platform(user_id=member.id))
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_it_crosses_a_transaction_boundary(
@@ -265,7 +266,7 @@ class TestReestablishedContext:
         await set_rls_context(s, Platform(user_id=member.id))
         await s.commit()
 
-        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _assumed_role(s) == role_name(platform_tier("member"))
         assert await _count_visible(s, other.id) == 0
 
     async def test_an_unattributed_context_forgets_it(

@@ -17,12 +17,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from httpx import AsyncClient
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_calendar,
     create_counter_group,
     create_dashboard,
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_queue,
@@ -33,14 +33,14 @@ from app.testing import (
 # ``name``, which is all these tests need to tell rows apart.
 TOOL_LISTS = [
     pytest.param("/projects/", create_project, id="projects"),
-    pytest.param("/documents/", create_document, id="documents"),
+    pytest.param("/files/", create_file, id="files"),
     pytest.param("/queues/", create_queue, id="queues"),
     pytest.param("/counter-groups/", create_counter_group, id="counter-groups"),
     pytest.param("/calendars/", create_calendar, id="calendars"),
     pytest.param("/dashboards/", create_dashboard, id="dashboards"),
 ]
 
-# Projects and documents are core (always on); the rest are opt-in switches
+# Projects and files are core (always on); the rest are opt-in switches
 # that default to off, and a tool has to be on for its list to return anything
 # at all — so every initiative these tests make has all of them on.
 ALL_TOOLS_ON = {
@@ -53,7 +53,7 @@ ALL_TOOLS_ON = {
 
 async def _workspace(session, acting_user):
     """A guild admin and an initiative with every tool switched on."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative = await create_initiative(
         session, actor.guild, actor.user, name="Home", **ALL_TOOLS_ON
     )
@@ -109,7 +109,7 @@ async def test_sort_by_initiative(
 ):
     """``sort_by=initiative`` orders by the initiative's *name* — the column
     the table shows — not by its id."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # Made in the opposite order to their names, so an id ordering would fail.
     zebra = await create_initiative(
         session, a.guild, a.user, name="Zebra", **ALL_TOOLS_ON

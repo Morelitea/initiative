@@ -18,10 +18,18 @@ def test_the_vocabulary_is_what_the_frontend_has_labels_for():
     assert [c.value for c in CookieCategory] == ["analytics", "marketing"]
 
 
-def test_a_deployment_using_none_of_them_is_asked_about_none():
-    """The default, and for now every deployment: nothing optional ships
-    configured, so there is nothing to put a switch beside."""
+def test_a_deployment_using_none_of_them_is_asked_about_none(monkeypatch):
+    """The default: nothing optional ships configured, so there is nothing to
+    put a switch beside."""
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", None)
+
     assert active_cookie_categories(settings) == []
+
+
+def test_a_named_collector_is_asked_about_as_analytics(monkeypatch):
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", "/collect")
+
+    assert active_cookie_categories(settings) == [CookieCategory.analytics]
 
 
 def test_a_category_with_nothing_behind_it_is_never_offered(monkeypatch):

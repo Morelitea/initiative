@@ -73,7 +73,7 @@ export const ReactionPicker = ({
       {/* Capped at the room Radix measured, so an open mobile keyboard shrinks
           the emoji list instead of pushing the picker off screen. */}
       <PopoverContent
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-fit flex-col overflow-hidden p-0"
+        className="flex w-fit flex-col overflow-hidden p-0"
         align="start"
         collisionPadding={8}
       >

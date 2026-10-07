@@ -17,7 +17,7 @@ let streamConnected = false;
 vi.mock("@/hooks/useNotificationStream", () => ({
   useNotificationStreamConnected: () => streamConnected,
 }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -46,12 +46,12 @@ describe("NotificationBell export notifications", () => {
     mockInbox([
       buildNotification({
         type: "export_ready" as NotificationType,
-        data: { guild_id: 1, export_job_id: 42, source: "tasks", format: "pdf" },
+        data: { community_id: 1, export_job_id: 42, source: "tasks", format: "pdf" },
       }),
     ]);
     server.use(
       http.get(
-        "/api/v1/c/1/exports/42/download",
+        "/api/v1/c/1/exports/jobs/42/download",
         () =>
           new HttpResponse(PDF, {
             status: 200,
@@ -73,7 +73,7 @@ describe("NotificationBell export notifications", () => {
     mockInbox([
       buildNotification({
         type: "export_failed" as NotificationType,
-        data: { guild_id: 1, export_job_id: 43, source: "tasks", format: "pdf" },
+        data: { community_id: 1, export_job_id: 43, source: "tasks", format: "pdf" },
       }),
     ]);
     renderWithProviders(<NotificationBell />);
@@ -89,12 +89,12 @@ describe("NotificationBell export notifications", () => {
     mockInbox([
       buildNotification({
         type: "import_ready" as NotificationType,
-        data: { guild_id: 1, import_job_id: 7, source: "backup" },
+        data: { community_id: 1, import_job_id: 7, source: "backup" },
       }),
       buildNotification({
         id: 2,
         type: "import_failed" as NotificationType,
-        data: { guild_id: 1, import_job_id: 8, source: "initiative-queue" },
+        data: { community_id: 1, import_job_id: 8, source: "initiative-queue" },
       }),
     ]);
     renderWithProviders(<NotificationBell />);
@@ -130,7 +130,7 @@ describe("NotificationBell export notifications", () => {
       buildNotification({
         type: "post_published" as NotificationType,
         data: {
-          guild_id: 1,
+          community_id: 1,
           post_id: 12,
           post_name: "Doors open at seven",
           author_name: "alex#1234",
@@ -150,7 +150,7 @@ describe("NotificationBell export notifications", () => {
       buildNotification({
         type: "initiative_join_requested" as NotificationType,
         data: {
-          guild_id: 1,
+          community_id: 1,
           initiative_id: 5,
           initiative_name: "Apollo",
           requester_name: "Ada Lovelace",
@@ -160,12 +160,12 @@ describe("NotificationBell export notifications", () => {
       buildNotification({
         id: 2,
         type: "initiative_join_approved" as NotificationType,
-        data: { guild_id: 1, initiative_id: 5, initiative_name: "Apollo" },
+        data: { community_id: 1, initiative_id: 5, initiative_name: "Apollo" },
       }),
       buildNotification({
         id: 3,
         type: "initiative_join_denied" as NotificationType,
-        data: { guild_id: 1, initiative_id: 6, initiative_name: "Vanguard" },
+        data: { community_id: 1, initiative_id: 6, initiative_name: "Vanguard" },
       }),
     ]);
     renderWithProviders(<NotificationBell />);
@@ -315,7 +315,7 @@ describe("NotificationBell reaction notifications", () => {
       buildNotification({
         type: "comment_reaction" as NotificationType,
         data: {
-          guild_id: 1,
+          community_id: 1,
           target_type: "comment",
           target_id: 7,
           target_path: "/go/task/3",
@@ -348,7 +348,7 @@ describe("NotificationBell reaction notifications", () => {
       buildNotification({
         type: "comment_reaction" as NotificationType,
         data: {
-          guild_id: 1,
+          community_id: 1,
           target_type: "comment",
           target_id: 7,
           target_path: "/go/task/3",
@@ -376,7 +376,7 @@ describe("NotificationBell reaction notifications", () => {
       buildNotification({
         type: "comment_reaction" as NotificationType,
         data: {
-          guild_id: 1,
+          community_id: 1,
           target_type: "comment",
           target_id: 7,
           target_path: "/go/task/3",

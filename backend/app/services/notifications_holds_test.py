@@ -12,7 +12,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.notification_categories import Channel
+from app.core.notification_categories import Channel, NotificationCategory
 from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import NotificationType
 from app.services.notifications import _run_hold_summary_pass
@@ -24,9 +24,11 @@ from app.testing import (
     push_switched_on,
     set_notification_prefs,
 )
+from app.testing.sockets import settle
 
 NIGHT = {"quiet_hours": {"start": "22:00", "end": "07:00"}}
 MENTION = NotificationType.mention
+MENTIONS = NotificationCategory.mentions
 
 
 def _at(hour: int, day: int = 9) -> datetime:
@@ -78,7 +80,7 @@ def test_a_pause_booked_for_next_week_holds_nothing_yet():
     assert notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12)) == []
     assert notification_prefs.reachable(
         prefs,
-        notification_type=MENTION,
+        category=MENTIONS,
         channel=Channel.push,
         tz_name="UTC",
         now=_at(12),
@@ -110,7 +112,7 @@ def test_mail_timed_to_land_inside_a_booked_pause_waits_for_the_end():
     }
     due = notification_prefs.email_due_at(
         prefs,
-        notification_type=NotificationType.comment_on_task,
+        category=NotificationCategory.comments,
         tz_name="UTC",
         now=_at(12, day=19),
     )
@@ -127,7 +129,7 @@ def test_mail_due_before_a_booked_pause_still_goes():
     now = _at(12)
     assert (
         notification_prefs.email_due_at(
-            prefs, notification_type=MENTION, tz_name="UTC", now=now
+            prefs, category=MENTIONS, tz_name="UTC", now=now
         )
         == now
     )
@@ -217,12 +219,35 @@ def test_a_stamp_from_the_future_holds_for_the_ordinary_window():
 def test_push_is_refused_while_anything_holds(prefs, extra):
     assert not notification_prefs.reachable(
         prefs,
-        notification_type=MENTION,
+        category=MENTIONS,
         channel=Channel.push,
         tz_name="UTC",
         now=_at(23) if prefs is NIGHT else _at(12),
         **extra,
     )
+
+
+@pytest.mark.parametrize(
+    "prefs,extra,held",
+    [
+        (_paused_until(_at(9, day=20)), {}, True),
+        (NIGHT, {}, True),
+        ({}, {"last_active_at": _at(12) - timedelta(minutes=1)}, False),
+    ],
+    ids=["pause", "quiet-hours", "already-here"],
+)
+def test_the_desktop_keeps_every_hold_but_presence(prefs, extra, held):
+    """The desktop app checks its own window instead: activity a minute ago
+    says nothing about whether it is in front now."""
+    reachable = notification_prefs.reachable(
+        prefs,
+        category=MENTIONS,
+        channel=Channel.desktop,
+        tz_name="UTC",
+        now=_at(23) if prefs is NIGHT else _at(12),
+        **extra,
+    )
+    assert reachable is not held
 
 
 @pytest.mark.parametrize(
@@ -237,7 +262,7 @@ def test_push_is_refused_while_anything_holds(prefs, extra):
 def test_the_bell_collects_through_every_hold(prefs, extra):
     assert notification_prefs.reachable(
         prefs,
-        notification_type=MENTION,
+        category=MENTIONS,
         channel=Channel.in_app,
         tz_name="UTC",
         now=_at(23) if prefs is NIGHT else _at(12),
@@ -249,7 +274,7 @@ def test_email_is_deferred_to_the_latest_lift_not_refused():
     """Two holds at once compose: the later one decides."""
     prefs = {**NIGHT, **_paused_until(_at(9, day=20))}
     due = notification_prefs.email_due_at(
-        prefs, notification_type=MENTION, tz_name="UTC", now=_at(23)
+        prefs, category=MENTIONS, tz_name="UTC", now=_at(23)
     )
     assert due == _at(9, day=20)
 
@@ -259,7 +284,7 @@ def test_the_presence_hold_is_never_renewed():
     somebody keeps working, which would be an off switch by another name."""
     seen = _at(12) - timedelta(minutes=1)
     due = notification_prefs.email_due_at(
-        {}, notification_type=MENTION, tz_name="UTC", last_active_at=seen, now=_at(12)
+        {}, category=MENTIONS, tz_name="UTC", last_active_at=seen, now=_at(12)
     )
     assert due - _at(12) <= notification_prefs.PRESENT_WITHIN
 
@@ -269,12 +294,12 @@ def test_a_pause_holds_even_a_direct_mention():
     not one."""
     prefs = _paused_until(_at(9, day=20))
     due = notification_prefs.email_due_at(
-        prefs, notification_type=MENTION, tz_name="UTC", now=_at(12)
+        prefs, category=MENTIONS, tz_name="UTC", now=_at(12)
     )
     assert due == _at(9, day=20)
     assert not notification_prefs.reachable(
         prefs,
-        notification_type=MENTION,
+        category=MENTIONS,
         channel=Channel.push,
         tz_name="UTC",
         now=_at(12),
@@ -332,17 +357,28 @@ async def _summaries(session: AsyncSession) -> list[NoticeOutboxItem]:
     )
 
 
-async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSession):
+def _summary_alerts(socket) -> list[dict]:
+    return [
+        frame
+        for frame in socket.sent
+        if (frame.get("resource"), frame.get("action")) == ("alert", "summary")
+    ]
+
+
+async def test_the_summary_counts_what_happened_and_goes_once(
+    session: AsyncSession, account_socket
+):
     user = await create_user(session, email="hold-summary@example.com", timezone="UTC")
     guild = await create_guild(session, creator=user)
     await set_notification_prefs(session, user, dict(NIGHT))
+    desktop = account_socket(user.id)
 
     for _ in range(2):
         notification = await user_notifications.create_notification(
             session,
             user_id=user.id,
             notification_type=MENTION,
-            data={"guild_id": guild.id},
+            data={"community_id": guild.id},
         )
         assert notification is not None
         notification.created_at = _at(23, day=8)
@@ -356,6 +392,62 @@ async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSess
         # The same window is not summarised twice.
         await _run_hold_summary_pass(session, now=_at(9))
         assert len(await _summaries(session)) == 1
+    await settle()
+    assert len(_summary_alerts(desktop)) == 1
+
+
+async def test_the_desktop_hears_the_summary_with_mobile_off(
+    session: AsyncSession, account_socket
+):
+    user = await create_user(session, timezone="UTC")
+    guild = await create_guild(session, creator=user)
+    await set_notification_prefs(
+        session, user, {**NIGHT, "categories": {"mentions": {"push": False}}}
+    )
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=MENTION,
+        data={"community_id": guild.id},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+    desktop = account_socket(user.id)
+
+    with push_switched_on():
+        await _run_hold_summary_pass(session, now=_at(8))
+    await settle()
+
+    assert await _summaries(session) == []
+    assert len(_summary_alerts(desktop)) == 1
+
+
+async def test_a_community_with_push_off_is_left_out_of_the_summary(
+    session: AsyncSession, account_socket
+):
+    user = await create_user(session, timezone="UTC")
+    guild = await create_guild(session, creator=user)
+    guild.allow_push_notifications = False
+    session.add(guild)
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=MENTION,
+        data={"community_id": guild.id},
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+    desktop = account_socket(user.id)
+
+    with push_switched_on():
+        await _run_hold_summary_pass(session, now=_at(8))
+    await settle()
+
+    assert await _summaries(session) == []
+    assert _summary_alerts(desktop) == []
 
 
 async def test_a_quiet_night_is_not_reported(session: AsyncSession):
@@ -379,7 +471,7 @@ async def test_a_lifted_pause_is_cleared_from_the_document(session: AsyncSession
         session,
         user_id=user.id,
         notification_type=MENTION,
-        data={"guild_id": guild.id},
+        data={"community_id": guild.id},
     )
     assert notification is not None
     notification.created_at = _at(12, day=8)

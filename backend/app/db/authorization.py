@@ -50,14 +50,14 @@ at call time is still the caller's route, which is the same schema.
 from __future__ import annotations
 from collections.abc import Iterable
 from app.db import gucs
-from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.plugin_scopes import PluginScopeResource, tool_resource
 from app.core.tools import Tool
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
     AccessGrantStatus,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
@@ -91,9 +91,9 @@ __all__ = [
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
-    "app_narrowed",
-    "app_refused",
-    "app_scope",
+    "plugin_narrowed",
+    "plugin_refused",
+    "plugin_scope",
     "apply_authorization_functions",
     "authorization_functions_digest",
     "drop_public_copies",
@@ -461,8 +461,7 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     _read(gucs.ROLE_GRANTS),
     _read(gucs.ROLE_DENIES),
     _read(gucs.ENABLED_TOOLS),
-    _read(gucs.VIA_DASHBOARD_ID),
-    # An installed app acting in the community: which install, and the
+    # An installed plug-in acting in the community: which install, and the
     # resources its scopes let it read and write. Unset on every request a
     # person makes.
     ("install_id", "integer", gucs.INSTALL_ID.sql),
@@ -603,7 +602,7 @@ class Legs:
 
     @property
     def unnarrowed_install(self) -> str:
-        """An installed app acting in this community on a token that is not
+        """An installed plug-in acting in this community on a token that is not
         narrowed to one initiative."""
         return (
             f"({self.install_id} IS NOT NULL AND {self.scope} IS NULL"
@@ -614,7 +613,7 @@ class Legs:
     def guild_row_writer(self) -> str:
         """Who changes a row that belongs to the whole community rather than
         one initiative: the guild admin or the system, a live write grant, or
-        an installed app on a token not narrowed to one initiative."""
+        an installed plug-in on a token not narrowed to one initiative."""
         return (
             f"({self.system_or_admin} OR {self.pam_write} OR {self.unnarrowed_install})"
         )
@@ -644,7 +643,7 @@ POLICY_SETTINGS_ADMIN = (
 POLICY_SEAT = f"({IN_POLICY.this_guild} AND {gucs.GUILD_SEAT.once})"
 
 
-# --- An installed app's scopes ----------------------------------------------
+# --- An installed plug-in's scopes ------------------------------------------
 #
 # A person's request carries no install, so each of these answers for it with
 # its first comparison. Every field is read off the standing, once per
@@ -652,15 +651,15 @@ POLICY_SEAT = f"({IN_POLICY.this_guild} AND {gucs.GUILD_SEAT.once})"
 # in a gate.
 
 
-def app_scope(resource: str, write: bool, legs: Legs) -> str:
-    """An installed app holds ``resource``'s read scope, or its write scope
-    when ``write``. ``resource`` is an ``AppScopeResource`` value."""
-    name = AppScopeResource(getattr(resource, "value", resource)).value
+def plugin_scope(resource: str, write: bool, legs: Legs) -> str:
+    """An installed plug-in holds ``resource``'s read scope, or its write scope
+    when ``write``. ``resource`` is a ``PluginScopeResource`` value."""
+    name = PluginScopeResource(getattr(resource, "value", resource)).value
     held = legs.field("install_write" if write else "install_read")
     return f"({legs.install_id} IS NULL OR '{name}' = ANY ({held}))"
 
 
-def app_narrowed(initiative_expr: str, legs: Legs) -> str:
+def plugin_narrowed(initiative_expr: str, legs: Legs) -> str:
     """A token narrowed to one initiative reaches rows that belong to an
     initiative, and none that belong to the community as a whole.
     ``initiative_access`` already keeps it to the one it names."""
@@ -670,8 +669,8 @@ def app_narrowed(initiative_expr: str, legs: Legs) -> str:
     )
 
 
-def app_refused(legs: Legs) -> str:
-    """No installed app reaches the row."""
+def plugin_refused(legs: Legs) -> str:
+    """No installed plug-in reaches the row."""
     return f"({legs.install_id} IS NULL)"
 
 
@@ -821,9 +820,8 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), the dashboard a published view is read through,
-#: or one naming the installed app the request is for. Written over the row
-#: alias ``g``.
+#: belongs to no initiative), or one naming the installed plug-in the request is
+#: for. Written over the row alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -835,10 +833,8 @@ g.resource_type = p_tool
                     AND {_B.this_guild}
                     AND (g.initiative_id IS NULL
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
-                OR (g.dashboard_id IS NOT NULL
-                    AND g.dashboard_id = {_B.field("via_dashboard_id")})
-                OR (g.app_install_id IS NOT NULL
-                    AND g.app_install_id = {_B.install_id})
+                OR (g.plugin_install_id IS NOT NULL
+                    AND g.plugin_install_id = {_B.install_id})
               )"""
 
 
@@ -928,13 +924,13 @@ _WRITES_ROW = f"""(p_initiative_id IS NOT NULL
 
 #: The request may change who the resource is shared with: it is the owner,
 #: in its own right rather than through an access grant, it may change the row
-#: itself, and — if it is an installed app — it holds ``sharing:write`` and
+#: itself, and — if it is an installed plug-in — it holds ``sharing:write`` and
 #: the tool's write scope.
 _SHARES = f"""(v_level = '{_OWNER}'
         AND NOT {_B.pam_any}
         AND {_WRITES_ROW}
         AND ({_B.install_id} IS NULL
-             OR ('{AppScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
+             OR ('{PluginScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
                  AND COALESCE((CASE p_tool
                    {" ".join(f"WHEN '{t.value}' THEN '{tool_resource(t).value}'" for t in Tool)}
                    END) = ANY ({_B.field("install_write")}), false))))"""
@@ -954,8 +950,9 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #: - ``share``: as delete, and see ``_SHARES`` above.
 #: - ``configure`` (projects): owner or a manager of the initiative, and the
 #:   row can be changed.
-#: - ``export``: owner. Allowed even when archived, since exporting changes
-#:   nothing.
+#: - ``export``: owner, on a row of no initiative or of one the request reads
+#:   that does not keep its content in. Allowed even when archived, since
+#:   exporting changes nothing.
 #: - ``unarchive``: as edit, for a row that was archived on its own. A row
 #:   archived because its initiative was archived comes back with the
 #:   initiative instead.
@@ -972,7 +969,10 @@ BEGIN
     IF v_level IS NULL THEN
         RETURN v_actions;
     END IF;
-    IF v_level = '{_OWNER}' THEN
+    IF v_level = '{_OWNER}'
+       AND (p_initiative_id IS NULL
+            OR EXISTS (SELECT 1 FROM initiatives i
+                       WHERE i.id = p_initiative_id AND NOT i.keep_content_in)) THEN
         v_actions := v_actions || 'export'::text;
     END IF;
     IF {_MAY_CHANGE} THEN
@@ -1225,7 +1225,7 @@ AS $function$
         FROM public.guild_memberships m
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
-          AND m.role = '{GuildRole.superadmin.value}'
+          AND m.role = '{CommunityRole.superadmin.value}'
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (

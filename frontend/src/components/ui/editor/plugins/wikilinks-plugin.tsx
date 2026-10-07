@@ -23,7 +23,7 @@ import {
   $placeEmbed,
 } from "@/components/ui/editor/nodes/reference-embed-node";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { MENTIONABLE_TYPES } from "@/lib/mentions";
 import { linkableToolTypes } from "@/lib/references";
 
@@ -95,21 +95,21 @@ function checkForWikilinkTrigger(text: string, editor: LexicalEditor): MenuTextM
 
 class WikilinkTypeaheadOption extends MenuOption {
   title: string;
-  documentId: number | null;
+  fileId: number | null;
   isCreateNew: boolean;
-  /** What kind of thing this names. A row still to be created is a document:
+  /** What kind of thing this names. A row still to be created is a file:
    *  it is the one tool a name and an initiative are enough to make. */
   entityType: SearchEntityType;
 
   constructor(
     title: string,
-    documentId: number | null,
+    fileId: number | null,
     isCreateNew = false,
-    entityType: SearchEntityType = SearchEntityType.document
+    entityType: SearchEntityType = SearchEntityType.file
   ) {
-    super(`${entityType}-${documentId ?? "new"}-${title}`);
+    super(`${entityType}-${fileId ?? "new"}-${title}`);
     this.title = title;
-    this.documentId = documentId;
+    this.fileId = fileId;
     this.isCreateNew = isCreateNew;
     this.entityType = entityType;
   }
@@ -123,8 +123,8 @@ function useWikilinkSearch(
   subject?: string | null,
   embed = false
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
-  // The shared lookup, narrowed to this initiative's live documents. A
-  // wikilink points at a document to read, not at a blueprint.
+  // The shared lookup, narrowed to this initiative's live files. A
+  // wikilink points at a file to read, not at a blueprint.
   // `[[ ]]` reaches the TOOLS THIS INITIATIVE HAS — derived, so a seventh is
   // linkable the day it exists and one switched off is not offered at all.
   // Everything smaller than a tool (a task, an event) is reached with `#`:
@@ -134,25 +134,28 @@ function useWikilinkSearch(
   const linkable = useMemo(() => linkableToolTypes(initiative), [initiative]);
   // A bare `[[ ]]` names nothing yet, so the menu opens on this initiative's
   // most recent linkable things rather than waiting for a first letter.
-  const { items: results, isFetching: isLoading } = useGuildPickerSuggestions(queryString ?? "", {
-    // An embed shows a thing in full, and a task is what most want shown, so
-    // `![[` reaches everything `#` does rather than only the tools.
-    types: embed ? MENTIONABLE_TYPES : linkable,
-    initiative_id: initiativeId ?? undefined,
-    is_template: false,
-    // A page does not link to itself: the page the link opens is the one the
-    // words are on.
-    subject,
-    limit: SUGGESTION_LIST_LENGTH_LIMIT,
-    enabled: queryString !== null && initiativeId !== null,
-  });
+  const { items: results, isFetching: isLoading } = useCommunityPickerSuggestions(
+    queryString ?? "",
+    {
+      // An embed shows a thing in full, and a task is what most want shown, so
+      // `![[` reaches everything `#` does rather than only the tools.
+      types: embed ? MENTIONABLE_TYPES : linkable,
+      initiative_id: initiativeId ?? undefined,
+      is_template: false,
+      // A page does not link to itself: the page the link opens is the one the
+      // words are on.
+      subject,
+      limit: SUGGESTION_LIST_LENGTH_LIMIT,
+      enabled: queryString !== null && initiativeId !== null,
+    }
+  );
 
   const options = useMemo(() => {
     const docOptions = results.map(
       (hit) => new WikilinkTypeaheadOption(hit.title, hit.entity_id, false, hit.entity_type)
     );
 
-    // Add "Create new document" option if query doesn't exactly match any result
+    // Add "Create new file" option if query doesn't exactly match any result
     if (queryString && queryString.trim().length > 0) {
       const normalizedQuery = queryString.trim().toLowerCase();
       const exactMatch = results.some((doc) => doc.title.toLowerCase() === normalizedQuery);
@@ -169,10 +172,10 @@ function useWikilinkSearch(
 
 export interface WikilinksPluginProps {
   initiativeId: number | null;
-  /** The thing being written in, as a reference (`document:12`). Never
+  /** The thing being written in, as a reference (`file:12`). Never
    *  offered, and never made: a thing does not point at itself. */
   subject?: string | null;
-  onNavigate?: (documentId: number) => void;
+  onNavigate?: (fileId: number) => void;
   /** Asked to make what `[[ ]]` could not find. The caller opens the dialog
    *  that knows which tools this initiative has; it answers with the reference
    *  to drop in. */
@@ -252,7 +255,7 @@ export function WikilinksPlugin({
 
         $place(
           selectedOption.entityType,
-          selectedOption.documentId ?? 0,
+          selectedOption.fileId ?? 0,
           selectedOption.title,
           nodeToReplace
         );

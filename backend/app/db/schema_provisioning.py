@@ -29,13 +29,14 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import bootstrap
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db import session as db_session
-from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,9 @@ class GuildRoleKind(StrEnum):
     #: that asked for the seat and holds it; an ordinary request by a seat
     #: holder routes as the full role.
     seat = "_superadmin"
-    #: An installed app's request: only what ``app.db.app_rls.APP_TABLE_ACCESS``
-    #: names, no default privileges, and ``app_install_base`` for ``public``.
-    app = "_app"
+    #: An installed plug-in's request: only what ``app.db.plugin_rls.PLUGIN_TABLE_ACCESS``
+    #: names, no default privileges, and ``plugin_install_base`` for ``public``.
+    plugin = "_plugin"
 
 
 def guild_role_name(guild_id: int, kind: GuildRoleKind = GuildRoleKind.full) -> str:
@@ -103,7 +104,7 @@ def guild_role_regex() -> str:
 
 
 # Permission tables the restricted ``support`` role may READ but never WRITE:
-# what a resource is shared with, and what an installed app may do in
+# what a resource is shared with, and what an installed plug-in may do in
 # somebody's name — access management, which a content grant is not for.
 # Coarse by design (table/verb, not row-level). The initiative's own
 # structure (its roster, roles and their permissions) is not here: the
@@ -112,15 +113,15 @@ def guild_role_regex() -> str:
 # lockstep with the guild schema by ``schema_provisioning_test``.
 SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     "resource_grants",
-    # A member's own credential for an installed app. Deciding who reaches an
+    # A member's own credential for an installed plug-in. Deciding who reaches an
     # outside system through this guild is access management, not the
     # edit-existing-content a scoped read_write grant is for.
-    "guild_app_user_connections",
-    # A member's answer to an app asking to act as them. Access management for
+    "guild_plugin_user_connections",
+    # A member's answer to a plug-in asking to act as them. Access management for
     # the same reason, and pointedly so: the row holds what one person decided
     # about their own name, which is not a support grantee's to write in either
     # direction.
-    "app_member_consents",
+    "plugin_member_consents",
 )
 
 # Direct grants for the guild-scoped system operations that must not go through
@@ -160,8 +161,8 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
         # subscription's owner, where RLS decides it.
         "SELECT (id, txn_id)",
     ),
-    # The same scan over the events apps emit.
-    "app_event_outbox": ("SELECT (id, txn_id)",),
+    # The same scan over the events plug-ins emit.
+    "plugin_event_outbox": ("SELECT (id, txn_id)",),
     # The other half of that scan: what the ledger already records as settled
     # or leased for a subscription, so only the remainder is named.
     "webhook_deliveries": (
@@ -193,40 +194,6 @@ def system_maintenance_grants() -> dict[str, tuple[str, ...]]:
 SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
     "event_outbox_id_seq": ("USAGE",),
 }
-
-
-#: The platform role a suspended account assumes whatever its tier: it holds no
-#: rung while in time out. ``platform_suspended`` inherits only
-#: ``platform_base_ro``, the read half of ``platform_base``, so what it reaches
-#: is its own rows, read, and nothing written. Not a rung — ``users.role`` never
-#: holds it — so it sits beside the ladder rather than on it.
-PLATFORM_SUSPENDED = "suspended"
-
-#: Every platform role a request may assume: one ``platform_<tier>`` per rung
-#: of the ladder (``users.role``), and the time-out role.
-PLATFORM_ROUTES: tuple[str, ...] = (
-    *(role.value for role in UserRole),
-    PLATFORM_SUSPENDED,
-)
-
-
-def platform_role_name(role: str) -> str:
-    """Cluster-global Postgres role for a platform tier, e.g. ``platform_operator``.
-
-    Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
-    the suite) so these cluster-global roles don't collide with a co-located dev
-    DB's. ``role`` is a ``users.role`` value or :data:`PLATFORM_SUSPENDED`, and is
-    validated by the caller against :data:`PLATFORM_ROUTES` before the role is
-    assumed.
-    """
-    return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
-
-
-def billing_role_name() -> str:
-    """Cluster-global Postgres role the billing-service endpoints assume
-    (created by migration 0134). Shares ``settings.PLATFORM_ROLE_PREFIX``
-    because it is cluster-global like the platform ladder."""
-    return f"{settings.PLATFORM_ROLE_PREFIX}initiative_billing"
 
 
 #: What provisioning applies to a guild schema, in the order it applies them.
@@ -492,15 +459,15 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     return len(policies) + len(triggers) + functions
 
 
-#: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
+#: What ``guild_<id>_plugin`` reads outside ``PLUGIN_TABLE_ACCESS``: table -> the
 #: columns, or ``()`` for the whole row. The install standing statement reads
 #: the install, the scopes its pinned version requests and where it is
 #: placed, and for a member token the member's
 #: consent and what their initiative roles permit; the sharing gate reads the
 #: grant rows; a notification about what the install did names it. No route
-#: addresses any of them for an app.
-APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
-    "guild_apps": (
+#: addresses any of them for a plug-in.
+PLUGIN_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
+    "guild_plugins": (
         "id",
         "listing_uid",
         "enabled",
@@ -508,8 +475,8 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
         "definition",
         "name",
     ),
-    "app_placements": ("install_id", "initiative_id"),
-    "app_member_consents": (
+    "plugin_placements": ("install_id", "initiative_id"),
+    "plugin_member_consents": (
         "install_id",
         "user_id",
         "purpose",
@@ -521,54 +488,54 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
     "resource_grants": (),
 }
 
-#: What ``guild_<id>_app`` writes outside ``APP_TABLE_ACCESS``: table -> the
+#: What ``guild_<id>_plugin`` writes outside ``PLUGIN_TABLE_ACCESS``: table -> the
 #: verbs. The owner grant on a resource an install creates names the install,
 #: and an install with ``sharing:write`` rewrites a resource's shares; the row
 #: policies on ``resource_grants`` admit those rows and no other.
-APP_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
+PLUGIN_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
     "resource_grants": ("INSERT", "DELETE"),
 }
 
 
-def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
-    """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
+def _plugin_role_grant_statements(schema: str, plugin_role: str) -> list[str]:
+    """The plug-in role's grants, rendered from ``PLUGIN_TABLE_ACCESS`` in table order.
 
-    A scoped table an app writes, a side-effect table and the subscriptions
+    A scoped table a plug-in writes, a side-effect table and the subscriptions
     table take DML (the row policies decide which rows); a scoped read-only
     table takes ``SELECT``. Every other table in the schema takes nothing.
     The role's table grants are cleared first, so a re-provision leaves it
     holding what the registry says now.
     """
-    from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
+    from app.db.plugin_rls import PLUGIN_TABLE_ACCESS, PluginTableKind
 
     stmts = [
-        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{app_role}"',
-        f'GRANT USAGE ON SCHEMA "{schema}" TO "{app_role}"',
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{plugin_role}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{plugin_role}"',
     ]
-    for table in sorted(APP_TABLE_ACCESS):
-        access = APP_TABLE_ACCESS[table]
-        if access.writable or access.kind is AppTableKind.side_effect:
+    for table in sorted(PLUGIN_TABLE_ACCESS):
+        access = PLUGIN_TABLE_ACCESS[table]
+        if access.writable or access.kind is PluginTableKind.side_effect:
             verbs = "SELECT, INSERT, UPDATE, DELETE"
         else:
             verbs = "SELECT"
-        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{app_role}"')
+        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{plugin_role}"')
     # Read by the install standing statement and the gates, never addressed
-    # by an app: the install's own row and its placements, column by column,
+    # by a plug-in: the install's own row and its placements, column by column,
     # and the sharing rows ``resource_access`` reads under the invoker's role.
-    for table, columns in sorted(APP_ROLE_MACHINERY_READS.items()):
+    for table, columns in sorted(PLUGIN_ROLE_MACHINERY_READS.items()):
         target = f" ({', '.join(columns)})" if columns else ""
         stmts.append(
-            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{plugin_role}"'
         )
-    for table, verbs in sorted(APP_ROLE_MACHINERY_WRITES.items()):
+    for table, verbs in sorted(PLUGIN_ROLE_MACHINERY_WRITES.items()):
         stmts.append(
-            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{plugin_role}"'
         )
     stmts += [
         # Ids of the rows it writes come from the schema's sequences.
-        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{app_role}"',
-        f'GRANT app_install_base TO "{app_role}"',
-        f'GRANT "{app_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{plugin_role}"',
+        f'GRANT plugin_install_base TO "{plugin_role}"',
+        f'GRANT "{plugin_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
     return stmts
@@ -590,17 +557,17 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     The support role (scoped read_write grants) gets DML on content but is
     revoked write on the structural/permission tables — the DB-enforced
     "no member/permission management" line. The query role holds no shared
-    floor: its schema and the routed community's members. The app role (an
-    installed app's requests) holds only what ``_app_role_grant_statements``
+    floor: its schema and the routed community's members. The plug-in role (an
+    installed plug-in's requests) holds only what ``_plugin_role_grant_statements``
     renders.
     """
-    role, ro_role, support_role, query_role, seat_role, app_role = _guild_roles(
+    role, ro_role, support_role, query_role, seat_role, plugin_role = _guild_roles(
         guild_id
     )
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
-        # Its grants are cleared first, like the app role's, so a re-provision
+        # Its grants are cleared first, like the plug-in role's, so a re-provision
         # leaves it holding what the registry says now rather than what an
         # earlier release granted too.
         f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{SYSTEM_LOGIN_ROLE}"',
@@ -684,9 +651,9 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
             f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '
             f'FROM "{support_role}"'
         )
-    # App role: table by table from the app registry, with no default
+    # Plug-in role: table by table from the plug-in registry, with no default
     # privileges and no guild role composed in.
-    stmts.extend(_app_role_grant_statements(schema, app_role))
+    stmts.extend(_plugin_role_grant_statements(schema, plugin_role))
     return stmts
 
 
@@ -715,27 +682,8 @@ async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[
     return set(rows.scalars())
 
 
-#: Namespace for the per-guild provisioning lock, so the key cannot collide
-#: with another feature's advisory lock on the same guild id. Key 0, which no
-#: guild has, orders the shared trigger functions.
-_PROVISION_LOCK_NAMESPACE = 0x50524F56  # "PROV"
-
 #: How many guilds one process back-fills at once.
 _BACKFILL_CONCURRENCY = 4
-
-
-async def _lock_guild(conn: AsyncConnection, guild_id: int, *, wait: bool) -> bool:
-    """Take the guild's provisioning lock, held to the end of the transaction.
-
-    With ``wait=False``, returns False at once when another process holds it.
-    """
-    params = {"ns": _PROVISION_LOCK_NAMESPACE, "gid": guild_id}
-    if wait:
-        await conn.execute(text("SELECT pg_advisory_xact_lock(:ns, :gid)"), params)
-        return True
-    return bool(
-        await conn.scalar(text("SELECT pg_try_advisory_xact_lock(:ns, :gid)"), params)
-    )
 
 
 async def _apply_parts(
@@ -777,13 +725,14 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
 
     Needs a privileged connection (CREATEROLE + CREATE on the database).
     """
-    await _lock_guild(conn, guild_id, wait=True)
+    await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
     await _apply_parts(conn, guild_id, PARTS)
     return guild_schema_name(guild_id)
 
 
 async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
-    """Drop ``guild_<id>`` (schema + role). Safe if either is already absent."""
+    """Drop ``guild_<id>`` (schema + role) under the guild's provisioning lock.
+    Safe if either is already absent."""
     schema = guild_schema_name(guild_id)
 
     # DROP SCHEMA needs an exclusive lock on the schema's tables (and on
@@ -791,9 +740,16 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     # fast rather than hang: the guild-purge pass reclaims any schema whose row
     # is gone, and this drop is idempotent so that retry recovers cleanly.
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
+    # One drop or provisioning run per guild at a time; a drop that waited
+    # finds the schema and roles already gone.
+    await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login, _ = settings.database_login("DATABASE_URL")
-    roles = _guild_roles(guild_id)
+    from app.db.filer_access import filer_role_name
+
+    # The filer role is created only in the operations community, but goes
+    # with whichever community holds it.
+    roles = (*_guild_roles(guild_id), filer_role_name(guild_id))
     existing = await _existing_roles(conn, roles)
     for role in roles:
         if role in existing:
@@ -856,7 +812,9 @@ async def _backfill_guild(guild_id: int, *, wait: bool) -> bool | None:
     """
     bundle = await get_provisioning_bundle()
     async with db_session.provisioning_engine.begin() as conn:
-        if not await _lock_guild(conn, guild_id, wait=wait):
+        if not await advisory_lock(
+            conn, LockNamespace.GUILD_PROVISION, guild_id, wait=wait
+        ):
             return None
         # Read again under the lock: another process may have just done it.
         stamp = await conn.scalar(
@@ -903,7 +861,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
         logger.exception("guild_template clean-up failed")
 
     async with db_session.provisioning_engine.begin() as conn:
-        await _lock_guild(conn, 0, wait=True)
+        await advisory_lock(conn, LockNamespace.GUILD_PROVISION, 0)
         await apply_guild_trigger_functions(conn)
 
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
@@ -1221,178 +1179,127 @@ async def ensure_system_engine_bypassrls() -> None:
         raise SystemExit(_bypassrls_exit_message(admin_login))
 
 
-# --- shared-table grant healing (issue #835, deeper than the BYPASSRLS check) -
+# --- shared-table grant healing (issue #835) ----------------------------------
 #
-# BYPASSRLS (above) lets the system engine skip RLS *policies*; it does NOT skip
-# table-level privilege checks. A restored/recreated cluster can bring app_admin
-# back with LOGIN + BYPASSRLS but WITHOUT the per-table GRANTs the migrations
-# applied — roles are cluster state, and an already-stamped database never
-# re-runs the grant-issuing migrations. The system engine then fails one gate
-# deeper than #835's first report: "permission denied for table guilds" while
-# seeding the primary guild it can read (BYPASSRLS) but not INSERT (no grant).
-# `backfill_guild_schemas` re-asserts GUILD-schema grants on every boot; nothing
-# did the same for the shared `public` tables. This does, sourced from the
-# audited `system_grants` registry (the single truth for those grants),
-# additively and idempotently.
-#
-# The bare login role (`app_user`, the pre-routing surface) is healed the same
-# way from its own registry — a restore loses its grants too.
+# Roles are cluster state, and an already-stamped database never re-runs the
+# migrations that issued its grants, so a restored or recreated cluster can
+# bring the logins back without their per-table grants. `backfill_guild_schemas`
+# re-asserts guild-schema grants on every boot; this does the same for the
+# shared `public` tables, from the `system_grants` registry, additively and
+# idempotently, for the logins the deployment's URLs connect as.
 
-# A directly-connecting role that may INSERT needs privilege on the row-id
-# sequence as well; match what the baseline grants each role.
-_SEQUENCE_GRANT_BY_ROLE: dict[str, str] = {
-    "app_admin": "ALL",
-    "app_user": "SELECT, USAGE",
-}
+#: Every column-owned sequence of the named ``public`` tables, serial or
+#: identity, qualified and quoted.
+_ROW_ID_SEQUENCES = text(
+    "SELECT seq FROM ("
+    "  SELECT pg_get_serial_sequence(format('public.%I', c.relname), a.attname)"
+    "    AS seq"
+    "  FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid"
+    "  WHERE c.relnamespace = 'public'::regnamespace"
+    "    AND c.relname = ANY(CAST(:tables AS text[]))"
+    "    AND a.attnum > 0 AND NOT a.attisdropped"
+    ") s WHERE seq IS NOT NULL ORDER BY seq"
+)
 
 
-def _expected_shared_table_grants() -> list[tuple[str, str, frozenset[str]]]:
-    """`(role, table, verbs)` the two directly-connecting roles must hold on the
-    shared `public` tables, from the audited registries. Tables mapped to
-    ``None`` (no access) are omitted."""
+async def _reassert_shared_grants(conn: AsyncConnection, role: str) -> int:
+    """Re-GRANT the registry's table verbs to ``role``'s login, and for the
+    tables it inserts into, their row-id sequences. Additive and idempotent —
+    never REVOKEs, so it only restores what is missing. Returns the number of
+    tables granted."""
+    from app.db import system_grants
+    from app.db.public_rls import existing_public_tables
+
+    matrix = system_grants.ROLE_GRANTS[role]
+    existing = await existing_public_tables(conn)
+    tables = sorted(t for t, verbs in matrix.items() if verbs and t in existing)
+    sequences = (
+        await conn.execute(
+            _ROW_ID_SEQUENCES,
+            {"tables": [t for t in tables if "INSERT" in (matrix[t] or ())]},
+        )
+    ).scalars()
+    for statement in system_grants.grant_statements(
+        role, tables, sequences=sequences.all()
+    ):
+        await conn.execute(text(statement))
+    return len(tables)
+
+
+def _missing_grants_exit_message(role: str, missing: list[tuple[str, str]]) -> str:
     from app.db import system_grants
 
-    expected: list[tuple[str, str, frozenset[str]]] = []
-    for role in ("app_admin", "app_user"):
-        for table, verbs in system_grants.ROLE_GRANTS[role].items():
-            if verbs:
-                expected.append((role, table, verbs))
-    return expected
-
-
-async def _shared_grants_intact(
-    conn: AsyncConnection, expected: list[tuple[str, str, frozenset[str]]]
-) -> bool:
-    """True when every expected `(role, table, verb)` privilege is already held.
-
-    A single round-trip via ``has_table_privilege`` (authoritative — it respects
-    role membership and the live ACL, and any login may query another role's
-    privilege). Probes table grants only: a role recreation loses a role's table
-    AND sequence grants together, so a missing table grant reliably signals the
-    restore damage this heals; the heal then re-asserts both.
-    """
-    # Registry table names are trusted constants (not user input); inline them.
-    values = ", ".join(
-        f"('{role}', 'public.{table}', '{verb}')"
-        for role, table, verbs in expected
-        for verb in verbs
+    login = system_grants.grantee(role)
+    tables = sorted({table for table, _verb in missing})
+    grant_lines = "\n".join(
+        f"  {statement};" for statement in system_grants.grant_statements(role, tables)
     )
-    # A registry table may not exist yet: lazily-created tables (see
-    # NON_MODEL_SHARED_TABLES in app.db.system_grants) appear only after their
-    # service first runs. ``to_regclass`` skips those instead of faulting the
-    # whole probe; once the table exists, its grants are checked like any other.
-    intact = (
-        await conn.execute(
-            text(
-                "SELECT bool_and("
-                "  to_regclass(tbl) IS NULL OR has_table_privilege(role, tbl, priv)"
-                ") "
-                f"FROM (VALUES {values}) AS t(role, tbl, priv)"
-            )
-        )
-    ).scalar()
-    return bool(intact)
-
-
-async def _reassert_shared_grants(
-    conn: AsyncConnection, expected: list[tuple[str, str, frozenset[str]]]
-) -> int:
-    """Re-GRANT the audited table verbs (and, for insertable tables, the owned
-    row-id sequence) to each role. Additive and idempotent — never REVOKEs, so
-    it can only restore missing grants, never contradict a migration that
-    intentionally reduced them. Returns the number of table grants asserted."""
-    from app.db import system_grants
-
-    for role, table, verbs in expected:
-        verb_list = system_grants.grant_sql(verbs)
-        if not verb_list:
-            # Unreachable: _expected_shared_table_grants already drops None/empty
-            # entries. The guard makes that invariant explicit and narrows
-            # grant_sql's `str | None` to `str` (no `GRANT None …` can render).
-            continue
-        exists = (
-            await conn.execute(
-                text("SELECT to_regclass(:tbl) IS NOT NULL"),
-                {"tbl": f"public.{table}"},
-            )
-        ).scalar()
-        if not exists:
-            # Lazily-created table not present yet — its creator applies the
-            # registry grants when it first materializes.
-            continue
-        await conn.execute(
-            text(f'GRANT {verb_list} ON TABLE public."{table}" TO "{role}"')
-        )
-        if "INSERT" not in verbs:
-            continue
-        # INSERT needs privilege on the row-id sequence too. Discover sequences
-        # OWNED BY the table (robust to a serial column not named `id`) instead
-        # of assuming a name.
-        seqs = (
-            await conn.execute(
-                text(
-                    "SELECT quote_ident(n.nspname) || '.' || quote_ident(s.relname) "
-                    "FROM pg_class s "
-                    "JOIN pg_depend d ON d.objid = s.oid "
-                    "  AND d.classid = 'pg_class'::regclass "
-                    "  AND d.refclassid = 'pg_class'::regclass AND d.deptype = 'a' "
-                    "JOIN pg_class t ON t.oid = d.refobjid "
-                    "JOIN pg_namespace n ON n.oid = s.relnamespace "
-                    "WHERE s.relkind = 'S' AND n.nspname = 'public' "
-                    "  AND t.relname = :table"
-                ),
-                {"table": table},
-            )
-        ).scalars()
-        seq_grant = _SEQUENCE_GRANT_BY_ROLE[role]
-        for seq in seqs:
-            await conn.execute(text(f'GRANT {seq_grant} ON SEQUENCE {seq} TO "{role}"'))
-    return len(expected)
+    return (
+        f"\n{'=' * 70}\n"
+        f"{system_grants.LOGIN_SETTINGS[role]} connects as {login!r}, which is\n"
+        "missing privileges the app requires on the shared tables, and the\n"
+        "provisioning login could not grant them (roles are cluster state; a\n"
+        "restore does not bring their grants back). Grant them as the tables'\n"
+        "owner:\n\n"
+        f"{grant_lines}\n\n"
+        "(a table granted INSERT also needs GRANT USAGE on its id sequence)\n"
+        "then restart the app.\n"
+        f"{'=' * 70}"
+    )
 
 
 async def ensure_shared_table_grants() -> None:
     """Heal missing table/sequence GRANTs on the shared ``public`` tables for the
-    app's directly-connecting roles (``app_admin`` system engine, ``app_user``
-    bare login).
+    logins the app connects as directly (the system engine and the bare request
+    login), and stop boot with the exact repair when they cannot be healed.
 
     Companion to :func:`ensure_system_engine_bypassrls`: that checks the RLS
     *attribute*, this repairs the table *grants* one gate deeper. Both answer the
     same class of drift — a ``pg_dump``-based restore or a hand-recreated role
     loses cluster state that an already-stamped database never re-applies
     (issue #835). Runs right after the BYPASSRLS check on every boot; a healthy
-    posture is a single-SELECT no-op.
+    posture is one probe per login.
     """
-    expected = _expected_shared_table_grants()
-    if not expected:
-        return
+    from app.db import system_grants
+
+    logins = tuple(system_grants.LOGIN_SETTINGS)
     async with db_session.provisioning_engine.connect() as conn:
-        if await _shared_grants_intact(conn, expected):
-            return
-    # Something is missing — re-assert the full audited set via the object owner
-    # (the provisioning engine, which the grant-issuing migrations also use).
-    async with db_session.provisioning_engine.begin() as conn:
-        asserted = await _reassert_shared_grants(conn, expected)
+        lacking = [
+            role for role in logins if await system_grants.missing_grants(conn, role)
+        ]
+    if not lacking:
+        return
+    # The object owner (the provisioning login, which the grant-issuing
+    # migrations also use) re-asserts the full audited set for each login.
+    granted = 0
+    try:
+        async with db_session.provisioning_engine.begin() as conn:
+            for role in lacking:
+                granted += await _reassert_shared_grants(conn, role)
+    except DBAPIError as exc:
+        logger.warning("Shared-table grants could not be re-asserted: %s", exc)
+    async with db_session.provisioning_engine.connect() as conn:
+        for role in lacking:
+            missing = await system_grants.missing_grants(conn, role)
+            if missing:
+                raise SystemExit(_missing_grants_exit_message(role, missing))
     logger.warning(
         "Shared-table grants were incomplete for the app's directly-connecting "
-        "roles (app_admin/app_user) — re-asserted %d audited table grant(s) "
-        "(plus the row-id sequences of insertable tables) from the system_grants "
+        "logins (%s) — re-asserted the audited grants on %d table(s) (plus the "
+        "row-id sequences of insertable tables) from the system_grants "
         "registry. Restored databases lose role grants (issue #835); no action "
         "needed.",
-        asserted,
+        ", ".join(system_grants.grantee(role) for role in lacking),
+        granted,
     )
 
 
-# --- engine identity + effective-privilege verification ----------------------
+# --- engine identity ----------------------------------------------------------
 #
-# The BYPASSRLS check keys on whatever login DATABASE_URL_ADMIN connects as,
-# while the grant heal above targets
-# the literal app_admin / app_user names. A deployment whose URLs connect as
-# other logins (hand-created roles, swapped APP/ADMIN strings, one login doing
-# double duty) slips between the two and fails later with an opaque permission
-# error deep in seeding or a request. These boot checks pin the wiring itself:
-# name the three logins in the log, stop on wiring the role model cannot
-# support, and verify the CONNECTED logins hold the audited privileges — with
-# the exact repair in the error when they don't.
+# A deployment's URLs may connect as logins other than the canonical ones
+# (hand-created roles, swapped APP/ADMIN strings, one login doing double duty).
+# This boot check names the three logins in the log and warns on wiring that
+# collapses the role separation.
 
 
 async def verify_engine_identities() -> None:
@@ -1493,97 +1400,3 @@ async def verify_engine_identities() -> None:
             app_db,
             bar,
         )
-
-
-def _effective_grants_exit_message(
-    login: str, env_var: str, canonical_role: str, missing: list[tuple[str, str]]
-) -> str:
-    from app.db import system_grants
-
-    by_table: dict[str, set[str]] = {}
-    for table, verb in missing:
-        by_table.setdefault(table, set()).add(verb)
-    grant_lines = "\n".join(
-        f"  GRANT {system_grants.grant_sql(frozenset(verbs))} "
-        f'ON TABLE {table} TO "{login}";'
-        for table, verbs in sorted(by_table.items())
-    )
-    return (
-        f"\n{'=' * 70}\n"
-        f"{env_var} connects as {login!r}, which is missing privileges this\n"
-        "surface requires on the shared tables. The audited grants target the\n"
-        f"canonical {canonical_role!r} role; this deployment's login either\n"
-        "isn't that role or lost its grants (roles are cluster state — a\n"
-        "restore does not bring them back).\n\n"
-        f"Either point {env_var} at {canonical_role!r} (recommended), or grant\n"
-        "the missing privileges as the object owner:\n\n"
-        f"{grant_lines}\n\n"
-        "(a table granted INSERT also needs GRANT USAGE on its id sequence)\n"
-        "then restart the app.\n"
-        f"{'=' * 70}"
-    )
-
-
-async def _effective_missing_grants(
-    conn: AsyncConnection, matrix: dict[str, frozenset[str] | None]
-) -> list[tuple[str, str]]:
-    """``(table, verb)`` pairs from the audited matrix that the connection's
-    LOGIN (``session_user``) does not effectively hold. One round trip."""
-    values = ", ".join(
-        f"('public.{table}', '{verb}')"
-        for table, verbs in matrix.items()
-        if verbs
-        for verb in verbs
-    )
-    if not values:
-        return []
-    rows = (
-        await conn.execute(
-            text(
-                "SELECT t.tbl, t.priv "
-                f"FROM (VALUES {values}) AS t(tbl, priv) "
-                # Lazily-created registry tables (NON_MODEL_SHARED_TABLES) may
-                # not exist yet; there is no grant to verify until they do.
-                "WHERE to_regclass(t.tbl) IS NOT NULL "
-                "  AND NOT has_table_privilege(session_user, t.tbl, t.priv)"
-            )
-        )
-    ).all()
-    return [(table, verb) for table, verb in rows]
-
-
-async def verify_effective_shared_grants() -> None:
-    """Verify the CONNECTED app_user/app_admin logins effectively hold their audited
-    shared-table privileges, stopping boot with the exact repair when not.
-
-    Companion to :func:`ensure_shared_table_grants`, which heals the canonical
-    ``app_admin`` / ``app_user`` roles by name: this check runs afterwards and
-    probes ``session_user`` on each engine, so a deployment whose URLs connect
-    as other logins stops here with actionable GRANT statements instead of
-    failing later inside seeding (or a request) with a bare
-    "permission denied for table ..." error. A canonical deployment passes in
-    one SELECT per engine.
-    """
-    from app.db import system_grants
-
-    for engine_, env_var, canonical_role, matrix in (
-        (
-            db_session.system_engine,
-            "DATABASE_URL_ADMIN",
-            "app_admin",
-            system_grants.ROLE_GRANTS["app_admin"],
-        ),
-        (
-            db_session.engine,
-            "DATABASE_URL_APP",
-            "app_user",
-            system_grants.ROLE_GRANTS["app_user"],
-        ),
-    ):
-        async with engine_.connect() as conn:
-            login = (await conn.execute(text("SELECT session_user"))).scalar()
-            missing = await _effective_missing_grants(conn, matrix)
-        if missing:
-            raise SystemExit(
-                _effective_grants_exit_message(login, env_var, canonical_role, missing)
-            )

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   type FilterCondition,
   type FilterGroup,
-  type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  type ListMyCalendarEntriesParams,
   type TaskPriority,
   type TaskStatusCategory,
   Tool,
@@ -19,6 +19,8 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  type EventEntryMeta,
+  type TaskEntryMeta,
   useCalendarVisibility,
 } from "@/components/calendar";
 import {
@@ -29,17 +31,19 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CalendarGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useMyCalendars } from "@/hooks/useCalendars";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { guildPath, useGuildPath } from "@/lib/guildUrl";
+import { communityPath, useCommunityPath } from "@/lib/communityUrl";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
-import { PRIORITY_ORDER } from "@/lib/sorting";
+import { browserTimezone } from "@/lib/timezones";
 import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
@@ -49,7 +53,7 @@ type StoredPrefs = {
   calendarViewMode: CalendarViewMode;
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
-  guildFilters: number[];
+  communityFilters: number[];
 };
 
 const PREFS_DEFAULTS: StoredPrefs = {
@@ -57,7 +61,7 @@ const PREFS_DEFAULTS: StoredPrefs = {
   // Match the historical My Tasks default: hide done tasks unless the user opts in.
   statusFilters: ["backlog", "todo", "in_progress"],
   priorityFilters: [],
-  guildFilters: [],
+  communityFilters: [],
 };
 
 const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
@@ -72,15 +76,17 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     priorityFilters: Array.isArray(v.priorityFilters)
       ? v.priorityFilters
       : PREFS_DEFAULTS.priorityFilters,
-    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
+    communityFilters: Array.isArray(v.communityFilters)
+      ? v.communityFilters
+      : PREFS_DEFAULTS.communityFilters,
   };
 };
 
 export const MyCalendarPage = () => {
   const { t } = useTranslation(["tasks", "calendars", "common"]);
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const { user } = useAuth();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -97,7 +103,7 @@ export const MyCalendarPage = () => {
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), calendarViewMode: next })),
     [setStoredPrefs]
   );
-  const { statusFilters, priorityFilters, guildFilters } = storedPrefs;
+  const { statusFilters, priorityFilters, communityFilters } = storedPrefs;
   const setStatusFilters = useCallback(
     (next: TaskStatusCategory[]) =>
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), statusFilters: next })),
@@ -108,9 +114,9 @@ export const MyCalendarPage = () => {
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), priorityFilters: next })),
     [setStoredPrefs]
   );
-  const setGuildFilters = useCallback(
+  const setCommunityFilters = useCallback(
     (next: number[]) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), guildFilters: next })),
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), communityFilters: next })),
     [setStoredPrefs]
   );
   // Closed until asked for. The filter button carries a count of what's set, so
@@ -119,22 +125,25 @@ export const MyCalendarPage = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusDate, setFocusDate] = useState(() => new Date());
 
-  // Per-calendar / per-project visibility, across every guild.
+  // Per-calendar / per-project visibility, across every community.
   const visibility = useCalendarVisibility(VISIBILITY_KEY);
 
   // Badges the filter button while the panel is closed. Hidden calendars count:
   // the reader has narrowed the grid, and nothing else on screen says so.
   const activeFilterCount =
-    visibility.hiddenCount + statusFilters.length + priorityFilters.length + guildFilters.length;
+    visibility.hiddenCount +
+    statusFilters.length +
+    priorityFilters.length +
+    communityFilters.length;
 
   const clearFilters = () => {
     visibility.clear();
     setStatusFilters([]);
     setPriorityFilters([]);
-    setGuildFilters([]);
+    setCommunityFilters([]);
   };
 
-  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const userTimezone = useMemo(browserTimezone, []);
 
   // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(
@@ -144,7 +153,7 @@ export const MyCalendarPage = () => {
 
   // Task filter conditions (same JSON shape GET /me/tasks accepts). The date
   // window travels as start_after/start_before on the request (see
-  // entriesParams) — the cross-guild task path can only be windowed by those
+  // entriesParams) — the cross-community task path can only be windowed by those
   // params, not by conditions — so it isn't repeated here.
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
@@ -154,15 +163,15 @@ export const MyCalendarPage = () => {
     if (priorityFilters.length > 0) {
       conditions.push({ field: "priority", op: "in_", value: priorityFilters });
     }
-    if (guildFilters.length > 0) {
-      conditions.push({ field: "guild_ids", op: "in_", value: guildFilters });
+    if (communityFilters.length > 0) {
+      conditions.push({ field: "community_ids", op: "in_", value: communityFilters });
     }
     return conditions;
-  }, [statusFilters, priorityFilters, guildFilters]);
+  }, [statusFilters, priorityFilters, communityFilters]);
 
-  // --- One request: cross-guild events + assigned-task markers over the window. ---
-  const entriesParams = useMemo((): ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams => {
-    const params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+  // --- One request: cross-community events + assigned-task markers over the window. ---
+  const entriesParams = useMemo((): ListMyCalendarEntriesParams => {
+    const params: ListMyCalendarEntriesParams = {
       start_after: visibleRange.start.toISOString(),
       start_before: visibleRange.end.toISOString(),
       conditions: taskConditions,
@@ -170,33 +179,33 @@ export const MyCalendarPage = () => {
       include_events: true,
       include_tasks: true,
     };
-    if (guildFilters.length > 0) {
-      params.guild_ids = guildFilters;
+    if (communityFilters.length > 0) {
+      params.community_ids = communityFilters;
     }
     return params;
-  }, [visibleRange, taskConditions, userTimezone, guildFilters]);
+  }, [visibleRange, taskConditions, userTimezone, communityFilters]);
 
   const entriesQuery = useMyCalendarEntries(entriesParams);
 
-  // The user's visible calendars across guilds — the grouping panel's rows and
+  // The user's visible calendars across communities — the grouping panel's rows and
   // the color source for events without their own color.
   const calendarsQuery = useMyCalendars(
-    guildFilters.length > 0 ? { guild_ids: guildFilters } : undefined
+    communityFilters.length > 0 ? { community_ids: communityFilters } : undefined
   );
   const calendars = useMemo(() => calendarsQuery.data?.items ?? [], [calendarsQuery.data]);
   const calendarColors = useMemo(() => {
     const map = new Map<string, string>();
     for (const calendar of calendars)
-      map.set(`${calendar.guild_id}:${calendar.id}`, calendar.color);
+      map.set(`${calendar.community_id}:${calendar.id}`, calendar.color);
     return map;
   }, [calendars]);
 
-  const guildNamesById = useMemo(() => {
+  const communityNamesById = useMemo(() => {
     const map = new Map<number, string>();
-    for (const guild of guilds) map.set(guild.id, guild.name);
+    for (const community of communities) map.set(community.id, community.name);
     return map;
-  }, [guilds]);
-  const multiGuild = guilds.length > 1;
+  }, [communities]);
+  const multiCommunity = communities.length > 1;
 
   const handleRefresh = useCallback(async () => {
     await invalidate(q.allTasks(), q.allCalendars());
@@ -208,20 +217,22 @@ export const MyCalendarPage = () => {
     const data = entriesQuery.data;
     for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null) continue;
-      const key = `${task.guild_id ?? 0}:${task.project_id}`;
+      const key = `${task.community_id ?? 0}:${task.project_id}`;
       if (seen.has(key)) continue;
-      const guildName =
-        multiGuild && task.guild_id != null ? guildNamesById.get(task.guild_id) : undefined;
+      const communityName =
+        multiCommunity && task.community_id != null
+          ? communityNamesById.get(task.community_id)
+          : undefined;
       const baseName = task.project_name ?? `#${task.project_id}`;
       seen.set(key, {
         projectId: task.project_id,
-        guildId: task.guild_id ?? 0,
-        name: guildName ? `${baseName} · ${guildName}` : baseName,
+        communityId: task.community_id ?? 0,
+        name: communityName ? `${baseName} · ${communityName}` : baseName,
         color: getProjectColor(task.project_id),
       });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [entriesQuery.data, guildNamesById, multiGuild]);
+  }, [entriesQuery.data, communityNamesById, multiCommunity]);
 
   // --- Merge tasks + events into calendar entries (visibility-filtered) ---
   const unread = useUnreadTree();
@@ -229,13 +240,16 @@ export const MyCalendarPage = () => {
     const entries: CalendarEntry[] = [];
 
     // Task entries. Reuse the shared builder so the start/due markers get the
-    // same visual treatment as the other calendars, injecting guildId into
-    // meta for cross-guild navigation. Not draggable here (My Calendar has no
+    // same visual treatment as the other calendars, injecting communityId into
+    // meta for cross-community navigation. Not draggable here (My Calendar has no
     // reschedule handler).
     const data = entriesQuery.data;
     const occurrences = new Set(data?.task_occurrences);
     for (const task of [...(data?.tasks ?? []), ...occurrences]) {
-      if (task.project_id != null && visibility.isProjectHidden(task.guild_id, task.project_id)) {
+      if (
+        task.project_id != null &&
+        visibility.isProjectHidden(task.community_id, task.project_id)
+      ) {
         continue;
       }
       const color = getProjectColor(task.project_id);
@@ -244,18 +258,18 @@ export const MyCalendarPage = () => {
         : buildTaskCalendarEntries(task, color, false)) {
         entries.push({
           ...entry,
-          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
+          meta: { ...(entry.meta as Record<string, unknown>), communityId: task.community_id },
         });
       }
     }
 
     for (const event of entriesQuery.data?.events ?? []) {
-      if (visibility.isCalendarHidden(event.guild_id, event.calendar_id)) continue;
+      if (visibility.isCalendarHidden(event.community_id, event.calendar_id)) continue;
       entries.push(
         buildEventCalendarEntry(
           event,
-          calendarColors.get(`${event.guild_id}:${event.calendar_id}`),
-          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+          calendarColors.get(`${event.community_id}:${event.calendar_id}`),
+          unread.hasSubject(event.community_id, "calendar_event", event.id)
         )
       );
     }
@@ -265,21 +279,17 @@ export const MyCalendarPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
-      | {
-          type: string;
-          taskId?: number;
-          eventId?: number;
-          guildId?: number;
-          occurrence?: string;
-        }
+      | (TaskEntryMeta & { communityId?: number })
+      | EventEntryMeta
       | undefined;
     if (!meta) return;
-    const scopedPath = (path: string) => (meta.guildId ? guildPath(meta.guildId, path) : gp(path));
-    // Cross-guild rows carry no initiative, so the resolver works out where
+    const scopedPath = (path: string) =>
+      meta.communityId ? communityPath(meta.communityId, path) : gp(path);
+    // Cross-community rows carry no initiative, so the resolver works out where
     // the entity lives on the way in.
-    if (meta.type === "task" && meta.taskId) {
+    if (meta.type === "task") {
       void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
-    } else if (meta.type === "event" && meta.eventId) {
+    } else if (meta.type === "event") {
       void navigate({
         to: scopedPath(entityRefRoute("calendar-event", meta.eventId)),
         search: meta.occurrence ? { occurrence: meta.occurrence } : {},
@@ -287,18 +297,7 @@ export const MyCalendarPage = () => {
     }
   };
 
-  // Status filter options
-  const statusOptions = useMemo(
-    () => [
-      { value: "backlog" as TaskStatusCategory, label: t("tasks:statusCategory.backlog") },
-      { value: "todo" as TaskStatusCategory, label: t("tasks:statusCategory.todo") },
-      { value: "in_progress" as TaskStatusCategory, label: t("tasks:statusCategory.in_progress") },
-      { value: "done" as TaskStatusCategory, label: t("tasks:statusCategory.done") },
-    ],
-    [t]
-  );
-
-  // Wait for the calendars metadata too (same gate as the guild page):
+  // Wait for the calendars metadata too (same gate as the community page):
   // entries rendered before it resolves would flash the generic event color
   // until each calendar's own color arrives.
   const isLoading =
@@ -307,11 +306,8 @@ export const MyCalendarPage = () => {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-4">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
-          <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
-        </div>
+      <div className="space-y-6">
+        <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
 
         <ToolListToolbar
           filters={{
@@ -324,90 +320,74 @@ export const MyCalendarPage = () => {
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
-          title={t("tasks:filters.heading")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
         >
           <div className="flex flex-wrap items-end gap-4">
-            {/* Calendar visibility — the user's calendars across guilds +
+            {/* Calendar visibility — the user's calendars across communities +
                   per-project task calendars behind one dropdown. */}
             <div className="flex items-end">
               <CalendarPanelDropdown
                 calendars={calendars}
                 projectCalendars={projectCalendars}
                 isCalendarHidden={(calendar) =>
-                  visibility.isCalendarHidden(calendar.guild_id, calendar.id)
+                  visibility.isCalendarHidden(calendar.community_id, calendar.id)
                 }
                 isProjectHidden={(project) =>
-                  visibility.isProjectHidden(project.guildId, project.projectId)
+                  visibility.isProjectHidden(project.communityId, project.projectId)
                 }
                 onToggleCalendar={(calendar) =>
-                  visibility.toggleCalendar(calendar.guild_id, calendar.id)
+                  visibility.toggleCalendar(calendar.community_id, calendar.id)
                 }
                 onToggleProject={(project) =>
-                  visibility.toggleProject(project.guildId, project.projectId)
+                  visibility.toggleProject(project.communityId, project.projectId)
                 }
                 calendarLabel={(calendar) => {
-                  const guildName = multiGuild ? guildNamesById.get(calendar.guild_id) : undefined;
-                  return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
+                  const communityName = multiCommunity
+                    ? communityNamesById.get(calendar.community_id)
+                    : undefined;
+                  return communityName ? `${calendar.name} · ${communityName}` : calendar.name;
                 }}
                 settingsPathFor={(calendar) =>
-                  guildPath(
-                    calendar.guild_id,
+                  communityPath(
+                    calendar.community_id,
                     toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
                   )
                 }
-                canCreate={false}
-                onCreate={() => {}}
               />
             </div>
+            <TaskStatusPriorityFilters
+              statusFilters={statusFilters}
+              onStatusChange={setStatusFilters}
+              priorityFilters={priorityFilters}
+              onPriorityChange={setPriorityFilters}
+            />
             <div className="w-full sm:w-48 lg:flex-1">
               <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByStatusCategory")}
+                {t("tasks:filters.filterByCommunity")}
               </Label>
               <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("tasks:filters.allStatusCategories")}
-                emptyMessage={t("tasks:filters.noStatusCategories")}
-              />
-            </div>
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((p) => ({
-                  value: p,
-                  label: t(`tasks:priority.${p}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("tasks:filters.allPriorities")}
-                emptyMessage={t("tasks:filters.noPriorities")}
-              />
-            </div>
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByGuild")}
-              </Label>
-              <MultiSelect
-                selectedValues={guildFilters.map(String)}
-                options={guilds.map((guild) => ({
-                  value: String(guild.id),
-                  label: guild.name,
+                selectedValues={communityFilters.map(String)}
+                options={communities.map((community) => ({
+                  value: String(community.id),
+                  label: community.name,
                 }))}
                 onChange={(values) => {
                   const numericValues = values.map(Number).filter(Number.isFinite);
-                  setGuildFilters(numericValues);
+                  setCommunityFilters(numericValues);
                 }}
-                placeholder={t("tasks:filters.allGuilds")}
-                emptyMessage={t("tasks:filters.noGuilds")}
+                placeholder={t("tasks:filters.allCommunities")}
+                emptyMessage={t("tasks:filters.noCommunities")}
               />
             </div>
           </div>
         </ToolFilterPanel>
+
+        {entriesQuery.isError ? (
+          <p className="text-destructive text-sm" role="alert">
+            {getErrorMessage(entriesQuery.error, "calendars:loadError")}
+          </p>
+        ) : null}
 
         {isLoading ? (
           <SkeletonRegion>

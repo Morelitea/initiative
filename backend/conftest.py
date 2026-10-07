@@ -31,12 +31,16 @@ from httpx import ASGITransport, AsyncClient
 from starlette.requests import HTTPConnection
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from starlette.testclient import TestClient
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.api import content_socket
 from app.core.rate_limit import limiter
-from app.db import cohorts
+from app.db import cohorts, post_commit
+from app.db.advisory_locks import LockNamespace
 from app.db.session import (
     clear_rls_context,
     get_system_session,
@@ -274,10 +278,9 @@ async def _set_db_statement_timeout() -> None:
 # ONE cluster-wide key space across the per-worker databases, so every worker
 # serializes on the same key. Each worker still migrates its OWN DB; only the
 # shared role operations are serialized.
-# Arbitrary and suite-specific, and deliberately not the app's own
-# (``session.MIGRATION_LOCK_KEY``): this one is taken on the ``postgres``
-# database, across workers, for DDL that is cluster-global.
-_MIGRATION_LOCK_KEY = 0x1417A7E5
+# ``LockNamespace.TEST_SUITE_MIGRATION``, apart from the app's own migration
+# lock: this one is taken on the ``postgres`` database, across workers, for DDL
+# that is cluster-global.
 
 
 def _alembic_config() -> Config:
@@ -305,7 +308,9 @@ async def _migrate_under_lock() -> None:
     connection — and thus the lock — alive."""
     lock_conn = await connect_su_postgres()
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _ensure_test_database()
         await asyncio.to_thread(_alembic_upgrade_head)
     finally:
@@ -324,7 +329,9 @@ async def _bootstrap_under_lock() -> None:
     """
     lock_conn = await connect_su_postgres()
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _ensure_test_database()
         await _bootstrap_test_database()
     finally:
@@ -513,15 +520,15 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_app_caches():
-    """Start and end every test with no cached app service registrations and
+    """Start and end every test with no cached plug-in service registrations and
     no cached install references.
 
     The request path reads both through in-process caches (see
-    ``registration_lookup`` and ``app_refs``). Test databases are rebuilt per
+    ``registration_lookup`` and ``plugin_refs``). Test databases are rebuilt per
     test while those caches are module state, so without this a row created in
     one test would still be answering reads in the next.
     """
-    from app.services.marketplace.app_refs import forget_cached_install_refs
+    from app.services.marketplace.plugin_refs import forget_cached_install_refs
     from app.services.marketplace.registration_lookup import invalidate_registrations
 
     invalidate_registrations()
@@ -872,8 +879,9 @@ async def _schema_test_harness(engine, _worker_engines, monkeypatch, request):
     )
     yield
     try:
-        # Community steps a commit started finish before the pools close.
-        await cohorts.settle_all()
+        # Work a commit started, and every task spawned beside it, finishes
+        # before the pools close.
+        await post_commit.settle_all()
     finally:
         for worker_engine in engines.app_engines():
             await worker_engine.dispose()
@@ -948,7 +956,7 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # auto-join initiatives, say) finishes before the tables it reads are
     # emptied or dropped below. After the rollback, so that work is not left
     # waiting on a lock the test's own transaction held.
-    await cohorts.settle_all()
+    await post_commit.settle_all()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
@@ -1187,6 +1195,43 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             await session.rollback()
 
 
+def _unpooled(bind: AsyncEngine) -> AsyncEngine:
+    return create_async_engine(bind.url, poolclass=NullPool)
+
+
+@pytest.fixture
+def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Starlette's ``TestClient``, which drives the app's sockets.
+
+    It serves the app on an event loop of its own. The pools the socket
+    endpoints draw from are swapped, for the test, for ones that open a
+    connection per checkout, so a connection opened on one loop is never handed
+    to the other. A quiet socket beats at once, so an admitted one says so
+    without the test waiting out the interval.
+    """
+    import app.db.session as db_session
+
+    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
+    for name in ("_request_makers", "_system_makers"):
+        makers = getattr(cohorts, name)
+        monkeypatch.setattr(
+            cohorts,
+            name,
+            cohorts._cohort_makers([_unpooled(m.kw["bind"]) for m in makers]),
+        )
+    monkeypatch.setattr(
+        db_session,
+        "AsyncSessionLocal",
+        async_sessionmaker(
+            bind=_unpooled(db_session.engine),
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
+    return TestClient(app)
+
+
 @pytest.fixture
 async def acting_user(session):
     """Mint an authenticated test identity at explicit platform/guild roles —
@@ -1196,14 +1241,14 @@ async def acting_user(session):
 
         a = await acting_user()                                  # platform owner
         a = await acting_user("support")                         # tier ceilings
-        a = await acting_user(guild_role=GuildRole.admin,
+        a = await acting_user(guild_role=CommunityRole.admin,
                               initiative=True, project=True)     # workspace
-        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+        b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                               initiative=a.initiative, initiative_role="member")
         await client.get(a.g("/projects/"), headers=a.headers)
 
     With the real-role ``client`` fixture the request runs AS the actor's
-    platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
+    platform tier (public path) or guild role (``/c/{community_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
     from app.testing.actor import make_actor
@@ -1241,7 +1286,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
     """
     from slowapi.wrappers import LimitGroup
 
-    from app.core.rate_limit import get_real_client_ip
+    from app.core.rate_limit import get_user_or_ip_key
 
     monkeypatch.setattr(limiter, "enabled", True)
     monkeypatch.setattr(
@@ -1250,7 +1295,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
         [
             LimitGroup(
                 limit_provider="1/minute",
-                key_function=get_real_client_ip,
+                key_function=get_user_or_ip_key,
                 scope=None,
                 per_method=False,
                 methods=None,

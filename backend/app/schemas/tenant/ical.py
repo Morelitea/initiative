@@ -1,5 +1,6 @@
 """Schemas for iCal import/export."""
 
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import Field
@@ -34,7 +35,21 @@ class ICalImportRequest(SanitizedBaseModel):
     tz: Optional[str] = Field(default=None, max_length=64)
 
 
+class ICalImportProblem(str, Enum):
+    """Why one event in the file was not imported."""
+
+    no_start = "no_start"
+    unreadable = "unreadable"
+    not_saved = "not_saved"
+
+
+class ICalImportError(SanitizedBaseModel):
+    problem: ICalImportProblem
+    #: The event's title as the file gives it, when it gives one.
+    title: Optional[str] = None
+
+
 class ICalImportResult(SanitizedBaseModel):
     events_created: int = 0
     events_failed: int = 0
-    errors: List[str] = Field(default_factory=list)
+    errors: List[ICalImportError] = Field(default_factory=list)

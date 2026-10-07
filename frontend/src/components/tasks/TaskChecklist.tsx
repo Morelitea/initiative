@@ -52,7 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useGenerateChecklist, useToggleChecklistItem, useUpdateTask } from "@/hooks/useTasks";
 import { newChecklistItemId } from "@/lib/checklist";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 /** A checklist as the server holds it, in one comparable string. */
 const fingerprint = (items: ChecklistItem[]) =>
@@ -264,7 +264,7 @@ export const TaskChecklist = ({ taskId, items: serverItems, canEdit }: TaskCheck
   );
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -350,9 +350,6 @@ export const TaskChecklist = ({ taskId, items: serverItems, canEdit }: TaskCheck
             {t("checklist.addButton")}
           </Button>
         </div>
-        {!canEdit ? (
-          <p className="text-muted-foreground text-xs">{t("checklist.readOnlyMessage")}</p>
-        ) : null}
       </CardContent>
 
       <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>

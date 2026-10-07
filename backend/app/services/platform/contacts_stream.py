@@ -8,7 +8,7 @@ endpoints, and those requests — own-row, or answered by
 ``public.dm_apparent_permission`` — are where anything is decided.
 
 Its own channel rather than an arm on the account one, because an ``account``
-frame means "re-read ``GET /users/me``", and a membership change would
+frame means "re-read ``GET /me``", and a membership change would
 otherwise drag a refetch of three contact lists behind it.
 
 **Being ignored sends nothing.** The account that was ignored is signalled
@@ -19,7 +19,7 @@ somebody the recipient ignores — only the requester is signalled, and each
 frame carries exactly the state its reader may know about.
 """
 
-from typing import Any, Iterable
+from typing import Any
 
 from app.services.platform import user_stream
 
@@ -36,17 +36,3 @@ def queue_contacts_signal(
     of the COMMIT hands the client the state it is replacing.
     """
     user_stream.queue_frame(session, user_id, user_stream.build_frame(RESOURCE, action))
-
-
-def queue_many(session: Any, user_ids: Iterable[int], action: str = "changed") -> None:
-    """Signal a set of accounts.
-
-    Deliberately not narrowed to this process's own sockets. That narrowing
-    would have to happen before ``publish``, which is also what puts a frame on
-    the cross-worker bus — so an account connected only to another worker would
-    never be published for at all, and its tab would sit on a list that had
-    moved. The callers here already pass a bounded set (the pairs a sweep
-    actually revoked, rather than a roster), so there is nothing left to save.
-    """
-    for user_id in user_ids:
-        queue_contacts_signal(session, user_id, action)

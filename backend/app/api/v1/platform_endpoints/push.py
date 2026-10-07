@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import UserSessionDep, CurrentUser, require_first_party_session
-from app.core.auth_context import device_token_id, session_credential
+from app.core import auth_context
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
     PushTokenUnregisterRequest,
@@ -27,13 +27,11 @@ async def register_push_token(
     This endpoint registers a new push token or updates an existing one.
     The token will be used to send push notifications to the user's device.
 
-    Which installation the token belongs to is read off the credential that
-    made the call, not the body: it is the same handle the device's message key
-    store records, and matching the two is what lets a message wake the phone
-    that can actually read it.
-
-    So is the session that made it: a device is sent to while the sign-in that
-    registered it stands, and the app registers again each time it starts.
+    Which installation the token belongs to is read off the session that made
+    the call, not the body: the device's message key store names the same
+    sign-in, and matching the two is what lets a message wake the phone that can
+    actually read it. A device is sent to while that sign-in stands, and the app
+    registers again each time it starts.
     Only a sign-in registers one: a device receives the account's notifications
     from every community, which is more than any key or app is lent.
 
@@ -46,13 +44,12 @@ async def register_push_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=NotificationMessages.PUSH_DISABLED,
         )
-    credential = session_credential()
+    credential = auth_context.current().session_credential
     await push_tokens.register_push_token(
         session=session,
         user_id=current_user.id,
         push_token=request.push_token,
         platform=request.platform,
-        device_token_id=device_token_id(),
         session_id=credential.session_id if credential else None,
     )
     return PushTokenResponse(status="registered")

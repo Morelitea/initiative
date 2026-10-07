@@ -92,11 +92,11 @@ describe("the two halves of the page", () => {
     await userEvent.click(await screen.findByRole("checkbox", { name: "Morel" }));
     expect(within(trophyRail()).getByText("Morel")).toBeInTheDocument();
 
-    // Saving the name above refetches the account. The look below it is
+    // Setting a status above refetches the account. The look below it is
     // untouched on the server, so the pick has to survive.
     rerender(
       <UserSettingsProfilePage
-        user={{ ...user, full_name: "Jordan Renamed" }}
+        user={{ ...user, custom_status: { emoji: null, text: "Back soon" } }}
         refreshUser={() => Promise.resolve()}
       />
     );

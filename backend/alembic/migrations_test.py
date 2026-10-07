@@ -38,6 +38,7 @@ from alembic.script import ScriptDirectory
 
 from app.core.config import settings
 from conftest import CHECKOUT_ID, connect_su_postgres
+from app.db.advisory_locks import LockNamespace
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
@@ -70,6 +71,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # no address, so the column cannot be rebuilt for every row. Roll
         # forward; restore from a backup instead.
         "20260915_0274",
+        # apps_are_plug_ins: the app tables, roles and stored values move to
+        # their plug-in names with nothing kept under the old ones. Roll
+        # forward; restore from a backup instead.
+        "20261005_0457",
     }
 )
 
@@ -92,11 +97,10 @@ MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 # checkout's roles with it.
 _MIGRATIONS_ROLE_PREFIX = f"migtest_{CHECKOUT_ID}_{_WORKER}_"
 
-# Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
-# pg_advisory_lock serializes ALL migration runs across xdist workers (and across
-# both files) so the shared cluster-global role DDL never races. Must stay equal
-# to conftest's _MIGRATION_LOCK_KEY. (Portable; replaces a POSIX file lock.)
-_MIGRATION_LOCK_KEY = 0x1417A7E5
+# The suite's migration lock (``LockNamespace.TEST_SUITE_MIGRATION``, as in
+# conftest) — a cluster-wide pg_advisory_lock serializes ALL migration runs
+# across xdist workers (and across both files) so the shared cluster-global role
+# DDL never races. (Portable; replaces a POSIX file lock.)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +158,9 @@ async def _run_alembic_async(action: str, revision: str) -> None:
     # worker thread (where it can spin its own loop). Same key as conftest.
     lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _administer_shared_roles()
         saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
         settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
@@ -183,7 +189,9 @@ async def _run_upgrade_chain_locked_async(revisions: list[str]) -> None:
     """
     lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
     try:
-        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await lock_conn.execute(
+            "SELECT pg_advisory_lock($1)", int(LockNamespace.TEST_SUITE_MIGRATION)
+        )
         await _administer_shared_roles()
         saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
         settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
@@ -443,7 +451,7 @@ class TestMigrationsAgainstDatabase:
         # set, not a sample: public holding one is the bug 20260811_0163 ended.
         for table in ("users", "guilds", "access_grants", "alembic_version"):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
-        for table in ("initiatives", "projects", "tasks", "documents"):
+        for table in ("initiatives", "projects", "tasks", "files"):
             assert _table_exists(table, schema="guild_template"), (
                 f"expected table {table!r} in guild_template after upgrade head"
             )

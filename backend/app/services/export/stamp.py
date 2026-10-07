@@ -15,7 +15,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.user_display import display_name
+from app.core.user_display import handle_of
 from app.models.platform.user import User
 from app.services.export.contract import RenderRequest
 
@@ -35,9 +35,7 @@ def stamp_export(request: RenderRequest, user: User) -> RenderRequest:
             "second": now.second,
         }
     }
-    # Some OAuth-provisioned accounts carry no name at all.
-    if by := display_name(user):
-        exported["by"] = by
+    exported["by"] = handle_of(user)
     batch = tuple(
         replace(item, data={**item.data, "exported": exported})
         if (item.format or request.format) in _STAMPED_FORMATS

@@ -7,18 +7,18 @@ import type {
   InitiativeRoleRead,
   ResourceGrantBulkItem,
   ResourceGrantSchema,
-  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams,
+  SearchInitiativeMembersParams,
   Tool,
   ToolCan,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey,
-  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
-  searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet,
+  getListInitiativeRolesQueryKey,
+  getSearchInitiativeMembersQueryKey,
+  listInitiativeRoles,
+  searchInitiativeMembers,
 } from "@/api/generated/initiatives/initiatives";
-import { bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
+import { bulkSetResourceGrants } from "@/api/generated/resource-grants/resource-grants";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -44,13 +44,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { USER_ID_LOOKUP_MAX, USER_SEARCH_PAGE_SIZE } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import type { DialogWithSuccessProps } from "@/types/dialog";
@@ -60,6 +60,8 @@ export interface BulkAccessItem {
   id: number;
   initiative_id: number;
   archived_at?: string | null;
+  /** A template, which anyone who reads it may copy. */
+  is_template?: boolean;
   grants?: ResourceGrantSchema[] | null;
   can: ToolCan;
 }
@@ -91,8 +93,7 @@ interface SelectableRole {
 // The bulk endpoint caps items per request; chunk larger selections transparently.
 const MAX_BULK_ITEMS = 200;
 
-type MemberSearchParams =
-  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams;
+type MemberSearchParams = SearchInitiativeMembersParams;
 
 const toSelectableUser = (member: UserSummary): SelectableUser => ({
   id: member.id,
@@ -104,7 +105,7 @@ const toSelectableUser = (member: UserSummary): SelectableUser => ({
  * Bulk-edit sharing across many resources of one tool type. Keeps a safe
  * additive add/remove model (People / Roles) plus an All-members mode, and
  * persists every change in one bulk request per chunk. Resource-agnostic — the
- * per-tool wrappers (documents, projects, queues, counters) supply `items`,
+ * per-tool wrappers (files, projects, queues, counters) supply `items`,
  * `resourceType`, and how to invalidate their caches.
  */
 export function BulkEditAccessDialog({
@@ -116,10 +117,10 @@ export function BulkEditAccessDialog({
   onSuccess,
 }: BulkEditAccessDialogProps) {
   const { t } = useTranslation(["access", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { user: currentUser } = useAuth();
   // The tool noun, pluralized for `count`, so descriptions/toasts read "2 queues"
-  // rather than a hardcoded "documents".
+  // rather than a hardcoded "files".
   const resourceNoun = useCallback(
     (n: number) => t(`bulkBar.resource_${resourceType}`, { count: n }),
     [t, resourceType]
@@ -166,18 +167,8 @@ export function BulkEditAccessDialog({
   // One query per initiative and params: the people matching what was typed
   // (grant), or the people already granted, named by id (revoke).
   const memberQuery = (initiativeId: number, params: MemberSearchParams, enabled: boolean) => ({
-    queryKey:
-      getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey(
-        guildId,
-        initiativeId,
-        params
-      ),
-    queryFn: () =>
-      searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
-        guildId,
-        initiativeId,
-        params
-      ),
+    queryKey: getSearchInitiativeMembersQueryKey(communityId, initiativeId, params),
+    queryFn: () => searchInitiativeMembers(communityId, initiativeId, params),
     enabled,
   });
 
@@ -238,15 +229,9 @@ export function BulkEditAccessDialog({
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
     queries: initiativeIds.map((id) => ({
-      queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
-        guildId,
-        id
-      ),
+      queryKey: getListInitiativeRolesQueryKey(communityId, id),
       queryFn: () =>
-        listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
-          guildId,
-          id
-        ) as unknown as Promise<InitiativeRoleRead[]>,
+        listInitiativeRoles(communityId, id) as unknown as Promise<InitiativeRoleRead[]>,
       enabled: open,
     })),
   });
@@ -420,12 +405,12 @@ export function BulkEditAccessDialog({
           resource_id: e.resourceId,
           grants: e.grants,
         }));
-        await bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut(guildId, {
+        await bulkSetResourceGrants(communityId, {
           items: bulkItems,
         });
       }
     },
-    [guildId, resourceType]
+    [communityId, resourceType]
   );
 
   const finish = useCallback(() => {

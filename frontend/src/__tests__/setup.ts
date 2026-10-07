@@ -9,6 +9,8 @@ import { webcrypto } from "node:crypto";
 import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 
+import { resetStoreSelling } from "@/lib/storeSelling";
+
 import { resetFactories } from "./factories";
 import { server } from "./helpers/msw-server";
 import "./helpers/i18n-test";
@@ -246,4 +248,6 @@ afterAll(() => {
 
 beforeEach(() => {
   resetFactories();
+  // Whether this device may sell is asked once per app run; each test is a run.
+  resetStoreSelling();
 });

@@ -1,32 +1,29 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { useUpdateCalendar } from "@/hooks/useCalendars";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 type CalendarColorCardProps = {
   calendarId: number;
-  initialColor: string | null;
+  color: string;
   disabled?: boolean;
 };
 
 /**
  * Calendars' only tool-specific setting: the color their events render in.
  * Persists on pick, the way tags do, so it needs no Save button of its own.
+ * A calendar always has a color, so there is nothing to clear.
  */
-export const CalendarColorCard = ({
-  calendarId,
-  initialColor,
-  disabled,
-}: CalendarColorCardProps) => {
+export const CalendarColorCard = ({ calendarId, color, disabled }: CalendarColorCardProps) => {
   const { t } = useTranslation(["calendars", "common"]);
-  const [color, setColor] = useState(initialColor ?? "");
 
   const updateCalendar = useUpdateCalendar(calendarId, {
     onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
+  // The pick while it saves; the calendar as read back after.
+  const shown = updateCalendar.isPending ? (updateCalendar.variables?.color ?? color) : color;
 
   return (
     <Card>
@@ -36,13 +33,8 @@ export const CalendarColorCard = ({
       <CardContent>
         <ColorPickerPopover
           id="calendar-color"
-          value={color}
-          onChange={setColor}
-          onChangeComplete={(next) => {
-            const previous = color;
-            setColor(next);
-            updateCalendar.mutate({ color: next || null }, { onError: () => setColor(previous) });
-          }}
+          value={shown}
+          onChangeComplete={(next) => updateCalendar.mutate({ color: next })}
           disabled={disabled}
         />
       </CardContent>

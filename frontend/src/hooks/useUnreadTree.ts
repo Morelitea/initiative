@@ -28,34 +28,35 @@ export const useUnreadTree = (options?: { enabled?: boolean }) => {
     const keys = new Set<string>();
 
     for (const place of places) {
-      const guild = place.guild_id;
-      if (guild == null) continue;
-      keys.add(`g:${guild}`);
+      const community = place.community_id;
+      if (community == null) continue;
+      keys.add(`g:${community}`);
       if (place.initiative_id != null) {
-        keys.add(`i:${guild}:${place.initiative_id}`);
-        if (place.tool) keys.add(`t:${guild}:${place.initiative_id}:${place.tool}`);
+        keys.add(`i:${community}:${place.initiative_id}`);
+        if (place.tool) keys.add(`t:${community}:${place.initiative_id}:${place.tool}`);
       }
       if (place.tool && place.resource_id != null) {
-        keys.add(`r:${guild}:${place.tool}:${place.resource_id}`);
+        keys.add(`r:${community}:${place.tool}:${place.resource_id}`);
       }
       if (place.subject_type && place.subject_id != null) {
-        keys.add(`s:${guild}:${place.subject_type}:${place.subject_id}`);
+        keys.add(`s:${community}:${place.subject_type}:${place.subject_id}`);
       }
     }
 
     return {
       /** Anything at all, anywhere — what the bell's dot reads. */
       hasAny: places.length > 0,
-      hasGuild: (guildId: Id) => keys.has(`g:${guildId}`),
-      hasInitiative: (guildId: Id, initiativeId: Id) => keys.has(`i:${guildId}:${initiativeId}`),
-      hasTool: (guildId: Id, initiativeId: Id, tool: string) =>
-        keys.has(`t:${guildId}:${initiativeId}:${tool}`),
+      hasCommunity: (communityId: Id) => keys.has(`g:${communityId}`),
+      hasInitiative: (communityId: Id, initiativeId: Id) =>
+        keys.has(`i:${communityId}:${initiativeId}`),
+      hasTool: (communityId: Id, initiativeId: Id, tool: string) =>
+        keys.has(`t:${communityId}:${initiativeId}:${tool}`),
       /** One of a tool's rows — a project, a calendar, a wiki. */
-      hasResource: (guildId: Id, tool: string, resourceId: number) =>
-        keys.has(`r:${guildId}:${tool}:${resourceId}`),
+      hasResource: (communityId: Id, tool: string, resourceId: number) =>
+        keys.has(`r:${communityId}:${tool}:${resourceId}`),
       /** One item — a task, an event, a page, or a tool's own row. */
-      hasSubject: (guildId: Id, kind: string, subjectId: number) =>
-        keys.has(`s:${guildId}:${kind}:${subjectId}`),
+      hasSubject: (communityId: Id, kind: string, subjectId: number) =>
+        keys.has(`s:${communityId}:${kind}:${subjectId}`),
     };
   }, [data]);
 };

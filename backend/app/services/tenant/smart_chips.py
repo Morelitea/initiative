@@ -1,11 +1,11 @@
 """Reading what a smart chip currently shows.
 
-A chip stores nothing. The document holds a reference — ``task:12:status`` —
+A chip stores nothing. The file holds a reference — ``task:12:status`` —
 and this reads the row that reference names, every time, so a chip is never
 older than the last request.
 
 One entry per ``(kind, aspect)`` in :data:`SMART_CHIP_SOURCES`, and each entry reads
-its whole set of ids in ONE query. A document with thirty task chips makes one
+its whole set of ids in ONE query. A file with thirty task chips makes one
 request, and that request makes one query per aspect it uses — not one per chip.
 
 Every read goes through the session it is handed, which is the request's
@@ -39,7 +39,7 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import Counter
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.models.tenant.project import Project
 from app.models.tenant.task import (
     Task,
@@ -109,11 +109,16 @@ async def _task_status(
     }
 
 
+# Most tasks are held by one or two people, so two names covers the common
+# case in words; past that the chip counts.
+ASSIGNEES_NAMED = 2
+
+
 async def _task_assignee(
     session: AsyncSession, ids: list[int]
 ) -> dict[int, SmartChipValue]:
-    """Who holds a task. Several people can, so the chip names the first and
-    counts the rest rather than growing with the list."""
+    """Who holds a task. Several people can, so the chip names the first
+    ``ASSIGNEES_NAMED`` and counts the rest rather than growing with the list."""
     rows = (
         await session.exec(
             select(TaskAssignee.task_id, MemberProfile)
@@ -135,9 +140,11 @@ async def _task_assignee(
             continue
         # ``display_name`` reads the guild's own name-visibility setting, so a
         # chip shows exactly what every other surface here shows.
-        first = display_name(people[0])
-        extra = len(people) - 1
-        values[task_id] = SmartChipValue(text=f"{first} +{extra}" if extra else first)
+        named = ", ".join(display_name(p) for p in people[:ASSIGNEES_NAMED])
+        extra = len(people) - ASSIGNEES_NAMED
+        values[task_id] = SmartChipValue(
+            text=f"{named} +{extra}" if extra > 0 else named
+        )
     return values
 
 
@@ -347,7 +354,7 @@ def parse_ref(
     which every referenceable kind answers; adding an aspect asks a fact about
     it, which only some kinds have.
 
-    A reference that does not parse is dropped rather than refused: a document
+    A reference that does not parse is dropped rather than refused: a file
     can outlive a build that stopped offering one of these, and a chip that
     cannot be read falls back to the words stored beside it.
     """
@@ -458,7 +465,7 @@ async def read_smart_chips(
     # What each thing is called, read once per kind and sent with every answer
     # about it. A chip carries the name of its own thing rather than the caller
     # asking for it separately, so showing a fact costs one reference and not
-    # two — which is what keeps a long document inside :data:`MAX_REFS`.
+    # two — which is what keeps a long file inside :data:`MAX_REFS`.
     names: dict[SearchEntityType, dict[int, str]] = {}
     for entity_type, ids in by_type.items():
         allowed = [i for i in ids if i in visible.get(entity_type, ())]
@@ -527,10 +534,10 @@ async def _descriptions(
 
 
 #: The kinds whose body is prose, and which of their rows are: an embed of one
-#: shows what it says, not only what it is called. A document is prose only as
+#: shows what it says, not only what it is called. A file is prose only as
 #: a text document; a spreadsheet or a whiteboard embeds as its name.
 _PROSE: dict[SearchEntityType, Callable[[Table], ColumnElement[bool]]] = {
-    SearchEntityType.document: lambda t: t.c["document_type"] == DocumentType.native,
+    SearchEntityType.file: lambda t: t.c["file_type"] == FileType.native,
     SearchEntityType.wiki_page: lambda t: true(),
 }
 

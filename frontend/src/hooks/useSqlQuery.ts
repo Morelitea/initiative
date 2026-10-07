@@ -1,13 +1,13 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet } from "@/api/generated/dashboards/dashboards";
+import { loadDashboardData } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardDataResponse,
   DashboardWidgetData,
   QueryResponse,
 } from "@/api/generated/initiativeAPI.schemas";
-import { runQueryApiV1CGuildIdQueryPost } from "@/api/generated/query/query";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { runQuery } from "@/api/generated/query/query";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { busyRetryDelay, inQueryLane, retryWhileBusy } from "@/lib/queryLane";
 import type { QueryOpts } from "@/types/query";
 
@@ -24,14 +24,14 @@ import type { QueryOpts } from "@/types/query";
  * — and the initiative beside it, because the same statement asked about two
  * initiatives is two different answers.
  */
-export const sqlQueryKey = (guildId: number, sql: string, initiativeId?: number) =>
-  ["query", guildId, sql, initiativeId ?? null] as const;
+export const sqlQueryKey = (communityId: number, sql: string, initiativeId?: number) =>
+  ["query", communityId, sql, initiativeId ?? null] as const;
 
 /** A canvas's query widgets, answered together. Keyed by the dashboard rather
  *  than by what its widgets ask, because the statements are the server's to
  *  look up — the whole point of the endpoint behind it. */
-export const dashboardDataKey = (guildId: number, dashboardId: number) =>
-  ["query", "dashboard", guildId, dashboardId] as const;
+export const dashboardDataKey = (communityId: number, dashboardId: number) =>
+  ["query", "dashboard", communityId, dashboardId] as const;
 
 /**
  * `initiativeId` narrows the answer to one initiative.
@@ -46,15 +46,15 @@ export const useSqlQuery = (
   initiativeId: number | undefined,
   options?: QueryOpts<QueryResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<QueryResponse>({
-    queryKey: sqlQueryKey(guildId, sql ?? "", initiativeId),
+    queryKey: sqlQueryKey(communityId, sql ?? "", initiativeId),
     queryFn: () =>
-      inQueryLane(guildId, () =>
-        runQueryApiV1CGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
+      inQueryLane(communityId, () =>
+        runQuery(communityId, { sql: sql ?? "", initiative_id: initiativeId })
       ),
     // Not retried: a statement either resolves against the registry or it does
-    // not, and a refused one is refused the same way every time. A guild with
+    // not, and a refused one is refused the same way every time. A community with
     // no free slot is the one failure that says nothing about the statement,
     // so it — and only it — comes back.
     retry: retryWhileBusy,
@@ -80,15 +80,14 @@ export const useWidgetQuery = (
   widgetId: string | null,
   options?: { enabled?: boolean }
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const addressed = Boolean(dashboardId && widgetId);
   const canvas = useQuery<DashboardDataResponse, Error, DashboardWidgetData | null>({
-    queryKey: dashboardDataKey(guildId, dashboardId ?? 0),
-    queryFn: () =>
-      loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet(guildId, dashboardId as number),
+    queryKey: dashboardDataKey(communityId, dashboardId ?? 0),
+    queryFn: () => loadDashboardData(communityId, dashboardId as number),
     select: (data) => data.widgets[widgetId ?? ""] ?? null,
     // Not retried, for the same reason: a statement either resolves against the
-    // registry or it does not — except for a guild with no free slot, which a
+    // registry or it does not — except for a community with no free slot, which a
     // canvas can still meet while somebody else's is loading.
     retry: retryWhileBusy,
     retryDelay: busyRetryDelay,
@@ -121,7 +120,7 @@ export type CanvasChange = {
 
 /**
  * Whether a canvas's answer is stale after these changes: one of them is to a
- * table a widget on it read, in the canvas's initiative or in the guild's own.
+ * table a widget on it read, in the canvas's initiative or in the community's own.
  */
 export const canvasIsStale = (
   data: DashboardDataResponse | undefined,

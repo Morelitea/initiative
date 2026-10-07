@@ -1,4 +1,4 @@
-"""Read a CSV or XLSX file into the shape a spreadsheet document holds.
+"""Read a CSV or XLSX file into the shape a spreadsheet file holds.
 
 The inverse of :mod:`app.services.export.spreadsheet`, and deliberately its
 neighbour: the two have to agree about how a fill, a border or a currency
@@ -28,12 +28,12 @@ from openpyxl.utils import column_index_from_string
 from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.core.messages import DocumentMessages
-from app.services.tenant.documents_spreadsheet import (
+from app.core.messages import FileMessages
+from app.services.tenant.files_spreadsheet import (
     MAX_COLS,
     MAX_ROWS,
     MAX_SHEETS,
-    DocumentContentError,
+    FileContentError,
     normalize_spreadsheet_content,
 )
 
@@ -70,14 +70,14 @@ MAX_IMPORT_SCAN: int = 2_000_000
 MAX_IMPORT_XLSX_BYTES: int = 100 * 1024 * 1024
 
 #: A table of text, read as one sheet. Such a file becomes a spreadsheet
-#: rather than a file document, which cannot hold it.
+#: rather than an uploaded file, which cannot hold it.
 TEXT_TABLE_SUFFIXES = (".csv", ".tsv")
 
 
 def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     """The sheets a file holds, in canonical workbook form.
 
-    Raises :class:`DocumentContentError` for anything that is not a
+    Raises :class:`FileContentError` for anything that is not a
     spreadsheet this can read.
     """
     name = (filename or "").strip()
@@ -89,10 +89,10 @@ def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     elif lower.endswith(".xlsx") or lower.endswith(".xlsm"):
         raw = _parse_xlsx(data)
     else:
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_UNREADABLE_FILE)
+        raise FileContentError(FileMessages.SPREADSHEET_UNREADABLE_FILE)
 
     if not raw:
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_UNREADABLE_FILE)
+        raise FileContentError(FileMessages.SPREADSHEET_UNREADABLE_FILE)
 
     # One trip through the normalizer the create/patch paths use, so an
     # imported sheet is the same kind of object as any other.
@@ -126,16 +126,16 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
     cols = 0
     for r, record in enumerate(reader):
         if r >= MAX_ROWS:
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+            raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
         rows = r + 1
         for c, value in enumerate(record):
             if c >= MAX_COLS:
-                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+                raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
             cols = max(cols, c + 1)
             if value == "":
                 continue
             if len(cells) >= MAX_IMPORT_CELLS:
-                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+                raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
             cells[f"{r}:{c}"] = _scalar(value)
     return {
         "name": name,
@@ -192,11 +192,9 @@ def _refuse_oversized_package(data: bytes) -> None:
         with zipfile.ZipFile(io.BytesIO(data)) as package:
             declared = sum(info.file_size for info in package.infolist())
     except zipfile.BadZipFile as exc:
-        raise DocumentContentError(
-            DocumentMessages.SPREADSHEET_UNREADABLE_FILE
-        ) from exc
+        raise FileContentError(FileMessages.SPREADSHEET_UNREADABLE_FILE) from exc
     if declared > MAX_IMPORT_XLSX_BYTES:
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+        raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
 
 
 def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
@@ -208,12 +206,10 @@ def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
             io.BytesIO(data), data_only=False, keep_links=False, rich_text=False
         )
     except Exception as exc:  # openpyxl raises a zoo of types on bad input
-        raise DocumentContentError(
-            DocumentMessages.SPREADSHEET_UNREADABLE_FILE
-        ) from exc
+        raise FileContentError(FileMessages.SPREADSHEET_UNREADABLE_FILE) from exc
 
     if len(workbook.worksheets) > MAX_SHEETS:
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+        raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
     _refuse_unreadable_shape(workbook.worksheets)
 
     budget = MAX_IMPORT_CELLS
@@ -236,10 +232,10 @@ def _refuse_unreadable_shape(worksheets: list[Worksheet]) -> None:
         rows = ws.max_row or 0
         cols = ws.max_column or 0
         if rows > MAX_ROWS or cols > MAX_COLS:
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+            raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
         scan += rows * cols
         if scan > MAX_IMPORT_SCAN:
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+            raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
 
 
 def _parse_worksheet(ws: Worksheet, budget: int) -> tuple[dict[str, Any], int]:
@@ -261,7 +257,7 @@ def _parse_worksheet(ws: Worksheet, budget: int) -> tuple[dict[str, Any], int]:
             if used > budget:
                 # Better to say a file is too big than to hand back some of it
                 # and call that the file.
-                raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+                raise FileContentError(FileMessages.SPREADSHEET_FILE_TOO_LARGE)
             rows = max(rows, r + 1)
             cols = max(cols, c + 1)
             if value is not None:

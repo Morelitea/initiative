@@ -25,7 +25,7 @@ from app.testing import (
     get_auth_headers,
     route_session_to_guild,
 )
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -58,7 +58,7 @@ async def test_every_stream_is_listed_before_anything_is_configured(client, owne
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["operations_guild_id"] is None
+    assert body["operations_community_id"] is None
     assert {b["stream"] for b in body["bindings"]} == {s.value for s in IntakeStream}
     assert all(b["enabled"] is False for b in body["bindings"])
 
@@ -72,7 +72,7 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
     assert (
         await client.put(
             "/api/v1/settings/intake/community",
-            json={"guild_id": 1},
+            json={"community_id": 1},
             headers=actor.headers,
         )
     ).status_code == 403
@@ -81,11 +81,11 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
 async def test_pointing_at_a_guild_that_does_not_exist_is_refused(client, owner):
     response = await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": 99_999},
+        json={"community_id": 99_999},
         headers=owner["actor"].headers,
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "COMMUNITY_NOT_FOUND"
 
 
 async def test_binding_before_a_guild_is_named_is_refused(client, owner):
@@ -95,7 +95,7 @@ async def test_binding_before_a_guild_is_named_is_refused(client, owner):
         headers=owner["actor"].headers,
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "INTAKE_NO_OPERATIONS_GUILD"
+    assert response.json()["detail"] == "INTAKE_NO_OPERATIONS_COMMUNITY"
 
 
 async def test_an_unknown_stream_is_not_a_stream(client, owner):
@@ -111,7 +111,7 @@ async def test_an_unknown_stream_is_not_a_stream(client, owner):
 async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     response = await client.post(
@@ -139,7 +139,7 @@ async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
 async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     await client.post(
@@ -153,7 +153,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 
     response = await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": None},
+        json={"community_id": None},
         headers=owner["actor"].headers,
     )
     assert response.status_code == 200
@@ -162,7 +162,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     # The binding is untouched: pointing back restores what was there.
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     assert (
@@ -173,7 +173,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 async def test_unbinding_keeps_the_project(client, session, owner):
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -201,7 +201,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
     """Gate 2, unchanged: the bound project's initiative is who reads its cases."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     await client.post(
@@ -216,7 +216,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
         await session.exec(select(Guild).where(Guild.id == owner["guild_id"]))
     ).one()
     await create_guild_membership(
-        session, user=outsider, guild=guild, role=GuildRole.member
+        session, user=outsider, guild=guild, role=CommunityRole.member
     )
 
     outcome = await intake_service.open_case(
@@ -234,7 +234,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
 async def test_a_status_from_another_project_is_refused(client, session, owner):
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -281,7 +281,7 @@ async def test_the_pointer_is_cleared_when_the_guild_goes(client, session, owner
     """``ON DELETE SET NULL``: nothing is left naming a guild that is gone."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     await set_rls_context(session, Unattributed())
@@ -302,7 +302,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     """Cases are keyed by project, so a repeat follows the binding."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     first = await client.post(
@@ -353,7 +353,7 @@ async def test_rebinding_the_same_project_finds_the_open_case(client, session, o
     """Unbinding keeps the history, so a repeat does not open a second case."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -389,7 +389,7 @@ async def test_the_last_case_time_ignores_ordinary_tasks(client, owner):
     """A blueprint's seed task is not a case, and must not read as one."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -416,7 +416,7 @@ async def test_options_are_empty_before_a_guild_is_named(client, owner):
 async def test_options_offer_the_operations_guilds_projects(client, owner):
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -438,7 +438,8 @@ async def test_options_offer_the_operations_guilds_projects(client, owner):
     assert [s["name"] for s in project["statuses"]] == [
         "Triage",
         "Investigating",
-        "Awaiting response",
+        "Waiting on requester",
+        "Requester replied",
         "Resolved",
     ]
 
@@ -455,7 +456,7 @@ async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, 
     """Archived content takes no writes, so a case could never land there."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     await route_session_to_guild(session, owner["guild_id"])
@@ -488,7 +489,7 @@ async def test_a_binding_says_when_its_project_has_been_archived(
     """Archiving the destination later is a state the page has to show."""
     await client.put(
         "/api/v1/settings/intake/community",
-        json={"guild_id": owner["guild_id"]},
+        json={"community_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
     created = await client.post(
@@ -624,3 +625,164 @@ async def test_a_stream_falls_back_to_the_general_contact_and_never_to_another(
         await intake_service.contact_for(session, IntakeStream.support)
         == "help@example.com"
     )
+
+
+async def _point(client, owner) -> None:
+    response = await client.put(
+        "/api/v1/settings/intake/community",
+        json={"community_id": owner["guild_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize("stream", ["support", "security"])
+async def test_a_blueprint_names_which_statuses_wait_on_the_filer(
+    client, session, owner, stream
+):
+    """Setting a stream that holds a conversation up from its blueprint creates
+    a status for each role and names them on the binding, so its filers can be
+    told a case is waiting on them from the start."""
+    await _point(client, owner)
+    bound = (
+        await client.post(
+            f"/api/v1/settings/intake/{stream}/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+    ).json()
+    assert bound["awaiting_filer_status_id"] is not None
+    assert bound["active_status_id"] is not None
+
+    options = (
+        await client.get(
+            "/api/v1/settings/intake/options", headers=owner["actor"].headers
+        )
+    ).json()
+    statuses = {
+        status["id"]: status["name"]
+        for initiative in options["initiatives"]
+        for project in initiative["projects"]
+        if project["id"] == bound["project_id"]
+        for status in project["statuses"]
+    }
+    assert statuses[bound["awaiting_filer_status_id"]] == "Waiting on requester"
+    assert statuses[bound["active_status_id"]] == "Requester replied"
+
+
+async def test_a_stream_without_a_conversation_names_no_status_roles(client, owner):
+    """Moderation reports open no conversation, so nobody is waited on."""
+    await _point(client, owner)
+    bound = (
+        await client.post(
+            "/api/v1/settings/intake/moderation/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+    ).json()
+    assert bound["awaiting_filer_status_id"] is None
+    assert bound["active_status_id"] is None
+
+
+async def test_a_status_role_from_another_project_is_refused(client, owner):
+    await _point(client, owner)
+    support = (
+        await client.post(
+            "/api/v1/settings/intake/support/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+    ).json()
+    feedback = (
+        await client.post(
+            "/api/v1/settings/intake/feedback/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+    ).json()
+
+    response = await client.put(
+        "/api/v1/settings/intake/support",
+        json={
+            "project_id": support["project_id"],
+            "awaiting_filer_status_id": feedback["awaiting_filer_status_id"],
+        },
+        headers=owner["actor"].headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INTAKE_STATUS_NOT_IN_PROJECT"
+
+
+async def test_a_stream_that_keeps_to_itself_will_not_share_an_initiative(
+    client, owner
+):
+    """Security binds where no other stream works, in either order: neither
+    beside support, nor support beside it."""
+    await _point(client, owner)
+    support = await client.post(
+        "/api/v1/settings/intake/support/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert support.status_code == 200, support.text
+
+    refused = await client.post(
+        "/api/v1/settings/intake/security/blueprint",
+        json={"initiative_id": owner["initiative_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "INTAKE_INITIATIVE_SHARED"
+
+    refused = await client.put(
+        "/api/v1/settings/intake/moderation",
+        json={"project_id": support.json()["project_id"]},
+        headers=owner["actor"].headers,
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "INTAKE_INITIATIVE_SHARED"
+
+
+async def test_streams_that_do_not_keep_to_themselves_share_freely(client, owner):
+    await _point(client, owner)
+    for stream in ("support", "feedback"):
+        response = await client.post(
+            f"/api/v1/settings/intake/{stream}/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["shares_initiative"] is False
+
+
+async def test_a_shared_initiative_bound_before_the_rule_is_flagged(
+    client, session, owner
+):
+    """Bindings that predate the rule are left working and shown as shared."""
+    await _point(client, owner)
+    support = (
+        await client.post(
+            "/api/v1/settings/intake/support/blueprint",
+            json={"initiative_id": owner["initiative_id"]},
+            headers=owner["actor"].headers,
+        )
+    ).json()
+    from app.models.tenant.intake import IntakeBinding
+
+    await set_rls_context(session, SystemGuild(owner["guild_id"]))
+    session.add(
+        IntakeBinding(stream=IntakeStream.security, project_id=support["project_id"])
+    )
+    await session.commit()
+    await set_rls_context(session, Unattributed())
+
+    bindings = {
+        b["stream"]: b
+        for b in (
+            await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
+        ).json()["bindings"]
+    }
+    assert bindings["security"]["isolated"] is True
+    assert bindings["security"]["shares_initiative"] is True
+    assert bindings["support"]["shares_initiative"] is True
+    assert bindings["feedback"]["shares_initiative"] is False

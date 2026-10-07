@@ -173,13 +173,13 @@ CASES: list[tuple[str, str, Capability, Callable[[AsyncSession], Awaitable[Probe
     (
         "guilds",
         "guilds_manage_read",
-        Capability.GUILDS_MANAGE,
+        Capability.COMMUNITIES_MANAGE,
         _a_community_nobody_asked_about,
     ),
     (
         "guild_administration",
         "guild_administration_guilds_manage_read",
-        Capability.GUILDS_MANAGE,
+        Capability.COMMUNITIES_MANAGE,
         _its_administration,
     ),
     (

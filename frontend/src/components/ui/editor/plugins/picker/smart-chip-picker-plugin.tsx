@@ -13,7 +13,7 @@ import { chipAspect, SMART_CHIP_KINDS } from "@/lib/smartChips";
  * belongs to, so a chip cannot name work its readers cannot open.
  */
 export function SmartChipPickerPlugins(
-  t: TFunction<"documents">,
+  t: TFunction<"editor">,
   initiativeId: number | null
 ): ComponentPickerOption[] {
   return SMART_CHIP_KINDS.map((kind) => {
@@ -38,7 +38,7 @@ export function SmartChipPickerPlugins(
 /** The `/` entry for `![[ ]]`, for whoever does not know the syntax: a thing
  *  shown in full, in a callout. */
 export function EmbedPickerPlugin(
-  t: TFunction<"documents">,
+  t: TFunction<"editor">,
   initiativeId: number | null
 ): ComponentPickerOption {
   const title = t("embeds.insert");

@@ -40,14 +40,15 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services import notifications as notifications_service
-from app.services.notifications import AppAuthor
+from app.services.notifications import PluginAuthor
 from app.models.platform.notification import NotificationType
 from app.core.tools import Tool
 from app.services.platform import accounts as accounts_service
+from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -59,7 +60,7 @@ async def announce_post(
     session: AsyncSession,
     post: Post,
     *,
-    author: User | AppAuthor,
+    author: User | PluginAuthor,
 ) -> None:
     """Tell everyone the notice was shared with that it is up.
 
@@ -71,8 +72,8 @@ async def announce_post(
     Delivered through ``notifications.notify``, which is where somebody who
     ignores the author drops out.
 
-    ``author`` is the person who posted it, or the installed app that did,
-    named by the app's name and by no account.
+    ``author`` is the person who posted it, or the installed plug-in that did,
+    named by the plug-in's name and by no account.
     """
     recipient_ids = sorted(
         await posts_service.audience_user_ids(session, post, exclude=author.id)
@@ -90,16 +91,16 @@ async def announce_post(
     )
 
 
-async def _author_of(session: AsyncSession, post: Post) -> User | AppAuthor | None:
+async def _author_of(session: AsyncSession, post: Post) -> User | PluginAuthor | None:
     """Who posted a notice, for its announcement: the person, or the installed
-    app whose install owns it. ``None`` when that account or install is gone."""
+    plug-in whose install owns it. ``None`` when that account or install is gone."""
     if post.created_by is not None:
         return await accounts_service.load_one(post.created_by)
     install_id = next(
         (
-            grant.app_install_id
+            grant.plugin_install_id
             for grant in post.grants or []
-            if grant.app_install_id is not None
+            if grant.plugin_install_id is not None
             and grant.level == ResourceAccessLevel.owner
         ),
         None,
@@ -107,9 +108,9 @@ async def _author_of(session: AsyncSession, post: Post) -> User | AppAuthor | No
     if install_id is None:
         return None
     name = (
-        await session.exec(select(GuildApp.name).where(GuildApp.id == install_id))
+        await session.exec(select(GuildPlugin.name).where(GuildPlugin.id == install_id))
     ).first()
-    return AppAuthor(name=name) if name is not None else None
+    return PluginAuthor(name=name) if name is not None else None
 
 
 async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int]:
@@ -138,6 +139,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
     post_ids = [row[0] for row in claimed]
     if not post_ids:
         return []
+    await post_polls_service.open_lapsed_polls(session, post_ids, now=now)
 
     # The claim is durable before a single email or push goes out. Sending
     # first would mean a failure anywhere below rolls ``published_at`` back

@@ -11,7 +11,7 @@ names from a neutral list.
 Generated from the listing alone and seeded by it, so the same listing always
 previews the same way, and nothing here reads any community.
 
-A widget this cannot describe — an app's own widget, one with no statement yet,
+A widget this cannot describe — a plug-in's own widget, one with no statement yet,
 a statement this build cannot read — gets no sample and previews as the widget
 does without one.
 """
@@ -71,7 +71,6 @@ _LABELS = ("Planning", "Design", "Build", "Review", "Launch", "Support")
 #: Checked in order; the first word the name contains wins.
 _TEXT_VOCABULARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("display_name", _PEOPLE),
-    ("full_name", _PEOPLE),
     ("assignee", _PEOPLE),
     ("member", _PEOPLE),
     ("author", _PEOPLE),

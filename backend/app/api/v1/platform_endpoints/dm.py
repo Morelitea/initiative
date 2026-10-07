@@ -127,18 +127,13 @@ async def update_dm_settings(
     for here rather than left to the community directory's own switches, so an
     account on a deployment running no directory is held to the same floor.
     """
-    try:
-        return await dm_settings_service.update_settings(
-            session,
-            user=current_user,
-            dm_policy=payload.dm_policy,
-            communities=payload.communities,
-            send_receipts=payload.send_receipts,
-        )
-    except dm_settings_service.DirectMessageSettingsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-        ) from exc
+    return await dm_settings_service.update_settings(
+        session,
+        user=current_user,
+        dm_policy=payload.dm_policy,
+        communities=payload.communities,
+        send_receipts=payload.send_receipts,
+    )
 
 
 @me_router.get("/ignored", response_model=IgnoredAccountsResponse)
@@ -210,16 +205,6 @@ async def stop_ignoring_account(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-def _grant_error(exc: contact_grants_service.ContactGrantError) -> HTTPException:
-    """Every refusal is a 409 with its code and nothing else.
-
-    A handle nobody holds, an account that cannot be reached and a request that
-    will never be surfaced all answer the same way, so the endpoint is not a
-    way to learn which it was.
-    """
-    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.code)
-
-
 @me_router.get("/connections", response_model=ContactGrantsResponse)
 async def list_connections(
     session: UserSessionDep,
@@ -250,20 +235,17 @@ async def request_connection(
     shape that works for an account on ``private``, which is never offered from
     a roster or a picker.
     """
-    try:
-        target_id = await contact_grants_service.resolve_handle(
-            session,
-            username=payload.username,
-            discriminator=payload.discriminator,
-        )
-        grant = await contact_grants_service.request(
-            session,
-            actor_id=current_user.id,
-            target_id=target_id,
-            kind=ContactGrantKind.connection,
-        )
-    except contact_grants_service.ContactGrantError as exc:
-        raise _grant_error(exc) from exc
+    target_id = await contact_grants_service.resolve_handle(
+        session,
+        username=payload.username,
+        discriminator=payload.discriminator,
+    )
+    grant = await contact_grants_service.request(
+        session,
+        actor_id=current_user.id,
+        target_id=target_id,
+        kind=ContactGrantKind.connection,
+    )
     return await _single_read(session, current_user.id, grant)
 
 
@@ -274,15 +256,12 @@ async def accept_connection(
     current_user: CurrentUser,
 ) -> ContactGrantRead:
     """Accept a connection, which also opens the pair's message channel."""
-    try:
-        grant = await contact_grants_service.accept(
-            session,
-            actor_id=current_user.id,
-            other_id=user_id,
-            kind=ContactGrantKind.connection,
-        )
-    except contact_grants_service.ContactGrantError as exc:
-        raise _grant_error(exc) from exc
+    grant = await contact_grants_service.accept(
+        session,
+        actor_id=current_user.id,
+        other_id=user_id,
+        kind=ContactGrantKind.connection,
+    )
     return await _single_read(session, current_user.id, grant)
 
 
@@ -336,15 +315,12 @@ async def request_message(
     answered this question, and asking twice is a consent step with no decision
     in it.
     """
-    try:
-        grant = await contact_grants_service.request(
-            session,
-            actor_id=current_user.id,
-            target_id=payload.user_id,
-            kind=ContactGrantKind.message,
-        )
-    except contact_grants_service.ContactGrantError as exc:
-        raise _grant_error(exc) from exc
+    grant = await contact_grants_service.request(
+        session,
+        actor_id=current_user.id,
+        target_id=payload.user_id,
+        kind=ContactGrantKind.message,
+    )
     return await _single_read(session, current_user.id, grant)
 
 
@@ -354,15 +330,12 @@ async def accept_message_request(
     session: UserSessionDep,
     current_user: CurrentUser,
 ) -> ContactGrantRead:
-    try:
-        grant = await contact_grants_service.accept(
-            session,
-            actor_id=current_user.id,
-            other_id=user_id,
-            kind=ContactGrantKind.message,
-        )
-    except contact_grants_service.ContactGrantError as exc:
-        raise _grant_error(exc) from exc
+    grant = await contact_grants_service.accept(
+        session,
+        actor_id=current_user.id,
+        other_id=user_id,
+        kind=ContactGrantKind.message,
+    )
     return await _single_read(session, current_user.id, grant)
 
 

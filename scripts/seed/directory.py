@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.schema_provisioning import provision_guild
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildCategory
+from app.models.platform.guild import Guild, CommunityCategory
 from app.models.platform.user import User
 from app.models.tenant.initiative import InitiativeJoinPolicy
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -34,7 +34,7 @@ DIRECTORY: list[dict] = [
         "name": "The Cartographers' Table",
         "description": "Hand-drawn maps for tables that want one. Weekly critique "
         "thread, monthly swap.",
-        "categories": [GuildCategory.art, GuildCategory.ttrpg],
+        "categories": [CommunityCategory.art, CommunityCategory.ttrpg],
         "admin": "Elara Moonwhisper",
         "members": ["Thorn Ironforge", "Vex Shadowstep"],
         "icon": ((8, 145, 178), (14, 116, 144)),
@@ -81,7 +81,7 @@ DIRECTORY: list[dict] = [
         "name": "Midnight Homebrew",
         "description": "Homebrew rules, monsters, and subclasses — brought here to be "
         "broken before a table finds the cracks.",
-        "categories": [GuildCategory.ttrpg, GuildCategory.writing],
+        "categories": [CommunityCategory.ttrpg, CommunityCategory.writing],
         "admin": "Dungeon Master",
         "members": [
             "Seraphina Dawnlight",
@@ -129,7 +129,7 @@ DIRECTORY: list[dict] = [
         "name": "Sunday Session Zero",
         "description": "Pick-up games for people without a regular table. Say what you "
         "play, find four others.",
-        "categories": [GuildCategory.gaming, GuildCategory.social],
+        "categories": [CommunityCategory.gaming, CommunityCategory.social],
         "admin": "Finley Goldtongue",
         "members": [
             "Vex Shadowstep",
@@ -175,7 +175,7 @@ DIRECTORY: list[dict] = [
     {
         "name": "Pixel & Palette",
         "description": "Digital art, tooling, and the pipelines behind them.",
-        "categories": [GuildCategory.art, GuildCategory.technology],
+        "categories": [CommunityCategory.art, CommunityCategory.technology],
         "admin": "Vex Shadowstep",
         "members": ["Elara Moonwhisper", "Seraphina Dawnlight"],
         "icon": ((219, 39, 119), (157, 23, 77)),
@@ -216,7 +216,7 @@ DIRECTORY: list[dict] = [
         "name": "Dawn Patrol",
         "description": "An early-morning running club. Routes, times, and a standing "
         "excuse to be outside before work.",
-        "categories": [GuildCategory.sports, GuildCategory.health],
+        "categories": [CommunityCategory.sports, CommunityCategory.health],
         "admin": "Seraphina Dawnlight",
         "members": [
             "Thorn Ironforge",
@@ -268,7 +268,7 @@ DIRECTORY: list[dict] = [
     {
         "name": "Founders' Roundtable",
         "description": "Small-company operators comparing notes. No pitches, no recruiting.",
-        "categories": [GuildCategory.business, GuildCategory.education],
+        "categories": [CommunityCategory.business, CommunityCategory.education],
         "admin": "Thorn Ironforge",
         "members": ["Platform Operator", "Platform Moderator"],
         "icon": ((15, 118, 110), (17, 94, 89)),
@@ -317,7 +317,7 @@ async def seed(
     )  # shared/public tables — no community routing
     await guilds.enable_directory(session)
     await guilds.list_in_directory(
-        session, listed, categories=[GuildCategory.ttrpg, GuildCategory.social]
+        session, listed, categories=[CommunityCategory.ttrpg, CommunityCategory.social]
     )
     await session.commit()
     for spec in DIRECTORY:

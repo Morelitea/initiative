@@ -27,7 +27,6 @@
     "reloadNow": "Jetzt neu laden"
   },
   "operator": {
-    "title": "Ankündigungen",
     "subtitle": "Hinweise für alle, die diese Installation nutzen. Jeder wird einmal gezeigt und pro Person gemerkt.",
     "new": "Neue Ankündigung",
     "newTitle": "Neue Ankündigung",
@@ -58,7 +57,7 @@
     "publishedOn": "Veröffentlicht am {{date}}",
     "notPublished": "Nicht veröffentlicht",
     "audience": "{{role}} und höher",
-    "guildAdminsOnly": "Nur Community-Admins",
+    "communityAdminsOnly": "Nur Community-Admins",
     "status": {
       "draft": "Entwurf",
       "scheduled": "Geplant",
@@ -78,8 +77,8 @@
       "category": "Kategorie",
       "minRole": "Mindest-Plattformrolle",
       "minRoleHint": "Nur Personen ab dieser Stufe sehen sie.",
-      "guildAdminsOnly": "Nur Community-Admins",
-      "guildAdminsOnlyHint": "Nur Personen zeigen, die mindestens eine Community verwalten.",
+      "communityAdminsOnly": "Nur Community-Admins",
+      "communityAdminsOnlyHint": "Nur Personen zeigen, die mindestens eine Community verwalten.",
       "publishedAt": "Veröffentlichen am",
       "expiresAt": "Nicht mehr zeigen ab",
       "expiresHint": "Leer lassen, um sie dauerhaft zu zeigen. Ein Enddatum entfernt sie auch von der Ankündigungsseite.",
@@ -115,7 +114,6 @@
   },
   "archive": {
     "title": "Ankündigungen",
-    "subtitle": "Alles, was Initiative angekündigt hat, neueste zuerst.",
     "empty": "Bisher wurde nichts angekündigt.",
     "read": "Lesen",
     "unread": "Ungelesen",

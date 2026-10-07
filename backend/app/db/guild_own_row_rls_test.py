@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.testing import (
@@ -51,7 +51,7 @@ async def _enabled(session, guild_id: int) -> list[bool | None]:
 async def test_a_settings_grant_reads_a_members_row_and_writes_only_beside_read_write(
     session, acting_user, role_session
 ):
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     guild_id = member.guild.id
     await _seed_pref(session, guild_id, member.user.id)
     other = await create_user(session)
@@ -89,8 +89,8 @@ async def test_a_settings_grant_reads_a_members_row_and_writes_only_beside_read_
 
 
 async def test_the_seat_holder_writes_a_members_row(session, acting_user, role_session):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     await _seed_pref(session, seat.guild.id, member.user.id)
 
     s = await _seat_session(role_session, user_id=seat.user.id, guild_id=seat.guild.id)

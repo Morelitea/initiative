@@ -11,11 +11,13 @@ compliance setting narrows every token minted for it, on every path.
 What each route keeps for itself is the proving. :func:`prove_password` is that
 proving for the two routes that take a password, and
 :func:`second_factor_outstanding` is what both of them, and the emailed code,
-answer with when the account holds a second factor.
+answer with when the account holds a second factor. :func:`prove_second_factor`
+takes that factor's answer, at a sign-in and wherever else it is asked for.
 
-:func:`open_session` is a fresh sign-in, :func:`replace_session` the session a
-caller carries on with after retiring every credential the account held, and
-:func:`upgrade_session` a step-up against the session already open.
+:func:`open_session` is a fresh sign-in and :func:`upgrade_session` a step-up
+against the session already open. :func:`set_password` is the one write of the
+account's password, and opens the session a caller carries on with after it
+retires every credential the account held.
 """
 
 from __future__ import annotations
@@ -25,8 +27,8 @@ import uuid
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Literal
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -40,16 +42,11 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
-from app.core.auth_context import session_credential
-from app.core.config import settings
+from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
-from app.core.rate_limit import (
-    clear_sign_in_failures,
-    count_sign_in_failure,
-    get_inet_client_ip,
-    sign_in_allowance_left,
-)
+from app.core import audit_context
+from app.core.rate_limit import SIGN_IN_FAILURES
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
@@ -61,14 +58,18 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import addresses
+from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.auth import challenges as challenge_service
+from app.services.auth import passkeys as passkey_service
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
-from app.services.platform import push_tokens
+from app.services.platform import user_tokens
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -92,12 +93,30 @@ async def require_login_method(session: AsyncSession, method: LoginMethod) -> No
         )
 
 
+async def require_passkeys_allowed(session: AsyncSession) -> None:
+    """Refuse a passkey ceremony — a sign-in, a sign-up, a registration or a
+    step-up — this deployment would not accept.
+
+    Two things: the deployment permits passkeys, by the same rule as every
+    other way in, and its address can carry one — a plain-http or IP-literal
+    address cannot, and saying so is better than a ceremony the browser will
+    refuse. The credentials an account already holds are left where they are;
+    while either refusal stands they simply stop being a way in.
+    """
+    await require_login_method(session, LoginMethod.passkey)
+    if passkey_service.site_refusal() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
+        )
+
+
 def current_session_row(request: Request) -> uuid.UUID | None:
     """The server-side session this request is on, or ``None``.
 
     Named by the request's own access token: every client carries one of
-    those, and a credential that is not a session — a device token, an API
-    key — names none.
+    those, and a credential that is not a session — an API key — names
+    none.
     """
     raw = getattr(request.state, "session_id", None)
     if not raw:
@@ -158,6 +177,21 @@ async def chain_started_at(
     connection = await system_session.connection()
     result = await connection.execute(_CHAIN_ROOT_SQL, {"sid": session_id})
     return result.scalar_one_or_none()
+
+
+async def signed_in_since(
+    system_session: AsyncSession, *, session_id: uuid.UUID
+) -> datetime | None:
+    """How long the person behind this session has been signed in here.
+
+    The start of its chain, or, where it took the place of an earlier session,
+    the start of that one's: a step-up proves the person again without
+    starting their time here over.
+    """
+    row = await system_session.get(AuthSession, session_id)
+    if row is not None and row.continues_since is not None:
+        return row.continues_since
+    return await chain_started_at(system_session, session_id=session_id)
 
 
 async def record_sign_in_failure(
@@ -229,8 +263,6 @@ async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None
     await system_session.commit()
     if failure.lock_for is None:
         return
-    from app.services import email as email_service
-
     user = await system_session.get(User, user_id)
     if user is not None:
         await email_service.announce_sign_in_locked(
@@ -284,19 +316,18 @@ async def prove_password(
     attempt pays the same work.
     """
     await require_login_method(session, LoginMethod.password)
-    normalized_email = email.lower().strip()
-    if not await sign_in_allowance_left(normalized_email):
+    if not await SIGN_IN_FAILURES.left(email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
         )
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
-    user = await addresses.find_user_by_address(system_session, normalized_email)
+    user = await addresses.find_user_by_address(system_session, email)
     # An address its holder has not confirmed admits nobody, but it is worth
     # saying so: resolved here only so the refusal below can name the reason.
     unconfirmed = (
-        await addresses.account_awaiting_confirmation(system_session, normalized_email)
+        await addresses.account_awaiting_confirmation(system_session, email)
         if user is None
         else None
     )
@@ -309,7 +340,7 @@ async def prove_password(
     if not user or not password_matches:
         # Recorded whether or not the address resolved; the record keeps no
         # identity when there was none to keep.
-        await count_sign_in_failure(normalized_email)
+        await SIGN_IN_FAILURES.take(email)
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
@@ -343,9 +374,84 @@ async def prove_password(
         await _upgrade_password_hash(system_session, user=user, password=password)
     # Which of the account's addresses was used, for the account page and for
     # telling an address in use from one nobody has signed in with.
-    await addresses.note_sign_in(system_session, email=normalized_email)
-    await clear_sign_in_failures(normalized_email)
+    await addresses.note_sign_in(system_session, email=email)
+    await SIGN_IN_FAILURES.clear(email)
     return user
+
+
+@dataclass(frozen=True)
+class SecondFactorProof:
+    """Which of the account's codes answered, and what a session records for it."""
+
+    method: str
+    amr: tuple[str, ...]
+
+
+async def prove_second_factor(
+    system_session: AsyncSession,
+    *,
+    user_id: int,
+    code: str | None,
+    recovery_code: str | None,
+    during: str,
+    signed_in: bool,
+) -> SecondFactorProof:
+    """Take a code from the authenticator, or one of the recovery codes, or
+    the refusal.
+
+    The one check for every route that asks for the account's second factor,
+    so each asks the same questions in the same order: whether the account is
+    locked, then whether the answer is right. A recovery code is taken when one
+    is presented, and a code from the authenticator otherwise. A wrong answer
+    is recorded, counted against the account and committed; a right one starts
+    the count over, and a spent recovery code is recorded with how many are
+    left, both staged for the caller to commit.
+
+    ``during`` names the errand in the audit line, and ``signed_in`` says
+    whether the account's holder is the actor on it or the request is a
+    sign-in nobody is authenticated for yet.
+    """
+    await refuse_if_locked(system_session, user_id)
+
+    if recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            system_session, user_id=user_id, code=recovery_code
+        )
+        proof = SecondFactorProof(method="recovery_code", amr=(SECOND_FACTOR_AMR,))
+        refusal = AuthMessages.RECOVERY_CODE_INVALID
+    else:
+        accepted = await totp_service.verify_code(
+            system_session, user_id=user_id, code=code or ""
+        )
+        proof = SecondFactorProof(method="totp", amr=("otp", SECOND_FACTOR_AMR))
+        refusal = AuthMessages.TOTP_INVALID
+
+    if not accepted:
+        await audit_service.record(
+            system_session,
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=user_id if signed_in else None,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+            detail={"method": proof.method, "during": during},
+        )
+        await count_wrong_answer(system_session, user_id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+
+    await sign_in_locks.record_success(system_session, user_id)
+    if recovery_code:
+        await audit_service.record(
+            system_session,
+            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
+            actor_user_id=user_id,
+            detail={
+                "remaining": await totp_service.remaining_recovery_codes(
+                    system_session, user_id=user_id
+                )
+            },
+        )
+    return proof
 
 
 @dataclass(frozen=True)
@@ -424,26 +530,9 @@ async def second_factor_outstanding(
     )
 
 
-def mint_for(row: AuthSession, *, subject: str, token_version: int) -> tuple[str, int]:
-    """The access token for one session, bounded by the session.
-
-    The only place an access token is given its lifetime. Returns the token and
-    its lifetime in seconds.
-    """
-    return mint_access_token(
-        subject=subject,
-        token_version=token_version,
-        session_id=row.id,
-        amr=row.amr,
-        satisfied_providers=row.satisfied_providers,
-        provider_auth=row.provider_auth,
-        expires_in=access_ttl_for(row, now=row.created_at),
-    )
-
-
 @dataclass(frozen=True)
 class OpenedSession:
-    """A session staged by :func:`issue_session` and the tokens that carry it.
+    """A session and the tokens that carry it, as :func:`mint_for` hands it.
 
     ``refresh_token`` exists only here until a response carries it.
     """
@@ -464,6 +553,32 @@ class OpenedSession:
         set_refresh_cookie(response, self.refresh_token)
 
 
+def mint_for(
+    issued: session_service.IssuedSession, *, subject: str, token_version: int
+) -> OpenedSession:
+    """The access token for one session, bounded by the session.
+
+    The only place an access token is given its lifetime: a session opened
+    here and a session renewed by ``/auth/refresh`` both come through it.
+    """
+    row = issued.session
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=row.id,
+        amr=row.amr,
+        satisfied_providers=row.satisfied_providers,
+        provider_auth=row.provider_auth,
+        expires_in=access_ttl_for(row, now=row.created_at),
+    )
+    return OpenedSession(
+        session=row,
+        access_token=access_token,
+        access_max_age=access_max_age,
+        refresh_token=issued.refresh_token,
+    )
+
+
 @asynccontextmanager
 async def session_store(
     system_session: AsyncSession, *, user_id: int
@@ -472,7 +587,7 @@ async def session_store(
 
     A sign-in *is* the session. If it cannot be written the request says so
     with a 503 rather than handing back a lesser credential. Anything the
-    caller stages inside — a device token, an audit record, the revocation of
+    caller stages inside — an audit record, the revocation of
     the session it replaces — commits with the session, or goes with it.
     """
     try:
@@ -497,6 +612,7 @@ async def issue_session(
     satisfied_providers: Sequence[int] = (),
     provider_auth: dict[str, Any] | None = None,
     device_name: str | None = None,
+    device: bool = False,
     replaces: uuid.UUID | None = None,
 ) -> OpenedSession:
     """Stage a session and mint the access token for it.
@@ -516,26 +632,22 @@ async def issue_session(
         amr=list(dict.fromkeys(amr)),
         satisfied_providers=sorted(set(satisfied_providers)),
         provider_auth=provider_auth,
-        user_agent=request.headers.get("user-agent"),
-        ip=get_inet_client_ip(request),
+        user_agent=audit_context.client_user_agent(),
+        ip=audit_context.client_ip(),
         device_name=device_name,
+        device=device,
     )
     if replaces is not None:
+        issued.session.continues_since = await signed_in_since(
+            system_session, session_id=replaces
+        )
         await session_service.revoke_chain(system_session, session_id=replaces)
-        await push_tokens.follow_session(
+        await session_service.follow_devices(
             system_session, from_id=replaces, to_id=issued.session.id
         )
     # The name the token will carry, in the same transaction as the session.
     subject = await subject_service.subject_for_user(system_session, user_id=user_id)
-    access_token, access_max_age = mint_for(
-        issued.session, subject=subject, token_version=token_version
-    )
-    return OpenedSession(
-        session=issued.session,
-        access_token=access_token,
-        access_max_age=access_max_age,
-        refresh_token=issued.refresh_token,
-    )
+    return mint_for(issued, subject=subject, token_version=token_version)
 
 
 async def open_session(
@@ -547,18 +659,29 @@ async def open_session(
     token_version: int,
     amr: Sequence[str],
     audit_detail: dict[str, Any],
-    return_refresh_token: bool = False,
+    satisfied_providers: Sequence[int] = (),
+    provider_auth: dict[str, Any] | None = None,
+    device_name: str | None = None,
+    device: bool | None = None,
 ) -> Token:
     """Open the session a sign-in earned, and hand back its token.
 
-    The access token carries sid/amr/sat; the rotating refresh cookie carries
-    the session. ``amr`` is what this
-    sign-in proved. ``return_refresh_token`` hands the refresh token back in
-    the body too, for the app, which keeps its own.
+    Every sign-in comes through here: it is recorded, the wrong answers counted
+    against the account start over, and the session is written. The access
+    token carries sid/amr/sat; the rotating refresh cookie carries the session.
+    ``amr`` is what this sign-in proved, and ``satisfied_providers`` and
+    ``provider_auth`` the providers it satisfied and their own account of it.
+
+    A device's sign-in opens a device session and is handed the refresh token
+    in the body too, since the app keeps its own; ``device_name`` labels it.
+    ``device`` is read from the request (:func:`is_device`) unless the caller
+    already knows the answer.
 
     Anything the caller staged in ``system_session`` — a credential's counter,
     a spent challenge — commits with the session, or goes with it.
     """
+    if device is None:
+        device = is_device(request)
     async with session_store(system_session, user_id=user_id):
         await audit_service.record(
             system_session,
@@ -574,58 +697,13 @@ async def open_session(
             user_id=user_id,
             token_version=token_version,
             amr=amr,
-        )
-    issued.set_cookies(response)
-    return issued.to_token(include_refresh=return_refresh_token)
-
-
-async def replace_session(
-    request: Request,
-    response: Response,
-    system_session: AsyncSession,
-    *,
-    user: User,
-    amr: Sequence[str],
-    satisfied_providers: Sequence[int],
-    provider_auth: dict[str, Any] | None = None,
-) -> Token:
-    """Open a session in place of the one this request is on, and hand the
-    caller back onto it.
-
-    For the changes that retire every credential an account holds — a password
-    set, a password given up — which would otherwise take the caller's own
-    session with them. What the account held is revoked by the caller and
-    staged on ``system_session``; the session opened here joins that staging, so
-    one commit carries both and a failure leaves the account holding what it
-    had.
-
-    What carries into it is the caller's to decide — ``amr`` is what the
-    replacement may claim was proved, and the satisfied providers and their own
-    account of it come forward where the request has one to carry.
-    """
-    # Read before the writes below: ``user`` may be staged on ``system_session``,
-    # and a rollback leaves its columns to be fetched again.
-    user_id = user.id
-    token_version = user.token_version
-    async with session_store(system_session, user_id=user_id):
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=amr,
             satisfied_providers=satisfied_providers,
             provider_auth=provider_auth,
+            device_name=device_name if device else None,
+            device=device,
         )
-        credential = session_credential()
-        if credential is not None:
-            await push_tokens.follow_session(
-                system_session,
-                from_id=credential.session_id,
-                to_id=issued.session.id,
-            )
     issued.set_cookies(response)
-    return issued.to_token(include_refresh=False)
+    return issued.to_token(include_refresh=device)
 
 
 async def live_session_of(
@@ -640,6 +718,118 @@ async def live_session_of(
     return row
 
 
+#: How a password came to be set, as its record says.
+PasswordVia = Literal["self_service", "reset", "recovery_code"]
+
+
+async def set_password(
+    request: Request,
+    system_session: AsyncSession,
+    *,
+    user: User,
+    password: str | None,
+    via: PasswordVia,
+    response: Response | None = None,
+    password_proved: bool = False,
+) -> None:
+    """Set, change, reset or give up the account's password.
+
+    The one write for each of those, so every route does the same things in
+    the same transaction: the new hash (or none, for ``password=None``) and
+    when it was set, the record of it, and every credential the account held
+    retired with :func:`~app.services.platform.user_tokens.revoke_user_sessions`.
+    A reset and a recovery are each proved by a credential that stands in for
+    the password, so those two also start over what was counted against the
+    account (:func:`~app.services.auth.sign_in_locks.lift`); a change made from
+    a session leaves the count as it is.
+
+    ``user`` is written on the system engine, whichever session the caller read
+    it on.
+
+    ``response``, where given, keeps this device signed in: a session is opened
+    in place of the one the request is on, and both cookies are set on it. A
+    new password starts that session over: it claims the password where the
+    caller re-checked the one the account held (``password_proved``), and no
+    community's sign-in. Giving the password up leaves every other way in as it
+    was, so that session carries what the one it replaces had proved, which
+    communities asking for a sign-in of their own it had satisfied, and each
+    provider's own account of that. It joins the same commit, so a failure
+    leaves the account holding what it had and answers 503.
+
+    Once that commit lands, open connections are closed — this device's too;
+    its replacement session reconnects them — and the account is told.
+    """
+    user_id = user.id
+    account = await system_session.get(User, user_id)
+    if account is None:  # pragma: no cover - resolved by the caller
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    # Read before the revocation below retires it.
+    prior = (
+        await live_session_of(
+            system_session, session_id=current_session_row(request), user_id=user_id
+        )
+        if response is not None
+        else None
+    )
+    issued: OpenedSession | None = None
+    async with session_store(system_session, user_id=user_id):
+        now = datetime.now(timezone.utc)
+        account.hashed_password = (
+            get_password_hash(password) if password is not None else None
+        )
+        account.password_set_at = now if password is not None else None
+        account.updated_at = now
+        system_session.add(account)
+        await audit_service.record(
+            system_session,
+            event_type=(
+                AuditEventType.AUTH_PASSWORD_CHANGED
+                if password is not None
+                else AuditEventType.AUTH_PASSWORD_REMOVED
+            ),
+            actor_user_id=user_id,
+            detail={"via": via},
+        )
+        if via != "self_service":
+            await sign_in_locks.lift(system_session, user_id)
+        await user_tokens.revoke_user_sessions(system_session, user=account)
+        if response is not None:
+            if password is None and prior is not None:
+                amr, providers, provider_auth = (
+                    prior.amr,
+                    prior.satisfied_providers,
+                    prior.provider_auth,
+                )
+            else:
+                amr = ["pwd"] if password is not None and password_proved else []
+                providers, provider_auth = [], None
+            # Minted at the ``token_version`` the revocation just bumped.
+            issued = await issue_session(
+                request,
+                system_session,
+                user_id=user_id,
+                token_version=account.token_version,
+                amr=amr,
+                satisfied_providers=providers,
+                provider_auth=provider_auth,
+                device=is_device(request),
+            )
+            if prior is not None:
+                await session_service.follow_devices(
+                    system_session, from_id=prior.id, to_id=issued.session.id
+                )
+    if response is not None and issued is not None:
+        issued.set_cookies(response)
+
+    await content_sockets.revoke_user_everywhere(user_id)
+    if password is None:
+        await email_service.announce_password_removed(system_session, account)
+    else:
+        await email_service.announce_password_changed(system_session, account)
+
+
 async def upgrade_session(
     request: Request,
     response: Response,
@@ -647,42 +837,65 @@ async def upgrade_session(
     *,
     user: User,
     add_amr: Sequence[str],
+    prior: AuthSession | None = None,
+    add_providers: Sequence[int] = (),
+    provider_auth: dict[str, Any] | None = None,
+    audit_detail: dict[str, Any] | None = None,
 ) -> Token:
     """Add what was just proved to the session already signed in.
 
     A community that asks for something a session never presented refuses it,
     and signing out to sign back in would be a strange way to answer that. So
-    the factor — a code, a passkey — is taken against the live session and this
-    is what records it.
+    the factor — a code, a passkey, a provider — is taken against the live
+    session and this is what records it. The wrong answers counted against the
+    account start over, as they do at a sign-in.
 
     The session is upgraded rather than replaced from nothing: its ``amr``, its
     satisfied providers and each provider's account of its own authentication
     carry forward, and the old chain is retired. Satisfying one community's
-    requirement never un-satisfies another's.
+    requirement never un-satisfies another's. ``add_providers`` joins the
+    satisfied set, and ``provider_auth``, where given, is the providers'
+    account the upgraded session keeps in place of ``prior``'s. A provider
+    step-up is a sign-in at that provider too, and records one from
+    ``audit_detail``.
 
-    The session upgraded is the one this request is *on*, named by its own
-    access token: every client carries that, and only a browser also carries a
-    refresh cookie. A credential that is not a session is refused — this
-    endpoint upgrades one, and there is nothing else here to add to.
+    ``prior`` is the session upgraded. Unless the caller found it, it is the
+    one this request is *on*, named by its own access token: every client
+    carries that, and only a browser also carries a refresh cookie. A
+    credential that is not a session is refused — this upgrades one, and there
+    is nothing else here to add to.
     """
-    prior = await live_session_of(
-        system_session, session_id=require_session_row(request), user_id=user.id
-    )
+    user_id, token_version = user.id, user.token_version
+    if prior is None:
+        prior = await live_session_of(
+            system_session, session_id=require_session_row(request), user_id=user_id
+        )
     if prior is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
         )
 
-    async with session_store(system_session, user_id=user.id):
+    async with session_store(system_session, user_id=user_id):
+        if audit_detail is not None:
+            await audit_service.record(
+                system_session,
+                event_type=AuditEventType.AUTH_SIGNED_IN,
+                actor_user_id=user_id,
+                detail=audit_detail,
+            )
+        await sign_in_locks.record_success(system_session, user_id)
         issued = await issue_session(
             request,
             system_session,
-            user_id=user.id,
-            token_version=user.token_version,
+            user_id=user_id,
+            token_version=token_version,
             amr=sorted(set(prior.amr) | set(add_amr)),
-            satisfied_providers=prior.satisfied_providers,
-            provider_auth=prior.provider_auth,
+            satisfied_providers=[*prior.satisfied_providers, *add_providers],
+            provider_auth=(
+                provider_auth if provider_auth is not None else prior.provider_auth
+            ),
+            device=prior.device,
             replaces=prior.id,
         )
     issued.set_cookies(response)

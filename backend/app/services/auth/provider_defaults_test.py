@@ -8,8 +8,8 @@ nothing merges — and a community that has said nothing inherits.
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth_context import set_satisfied_claims, set_satisfied_providers
-from app.models.platform.guild import GuildRole
+from app.core import auth_context
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.schemas.platform.settings import PlatformProviderDefaultUpdate
 from app.services.auth import guild_provider_connections as connections
@@ -119,7 +119,7 @@ async def test_only_the_operator_answers(client: AsyncClient, session: AsyncSess
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     path = f"/api/v1/settings/auth/providers/{provider.id}/default"
 
@@ -162,13 +162,14 @@ async def test_the_gate_reads_the_answer_for_a_community_that_has_none(
     await _answered(session, provider, claim="tid", claim_values=["acme-tenant"])
 
     async def admits(tenant: str) -> bool:
-        set_satisfied_providers(frozenset({provider.id}))
-        set_satisfied_claims({str(provider.id): {"tid": [tenant]}})
+        auth_context.record(
+            satisfied_providers=frozenset({provider.id}),
+            satisfied_claims={str(provider.id): {"tid": [tenant]}},
+        )
         try:
             return await connections.admits_this_session(session, guild_id=guild.id)
         finally:
-            set_satisfied_providers(None)
-            set_satisfied_claims(None)
+            auth_context.reset()
 
     assert await admits("acme-tenant") is True
     assert await admits("someone-else") is False
@@ -189,13 +190,14 @@ async def test_its_own_narrowing_is_what_the_gate_asks(session: AsyncSession):
     )
 
     async def admits(tenant: str) -> bool:
-        set_satisfied_providers(frozenset({provider.id}))
-        set_satisfied_claims({str(provider.id): {"tid": [tenant]}})
+        auth_context.record(
+            satisfied_providers=frozenset({provider.id}),
+            satisfied_claims={str(provider.id): {"tid": [tenant]}},
+        )
         try:
             return await connections.admits_this_session(session, guild_id=guild.id)
         finally:
-            set_satisfied_providers(None)
-            set_satisfied_claims(None)
+            auth_context.reset()
 
     assert await admits("a-different-tenant") is True
     # The deployment's answer no longer applies here.

@@ -1,6 +1,6 @@
 /**
- * `/settings/advanced` — the tool's own extra operations, exporting, and
- * deletion.
+ * `/settings/advanced` — the tool's own extra operations, duplicating,
+ * archiving, exporting, and deletion.
  *
  * Exporting and deleting are the owner's alone, so those cards are absent for
  * everyone else however they reached the address — and when that leaves the
@@ -15,27 +15,35 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { canUseArchiveCard, ToolArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
+import {
+  canUseDuplicateCard,
+  ToolDuplicateCard,
+} from "@/components/tools/settings/ToolDuplicateCard";
 import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
-import { toolGuildBrowseTarget, toolListRoute } from "@/lib/tools";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
+import { toolCommunityBrowseTarget, toolListRoute } from "@/lib/tools";
 
 export const ToolSettingsAdvancedPage = () => {
   const { t } = useTranslation("common");
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { tool, entity, remove, advancedExtra } = useToolSettings();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const canArchive = canUseArchiveCard(entity);
   const hasAnything =
-    Boolean(advancedExtra) || entity.can.export || entity.can.delete || canArchive;
+    Boolean(advancedExtra) ||
+    entity.can.export ||
+    entity.can.delete ||
+    canArchive ||
+    canUseDuplicateCard(tool, entity);
 
   const handleDelete = () => {
     remove.mutate(entity.id, {
@@ -43,10 +51,10 @@ export const ToolSettingsAdvancedPage = () => {
         toast.success(t("toolSettings.deleted", { name: entity.name }));
         setDeleteDialogOpen(false);
         // Back to the tool's tab in the initiative this entity belonged to.
-        // A guild-level entity (an app's calendar) has no tab, so it falls back
-        // to the guild home browsing that tool.
+        // A community-level entity (a plug-in's calendar) has no tab, so it falls back
+        // to the community home browsing that tool.
         if (entity.initiative_id == null) {
-          const browse = toolGuildBrowseTarget(tool);
+          const browse = toolCommunityBrowseTarget(tool);
           router.navigate({ to: gp(browse.to), search: browse.search });
         } else {
           router.navigate({ to: gp(toolListRoute(tool, entity.initiative_id)) });
@@ -63,12 +71,14 @@ export const ToolSettingsAdvancedPage = () => {
     <div className="space-y-6">
       {advancedExtra}
 
+      <ToolDuplicateCard />
+
       <ToolExportCard />
 
       <ToolArchiveCard />
 
       {entity.can.delete && (
-        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+        <Card className="border-destructive/50">
           <CardHeader>
             <CardTitle>{t("toolSettings.dangerZone")}</CardTitle>
             <CardDescription>{t("toolSettings.dangerZoneDescription")}</CardDescription>

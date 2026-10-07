@@ -81,7 +81,7 @@
       // Waits for the API and the SPA, then opens the browser. Backgrounded on
       // its first line so the chain finishes and the debug session can start
       // the API — the thing this is waiting for.
-      "label": "dev:open-app",
+      "label": "dev:open-plugin",
       "type": "process",
       "command": "bash",
       "args": ["scripts/dev-open.sh"],
@@ -103,7 +103,7 @@
       // data, Vite, and the browser opener. The API is the debug target itself,
       // so it is deliberately not in this chain.
       "label": "dev:setup",
-      "dependsOn": ["dev:open-app"],
+      "dependsOn": ["dev:open-plugin"],
       "presentation": { "reveal": "silent" },
       "problemMatcher": []
     },

@@ -16,10 +16,13 @@ import logging
 from datetime import timedelta
 from typing import Optional, Sequence, cast
 
-from sqlalchemy import or_, text
-from sqlmodel import select
+from fastapi import status
+from sqlalchemy import or_, update as sa_update
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
+from app.core.messages import AccessGrantMessages
 from app.core.capabilities import (
     ROLE_MAX_GRANT_MINUTES,
     Capability,
@@ -27,6 +30,8 @@ from app.core.capabilities import (
     roles_with_capability,
 )
 from app.core.login_methods import LoginMethod
+from app.db.advisory_locks import LockNamespace, advisory_lock
+from app.db.query import paginated_query
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
     LEVEL_LABEL_KEYS,
@@ -35,7 +40,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     AccessLevel,
 )
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
@@ -50,29 +55,21 @@ from app.services.auth import addresses
 from app.services.platform import auth_posture
 from app.services.platform import guilds as guilds_service
 from app.services.platform import notice_outbox
-from app.core.user_display import display_name
+from app.core.user_display import handle_of
 from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
 
-class AccessGrantError(Exception):
-    """Raised for PAM rule violations; carries a machine-readable code that the
-    endpoint maps to an HTTP status + ``AccessGrantMessages`` detail."""
-
-    def __init__(self, code: str):
-        self.code = code
-        super().__init__(code)
+class AccessGrantError(CodedError):
+    """Raised for PAM rule violations, with an ``AccessGrantMessages`` code."""
 
 
 async def _lock_user_guild_grants(
     session: AsyncSession, *, user_id: int, guild_id: int
 ) -> None:
     """Serialize grant changes for one user and guild until transaction end."""
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
-        params={"uid": int(user_id), "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.ACCESS_GRANT, f"{user_id}:{guild_id}")
 
 
 #: The window a grant gets when the request names none.
@@ -98,7 +95,7 @@ def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     cap = max_minutes_for_role(role)
     minutes = requested if requested is not None else min(DEFAULT_DURATION_MINUTES, cap)
     if minutes > cap:
-        raise AccessGrantError("DURATION_TOO_LONG")
+        raise AccessGrantError(AccessGrantMessages.DURATION_TOO_LONG)
     return minutes
 
 
@@ -117,7 +114,7 @@ def _break_glass_duration(requested: Optional[int], role: UserRole) -> int:
         requested if requested is not None else min(BREAK_GLASS_DEFAULT_MINUTES, cap)
     )
     if minutes > cap:
-        raise AccessGrantError("DURATION_TOO_LONG")
+        raise AccessGrantError(AccessGrantMessages.DURATION_TOO_LONG)
     return minutes
 
 
@@ -127,8 +124,8 @@ async def _event_notification_data(session: AsyncSession, grant: AccessGrant) ->
     guild = await guilds_service.get_guild(session, guild_id=grant.guild_id)
     return {
         "grant_id": str(grant.id),
-        "guild_id": str(grant.guild_id),
-        "guild_name": guild.name if guild else None,
+        "community_id": str(grant.guild_id),
+        "community_name": guild.name if guild else None,
         "access_level": grant.access_level,
     }
 
@@ -189,7 +186,7 @@ async def _tell(
     first, *rest = lines
     # The community it is about, so a person who has muted that community
     # hears about it the way they asked to.
-    guild_id = int(first["guild_id"]) if first.get("guild_id") else None
+    guild_id = int(first["community_id"]) if first.get("community_id") else None
     rows = [
         await notice_outbox.notice(
             session,
@@ -242,18 +239,20 @@ async def request_grants(
     approver once after the complete request is established.
     """
     await _lock_user_guild_grants(
-        session, user_id=requester.id, guild_id=payload.guild_id
+        session, user_id=requester.id, guild_id=payload.community_id
     )
-    guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
+    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("GUILD_NOT_FOUND")
+        raise AccessGrantError(
+            AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
+        )
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
-        session, guild_id=payload.guild_id, user_id=requester.id
+        session, guild_id=payload.community_id, user_id=requester.id
     )
     if membership is not None:
-        raise AccessGrantError("ALREADY_MEMBER")
+        raise AccessGrantError(AccessGrantMessages.ALREADY_MEMBER)
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
@@ -262,7 +261,7 @@ async def request_grants(
         existing = await session.exec(
             select(AccessGrant).where(
                 AccessGrant.user_id == requester.id,
-                AccessGrant.guild_id == payload.guild_id,
+                AccessGrant.guild_id == payload.community_id,
                 AccessGrant.purpose == purpose,
                 AccessGrant.status.in_(
                     [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
@@ -273,13 +272,15 @@ async def request_grants(
             if grant.status == AccessGrantStatus.pending.value or grant.is_live(
                 now=utcnow()
             ):
-                raise AccessGrantError("OVERLAPPING_GRANT")
+                raise AccessGrantError(
+                    AccessGrantMessages.OVERLAPPING_GRANT, status.HTTP_409_CONFLICT
+                )
 
     created: list[AccessGrant] = []
     for purpose, level in asks:
         grant = AccessGrant(
             user_id=requester.id,
-            guild_id=payload.guild_id,
+            guild_id=payload.community_id,
             access_level=level,
             purpose=purpose,
             status=AccessGrantStatus.pending.value,
@@ -291,7 +292,7 @@ async def request_grants(
         created.append(grant)
     await session.flush()
 
-    requester_name = display_name(requester)
+    requester_name = handle_of(requester)
     for approver in await _approvers(session):
         await _tell(
             session,
@@ -300,8 +301,8 @@ async def request_grants(
             lines=[
                 {
                     "grant_id": str(grant.id),
-                    "guild_id": str(grant.guild_id),
-                    "guild_name": guild.name,
+                    "community_id": str(grant.guild_id),
+                    "community_name": guild.name,
                     "requester_id": str(requester.id),
                     "requester_name": requester_name,
                     "access_level": grant.access_level,
@@ -360,7 +361,7 @@ async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
         auth_posture.rule_covers(
             await auth_posture.second_factor_requirement(session), actor.role
         )
-        and SECOND_FACTOR_AMR not in auth_context.session_amr()
+        and SECOND_FACTOR_AMR not in auth_context.current().session_amr
     )
 
 
@@ -387,31 +388,34 @@ async def break_glass(
     already confer.
 
     """
-    guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
+    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("GUILD_NOT_FOUND")
+        raise AccessGrantError(
+            AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
+        )
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(
-        session, guild_id=payload.guild_id, user_id=actor.id
+        session, guild_id=payload.community_id, user_id=actor.id
     )
     if membership is not None and not allow_member:
-        raise AccessGrantError("ALREADY_MEMBER")
+        raise AccessGrantError(AccessGrantMessages.ALREADY_MEMBER)
 
     # Serialize concurrent self-issues for this (actor, guild) so the
     # read-then-insert anti-stacking check below can't be raced into two live
     # grants. A transaction-scoped advisory lock on the (user_id, guild_id) pair
     # makes a second concurrent request wait, then see the first's grant and hit
-    # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
-    # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
-    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    # ALREADY_LIVE; the lock auto-releases on commit/rollback.
+    await _lock_user_guild_grants(
+        session, user_id=actor.id, guild_id=payload.community_id
+    )
 
     # Don't stack grants: a still-live grant already confers the access, and a
     # pending request would conflict. Re-trigger only after the current one ends.
     existing = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == actor.id,
-            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.guild_id == payload.community_id,
             AccessGrant.purpose == purpose.value,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
@@ -421,14 +425,18 @@ async def break_glass(
     now = utcnow()
     for grant in existing.all():
         if grant.status == AccessGrantStatus.pending.value:
-            raise AccessGrantError("OVERLAPPING_GRANT")
+            raise AccessGrantError(
+                AccessGrantMessages.OVERLAPPING_GRANT, status.HTTP_409_CONFLICT
+            )
         if grant.is_live(now=now):
-            raise AccessGrantError("ALREADY_LIVE")
+            raise AccessGrantError(
+                AccessGrantMessages.ALREADY_LIVE, status.HTTP_409_CONFLICT
+            )
 
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(
         user_id=actor.id,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
         access_level=level,
         purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
@@ -453,7 +461,7 @@ async def break_glass(
         lines=[data],
         push_key="approved",
         email_event="approved",
-        guild_name=data["guild_name"],
+        guild_name=data["community_name"],
         levels=[grant.access_level],
     )
     return grant
@@ -466,11 +474,13 @@ async def reconcile_break_glass_pair(
     payload: BreakGlassCreate,
 ) -> list[AccessGrant]:
     """Close open grants replaced by the fixed break-glass pair."""
-    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    await _lock_user_guild_grants(
+        session, user_id=actor.id, guild_id=payload.community_id
+    )
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == actor.id,
-            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.guild_id == payload.community_id,
             AccessGrant.purpose.in_(
                 [AccessGrantPurpose.content.value, AccessGrantPurpose.settings.value]
             ),
@@ -514,9 +524,9 @@ async def approve(
     duration_minutes: Optional[int] = None,
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     if approver.id == grant.requested_by_id or approver.id == grant.user_id:
-        raise AccessGrantError("CANNOT_APPROVE_OWN")
+        raise AccessGrantError(AccessGrantMessages.CANNOT_APPROVE_OWN)
 
     # Cap by the GRANTEE's role (an approver shortening/extending can't exceed
     # the recipient's tier).
@@ -528,7 +538,9 @@ async def approve(
         or grantee.status != UserStatus.active
         or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
     ):
-        raise AccessGrantError("GRANTEE_INELIGIBLE")
+        raise AccessGrantError(
+            AccessGrantMessages.GRANTEE_INELIGIBLE, status.HTTP_409_CONFLICT
+        )
     grantee_role = grantee.role
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
@@ -551,7 +563,7 @@ async def approve(
             lines=[data],
             push_key="approved",
             email_event="approved",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
             levels=[grant.access_level],
         )
     return grant
@@ -561,7 +573,7 @@ async def deny(
     session: AsyncSession, *, grant: AccessGrant, approver: User
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     now = utcnow()
     grant.status = AccessGrantStatus.denied.value
     grant.approved_by_id = approver.id
@@ -580,7 +592,7 @@ async def deny(
             lines=[data],
             push_key="denied",
             email_event="denied",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
         )
     return grant
 
@@ -591,7 +603,7 @@ async def revoke(
     # Revoke is only meaningful for an approved grant (live or not-yet-expired);
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
-        raise AccessGrantError("NOT_ACTIVE")
+        raise AccessGrantError(AccessGrantMessages.NOT_ACTIVE)
     now = utcnow()
     grant.status = AccessGrantStatus.revoked.value
     grant.revoked_by_id = revoker.id
@@ -610,7 +622,7 @@ async def revoke(
             lines=[data],
             push_key="revoked",
             email_event="revoked",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
         )
     return grant
 
@@ -620,9 +632,11 @@ async def cancel_own_pending(
 ) -> None:
     """A requester withdraws their own still-pending request."""
     if grant.requested_by_id != user.id:
-        raise AccessGrantError("CANNOT_CANCEL_OTHERS")
+        raise AccessGrantError(
+            AccessGrantMessages.CANNOT_CANCEL_OTHERS, status.HTTP_403_FORBIDDEN
+        )
     if grant.status != AccessGrantStatus.pending.value:
-        raise AccessGrantError("NOT_PENDING")
+        raise AccessGrantError(AccessGrantMessages.NOT_PENDING)
     await session.delete(grant)
     await session.flush()
 
@@ -669,16 +683,15 @@ async def list_grants(
     user_id: Optional[int] = None,
     statuses: Optional[list[str]] = None,
     live_only: bool = False,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-) -> list[AccessGrant]:
-    """List grants, optionally filtered to one grantee and/or a set of statuses.
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[AccessGrant], int, int]:
+    """One page of grants, newest first, optionally filtered to one grantee
+    and/or a set of statuses.
 
     Approvers pass ``user_id=None`` for the full queue; requesters pass their
     own id for "my requests". ``live_only`` keeps only grants that are live:
-    approved and unexpired.
-    ``limit``/``offset`` page the result (ordered newest-first) so a list that
-    grows with users/usage stays bounded.
+    approved and unexpired. Returns ``(grants, total_count, page)``.
     """
     stmt = select(AccessGrant)
     if user_id is not None:
@@ -687,36 +700,77 @@ async def list_grants(
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
         stmt = stmt.where(AccessGrant.live(utcnow()))
-    stmt = stmt.order_by(AccessGrant.requested_at.desc())
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit is not None:
-        stmt = stmt.limit(limit)
-    result = await session.exec(stmt)
-    return list(result.all())
+    return await paginated_query(
+        session,
+        stmt.order_by(AccessGrant.requested_at.desc(), AccessGrant.id.desc()),
+        select(func.count()).select_from(stmt.subquery()),
+        page,
+        page_size,
+    )
+
+
+#: How often grants past their window are marked expired.
+GRANT_EXPIRY_POLL_SECONDS = 300
 
 
 async def expire_due(session: AsyncSession) -> int:
     """Flip approved-but-past-expiry grants to ``expired`` for clean audit/UX.
 
     Liveness is computed independently, so this is housekeeping, not a
-    correctness requirement. Returns the number of rows updated.
+    correctness requirement: it is what records that a grant *ended*, which
+    nothing else observes. Each one is recorded as decided by nobody.
+    Returns the number of rows updated.
     """
+    from app.core.audit_events import AuditEventType
+    from app.services import audit as audit_service
+
     now = utcnow()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at <= now,
+    # One statement claims the rows it changes: a second sweep running at the
+    # same moment, or a revocation landing first, finds the row no longer
+    # approved and leaves it alone, so each ending is recorded exactly once.
+    claimed = (
+        await session.exec(
+            sa_update(AccessGrant)
+            .where(
+                AccessGrant.status == AccessGrantStatus.approved.value,
+                AccessGrant.expires_at <= now,
+            )
+            .values(status=AccessGrantStatus.expired.value, updated_at=now)
+            .returning(
+                AccessGrant.id,
+                AccessGrant.guild_id,
+                AccessGrant.purpose,
+                AccessGrant.access_level,
+            )
+            .execution_options(synchronize_session=False)
         )
-    )
-    rows = result.all()
-    for grant in rows:
-        grant.status = AccessGrantStatus.expired.value
-        grant.updated_at = now
-        session.add(grant)
-    if rows:
-        await session.flush()
-    return len(rows)
+    ).all()
+    for grant_id, guild_id, purpose, level in claimed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+            actor_user_id=None,
+            guild_id=guild_id,
+            target_type="access_grant",
+            target_id=grant_id,
+            detail={
+                "purpose": purpose,
+                "level": level,
+                "decision": AccessGrantStatus.expired.value,
+            },
+        )
+    return len(claimed)
+
+
+async def process_grant_expiry() -> None:
+    """Background sweep: mark the grants whose window has closed."""
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as session:
+        expired = await expire_due(session)
+        await session.commit()
+    if expired:
+        logger.info("access grants: marked %s expired", expired)
 
 
 async def _enrichment(
@@ -776,11 +830,10 @@ async def to_read(
         grantee = users.get(g.user_id)
         if grantee is not None:
             read.user_email = addresses_by_user.get(g.user_id)
-            read.user_full_name = grantee.full_name
         guild = guilds.get(g.guild_id)
         if guild is not None:
-            read.guild_name = guild.name
-            read.guild_status = GuildStatus(guild.status)
+            read.community_name = guild.name
+            read.community_status = CommunityStatus(guild.status)
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:
@@ -802,6 +855,7 @@ __all__ = [
     "get_live_grants",
     "list_grants",
     "expire_due",
+    "process_grant_expiry",
     "to_read",
     "max_minutes_for_role",
     "break_glass_max_minutes",

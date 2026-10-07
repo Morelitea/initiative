@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { OperatorUserRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  OperatorDeletionEligibilityResponse,
+  OperatorUserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import { OperatorDeleteUserDialog } from "./OperatorDeleteUserDialog";
 
@@ -16,24 +19,19 @@ const targetUser: OperatorUserRead = {
   purge_at: null,
   sign_in_locked_until: null,
   second_factor_enrolled: false,
+  api_key_count: 0,
 };
 
-const eligibilityWithGuildBlocker = {
+const eligibilityWithCommunityBlocker: OperatorDeletionEligibilityResponse = {
   can_delete: false,
-  blockers: ["Only superadmin of community Lone Community"],
-  warnings: [],
-  owned_projects: [],
-  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community" }],
-  initiative_blockers: [],
+  last_owner: false,
+  community_blockers: [{ community_id: 77, community_name: "Lone Community" }],
 };
 
-const eligibilityClear = {
+const eligibilityClear: OperatorDeletionEligibilityResponse = {
   can_delete: true,
-  blockers: [],
-  warnings: [],
-  owned_projects: [],
-  guild_blockers: [],
-  initiative_blockers: [],
+  last_owner: false,
+  community_blockers: [],
 };
 
 describe("OperatorDeleteUserDialog community blocker resolution", () => {
@@ -45,7 +43,7 @@ describe("OperatorDeleteUserDialog community blocker resolution", () => {
         // First check: blocked by the community. Once the seat is resolved
         // inside the community, checking again comes back clear.
         return HttpResponse.json(
-          eligibilityCalls === 1 ? eligibilityWithGuildBlocker : eligibilityClear
+          eligibilityCalls === 1 ? eligibilityWithCommunityBlocker : eligibilityClear
         );
       })
     );
@@ -79,5 +77,6 @@ describe("OperatorDeleteUserDialog community blocker resolution", () => {
       expect(screen.queryByRole("button", { name: /check again/i })).not.toBeInTheDocument()
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Type\s+USER-\d+\s+to confirm/)).toBeInTheDocument();
   });
 });

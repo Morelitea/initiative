@@ -32,12 +32,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from fastapi import status
 from pglast import ast, parse_sql
 from pglast.enums import A_Expr_Kind, SetOperation
 from pglast.parser import ParseError
 from pglast.stream import RawStream
 from pglast.visitors import Visitor
 
+from app.core.errors import CodedError
 from app.core.messages import QueryMessages
 from app.db import gucs
 from app.services.fields import dataset
@@ -53,13 +55,24 @@ _EXPLAIN_JSON = (ast.DefElem(defname="format", arg=ast.String(sval="json")),)
 MAX_RELATIONS = 4
 
 
-class QueryError(Exception):
+#: What each refusal is, as HTTP. Everything not named here is something the
+#: reader can fix in the statement.
+_REFUSAL_STATUS = {
+    QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
+    QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
+    QueryMessages.INTERRUPTED: status.HTTP_503_SERVICE_UNAVAILABLE,
+}
+
+
+class QueryError(CodedError):
     """A query this surface will not run, and the word that has to change."""
 
     def __init__(self, code: str, subject: str = "") -> None:
-        super().__init__(f"{code}: {subject}" if subject else code)
-        self.code = code
+        super().__init__(code, _REFUSAL_STATUS.get(code))
         self.subject = subject
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.subject}" if self.subject else self.code
 
 
 @dataclass(frozen=True)
@@ -78,6 +91,10 @@ class ResolvedQuery:
     #: name one. ``None`` where the output is an expression rather than a
     #: field, and the database is the one to describe it.
     column_types: tuple[FieldType | None, ...] = ()
+    #: The period each output column is rounded to, by position: the unit of a
+    #: ``date_trunc`` the column is, or ``None``. A chart labels a point by it
+    #: ("Mar 2026", "Q1 2026") instead of guessing from the dates it got back.
+    column_grains: tuple[str | None, ...] = ()
     #: Whether the statement asked about whoever is reading it. A caller that
     #: needs one answer for everybody has to know, because this is the one
     #: thing in the language that makes a statement answer differently per
@@ -555,6 +572,32 @@ def _output_types(
     return tuple(_target_type(target, scope) for target in select.targetList or ())
 
 
+#: The units of ``date_trunc`` a column may be labelled by.
+GRAINS = frozenset({"day", "week", "month", "quarter", "year"})
+
+
+def _output_grains(select: ast.SelectStmt) -> tuple[str | None, ...]:
+    """The period each output column is rounded to, read before the literals
+    are bound: a target that is ``date_trunc('<unit>', …)`` is that unit."""
+    return tuple(_target_grain(target) for target in select.targetList or ())
+
+
+def _target_grain(target: ast.ResTarget) -> str | None:
+    call = target.val
+    # A rounded date cast to another date type is still rounded to that unit.
+    while isinstance(call, ast.TypeCast):
+        call = call.arg
+    if not isinstance(call, ast.FuncCall):
+        return None
+    if _name_parts(call.funcname)[-1:] != ["date_trunc"]:
+        return None
+    args = call.args or ()
+    if not args or not isinstance(args[0], ast.A_Const):
+        return None
+    unit = getattr(args[0].val, "sval", None)
+    return unit.lower() if isinstance(unit, str) and unit.lower() in GRAINS else None
+
+
 def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | None:
     spec = _target_spec(target, scope)
     return spec.type if spec is not None else None
@@ -863,6 +906,7 @@ def resolve(sql: str) -> ResolvedQuery:
     _expand_relations(select)
     scope = _relations(select)
     column_types = _output_types(select, scope)
+    column_grains = _output_grains(select)
     _check_viewer(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
@@ -872,5 +916,6 @@ def resolve(sql: str) -> ResolvedQuery:
         parameters=parameters,
         relations=tuple(sorted(set(scope.values()))),
         column_types=column_types,
+        column_grains=column_grains,
         names_the_reader=names_the_reader,
     )

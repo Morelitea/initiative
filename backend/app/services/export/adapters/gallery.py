@@ -25,13 +25,16 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
+from app.schemas.tenant.tag import annotated_tags
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
+    asset_item,
     envelope_key,
+    storage_key_of,
 )
 from app.services.export.contract import RenderItem
 from app.services.export.property_values import exported_properties
@@ -41,8 +44,7 @@ from app.services.permissions import EXPORT_ACCESS
 Loaded = tuple[Gallery, list[GalleryImage]]
 
 
-#: The size proxy divisor for the pictures: one "row" per MiB, as a file
-#: document counts, so a gallery of large pictures is delivered as a job.
+#: The size proxy divisor for the pictures: one "row" per MiB, as an uploaded file counts, so a gallery of large pictures is delivered as a job.
 _IMAGE_ROW_BYTES = 1_048_576
 
 
@@ -85,15 +87,6 @@ class GalleryAdapter(ToolExportAdapter):
         await properties_service.annotate_properties(session, images)
         return gallery, images
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.galleries import list_gallery_ids_for_export
-
-        return await list_gallery_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
-
     async def reach(
         self, session: AsyncSession, params: dict, loaded: list[Loaded], /
     ) -> set[int]:
@@ -108,7 +101,8 @@ class GalleryAdapter(ToolExportAdapter):
         # each picture counts for its megabytes, and at least one.
         _gallery, images = loaded
         return 1 + sum(
-            max(1, int(image.file_size or 0) // _IMAGE_ROW_BYTES) for image in images
+            max(1, int(image.current_version.file_size or 0) // _IMAGE_ROW_BYTES)
+            for image in images
         )
 
     def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
@@ -121,28 +115,8 @@ class GalleryAdapter(ToolExportAdapter):
 
         _gallery, images = loaded
         storage = get_guild_storage(ctx.guild_id)
-        pictures = []
-        for image in images:
-            key = storage_key_of(image.file_url)
-            if not key or not storage.exists(key):
-                continue
-            pictures.append(
-                RenderItem(
-                    key=key,
-                    data={
-                        "storage_key": key,
-                        "content_type": image.file_content_type,
-                    },
-                    filename=f"assets/{key}",
-                    format="file",
-                )
-            )
-        return (self.item(loaded, ctx), *pictures)
-
-
-def storage_key_of(url: str | None) -> str:
-    """The stored blob's key, as the manifest and the importer name it."""
-    return (url or "").split("/")[-1]
+        pictures = (asset_item(storage, image.current_version) for image in images)
+        return (self.item(loaded, ctx), *(p for p in pictures if p is not None))
 
 
 def build_gallery_item(
@@ -162,31 +136,36 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
         None,
     )
     return {
-        "type": "initiative-gallery",
+        "type": tool_envelope_type(Tool.gallery),
         "schema_version": 1,
         "name": gallery.name,
         "description": gallery.description,
         # The cover crosses as a storage key for the reason a wiki's home page
         # crosses as a slug: an id means nothing in the guild this restores
         # into, and the key is what both sides call the same picture.
-        "cover": storage_key_of(cover.file_url) if cover is not None else None,
-        "tags": sorted(tag.name for tag in getattr(gallery, "tags", None) or []),
+        "cover": (
+            storage_key_of(cover.current_version.file_url)
+            if cover is not None
+            else None
+        ),
+        "tags": sorted(tag.name for tag in annotated_tags(gallery)),
         "properties": exported_properties(gallery),
         "images": [_image_envelope(image) for image in images],
     }
 
 
 def _image_envelope(image: GalleryImage) -> dict[str, Any]:
+    version = image.current_version
     return {
         "title": image.title,
         "caption": image.caption,
-        "storage_key": storage_key_of(image.file_url),
-        "content_type": image.file_content_type,
-        "size_bytes": image.file_size,
-        "original_filename": image.original_filename,
-        "width": image.width,
-        "height": image.height,
-        "tags": sorted(tag.name for tag in getattr(image, "tags", None) or []),
+        "storage_key": storage_key_of(version.file_url),
+        "content_type": version.file_content_type,
+        "size_bytes": version.file_size,
+        "original_filename": version.original_filename,
+        "width": version.width,
+        "height": version.height,
+        "tags": sorted(tag.name for tag in annotated_tags(image)),
         "properties": exported_properties(image),
         # What a reference to this picture points at across one import.
         "external_ref": f"gallery_image:{image.id}",

@@ -6,14 +6,12 @@ verify the new project has equivalent tags, statuses, properties, tasks,
 checklists, assignees, and property values.
 """
 
-import pytest
-
 from app.core.user_display import handle_of
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
@@ -21,10 +19,11 @@ from app.models.tenant.property import (
     PropertyValue,
 )
 from app.models.tenant.tag import Tag
-from app.schemas.tenant.project_export import SCHEMA_VERSION
+from app.schemas.tenant.import_envelopes import CURRENT_SCHEMA_VERSION
 from app.models.tenant.task import Task, TaskAssignee, TaskStatusCategory
 from app.services.tenant import project_export as export_service
 from app.services.tenant import project_import as import_service
+from app.services.tenant.project_grants import get_project_hydrated
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
@@ -50,10 +49,10 @@ async def _seed_populated_project(session: AsyncSession):
     assignee = await create_user(session, email="alice@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=assignee, guild=guild, role=GuildRole.member
+        session, user=assignee, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(
         session, guild, owner, name="Source Initiative"
@@ -130,11 +129,11 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     # Build the export envelope
     envelope = await export_service.build_project_export(
         session,
-        project_id=source_project.id,
+        await get_project_hydrated(session, source_project.id),
         exported_by_handle=handle_of(owner),
     )
 
-    assert envelope.schema_version == SCHEMA_VERSION
+    assert envelope.schema_version == CURRENT_SCHEMA_VERSION
     assert envelope.project.name == "Source Project"
     assert envelope.project.icon == "🚀"
     assert {s.name for s in envelope.task_statuses} >= {
@@ -178,16 +177,16 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         importer=owner,
     )
 
-    assert result.task_count == 1
-    assert result.assignee_unmatched_handles == []
-    assert result.tag_create_count + result.tag_match_count == 1
-    assert result.property_create_count == 1
-    assert result.assignee_match_count == 1
+    assert result.created["tasks"] == 1
+    assert result.unmatched_handles == []
+    assert result.created["tags"] + result.matched["tags"] == 1
+    assert result.created["properties"] == 1
+    assert result.matched["assignees"] == 1
 
     # Verify the new project lives in target initiative with full graph
     stmt = (
         select(Project)
-        .where(Project.id == result.project_id)
+        .where(Project.id == result.entity_id)
         .options(
             selectinload(Project.grants),
             selectinload(Project.task_statuses),
@@ -238,7 +237,7 @@ async def test_property_type_collision_renames(session: AsyncSession):
         source_project,
     ) = await _seed_populated_project(session)
     envelope = await export_service.build_project_export(
-        session, project_id=source_project.id
+        session, await get_project_hydrated(session, source_project.id)
     )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
@@ -257,7 +256,7 @@ async def test_property_type_collision_renames(session: AsyncSession):
         importer=owner,
     )
 
-    assert result.property_rename_count == 1
+    assert result.renamed_property_count == 1
 
     # Original definition unchanged
     refreshed = await session.get(PropertyDefinition, existing_prop.id)
@@ -285,7 +284,7 @@ async def test_property_options_mismatch_renames(session: AsyncSession):
         source_project,
     ) = await _seed_populated_project(session)
     envelope = await export_service.build_project_export(
-        session, project_id=source_project.id
+        session, await get_project_hydrated(session, source_project.id)
     )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
@@ -307,7 +306,7 @@ async def test_property_options_mismatch_renames(session: AsyncSession):
         target_initiative=target_initiative,
         importer=owner,
     )
-    assert result.property_rename_count == 1
+    assert result.renamed_property_count == 1
 
     # Original target definition unchanged
     refreshed = await session.get(PropertyDefinition, existing_prop.id)
@@ -337,7 +336,7 @@ async def test_property_options_label_only_difference_matches(session: AsyncSess
         source_project,
     ) = await _seed_populated_project(session)
     envelope = await export_service.build_project_export(
-        session, project_id=source_project.id
+        session, await get_project_hydrated(session, source_project.id)
     )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
@@ -358,8 +357,8 @@ async def test_property_options_label_only_difference_matches(session: AsyncSess
         target_initiative=target_initiative,
         importer=owner,
     )
-    assert result.property_rename_count == 0
-    assert result.property_match_count == 1
+    assert result.renamed_property_count == 0
+    assert result.matched["properties"] == 1
 
 
 async def test_unmatched_assignees_reported(session: AsyncSession):
@@ -371,7 +370,7 @@ async def test_unmatched_assignees_reported(session: AsyncSession):
         source_project,
     ) = await _seed_populated_project(session)
     envelope = await export_service.build_project_export(
-        session, project_id=source_project.id
+        session, await get_project_hydrated(session, source_project.id)
     )
 
     # Target initiative has *no* members other than the owner — alice isn't a member here
@@ -383,52 +382,8 @@ async def test_unmatched_assignees_reported(session: AsyncSession):
         target_initiative=target_initiative,
         importer=owner,
     )
-    assert result.assignee_match_count == 0
-    assert result.assignee_unmatched_handles == [handle_of(assignee)]
-
-
-async def test_schema_version_unsupported_rejected(session: AsyncSession):
-    owner = await create_user(session)
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
-    )
-    target_initiative = await create_initiative(session, guild, owner)
-
-    # Hand-roll a minimal envelope with an unsupported version
-    from app.schemas.tenant.project_export import (
-        ProjectExportEnvelope,
-        ProjectExportProject,
-        ProjectExportTaskStatus,
-    )
-    from datetime import datetime, timezone
-
-    envelope = ProjectExportEnvelope(
-        schema_version=999,
-        app_version="0.0.0",
-        exported_at=datetime.now(timezone.utc),
-        project=ProjectExportProject(name="X"),
-        tags=[],
-        task_statuses=[
-            ProjectExportTaskStatus(
-                name="B", category=TaskStatusCategory.backlog, is_default=True
-            )
-        ],
-        property_definitions=[],
-        tasks=[],
-    )
-
-    from fastapi import HTTPException
-
-    with pytest.raises(HTTPException) as excinfo:
-        await import_service.import_project(
-            session,
-            envelope=envelope,
-            target_initiative=target_initiative,
-            importer=owner,
-        )
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
+    assert result.matched["assignees"] == 0
+    assert result.unmatched_handles == [handle_of(assignee)]
 
 
 async def test_a_thread_survives_the_round_trip(session: AsyncSession):
@@ -449,7 +404,9 @@ async def test_a_thread_survives_the_round_trip(session: AsyncSession):
     )
 
     envelope = await export_service.build_project_export(
-        session, project_id=project.id, exported_by_handle=handle_of(owner)
+        session,
+        await get_project_hydrated(session, project.id),
+        exported_by_handle=handle_of(owner),
     )
     exported = {c.body: c for c in envelope.tasks[0].comments}
     assert exported["Answer"].reply_to_ref == exported["Question"].external_ref
@@ -459,7 +416,7 @@ async def test_a_thread_survives_the_round_trip(session: AsyncSession):
         session, envelope=envelope, target_initiative=target, importer=owner
     )
     new_task = (
-        await session.exec(select(Task).where(Task.project_id == result.project_id))
+        await session.exec(select(Task).where(Task.project_id == result.entity_id))
     ).one()
     restored = {
         c.content: c
@@ -501,7 +458,7 @@ async def test_a_status_with_no_look_gets_its_categorys(session: AsyncSession):
     )
     rows = (
         await session.exec(
-            select(TaskStatus).where(TaskStatus.project_id == result.project_id)
+            select(TaskStatus).where(TaskStatus.project_id == result.entity_id)
         )
     ).all()
     assert {r.category: (r.color, r.icon) for r in rows} == {

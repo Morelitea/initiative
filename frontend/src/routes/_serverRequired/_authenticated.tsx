@@ -10,7 +10,7 @@ import { Loader2, LogOut, Settings, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AcceptTerms } from "@/components/AcceptTerms";
 import { AccountTimeOut } from "@/components/AccountTimeOut";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -18,9 +18,8 @@ import { AnnouncementCenter } from "@/components/announcements/AnnouncementCente
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
-import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
-import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
-import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
+import { ConfirmBirthdate } from "@/components/ConfirmBirthdate";
+import { CommunityAccessBanner } from "@/components/communities/CommunityAccessBanner";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
@@ -31,12 +30,15 @@ import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { StartFlow } from "@/components/start/StartFlow";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { CreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Button } from "@/components/ui/button";
+import { DocumentOutlineScope } from "@/components/ui/editor/DocumentOutline";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useDesktopApp } from "@/hooks/useDesktopApp";
 import { useFinishPendingStart } from "@/hooks/useFinishPendingStart";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useCollectMessagesWhereRegistered } from "@/hooks/useMyMessages";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -49,7 +51,7 @@ import {
 } from "@/hooks/useRecents";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
-import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
+import { chooseNoCommunityLayout } from "@/lib/noCommunityLayout";
 import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
 import { returnPath } from "@/lib/returnPath";
@@ -109,7 +111,7 @@ function AuthenticatedLayout() {
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
   const { user, loading, logout } = useAuth();
-  const { guilds, loading: guildsLoading } = useGuilds();
+  const { communities, loading: communitiesLoading } = useCommunities();
   // Set while the start flow is making a community, so it stays on screen
   // once the account has one rather than giving way to the app shell.
   const [startFlowBusy, setStartFlowBusy] = useState(false);
@@ -124,21 +126,22 @@ function AppLayout() {
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
-  // Personal, cross-guild, and mounted here rather than beside the bell so it
+  // Personal, cross-community, and mounted here rather than beside the bell so it
   // survives the bell unmounting with a collapsed sidebar.
   useNotificationStream();
   usePushNotifications();
+  useDesktopApp();
   useBackButton();
   // Mail is fetched wherever you are, so a message that arrives while you are
   // on another page is noticed rather than waiting to be discovered. Only for a
   // browser that has already been set up for messages — this never sets one up.
   useCollectMessagesWhereRegistered();
 
-  // No cross-tab guild convergence: each tab keeps the guild from its own URL,
-  // so two tabs can sit in two different guilds at once.
+  // No cross-tab community convergence: each tab keeps the community from its own URL,
+  // so two tabs can sit in two different communities at once.
 
-  // The tabs bar is cross-guild by design (names only): one user-context
-  // query, valid in any guild and in personal mode.
+  // The tabs bar is cross-community by design (names only): one user-context
+  // query, valid in any community and in personal mode.
   const recentQuery = useRecents({
     enabled: !loading && !!user,
     staleTime: 30_000,
@@ -161,9 +164,16 @@ function AppLayout() {
     return <AcceptTerms />;
   }
 
+  // No date of birth on file. Asked once of every account — plug-ins can have a
+  // minimum age that differs by country — and never again once answered. An
+  // account already blocked as under age has nothing left to answer here.
+  if (!loading && user && !user.birthdate_on_file && !user.age_below_minimum_at) {
+    return <ConfirmBirthdate />;
+  }
+
   // Now we can have conditional returns
-  // Show loading state while auth or guild membership is being determined
-  if (loading || guildsLoading) {
+  // Show loading state while auth or community membership is being determined
+  if (loading || communitiesLoading) {
     return <FullScreenLoader />;
   }
 
@@ -178,24 +188,24 @@ function AppLayout() {
     return <FullScreenLoader />;
   }
 
-  // No-guild empty-state branch. The user-scoped settings routes
+  // No-community empty-state branch. The user-scoped settings routes
   // (``/profile/*``) and the platform areas (``/settings/operator/*`` and
-  // ``/settings/platform/*``, for platform staff) don't need guild context —
-  // the APIs they call work without a server-held guild — and a user with zero
+  // ``/settings/platform/*``, for platform staff) don't need community context —
+  // the APIs they call work without a server-held community — and a user with zero
   // memberships would otherwise have no path to delete their account
   // or, for platform staff, configure system-wide settings. The
-  // path-based decision lives in ``chooseNoGuildLayout`` so it can be
-  // unit-tested without a router; see ``noGuildLayout.test.ts``.
+  // path-based decision lives in ``chooseNoCommunityLayout`` so it can be
+  // unit-tested without a router; see ``noCommunityLayout.test.ts``.
   if (user) {
     const reachesPlatformAreas = canAccessPlatformAreas(user);
-    const layout = chooseNoGuildLayout({
-      hasGuilds: guilds.length > 0,
+    const layout = chooseNoCommunityLayout({
+      hasCommunities: communities.length > 0,
       pathname: location.pathname,
       canAccessPlatformAreas: reachesPlatformAreas,
     });
     if (layout === "empty" || startFlowBusy) {
       return (
-        <NoGuildState
+        <NoCommunityState
           logout={logout}
           reachesPlatformAreas={reachesPlatformAreas}
           onBusy={setStartFlowBusy}
@@ -203,7 +213,7 @@ function AppLayout() {
       );
     }
     if (layout === "shell") {
-      return <NoGuildSettingsShell logout={logout} />;
+      return <NoCommunitySettingsShell logout={logout} />;
     }
     // layout === "main" → fall through to the standard sidebar layout.
   }
@@ -211,7 +221,7 @@ function AppLayout() {
   const toClearTarget = (item: RecentItemRead): ClearRecentTarget => ({
     entityType: item.entity_type,
     entityId: item.entity_id,
-    guildId: item.guild_id,
+    communityId: item.community_id,
   });
 
   const handleClearRecent = (item: RecentItemRead) => {
@@ -222,7 +232,7 @@ function AppLayout() {
     const others = (recentQuery.data ?? []).filter(
       (item) =>
         !(
-          item.guild_id === keep.guild_id &&
+          item.community_id === keep.community_id &&
           item.entity_type === keep.entity_type &&
           item.entity_id === keep.entity_id
         )
@@ -248,9 +258,9 @@ function AppLayout() {
   // ProjectActivitySidebar still wants the active project directly — and the
   // initiative it sits in, since a task's URL names that too.
   const activeProjectId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.entityId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.entityId : null;
   const activeProjectInitiativeId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.initiativeId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.initiativeId : null;
 
   // const isDark = document.documentElement.classList.contains("dark");
 
@@ -258,7 +268,7 @@ function AppLayout() {
     <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
-      <CreateDocumentWizard />
+      <CreateToolWizard tool={Tool.file} />
       {/* A real height rather than a minimum: `min-h-screen` leaves every
           descendant sizing to its own content, so a page cannot ask for the
           height of what it is in. Scrolling moves from the document into
@@ -275,7 +285,7 @@ function AppLayout() {
           applies to descendants whose containing-block chain runs through it;
           the rest are laid out against the document, and it is the document
           that grows to fit them. */}
-      <div className="relative flex h-screen flex-col overflow-clip bg-background">
+      <div className="relative flex h-dvh flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
         <DeviceVerificationDialog />
         <div className="flex min-h-0 flex-1">
@@ -325,7 +335,7 @@ function AppLayout() {
                     </div>
                   )}
                   <OfflineBanner />
-                  <GuildAccessBanner />
+                  <CommunityAccessBanner />
                 </div>
                 <div className="flex min-h-0 flex-1 justify-between">
                   {/*<div
@@ -386,7 +396,7 @@ function AppLayout() {
                       `height: auto`, and a percentage height resolves against
                       the parent's *height* — so `h-full` on a page would
                       silently become `auto`. Three pages depend on that chain
-                      (My Messages, a document, an app surface): each pins
+                      (My Messages, a document, a plug-in surface): each pins
                       something to an edge and needs a real height to do it.
 
                       A grid row is definite either way. It is at least the
@@ -448,7 +458,7 @@ function AppLayout() {
  * Signed in with no community: the start flow without the account steps, and
  * the ways to the account's own settings underneath.
  */
-function NoGuildState({
+function NoCommunityState({
   logout,
   reachesPlatformAreas,
   onBusy,
@@ -457,7 +467,7 @@ function NoGuildState({
   reachesPlatformAreas: boolean;
   onBusy: (busy: boolean) => void;
 }) {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   return (
     <StartFlow
       signedIn
@@ -470,20 +480,20 @@ function NoGuildState({
           <Button variant="ghost" size="sm" asChild>
             <Link to="/profile">
               <UserCog className="h-4 w-4" />
-              {t("noGuild.accountSettings")}
+              {t("noCommunity.accountSettings")}
             </Link>
           </Button>
           {reachesPlatformAreas && (
             <Button variant="ghost" size="sm" asChild>
               <Link to="/settings/operator">
                 <Settings className="h-4 w-4" />
-                {t("noGuild.platformSettings")}
+                {t("noCommunity.platformSettings")}
               </Link>
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="h-4 w-4" />
-            {t("noGuild.logOut")}
+            {t("noCommunity.logOut")}
           </Button>
         </div>
       }
@@ -492,14 +502,14 @@ function NoGuildState({
 }
 
 /**
- * Minimal layout shown when the user has zero guild memberships but
- * is on a route that doesn't need guild context (``/profile/*``,
+ * Minimal layout shown when the user has zero community memberships but
+ * is on a route that doesn't need community context (``/profile/*``,
  * ``/settings/operator/*``). Renders the matched outlet inside a
  * narrow container with just enough chrome (Back-to-start + logout)
  * to navigate away.
  */
-function NoGuildSettingsShell({ logout }: { logout: () => void }) {
-  const { t } = useTranslation("guilds");
+function NoCommunitySettingsShell({ logout }: { logout: () => void }) {
+  const { t } = useTranslation("communities");
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <div
@@ -508,11 +518,11 @@ function NoGuildSettingsShell({ logout }: { logout: () => void }) {
       >
         <div className="flex h-12 items-center justify-between px-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/">{t("noGuild.shellBackToStart")}</Link>
+            <Link to="/">{t("noCommunity.shellBackToStart")}</Link>
           </Button>
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="h-4 w-4" />
-            {t("noGuild.logOut")}
+            {t("noCommunity.logOut")}
           </Button>
         </div>
       </div>

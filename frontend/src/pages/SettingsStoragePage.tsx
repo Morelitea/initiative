@@ -25,7 +25,7 @@ import {
   useTestStorageConnection,
   useUpdateStorageSettings,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 type Backend = "local" | "s3";
@@ -141,7 +141,7 @@ export const SettingsStoragePage = () => {
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("storage.title")}</CardTitle>
         <CardDescription>{t("storage.description")}</CardDescription>

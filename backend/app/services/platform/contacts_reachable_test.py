@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import text
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 
@@ -34,8 +34,8 @@ async def _roster(client, actor) -> set[int]:
 
 
 async def test_a_community_member_you_can_ask_is_listed(client, session, acting_user):
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
 
@@ -43,8 +43,8 @@ async def test_a_community_member_you_can_ask_is_listed(client, session, acting_
 
 
 async def test_a_private_member_is_not_listed(client, session, acting_user):
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.private)
 
@@ -54,8 +54,8 @@ async def test_a_private_member_is_not_listed(client, session, acting_user):
 async def test_a_private_reader_lists_nobody(client, session, acting_user):
     """The reader's own policy decides the whole page, which is what makes the
     default empty and worth explaining."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.private)
     await _policy(session, bram.user, DmPolicy.community)
 
@@ -63,8 +63,8 @@ async def test_a_private_reader_lists_nobody(client, session, acting_user):
 
 
 async def test_an_unconfirmed_age_lists_nobody(client, session, acting_user):
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
     ada.user.age_confirmed_at = None
@@ -82,8 +82,8 @@ async def test_a_member_who_has_not_answered_the_age_question_is_not_listed(
     An account that has not answered cannot be messaged, so listing it would
     offer the reader a person they cannot reach.
     """
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
     bram.user.age_confirmed_at = None
@@ -97,8 +97,8 @@ async def test_a_member_below_the_minimum_age_is_not_listed(
     client, session, acting_user
 ):
     """The other age answer, which is the one that stands."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
     bram.user.age_confirmed_at = None
@@ -113,8 +113,8 @@ async def test_being_ignored_does_not_remove_you_from_their_roster(
     client, session, acting_user
 ):
     """Ada ignores Bram. Bram's roster still has Ada on it, unchanged."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
 
@@ -131,8 +131,8 @@ async def test_an_account_you_ignore_leaves_your_own_roster(
     client, session, acting_user
 ):
     """The other direction is the reader's own doing, and theirs to see."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _policy(session, ada.user, DmPolicy.community)
     await _policy(session, bram.user, DmPolicy.community)
     assert bram.user.id in await _roster(client, ada)

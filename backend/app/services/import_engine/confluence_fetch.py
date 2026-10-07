@@ -88,14 +88,14 @@ class ConfluenceFetchReport:
     attachments: int = 0
     #: Pictures the pages show, coming over as uploads.
     images: int = 0
-    #: Files — and pictures no page shows — coming over as documents.
+    #: Files — and pictures no page shows — coming over as files.
     files: int = 0
     #: What both will take up.
     attachment_bytes: int = 0
     #: Too large, past the bundle's budget, a type never brought, or one the
     #: site would not hand over.
     attachments_skipped: int = 0
-    #: Files left behind because the initiative cannot take documents.
+    #: Files left behind because the initiative cannot take files.
     files_blocked: int = 0
     #: Comments carried onto the pages, footer and inline alike.
     comments: int = 0
@@ -288,7 +288,7 @@ async def fetch_page_media(
     budget: AssetBudget,
     store: AssetSink,
     report: confluence_attachments.AttachmentReport,
-    documents: bool,
+    files_allowed: bool,
     tick: Optional[Heartbeat] = None,
 ) -> confluence_attachments.PageMedia:
     """A page's attachments, downloaded within what the bundle can hold."""
@@ -312,7 +312,7 @@ async def fetch_page_media(
         store=store,
         budget=budget,
         report=report,
-        documents=documents,
+        files_allowed=files_allowed,
         tick=tick,
     )
 
@@ -403,7 +403,7 @@ class ConfluenceFetched:
     report: ConfluenceFetchReport
     #: The pictures the pages show, restored as uploads.
     images: list[StoredImage] = field(default_factory=list)
-    #: Each space's file documents, by space key.
+    #: Each space's uploaded files, by space key.
     files: dict[str, list[confluence_attachments.PageFile]] = field(
         default_factory=dict
     )
@@ -419,7 +419,7 @@ async def fetch_spaces(
     guild_id: Optional[int] = None,
     asset_budget: Optional[AssetBudget] = None,
     store: Optional[AssetSink] = None,
-    documents: bool = True,
+    files_allowed: bool = True,
     include_comments: bool = False,
 ) -> ConfluenceFetched:
     """Read the chosen spaces and return what was read plus what it found.
@@ -431,8 +431,7 @@ async def fetch_spaces(
 
     ``asset_budget`` is what the bundle can still hold for attachments —
     shared with the issues, when both are read — and without one none are
-    fetched. ``documents`` false is an initiative that cannot take file
-    documents: only the pictures the pages show come. ``include_comments``
+    fetched. ``files_allowed`` false is an initiative that cannot take uploaded files: only the pictures the pages show come. ``include_comments``
     brings what was said on each page, each comment a row of the import's
     budget like a page is.
     """
@@ -507,7 +506,7 @@ async def fetch_spaces(
                             budget=asset_budget,
                             store=store,
                             report=downloads,
-                            documents=documents,
+                            files_allowed=files_allowed,
                             tick=tick,
                         )
                         await tick()
@@ -526,7 +525,7 @@ async def fetch_spaces(
                 app_version=app_version,
                 max_bytes=max_bytes,
                 media=media,
-                documents=documents,
+                files_allowed=files_allowed,
                 comments=comments,
             )
             gathered.add(key, mapped, counted_references=asset_budget is None)
@@ -569,8 +568,8 @@ class Gathered:
         report = self.report
         self.envelopes.append((key, mapped.envelope))
         self.images.extend(mapped.uploads)
-        if mapped.documents:
-            self.files[key] = mapped.documents
+        if mapped.files:
+            self.files[key] = mapped.files
         self.people.update(mapped.people)
         report.spaces += 1
         report.pages += mapped.pages
@@ -580,12 +579,12 @@ class Gathered:
         if counted_references:
             report.attachments += sum(len(a) for a in mapped.attachments.values())
         report.images += len(mapped.uploads)
-        report.files += len(mapped.documents)
+        report.files += len(mapped.files)
         report.attachment_bytes += sum(
             blob.size_bytes
-            for blob in (*mapped.uploads, *(f.stored for f in mapped.documents))
+            for blob in (*mapped.uploads, *(f.stored for f in mapped.files))
         )
-        self._unshown_blocked += mapped.documents_blocked
+        self._unshown_blocked += mapped.files_blocked
         for entry in mapped.envelope["pages"]:
             self._labels.update(tag.casefold() for tag in entry["tags"])
         report.labels = len(self._labels)

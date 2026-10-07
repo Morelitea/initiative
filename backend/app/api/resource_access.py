@@ -5,6 +5,9 @@
 handlers and FastAPI-injected routes. `RESOURCE_ACCESS` is the enforcement-side
 registry: one entry per `Tool`, carrying only how a row is loaded and addressed.
 Everything it answers with is derived from the tool itself.
+
+`load_child` does the same for a row inside a tool (`SUB_TOOLS`), which its
+tool's sharing reaches.
 """
 
 # NOT `from __future__ import annotations`: resource_dependency builds a signature
@@ -12,8 +15,8 @@ Everything it answers with is derived from the tool itself.
 # annotations re-evaluate it where cfg is out of scope → FastAPI drops the path
 # param and 422s.
 
-from dataclasses import dataclass
-from typing import Annotated, Any, Awaitable, Callable, Optional
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Awaitable, Callable, Mapping, Optional, TypeVar
 
 from fastapi import Depends, HTTPException, status
 
@@ -21,32 +24,50 @@ from app.api.deps import (
     ActorContext,
     get_current_active_user,
 )
-from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
-from app.core.messages import AppMessages, InitiativeMessages
+from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
+from app.core.messages import (
+    PluginMessages,
+    CalendarEventMessages,
+    CounterMessages,
+    GalleryMessages,
+    InitiativeMessages,
+    QueueMessages,
+    TaskMessages,
+    WikiMessages,
+)
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
+from app.db.session import require_actor_context
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.counter import Counter
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.queue import QueueItem
+from app.models.tenant.wiki import WikiPage
 from app.models.tenant.resource_grant import ResourceAccessLevel
-from app.models.tenant.task import Task, TaskAssignee
+from app.models.tenant.task import Task
 from app.models.platform.user import User
-from sqlmodel import select
+from sqlalchemy import inspect
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
 from app.services import rls as rls_service
 from app.services import reachability
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
+from app.services.tenant import files as files_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import wikis as wikis_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
+from app.services.tenant import task_queries
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
@@ -55,23 +76,29 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 class ResourceAccessConfig:
     """How one tool is loaded, and what it says when it refuses.
 
-    Only the two things that are genuinely per-tool are stored: the function
-    that loads a row, and the path segment it is addressed by. Every refusal is
-    derived from ``tool``, so each tool has the full set and none of them can be
-    written out by hand.
+    Only the function that loads a row is genuinely per-tool. The path
+    parameter a row is addressed by and every refusal are derived from
+    ``tool``, so each tool has the full set and none of them can be written out
+    by hand.
     """
 
     tool: Tool
     #: async (session, id) -> row | None
     loader: Callable[..., Awaitable[Any]]
-    path_param: str
     #: async (session, id) -> row | None, for a handler that also *serializes*
     #: the row it authorized: the eager loads a read response reads off it.
-    #: ``None`` where ``loader`` already carries them, which is most tools —
-    #: only projects and documents answer with a graph wider than the decision
-    #: needs, and loading that on every gate check would cost every caller a
-    #: handful of queries none of them reads.
+    #: ``None`` where ``loader`` already carries them. A tool whose response
+    #: reads more than the decision does — its tags, properties, comment
+    #: count, a project's statuses, a file's body — has one, so a gate
+    #: check does not cost every caller the queries none of them reads.
     hydrated_loader: Optional[Callable[..., Awaitable[Any]]] = None
+    #: A path parameter that differs from ``<tool>_id``.
+    id_param: Optional[str] = None
+
+    @property
+    def path_param(self) -> str:
+        """The path parameter a row is addressed by."""
+        return self.id_param or f"{self.tool.value}_id"
 
     @property
     def dac_kind(self) -> Tool:
@@ -100,30 +127,39 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.project: ResourceAccessConfig(
         Tool.project,
         project_grants.get_project,
-        "project_id",
         hydrated_loader=project_grants.get_project_hydrated,
     ),
-    Tool.document: ResourceAccessConfig(
-        Tool.document,
-        documents_service.get_document_for_grants,
-        "document_id",
-        hydrated_loader=documents_service.get_document_hydrated,
+    Tool.file: ResourceAccessConfig(
+        Tool.file,
+        files_service.get_file_for_grants,
+        hydrated_loader=files_service.get_file_hydrated,
     ),
-    Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue, "queue_id"),
+    Tool.queue: ResourceAccessConfig(
+        Tool.queue,
+        queues_service.get_queue,
+        hydrated_loader=queues_service.get_queue_hydrated,
+    ),
+    # Counter group routes name their row ``group_id``.
     Tool.counter_group: ResourceAccessConfig(
-        Tool.counter_group, counters_service.get_counter_group, "group_id"
+        Tool.counter_group, counters_service.get_counter_group, id_param="group_id"
     ),
-    Tool.calendar: ResourceAccessConfig(
-        Tool.calendar, calendars_service.get_calendar, "calendar_id"
-    ),
+    Tool.calendar: ResourceAccessConfig(Tool.calendar, calendars_service.get_calendar),
     Tool.dashboard: ResourceAccessConfig(
-        Tool.dashboard, dashboards_service.get_dashboard, "dashboard_id"
+        Tool.dashboard,
+        dashboards_service.get_dashboard,
+        hydrated_loader=dashboards_service.get_dashboard_hydrated,
     ),
-    Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post, "post_id"),
+    Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post),
     Tool.gallery: ResourceAccessConfig(
-        Tool.gallery, galleries_service.get_gallery, "gallery_id"
+        Tool.gallery,
+        galleries_service.get_gallery,
+        hydrated_loader=galleries_service.get_gallery_hydrated,
     ),
-    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki, "wiki_id"),
+    Tool.wiki: ResourceAccessConfig(
+        Tool.wiki,
+        wikis_service.get_wiki,
+        hydrated_loader=wikis_service.get_wiki_hydrated,
+    ),
 }
 
 
@@ -207,16 +243,20 @@ async def require_create(
 async def prepare_create(
     session: Any,
     kind: Tool,
-    initiative_id: int,
+    initiative_id: Optional[int],
     user: Optional[User],
     guild_context: ActorContext,
 ) -> Initiative:
     """The initiative a new ``kind`` goes into, once the caller may make one
-    there: it exists (404), its switch for the tool is on
+    there: it is named and exists (404), its switch for the tool is on
     (:func:`require_tool_enabled`) and the caller's role may create the tool
     (:func:`require_create`). Every tool's create and duplicate start here.
     """
-    initiative = await session.get(Initiative, initiative_id)
+    initiative = (
+        await session.get(Initiative, initiative_id)
+        if initiative_id is not None
+        else None
+    )
     if initiative is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -236,28 +276,26 @@ def duplicate_sharing(source: Any, *, initiative_id: int) -> list[ResourceGrantS
     return [
         ResourceGrantSchema.model_validate(grant)
         for grant in source.grants
-        if grant.level != ResourceAccessLevel.owner
-        and grant.dashboard_id is None
-        and grant.app_install_id is None
+        if grant.level != ResourceAccessLevel.owner and grant.plugin_install_id is None
     ]
 
 
-#: The scope an installed app holds to change a resource's sharing.
+#: The scope an installed plug-in holds to change a resource's sharing.
 SHARING_WRITE = "sharing:write"
 
-#: What else an installed app's sharing change reads: the initiative's roster,
+#: What else an installed plug-in's sharing change reads: the initiative's roster,
 #: and the roles on it, which validate the grantees and settle who keeps
 #: write access afterwards.
 _SHARING_READS = ("members:read", "initiatives:read")
 
 
-def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
-    """Raise 403 when an installed app's create sets any of ``fields`` — its
+def refuse_plugin_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
+    """Raise 403 when an installed plug-in's create sets any of ``fields`` — its
     initial sharing — without ``sharing:write``.
 
-    What an app creates is owned by its install, whose owner row the tool
+    What a plug-in creates is owned by its install, whose owner row the tool
     table's trigger writes. With the scope, the initial sharing is applied as
-    a later share would be (:func:`apply_app_initial_sharing`). A field left at
+    a later share would be (:func:`apply_plugin_initial_sharing`). A field left at
     its default is not a request to share, so only the ones the payload sets
     are refused.
     """
@@ -269,7 +307,7 @@ def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
 
 
 def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None:
-    """Raise 403 unless an installed app's standing lets it change sharing:
+    """Raise 403 unless an installed plug-in's standing lets it change sharing:
     ``sharing:write``, the tool's write scope when ``kind`` is named, and the
     roster reads a sharing change makes. A person passes; their rung on the
     resource is asked by :func:`authorize`, as the install's is too.
@@ -279,32 +317,32 @@ def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None
     if not actor.holds(SHARING_WRITE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
     needed = list(_SHARING_READS)
     if kind is not None:
-        needed.append(scope_name(tool_resource(kind), AppScopeAccess.write))
+        needed.append(scope_name(tool_resource(kind), PluginScopeAccess.write))
     if not all(actor.holds(scope) for scope in needed):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SCOPE_REQUIRED,
+            detail=PluginMessages.SCOPE_REQUIRED,
         )
 
 
 def refuse_install_community_share(
     actor: ActorContext, initiative_id: Optional[int]
 ) -> None:
-    """Raise 403 when an installed app would share a resource that belongs to
+    """Raise 403 when an installed plug-in would share a resource that belongs to
     no initiative. Such a resource is shared with the community's members,
-    whom an app does not read."""
+    whom a plug-in does not read."""
     if isinstance(actor, InstallContext) and initiative_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
+            detail=PluginMessages.SHARING_NOT_AVAILABLE,
         )
 
 
-async def apply_app_initial_sharing(
+async def apply_plugin_initial_sharing(
     session: Any,
     actor: ActorContext,
     kind: Tool,
@@ -314,9 +352,9 @@ async def apply_app_initial_sharing(
     payload: Any,
     grants: list[ResourceGrantSchema],
 ) -> None:
-    """Apply the initial sharing an installed app's create asked for.
+    """Apply the initial sharing an installed plug-in's create asked for.
 
-    Only when the payload set ``grants``: an app's content is otherwise shared
+    Only when the payload set ``grants``: a plug-in's content is otherwise shared
     with nobody beyond its owner row until it shares it. The install's own
     owner row went in with the resource, so its rung there is the owner's, and
     the database asks the same of each grant row it writes. Caller flushes.
@@ -353,12 +391,12 @@ async def grant_initial_sharing(
 ) -> None:
     """Share a resource that has just been made: its maker owns it — the
     table's own trigger wrote that row as the resource went in — and ``grants``
-    says who else may reach it. An installed app applies only the sharing its
-    create asked for (:func:`apply_app_initial_sharing`). The row is flushed
+    says who else may reach it. An installed plug-in applies only the sharing its
+    create asked for (:func:`apply_plugin_initial_sharing`). The row is flushed
     first; the caller commits.
     """
     if actor.user_id is None or user is None:
-        await apply_app_initial_sharing(
+        await apply_plugin_initial_sharing(
             session,
             actor,
             kind,
@@ -432,8 +470,9 @@ async def load_authorized(
     loader = cfg.hydrated_loader if hydrated and cfg.hydrated_loader else cfg.loader
     row = await loader(session, resource_id)
     if row is None:
-        if user is not None and await reachability.reader_is_in_the_initiative(
-            kind.plural, resource_id, user.id, guild_context.guild_id
+        reader = guild_context.user_id
+        if reader is not None and await reachability.reader_is_in_the_initiative(
+            kind.plural, resource_id, reader, guild_context.guild_id
         ):
             # In the initiative, so the row is theirs to know about — sharing is
             # what refused it, and "denied" is the answer to that.
@@ -454,49 +493,134 @@ async def load_authorized(
     return row
 
 
+@dataclass(frozen=True)
+class SubTool:
+    """A row inside a tool, reached by its tool's sharing. Which tool, and the
+    column that names it, come from ``initiative_rls.governing_path``."""
+
+    #: async (session, id, *, populate_existing) -> the row, with its tool,
+    #: that tool's initiative and ``actions`` loaded.
+    load: Callable[..., Awaitable[Any]]
+    #: The refusal for one that is missing or out of reach.
+    not_found: str
+    #: The column holding what it is called.
+    name: str = "title"
+    #: Columns a copy starts afresh rather than carries.
+    copy_resets: Mapping[str, Any] = field(default_factory=dict)
+
+
+SUB_TOOLS: dict[type, SubTool] = {
+    Task: SubTool(task_queries.load_for_change, TaskMessages.NOT_FOUND),
+    CalendarEvent: SubTool(events_service.get_event, CalendarEventMessages.NOT_FOUND),
+    Counter: SubTool(
+        counters_service.get_counter, CounterMessages.NOT_FOUND, name="name"
+    ),
+    # A copy is not held out of the rotation.
+    QueueItem: SubTool(
+        queues_service.get_queue_item,
+        QueueMessages.ITEM_NOT_FOUND,
+        name="label",
+        copy_resets={"held_at_round": None},
+    ),
+    WikiPage: SubTool(
+        wikis_service.get_page,
+        WikiMessages.PAGE_NOT_FOUND,
+        copy_resets={"yjs_state": None, "yjs_updated_at": None},
+    ),
+    GalleryImage: SubTool(galleries_service.get_image, GalleryMessages.IMAGE_NOT_FOUND),
+}
+
+
+def parent_column(model: type) -> str:
+    """The column of a row inside a tool that names its tool."""
+    path = governing_path(model.__tablename__)
+    assert path is not None, model
+    ((column, _table),) = path[1]
+    return column
+
+
+Child = TypeVar("Child")
+
+
+async def load_child(
+    session: Any,
+    model: type[Child],
+    child_id: int,
+    *,
+    access: str = "read",
+    action: Optional[Action] = None,
+    parent_id: Optional[int] = None,
+) -> Child:
+    """A row inside a tool, by its own loader, refused as its tool would be
+    (:func:`authorize`) for the standing the session was routed with.
+    ``parent_id`` is the tool a route addresses it under, whose own refusal
+    comes first when the row is out of reach."""
+    context = require_actor_context(session)
+    kind = governing_tool(model.__tablename__)
+    column = parent_column(model)
+    row = await SUB_TOOLS[model].load(session, child_id)
+    if row is None or (parent_id is not None and getattr(row, column) != parent_id):
+        if parent_id is not None:
+            await load_authorized(
+                session, kind, parent_id, None, context, access=access, action=action
+            )
+        raise _missing(model)
+    authorize(kind, _parent(row), context=context, access=access, action=action)
+    return row
+
+
+def _parent(row: Any) -> Any:
+    """The tool a row inside a tool sits in."""
+    model = type(row)
+    column = parent_column(model)
+    return next(
+        getattr(row, r.key)
+        for r in inspect(model).relationships
+        if [c.name for c in r.local_columns] == [column]
+    )
+
+
+async def require_stays_in(
+    session: Any, source_initiative_id: Optional[int], initiative_id: Optional[int]
+) -> None:
+    """Refuse taking content of ``source_initiative_id`` into
+    ``initiative_id`` when the source keeps its content in. Every copy and
+    move into another initiative asks it."""
+    if source_initiative_id != initiative_id and (
+        await initiatives_service.keeps_content_in(session, [source_initiative_id])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.CONTENT_KEPT_IN,
+        )
+
+
+async def require_may_move(session: Any, row: Any, destination: Any) -> None:
+    """Whether ``row``, a row inside a tool, may go into ``destination``,
+    another of its tool: not out of an initiative that keeps its content in
+    (:func:`require_stays_in`)."""
+    await require_stays_in(
+        session, _parent(row).initiative_id, destination.initiative_id
+    )
+
+
+async def reload_child(session: Any, model: type[Child], child_id: int) -> Child:
+    """A row inside a tool again after a change, as its loader reads it."""
+    row = await SUB_TOOLS[model].load(session, child_id, populate_existing=True)
+    if row is None:
+        raise _missing(model)
+    return row
+
+
+def _missing(model: type) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=SUB_TOOLS[model].not_found
+    )
+
+
 # ── Unified grant-set flow ───────────────────────────────────────────────────
 # One code path for replacing a resource's sharing — used by every per-resource
-# ``PUT /{id}/grants`` endpoint and by the bulk endpoint. The only per-kind
-# variation is an optional post-change side effect (projects unassign anyone
-# who can no longer open the project from its tasks).
-
-
-@dataclass(frozen=True)
-class GrantHooks:
-    # raise to reject the change (e.g. archived project) — runs after authorization
-    precheck: Optional[Callable[[Any], None]] = None
-    # post-change hook: (session, reloaded_row) -> None
-    on_changed: Optional[Callable[..., Awaitable[None]]] = None
-
-
-async def _project_on_grants_changed(session: Any, row: Any) -> None:
-    """Unassign anyone the grant change left unable to open the project: only
-    people who can open it are named on its tasks. Commits only when something
-    changed."""
-    assigned = set(
-        (
-            await session.exec(
-                select(TaskAssignee.user_id)
-                .join(Task, Task.id == TaskAssignee.task_id)
-                .where(Task.project_id == row.id)
-                .distinct()
-            )
-        ).all()
-    )
-    gone = assigned - await named_people.readers(
-        session, named_people.Governing.of(Tool.project, row), assigned
-    )
-    if gone:
-        await project_grants.remove_user_task_assignments(session, row.id, gone)
-        await session.commit()
-
-
-GRANT_HOOKS: dict[Tool, GrantHooks] = {
-    Tool.project: GrantHooks(
-        precheck=project_grants.ensure_grantable,
-        on_changed=_project_on_grants_changed,
-    ),
-}
+# ``PUT /{id}/grants`` endpoint and by the bulk endpoint.
 
 
 async def set_resource_grants(
@@ -509,12 +633,13 @@ async def set_resource_grants(
 ) -> None:
     """Replace one resource's sharing the unified way: load + 404, authorize
     the share action (``Action.share``), rebuild every non-owner grant from
-    ``grants`` (owner preserved), then run the resource's optional post-change side
-    effect. Commits. Raises ``HTTPException`` 404 (missing) / 403 (no manage
-    access). The single source of truth behind the per-resource grant endpoints and
-    the bulk endpoint.
+    ``grants`` (owner preserved), then take anyone the new sharing does not
+    reach off the content inside it (``named_people.sweep``). Commits. Raises
+    ``HTTPException`` 404 (missing) / 403 (no manage access) / 409 (archived or
+    trashed). The single source of truth behind the per-resource grant
+    endpoints and the bulk endpoint.
 
-    An installed app changes sharing where a person with its rung could, and
+    An installed plug-in changes sharing where a person with its rung could, and
     only with ``sharing:write`` and the tool's write scope
     (:func:`require_install_may_share`)."""
     require_install_may_share(guild_context, kind)
@@ -527,9 +652,7 @@ async def set_resource_grants(
         action=Action.share,
     )
     refuse_install_community_share(guild_context, row.initiative_id)
-    hooks = GRANT_HOOKS.get(kind)
-    if hooks and hooks.precheck:
-        hooks.precheck(row)
+    settled = named_people.Governing.of(kind, row)
     await permissions_service.replace_resource_grants(
         session,
         resource_type=kind,
@@ -542,10 +665,7 @@ async def set_resource_grants(
         by_install=isinstance(guild_context, InstallContext),
     )
     await session.commit()
-
-    if hooks and hooks.on_changed:
-        # replace_resource_grants rewrites resource_grants rows directly (by
-        # resource_type/resource_id), so ``row.grants`` in the identity map is now
-        # stale — refresh just that one collection rather than the whole graph.
-        await session.refresh(row, attribute_names=["grants"])
-        await hooks.on_changed(session, row)
+    # Only people who can open the resource are named inside it: those the new
+    # sharing does not reach are let go, once that sharing is committed.
+    if await named_people.sweep(session, settled):
+        await session.commit()

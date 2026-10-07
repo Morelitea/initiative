@@ -32,16 +32,32 @@ const member = {
   email: "maya@example.com",
   password: password(),
 };
-const community = "Olive's Guild";
+const community = "Olive's Community";
 
 /** Where the first journey left things, for the second to look for. */
 const made = { communityPath: "", initiativePath: "", projectId: "" };
 
 const next = (page: Page) => page.getByRole("button", { name: "Continue" }).click();
 
-/** The start flow from "About you" on: a handle, then the account. */
+/**
+ * The date of birth, typed into the picker. Every account is asked it once: a
+ * fresh install asks beside the handle, and an account that signs up without
+ * it meets a screen that asks before anything else.
+ */
+async function giveBirthdate(page: Page) {
+  const field = page.getByRole("button", { name: "Date of birth" });
+  await field.click();
+  const typed = page.getByRole("textbox", { name: "Type or pick a date" });
+  await typed.fill("1990-04-12");
+  await typed.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(field).toContainText("Apr 12, 1990");
+}
+
+/** The start flow from "About you" on: a handle and a birthday, then the account. */
 async function register(page: Page, person: typeof owner, between?: () => Promise<void>) {
   await page.getByLabel("Username").fill(person.username);
+  await giveBirthdate(page);
   // Continue opens once the handle has been checked.
   await next(page);
   await between?.();
@@ -105,10 +121,7 @@ test("the first owner builds a community and finds it again", async ({ page }) =
   const project = page.getByRole("dialog", { name: "Create project" });
   await project.getByLabel("Name").fill("Cake stall");
   await project.getByRole("button", { name: "Create project" }).click();
-  await page
-    .getByRole("main")
-    .getByRole("link", { name: /^Cake stall/ })
-    .click();
+  // Made, and opened.
   await expect(page.getByRole("heading", { name: "Cake stall", level: 1 })).toBeVisible();
   made.projectId = page.url().split("/projects/")[1];
 
@@ -138,7 +151,10 @@ test("an invited member sees only what they are let into", async ({ browser }) =
 
   await ownerPage.goto(`${made.communityPath}/settings/users`);
   await ownerPage.getByRole("button", { name: "Generate invite" }).click();
-  const invite = await ownerPage.getByText(/\/invite\//).textContent();
+  // The start flow already made one link; the list is newest first.
+  const links = ownerPage.getByText(/\/invite\//);
+  await expect(links).toHaveCount(2);
+  const invite = await links.first().textContent();
   expect(invite).toBeTruthy();
 
   const page = await freshPage(browser);
@@ -160,7 +176,7 @@ test("an invited member sees only what they are let into", async ({ browser }) =
   // Its address shows them nothing of it, and the API does not have it.
   await page.goto(`${made.initiativePath}/projects/${made.projectId}`);
   await expect(page.getByRole("heading", { name: "Cake stall" })).toHaveCount(0);
-  const guildId = made.communityPath.split("/")[2];
-  const response = await page.request.get(`/api/v1/c/${guildId}/projects/${made.projectId}`);
+  const communityId = made.communityPath.split("/")[2];
+  const response = await page.request.get(`/api/v1/c/${communityId}/projects/${made.projectId}`);
   expect(response.status()).toBe(404);
 });

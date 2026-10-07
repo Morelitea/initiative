@@ -6,7 +6,7 @@ import type { SerializedEditorState } from "lexical";
 import { describe, expect, it } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import { Editor } from "@/components/documents/editor/editor";
+import { Editor } from "@/components/ui/editor/editor";
 
 const THEME_CSS = fs.readFileSync(path.resolve(__dirname, "../themes/editor-theme.css"), "utf-8");
 
@@ -28,6 +28,22 @@ const STATE = {
         textStyle: "",
         children: [
           { type: "text", version: 1, detail: 0, format: 0, mode: "normal", style: "", text: "Hi" },
+        ],
+      },
+    ],
+  },
+};
+
+/** "Hi " followed by a smart chip, in one paragraph. */
+const CHIP_STATE = {
+  root: {
+    ...STATE.root,
+    children: [
+      {
+        ...STATE.root.children[0],
+        children: [
+          { ...STATE.root.children[0].children[0], text: "Hi " },
+          { type: "smart-chip", version: 1, chipKind: "task:due", entityId: 1, text: "Friday" },
         ],
       },
     ],
@@ -69,5 +85,32 @@ describe("the editor's right-click menu", () => {
     const rule = overlayRule();
     expect(overlay.matches(rule.selector)).toBe(true);
     expect(rule.zIndex).toBeGreaterThan(10);
+  });
+
+  it("deletes the chip it was opened on", async () => {
+    renderPage(() => (
+      <Editor editorSerializedState={CHIP_STATE as unknown as SerializedEditorState} />
+    ));
+
+    const chip = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>("[data-lexical-decorator]");
+      if (!element) throw new Error("the chip has not rendered");
+      return element;
+    });
+    fireEvent.contextMenu(chip);
+
+    const deleteItem = await waitFor(() => {
+      const item = Array.from(
+        document.querySelectorAll<HTMLElement>(".EditorContextMenu [role=menuitem]")
+      ).find((element) => element.textContent?.includes("Delete Node"));
+      if (!item) throw new Error("the menu has no Delete Node item");
+      return item;
+    });
+    fireEvent.click(deleteItem);
+
+    await waitFor(() => {
+      expect(document.querySelector("[data-lexical-decorator]")).toBeNull();
+    });
+    expect(document.querySelector("[contenteditable]")?.textContent).toContain("Hi");
   });
 });

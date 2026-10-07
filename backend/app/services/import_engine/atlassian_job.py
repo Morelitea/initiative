@@ -37,6 +37,7 @@ from cryptography.fernet import InvalidToken
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
+from app.core.tools import Tool, tool_envelope_type
 from app.core.version import get_version
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -75,16 +76,16 @@ SOURCE = "atlassian"
 PROVIDER = "atlassian"
 
 #: The importer whose permission a Jira project needs.
-_PROJECT_ENVELOPE = "initiative-project"
+_PROJECT_ENVELOPE = tool_envelope_type(Tool.project)
 
 #: The importer whose permission a Confluence space needs.
-_WIKI_ENVELOPE = "initiative-wiki"
+_WIKI_ENVELOPE = tool_envelope_type(Tool.wiki)
 
 #: The importer a board's sprints go through, as calendar events.
-_CALENDAR_ENVELOPE = "initiative-calendar"
+_CALENDAR_ENVELOPE = tool_envelope_type(Tool.calendar)
 
-#: The importer a page's attached files go through, as file documents.
-_DOCUMENT_ENVELOPE = "initiative-document"
+#: The importer a page's attached files go through, as uploaded files.
+_FILE_ENVELOPE = tool_envelope_type(Tool.file)
 
 
 #: How an uploaded Confluence HTML export is staged, so the worker knows it
@@ -371,23 +372,23 @@ async def _convert_export(
             importer=import_engine.get_importer(_WIKI_ENVELOPE),
             user=user,
         )
-        documents_allowed = True
+        files_allowed = True
         if include_attachments:
             try:
                 await import_engine.load_target_initiative(
                     user_session,
                     guild_id=guild_id,
                     initiative_id=initiative.id,
-                    importer=import_engine.get_importer(_DOCUMENT_ENVELOPE),
+                    importer=import_engine.get_importer(_FILE_ENVELOPE),
                     user=user,
                 )
             except ImportEngineError:
-                documents_allowed = False
+                files_allowed = False
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
         # Attachments past the community's storage quota could never be
         # restored, so they are not downloaded either.
         storage_left = (
-            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            await attachments_service.storage_left(guild_id)
             if include_attachments
             else None
         )
@@ -401,7 +402,7 @@ async def _convert_export(
             if include_attachments
             else None,
             store=writer.put_asset,
-            documents=documents_allowed,
+            files_allowed=files_allowed,
         )
         summary = combined_summary(None, fetched.report)
         if progress is not None:
@@ -636,28 +637,28 @@ async def _read(
                 )
             except ImportEngineError as exc:
                 sprints_blocked_by = exc.code
-        # Attached files become documents — a page's and an issue's — which
+        # Attachments become files — a page's and an issue's — which
         # the apply refuses the whole bundle over if the initiative cannot
         # take them. Asked now, so only the pictures come instead.
-        documents_allowed = True
+        files_allowed = True
         if include_attachments:
             try:
                 await import_engine.load_target_initiative(
                     user_session,
                     guild_id=guild_id,
                     initiative_id=target_initiative_id,
-                    importer=import_engine.get_importer(_DOCUMENT_ENVELOPE),
+                    importer=import_engine.get_importer(_FILE_ENVELOPE),
                     user=user,
                 )
             except ImportEngineError:
-                documents_allowed = False
+                files_allowed = False
         # The community's roster, so the plan can suggest who each person the
         # site names is — read now, as the person, like a backup upload does.
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
         # Attachments past the community's storage quota could never be
         # restored, so they are not downloaded either.
         storage_left = (
-            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            await attachments_service.storage_left(guild_id)
             if include_attachments
             else None
         )
@@ -699,7 +700,7 @@ async def _read(
                     include_attachments=include_attachments,
                     asset_budget=asset_budget,
                     store=writer.put_asset,
-                    documents=documents_allowed,
+                    files_allowed=files_allowed,
                     # An issue's "Confluence pages" are worth asking for only
                     # when the pages are coming too.
                     link_pages=bool(spaces),
@@ -727,7 +728,7 @@ async def _read(
                     guild_id=guild_id,
                     asset_budget=asset_budget,
                     store=writer.put_asset,
-                    documents=documents_allowed,
+                    files_allowed=files_allowed,
                     include_comments=params.get("include_comments") is not False,
                 )
             except ImportEngineError as exc:

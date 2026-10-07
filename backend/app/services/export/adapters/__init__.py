@@ -10,7 +10,7 @@ from app.services.export.adapters.calendar import CalendarAdapter
 from app.services.export.adapters.calendar_events import CalendarEventsAdapter
 from app.services.export.adapters.counter_group import CounterGroupAdapter
 from app.services.export.adapters.dashboard import DashboardAdapter
-from app.services.export.adapters.document import DocumentAdapter
+from app.services.export.adapters.file import FileAdapter
 from app.services.export.adapters.gallery import GalleryAdapter
 from app.services.export.adapters.post import PostAdapter
 from app.services.export.adapters.project import ProjectAdapter
@@ -24,7 +24,7 @@ ADAPTERS = {
         TasksTableAdapter(),
         CalendarEventsAdapter(),
         ProjectAdapter(),
-        DocumentAdapter(),
+        FileAdapter(),
         QueueAdapter(),
         CounterGroupAdapter(),
         DashboardAdapter(),

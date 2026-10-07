@@ -50,15 +50,15 @@ async def test_an_operator_writes_a_rule_for_a_community_that_accepts(
         json={
             "provider_id": provider.id,
             "claim_value": " eng ",
-            "guild_id": guild.id,
-            "guild_role": "admin",
+            "community_id": guild.id,
+            "community_role": "admin",
         },
     )
 
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["claim_value"] == "eng"
-    assert body["guild_name"] == "Engineering"
+    assert body["community_name"] == "Engineering"
     assert body["applies"] is True
     row = await session.get(OIDCClaimMapping, body["id"])
     assert row is not None and row.author == ClaimRuleAuthor.provider
@@ -74,7 +74,7 @@ async def test_a_community_that_has_not_accepted_is_refused_until_everywhere(
     _, guild, provider = await _accepting(session, accepts=False)
     operator = await _headers(session, UserRole.operator)
     owner = await _headers(session, UserRole.owner)
-    rule = {"provider_id": provider.id, "claim_value": "eng", "guild_id": guild.id}
+    rule = {"provider_id": provider.id, "claim_value": "eng", "community_id": guild.id}
 
     refused = await client.post(f"{BASE}/rules", headers=operator, json=rule)
     assert refused.status_code == 400
@@ -146,7 +146,7 @@ async def test_a_rule_matches_a_group_a_directory_or_both(
     response = await client.post(
         f"{BASE}/rules",
         headers=headers,
-        json={"provider_id": provider.id, "guild_id": guild.id, **match},
+        json={"provider_id": provider.id, "community_id": guild.id, **match},
     )
 
     assert response.status_code == 422
@@ -164,7 +164,7 @@ async def test_a_directory_rule_needs_no_group(
         headers=headers,
         json={
             "provider_id": provider.id,
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "scope_claim": "idp",
             "scope_value": "acme-adfs",
         },
@@ -205,7 +205,7 @@ async def test_the_initiative_picker_reads_a_placeable_community_only(
         json={
             "provider_id": provider.id,
             "claim_value": "leads",
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": initiative.id,
             "initiative_role_id": pm_role.id,
         },
@@ -224,7 +224,7 @@ async def test_the_community_search_says_which_communities_accept(
     response = await client.get(
         f"{BASE}/communities",
         headers=headers,
-        params={"provider_id": provider.id, "q": "engine"},
+        params={"provider_id": provider.id, "search": "engine"},
     )
 
     assert response.status_code == 200, response.text
@@ -237,13 +237,13 @@ async def test_the_community_search_says_which_communities_accept(
 async def test_each_surface_edits_only_its_own_rules(
     client: AsyncClient, session: AsyncSession
 ):
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import create_guild_membership
 
     seat_holder = await create_user(session)
     guild = await create_guild(session, creator=seat_holder)
     await create_guild_membership(
-        session, user=seat_holder, guild=guild, role=GuildRole.superadmin
+        session, user=seat_holder, guild=guild, role=CommunityRole.superadmin
     )
     seat = get_auth_headers(seat_holder)
     provider = await create_auth_provider(session, slug="corp")
@@ -254,7 +254,11 @@ async def test_each_surface_edits_only_its_own_rules(
     created = await client.post(
         f"{BASE}/rules",
         headers=operator,
-        json={"provider_id": provider.id, "claim_value": "eng", "guild_id": guild.id},
+        json={
+            "provider_id": provider.id,
+            "claim_value": "eng",
+            "community_id": guild.id,
+        },
     )
     assert created.status_code == 201, created.text
     rule_id = created.json()["id"]
@@ -299,7 +303,7 @@ async def test_the_page_lists_every_community_waiting_for_an_answer(
     listed = await client.get(f"{BASE}/requests", headers=headers)
 
     assert listed.status_code == 200, listed.text
-    assert [(row["guild_name"], row["connection_id"]) for row in listed.json()] == [
+    assert [(row["community_name"], row["connection_id"]) for row in listed.json()] == [
         ("Asking", waiting.id)
     ]
 

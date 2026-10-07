@@ -1,23 +1,27 @@
 import hashlib
 import hmac
+import json
 import logging
 import re
 from collections.abc import Sequence
 from enum import Enum
 from functools import lru_cache
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from pydantic import (
     AliasChoices,
+    BeforeValidator,
     EmailStr,
     Field,
     PrivateAttr,
     field_validator,
     model_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
+from starlette.requests import Request
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -25,17 +29,31 @@ from sqlalchemy.exc import ArgumentError
 # configurable only creates ways to break them.
 PROJECT_NAME = "Initiative API"
 API_V1_STR = "/api/v1"
+#: Where an installed plug-in calls the API from. The ``0`` stands for the
+#: install's own community, which its token names.
+PLUGIN_SERVER_URL = f"{API_V1_STR}/c/0"
 
-# Origins used by the Capacitor native mobile app (iOS and Android).
+# Origins used by the Capacitor native apps (iOS, Android and the desktop app).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
 CAPACITOR_NATIVE_ORIGINS = [
-    "https://com.morelitea.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
-    "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname
+    "https://studio.beyonders.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
+    "capacitor://studio.beyonders.initiative",  # Capacitor default iOS scheme with custom hostname; the desktop app
     "capacitor://localhost",  # Capacitor fallback (no custom hostname)
 ]
 
+
+def is_device(request: Request) -> bool:
+    """Whether the request comes from the phone or desktop app.
+
+    The one place that decides. The apps present their own origin, which no
+    page can, and a device keeps its own refresh token and stays signed in
+    longer than a browser.
+    """
+    return request.headers.get("origin") in CAPACITOR_NATIVE_ORIGINS
+
+
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
-# the Content-Security-Policy (pentest MED-001). These are the document
+# the Content-Security-Policy (pentest MED-001). These are the file
 # "smart link" providers available in the editor (always present).
 CSP_EMBED_FRAME_ORIGINS = [
     "https://www.youtube-nocookie.com",
@@ -97,12 +115,54 @@ CSP_SWAGGER_SCRIPT_ORIGINS = [
 CSP_SWAGGER_STYLE_ORIGINS = ["https://cdn.jsdelivr.net"]
 
 
+#: What the platform OIDC provider asks for when nothing names its scopes.
+DEFAULT_OIDC_SCOPES = ("openid", "profile", "email", "offline_access")
+
+
+def _split_env_list(value: object) -> object:
+    """A list setting's value: a JSON list, or items separated by commas and/or
+    whitespace. Items are trimmed, blanks drop out, and a repeat keeps its first
+    place."""
+    if isinstance(value, str):
+        text = value.strip()
+        value = (
+            json.loads(text) if text.startswith("[") else text.replace(",", " ").split()
+        )
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(dict.fromkeys(item.strip() for item in value if item.strip()))
+    return value
+
+
+#: Every list setting reads its value by ``_split_env_list``.
+EnvList = Annotated[list[str], NoDecode, BeforeValidator(_split_env_list)]
+
+
 def _format_csp(directives: dict[str, list[str]]) -> str:
     """Render a directive map to a CSP header string, de-duplicating sources."""
     return "; ".join(
         f"{name} {' '.join(dict.fromkeys(values))}"
         for name, values in directives.items()
     )
+
+
+#: The billing portal's pricing grid, the one page of it the front door frames.
+BILLING_PRICING_EMBED_PATH = "/embed/pricing"
+
+#: Characters a path may carry into a CSP source expression.
+_CSP_PATH = re.compile(r"^[A-Za-z0-9._~/-]*$")
+
+
+def _billing_embed_source(url: str) -> str | None:
+    """The exact address of the billing portal's pricing grid, as a CSP
+    source: its origin and path, so a frame may load that page and no other.
+    None when the portal's URL cannot be reduced to one safely."""
+    origin = _origin_of(url)
+    if not origin:
+        return None
+    base = urlsplit(url.strip()).path.rstrip("/")
+    if not _CSP_PATH.match(base):
+        return None
+    return f"{origin}{base}{BILLING_PRICING_EMBED_PATH}"
 
 
 def _origin_of(url: str) -> str | None:
@@ -164,8 +224,8 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
 #: Settings → Platform from then on, so the env var is read once and the row wins
 #: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
 #: the mechanism; the credential-bearing ones are encrypted at rest under a salt
-#: registered in ``app/db/secret_key_rotation.py``, so they rotate with
-#: SECRET_KEY.
+#: their column declares, so ``app/db/secret_key_rotation.py`` rotates them
+#: with SECRET_KEY.
 #:
 #: Declared here so the deployment contract can say so out loud: an operator
 #: does not need any of these to bring the app up, and a deployment tool does
@@ -422,11 +482,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_database_logins(self) -> "Settings":
-        has_app, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
-        if has_app != has_admin:
+        has_plugin, has_admin = (
+            bool(self.DATABASE_URL_APP),
+            bool(self.DATABASE_URL_ADMIN),
+        )
+        if has_plugin != has_admin:
             given, missing = (
                 ("DATABASE_URL_APP", "DATABASE_URL_ADMIN")
-                if has_app
+                if has_plugin
                 else ("DATABASE_URL_ADMIN", "DATABASE_URL_APP")
             )
             raise ValueError(
@@ -435,7 +498,7 @@ class Settings(BaseSettings):
                 f"neither, with DATABASE_URL as the database owner, and the app "
                 f"makes them."
             )
-        if has_app:
+        if has_plugin:
             self._check_query_login()
             return self
         if self.DATABASE_URL_BOOTSTRAP:
@@ -512,22 +575,19 @@ class Settings(BaseSettings):
     def app_url_is_https(self) -> bool:
         """True when the public app origin is served over HTTPS.
 
-        Drives both the ``Secure`` cookie flag and whether the
-        ``Strict-Transport-Security`` header is emitted — HSTS over plain HTTP
-        is meaningless and would needlessly pin a dev origin to HTTPS.
+        Drives the ``Secure`` cookie flag, the websocket scheme the CSP admits,
+        and whether the ``Strict-Transport-Security`` header is emitted — HSTS
+        over plain HTTP is meaningless and would needlessly pin a dev origin to
+        HTTPS.
         """
         return urlsplit(self.APP_URL.strip()).scheme == "https"
-
-    @property
-    def cookie_secure(self) -> bool:
-        return self.app_url_is_https
 
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     # Extra browser origins allowed to make credentialed cross-origin requests,
     # beyond APP_URL and the native app (both always allowed — see `cors_origins`).
-    # A wildcard is intentionally unsupported.
-    CORS_ALLOWED_ORIGINS: list[str] = Field(default_factory=list)
+    # A wildcard is unsupported: ``*`` names no origin, so it adds nothing.
+    CORS_ALLOWED_ORIGINS: EnvList = Field(default_factory=list)
 
     @property
     def cors_origins(self) -> list[str]:
@@ -544,7 +604,8 @@ class Settings(BaseSettings):
         Each value is reduced to its bare ``scheme://host[:port]`` origin: an
         ``Origin`` header never carries a path, so an ``APP_URL`` like
         ``https://host/app`` must match as ``https://host`` or every credentialed
-        cross-origin request is silently rejected.
+        cross-origin request is silently rejected. A value with no scheme and
+        host, ``*`` among them, reduces to nothing and is left out.
         """
         origins: list[str] = []
         for candidate in [
@@ -558,7 +619,7 @@ class Settings(BaseSettings):
         return origins
 
     def content_security_policy_with_frames(
-        self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
+        self, plugin_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:
         """The app-wide CSP, optionally admitting the registered frame origins.
 
@@ -568,19 +629,19 @@ class Settings(BaseSettings):
         injected markup can't execute. ``style-src`` does allow
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
-        Fonts, document embeds, and — when configured — the captcha provider and
+        Fonts, file embeds, and — when configured — the captcha provider and
         app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 
-        ``app_frame_origins`` is how a marketplace app's embedded surface gets
-        framed. It holds the origins of the app services this deployment has
+        ``plugin_frame_origins`` is how a marketplace plug-in's embedded surface gets
+        framed. It holds the origins of the plug-in services this deployment has
         registered — the operator's trusted-site list, passed in by
         ``app.api.embed_csp`` on the documents where ``frame-src`` applies, and
         empty here so the app-wide default names none. ``connect-src`` is
-        untouched: an app's data reaches the browser same-origin through the
+        untouched: a plug-in's data reaches the browser same-origin through the
         proxy.
         """
-        ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
+        ws = "wss:" if self.app_url_is_https else "ws:"
 
         script_src = ["'self'"]
         style_src = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
@@ -599,15 +660,27 @@ class Settings(BaseSettings):
 
         # The landing page reads the public pricing catalog straight from the
         # billing portal, so its origin joins connect-src only on a deployment
-        # that has one. Reduced to an origin the same way as the app frames.
+        # that has one. It also frames the portal's pricing grid, and frame-src
+        # names that one page, not the portal: no other page may be framed.
         billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
         if billing_origin:
             connect_src.append(billing_origin)
+            embed = _billing_embed_source(self.BILLING_URL)
+            if embed:
+                frame_src.append(embed)
+
+        # The measurement collector, where one is named on another origin. A
+        # same-origin path is already covered by 'self'.
+        collector_origin = (
+            _origin_of(self.FARO_COLLECTOR_URL) if self.FARO_COLLECTOR_URL else None
+        )
+        if collector_origin:
+            connect_src.append(collector_origin)
 
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
-        for candidate in app_frame_origins:
+        for candidate in plugin_frame_origins:
             origin = _origin_of(candidate) if candidate else None
             if origin:
                 frame_src.append(origin)
@@ -658,7 +731,7 @@ class Settings(BaseSettings):
 
     @property
     def docs_content_security_policy(self) -> str:
-        """Relaxed CSP for the Swagger ``/docs`` page ONLY (applied per-route).
+        """Relaxed CSP for the Swagger docs pages ONLY (applied per-route).
 
         Swagger UI loads its bundle/stylesheet from jsDelivr and a Cloudflare
         beacon, which the app-wide ``script-src 'self'`` (pentest MED-001)
@@ -670,9 +743,9 @@ class Settings(BaseSettings):
         a hash would break whenever the title/openapi_url change). ``connect-src``
         allows jsDelivr so the bundle's ``.map`` sourcemap fetch doesn't error;
         Try-It-Out still reaches the same-origin API via ``'self'``. This is
-        confined to the dev-only, ``ENABLE_API_DOCS``-gated docs page — the rest
-        of the app keeps ``script-src 'self'``, ``object-src 'none'``, and
-        ``frame-ancestors 'none'``.
+        confined to the docs pages — the rest of the app keeps
+        ``script-src 'self'``, ``object-src 'none'``, and ``frame-ancestors
+        'none'``.
         """
         return _format_csp(
             {
@@ -701,13 +774,14 @@ class Settings(BaseSettings):
     OIDC_CLIENT_ID: str | None = None
     OIDC_CLIENT_SECRET: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
-    OIDC_SCOPES: list[str] | str | None = None
+    OIDC_SCOPES: EnvList = Field(default_factory=lambda: list(DEFAULT_OIDC_SCOPES))
     # Which ways in the deployment permits, seeded into ``app_settings`` on
     # the first boot only — the same rule as the OIDC_* five above, and the
     # same owner afterwards: Settings -> Platform -> Authentication, which the
     # env never overwrites. Comma- or space-separated values of
-    # ``app.core.login_methods.LoginMethod``; unset keeps the app's default.
-    AUTH_LOGIN_METHODS: list[str] | str | None = None
+    # ``app.core.login_methods.LoginMethod``; unset or blank keeps the app's
+    # default.
+    AUTH_LOGIN_METHODS: EnvList = Field(default_factory=list)
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_SECURE: bool = False
@@ -761,7 +835,8 @@ class Settings(BaseSettings):
     # change to the application. Scanned at boot and on demand from
     # Settings → Platform; a file that is removed retires its listing.
     # Unset (the default) means no directory is read and nothing is published
-    # beyond the built-ins.
+    # beyond the built-ins; any listing a directory published earlier is
+    # withdrawn, as if the directory were empty.
     MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
 
     # --- Data export engine ---
@@ -807,15 +882,9 @@ class Settings(BaseSettings):
             "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
         ),
     )
-    FIRST_OWNER_FULL_NAME: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
-        ),
-    )
     DISABLE_GUILD_CREATION: bool = False
     # Communities one account may create in a day; 0 means no limit. Accounts
-    # holding ``guilds.manage`` are not held to it.
+    # holding ``communities.manage`` are not held to it.
     GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)
     # Boot back-fill normally skips guild schemas stamped with the current
     # provisioning-artifact version; set true to force a full sweep once.
@@ -852,6 +921,32 @@ class Settings(BaseSettings):
     CAPTCHA_PROVIDER: str | None = None
     CAPTCHA_SITE_KEY: str | None = None
     CAPTCHA_SECRET_KEY: str | None = None
+    # Optional frontend measurement: where the SPA sends page views, errors
+    # and Web Vitals, in the Grafana Faro format (an Alloy ``faro.receiver``
+    # speaks it). A same-origin path (``/collect``) or an absolute http(s)
+    # URL. Unset (the default) ⇒ the SPA loads nothing and the cookie chooser
+    # offers no analytics switch. Set ⇒ the chooser offers one, and only a
+    # browser that switched it on sends anything.
+    FARO_COLLECTOR_URL: str | None = None
+
+    @field_validator("FARO_COLLECTOR_URL", mode="before")
+    @classmethod
+    def _validate_faro_collector_url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        url = value.strip()
+        if not url:
+            return None
+        parts = urlsplit(url)
+        same_origin_path = url.startswith("/") and not url.startswith("//")
+        absolute = parts.scheme in ("http", "https") and bool(parts.netloc)
+        if not (same_origin_path or absolute):
+            raise ValueError(
+                "FARO_COLLECTOR_URL must be a path starting with / or an "
+                f"http(s) URL; got {value!r}"
+            )
+        return url
+
     # RSA private key (PEM) for signing handoff JWTs. Handoff tokens cross a
     # trust boundary — the receiving service verifies them with the matching
     # public key — so signing is always RS256 and no secret is shared across
@@ -864,39 +959,45 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # --- App platform (external app services; default OFF) ----------------
-    # An app service is an external container this deployment has wired up
-    # (see the app service registry). Everything below is unset on a default
-    # install, and with it unset the platform simply has no app services: the
-    # registry lists nothing, and the endpoints that would mint credentials for
-    # one fail closed rather than improvising.
+    # --- Plug-in platform (external plug-in services; default OFF) --------
+    # A plug-in service is an external container this deployment has wired up
+    # (see the plug-in service registry). Everything below is optional: a default
+    # install generates its own signing key, and an owner wires plug-ins up from
+    # the settings pages.
     #
-    # RSA private key (PEM) signing Initiative -> app context JWTs. This is a
-    # DEDICATED keypair with no fallback: an app verifies these against the
-    # published public half, so borrowing another service's key would put two
-    # unrelated trust boundaries on one rotation schedule. Generate one with
-    # ``openssl genrsa -out app-platform.pem 2048``. Unset ⇒ registering and
-    # verifying app services refuse with APP_SERVICE_SIGNING_NOT_CONFIGURED.
-    APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
-    # Key id stamped on the JWT header so an app can pick the right verifying
-    # key out of the published JWKS while a rotation is in flight.
-    APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # Path to a mounted file of app service registrations, reconciled into the
-    # database at startup so a chart can wire approved apps with no owner
-    # clicks. JSON (or a JSON array in a .json file):
-    #   [{"public_id": "acme.shopify", "listing_uid": "<14-character uid>",
+    # RSA private key (PEM) signing what Initiative sends a plug-in. Optional:
+    # unset, Initiative generates one on first start and keeps it in the
+    # database, encrypted under SECRET_KEY, so every replica signs with the same
+    # key. Set it to supply your own (``openssl genrsa -out plugin-platform.pem
+    # 2048``); while set it wins, and changing it is how the key is rotated.
+    PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    # Key id stamped on the JWT header for the key above, so a plug-in picks it out
+    # of the published JWKS during a rotation. A generated key uses its RFC 7638
+    # thumbprint instead.
+    PLUGIN_PLATFORM_SIGNING_KEY_ID: str | None = None
+    # Path to a mounted JSON file (an array of entries) wiring plug-in services at
+    # startup, with no owner clicks. An entry gives the plug-in's ``public_id`` and
+    # this deployment's facts about it; what the plug-in is (its listing) comes
+    # from the marketplace, and an entry naming a listing field is refused:
+    #   [{"public_id": "acme.shopify",
     #     "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
-    #     "jwks": {"keys": […]}, "scope_ceiling": ["projects:read"],
-    #     "allowed_origins": ["…"], "mandatory": false}]
-    # ``base_url`` is where this deployment's server calls the app, so it may be
-    # an address only the cluster resolves; ``embed_origin`` is where a browser
-    # loads its iframes and connection pages, and is omitted when the app
-    # answers both at one address.
-    # It holds only public keys, so the file can be a plain ConfigMap.
-    # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
-    # re-enables a registration an operator disabled, and never blocks boot.
-    APP_SERVICES_CONFIG: str | None = None
+    #     "jwks": {"keys": […]},
+    #     "allowed_origins": ["https://shopify.example.com"],
+    #     "vendor_env": {"client_secret": "SHOPIFY_CLIENT_SECRET"},
+    #     "mandatory": false}]
+    # ``base_url`` is where this server calls the plug-in, so it may be an address
+    # only the container network resolves; ``embed_origin`` is where a browser
+    # loads its pages, omitted when the plug-in answers both at one address. Give
+    # the plug-in's public keys as ``jwks``, or as ``jwks_uri`` when the plug-in serves
+    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for a plug-in built
+    # on the SDK). ``vendor_env`` maps a vendor value to the environment
+    # variable holding it, so the file names no secret and can be a plain
+    # ConfigMap. An entry waits until its plug-in's listing
+    # arrives. Unset (the default) ⇒ nothing is reconciled.
+    # Reconciliation never re-enables a registration an operator disabled, and
+    # never blocks boot.
+    PLUGIN_SERVICES_CONFIG: str | None = None
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below
@@ -917,7 +1018,7 @@ class Settings(BaseSettings):
     # accepted if any block verifies it. The HMAC has a second accepted value
     # for the same staged rotation protocol.
     # --- A bundled service's own channel ----------------------------------
-    # An app this deployment ships rather than installs from the marketplace,
+    # A plug-in this deployment ships rather than installs from the marketplace,
     # named by the ``public_id`` its registration carries, plus the secret it
     # signs its calls on that channel with.
     #
@@ -968,15 +1069,24 @@ class Settings(BaseSettings):
     # Point it at a mirror or a curated repository signed under the same root.
     #
     # ``MARKETPLACE_REGISTRY_ROOT`` is a path to a different trusted root, for a
-    # repository signed under somebody else's keys. Listings and apps from it
+    # repository signed under somebody else's keys. Listings and plug-ins from it
     # land as usual; reference sectors are honoured only under the shipped root.
     MARKETPLACE_REGISTRY_URL: str = (
-        "https://morelitea.github.io/initiative-developer/public/"
+        "https://beyonders-studio.github.io/initiative-developer/public/"
     )
     MARKETPLACE_REGISTRY_ROOT: str | None = None
+    # A bearer token sent with registry requests, for a registry that asks for
+    # one. It goes only to the origin of ``MARKETPLACE_REGISTRY_URL``. Unset
+    # (the default) sends none.
+    MARKETPLACE_REGISTRY_TOKEN: str | None = None
     # How often the background refresh asks for new metadata. ~15 minutes keeps
     # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
+    # How many processes each server process may run to evaluate declarative
+    # plug-ins' expressions at once. Started on first use; an idle one exits after
+    # five minutes. A server process with more evaluations than this waits for
+    # one to come free.
+    EXPRESSION_WORKERS: int = Field(default=2, ge=1, le=16)
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping
@@ -990,6 +1100,14 @@ class Settings(BaseSettings):
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
 
+    # The request header a trusted proxy in front of the deployment writes the
+    # client's country into, as an ISO 3166-1 alpha-2 code — ``CF-IPCountry``
+    # behind Cloudflare. Read to apply a plug-in's minimum age for where
+    # somebody is; never stored. Unset (the default), or a value that is not a
+    # country, means "not known", and a plug-in's highest declared age applies.
+    # Only set it when every request reaches the app through that proxy.
+    CLIENT_COUNTRY_HEADER: str | None = None
+
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to
     # every route that lacks its own ``@limiter.limit(...)`` decorator. Uses the
     # slowapi/limits string syntax (e.g. ``"100/minute"``, or
@@ -999,28 +1117,18 @@ class Settings(BaseSettings):
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
     # Master on/off switch for ALL rate limiting — the global default *and* every
-    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # per-route ``@limiter.limit(...)`` cap (e.g. password reset's ``5/15minutes``). Leave
     # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
     # surfaced as config; it is evaluated at startup, not per request.
     RATE_LIMIT_ENABLED: bool = True
-    # Storage backend for rate-limit counters. Defaults to in-process memory
-    # (``memory://``), which is per-worker — fine for a single process. For a
-    # multi-worker / multi-replica deployment that needs a shared, accurate
-    # counter, point this at Redis (``redis://host:6379/0``) or Memcached
-    # (``memcached://host:11211``) WITHOUT any code change. See the slowapi /
-    # limits "storage" docs for the full URI scheme list.
+    # Where rate-limit counters are kept. ``memory://`` (the default) counts in
+    # each process, so every process holds its own allowance. A ``redis://``,
+    # ``rediss://``, ``redis+sentinel://`` or ``redis+cluster://`` URI shares
+    # one count across processes. While that storage cannot be reached, each
+    # process counts in memory until it answers again (``rate_limit.build_limiter``).
     RATE_LIMIT_STORAGE_URI: str = "memory://"
-
-    # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
-    # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
-    # local development keeps its self-documenting API and the frontend's Orval
-    # type generation against a running backend keeps working out of the box.
-    # Operators SHOULD set this to ``False`` in production. The committed
-    # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
-    # generation never needs a live ``/openapi.json`` in CI or prod.
-    ENABLE_API_DOCS: bool = True
 
     # How much the application says about itself on stderr: one of the
     # standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL).
@@ -1063,58 +1171,25 @@ class Settings(BaseSettings):
     # floor in ``app.core.password_policy`` still applies.
     HIBP_CHECK_ENABLED: bool = True
 
-    @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_allowed_origins(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            items = value.split(",")
-        else:
-            items = value
-        # Drop blanks and any "*": credentialed CORS takes explicit origins
-        # only. APP_URL and the native origins
-        # are always allowed via the `cors_origins` property, so the effective
-        # allowlist is never empty even when this is.
-        return [
-            item.strip()
-            for item in items
-            if item and item.strip() and item.strip() != "*"
-        ]
-
     @field_validator("OIDC_SCOPES", mode="before")
     @classmethod
-    def parse_oidc_scopes(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return ["openid", "profile", "email", "offline_access"]
-        if isinstance(value, str):
-            if not value.strip():
-                return ["openid", "profile", "email", "offline_access"]
-            items = value.replace(",", " ").split()
-        else:
-            items = value
-        normalized: list[str] = []
-        for scope in items:
-            cleaned = scope.strip()
-            if cleaned and cleaned not in normalized:
-                normalized.append(cleaned)
-        return normalized or ["openid", "profile", "email"]
+    def _blank_oidc_scopes_are_the_default(cls, value: object) -> object:
+        """A blank value reads as unset: the default scope list."""
+        if isinstance(value, str) and not value.strip():
+            return list(DEFAULT_OIDC_SCOPES)
+        return value
 
-    @field_validator("AUTH_LOGIN_METHODS", mode="before")
+    @field_validator("OIDC_SCOPES")
     @classmethod
-    def parse_auth_login_methods(
-        cls, value: str | list[str] | None
-    ) -> list[str] | None:
-        """Blank and unset read the same: the app's own default."""
-        if value is None:
-            return None
-        items = value.replace(",", " ").split() if isinstance(value, str) else value
-        normalized: list[str] = []
-        for item in items:
-            cleaned = item.strip().lower()
-            if cleaned and cleaned not in normalized:
-                normalized.append(cleaned)
-        return normalized or None
+    def _scopeless_oidc_scopes_ask_for_the_basics(cls, value: list[str]) -> list[str]:
+        """A value that names no scope asks for the sign-in basics alone."""
+        return value or ["openid", "profile", "email"]
+
+    @field_validator("AUTH_LOGIN_METHODS")
+    @classmethod
+    def _login_methods_in_lower_case(cls, value: list[str]) -> list[str]:
+        """Lower case, the shape the seed compares against ``LoginMethod``."""
+        return list(dict.fromkeys(item.lower() for item in value))
 
 
 @lru_cache

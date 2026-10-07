@@ -36,22 +36,18 @@ from typing import Awaitable, Callable, get_args
 
 import pytest
 from fastapi.routing import APIWebSocketRoute
-from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.testclient import TestClient
 
-from app.api import content_socket
 from app.api.content_socket import MSG_AUTH
-from app.db import cohorts, gucs
-from app.db import session as db_session
+from app.db import gucs
 from app.db.bootstrap import login_roles
 from app.db.request_context import (
     Billing,
     ContentGrantee,
+    Filer,
     Install,
     Member,
     Platform,
@@ -63,7 +59,7 @@ from app.db.request_context import (
 )
 from app.db.schema_provisioning import guild_schema_name
 from app.db.session import routed_context, set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.main import app
@@ -72,7 +68,7 @@ from app.testing import (
     Actor,
     create_access_grant,
     create_counter_group,
-    create_document,
+    create_file,
     create_project,
     create_queue,
     create_wiki,
@@ -83,7 +79,7 @@ from app.testing import (
     route_as,
     route_as_install,
 )
-from app.testing.app_clients import CLIENT, install_app
+from app.testing.plugin_clients import CLIENT, install_plugin
 
 pytestmark = pytest.mark.seam
 
@@ -107,12 +103,12 @@ class World:
 
 
 async def _world(session, acting_user, role_session) -> World:
-    installed = await install_app(
+    installed = await install_plugin(
         session, acting_user, role_session, granted=["projects:read"]
     )
     guild, owner = installed.guild, installed.seat.user
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -142,7 +138,7 @@ async def _world(session, acting_user, role_session) -> World:
         people[name] = person.id
     return World(
         guild_id=guild.id,
-        install_id=installed.app.id,
+        install_id=installed.plugin.id,
         owner_id=owner.id,
         member_id=member.user.id,
         reader_id=people["reader"],
@@ -169,6 +165,34 @@ class Scenario:
     route: Route
     reads: frozenset[str]
     writes: frozenset[str]
+    #: Whether the routing names its community in the request variables.
+    #: A filer's names it by schema and role alone: the shared tables read
+    #: those variables as being in the community, which a filer is not.
+    names_community: bool = True
+
+
+#: The communities a scenario gave a filer role, dropped once the test ends:
+#: the role is cluster-wide, where the community's schema is pooled.
+_FILER_GUILDS: list[int] = []
+
+
+@pytest.fixture(autouse=True)
+async def _drop_filer_roles():
+    yield
+    from app.db import filer_access
+
+    while _FILER_GUILDS:
+        await filer_access.deprovision_filer_access(_FILER_GUILDS.pop())
+
+
+async def _as_filer(w: World, s) -> None:
+    """Someone who filed a case, reading it from outside the community: its
+    filer role, provisioned as choosing it for operations work does."""
+    from app.db import filer_access
+
+    await filer_access.provision_filer_access(w.guild_id)
+    _FILER_GUILDS.append(w.guild_id)
+    await set_rls_context(s, Filer(guild_id=w.guild_id, user_id=w.member_id))
 
 
 def _as(user: str, **kwargs) -> Route:
@@ -193,7 +217,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         _NONE,
     ),
     Scenario(
-        "installed app",
+        "installed plug-in",
         Install,
         "app_user",
         lambda w, s: route_as_install(
@@ -237,6 +261,10 @@ SCENARIOS: tuple[Scenario, ...] = (
         lambda w, s: set_rls_context(s, Unattributed()),
         _NONE,
         _NONE,
+    ),
+    # Their cases' columns and nothing of the projects: refused outright.
+    Scenario(
+        "filer", Filer, "app_user", _as_filer, _NONE, _NONE, names_community=False
     ),
     Scenario(
         "billing",
@@ -309,7 +337,9 @@ async def test_the_route_holds(session, acting_user, role_session, scenario):
     # One community, named the same way everywhere.
     if shape.guild_id is not None:
         assert held["sp"].split(",")[0].strip() == guild_schema_name(shape.guild_id)
-        assert await _scalar(s, f"SELECT {gucs.ROUTED_GUILD_ID}") == shape.guild_id
+        assert await _scalar(s, f"SELECT {gucs.ROUTED_GUILD_ID}") == (
+            shape.guild_id if scenario.names_community else None
+        )
         standing = getattr(shape, "standing", None)
         if standing is not None and standing.standing_guild_id is not None:
             assert held["standing_guild_id"] == str(shape.guild_id)
@@ -334,7 +364,7 @@ _READ = re.compile(r"current_setting\('(app\.[a-z0-9_]+)'")
 async def test_the_catalog_reads_only_declared_variables(session, acting_user):
     """Every policy, view and function, in ``public``, the template and a
     provisioned community, reads only the variables the registry declares."""
-    guild = (await acting_user(guild_role=GuildRole.member)).guild
+    guild = (await acting_user(guild_role=CommunityRole.member)).guild
     schemas = ["public", "guild_template", guild_schema_name(guild.id)]
     sources = (
         await session.exec(
@@ -358,41 +388,6 @@ async def test_the_catalog_reads_only_declared_variables(session, acting_user):
 # ---------------------------------------------------------------------------
 # Sockets
 # ---------------------------------------------------------------------------
-
-
-def _unpooled(bind: AsyncEngine) -> AsyncEngine:
-    return create_async_engine(bind.url, poolclass=NullPool)
-
-
-@pytest.fixture
-def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """Starlette's ``TestClient``, which drives the app's sockets.
-
-    It serves the app on an event loop of its own. The pools the socket
-    endpoints draw from are swapped, for the test, for ones that open a
-    connection per checkout, so a connection opened on one loop is never handed
-    to the other. A quiet socket beats at once, so an admitted one says so
-    without the test waiting out the interval.
-    """
-    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
-    for name in ("_request_makers", "_system_makers"):
-        makers = getattr(cohorts, name)
-        monkeypatch.setattr(
-            cohorts,
-            name,
-            cohorts._cohort_makers([_unpooled(m.kw["bind"]) for m in makers]),
-        )
-    monkeypatch.setattr(
-        db_session,
-        "AsyncSessionLocal",
-        async_sessionmaker(
-            bind=_unpooled(db_session.engine),
-            autoflush=False,
-            expire_on_commit=False,
-            class_=AsyncSession,
-        ),
-    )
-    return TestClient(app)
 
 
 def _registered(user_id: int, guild_id: int | None) -> bool:
@@ -419,7 +414,7 @@ async def test_every_socket_admits_through_the_seam(
     acting_user: Callable[..., Awaitable[Actor]],
     socket_client: TestClient,
 ) -> None:
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     guild, initiative, owner = admin.guild, admin.initiative, admin.user
     visitor = await create_user(session, role=UserRole.support)
     await create_access_grant(
@@ -427,7 +422,7 @@ async def test_every_socket_admits_through_the_seam(
     )
     group = await create_counter_group(session, initiative, owner)
     queue = await create_queue(session, initiative, owner)
-    document = await create_document(session, initiative, owner)
+    file = await create_file(session, initiative, owner)
     wiki = await create_wiki(session, initiative, owner)
     page = await create_wiki_page(session, wiki, owner)
 
@@ -437,18 +432,17 @@ async def test_every_socket_admits_through_the_seam(
     #: community's configuration and none of its content — or, for the
     #: account's own stream, a token that is none.
     channels = {
-        "/api/v1/c/{guild_id}/queues/{queue_id}/ws": f"{base}/queues/{queue.id}/ws",
-        "/api/v1/c/{guild_id}/counter-groups/{group_id}/ws": (
+        "/api/v1/c/{community_id}/queues/{queue_id}/ws": f"{base}/queues/{queue.id}/ws",
+        "/api/v1/c/{community_id}/counter-groups/{group_id}/ws": (
             f"{base}/counter-groups/{group.id}/ws"
         ),
-        "/api/v1/c/{guild_id}/events/updates": f"{base}/events/updates",
-        "/api/v1/c/{guild_id}/collaboration/documents/{document_id}/collaborate": (
-            f"{base}/collaboration/documents/{document.id}/collaborate"
+        "/api/v1/c/{community_id}/events/updates": f"{base}/events/updates",
+        "/api/v1/c/{community_id}/collaboration/files/{file_id}/collaborate": (
+            f"{base}/collaboration/files/{file.id}/collaborate"
         ),
-        (
-            "/api/v1/c/{guild_id}/collaboration/wikis/{wiki_id}/pages/{page_id}"
-            "/collaborate"
-        ): f"{base}/collaboration/wikis/{wiki.id}/pages/{page.id}/collaborate",
+        "/api/v1/c/{community_id}/collaboration/wiki-pages/{page_id}/collaborate": (
+            f"{base}/collaboration/wiki-pages/{page.id}/collaborate"
+        ),
     }
     served = {r.path for r in app.routes if isinstance(r, APIWebSocketRoute)}
     stream = "/api/v1/notifications/stream"

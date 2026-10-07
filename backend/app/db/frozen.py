@@ -48,7 +48,7 @@ from sqlmodel import SQLModel
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
-from app.core.tools import PROPERTY_TARGETS, Tool
+from app.core.tools import ARCHIVE_TARGETS, KINDS, PROPERTY_TARGETS, Tool
 from app.db import gucs
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
@@ -63,7 +63,7 @@ from app.db.errors import (
     dbapi_sqlstate,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.models.tenant._mixins import archive_models
+from app.models.tenant._mixins import ArchiveMixin, SoftDeleteMixin, archive_models
 from app.models.tenant.wiki import WikiPage
 
 #: The SQLSTATE the guard raises, with a constraint name so it is told apart
@@ -78,13 +78,10 @@ FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
 
 
 #: What a frozen row may still change: the columns that describe the freeze
-#: itself, plus the timestamp every write touches. Everything else is content.
-LIFECYCLE_COLUMNS: tuple[str, ...] = (
-    "archived_at",
-    "deleted_at",
-    "deleted_by",
-    "purge_at",
-    "updated_at",
+#: itself (the two lifecycle mixins' fields), plus the timestamp every write
+#: touches. Everything else is content.
+LIFECYCLE_COLUMNS: tuple[str, ...] = tuple(
+    sorted({*ArchiveMixin.model_fields, *SoftDeleteMixin.model_fields, "updated_at"})
 )
 
 #: Rows that hold a NAME which is unique among their siblings, mapped to the
@@ -186,7 +183,7 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
         "project_orders",
         "project_favorites",
         "event_outbox",
-        "app_event_outbox",
+        "plugin_event_outbox",
         "search_entries",
         "reaction_digest_items",
         "task_assignment_digest_items",
@@ -239,9 +236,17 @@ def row_is_frozen(row: Any) -> bool:
     return row_is_frozen(getattr(row, "initiative", None))
 
 
-#: The ancestor a row hangs off, in the order the walk tries them. A task
-#: reaches its initiative through its project; every tool names one directly.
-_ANCESTOR_ATTRS: tuple[str, ...] = ("project", "initiative")
+#: The ancestors an archivable row hangs off, in the order the walk tries them:
+#: the tool a row inside one lives in (a task's project), then the initiative
+#: every tool names directly.
+_ANCESTOR_ATTRS: tuple[str, ...] = (
+    *(
+        kind.parent.value
+        for kind in (KINDS[target] for target in ARCHIVE_TARGETS if target in KINDS)
+        if kind.parent is not None
+    ),
+    "initiative",
+)
 
 
 def ancestor_is_frozen(row: Any) -> bool:

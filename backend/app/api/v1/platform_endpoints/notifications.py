@@ -19,16 +19,23 @@ from app.api.deps import (
 from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
 from app.schemas.platform.notification import (
+    NotificationAlertRead,
     NotificationCountResponse,
     NotificationListResponse,
     NotificationPlace,
     NotificationRead,
+    RedactedAlert,
     SubjectReadRequest,
     SubjectReadResponse,
     UnreadPlacesResponse,
 )
+from app.core.notification_categories import category_of
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_subjects, presence
+from app.services.platform import (
+    notification_policy,
+    notification_subjects,
+    presence,
+)
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.api.content_socket import hold_open, read_auth_frame
@@ -57,7 +64,7 @@ async def list_notifications(
     limit: int = Query(default=50, ge=1, le=100),
     cursor: str | None = Query(default=None),
     unread_only: bool = Query(default=False),
-    guild_id: int | None = Query(default=None),
+    guild_id: int | None = Query(default=None, alias="community_id"),
     personal_only: bool = Query(default=False),
 ) -> NotificationListResponse:
     """One page of the inbox, newest first.
@@ -140,11 +147,39 @@ async def read_notification_subject(
     comment_ids, since = await notifications_service.read_subject(
         session,
         user_id=current_user.id,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
         subject_type=payload.subject_type,
         subject_id=payload.subject_id,
     )
     return SubjectReadResponse(comment_ids=comment_ids, since=since)
+
+
+@router.get("/{notification_id}/alert", response_model=NotificationAlertRead)
+async def read_notification_alert(
+    notification_id: int,
+    session: AccountHolderSessionDep,
+    current_user: AccountHolder,
+) -> NotificationAlertRead:
+    """One line as the desktop app announces it, after an ``alert`` frame.
+
+    The switches are read as they stand now: a community that has started
+    redacting since the frame went gets the kind of thing that happened, and
+    one that has switched push off gets no more than that.
+    """
+    notification = await notifications_service.get_notification(
+        session, user_id=current_user.id, notification_id=notification_id
+    )
+    if notification is None:
+        raise HTTPException(status_code=404, detail=NotificationMessages.NOT_FOUND)
+    policy = await notification_policy.for_send(session, notification.guild_id)
+    redacted = None
+    if policy.redact or not policy.push:
+        title, body = notification_policy.redacted_line(
+            category_of(notification.type), current_user.locale or "en"
+        )
+        redacted = RedactedAlert(title=title, body=body)
+    (line,) = await _with_subjects(session, current_user.id, [notification])
+    return NotificationAlertRead(notification=line, redacted=redacted)
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)
@@ -198,7 +233,7 @@ async def dismiss_notification(
 async def mark_all_notifications_read(
     session: UserSessionDep,
     current_user: User = Depends(get_current_active_user),
-    guild_id: int | None = Query(default=None),
+    guild_id: int | None = Query(default=None, alias="community_id"),
 ) -> NotificationCountResponse:
     """Clear the unread set, or just one community's part of it."""
     await notifications_service.mark_all_notifications_read(

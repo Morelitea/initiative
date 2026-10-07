@@ -44,6 +44,7 @@ from urllib.parse import urlsplit, urlunsplit
 import asyncpg
 
 from app.core.config import settings
+from app.db import post_commit
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,6 @@ logger = logging.getLogger(__name__)
 #: than hammering a database that may be the reason it dropped.
 _RECONNECT_DELAY_SECONDS = 5.0
 _RECONNECT_MAX_SECONDS = 60.0
-
-#: Delivery tasks in flight, held so the event loop's weak reference cannot
-#: collect one mid-frame.
-_inflight: set[asyncio.Task] = set()
 
 #: What a subscriber hands over: the payload as it was sent, nothing else.
 Handler = Callable[[str], Awaitable[None]]
@@ -229,12 +226,9 @@ class NotifyBus:
 
     def _on_notify(self, _connection, _pid, channel: str, payload: str) -> None:
         # asyncpg calls this from its reader task, so delivery is scheduled
-        # rather than awaited. The task is held until it finishes: the loop
-        # keeps only a weak reference, and a collected task drops the frame.
+        # rather than awaited, as a task held until it finishes.
         for handler in self._handlers.get(channel, ()):
-            task = asyncio.create_task(handler(payload))
-            _inflight.add(task)
-            task.add_done_callback(_inflight.discard)
+            post_commit.spawn(handler(payload))
 
 
 bus = NotifyBus()

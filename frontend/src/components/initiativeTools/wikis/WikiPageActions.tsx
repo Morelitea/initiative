@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Check,
+  Copy,
   ExternalLink,
   EyeOff,
   FileStack,
@@ -33,9 +34,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDeleteWikiPage, useUpdateWiki, useUpdateWikiPage } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import {
+  useDeleteWikiPage,
+  useDuplicateWikiPage,
+  useUpdateWiki,
+  useUpdateWikiPage,
+} from "@/hooks/useWikis";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiPageActionsProps {
@@ -43,8 +49,8 @@ interface WikiPageActionsProps {
   page: WikiPageSummary;
   canWrite: boolean;
   initiativeId: number;
-  /** Takes a document back out of the wiki. Only a document row has one. */
-  onRemoveDocument?: () => void;
+  /** Takes a file back out of the wiki. Only a file row has one. */
+  onRemoveFile?: () => void;
 }
 
 /**
@@ -60,14 +66,20 @@ export const WikiPageActions = ({
   page,
   canWrite,
   initiativeId,
-  onRemoveDocument,
+  onRemoveFile,
 }: WikiPageActionsProps) => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
   const updateWiki = useUpdateWiki(wiki.id);
   const deletePage = useDeleteWikiPage(wiki.id);
   const updatePage = useUpdateWikiPage(wiki.id, page.id);
+  const duplicatePage = useDuplicateWikiPage(wiki.id, {
+    onSuccess: (copy) => {
+      toast.success(t("common:subToolDuplicate.done"));
+      void navigate({ to: gp(wikiPageRoute(initiativeId, wiki.id, copy.id)) });
+    },
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!canWrite) {
@@ -91,21 +103,21 @@ export const WikiPageActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          {page.kind === WikiPageKind.document ? (
+          {page.kind === WikiPageKind.file ? (
             <>
               <DropdownMenuItem asChild>
-                <Link to={gp(toolDetailRoute(Tool.document, initiativeId, page.id))}>
+                <Link to={gp(toolDetailRoute(Tool.file, initiativeId, page.id))}>
                   <ExternalLink className="size-4" aria-hidden />
-                  {t("documents.openDocument")}
+                  {t("files.openFile")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive hover:text-destructive"
-                onSelect={() => onRemoveDocument?.()}
+                onSelect={() => onRemoveFile?.()}
               >
                 <Trash2 className="size-4" aria-hidden />
-                {t("documents.remove")}
+                {t("files.remove")}
               </DropdownMenuItem>
             </>
           ) : (
@@ -183,6 +195,16 @@ export const WikiPageActions = ({
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                disabled={duplicatePage.isPending}
+                onSelect={() => duplicatePage.mutate(page.id)}
+              >
+                <Copy className="size-4" aria-hidden />
+                {duplicatePage.isPending
+                  ? t("common:subToolDuplicate.duplicating")
+                  : t("common:subToolDuplicate.action")}
+              </DropdownMenuItem>
 
               <DropdownMenuItem
                 className="text-destructive hover:text-destructive"

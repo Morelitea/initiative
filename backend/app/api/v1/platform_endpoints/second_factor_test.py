@@ -9,7 +9,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import get_password_hash
 from app.models.platform.user import User, UserStatus
 from app.services.auth import totp as totp_service
-from app.testing import create_user, get_auth_headers, get_auth_token
+from app.testing import (
+    create_user,
+    get_auth_headers,
+    get_auth_token,
+    signed_in_headers,
+)
 
 
 PASSWORD = "correct-horse-battery-staple"
@@ -260,7 +265,7 @@ async def test_removing_it_asks_for_the_password_and_the_factor(
     client: AsyncClient, session: AsyncSession
 ):
     user, secret, _codes = await _enrol(client, session, "remove@example.com")
-    headers = get_auth_headers(user)
+    headers = await signed_in_headers(session, user, amr=["hwk"])
 
     no_factor = await client.post(
         "/api/v1/auth/totp/disable",
@@ -275,7 +280,7 @@ async def test_removing_it_asks_for_the_password_and_the_factor(
         json={"current_password": PASSWORD, "code": _next_code(secret)},
         headers=headers,
     )
-    assert removed.status_code == 204
+    assert removed.status_code == 200
 
     # And the sign-in stops asking.
     response = await _sign_in(client, "remove@example.com")
@@ -372,7 +377,7 @@ async def test_removing_it_leaves_this_session_signed_in(
 
     user, secret, _codes = await _enrol(client, session, "keepme@example.com")
     mine = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+        session, user_id=user.id, amr=["hwk"], satisfied_providers=[]
     )
     elsewhere = await session_service.create_session(
         session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
@@ -380,13 +385,13 @@ async def test_removing_it_leaves_this_session_signed_in(
     await session.commit()
     mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
 
-    token = get_auth_token(user, session_id=mine_id)
+    token = get_auth_token(user, session_id=mine_id, amr=["hwk"])
     removed = await client.post(
         "/api/v1/auth/totp/disable",
         json={"current_password": PASSWORD, "code": _next_code(secret)},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert removed.status_code == 204, removed.text
+    assert removed.status_code == 200, removed.text
 
     session.expire_all()
     assert (await session.get(AuthSession, mine_id)).revoked_at is None
@@ -493,48 +498,34 @@ async def test_a_hash_no_scheme_verifies_is_not_a_password(
     assert response.status_code == 200, response.text
 
 
-async def test_the_app_is_asked_for_the_code_too(
+async def test_the_app_is_asked_for_the_code_and_keeps_its_refresh_token(
     client: AsyncClient, session: AsyncSession
 ):
-    """The native sign-in takes a password on a different route, and a proved
-    factor is part of signing in on every route that takes one."""
-    await _enrol(client, session, "native@example.com")
+    """A proved factor is part of signing in from the app too. A browser reads
+    its refresh token from a cookie it never sees; the app, which presents its
+    own origin, is handed one."""
+    _user, secret, _codes = await _enrol(client, session, "native@example.com")
+    app = {"Origin": "https://studio.beyonders.initiative"}
 
     response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "native@example.com",
+        "/api/v1/auth/token",
+        data={
+            "username": "native@example.com",
             "password": PASSWORD,
             "device_name": "Phone",
         },
+        headers=app,
     )
     assert response.status_code == 401, response.text
     body = response.json()
     assert body["detail"] == "TOTP_REQUIRED"
     assert body["challenge"]
-    assert "device_token" not in body
-
-
-async def test_the_app_keeps_the_refresh_token_it_is_given(
-    client: AsyncClient, session: AsyncSession
-):
-    """A browser reads its refresh token from a cookie it never sees; the app
-    is handed one. Which of the two asked is on the challenge."""
-    _user, secret, _codes = await _enrol(client, session, "native2@example.com")
-    challenge = (
-        await client.post(
-            "/api/v1/auth/device-token",
-            json={
-                "email": "native2@example.com",
-                "password": PASSWORD,
-                "device_name": "Phone",
-            },
-        )
-    ).json()["challenge"]
+    assert "refresh_token" not in body
 
     answered = await client.post(
         "/api/v1/auth/token/totp",
-        json={"challenge": challenge, "code": _next_code(secret)},
+        json={"challenge": body["challenge"], "code": _next_code(secret)},
+        headers=app,
     )
     assert answered.status_code == 200, answered.text
     assert answered.json()["access_token"]
@@ -929,3 +920,58 @@ async def test_an_account_with_a_password_and_no_factor_has_nothing_to_re_issue(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "TOTP_NOT_ENROLLED"
+
+
+async def test_turning_it_off_from_a_new_sign_in_waits(
+    client: AsyncClient, session: AsyncSession
+):
+    """Held, the factor stays. Made once due, it goes, and every other session
+    goes with it but the one that asked. A factor confirmed after the request
+    is not the one it asked about, and stays."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import held_changes
+    from app.services.auth import sessions as session_service
+    from app.services.auth import totp as totp_service
+
+    user, secret, codes = await _enrol(client, session, "held-off@example.com")
+    user_id = user.id
+    mine = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    elsewhere = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
+    headers = {"Authorization": f"Bearer {get_auth_token(user, session_id=mine_id)}"}
+
+    held = await client.post(
+        "/api/v1/auth/totp/disable",
+        json={"current_password": PASSWORD, "code": _next_code(secret)},
+        headers=headers,
+    )
+    assert held.status_code == 202, held.text
+    assert held.json()["held"]["kind"] == "second_factor_off"
+    assert await totp_service.is_enrolled(session, user_id=user_id)
+
+    factor = await totp_service.get_factor(session, user_id=user_id)
+    assert factor is not None
+    factor.confirmed_at = datetime.now(timezone.utc)
+    session.add(factor)
+    await session.commit()
+    due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    assert await held_changes.apply_due(session, now=due) == 0
+    assert await totp_service.is_enrolled(session, user_id=user_id)
+
+    held = await client.post(
+        "/api/v1/auth/totp/disable",
+        json={"current_password": PASSWORD, "recovery_code": codes[0]},
+        headers=headers,
+    )
+    assert held.status_code == 202, held.text
+    due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    assert await held_changes.apply_due(session, now=due) == 1
+    session.expire_all()
+    assert not await totp_service.is_enrolled(session, user_id=user_id)
+    assert (await session.get(AuthSession, mine_id)).revoked_at is None
+    assert (await session.get(AuthSession, elsewhere_id)).revoked_at is not None

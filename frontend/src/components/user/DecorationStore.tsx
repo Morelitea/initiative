@@ -12,8 +12,8 @@ import {
   useInstallDecorationPack,
   useRemoveDecorationPack,
 } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 
 /**

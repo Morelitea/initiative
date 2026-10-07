@@ -17,8 +17,13 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
+from app.services.marketplace.definitions import (
+    LISTING_KINDS,
+    LISTING_SOURCES,
+    published_by_us,
+)
 
 if TYPE_CHECKING:
     from app.models.platform.marketplace import (
@@ -53,8 +58,9 @@ class MarketplaceVersionRead(SanitizedBaseModel):
     release_notes: Optional[str] = None
     min_app_version: Optional[str] = None
     published_at: datetime
-    #: Whether this deployment is new enough to install it. A version needing a
-    #: newer app is shown, not hidden, so the reason is legible.
+    #: Whether this deployment can install it: new enough, and serving the
+    #: plug-in API contract it needs. A version it cannot run is shown, not
+    #: hidden, so the reason is legible.
     compatible: bool = True
 
 
@@ -63,6 +69,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: This deployment's row id. What a report names the listing by; the uid
+    #: and public id are its identity everywhere else.
+    id: int
     uid: str
     public_id: str
     kind: ListingKind  # type: ignore[valid-type]
@@ -72,6 +81,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
     name: str
     #: Who publishes it. Required in the catalog, so this is always present.
     publisher: str
+    #: Whether this project publishes it, so it is neither reported nor
+    #: introduced as somebody else's.
+    first_party: bool
     description: str
     avatar_url: str
     images: List[str] = []
@@ -102,18 +114,18 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: supplied their own, always present, and never installable. Display
     #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
-    #: For an app: the scopes its latest version asks a community to grant,
+    #: For a plug-in: the scopes its latest version asks a community to grant,
     #: in vocabulary order. Empty for every other kind.
     requested_scopes: List[str] = []
     #: The requested scopes this deployment's registration lets a community
     #: grant. What the install dialog offers ticked; the rest are shown
     #: disabled.
     grantable_scopes: List[str] = []
-    #: For each requested ``apps:`` scope, the name the app it lets this one
-    #: use goes by, keyed by that app's public id. Its public id when the
+    #: For each requested ``plugins:`` scope, the name the plug-in it lets this one
+    #: use goes by, keyed by that plug-in's public id. Its public id when the
     #: catalog has no name for it.
-    app_names: Dict[str, str] = {}
-    #: Whether the app offers a surface inside initiatives, and so has
+    plugin_names: Dict[str, str] = {}
+    #: Whether the plug-in offers a surface inside initiatives, and so has
     #: somewhere to be placed.
     has_initiative_surfaces: bool = False
 
@@ -243,18 +255,15 @@ class MarketplaceLocalSettings(SanitizedBaseModel):
     members_publish_directly: bool
 
 
-class MarketplaceListingPage(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class MarketplaceListingPage(PageMeta):
     items: List[MarketplaceListingSummary]
-    total: int
 
 
 def serialize_version(
     version: Optional["MarketplaceListingVersion"],
 ) -> Optional[MarketplaceVersionRead]:
     # Local import avoids a schema -> service import cycle.
-    from app.services.marketplace.catalog import version_is_compatible
+    from app.services.marketplace.catalog import version_runs_here
 
     if version is None:
         return None
@@ -263,7 +272,7 @@ def serialize_version(
         release_notes=version.release_notes,
         min_app_version=version.min_app_version,
         published_at=version.published_at,
-        compatible=version_is_compatible(version.min_app_version),
+        compatible=version_runs_here(version),
     )
 
 
@@ -274,13 +283,16 @@ def serialize_listing_summary(
     """One browse card. Shared by every surface that lists or reads a listing,
     so a card and the page it opens describe the same thing."""
     version = serialize_version(latest)
+    assert listing.id is not None
     return MarketplaceListingSummary(
+        id=listing.id,
         uid=listing.uid,
         public_id=listing.public_id,
         kind=listing.kind,
         source=listing.source,
         name=listing.name,
         publisher=listing.publisher,
+        first_party=published_by_us(listing.source, listing.public_id),
         # Attribution travels with the provenance that bounds it: a card, the
         # detail page and the install dialog all answer "who wrote this?" from
         # these two fields together, so neither is served without the other.

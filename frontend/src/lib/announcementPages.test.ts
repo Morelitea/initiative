@@ -56,7 +56,7 @@ describe("matchesTriggerRoute", () => {
 
   it("combines the two wildcards", () => {
     expect(matchesTriggerRoute("/c/*/i/*/projects/**", "/c/1/i/2/projects/3/tasks/4")).toBe(true);
-    expect(matchesTriggerRoute("/c/*/i/*/projects/**", "/c/1/i/2/documents/3")).toBe(false);
+    expect(matchesTriggerRoute("/c/*/i/*/projects/**", "/c/1/i/2/files/3")).toBe(false);
   });
 });
 

@@ -19,7 +19,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import platform_tier, role_name
 from app.testing import as_role, create_user
 
 
@@ -54,7 +54,7 @@ async def test_federated_identity_is_own_row_on_request_path(session):
     await _link(session, u1.id, provider, "sub-1")
     await _link(session, u2.id, provider, "sub-2")
 
-    async with as_role(session, platform_role_name("member"), u1.id):
+    async with as_role(session, role_name(platform_tier("member")), u1.id):
         rows = {
             r[0]
             for r in (
@@ -73,7 +73,7 @@ async def test_no_platform_tier_reads_all_identities(session):
     await _link(session, u1.id, provider, "sub-a")
     await _link(session, u2.id, provider, "sub-b")
 
-    async with as_role(session, platform_role_name("operator"), u1.id):
+    async with as_role(session, role_name(platform_tier("operator")), u1.id):
         rows = {
             r[0]
             for r in (
@@ -91,7 +91,7 @@ async def test_auth_providers_unreadable_on_request_path(session):
     await _make_provider(session, "acme3")
     u1 = await create_user(session)
 
-    async with as_role(session, platform_role_name("owner"), u1.id):
+    async with as_role(session, role_name(platform_tier("owner")), u1.id):
         with pytest.raises(DBAPIError):
             async with session.begin_nested():
                 await session.exec(text("SELECT id FROM auth_providers"))

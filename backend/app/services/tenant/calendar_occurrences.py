@@ -23,7 +23,8 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, exists, update as sa_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -213,7 +214,9 @@ async def _copy_lists(
         await tags_service.replace_entity_tags(session, _TAGS, target.id, [])
         await tags_service.copy_entity_tags(session, _TAGS, {source.id: target.id})
     if "properties" in lists:
-        await properties_service.copy_values(session, source, target)
+        await properties_service.copy_values(
+            session, type(source), {source.id: target.id}
+        )
     await session.flush()
 
 
@@ -247,6 +250,7 @@ async def occurrence(
         start_at=at,
         end_at=at + (series.end_at - series.start_at),
         all_day=series.all_day,
+        rsvp_open=series.rsvp_open,
         series_id=series.id,
         original_start=at,
         created_by=series.created_by,
@@ -269,33 +273,62 @@ async def occurrence(
     return override
 
 
+def _rsvp_closed() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=CalendarEventMessages.RSVP_CLOSED,
+    )
+
+
 async def answer_on(
-    session: AsyncSession, event: CalendarEvent, user_id: int, answer: RSVPStatus
+    session: AsyncSession,
+    event: CalendarEvent,
+    user_id: int,
+    answer: RSVPStatus,
+    *,
+    join: bool = True,
 ) -> None:
-    """``user_id``'s answer on the event's own attendee row."""
-    row = (
-        await session.exec(
-            select(CalendarEventAttendee).where(
+    """``user_id``'s answer on the event's own attendee row, which ``join``
+    adds when they are not on its list; without it, only someone already on
+    the list answers."""
+    if not join:
+        result = await session.exec(
+            sa_update(CalendarEventAttendee)
+            .where(
                 CalendarEventAttendee.calendar_event_id == event.id,
                 CalendarEventAttendee.user_id == user_id,
             )
+            .values(rsvp_status=answer)
         )
-    ).one_or_none() or CalendarEventAttendee(
-        calendar_event_id=event.id, user_id=user_id
+        if not result.rowcount:
+            raise _rsvp_closed()
+        return
+    row = pg_insert(CalendarEventAttendee).values(
+        calendar_event_id=event.id,
+        user_id=user_id,
+        rsvp_status=answer,
+        created_at=datetime.now(timezone.utc),
     )
-    row.rsvp_status = answer
-    session.add(row)
+    await session.exec(
+        row.on_conflict_do_update(
+            index_elements=["calendar_event_id", "user_id"],
+            set_={"rsvp_status": row.excluded.rsvp_status},
+        )
+    )
 
 
 async def answer_occurrence(
     session: AsyncSession,
     series: CalendarEvent,
-    at: datetime,
+    at: datetime | None,
     user_id: int,
     answer: RSVPStatus,
+    *,
+    join: bool = True,
 ) -> None:
     """``user_id``'s answer for one occurrence: on its override when it has
-    one, else kept beside the series."""
+    one, else kept beside the series. Without ``join``, only someone on the
+    occurrence's list answers."""
     at = require_occurrence(series, at)
     override = (
         await session.exec(
@@ -306,18 +339,41 @@ async def answer_occurrence(
         )
     ).one_or_none()
     if override is not None:
-        await answer_on(session, override, user_id, answer)
+        await answer_on(session, override, user_id, answer, join=join)
         return
-    row = await session.get(CalendarEventAnswer, (series.id, user_id, at))
-    if row is None:
-        row = CalendarEventAnswer(
-            calendar_event_id=series.id,
-            user_id=user_id,
-            original_start=at,
-            rsvp_status=answer,
+    # Closed, an answer comes from the series' list or from someone who already
+    # answered this occurrence while it was open.
+    if (
+        not join
+        and not (
+            await session.exec(
+                select(
+                    exists().where(
+                        CalendarEventAttendee.calendar_event_id == series.id,
+                        CalendarEventAttendee.user_id == user_id,
+                    )
+                    | exists().where(
+                        CalendarEventAnswer.calendar_event_id == series.id,
+                        CalendarEventAnswer.user_id == user_id,
+                        CalendarEventAnswer.original_start == at,
+                    )
+                )
+            )
+        ).one()
+    ):
+        raise _rsvp_closed()
+    row = pg_insert(CalendarEventAnswer).values(
+        calendar_event_id=series.id,
+        user_id=user_id,
+        original_start=at,
+        rsvp_status=answer,
+    )
+    await session.exec(
+        row.on_conflict_do_update(
+            index_elements=["calendar_event_id", "user_id", "original_start"],
+            set_={"rsvp_status": row.excluded.rsvp_status},
         )
-    row.rsvp_status = answer
-    session.add(row)
+    )
 
 
 async def answers_for(
@@ -366,6 +422,7 @@ async def follow(
             override.end_at = override.start_at + length
             override.all_day = series.all_day
         override.calendar_id = series.calendar_id
+        override.rsvp_open = series.rsvp_open
         session.add(override)
         if lists := free & set(LISTS):
             await _copy_lists(session, series, override, lists)
@@ -471,6 +528,7 @@ async def split(
         start_at=at,
         end_at=at + (series.end_at - series.start_at),
         all_day=series.all_day,
+        rsvp_open=series.rsvp_open,
         recurrence=tail,
         recurrence_shift=series.recurrence_shift,
         created_by=series.created_by,

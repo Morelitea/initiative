@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { QueryBuildRequest, QueryBuildResponse } from "@/api/generated/initiativeAPI.schemas";
-import { buildQueryApiV1CGuildIdQueryBuildPost } from "@/api/generated/query/query";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { buildQuery } from "@/api/generated/query/query";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { QueryOpts } from "@/types/query";
 
 /**
@@ -17,17 +17,17 @@ import type { QueryOpts } from "@/types/query";
  * the last good answer is kept while a new one is in flight so the preview does
  * not blink on every click.
  */
-export const queryBuildKey = (guildId: number, spec: QueryBuildRequest | null) =>
-  ["query-build", guildId, spec] as const;
+export const queryBuildKey = (communityId: number, spec: QueryBuildRequest | null) =>
+  ["query-build", communityId, spec] as const;
 
 export const useQueryBuilder = (
   spec: QueryBuildRequest | null,
   options?: QueryOpts<QueryBuildResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<QueryBuildResponse>({
-    queryKey: queryBuildKey(guildId, spec),
-    queryFn: () => buildQueryApiV1CGuildIdQueryBuildPost(guildId, spec as QueryBuildRequest),
+    queryKey: queryBuildKey(communityId, spec),
+    queryFn: () => buildQuery(communityId, spec as QueryBuildRequest),
     placeholderData: keepPreviousData,
     // A description either builds or it does not; retrying asks the same
     // question again.

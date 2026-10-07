@@ -1,10 +1,10 @@
-"""Spreadsheet-document renderers: the sparse cell map as CSV or styled XLSX.
+"""Spreadsheet-file renderers: the sparse cell map as CSV or styled XLSX.
 
-Input is the canonical v3 snapshot ``documents_spreadsheet`` persists:
+Input is the canonical v3 snapshot ``files_spreadsheet`` persists:
 ``{sheets: [{id, name, dimensions, cells, columns, rows, cellStyles,
 frozen}, ...]}`` with ``"r:c"`` keys. A legacy v1/v2 snapshot — the same
 structures at the top level, no ``sheets`` — is read as a one-sheet
-workbook, so a document that hasn't been re-saved since multi-sheet
+workbook, so a file that hasn't been re-saved since multi-sheet
 landed still exports.
 
 XLSX maps the workbook one-to-one: a worksheet per sheet, in tab order,
@@ -17,7 +17,7 @@ ones.
 Formulas: the app's sheets store formulas as ``=``-prefixed cell strings
 (evaluated client-side; the snapshot keeps the raw text). Unlike the tabular
 exports — where a leading ``=`` is plain text, not a formula — a
-spreadsheet document's ``=`` cells are the user's own first-class content,
+spreadsheet file's ``=`` cells are the user's own first-class content,
 so grid exports preserve them (Excel re-evaluates; the app's function set is
 an Excel subset). Mirrors the frontend's ``isFormula`` exactly: ``=`` prefix
 only. Other trigger prefixes (``+ - @``) are still neutralized in CSV (they
@@ -111,7 +111,7 @@ def render_csv(content: dict) -> bytes:
 def render_xlsx(content: dict, *, title: str, data: dict | None = None) -> bytes:
     """The whole workbook: one worksheet per sheet, in tab order.
 
-    ``title`` is the *document's* name, used only to title the worksheet of
+    ``title`` is the *file's* name, used only to title the worksheet of
     a legacy snapshot that has no per-sheet names. ``data`` is the export
     item's payload, read for its stamp.
     """
@@ -195,7 +195,7 @@ def _sheet_title(title: str) -> str:
 def _unique_title(title: str, used: set[str]) -> str:
     """Worksheet titles must be unique within a workbook. Names are already
     de-duplicated on write, but a legacy snapshot (every sheet falling back
-    to the document title) or a hand-edited payload can still collide, and
+    to the file title) or a hand-edited payload can still collide, and
     openpyxl would raise."""
     candidate = title
     counter = 1

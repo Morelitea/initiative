@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
@@ -17,14 +17,14 @@ import {
   JiraReviewSummary,
 } from "./AtlassianImportSteps";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 function job(overrides: Partial<ImportJobRead> = {}): ImportJobRead {
   return {
     id: 77,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     source: "atlassian",
     params: {},
@@ -71,7 +71,7 @@ describe("AtlassianConnectStep", () => {
   it("proves the token and hands back both products' lists", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/atlassian/connect", async ({ request }) => {
+      communityHttp.post("/imports/atlassian/connect", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           {
@@ -102,7 +102,7 @@ describe("AtlassianConnectStep", () => {
 
   it("goes on with whichever product the token can see", async () => {
     server.use(
-      guildHttp.post("/imports/atlassian/connect", () =>
+      communityHttp.post("/imports/atlassian/connect", () =>
         HttpResponse.json(
           {
             site_url: "https://acme.atlassian.net",
@@ -122,7 +122,7 @@ describe("AtlassianConnectStep", () => {
 
   it("says so when the token can see neither", async () => {
     server.use(
-      guildHttp.post("/imports/atlassian/connect", () =>
+      communityHttp.post("/imports/atlassian/connect", () =>
         HttpResponse.json(
           {
             site_url: "https://acme.atlassian.net",
@@ -147,7 +147,7 @@ describe("AtlassianChooseStep", () => {
   it("starts one job with the ticked projects and spaces, the initiative and the options", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/atlassian/import", async ({ request }) => {
+      communityHttp.post("/imports/atlassian/import", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(job(), { status: 202 });
       })
@@ -203,7 +203,7 @@ describe("AtlassianExportStep", () => {
   it("uploads the export with where it goes, then hands over the job", async () => {
     let sent = "";
     server.use(
-      guildHttp.post("/imports/atlassian/export", async ({ request }) => {
+      communityHttp.post("/imports/atlassian/export", async ({ request }) => {
         sent = await request.text();
         return HttpResponse.json(job(), { status: 202 });
       })
@@ -232,7 +232,7 @@ describe("AtlassianExportStep", () => {
 
   it("says so when the zip is not a space export", async () => {
     server.use(
-      guildHttp.post("/imports/atlassian/export", () =>
+      communityHttp.post("/imports/atlassian/export", () =>
         HttpResponse.json({ detail: "IMPORT_ZIP_INVALID" }, { status: 400 })
       )
     );
@@ -257,7 +257,7 @@ describe("AtlassianFetchingStep", () => {
   it("shows the fetch climbing, then hands over the staged job", async () => {
     let polls = 0;
     server.use(
-      guildHttp.get("/imports/jobs/:jobId", () => {
+      communityHttp.get("/imports/jobs/:jobId", () => {
         polls += 1;
         return polls < 2
           ? HttpResponse.json(
@@ -285,7 +285,7 @@ describe("AtlassianFetchingStep", () => {
 
   it("explains a failed fetch in words, and lets somebody start over", async () => {
     server.use(
-      guildHttp.get("/imports/jobs/:jobId", () =>
+      communityHttp.get("/imports/jobs/:jobId", () =>
         HttpResponse.json(job({ status: "failed", error: "IMPORT_SOURCE_RATE_LIMITED" }))
       )
     );
@@ -341,9 +341,7 @@ describe("JiraReviewSummary", () => {
     expect(screen.getByText(/40 tasks from 2 project/i)).toBeInTheDocument();
     expect(screen.getByText(/7 links between tasks/i)).toBeInTheDocument();
     expect(screen.getByText(/3 images \(2\.4 MB\)/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/2 attached files, each as a document on its task/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/2 attached files, each as a file on its task/i)).toBeInTheDocument();
     expect(
       screen.getByText(/1 attached file that isn't an image stays behind/i)
     ).toBeInTheDocument();
@@ -443,7 +441,7 @@ describe("AtlassianReviewSummary", () => {
     expect(screen.getByText(/2 resolved inline comments/i)).toBeInTheDocument();
     expect(screen.getByText(/3 attachments \(2(\.0)? KB\)/i)).toBeInTheDocument();
     expect(screen.getByText(/1 attachment that's too large/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 files, because this initiative has documents/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 files, because this initiative has files/i)).toBeInTheDocument();
   });
 
   it("leaves out a product nothing was asked of", () => {

@@ -8,6 +8,7 @@
     "error": "No se pudo exportar. Inténtalo de nuevo.",
     "selected": "Exportar selección",
     "ownerRequired": "Solo quien puede eliminar todos estos elementos puede exportarlos.",
+    "noCommonFormat": "Estos elementos no comparten ningún formato de exportación.",
     "headingBackup": "Copia de seguridad",
     "headingReport": "Informe",
     "formatPdf": "Documento PDF",
@@ -31,7 +32,7 @@
   },
   "wizard": {
     "titleInitiative": "Exportar iniciativa",
-    "titleGuild": "Exportar comunidad",
+    "titleCommunity": "Exportar comunidad",
     "titleEntities_one": "Exportar {{count}} elemento",
     "titleEntities_other": "Exportar {{count}} elementos",
     "back": "Atrás",
@@ -59,9 +60,9 @@
       "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a quien gestiona este servidor que configure una."
     },
     "report": {
-      "documentNative": "Documentos de texto",
-      "documentSpreadsheet": "Hojas de cálculo",
-      "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
+      "fileNative": "Documentos de texto",
+      "fileSpreadsheet": "Hojas de cálculo",
+      "fileOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
     },
     "format": {
       "prompt": "Elige un formato"
@@ -124,9 +125,8 @@
     }
   },
   "entry": {
-    "guildTitle": "Exportar esta comunidad",
-    "guildDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
-    "initiativeTitle": "Exportar esta iniciativa",
+    "communityTitle": "Exportar esta comunidad",
+    "communityDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "open": "Exportar…"
   },
@@ -162,13 +162,13 @@
       "tasks": "Tareas",
       "events": "Eventos",
       "project": "Proyecto",
-      "document": "Documento",
+      "file": "Archivo",
       "queue": "Cola",
       "calendar": "Calendario",
       "post": "Publicación",
       "wiki": "Wiki",
       "initiative": "Iniciativa",
-      "guild": "Comunidad",
+      "community": "Comunidad",
       "gallery": "Galería",
       "counter-group": "Grupo de contadores",
       "dashboard": "Panel"

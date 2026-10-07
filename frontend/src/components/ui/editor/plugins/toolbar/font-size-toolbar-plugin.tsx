@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 export function FontSizeToolbarPlugin() {
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const applyFontSize = useApplyFontSize();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   const $updateToolbar = (selection: BaseSelection) => {
     if ($isRangeSelection(selection)) {
@@ -49,7 +49,7 @@ export function FontSizeToolbarPlugin() {
       </Button>
       <Input
         value={fontSize}
-        aria-label={t("editor.fontSize")}
+        aria-label={t("fontSize")}
         onChange={(e) => update(parseInt(e.target.value, 10) || DEFAULT_FONT_SIZE)}
         className="h-8! w-12 text-center"
         min={MIN_FONT_SIZE}

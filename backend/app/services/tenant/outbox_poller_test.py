@@ -13,9 +13,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.db.session import set_rls_context
-from app.models.tenant.app_event_outbox import AppEventOutbox
+from app.models.tenant.plugin_event_outbox import PluginEventOutbox
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services import outbox_ledger
 from app.services.tenant import outbox_poller
 from app.db.request_context import SystemGuild
 
@@ -132,10 +133,10 @@ async def test_every_subscription_in_a_guild_is_drained(
     """Each pass expunges the identity map, so the roster is held as ids and
     each subscription is re-loaded. Held as instances, the second and later ones
     are detached and every one after the first fails."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     for index in range(3):
@@ -190,11 +191,11 @@ async def test_ledger_delivers_each_transaction_once(
 ):
     """A drain marks each pending transaction delivered, and a second pass over
     the same log sends nothing further."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
     await create_task(session, a.project)
@@ -239,11 +240,11 @@ async def test_a_refused_batch_is_retried_not_lost(
 ):
     """A refusal leaves the transaction pending, so it comes back once its
     backoff expires rather than being skipped."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -295,11 +296,11 @@ async def test_repeated_refusals_escalate_the_backoff(
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -345,7 +346,7 @@ async def test_repeated_refusals_escalate_the_backoff(
         f"backoff did not escalate across repeated refusals: {intervals} — an "
         "unreachable target would be retried at the first interval forever"
     )
-    assert intervals[:3] == [float(s) for s in poller._BACKOFF_SECONDS[:3]]
+    assert intervals[:3] == [float(s) for s in outbox_ledger.BACKOFF_SECONDS[:3]]
 
 
 async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
@@ -355,18 +356,18 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     step forever, holding every later transaction hostage behind it — there
     was no way for a permanently broken batch to stop blocking the queue.
 
-    Once the schedule in ``_BACKOFF_SECONDS`` is exhausted, the batch gives up
+    Once the ledger's backoff schedule is exhausted, the batch gives up
     (recorded via ``dead_lettered_at``, never retried again) instead of
     reusing the last interval indefinitely, and a newer transaction for the
     same subscription is no longer stuck behind it.
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     # The batch that will be refused until it gives up.
@@ -398,7 +399,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     txn_a: int | None = None
     moment = datetime.now(timezone.utc)
-    for _ in range(len(poller._BACKOFF_SECONDS)):
+    for _ in range(len(outbox_ledger.BACKOFF_SECONDS)):
         await poller.drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, SystemGuild(guild_id))
         row = (
@@ -420,7 +421,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     event_id_a = poller._event_id(subscription_id, txn_a)
     attempts_on_a_so_far = attempted.count(event_id_a)
-    assert attempts_on_a_so_far == len(poller._BACKOFF_SECONDS), (
+    assert attempts_on_a_so_far == len(outbox_ledger.BACKOFF_SECONDS), (
         "the failing batch should have been attempted once per backoff step "
         "before its schedule is exhausted"
     )
@@ -438,7 +439,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     dead_row = (
         await session.exec(
             sa_text(
-                "SELECT txn_id, next_attempt_at FROM webhook_deliveries "
+                "SELECT txn_id FROM webhook_deliveries "
                 "WHERE dead_lettered_at IS NOT NULL"
             )
         )
@@ -447,7 +448,6 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
         "the exhausted batch was retried again instead of being dead-lettered"
     )
     assert dead_row[0] == txn_a
-    assert dead_row[1] is None, "a dead-lettered batch has nothing left to schedule"
 
     assert attempted.count(event_id_a) == attempts_on_a_so_far + 1, (
         "the batch's last-ever attempt is the one that dead-letters it"
@@ -482,7 +482,7 @@ def test_the_envelope_names_the_guild_and_the_actor_by_reference():
         subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
     )
 
-    assert envelope["guild_ref"] == _GUILD_REF
+    assert envelope["community_ref"] == _GUILD_REF
     assert envelope["actor_ref"] == _ACTOR_REF
     assert "guild_id" not in envelope
     assert "actor_user_id" not in envelope
@@ -499,26 +499,26 @@ def test_a_system_write_names_no_actor():
     assert envelope["actor_ref"] is None
 
 
-def test_the_envelope_names_the_app_that_wrote():
-    """An app recognises its own writes by ``actor_app``, its registration's
+def test_the_envelope_names_the_plugin_that_wrote():
+    """A plug-in recognises its own writes by ``actor_plugin``, its registration's
     ``public_id``. Set on its own, beside or without a person."""
     subscription = _subscription()
-    by_app = outbox_poller._envelope(
+    by_plugin = outbox_poller._envelope(
         subscription,
         500,
         [_row(1, 500, actor_user_id=None, actor_install_id=4)],
         guild_ref=_GUILD_REF,
         actor_ref=None,
-        actor_app="tests.app",
+        actor_plugin="tests.plugin",
     )
-    assert by_app["actor_app"] == "tests.app"
-    assert by_app["actor_ref"] is None
-    assert "actor_install_id" not in by_app
+    assert by_plugin["actor_plugin"] == "tests.plugin"
+    assert by_plugin["actor_ref"] is None
+    assert "actor_install_id" not in by_plugin
 
     by_person = outbox_poller._envelope(
         subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
     )
-    assert by_person["actor_app"] is None
+    assert by_person["actor_plugin"] is None
     assert by_person["actor_ref"] == _ACTOR_REF
 
 
@@ -528,8 +528,8 @@ def _reach(**overrides) -> outbox_poller.InstallReach:
     return outbox_poller.InstallReach(**defaults)
 
 
-def test_an_apps_subscription_hears_what_its_reach_covers():
-    subscription = _subscription(app_install_id=4)
+def test_a_plugins_subscription_hears_what_its_reach_covers():
+    subscription = _subscription(plugin_install_id=4)
     assert outbox_poller._matches(_row(1, 500), subscription, _reach())
 
 
@@ -538,22 +538,22 @@ def test_an_apps_subscription_hears_what_its_reach_covers():
     [
         pytest.param(_reach(placed=frozenset()), id="placement-removed"),
         pytest.param(_reach(placed=frozenset({12})), id="placed-elsewhere"),
-        pytest.param(_reach(readable=frozenset({"documents"})), id="scope-withdrawn"),
+        pytest.param(_reach(readable=frozenset({"files"})), id="scope-withdrawn"),
         pytest.param(_reach(live=False), id="install-not-live"),
         pytest.param(None, id="no-reach-read"),
     ],
 )
-def test_an_apps_subscription_hears_nothing_outside_its_reach(reach):
-    subscription = _subscription(app_install_id=4)
+def test_a_plugins_subscription_hears_nothing_outside_its_reach(reach):
+    subscription = _subscription(plugin_install_id=4)
     assert not outbox_poller._matches(_row(1, 500), subscription, reach)
 
 
-def test_a_subscription_no_app_registered_is_not_asked_for_a_reach():
+def test_a_subscription_no_plugin_registered_is_not_asked_for_a_reach():
     assert outbox_poller._matches(_row(1, 500), _subscription(), None)
 
 
 def test_a_community_event_needs_its_scope_and_no_placement():
-    subscription = _subscription(app_install_id=4, event_types=["tags.created"])
+    subscription = _subscription(plugin_install_id=4, event_types=["tags.created"])
     tag = _row(1, 500, resource_type="tags", initiative_id=None)
     assert outbox_poller._matches(
         tag, subscription, _reach(placed=frozenset(), readable=frozenset({"tags"}))
@@ -561,9 +561,9 @@ def test_a_community_event_needs_its_scope_and_no_placement():
     assert not outbox_poller._matches(tag, subscription, _reach())
 
 
-def test_an_event_no_scope_reaches_is_never_an_apps():
-    subscription = _subscription(app_install_id=4, event_types=["apps.created"])
-    install = _row(1, 500, resource_type="apps", initiative_id=None)
+def test_an_event_no_scope_reaches_is_never_a_plugins():
+    subscription = _subscription(plugin_install_id=4, event_types=["plugins.created"])
+    install = _row(1, 500, resource_type="plugins", initiative_id=None)
     everything = frozenset(
         r.value for r in outbox_poller.webhook_events._read_scopes().values() if r
     )
@@ -580,11 +580,11 @@ def test_the_reach_reads_what_the_grant_lets_it_read():
             "projects:write",
             "tags:read",
             "no-longer:a-scope",
-            "apps:tests.gh",
+            "plugins:tests.gh",
         ],
     )
     assert reach.readable == frozenset({"projects", "tags"})
-    assert reach.apps == frozenset({"tests.gh"})
+    assert reach.plugins == frozenset({"tests.gh"})
     assert reach.placed == frozenset()
     assert outbox_poller.InstallReach.from_row(
         live=None, placed=[1], granted_scopes=None
@@ -609,10 +609,10 @@ async def test_a_hint_wakes_the_drain_only_where_something_subscribes(monkeypatc
     assert outbox_poller.drain.pending == {7}
 
 
-_GH_EVENT = "app.tests.gh.issue_opened"
+_GH_EVENT = "plugin.tests.gh.issue_opened"
 
 
-def _app_event(**overrides) -> AppEventOutbox:
+def _plugin_event(**overrides) -> PluginEventOutbox:
     defaults = dict(
         id=1,
         txn_id=500,
@@ -623,55 +623,64 @@ def _app_event(**overrides) -> AppEventOutbox:
         payload={"number": 12},
     )
     defaults.update(overrides)
-    return AppEventOutbox(**defaults)
+    return PluginEventOutbox(**defaults)
 
 
-def test_an_app_event_is_one_change_carrying_its_payload():
+@pytest.mark.parametrize(
+    ("subscribed_in", "about", "carried"),
+    [(None, None, None), (11, None, 11), (None, 12, 12), (12, 12, 12)],
+    ids=["community", "narrowed", "its-own-community", "its-own-narrowed"],
+)
+def test_a_plugin_event_is_one_change_carrying_its_payload(
+    subscribed_in, about, carried
+):
+    """It carries the initiative it landed in: its own, or the one the
+    subscription is narrowed to."""
     envelope = outbox_poller._envelope(
-        _subscription(event_types=[_GH_EVENT]),
+        _subscription(initiative_id=subscribed_in, event_types=[_GH_EVENT]),
         500,
         [],
         guild_ref=_GUILD_REF,
         actor_ref=None,
-        actor_app="tests.gh",
-        app_events=[(_app_event(), "tests.gh")],
+        actor_plugin="tests.gh",
+        plugin_events=[(_plugin_event(initiative_id=about), "tests.gh")],
     )
-    assert envelope["actor_app"] == "tests.gh"
+    assert envelope["actor_plugin"] == "tests.gh"
     assert envelope["changes"] == [
         {
             "event_type": _GH_EVENT,
-            "initiative_id": None,
-            "app": "tests.gh",
+            "initiative_id": carried,
+            "plugin": "tests.gh",
             "payload": {"number": 12},
         }
     ]
 
 
-def test_an_app_event_about_no_initiative_reaches_where_both_apps_are_placed():
+def test_a_plugin_event_about_no_initiative_reaches_where_both_plugins_are_placed():
     """A vendor organization is not an initiative, so its events reach an
-    initiative's subscription where the emitting app is placed too."""
+    initiative's subscription where the emitting plug-in is placed too."""
     narrowed = _subscription(
-        app_install_id=4, initiative_id=11, event_types=[_GH_EVENT]
+        plugin_install_id=4, initiative_id=11, event_types=[_GH_EVENT]
     )
-    reach = _reach(apps=frozenset({"tests.gh"}))
-    event = _app_event()
-    matches = outbox_poller._matches_app_event
+    reach = _reach(plugins=frozenset({"tests.gh"}))
+    event = _plugin_event()
+    matches = outbox_poller._matches_plugin_event
 
     assert matches(event, "tests.gh", [11], narrowed, reach)
     assert not matches(event, "tests.gh", [12], narrowed, reach)
     assert not matches(event, "tests.gh", [11], narrowed, _reach())
     assert not matches(event, "tests.gh", [11], narrowed, _reach(placed=frozenset()))
-    community = _subscription(app_install_id=4, event_types=[_GH_EVENT])
+    community = _subscription(plugin_install_id=4, event_types=[_GH_EVENT])
     assert matches(event, "tests.gh", [], community, reach)
 
 
-def test_an_app_event_about_an_initiative_reaches_only_that_initiative():
-    event = _app_event(initiative_id=11)
-    reach = _reach(apps=frozenset({"tests.gh"}), placed=frozenset({11, 12}))
-    matches = outbox_poller._matches_app_event
+def test_a_plugin_event_about_an_initiative_reaches_only_that_initiative():
+    event = _plugin_event(initiative_id=11)
+    reach = _reach(plugins=frozenset({"tests.gh"}), placed=frozenset({11, 12}))
+    matches = outbox_poller._matches_plugin_event
 
     for initiative_id, heard in ((11, True), (12, False), (None, True)):
         subscription = _subscription(
-            app_install_id=4, initiative_id=initiative_id, event_types=[_GH_EVENT]
+            plugin_install_id=4, initiative_id=initiative_id, event_types=[_GH_EVENT]
         )
         assert matches(event, "tests.gh", [11, 12], subscription, reach) is heard

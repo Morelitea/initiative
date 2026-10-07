@@ -17,7 +17,7 @@ from app.api.v1.platform_endpoints.auth_test import (
     _run_oidc_flow,
     _wire_fake_idp,
 )
-from app.core.audit_events import AuditCategory, AuditEventType, meta_for
+from app.core.audit_events import AuditCategory, AuditEventType
 from app.models.platform.user import UserStatus
 from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
@@ -43,7 +43,7 @@ async def test_a_sign_in_is_recorded_with_its_method(
     rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
     assert [r["actor_user_id"] for r in rows] == [user_id]
     assert rows[0]["detail"] == {"method": "password"}
-    assert rows[0]["tier"] == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
+    assert rows[0]["tier"] == AuditEventType.AUTH_SIGNED_IN.tier
 
 
 async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
@@ -106,12 +106,9 @@ async def test_password_endpoints_finalize_unknown_account_refusals_without_iden
     capfd.readouterr()
     login_response = await _sign_in(client, "nobody-at-all@example.com")
     device_response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "still-nobody@example.com",
-            "password": PASSWORD,
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "still-nobody@example.com", "password": PASSWORD},
+        headers={"Origin": "https://studio.beyonders.initiative"},
     )
     assert login_response.status_code == device_response.status_code == 400
 
@@ -146,7 +143,7 @@ async def test_changing_a_password_is_recorded_with_how(
     user_id = user.id
     capfd.readouterr()
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=get_auth_headers(user),
         json={"current_password": PASSWORD, "password": "a-new-longer-secret-1"},
     )
@@ -184,7 +181,7 @@ async def test_every_auth_event_is_filed_under_authentication():
     auth_events = [e for e in AuditEventType if e.value.startswith("auth.")]
     assert auth_events
     for event_type in auth_events:
-        assert meta_for(event_type).category is AuditCategory.AUTHENTICATION
+        assert event_type.category is AuditCategory.AUTHENTICATION
 
 
 async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
@@ -292,17 +289,27 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     """The link is what makes every later sign-in resolve by subject, so the
     moment an identity provider claims an existing account is worth a record.
     Where the account had not proved the address, the provider's word is its
-    first proof, and what the account held before it is retired."""
+    first proof, what the account held before it is retired, and the account's
+    open connections are rechecked once that commits."""
+
     from sqlmodel import select
 
     from app.core.security import get_password_hash
     from app.models.platform.mfa_recovery_code import MfaRecoveryCode
     from app.models.platform.user import User
     from app.models.platform.user_passkey import UserPasskey
+    from app.services import content_sockets
     from app.services.auth import addresses
     from app.services.auth import totp as totp_service
+    from app.db import post_commit
     from app.testing.oidc import FakeIdp
 
+    rechecked: list[int] = []
+
+    async def _recheck(user_id: int) -> None:
+        rechecked.append(user_id)
+
+    monkeypatch.setattr(content_sockets.sockets, "revoke_user_everywhere", _recheck)
     await _enable_platform_oidc(session)
     existing = await create_user(
         session,
@@ -336,6 +343,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
         },
     )
     assert response.status_code in (302, 307)
+    await post_commit.settle_all()
 
     events = emitted(capfd)
     rows = [r for r in events if r["event_type"] == "auth.identity_linked"]
@@ -343,6 +351,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     assert rows[0]["detail"]["matched_by"] == "verified_email"
     retired = [r for r in events if r["event_type"] == "auth.credentials_retired"]
     assert len(retired) == (0 if proved else 1)
+    assert (existing_id in rechecked) is not proved
     session.expire_all()
     row = await session.get(User, existing_id)
     assert row is not None

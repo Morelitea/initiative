@@ -2,8 +2,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
-import { guildIdFromPath, isBillingForwardPath } from "@/lib/guildUrl";
+import { useCommunities } from "@/hooks/useCommunities";
+import { communityIdFromPath, isBillingForwardPath } from "@/lib/communityUrl";
 import { returnPath } from "@/lib/returnPath";
 
 /** Takes somebody who has just signed in to the page they were headed for. */
@@ -26,14 +26,14 @@ export type ResumeAfterSignIn = (next: string | null | undefined) => Promise<voi
 export const useResumeAfterSignIn = (): ResumeAfterSignIn => {
   const router = useRouter();
   const { user } = useAuth();
-  const { refreshGuilds } = useGuilds();
+  const { refreshCommunities } = useCommunities();
 
   // A sign-in resolves before the providers have re-rendered with its account,
   // so the caller's closure still holds the list reader of whoever was here
   // before. The latest one is read at call time instead, and a caller that got
   // ahead of the account waits for it to arrive.
-  const refreshGuildsRef = useRef(refreshGuilds);
-  refreshGuildsRef.current = refreshGuilds;
+  const refreshCommunitiesRef = useRef(refreshCommunities);
+  refreshCommunitiesRef.current = refreshCommunities;
   const signedInRef = useRef(Boolean(user));
   signedInRef.current = Boolean(user);
   const waitersRef = useRef<Array<() => void>>([]);
@@ -55,7 +55,7 @@ export const useResumeAfterSignIn = (): ResumeAfterSignIn => {
   return useCallback(
     async (next) => {
       const returnTo = returnPath(next) ?? "/";
-      const wanted = guildIdFromPath(returnTo);
+      const wanted = communityIdFromPath(returnTo);
       if (wanted === null) {
         router.navigate({ to: returnTo, replace: true });
         return;
@@ -65,9 +65,9 @@ export const useResumeAfterSignIn = (): ResumeAfterSignIn => {
         router.navigate({ to: returnTo, replace: true });
         return;
       }
-      const reachable = await refreshGuildsRef.current();
+      const reachable = await refreshCommunitiesRef.current();
       router.navigate({
-        to: reachable.some((guild) => guild.id === wanted) ? returnTo : "/",
+        to: reachable.some((community) => community.id === wanted) ? returnTo : "/",
         replace: true,
       });
     },

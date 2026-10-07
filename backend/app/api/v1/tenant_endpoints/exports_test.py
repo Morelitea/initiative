@@ -31,10 +31,10 @@ from app.core.config import settings
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import PropertyType
@@ -55,9 +55,9 @@ from app.testing.factories import (
     create_counter,
     create_counter_group,
     create_dashboard,
-    create_document,
+    create_file,
     create_export_job,
-    create_guild_app,
+    create_guild_plugin,
     create_initiative,
     create_post,
     create_project,
@@ -102,7 +102,7 @@ async def _export(
 
 async def _job(client: AsyncClient, a, job_id: int) -> dict:
     """The job row as its own creator reads it back."""
-    resp = await client.get(a.g(f"/exports/{job_id}"), headers=a.headers)
+    resp = await client.get(a.g(f"/exports/jobs/{job_id}"), headers=a.headers)
     assert resp.status_code == 200
     return resp.json()
 
@@ -117,7 +117,7 @@ async def _run_worker() -> None:
 async def _download(client: AsyncClient, a, job_id: int) -> Response:
     """The finished artifact — surfacing the job's own error if it never
     rendered."""
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 200, (await _job(client, a, job_id)).get("error")
     return dl
 
@@ -279,13 +279,15 @@ def _png() -> bytes:
 
 
 async def _actor_with_tasks(acting_user, session, count=2):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     for i in range(count):
         await create_task(session, a.project, title=f"Task {i}")
     return a
 
 
-async def _file_document(
+async def _uploaded_file(
     session,
     a,
     *,
@@ -296,18 +298,17 @@ async def _file_document(
     size: int | None = None,
     content_type: str | None = None,
 ):
-    """A file document over a stored blob. ``size`` without ``payload`` gives a
+    """An uploaded file over a stored blob. ``size`` without ``payload`` gives a
     row that claims bytes nothing has written."""
+    content_type = content_type or "application/pdf"
     if payload is not None:
-        get_guild_storage(a.guild.id).write(
-            key, payload, content_type=content_type or "application/pdf"
-        )
-    return await create_document(
+        get_guild_storage(a.guild.id).write(key, payload, content_type=content_type)
+    return await create_file(
         session,
         a.initiative,
         a.user,
         name=name,
-        document_type=DocumentType.file,
+        file_type=FileType.file,
         file_url=f"/uploads/{a.guild.id}/{key}",
         original_filename=filename,
         file_content_type=content_type,
@@ -315,9 +316,9 @@ async def _file_document(
     )
 
 
-async def _image_document(session, a, *, name: str, key: str):
-    """A native document whose body embeds one stored image."""
-    return await create_document(
+async def _image_file(session, a, *, name: str, key: str):
+    """A native file whose body embeds one stored image."""
+    return await create_file(
         session,
         a.initiative,
         a.user,
@@ -426,7 +427,9 @@ async def test_large_export_becomes_job(
     assert body["params"]["include_archived"] is False
 
     # Not rendered yet: download must refuse, not serve a partial artifact.
-    dl = await client.get(a.g(f"/exports/{body['id']}/download"), headers=a.headers)
+    dl = await client.get(
+        a.g(f"/exports/jobs/{body['id']}/download"), headers=a.headers
+    )
     assert dl.status_code == 409
     assert dl.json()["detail"] == "EXPORT_NOT_READY"
 
@@ -454,21 +457,22 @@ async def test_jobs_are_own_row_isolated(
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
-    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
     assert (await _job(client, a, job_id))["id"] == job_id
-    for path in (f"/exports/{job_id}", f"/exports/{job_id}/download"):
+    for path in (f"/exports/jobs/{job_id}", f"/exports/jobs/{job_id}/download"):
         denied = await client.get(a.g(path), headers=other.headers)
         assert denied.status_code == 404, path
     assert (
-        await client.get(a.g(f"/exports/{job_id}"), headers=admin.headers)
+        await client.get(a.g(f"/exports/jobs/{job_id}"), headers=admin.headers)
     ).status_code == 200
 
     # List views scope the same way.
-    assert (await client.get(a.g("/exports/"), headers=other.headers)).json() == []
+    assert (await client.get(a.g("/exports/jobs"), headers=other.headers)).json() == []
     assert [
-        j["id"] for j in (await client.get(a.g("/exports/"), headers=a.headers)).json()
+        j["id"]
+        for j in (await client.get(a.g("/exports/jobs"), headers=a.headers)).json()
     ] == [job_id]
 
 
@@ -492,6 +496,21 @@ async def test_an_export_is_served_while_its_initiatives_are_reached(
     await session.commit()
     await _download(client, a, job_id)
 
+    # Once one of its initiatives keeps its content in, the file is not
+    # served, and a new list export holding it is refused.
+    initiative = await session.get(Initiative, initiative_id)
+    initiative.keep_content_in = True
+    session.add(initiative)
+    await session.commit()
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
+    assert dl.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN"
+    refused_id = (await _export(client, a, "tasks")).json()["id"]
+    await _run_worker()
+    assert (await _job(client, a, refused_id))["error"] == "INITIATIVE_CONTENT_KEPT_IN"
+    initiative.keep_content_in = False
+    session.add(initiative)
+    await session.commit()
+
     await session.exec(
         sa_delete(InitiativeMember).where(
             InitiativeMember.initiative_id == initiative_id,
@@ -499,7 +518,7 @@ async def test_an_export_is_served_while_its_initiatives_are_reached(
         )
     )
     await session.commit()
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 403
     assert dl.json()["detail"] == "EXPORT_OUT_OF_REACH"
 
@@ -542,7 +561,7 @@ async def test_worker_renders_job_and_download_succeeds(
     export_notes = [n for n in rows if n.type == NotificationType.export_ready]
     assert len(export_notes) == 1
     assert export_notes[0].data["export_job_id"] == job_id
-    assert export_notes[0].data["guild_id"] == a.guild.id
+    assert export_notes[0].data["community_id"] == a.guild.id
 
 
 # ---------------------------------------------------------------------------
@@ -636,7 +655,7 @@ async def test_project_export_job_path_renders_json(
 
 
 # ---------------------------------------------------------------------------
-# Document exports
+# File exports
 # ---------------------------------------------------------------------------
 
 _SHEET_CONTENT = {
@@ -652,51 +671,51 @@ _SHEET_CONTENT = {
     "frozen": {"rows": 1, "cols": 0},
 }
 
-# One document per type, holding the payload that type stores.
-_DOCUMENT_KINDS: dict[str, dict[str, Any]] = {
+# One file per type, holding the payload that type stores.
+_FILE_KINDS: dict[str, dict[str, Any]] = {
     "native": {"name": "Notes", "content": {"root": {"children": [], "type": "root"}}},
     "whiteboard": {
         "name": "Board",
-        "document_type": DocumentType.whiteboard,
+        "file_type": FileType.whiteboard,
         "content": {"elements": [{"type": "rectangle"}], "appState": {}, "files": {}},
     },
     "smart_link": {
         "name": "Design doc",
-        "document_type": DocumentType.smart_link,
+        "file_type": FileType.smart_link,
         "content": {"url": "https://example.com/spec"},
     },
     "spreadsheet": {
         "name": "Budget: Q3",
-        "document_type": DocumentType.spreadsheet,
+        "file_type": FileType.spreadsheet,
         "content": _SHEET_CONTENT,
     },
 }
 
 
-async def _document(session, a, kind: str):
-    return await create_document(session, a.initiative, a.user, **_DOCUMENT_KINDS[kind])
+async def _file(session, a, kind: str):
+    return await create_file(session, a.initiative, a.user, **_FILE_KINDS[kind])
 
 
-def _document_envelope(resp: Response) -> dict:
-    """The generic envelope every document type's json export is wrapped in."""
+def _file_envelope(resp: Response) -> dict:
+    """The generic envelope every file type's json export is wrapped in."""
     envelope = json.loads(resp.content)
-    assert envelope["type"] == "initiative-document"
+    assert envelope["type"] == "initiative-file"
     return envelope
 
 
 def _native_envelope_carries_the_editor_state(resp: Response, subject: Any) -> None:
     """The raw editor state rides as ``content`` (the editor toolbar's import
     unwraps it)."""
-    envelope = _document_envelope(resp)
-    assert envelope["document_type"] == "native"
+    envelope = _file_envelope(resp)
+    assert envelope["file_type"] == "native"
     assert envelope["content"]["root"]["type"] == "root"
     assert envelope["tags"] == [] and envelope["properties"] == []
 
 
 def _whiteboard_envelope_wraps_a_scene(resp: Response, subject: Any) -> None:
     """Unwrapping ``content`` yields a file any Excalidraw opens."""
-    envelope = _document_envelope(resp)
-    assert envelope["document_type"] == "whiteboard"
+    envelope = _file_envelope(resp)
+    assert envelope["file_type"] == "whiteboard"
     scene = envelope["content"]
     assert scene["type"] == "excalidraw"
     assert scene["elements"] == [{"type": "rectangle"}]
@@ -717,17 +736,19 @@ _TYPE_EXPORTS: dict[str, dict[str, Any]] = {
 
 
 @pytest.mark.parametrize("kind", list(_TYPE_EXPORTS))
-async def test_each_document_type_exports_its_own_payload(
+async def test_each_file_type_exports_its_own_payload(
     client: AsyncClient, acting_user, session, kind
 ):
-    """Every document type exports in the format that carries its content: the
+    """Every file type exports in the format that carries its content: the
     generic envelope for editor state and whiteboard scenes, markdown for a
     smart link's URL."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await _document(session, a, kind)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await _file(session, a, kind)
     row = dict(_TYPE_EXPORTS[kind])
     fmt = row.pop("fmt")
-    resp = await _export(client, a, "document", ids=[doc.id], format=fmt)
+    resp = await _export(client, a, "file", ids=[doc.id], format=fmt)
     _assert_export(resp, fmt, subject=doc, **row)
 
 
@@ -740,31 +761,35 @@ async def test_each_document_type_exports_its_own_payload(
         ("smart_link", "pdf"),
     ],
 )
-async def test_document_export_refuses_a_format_its_type_cannot_render(
+async def test_file_export_refuses_a_format_its_type_cannot_render(
     client: AsyncClient, acting_user, session, kind, fmt
 ):
     """A format outside the type's own set is an immediate 400 — no job row, no
     partial render."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await _document(session, a, kind)
-    resp = await _export(client, a, "document", ids=[doc.id], format=fmt)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await _file(session, a, kind)
+    resp = await _export(client, a, "file", ids=[doc.id], format=fmt)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
 
 
-async def test_smart_link_exports_the_importable_document_envelope(
+async def test_smart_link_exports_the_importable_file_envelope(
     client: AsyncClient, acting_user, session
 ):
-    """Smart links export the generic document envelope (like spreadsheets), so
+    """Smart links export the generic file envelope (like spreadsheets), so
     an initiative/guild backup can carry them importably — md stays for the
     human-readable form."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    link = await _document(session, a, "smart_link")
-    resp = await _export(client, a, "document", ids=[link.id], format="json")
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    link = await _file(session, a, "smart_link")
+    resp = await _export(client, a, "file", ids=[link.id], format="json")
     assert json.loads(_assert_export(resp, "json")) == {
-        "type": "initiative-document",
+        "type": "initiative-file",
         "schema_version": 1,
-        "document_type": "smart_link",
+        "file_type": "smart_link",
         "name": "Design doc",
         "content": {"url": "https://example.com/spec"},
         "tags": [],
@@ -827,31 +852,35 @@ _LEXICAL_RENDERS: dict[str, dict[str, Any]] = {
 
 
 @pytest.mark.parametrize("fmt", list(_LEXICAL_RENDERS))
-async def test_lexical_document_renders_to_every_prose_format(
+async def test_lexical_file_renders_to_every_prose_format(
     client: AsyncClient, acting_user, session, fmt
 ):
     """One tree walk feeds md, pdf and docx, and a referenced same-guild image
     rides along — bundled beside the markdown, embedded in the others."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     get_guild_storage(a.guild.id).write("att-1.png", _png(), content_type="image/png")
-    doc = await create_document(
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Rich Notes",
         content=_rich_content(a.guild.id),
     )
-    resp = await _export(client, a, "document", ids=[doc.id], format=fmt)
+    resp = await _export(client, a, "file", ids=[doc.id], format=fmt)
     _assert_export(resp, fmt, **_LEXICAL_RENDERS[fmt])
 
 
-async def test_document_export_lexical_md_plain_without_assets(
+async def test_file_export_lexical_md_plain_without_assets(
     client: AsyncClient, acting_user, session
 ):
     """Nothing to bundle, so the markdown downloads as itself rather than a
     zip."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await create_document(
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
@@ -868,7 +897,7 @@ async def test_document_export_lexical_md_plain_without_assets(
             }
         },
     )
-    resp = await _export(client, a, "document", ids=[doc.id], format="md")
+    resp = await _export(client, a, "file", ids=[doc.id], format="md")
     _assert_export(resp, "md", present=("no images here",))
 
 
@@ -891,8 +920,8 @@ def _workbook_keeps_the_grid_typed(resp: Response, subject: Any) -> None:
 def _envelope_round_trips_the_snapshot(resp: Response, subject: Any) -> None:
     """json is the canonical snapshot: cells, styles, frozen panes and
     schema_version come back verbatim inside the importable envelope."""
-    envelope = _document_envelope(resp)
-    assert envelope["document_type"] == "spreadsheet"
+    envelope = _file_envelope(resp)
+    assert envelope["file_type"] == "spreadsheet"
     assert envelope["name"] == "Budget: Q3"
     assert envelope["content"] == subject.content
 
@@ -910,30 +939,34 @@ _SHEET_RENDERS: dict[str, dict[str, Any]] = {
 
 
 @pytest.mark.parametrize("fmt", list(_SHEET_RENDERS))
-async def test_spreadsheet_document_renders_to_every_grid_format(
+async def test_spreadsheet_file_renders_to_every_grid_format(
     client: AsyncClient, acting_user, session, fmt
 ):
     """A spreadsheet exports as flat text, as a live workbook, and as the
     snapshot an import reads back."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await _document(session, a, "spreadsheet")
-    resp = await _export(client, a, "document", ids=[doc.id], format=fmt)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await _file(session, a, "spreadsheet")
+    resp = await _export(client, a, "file", ids=[doc.id], format=fmt)
     _assert_export(resp, fmt, subject=doc, **_SHEET_RENDERS[fmt])
 
 
-async def test_document_export_spreadsheet_survives_corrupt_snapshot(
+async def test_file_export_spreadsheet_survives_corrupt_snapshot(
     client: AsyncClient, acting_user, session
 ):
     """One bad snapshot entry is skipped rather than failing the render:
     malformed cell keys are dropped, and 3-char / garbage hex colors are
     expanded / ignored."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await create_document(
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await create_file(
         session,
         a.initiative,
         a.user,
         name="Odd",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={
             "schema_version": 2,
             "dimensions": {"rows": 1, "cols": 1},
@@ -941,7 +974,7 @@ async def test_document_export_spreadsheet_survives_corrupt_snapshot(
             "cellStyles": {"0:0": {"style": {"fill": "#fff", "color": "not-a-color"}}},
         },
     )
-    resp = await _export(client, a, "document", ids=[doc.id], format="xlsx")
+    resp = await _export(client, a, "file", ids=[doc.id], format="xlsx")
     _assert_export(resp, "xlsx")
     sheet = _sheet(resp)
     assert sheet.cell(row=1, column=1).value == "ok"
@@ -949,14 +982,16 @@ async def test_document_export_spreadsheet_survives_corrupt_snapshot(
     assert sheet.cell(row=1, column=1).fill.start_color.rgb == "FFFFFFFF"
 
 
-async def test_document_export_file_passthrough(
+async def test_file_export_file_passthrough(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """File documents export the stored blob unconverted under the original
+    """Uploaded files export the stored blob unconverted under the original
     name — inline and through the job path (job-id-prefixed artifact key)."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     payload = b"%PDF-original-bytes"
-    file_doc = await _file_document(
+    file_doc = await _uploaded_file(
         session,
         a,
         name="Uploaded report",
@@ -966,7 +1001,7 @@ async def test_document_export_file_passthrough(
         content_type="application/pdf",
     )
 
-    resp = await _export(client, a, "document", ids=[file_doc.id], format="file")
+    resp = await _export(client, a, "file", ids=[file_doc.id], format="file")
     assert resp.status_code == 200
     assert resp.content == payload
     assert resp.headers["content-type"] == "application/pdf"
@@ -975,7 +1010,7 @@ async def test_document_export_file_passthrough(
 
     # Job path: the original filename survives via the job-id-prefixed key.
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
-    queued = await _export(client, a, "document", ids=[file_doc.id], format="file")
+    queued = await _export(client, a, "file", ids=[file_doc.id], format="file")
     assert queued.status_code == 202
     job_id = queued.json()["id"]
 
@@ -998,10 +1033,10 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     job id is in the storage basename (the directory a nested key would add is
     stripped by both backends), so the refs stay distinct."""
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async def queue_export(blob_key, blob_bytes):
-        doc = await _file_document(
+        doc = await _uploaded_file(
             session,
             a,
             name="report",
@@ -1010,7 +1045,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
             payload=blob_bytes,
             content_type="application/pdf",
         )
-        resp = await _export(client, a, "document", ids=[doc.id], format="file")
+        resp = await _export(client, a, "file", ids=[doc.id], format="file")
         assert resp.status_code == 202
         return resp.json()["id"]
 
@@ -1029,20 +1064,22 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     assert dl_b.content == b"BBBB-second-member"
 
 
-async def test_document_envelope_carries_tags_and_properties(
+async def test_file_envelope_carries_tags_and_properties(
     client: AsyncClient, acting_user, session
 ):
-    """Backups must not shed metadata: the document envelope includes tags by
+    """Backups must not shed metadata: the file envelope includes tags by
     name and custom properties in the shared flat encoding."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await _document(session, a, "native")
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    doc = await _file(session, a, "native")
     tag = await create_tag(session, a.guild, name="worldbuilding")
     await assign_tag(session, doc, tag)
     await session.commit()
     definition = await create_property_definition(session, a.initiative, name="Status")
     await create_property_value(session, doc, definition, value_text="Draft")
 
-    resp = await _export(client, a, "document", ids=[doc.id], format="json")
+    resp = await _export(client, a, "file", ids=[doc.id], format="json")
     envelope = json.loads(_assert_export(resp, "json"))
     assert envelope["tags"] == ["worldbuilding"]
     assert envelope["properties"] == [
@@ -1068,7 +1105,9 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     with no artifact_ref, in a community that is not active as in any other.
     A storage backend that raises on delete reaches the same row state, with
     the failure logged, so the pass still completes."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     storage = get_guild_storage(a.guild.id)
     key = "exports/424242.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
@@ -1081,7 +1120,7 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
     guild = await session.get(Guild, a.guild.id)
-    guild.status = GuildStatus.suspended.value
+    guild.status = CommunityStatus.suspended.value
     session.add(guild)
     await session.commit()
 
@@ -1108,7 +1147,9 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     """Past ``expires_at`` a finished export is refused with 410 and reads as
     ``expired`` — before GC has swept it as well as after. So is one rendered
     before the job recorded the initiatives it holds."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     storage = get_guild_storage(a.guild.id)
     key = "exports/515151.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
@@ -1138,7 +1179,9 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     )
 
     for job in (due, swept, unrecorded):
-        dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
+        dl = await client.get(
+            a.g(f"/exports/jobs/{job.id}/download"), headers=a.headers
+        )
         assert dl.status_code == 410, job.status
         assert dl.json()["detail"] == "EXPORT_EXPIRED"
     for job in (due, swept):
@@ -1153,7 +1196,9 @@ async def test_an_artifact_past_its_expiry_is_not_served(
 
 
 async def _queue_with_items(acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     queue = await create_queue(
         session,
         a.initiative,
@@ -1173,10 +1218,10 @@ async def _queue_with_items(acting_user, session):
     )
     tag = await create_tag(session, a.guild, name="npc")
     await assign_tag(session, lurker, tag)
-    doc = await create_document(session, a.initiative, a.user, name="Dungeon map")
+    doc = await create_file(session, a.initiative, a.user, name="Dungeon map")
     task = await create_task(session, a.project, title="Prep loot")
     for target in (
-        (SearchEntityType.document, doc.id),
+        (SearchEntityType.file, doc.id),
         (SearchEntityType.task, task.id),
     ):
         await create_relationship(
@@ -1210,28 +1255,28 @@ async def test_queue_export_json_envelope(client: AsyncClient, acting_user, sess
     assert items[2]["is_visible"] is False
     assert items[2]["tags"] == ["npc"]
     # Guild-local references ride along as display text only (an import can't
-    # rebind them): member name, linked document/task titles — never raw ids.
+    # rebind them): member name, linked file/task titles — never raw ids.
     assert "member" in items[0] and "user_id" not in items[0]
-    assert items[0]["documents"] == ["Dungeon map"]
+    assert items[0]["files"] == ["Dungeon map"]
     assert items[0]["tasks"] == ["Prep loot"]
-    assert items[1]["documents"] == [] and items[1]["tasks"] == []
+    assert items[1]["files"] == [] and items[1]["tasks"] == []
 
 
 async def test_a_queue_envelope_records_the_initiatives_of_its_attachments(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
     """A queue's envelope names what is attached to its items, so the job
-    records the initiative of an attached document beside the queue's own. A
+    records the initiative of an attached file beside the queue's own. A
     report names only the queue's own fields, and records only its own."""
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a, queue = await _queue_with_items(acting_user, session)
     second = await create_initiative(session, a.guild, a.user, name="Second Front")
-    doc = await create_document(session, second, a.user, name="Far map")
+    doc = await create_file(session, second, a.user, name="Far map")
     await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.queue_item, queue.current_item_id),
-        target=(SearchEntityType.document, doc.id),
+        target=(SearchEntityType.file, doc.id),
     )
     guild_id, own, other = a.guild.id, a.initiative.id, second.id
     jobs = {}
@@ -1287,7 +1332,9 @@ async def test_queue_report_formats_render_the_rotation(
 
 
 async def _counter_group_with_counters(acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     group = await create_counter_group(
         session, a.initiative, a.user, name="Party Resources", description="Session 12"
     )
@@ -1378,10 +1425,10 @@ async def test_export_of_content_outside_the_callers_initiative_is_not_found(
     """The initiative gate, source by source: a member of the same guild who is
     not in the initiative gets 404 (RLS hides the row), exactly like the rest
     of the initiative boundary. Every tool, from the registry."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await enable_all_tools(session, a.initiative)
     entity = await create_tool_entity(session, tool, a.initiative, a.user)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     resp = await _export(
         client,
@@ -1408,11 +1455,13 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
     an initiative role that overrides sharing. Somebody it is shared with to
     edit may read and change it, and still may not take a copy away. Every
     tool, from the registry."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await enable_all_tools(session, a.initiative)
     entity = await create_tool_entity(session, tool, a.initiative, a.user)
     editor = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -1420,7 +1469,7 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
     await create_resource_grant(
         session, entity, user=editor.user, level=ResourceAccessLevel.write
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     source = tool.value
     params = {"ids": [entity.id], "format": "json"}
 
@@ -1430,6 +1479,26 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
     for who in (a, admin):
         resp = await _export(client, a, source, headers=who.headers, **params)
         assert resp.status_code == 200, (who.user.id, resp.text)
+
+    # An initiative that keeps its content in exports nothing on its own, for
+    # anyone; its backup still takes it.
+    kept = await client.patch(
+        a.g(f"/initiatives/{a.initiative.id}"),
+        headers=a.headers,
+        json={"keep_content_in": True},
+    )
+    assert kept.json()["keep_content_in"] is True, kept.text
+    read = await client.get(
+        a.g(f"/{tool.route_segment}/{entity.id}"), headers=a.headers
+    )
+    assert read.json()["can"]["export"] is False
+    for who in (a, admin):
+        resp = await _export(client, a, source, headers=who.headers, **params)
+        assert resp.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN", resp.text
+    backup = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    await _run_worker()
+    done = await _job(client, a, backup.json()["id"])
+    assert done["status"] == ExportJobStatus.done.value, done.get("error")
 
 
 def _page_body(text: str) -> dict:
@@ -1446,8 +1515,8 @@ def _page_body(text: str) -> dict:
     }
 
 
-async def _wiki_with_filed_documents(session, a, acting_user):
-    """A wiki whose pages nest, one draft, and four documents filed in it: a
+async def _wiki_with_filed_files(session, a, acting_user):
+    """A wiki whose pages nest, one draft, and four files filed in it: a
     text document, a spreadsheet and an upload the exporter owns — the upload
     filed under the first page — and one they can only read."""
     from app.testing.factories import create_wiki, create_wiki_page
@@ -1476,28 +1545,28 @@ async def _wiki_with_filed_documents(session, a, acting_user):
         is_draft=True,
         position=1,
     )
-    notes = await create_document(
+    notes = await create_file(
         session, a.initiative, a.user, name="Session notes", content=_page_body("Hi")
     )
-    sheet = await create_document(
+    sheet = await create_file(
         session,
         a.initiative,
         a.user,
         name="Loot",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={},
     )
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    theirs = await create_document(
+    theirs = await create_file(
         session, a.initiative, other.user, name="Their map", content=_page_body("x")
     )
     await create_resource_grant(session, theirs, user=a.user)
-    handout = await _file_document(
+    handout = await _uploaded_file(
         session,
         a,
         name="Handout",
@@ -1506,26 +1575,26 @@ async def _wiki_with_filed_documents(session, a, acting_user):
         payload=MINIMAL_PDF,
         content_type="application/pdf",
     )
-    for document in (notes, sheet, theirs, handout):
+    for file in (notes, sheet, theirs, handout):
         await create_relationship(
             session,
             a.guild,
-            source=(SearchEntityType.document, document.id),
+            source=(SearchEntityType.file, file.id),
             target=(SearchEntityType.wiki, wiki.id),
             relationship_type=RelationshipType.part_of,
         )
     from app.models.tenant.wiki import Wiki
-    from app.services.tenant.wikis import file_document
+    from app.services.tenant.wikis import place_file
 
     await route_session_to_guild(session, a.guild.id)
     row = await session.get(Wiki, wiki.id)
-    file_document(row, handout.id, parent_page_id=parent.id, position=3)
+    place_file(row, handout.id, parent_page_id=parent.id, position=3)
     session.add(row)
     await session.commit()
     return wiki
 
 
-#: The smallest file a document upload is recognised as a PDF from.
+#: The smallest file a file upload is recognised as a PDF from.
 MINIMAL_PDF = (
     b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
     b"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n"
@@ -1533,31 +1602,31 @@ MINIMAL_PDF = (
 )
 
 
-async def test_a_wiki_exports_as_one_document_with_its_filed_documents(
+async def test_a_wiki_exports_as_one_document_with_its_filed_files(
     client: AsyncClient, acting_user, session
 ):
     """A wiki reads as one document — each published page under a heading at
-    its depth, parents before children, drafts left out — and the documents
+    its depth, parents before children, drafts left out — and the files
     filed in it that the exporter could export on their own ride beside it
-    under ``documents/``, in the format their type allows."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+    under ``files/``, in the format their type allows."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    wiki = await _wiki_with_filed_files(session, a, acting_user)
 
     resp = await _export(client, a, "wiki", ids=[wiki.id], format="md")
     assert resp.status_code == 200, resp.text
     archive = _zip(resp)
     names = sorted(archive.namelist())
-    [page_file] = [n for n in names if not n.startswith("documents/")]
+    [page_file] = [n for n in names if not n.startswith("files/")]
     text = archive.read(page_file).decode()
     assert text.index("# Rules") < text.index("Be kind") < text.index("## Combat")
     assert "Roll initiative" in text
     assert "Secret plans" not in text
-    filed = [n for n in names if n.startswith("documents/")]
-    assert any(
-        n.startswith("documents/session_notes") and n.endswith(".md") for n in filed
-    )
-    assert any(n.startswith("documents/loot") and n.endswith(".xlsx") for n in filed)
-    assert "documents/handout.pdf" in filed
+    filed = [n for n in names if n.startswith("files/")]
+    assert any(n.startswith("files/session_notes") and n.endswith(".md") for n in filed)
+    assert any(n.startswith("files/loot") and n.endswith(".xlsx") for n in filed)
+    assert "files/handout.pdf" in filed
     assert not any("their_map" in n for n in filed)
 
     # Each page starts a page of its own: two published pages, one break.
@@ -1576,14 +1645,16 @@ async def test_a_wiki_exports_as_one_document_with_its_filed_documents(
     assert "Combat" not in pages[0].extract_text()
 
 
-async def test_a_wikis_importable_file_carries_its_filed_documents(
+async def test_a_wikis_importable_file_carries_its_filed_files(
     client: AsyncClient, acting_user, session
 ):
-    """The importable file carries the filed documents inside the wiki's
+    """The importable file carries the filed files inside the wiki's
     envelope, each with where it is filed, and an upload's bytes beside it
     under ``assets/``."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    wiki = await _wiki_with_filed_files(session, a, acting_user)
 
     resp = await _export(client, a, "wiki", ids=[wiki.id], format="json")
     assert resp.status_code == 200, resp.text
@@ -1593,12 +1664,12 @@ async def test_a_wikis_importable_file_carries_its_filed_documents(
     envelope = json.loads(archive.read(envelope_name))
     by_name = {
         (entry.get("envelope") or entry.get("upload"))["name"]: entry
-        for entry in envelope["documents"]
+        for entry in envelope["files"]
     }
     assert set(by_name) == {"Session notes", "Loot", "Handout"}
     assert by_name["Handout"]["page"] == "rules"
     assert by_name["Handout"]["upload"]["storage_key"] == "handout-key.pdf"
-    assert by_name["Session notes"]["envelope"]["type"] == "initiative-document"
+    assert by_name["Session notes"]["envelope"]["type"] == "initiative-file"
 
 
 async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
@@ -1610,15 +1681,17 @@ async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
     from app.testing.factories import create_gallery, create_gallery_image
     from app.services.storage import get_guild_storage
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await enable_all_tools(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
     kept = await create_gallery_image(session, gallery, a.user, title="Village")
     gone = await create_gallery_image(
         session, gallery, a.user, title="Castle", write_blob=False
     )
-    kept_key = kept.file_url.rsplit("/", 1)[-1]
-    gone_key = gone.file_url.rsplit("/", 1)[-1]
+    kept_key = kept.current_version.file_url.rsplit("/", 1)[-1]
+    gone_key = gone.current_version.file_url.rsplit("/", 1)[-1]
 
     resp = await _export(client, a, "gallery", ids=[gallery.id], format="json")
     assert resp.status_code == 200, resp.text
@@ -1708,7 +1781,9 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
 ):
     """layout=detailed renders a one-task-per-page PDF carrying each task's
     description, checklist and comments — not the tabular line-per-task list."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     t1 = await create_task(
         session,
         a.project,
@@ -1825,34 +1900,36 @@ async def test_detailed_pdf_page_count_is_localized(
 # ---------------------------------------------------------------------------
 
 
-async def test_bulk_document_selection_exports_as_zip(
+async def test_bulk_file_selection_exports_as_zip(
     client: AsyncClient, acting_user, session
 ):
-    """Selecting N documents exports one artifact per document in the requested
+    """Selecting N files exports one artifact per file in the requested
     format, packaged as a single zip download — each entry under its own name
     (colliding titles deduped, not overwritten)."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    native = await create_document(session, a.initiative, a.user, name="Session Notes")
-    sheet = await create_document(
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    native = await create_file(session, a.initiative, a.user, name="Session Notes")
+    sheet = await create_file(
         session,
         a.initiative,
         a.user,
         name="Budget",
-        document_type=DocumentType.spreadsheet,
+        file_type=FileType.spreadsheet,
         content={"schema_version": 2, "cells": {"0:0": "x"}},
     )
-    twin = await create_document(session, a.initiative, a.user, name="Session Notes")
+    twin = await create_file(session, a.initiative, a.user, name="Session Notes")
 
     resp = await _export(
         client,
         a,
-        "document",
+        "file",
         ids=[native.id, sheet.id, twin.id],
         format="json",
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/zip"
-    assert 'filename="document-' in resp.headers["content-disposition"]
+    assert 'filename="file-' in resp.headers["content-disposition"]
     assert resp.headers["content-disposition"].endswith('.zip"')
 
     names = _zip_names(resp)
@@ -1860,29 +1937,31 @@ async def test_bulk_document_selection_exports_as_zip(
     assert all(n.endswith(".json") for n in names)
     assert len(set(names)) == 3  # the twin "Session Notes" title deduped
     envelopes = _zip_json(resp)
-    assert all(e["type"] == "initiative-document" for e in envelopes)
-    assert {e["document_type"] for e in envelopes} == {"native", "spreadsheet"}
+    assert all(e["type"] == "initiative-file" for e in envelopes)
+    assert {e["file_type"] for e in envelopes} == {"native", "spreadsheet"}
     assert {e["name"] for e in envelopes} == {"Session Notes", "Budget"}
 
 
-async def test_bulk_document_selection_rejects_format_not_shared_by_all(
+async def test_bulk_file_selection_rejects_format_not_shared_by_all(
     client: AsyncClient, acting_user, session
 ):
-    """The requested format must be valid for EVERY selected document's type (a
+    """The requested format must be valid for EVERY selected file's type (a
     whiteboard can't render pdf), and per-item authorization still holds (an
-    out-of-initiative document 404s the whole selection)."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    native = await _document(session, a, "native")
-    board = await _document(session, a, "whiteboard")
+    out-of-initiative file 404s the whole selection)."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    native = await _file(session, a, "native")
+    board = await _file(session, a, "whiteboard")
     ids = [native.id, board.id]
 
-    resp = await _export(client, a, "document", ids=ids, format="pdf")
+    resp = await _export(client, a, "file", ids=ids, format="pdf")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
 
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     denied = await _export(
-        client, a, "document", headers=outsider.headers, ids=ids, format="json"
+        client, a, "file", headers=outsider.headers, ids=ids, format="json"
     )
     assert denied.status_code == 404
 
@@ -1890,7 +1969,9 @@ async def test_bulk_document_selection_rejects_format_not_shared_by_all(
 async def test_bulk_queue_selection_exports_envelope_zip(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     q1 = await create_queue(session, a.initiative, a.user, name="Alpha Rotation")
     q2 = await create_queue(session, a.initiative, a.user, name="Beta Rotation")
 
@@ -1913,7 +1994,9 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
     """A bulk selection over the inline threshold becomes a job; the worker
     renders and stores the ZIP, and the download carries the bundle name."""
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     g1 = await create_counter_group(session, a.initiative, a.user, name="Party")
     g2 = await create_counter_group(session, a.initiative, a.user, name="Villains")
     await create_counter(session, g1, name="HP")
@@ -1935,8 +2018,10 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
 async def test_bulk_selection_size_is_bounded(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    resp = await _export(client, a, "document", ids=list(range(1, 103)), format="json")
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    resp = await _export(client, a, "file", ids=list(range(1, 103)), format="json")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "EXPORT_INVALID_PARAMS"
 
@@ -1947,7 +2032,9 @@ async def test_bulk_project_selection_exports_backup_zip(
     """Selecting N projects exports one backup envelope per project in a zip —
     and the per-project WRITE rule holds: a read-only project anywhere in the
     selection fails the whole export instead of leaving a silent gap."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     second = await create_project(session, a.initiative, a.user, name="Second Arc")
 
     resp = await _export(
@@ -1966,7 +2053,7 @@ async def test_bulk_project_selection_exports_backup_zip(
     # A write-less project in the selection: the owner grant belongs to the
     # other member, so the whole selection is refused (403), not a partial zip.
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -1996,7 +2083,9 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     they are, a picked one's start written on its picked day, all read back
     unchanged by the ics import) or one importable envelope carrying the
     calendar plus every event."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _events_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
     # Mondays and Wednesdays at 00:30, picked in Berlin: Sundays and Tuesdays
@@ -2153,10 +2242,12 @@ async def test_calendar_export_applies_calendar_sharing(
     is refused, while a guild admin still reaches them by explicit selection.
     The events export takes read access instead, so it carries the readable
     calendar too, and still nothing unshared."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _events_enabled(session, a.initiative)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -2208,7 +2299,7 @@ async def test_calendar_export_applies_calendar_sharing(
     )
     assert filtered.status_code == 403
 
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     admin_resp = await _export(
         client,
         a,
@@ -2253,7 +2344,7 @@ async def test_calendar_export_narrows_by_initiative_and_date_range(
     in a date range: a repeating one whole, with an occurrence moved out of the
     range, counted as what it carries. The calendar page's events export takes
     the same range."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     other = await create_initiative(
         session, a.guild, a.user, name="Side quests", calendars_enabled=True
@@ -2336,7 +2427,7 @@ async def _populate_initiative(session, a, initiative):
     await _all_tools_enabled(session, initiative)
     project = await create_project(session, initiative, a.user, name="Main Arc")
     await create_task(session, project, title="Fell the tower")
-    await create_document(session, initiative, a.user, name="Campaign Notes")
+    await create_file(session, initiative, a.user, name="Campaign Notes")
     await create_queue(session, initiative, a.user, name="Turn Order")
     await create_counter_group(session, initiative, a.user, name="Party Gold")
     calendar = await create_calendar(session, initiative, a.user, name="Raid Nights")
@@ -2350,7 +2441,9 @@ async def test_initiative_backup_zip_layout_and_manifest(
     """A backup is one importable zip: per-tool JSON envelopes in per-tool
     folders under the initiative's own directory, indexed by a manifest whose
     entries match the archive exactly. Aggregate exports are always a job."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _populate_initiative(session, a, a.initiative)
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
@@ -2365,7 +2458,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
     assert [i["id"] for i in manifest["initiatives"]] == [a.initiative.id]
     assert manifest["initiatives"][0]["tools"] == {
         "project": "included",
-        "document": "included",
+        "file": "included",
         "queue": "included",
         "counter_group": "included",
         "calendar": "included",
@@ -2390,7 +2483,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
     by_type = {e["type"]: e for e in manifest["entries"]}
     assert set(by_type) == {
         "initiative-project",
-        "initiative-document",
+        "initiative-file",
         "initiative-queue",
         "initiative-counter-group",
         "initiative-calendar",
@@ -2405,8 +2498,8 @@ async def test_initiative_backup_zip_layout_and_manifest(
     assert project_env["type"] == "initiative-project"
     assert project_env["project"]["name"] == "Main Arc"
     assert [t["title"] for t in project_env["tasks"]] == ["Fell the tower"]
-    doc_env = json.loads(archive.read(by_type["initiative-document"]["path"]))
-    assert doc_env["type"] == "initiative-document"
+    doc_env = json.loads(archive.read(by_type["initiative-file"]["path"]))
+    assert doc_env["type"] == "initiative-file"
     assert doc_env["name"] == "Campaign Notes"
     calendar_env = json.loads(archive.read(by_type["initiative-calendar"]["path"]))
     assert calendar_env["name"] == "Raid Nights"
@@ -2418,18 +2511,27 @@ async def test_initiative_backup_zip_layout_and_manifest(
 async def test_initiative_backup_includes_read_only_projects(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """The aggregate-export relaxation: a project the exporter can only READ is
-    still in their backup (standalone per-project export would 403)."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    exporter = await acting_user(
-        guild_role=GuildRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
+    """An initiative's export is for those who manage it, as its settings page
+    is. Within it, the aggregate-export relaxation: a project the exporter can
+    only READ is still in their backup (standalone per-project export would
+    403)."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    exporter, member = [
+        await acting_user(
+            guild_role=CommunityRole.member,
+            guild=owner.guild,
+            initiative=owner.initiative,
+            initiative_role=role,
+        )
+        for role in ("project_manager", "member")
+    ]
     theirs = await create_project(session, owner.initiative, owner.user, name="Theirs")
     await create_resource_grant(session, theirs, user=exporter.user)
 
+    refused = await _export(
+        client, member, "initiative", initiative_id=owner.initiative.id
+    )
+    assert refused.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED", refused.text
     # Standalone export of the same project: still write-gated.
     denied = await _export(client, exporter, "project", ids=[theirs.id], format="json")
     assert denied.status_code == 403
@@ -2442,6 +2544,23 @@ async def test_initiative_backup_includes_read_only_projects(
     project_entries = [e for e in manifest["entries"] if e["tool"] == "project"]
     assert {e["title"] for e in project_entries} == {"Theirs"}
 
+    # No longer managing it, the exporter is not served the file either.
+    roles = await client.get(
+        owner.g(f"/initiatives/{owner.initiative.id}/roles"), headers=owner.headers
+    )
+    member_role = next(r["id"] for r in roles.json() if r["name"] == "member")
+    demoted = await client.patch(
+        owner.g(f"/initiatives/{owner.initiative.id}/members/{exporter.user.id}"),
+        headers=owner.headers,
+        json={"role_id": member_role},
+    )
+    assert demoted.status_code == 200, demoted.text
+    dl = await client.get(
+        exporter.g(f"/exports/jobs/{resp.json()['id']}/download"),
+        headers=exporter.headers,
+    )
+    assert dl.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED", dl.text
+
 
 async def test_a_backup_lists_its_assignees_among_its_people(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
@@ -2452,7 +2571,9 @@ async def test_a_backup_lists_its_assignees_among_its_people(
     nobody having been asked."""
     from app.core.user_display import handle_of
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(session, a.project, title="Carry the torch", assignees=[a.user])
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
@@ -2475,7 +2596,9 @@ async def test_a_backup_lists_who_its_user_properties_name(
     from app.core.user_display import handle_of
     from app.models.tenant.property import PropertyType
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project, title="Report it")
     reporter = await create_property_definition(
         session, a.initiative, name="Reporter", type=PropertyType.user_reference
@@ -2494,17 +2617,19 @@ async def test_aggregate_export_hides_dac_invisible_rows(
 ):
     """Rows not shared with the exporter are simply ABSENT from the backup —
     not listed under ``skipped`` either."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _all_tools_enabled(session, a.initiative)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    await create_document(session, a.initiative, other.user, name="Their Secret")
+    await create_file(session, a.initiative, other.user, name="Their Secret")
     await create_queue(session, a.initiative, other.user, name="Their Queue")
-    await create_document(session, a.initiative, a.user, name="My Notes")
+    await create_file(session, a.initiative, a.user, name="My Notes")
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
@@ -2523,12 +2648,12 @@ async def test_guild_export_belongs_to_the_seat(
     """Running a community is an admin's job; taking every initiative it has
     in one file is the seat's. An ordinary admin is refused, as a member is."""
     seat = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     for caller in (admin, member):
-        for source, params in (("community", {}), ("estimate", {"scope": "guild"})):
+        for source, params in (("community", {}), ("estimate", {"scope": "community"})):
             resp = await _export(
                 client, caller, source, headers=caller.headers, **params
             )
@@ -2543,7 +2668,7 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
     zip — and the builder re-validates the creator's access per chunk (the
     staleness rule for long builds)."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     await _populate_initiative(session, a, a.initiative)
     second = await create_initiative(session, a.guild, a.user, name="Second Front")
@@ -2580,13 +2705,15 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
 async def test_backup_uploads_toggle_and_asset_bundling(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """include_uploads=true bundles the file document's blob AND native docs'
+    """include_uploads=true bundles the uploaded file's blob AND native docs'
     embedded images under assets/ (embedded ones at their real stored size,
     from their uploads row); =false records the file doc under ``skipped``
     with reason uploads_excluded instead of silently dropping it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     payload = b"%PDF-handout-bytes"
-    file_doc = await _file_document(
+    file_doc = await _uploaded_file(
         session,
         a,
         name="Player Handout",
@@ -2607,7 +2734,7 @@ async def test_backup_uploads_toggle_and_asset_bundling(
         size_bytes=len(image_bytes),
         content_type="image/png",
     )
-    await _image_document(session, a, name="Illustrated Notes", key="inline-img.png")
+    await _image_file(session, a, name="Illustrated Notes", key="inline-img.png")
 
     with_uploads = await _export(
         client, a, "initiative", initiative_id=a.initiative.id, include_uploads=True
@@ -2655,8 +2782,10 @@ async def test_backup_upload_byte_cap(
     """The uploads byte cap rejects an oversized backup at request time, before
     a job row exists."""
     monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    await _file_document(
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    await _uploaded_file(
         session,
         a,
         name="Big Map",
@@ -2679,14 +2808,16 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """Embedded document images aren't visible to the pre-flight count (it only
-    sizes file documents), so the cap catches them at build time: the job fails
+    sizes uploaded files), so the cap catches them at build time: the job fails
     closed instead of assembling an over-cap archive."""
     monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_upload(
         session, a.guild, a.user, filename="huge.png", size_bytes=1_000_000
     )
-    await _image_document(session, a, name="Illustrated", key="huge.png")
+    await _image_file(session, a, name="Illustrated", key="huge.png")
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     assert resp.status_code == 202  # pre-flight can't see embedded bytes
@@ -2704,7 +2835,9 @@ async def test_report_mode_mixed_formats_zip(
 ):
     """À-la-carte report: one job, one zip, each tool in its chosen format — a
     PDF beside a CSV beside an ICS — and no manifest/assets."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _populate_initiative(session, a, a.initiative)
 
     resp = await _export(
@@ -2719,7 +2852,7 @@ async def test_report_mode_mixed_formats_zip(
                 "queue": "csv",
                 "counter_group": "xlsx",
                 "calendar": "ics",
-                "document": {"native": "md"},
+                "file": {"native": "md"},
             }
         ),
     )
@@ -2742,7 +2875,7 @@ _INVALID_SELECTORS: list[tuple[dict[str, Any], str]] = [
     ({"include": "not json"}, "EXPORT_INVALID_PARAMS"),
     ({"mode": "report", "formats": '{"queue": "wav"}'}, "EXPORT_INVALID_FORMAT"),
     (
-        {"mode": "report", "formats": '{"document": {"native": "xlsx"}}'},
+        {"mode": "report", "formats": '{"file": {"native": "xlsx"}}'},
         "EXPORT_INVALID_FORMAT",
     ),
     ({"include": '{"wands": true}'}, "EXPORT_INVALID_PARAMS"),
@@ -2788,7 +2921,9 @@ _INVALID_SELECTORS: list[tuple[dict[str, Any], str]] = [
 async def test_aggregate_export_rejects_invalid_selectors(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     for params, detail in _INVALID_SELECTORS:
         resp = await _export(
             client, a, "initiative", initiative_id=a.initiative.id, **params
@@ -2797,7 +2932,7 @@ async def test_aggregate_export_rejects_invalid_selectors(
         assert resp.json()["detail"] == detail, params
 
     # An initiative the caller can't reach is indistinguishable from absent.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     hidden = await _export(
         client, a, "initiative", headers=outsider.headers, initiative_id=a.initiative.id
     )
@@ -2809,17 +2944,18 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
 ):
     """The wizard's pre-flight numbers — and the route stays reachable (a
     parametric /{job_id} route declared first would 422 on 'estimate')."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _populate_initiative(session, a, a.initiative)
     payload = b"12345678"
-    await _file_document(
+    await _uploaded_file(
         session,
         a,
         name="Attached file",
         key="est-blob.bin",
         filename="est-blob.bin",
         payload=payload,
-        content_type="application/octet-stream",
     )
 
     resp = await _export(
@@ -2830,7 +2966,7 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
     counts = {tool: t["count"] for tool, t in body["tools"].items()}
     assert counts == {
         "project": 2,  # the actor fixture's project + Main Arc
-        "document": 2,  # Campaign Notes + the file doc
+        "file": 2,  # Campaign Notes + the file doc
         "queue": 1,
         "counter_group": 1,
         "calendar": 1,
@@ -2867,7 +3003,9 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     templates are asked about, a calendar keeps the events in its range, and a
     project the tasks its task list would show. The estimate counts what the
     filters leave, and the finished job keeps no filters."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild, name="raid")
     tagged = await create_queue(session, a.initiative, a.user, name="Tagged")
@@ -2961,7 +3099,7 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     # A project's own export takes the same task filter, read by the rule for
     # that project: a guild admin with no grant on it gets the same tasks. A
     # link to a task the filter left out has nothing to land on, so it goes.
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     # Counted as the filters leave it — the template set aside, one open task —
     # it is handed back inline.
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 1)
@@ -3002,7 +3140,7 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     from the moment it exists, so its ``structure.json`` rides along. An
     archive that dropped it would restore a pile of nothing with nobody in
     it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await create_project(session, a.initiative, a.user, name="Switched off")
     # The factory switches every tool on; turn some off so the inventory has
     # deliberately disabled ones to report, one of them holding a project.
@@ -3021,7 +3159,7 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     assert {e["type"] for e in manifest["entries"]} == {"initiative-structure"}
     tools = manifest["initiatives"][0]["tools"]
     assert (tools["project"], tools["queue"], tools["calendar"]) == ("disabled",) * 3
-    assert tools["document"] == "included"
+    assert tools["file"] == "included"
 
 
 async def test_guild_export_seat_vacated_fails_closed(
@@ -3031,13 +3169,13 @@ async def test_guild_export_seat_vacated_fails_closed(
     the job instead of shipping a community dump to whoever used to hold it.
     Stepping down to ordinary admin is enough — the archive is the seat's."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     resp = await _export(client, a, "community")
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
-    a.membership.role = GuildRole.admin
+    a.membership.role = CommunityRole.admin
     session.add(a.membership)
     await session.commit()
 
@@ -3046,7 +3184,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
     assert body["error"] == "EXPORT_SUPERADMIN_REQUIRED"
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
 
 
@@ -3061,7 +3199,7 @@ async def test_guild_backup_carries_the_community_itself(
     """A community backup covers the community, not only the work done inside
     it: its configuration, its tag vocabulary and its roster."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     await create_tag(session, a.guild, name="worldbuilding", color="#ff0000")
 
@@ -3086,6 +3224,10 @@ async def test_guild_backup_carries_the_community_itself(
     # names, the same shape a byline or a mention renders.
     assert all(m.get("handle") for m in members)
     assert not any("@" in json.dumps(m) for m in members)
+    # A name is exported only where one was set, never the handle in its place.
+    assert [m["name"] for m in members if m["user_id"] == a.user.id] == [None]
+    # Whose personal API keys reach the community travels with each member.
+    assert {m["api_keys_allowed"] for m in members} == {True}
 
     manifest = json.loads(archive.read("manifest.json"))
     assert {s["key"] for s in manifest["guild_sections"]} >= {
@@ -3099,10 +3241,12 @@ async def test_initiative_backup_omits_community_wide_sections(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """An initiative export carries the initiative. The community's roster,
-    configuration and installed apps belong to the community-scoped export.
+    configuration and installed plug-ins belong to the community-scoped export.
     The tag vocabulary does ride along, because it is part of the content the
     archive carries."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_tag(session, a.guild, name="npc")
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
@@ -3111,7 +3255,7 @@ async def test_initiative_backup_omits_community_wide_sections(
     assert "guild/tags.json" in names
     assert "guild/members.json" not in names
     assert "guild/settings.json" not in names
-    assert "guild/apps.json" not in names
+    assert "guild/plugins.json" not in names
 
 
 async def test_backup_carries_initiative_roles_and_members(
@@ -3120,7 +3264,7 @@ async def test_backup_carries_initiative_roles_and_members(
     """Tool envelopes carry content; none of them carries the access structure
     the content sat inside. Without it a restored initiative is a pile of work
     with nobody in it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
@@ -3133,6 +3277,9 @@ async def test_backup_carries_initiative_roles_and_members(
     assert structure["type"] == "initiative-structure"
     assert structure["initiative_id"] == a.initiative.id
     assert a.user.id in {m["user_id"] for m in structure["members"]}
+    assert [m["name"] for m in structure["members"] if m["user_id"] == a.user.id] == [
+        None
+    ]
     # Roles and memberships travel by NAME: an id means nothing in whatever
     # instance the archive is opened in.
     role_names = {r["name"] for r in structure["roles"]}
@@ -3147,7 +3294,7 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
     nobody currently points at is the one thing a full backup would drop
     without saying so."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     orphan_key = "orphan-upload-xyz.bin"
     get_guild_storage(a.guild.id).write(orphan_key, b"orphan-bytes")
@@ -3167,7 +3314,7 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
 
 
 # ---------------------------------------------------------------------------
-# Dashboards: exportable, minus what belongs to somebody else's app
+# Dashboards: exportable, minus what belongs to somebody else's plug-in
 # ---------------------------------------------------------------------------
 
 
@@ -3175,7 +3322,7 @@ async def test_hand_built_dashboard_exports(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """A dashboard somebody built here is ordinary content."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     dashboard = await create_dashboard(
         session, a.initiative, a.user, name="Campaign Health"
     )
@@ -3189,12 +3336,12 @@ async def test_hand_built_dashboard_exports(
     assert "definition" in envelope
 
 
-async def test_dashboard_from_a_third_party_app_is_refused(
+async def test_dashboard_from_a_third_party_plugin_is_refused(
     client: AsyncClient, acting_user, session
 ):
     """Its definition belongs to its publisher; the way to have it elsewhere
-    is to install that app there."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    is to install that plug-in there."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     dashboard = await create_dashboard(
         session, a.initiative, a.user, name="GitHub Overview"
     )
@@ -3205,16 +3352,16 @@ async def test_dashboard_from_a_third_party_app_is_refused(
 
     resp = await _export(client, a, "dashboard", ids=[dashboard.id])
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "EXPORT_THIRD_PARTY_APP"
+    assert resp.json()["detail"] == "EXPORT_THIRD_PARTY_PLUGIN"
 
 
 async def test_backup_skips_third_party_dashboards_and_says_so(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """One app-derived dashboard must not fail a whole community's backup —
+    """One plugin-derived dashboard must not fail a whole community's backup —
     and the archive states that it existed rather than quietly omitting it."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     mine = await create_dashboard(session, a.initiative, a.user, name="Mine")
     theirs = await create_dashboard(session, a.initiative, a.user, name="Theirs")
@@ -3236,19 +3383,19 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
         for s in manifest["skipped"]
         if s["tool"] == "dashboard"
     }
-    assert skipped.get(theirs.id) == "third_party_app"
+    assert skipped.get(theirs.id) == "third_party_plugin"
 
 
-async def test_guild_backup_records_apps_it_does_not_carry(
+async def test_guild_backup_records_plugins_it_does_not_carry(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """An app published by somebody else is restored by installing it in the
+    """A plug-in published by somebody else is restored by installing it in the
     destination, not by unpacking a copy — so the archive names it in
     ``skipped`` rather than passing over it in silence."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    app = await create_guild_app(
+    plugin = await create_guild_plugin(
         session,
         a.guild,
         a.user,
@@ -3261,11 +3408,13 @@ async def test_guild_backup_records_apps_it_does_not_carry(
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
-    assert "guild/apps.json" not in archive.namelist()
+    assert "guild/plugins.json" not in archive.namelist()
     skipped = {
-        s["entity_id"]: s["reason"] for s in manifest["skipped"] if s["tool"] == "app"
+        s["entity_id"]: s["reason"]
+        for s in manifest["skipped"]
+        if s["tool"] == "plugin"
     }
-    assert skipped.get(app.id) == "third_party_app"
+    assert skipped.get(plugin.id) == "third_party_plugin"
 
 
 async def test_backup_carries_property_definitions(
@@ -3274,7 +3423,9 @@ async def test_backup_carries_property_definitions(
     """Envelopes carry property VALUES by name and type. Without the
     definitions an import rebuilds one from the first value it sees, so a
     select arrives holding only the options somebody happened to use."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_property_definition(
         session,
         a.initiative,
@@ -3311,7 +3462,7 @@ async def test_whole_community_export_has_a_cooldown(
     """A community's entire content is not a thing to re-read on a loop, and
     the cooldown is counted across the community rather than per person."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     first = await _export(client, a, "community")
@@ -3322,7 +3473,7 @@ async def test_whole_community_export_has_a_cooldown(
     assert again.json()["detail"] == "EXPORT_COOLDOWN_ACTIVE"
 
     # A second holder of the seat does not get a fresh allowance.
-    b = await acting_user(guild_role=GuildRole.superadmin, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.superadmin, guild=a.guild)
     theirs = await _export(client, b, "community", headers=b.headers)
     assert theirs.status_code == 429
 
@@ -3332,7 +3483,7 @@ async def test_cooldown_can_be_switched_off(
 ):
     monkeypatch.setattr(settings, "EXPORT_GUILD_COOLDOWN_HOURS", 0)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     assert (await _export(client, a, "community")).status_code == 202
@@ -3348,7 +3499,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
     being refused when they try it themselves.
     """
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     quiet = await client.get(a.g("/exports/community/status"), headers=a.headers)
@@ -3368,9 +3519,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
     ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.queued.value
-    assert body["latest_started_by"] == (
-        a.user.full_name or f"{a.user.username}#{a.user.discriminator:04d}"
-    )
+    assert body["latest_started_by"] == f"{a.user.username}#{a.user.discriminator:04d}"
 
     # The countdown the page shows and the door the create route shuts are the
     # same number, read from the same job.
@@ -3390,8 +3539,8 @@ async def test_guild_export_status_is_the_seats(
     client: AsyncClient, acting_user, session
 ):
     """It reports the seat's own actions to the seat."""
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
 
     resp = await client.get(admin.g("/exports/community/status"), headers=admin.headers)
     assert resp.status_code == 403
@@ -3407,7 +3556,7 @@ async def test_a_failed_export_is_reported_but_holds_no_door(
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", None)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     job_id = (await _export(client, a, "community")).json()["id"]
@@ -3430,7 +3579,7 @@ async def test_an_archive_over_the_download_bound_is_delivered(
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     resp = await _export(client, a, "community")
@@ -3448,7 +3597,7 @@ async def test_an_archive_over_the_download_bound_is_delivered(
     assert len(delivered) == 1 and delivered[0].suffix == ".zip"
 
     # Nothing to download, and the job says why rather than reading as unready.
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
     assert dl.json()["detail"] == "EXPORT_DELIVERED"
 
@@ -3461,7 +3610,7 @@ async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     resp = await _export(client, a, "community")
@@ -3480,7 +3629,7 @@ async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", None)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     resp = await _export(client, a, "community")
@@ -3498,17 +3647,17 @@ async def test_estimate_reports_the_download_bound_and_whether_delivery_exists(
     """So the wizard can say which of the two is going to happen before
     anybody submits."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "estimate", scope="guild")
+    resp = await _export(client, a, "estimate", scope="community")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["max_download_bytes"] == settings.EXPORT_MAX_DOWNLOAD_BYTES
     assert body["delivery_available"] is False
 
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
-    again = await _export(client, a, "estimate", scope="guild")
+    again = await _export(client, a, "estimate", scope="community")
     assert again.json()["delivery_available"] is True
 
 
@@ -3520,7 +3669,9 @@ async def test_download_redirects_when_storage_can_sign_a_url(
     process for the whole download. The RLS-gated job lookup is still what
     decided it — the URL is minted only after that passed."""
     monkeypatch.setattr(settings, "EXPORT_PRESIGNED_DOWNLOADS", True)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     # An aggregate export is always a job, so this needs no inline coaxing.
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     assert resp.status_code == 202, resp.text
@@ -3546,7 +3697,7 @@ async def test_download_redirects_when_storage_can_sign_a_url(
         exports_module, "get_guild_storage", lambda gid: Signing(real_storage(gid))
     )
     dl = await client.get(
-        a.g(f"/exports/{job_id}/download"),
+        a.g(f"/exports/jobs/{job_id}/download"),
         headers=a.headers,
         follow_redirects=False,
     )
@@ -3559,7 +3710,9 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
 ):
     """Opt-in: a deployment that has not allowed this app's origin on its
     bucket keeps the proxied response rather than finding out on a redirect."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     job_id = resp.json()["id"]
     await _run_worker()
@@ -3583,7 +3736,9 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     )
     monkeypatch.setattr(settings, "EXPORT_PRESIGNED_DOWNLOADS", False)
     dl = await client.get(
-        a.g(f"/exports/{job_id}/download"), headers=a.headers, follow_redirects=False
+        a.g(f"/exports/jobs/{job_id}/download"),
+        headers=a.headers,
+        follow_redirects=False,
     )
     assert dl.status_code == 200
     assert dl.headers["content-type"] == "application/zip"
@@ -3592,19 +3747,19 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
 async def test_a_backup_says_which_wiki_page_a_file_is_filed_under(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """A file document in a wiki crosses as ``attach_to`` naming the wiki's
+    """An uploaded file in a wiki crosses as ``attach_to`` naming the wiki's
     entry — and, when it sits under one of the wiki's pages, that page's slug,
     so a restore files it there again."""
     from app.core.search import SearchEntityType
     from app.services.tenant import relationships as relationships_service
-    from app.services.tenant.wikis import file_document
+    from app.services.tenant.wikis import place_file
     from app.testing.factories import create_wiki, create_wiki_page
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     a.initiative.wikis_enabled = True
     session.add(a.initiative)
     await session.commit()
-    file_doc = await _file_document(
+    file_doc = await _uploaded_file(
         session,
         a,
         name="Rulebook",
@@ -3617,12 +3772,12 @@ async def test_a_backup_says_which_wiki_page_a_file_is_filed_under(
     page = await create_wiki_page(session, wiki, a.user, title="Rules")
     await relationships_service.create(
         session,
-        source=relationships_service.Endpoint(SearchEntityType.document, file_doc.id),
+        source=relationships_service.Endpoint(SearchEntityType.file, file_doc.id),
         relationship_type=RelationshipType.part_of,
         target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
         created_by=a.user.id,
     )
-    file_document(wiki, file_doc.id, parent_page_id=page.id)
+    place_file(wiki, file_doc.id, parent_page_id=page.id)
     session.add(wiki)
     await session.commit()
 

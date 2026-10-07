@@ -30,7 +30,7 @@ interface ReactionBarProps {
   targetType: ReactionTarget;
   targetId: number;
   groups?: ReactionGroup[];
-  /** False while the viewer may read but not write (a read-only guild). */
+  /** False while the viewer may read but not write (a read-only community). */
   canReact?: boolean;
   className?: string;
 }

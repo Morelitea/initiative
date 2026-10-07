@@ -19,9 +19,7 @@ from app.core.notification_categories import (
     CATEGORY_SPECS,
     Channel,
     NotificationCategory,
-    category_of,
 )
-from app.models.platform.notification import NotificationType
 from app.models.platform.user_notification_prefs import (
     EmailCadence,
     NotificationLevel,
@@ -70,11 +68,11 @@ def _override(
 def wants(
     prefs: Mapping[str, Any] | None,
     *,
-    notification_type: NotificationType,
+    category: NotificationCategory,
     channel: Channel,
     guild_id: int | None = None,
 ) -> bool:
-    """Whether this account wants ``notification_type`` on ``channel``.
+    """Whether this account wants ``category`` on ``channel``.
 
     Most specific first:
 
@@ -89,7 +87,6 @@ def wants(
     community, so an account notice arrives however the communities are set.
     """
     prefs = prefs or EMPTY
-    category = category_of(notification_type)
     spec = CATEGORY_SPECS[category]
 
     if spec.guild_scoped and guild_id is not None:
@@ -162,9 +159,11 @@ def in_quiet_hours(
 
 
 #: The channels a hold can hold. The bell is not one of them: it interrupts
-#: nobody, it is the record, and it is what makes holding the other two safe —
+#: nobody, it is the record, and it is what makes holding the others safe —
 #: nothing is lost, it is simply waiting where it was always going to be.
-HELD_CHANNELS: frozenset[Channel] = frozenset({Channel.email, Channel.push})
+HELD_CHANNELS: frozenset[Channel] = frozenset(
+    {Channel.email, Channel.push, Channel.desktop}
+)
 
 #: How long after a hold lifts its summary is still worth sending. Past this
 #: the news has kept until whenever the account next looks, and a "while you
@@ -390,7 +389,7 @@ def holds_in_force(
 def reachable(
     prefs: Mapping[str, Any] | None,
     *,
-    notification_type: NotificationType,
+    category: NotificationCategory,
     channel: Channel,
     guild_id: int | None = None,
     tz_name: str | None = None,
@@ -409,7 +408,7 @@ def reachable(
     """
     if not wants(
         prefs,
-        notification_type=notification_type,
+        category=category,
         channel=channel,
         guild_id=guild_id,
     ):
@@ -417,7 +416,13 @@ def reachable(
     if channel not in HELD_CHANNELS:
         return True
     return not holds_in_force(
-        prefs, tz_name=tz_name, last_active_at=last_active_at, now=now
+        prefs,
+        tz_name=tz_name,
+        # The desktop app alerts only while its own window is not in front,
+        # which says whether somebody is looking better than recent activity
+        # anywhere does.
+        last_active_at=None if channel is Channel.desktop else last_active_at,
+        now=now,
     )
 
 
@@ -509,7 +514,7 @@ def _next_slot(
 def email_due_at(
     prefs: Mapping[str, Any] | None,
     *,
-    notification_type: NotificationType,
+    category: NotificationCategory,
     tz_name: str | None = None,
     last_active_at: datetime | None = None,
     now: datetime | None = None,
@@ -527,10 +532,8 @@ def email_due_at(
     prefs = prefs or EMPTY
     now = now or datetime.now(timezone.utc)
     schedule = email_schedule(prefs)
-    spec = CATEGORY_SPECS[category_of(notification_type)]
-
     immediate = schedule.cadence is EmailCadence.instant or (
-        schedule.personal_instant and spec.personal
+        schedule.personal_instant and CATEGORY_SPECS[category].personal
     )
     due = now if immediate else _next_slot(schedule, tz_name=tz_name, now=now)
 

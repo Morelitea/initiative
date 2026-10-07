@@ -19,34 +19,34 @@ import {
 const binding = (partial: Partial<WidgetBinding> & { source: WidgetSource }): WidgetBinding =>
   partial as WidgetBinding;
 
-const labels = (documents: [number, string][], ready = true): EntityLabels => ({
-  document: new Map(documents),
+const labels = (files: [number, string][], ready = true): EntityLabels => ({
+  file: new Map(files),
   ready,
 });
 
 describe("binding scope", () => {
-  it("names a document the viewer can resolve", () => {
+  it("names a file the viewer can resolve", () => {
     const chips = bindingScope(
-      binding({ source: "sheet_range", document_id: 7, range: "A1:B2" }),
+      binding({ source: "sheet_range", file_id: 7, range: "A1:B2" }),
       labels([[7, "Q3 figures"]])
     );
-    expect(chips).toEqual([{ key: "document_id", label: "Q3 figures", restricted: false }]);
+    expect(chips).toEqual([{ key: "file_id", label: "Q3 figures", restricted: false }]);
   });
 
   it("reports an unresolvable id without naming it", () => {
     const chips = bindingScope(
-      binding({ source: "sheet_range", document_id: 7, range: "A1:B2" }),
+      binding({ source: "sheet_range", file_id: 7, range: "A1:B2" }),
       labels([])
     );
-    expect(chips).toEqual([{ key: "document_id", label: undefined, restricted: true }]);
+    expect(chips).toEqual([{ key: "file_id", label: undefined, restricted: true }]);
   });
 
   it("calls nothing unresolvable while the lookup is in flight", () => {
     const chips = bindingScope(
-      binding({ source: "sheet_range", document_id: 7, range: "A1:B2" }),
+      binding({ source: "sheet_range", file_id: 7, range: "A1:B2" }),
       EMPTY_LABELS
     );
-    expect(chips).toEqual([{ key: "document_id", label: undefined, restricted: false }]);
+    expect(chips).toEqual([{ key: "file_id", label: undefined, restricted: false }]);
   });
 
   it("says nothing about a parameter with no value", () => {

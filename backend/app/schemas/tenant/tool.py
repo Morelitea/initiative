@@ -1,13 +1,15 @@
-"""The fields every tool's read carries, and the one way they are filled."""
+"""The fields every tool's read carries, and the one way they are filled, and
+the body every tool's duplicate takes."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, List, Optional, TYPE_CHECKING, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
+from app.schemas.base import MAX_TITLE_LENGTH, SanitizedBaseModel
 from app.schemas.tenant.archive import ToolState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.property import PropertySummary, annotated_properties
@@ -31,7 +33,9 @@ class ToolSummaryBase(ToolState):
 
     id: int
     initiative_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
@@ -54,6 +58,16 @@ class ToolSummaryBase(ToolState):
         """The fields this tool works out from ``row`` rather than reading off
         it by name."""
         return {}
+
+
+class ToolDuplicateRequest(SanitizedBaseModel):
+    """What a duplicate of any tool may be told. Left out, the copy goes beside
+    its source as "<name> (Copy)"; in another initiative it keeps the name."""
+
+    #: Held to the rule its tool holds a name to (``tool_copy.duplicate``):
+    #: free of reserved sigils except where the tool's names may carry them.
+    name: Optional[str] = Field(default=None, max_length=MAX_TITLE_LENGTH)
+    target_initiative_id: Optional[int] = None
 
 
 def from_row(schema: type[Model], row: Any, **fields: Any) -> Model:

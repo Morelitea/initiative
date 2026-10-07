@@ -17,23 +17,24 @@ implementation could quietly lose:
 
 import pytest
 
-from app.services.marketplace import service_apps
+from app.services.marketplace import service_plugins
 from app.services.marketplace.definitions import (
     KIND_AUDIENCE,
     LISTING_AUDIENCES,
     LISTING_KINDS,
     kinds_for_audience,
-    APP_KINDS,
-    GUILD_INSTALLABLE_APP_KINDS,
+    PLUGIN_KINDS,
+    GUILD_INSTALLABLE_PLUGIN_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
-    app_widget_type,
+    plugin_widget_type,
     normalize_publisher,
     normalize_listing_definition,
+    published_by_us,
     reserved_prefix_problem,
 )
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
-from app.services.marketplace.service_apps import EMBED_CAPABILITIES
+from app.services.marketplace.service_plugins import EMBED_CAPABILITIES
 
 
 def _label(text: str = "A label") -> dict[str, str]:
@@ -66,14 +67,14 @@ def _managed(key: str = "owner") -> dict:
 
 
 def _service(**overrides) -> dict:
-    """A minimal service app: declares nothing, ships nothing, and is valid.
+    """A minimal service plug-in: declares nothing, ships nothing, and is valid.
 
-    An app with no local features is a legitimate install — an integration that
+    A plug-in with no local features is a legitimate install — an integration that
     exists to give an external system a foothold in a guild has nothing to
     render — so the smallest valid manifest is the right starting point.
     """
     definition = {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "tests.widget-co", "protocol": 1},
         "features": [],
     }
@@ -82,7 +83,7 @@ def _service(**overrides) -> dict:
 
 
 def _normalize(**overrides) -> dict:
-    return normalize_listing_definition("app", _service(**overrides))
+    return normalize_listing_definition("plugin", _service(**overrides))
 
 
 class TestAttribution:
@@ -133,32 +134,50 @@ class TestReservedNamespace:
         assert reserved_prefix_problem("coreutils.x", source="registry") is None
 
 
-class TestAppKinds:
+class TestPublishedByUs:
+    """Built-ins, and the registry's listings under this project's prefix."""
+
+    @pytest.mark.parametrize(
+        ("source", "public_id", "expected"),
+        [
+            ("builtin", "core.project-health", True),
+            ("registry", "beyonders-studio.github", True),
+            ("registry", "acme.github", False),
+            ("registry", "beyonders-studioco.github", False),
+            ("operator", "beyonders-studio.github", False),
+            ("local", "beyonders-studio.github", False),
+        ],
+    )
+    def test_who_publishes_it(self, source, public_id, expected):
+        assert published_by_us(source, public_id) is expected
+
+
+class TestPluginKinds:
     def test_service_is_publishable(self):
-        assert "service" in APP_KINDS
+        assert "service" in PLUGIN_KINDS
 
     def test_service_is_installable_into_a_guild(self):
-        """A service app has somewhere to land now: the registration supplies
+        """A service plug-in has somewhere to land now: the registration supplies
         the address and the powers, and the install is the pinned definition
         plus whatever the guild configures against it."""
-        assert "service" in GUILD_INSTALLABLE_APP_KINDS
+        assert "service" in GUILD_INSTALLABLE_PLUGIN_KINDS
 
     def test_installable_kinds_are_declared_kinds(self):
         """The two sets answer different questions — what a listing may declare
         versus what this build can mount — so a kind added to the vocabulary
         ahead of its machinery is refused rather than half-mounted."""
-        assert GUILD_INSTALLABLE_APP_KINDS <= APP_KINDS
+        assert GUILD_INSTALLABLE_PLUGIN_KINDS <= PLUGIN_KINDS
 
     def test_an_unknown_kind_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown app kind"):
-            normalize_listing_definition("app", {"app_kind": "daemon"})
+        with pytest.raises(ListingDefinitionError, match="unknown plug-in kind"):
+            normalize_listing_definition("plugin", {"plugin_kind": "daemon"})
 
 
 class TestServiceIdentity:
     def test_a_service_names_itself(self):
         with pytest.raises(ListingDefinitionError, match="service.public_id"):
             normalize_listing_definition(
-                "app", {"app_kind": "service", "service": {}, "features": []}
+                "plugin", {"plugin_kind": "service", "service": {}, "features": []}
             )
 
     def test_the_service_id_is_publisher_scoped(self):
@@ -171,9 +190,9 @@ class TestServiceIdentity:
 
     def test_the_protocol_defaults_to_the_one_this_build_speaks(self):
         definition = normalize_listing_definition(
-            "app",
+            "plugin",
             {
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": "tests.widget-co"},
                 "features": [],
             },
@@ -199,7 +218,7 @@ class TestFeaturesMatchBlocks:
         with pytest.raises(ListingDefinitionError, match="is not declared"):
             _normalize(
                 endpoints=[
-                    {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+                    {"id": "plugin.tests.widget-co.thing-happened", "direction": "emit"}
                 ],
             )
 
@@ -217,7 +236,7 @@ class TestFeaturesMatchBlocks:
         with pytest.raises(ListingDefinitionError, match="is declared but"):
             _normalize(features=["endpoints"], endpoints=[])
 
-    def test_an_app_may_offer_no_local_features(self):
+    def test_a_plugin_may_offer_no_local_features(self):
         definition = _normalize()
         assert definition["features"] == []
         assert "widgets" not in definition
@@ -226,17 +245,17 @@ class TestFeaturesMatchBlocks:
         definition = _normalize(
             features=["endpoints", "embeds", "endpoints"],
             endpoints=[
-                {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+                {"id": "plugin.tests.widget-co.thing-happened", "direction": "emit"}
             ],
             embeds=[{"id": "main", "path": "/embed", "name": _label()}],
         )
         assert definition["features"] == ["embeds", "endpoints"]
 
-    @pytest.mark.parametrize("feature", sorted(service_apps.FEATURES))
+    @pytest.mark.parametrize("feature", sorted(service_plugins.FEATURES))
     def test_every_feature_names_a_block(self, feature):
         # The cross-check is only as complete as this map, so a feature added
         # without one would silently stop being checked.
-        assert feature in service_apps.FEATURE_BLOCKS
+        assert feature in service_plugins.FEATURE_BLOCKS
 
 
 class TestConnections:
@@ -263,8 +282,8 @@ class TestConnections:
             )
 
     def test_the_retired_connect_path_is_no_way_in(self):
-        """The app no longer runs a flow of its own: a connection naming only
-        where the app's page was has no flow, and is refused as one."""
+        """The plug-in no longer runs a flow of its own: a connection naming only
+        where the plug-in's page was has no flow, and is refused as one."""
         with pytest.raises(ListingDefinitionError, match="declares a flow"):
             _normalize(
                 connections=[
@@ -328,7 +347,7 @@ class TestConnections:
         assert connection["fields"][0]["managed"] is True
 
     def test_a_flow_holds_only_managed_values(self):
-        """Its values come from the app's after_connect hook; a typed field
+        """Its values come from the plug-in's after_connect hook; a typed field
         would be one nobody fills in."""
         with pytest.raises(ListingDefinitionError, match="only managed values"):
             _normalize(
@@ -371,6 +390,7 @@ class TestConnections:
                 "not a field of this connection",
             ),
             ({"revoke": "rfc7009"}, "revoke_url"),
+            ({"revoke": "github_grant"}, "revoke_url"),
             ({"revoke": "telegram"}, "unknown revoke"),
             ({"type": "saml"}, "unknown type"),
         ],
@@ -379,6 +399,7 @@ class TestConnections:
             "an undeclared vendor value",
             "an undeclared field",
             "rfc7009 with nowhere to post",
+            "github_grant with nowhere to send",
             "an unknown revocation",
             "an unknown flow",
         ],
@@ -618,12 +639,12 @@ class TestConnections:
 
 
 #: The id the fixtures below read, spelled once. Namespaced under the fixture
-#: app's own service id, which is what every endpoint id has to be.
-READ_ID = "app.tests.widget-co.orders"
+#: plug-in's own service id, which is what every endpoint id has to be.
+READ_ID = "plugin.tests.widget-co.orders"
 
 
 def _with_source(**endpoint_overrides) -> dict:
-    """A service app with one connection and one read endpoint that needs it."""
+    """A service plug-in with one connection and one read endpoint that needs it."""
     endpoint = {
         "id": READ_ID,
         "direction": "read",
@@ -697,11 +718,15 @@ class TestRequires:
 
 
 class TestEndpoints:
-    def test_an_id_is_namespaced_under_the_app(self):
-        # Two apps offering `create-issue` would be two different things under
+    def test_an_id_is_namespaced_under_the_plugin(self):
+        # Two plug-ins offering `create-issue` would be two different things under
         # one name, and a caller resolving the wrong one would do the wrong
         # thing successfully.
-        for value in ("orders", "app.someone.else.orders", "app.tests.widget-co."):
+        for value in (
+            "orders",
+            "plugin.someone.else.orders",
+            "plugin.tests.widget-co.",
+        ):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 _with_source(id=value)
 
@@ -730,7 +755,7 @@ class TestEndpoints:
     def test_a_cache_window_is_clamped_rather_than_refused(self):
         definition = _with_source(cache_ttl_seconds=10_000_000)
         ttl = definition["endpoints"][0]["cache_ttl_seconds"]
-        assert ttl == service_apps.MAX_CACHE_TTL_SECONDS
+        assert ttl == service_plugins.MAX_CACHE_TTL_SECONDS
 
     def test_only_a_read_is_cached(self):
         # A write answers once, so a window means nothing on one.
@@ -756,7 +781,7 @@ class TestEndpoints:
     def test_a_parameter_cannot_be_a_secret(self):
         # A credential is supplied once and held in custody; it is never
         # restated as a query parameter.
-        assert "secret" not in service_apps.PARAM_TYPES
+        assert "secret" not in service_plugins.PARAM_TYPES
         with pytest.raises(ListingDefinitionError, match="unknown field type"):
             _with_source(params=[{"key": "token", "type": "secret", "label": _label()}])
 
@@ -781,7 +806,7 @@ class TestWidgets:
             _with_widget(module_source="")
 
     def test_a_module_larger_than_the_cap_is_refused(self):
-        oversized = "x" * (service_apps.MAX_MODULE_SOURCE_BYTES + 1)
+        oversized = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES + 1)
         with pytest.raises(ListingDefinitionError, match="larger than"):
             _with_widget(module_source=oversized)
 
@@ -792,7 +817,7 @@ class TestWidgets:
         definition = _with_widget(module_source=source)
         assert definition["widgets"][0]["module_source"] == source
 
-    def test_a_widget_may_only_bind_an_endpoint_the_app_declares(self):
+    def test_a_widget_may_only_bind_an_endpoint_the_plugin_declares(self):
         with pytest.raises(
             ListingDefinitionError, match="not a declared read endpoint"
         ):
@@ -868,7 +893,9 @@ class TestWidgets:
                         "module_source": "export const render = () => ({});",
                         "endpoints": [READ_ID],
                         "sample_data": {
-                            READ_ID: {"blob": "x" * service_apps.MAX_SAMPLE_DATA_BYTES}
+                            READ_ID: {
+                                "blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES
+                            }
                         },
                     }
                 ],
@@ -885,15 +912,15 @@ class TestWidgets:
 
 
 class TestWidgetTypeNamespacing:
-    def test_an_app_widget_carries_its_listing(self):
-        assert app_widget_type("K7M2QX8N4TVB9C", "summary") == (
-            "app:K7M2QX8N4TVB9C:summary"
+    def test_a_plugin_widget_carries_its_listing(self):
+        assert plugin_widget_type("K7M2QX8N4TVB9C", "summary") == (
+            "plugin:K7M2QX8N4TVB9C:summary"
         )
 
     def test_it_cannot_collide_with_a_built_in_type(self):
         from app.services.tenant.dashboard_definition import WIDGET_TYPES
 
-        assert app_widget_type("K7M2QX8N4TVB9C", "stat") not in WIDGET_TYPES
+        assert plugin_widget_type("K7M2QX8N4TVB9C", "stat") not in WIDGET_TYPES
 
     def test_the_separator_is_outside_the_id_alphabet(self):
         # Which is what keeps the three parts separable: no widget id can
@@ -902,7 +929,7 @@ class TestWidgetTypeNamespacing:
 
     def test_a_widget_id_is_checked_before_it_is_composed(self):
         with pytest.raises(ListingDefinitionError, match="widget id"):
-            app_widget_type("K7M2QX8N4TVB9C", "sum:mary")
+            plugin_widget_type("K7M2QX8N4TVB9C", "sum:mary")
 
 
 class TestEmbeds:
@@ -930,7 +957,7 @@ class TestEmbeds:
             {
                 "id": "orders",
                 "path": "/embed/orders",
-                "scopes": ["guild"],
+                "scopes": ["community"],
                 "admin_only": True,
                 "name": {"en": "Orders"},
             }
@@ -1003,11 +1030,11 @@ class TestWhereASurfaceRenders:
         return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
 
     def test_saying_nothing_keeps_the_placement_embeds_already_had(self):
-        assert self._embed()["scopes"] == ["guild"]
+        assert self._embed()["scopes"] == ["community"]
 
     def test_a_surface_may_render_in_both(self):
-        assert self._embed(scopes=["initiative", "guild"])["scopes"] == [
-            "guild",
+        assert self._embed(scopes=["initiative", "community"])["scopes"] == [
+            "community",
             "initiative",
         ]
 
@@ -1023,7 +1050,7 @@ class TestWhereASurfaceRenders:
             self._embed(scopes=[])
 
     def test_a_repeated_scope_is_stored_once(self):
-        assert self._embed(scopes=["guild", "guild"])["scopes"] == ["guild"]
+        assert self._embed(scopes=["community", "community"])["scopes"] == ["community"]
 
 
 class TestAdminOnlySurfaces:
@@ -1047,7 +1074,7 @@ class TestAdminOnlySurfaces:
         assert self._embed()["admin_only"] is False
 
     @pytest.mark.parametrize(
-        "scopes", [["guild"], ["initiative"], ["guild", "initiative"]]
+        "scopes", [["community"], ["initiative"], ["community", "initiative"]]
     )
     def test_any_surface_may_be_admin_only(self, scopes):
         assert self._embed(scopes=scopes, admin_only=True)["admin_only"] is True
@@ -1068,23 +1095,23 @@ class TestAdminOnlySurfaces:
 
 class TestEmissions:
     def _emit(self, **overrides) -> dict:
-        endpoint = {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+        endpoint = {"id": "plugin.tests.widget-co.order-created", "direction": "emit"}
         endpoint.update(overrides)
         return _normalize(features=["endpoints"], endpoints=[endpoint])
 
-    def test_an_id_is_namespaced_under_the_app(self):
-        for value in ("order_created", "app.someone.else.order_created"):
+    def test_an_id_is_namespaced_under_the_plugin(self):
+        for value in ("order_created", "plugin.someone.else.order_created"):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 self._emit(id=value)
 
     def test_the_namespace_alone_is_not_an_id(self):
         with pytest.raises(ListingDefinitionError, match="must start with"):
-            self._emit(id="app.tests.widget-co.")
+            self._emit(id="plugin.tests.widget-co.")
 
     def test_a_declared_one_is_kept(self):
         definition = self._emit()
         assert definition["endpoints"] == [
-            {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+            {"id": "plugin.tests.widget-co.order-created", "direction": "emit"}
         ]
 
     def test_two_of_the_same_id_are_refused(self):
@@ -1094,8 +1121,8 @@ class TestEmissions:
             _normalize(
                 features=["endpoints"],
                 endpoints=[
-                    {"id": "app.tests.widget-co.order-created", "direction": "emit"},
-                    {"id": "app.tests.widget-co.order-created", "direction": "read"},
+                    {"id": "plugin.tests.widget-co.order-created", "direction": "emit"},
+                    {"id": "plugin.tests.widget-co.order-created", "direction": "read"},
                 ],
             )
 
@@ -1108,14 +1135,14 @@ class TestCanonicalShape:
             base_url="https://widget.test",
         )
         assert set(definition) == {
-            "app_kind",
+            "plugin_kind",
             "service",
             "features",
             "default_name",
         }
 
-    def test_a_definition_holds_no_address_of_the_app(self):
-        """The governing rule, asserted on a manifest that tries: an app says
+    def test_a_definition_holds_no_address_of_the_plugin(self):
+        """The governing rule, asserted on a manifest that tries: a plug-in says
         which route, and the deployment's registration says where. The one kind
         of address it may hold is its vendor's, in a flow Initiative runs."""
         definition = _normalize(
@@ -1134,9 +1161,7 @@ class TestCanonicalShape:
                 }
             ],
             vendor=VENDOR,
-            endpoints=[
-                {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
-            ],
+            endpoints=[{"id": READ_ID, "direction": "read"}],
             embeds=[
                 {
                     "id": "orders",
@@ -1149,21 +1174,20 @@ class TestCanonicalShape:
         rendered = repr(definition)
         assert "http://" not in rendered
         assert "widget.test" not in rendered
-        assert "x.test" not in rendered
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):
         # Each widget is under the per-module cap; together they are not.
-        module = "x" * (service_apps.MAX_MODULE_SOURCE_BYTES - 1)
+        module = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES - 1)
         widgets = [
             {
                 "id": f"w{index}",
                 "meta": {"name": {"en": f"Widget {index}"}},
                 "module_source": module,
             }
-            for index in range(service_apps.MAX_WIDGETS)
+            for index in range(service_plugins.MAX_WIDGETS)
         ]
-        with pytest.raises(ListingDefinitionError, match="service app definition"):
+        with pytest.raises(ListingDefinitionError, match="service plug-in definition"):
             _normalize(features=["widgets"], widgets=widgets)
 
     def test_a_block_longer_than_its_cap_is_refused_not_truncated(self):
@@ -1172,7 +1196,7 @@ class TestCanonicalShape:
                 features=["embeds"],
                 embeds=[
                     {"id": f"e{index}", "path": f"/embed/{index}", "name": _label()}
-                    for index in range(service_apps.MAX_EMBEDS + 1)
+                    for index in range(service_plugins.MAX_EMBEDS + 1)
                 ],
             )
 
@@ -1202,7 +1226,7 @@ class TestWhatAnEndpointSaysItIs:
             features=["endpoints"],
             endpoints=[
                 {
-                    "id": "app.tests.widget-co.order-created",
+                    "id": "plugin.tests.widget-co.order-created",
                     "direction": "emit",
                     "label": _label("An order is placed"),
                     "returns": [{"key": "order_id", "type": "int"}],
@@ -1221,7 +1245,7 @@ class TestWhatAnEndpointSaysItIs:
                 features=["endpoints"],
                 endpoints=[
                     {
-                        "id": "app.tests.widget-co.order-created",
+                        "id": "plugin.tests.widget-co.order-created",
                         "direction": "emit",
                         "label": _label("An order is placed"),
                         "params": [{"key": "x", "type": "string", "label": _label()}],
@@ -1280,7 +1304,7 @@ class TestWhatAParameterTakes:
     """A manifest describes the API, not the control a consumer draws for it.
 
     ``picker`` named one of an automation editor's own controls inside a third
-    party's manifest, so an app could only ask for something that editor had
+    party's manifest, so a plug-in could only ask for something that editor had
     already thought of — and a consumer that writes its own step needs no term
     here at all. What survives is what a caller cannot infer: whether to send
     one value or an array.
@@ -1320,7 +1344,7 @@ class TestWhatAParameterTakes:
         assert "list" not in cleaned["connections"][0]["fields"][0]
 
 
-LOOKUP_ID = "app.tests.widget-co.boards"
+LOOKUP_ID = "plugin.tests.widget-co.boards"
 
 
 def _with_option_source(source: dict, *, siblings: list | None = None) -> dict:
@@ -1356,7 +1380,7 @@ def _with_option_source(source: dict, *, siblings: list | None = None) -> dict:
 
 
 class TestWhereAParametersValuesComeFrom:
-    """Values a manifest cannot list because only the app can enumerate them.
+    """Values a manifest cannot list because only the plug-in can enumerate them.
 
     A repository, a channel, a board: the set differs per install and changes
     after it, so a parameter names the read that answers instead of carrying the
@@ -1387,9 +1411,9 @@ class TestWhereAParametersValuesComeFrom:
         cleaned = _with_option_source({"endpoint": LOOKUP_ID, "key": "ids"})
         assert "needs" not in cleaned["endpoints"][1]["params"][0]["options_from"]
 
-    def test_an_endpoint_from_another_app_is_refused(self):
+    def test_an_endpoint_from_another_plugin_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="not declared here"):
-            _with_option_source({"endpoint": "app.other.co.boards", "key": "ids"})
+            _with_option_source({"endpoint": "plugin.other.co.boards", "key": "ids"})
 
     def test_a_write_cannot_fill_in_a_form(self):
         with pytest.raises(ListingDefinitionError, match="does not read"):

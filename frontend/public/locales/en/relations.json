@@ -1,5 +1,5 @@
 {
-  "title": "Relates to",
+  "title": "Connections",
   "description": "Everything this is connected to, and how.",
   "untitled": "Untitled",
   "empty": "Nothing linked yet.",
@@ -82,23 +82,24 @@
       "title": "Mentioned in",
       "option": "is mentioned in"
     },
+    "references": {
+      "title": "Links to",
+      "option": "links to"
+    },
     "tagged": {
       "title": "Tagged",
       "option": "is tagged"
     }
   },
   "loading": "Loading…",
-  "title_task": "Connections",
-  "title_document": "Connections",
-  "title_project": "Attached & linked",
-  "empty_task": "Nothing linked yet. Link the document that describes this task, or the task it's blocked by.",
-  "empty_document": "Nothing linked yet. Link the project this explains, or the task it came out of.",
-  "empty_project": "Nothing linked yet. Attach the documents and files this project runs on.",
+  "empty_task": "Nothing linked yet. Link the file that describes this task, or the task it's blocked by.",
+  "empty_file": "Nothing linked yet. Link the project this explains, or the task it came out of.",
+  "empty_project": "Nothing linked yet. Attach the files this project runs on.",
   "count": "{{count}}",
   "openOf": "{{open}} of {{total}} still open",
   "help": {
     "title": "What a link is",
-    "body": "A link records how two things relate — what a task is waiting on, which document explains a project, what mentions what.",
+    "body": "A link records how two things relate — what a task is waiting on, which file explains a project, what mentions what.",
     "derived": "Some links write themselves: # and [[ ]] in a body become \"Mentioned in\".",
     "learnMore": "Learn more"
   },
@@ -108,7 +109,7 @@
     "counter": "This counter",
     "counter_group": "This group",
     "dashboard": "This dashboard",
-    "document": "This document",
+    "file": "This file",
     "gallery": "This gallery",
     "gallery_image": "This picture",
     "generic": "This",
@@ -125,24 +126,15 @@
     "label_other": "{{count}} things are holding this up",
     "icon": "What's holding this up"
   },
-  "title_calendar": "Connections",
-  "title_calendar_event": "Connections",
-  "title_counter": "Connections",
-  "title_counter_group": "Connections",
-  "title_dashboard": "Connections",
-  "title_gallery": "Attached & linked",
-  "title_gallery_image": "Connections",
-  "title_post": "Connections",
-  "title_queue": "Connections",
-  "title_queue_item": "Connections",
-  "empty_calendar": "Nothing linked yet. Link the project this calendar plans, or the document that explains it.",
-  "empty_calendar_event": "Nothing linked yet. Link the task this event is for, or the document you'll work from.",
+  "empty_calendar": "Nothing linked yet. Link the project this calendar plans, or the file that explains it.",
+  "empty_calendar_event": "Nothing linked yet. Link the task this event is for, or the file you'll work from.",
   "empty_counter": "Nothing linked yet. Link the task this counts towards, or the project it reports on.",
   "empty_counter_group": "Nothing linked yet. Link the project these numbers are about.",
-  "empty_dashboard": "Nothing linked yet. Link the project this reports on, or the document that reads it.",
+  "empty_dashboard": "Nothing linked yet. Link the project this reports on, or the file that reads it.",
   "empty_gallery": "Nothing linked yet. Link the project these pictures are for.",
-  "empty_gallery_image": "Nothing linked yet. Link the task this picture is for, or the document it belongs in.",
-  "empty_post": "Nothing linked yet. Link the project this announces, or the document behind it.",
+  "empty_gallery_image": "Nothing linked yet. Link the task this picture is for, or the file it belongs in.",
+  "empty_post": "Nothing linked yet. Link the project this announces, or the file behind it.",
   "empty_queue": "Nothing linked yet. Link the project this queue feeds.",
-  "empty_queue_item": "Nothing linked yet. Link the task this item became, or the document it came from."
+  "empty_queue_item": "Nothing linked yet. Link the task this item became, or the file it came from.",
+  "empty_wiki_page": "Nothing linked yet. Mention this page with [[ from anywhere and it will show up here."
 }

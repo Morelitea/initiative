@@ -8,7 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
@@ -53,7 +53,7 @@ async def community_by_default(session: AsyncSession):
 def _section(payload: dict, guild_id: int) -> dict:
     """The section for one guild, or fail the test saying it is missing."""
     for section in payload["sections"]:
-        if section["guild_id"] == guild_id:
+        if section["community_id"] == guild_id:
             return section
     raise AssertionError(
         f"no section for guild {guild_id}; got "
@@ -113,7 +113,7 @@ async def test_sections_follow_rail_order(
 
     response = await client.get(SECTIONS, headers=a.headers)
     assert response.status_code == 200
-    assert [s["guild_id"] for s in response.json()["sections"]] == [
+    assert [s["community_id"] for s in response.json()["sections"]] == [
         second.id,
         third.id,
         first.id,
@@ -137,7 +137,7 @@ async def test_only_a_community_the_caller_shares_gets_a_section(
     await _join(session, theirs)
 
     response = await client.get(SECTIONS, headers=a.headers)
-    ids = [s["guild_id"] for s in response.json()["sections"]]
+    ids = [s["community_id"] for s in response.json()["sections"]]
     assert ids == [shared.id]
     assert alone.id not in ids
     assert theirs.id not in ids
@@ -148,7 +148,7 @@ async def test_a_section_names_the_other_people_who_are_still_here(
 ):
     """The caller is not their own contact, and a suspended account leaves the
     roster — count and all."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     other = await _join(session, a.guild)
 
     response = await client.get(SECTIONS, headers=a.headers)
@@ -170,7 +170,7 @@ async def test_sections_page_within_each_guild(
 ):
     """Paging is per section — a flat offset across a merged list would not
     mean anything for a grouped response."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     for index in range(5):
         await _join(session, a.guild, username=f"member{index}")
 
@@ -196,8 +196,10 @@ async def test_guild_ids_narrows_to_one_section(
     for guild in (first, second):
         await _join(session, guild)
 
-    response = await client.get(f"{SECTIONS}?guild_ids={second.id}", headers=a.headers)
-    assert [s["guild_id"] for s in response.json()["sections"]] == [second.id]
+    response = await client.get(
+        f"{SECTIONS}?community_ids={second.id}", headers=a.headers
+    )
+    assert [s["community_id"] for s in response.json()["sections"]] == [second.id]
 
 
 # --- how a person is drawn ---------------------------------------------------
@@ -209,7 +211,7 @@ async def test_both_ways_of_listing_someone_draw_them_the_same(
     """A row draws somebody the way every other surface does — and favorites
     come from the profile view rather than the roster walk, so they are their
     own path to the same answer."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     other = await _join(
         session, a.guild, profile_decorations={"frame": "core.gold", "trophies": []}
     )
@@ -227,25 +229,28 @@ async def test_both_ways_of_listing_someone_draw_them_the_same(
 # --- names, per guild -------------------------------------------------------
 
 
-async def test_a_guild_that_hides_real_names_neither_shows_nor_matches_them(
+async def test_each_guild_names_someone_by_what_they_set_there(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """One response, two guilds, one person — named by each guild's setting,
-    and searchable by that name only where the guild shows it."""
+    """One response, two guilds, one person — named in each by the display name
+    set there, and searchable by it only there."""
     a = await acting_user()
-    shows = await create_guild(session, show_member_names=True)
-    hides = await create_guild(session, show_member_names=False)
-    await _rail(session, a.user, shows, hides)
-    other = await create_user(session, username="qqqhandle", full_name="Ada Lovelace")
-    await _join(session, shows, other)
-    await _join(session, hides, other)
+    named = await create_guild(session)
+    unnamed = await create_guild(session)
+    await _rail(session, a.user, named, unnamed)
+    other = await create_user(session, username="qqqhandle")
+    await _join(session, named, other)
+    await _join(session, unnamed, other)
+    await create_guild_membership(
+        session, user=other, guild=named, display_name="Ada Lovelace"
+    )
 
     payload = (await client.get(SECTIONS, headers=a.headers)).json()
-    assert _section(payload, shows.id)["items"][0]["full_name"] == "Ada Lovelace"
-    assert _section(payload, hides.id)["items"][0]["full_name"] is None
+    assert _section(payload, named.id)["items"][0]["display_name"] == "Ada Lovelace"
+    assert _section(payload, unnamed.id)["items"][0]["display_name"] is None
 
     searched = await client.get(f"{SECTIONS}?search=Lovelace", headers=a.headers)
-    assert [s["guild_id"] for s in searched.json()["sections"]] == [shows.id]
+    assert [s["community_id"] for s in searched.json()["sections"]] == [named.id]
 
 
 # --- the shared-guild chip --------------------------------------------------
@@ -274,8 +279,8 @@ async def test_shared_guilds_named_on_every_appearance(
         assert [item["id"] for item in section["items"]] == [other.id]
         # Every appearance names the full set, in rail order; the chip is what
         # drops the section's own guild.
-        assert section["items"][0]["shared_guild_ids"] == expected
-        assert elsewhere.id not in section["items"][0]["shared_guild_ids"]
+        assert section["items"][0]["shared_community_ids"] == expected
+        assert elsewhere.id not in section["items"][0]["shared_community_ids"]
 
 
 async def test_shared_guilds_stable_across_pages(
@@ -302,14 +307,14 @@ async def test_shared_guilds_stable_across_pages(
 
     page_one = await client.get(f"{SECTIONS}?page=1&page_size=2", headers=a.headers)
     small_section = _section(page_one.json(), small.id)
-    assert small_section["items"][0]["shared_guild_ids"] == expected
+    assert small_section["items"][0]["shared_community_ids"] == expected
     # ...and ``other`` is not even on the big guild's first page.
     assert other.id not in [i["id"] for i in _section(page_one.json(), big.id)["items"]]
 
     page_three = await client.get(f"{SECTIONS}?page=3&page_size=2", headers=a.headers)
     big_section = _section(page_three.json(), big.id)
     assert [i["id"] for i in big_section["items"]] == [other.id]
-    assert big_section["items"][0]["shared_guild_ids"] == expected
+    assert big_section["items"][0]["shared_community_ids"] == expected
 
 
 # --- search -----------------------------------------------------------------
@@ -320,7 +325,7 @@ async def test_search_finds_someone_past_the_first_page(
 ):
     """The reason search is server-side: a client filter over the loaded page
     could not reach this person."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     for index in range(6):
         await _join(session, a.guild, username=f"aaa{index}")
     target = await _join(session, a.guild, username="zzzneedle")
@@ -348,7 +353,7 @@ async def test_search_hides_sections_with_no_match(
     await _join(session, miss, username="somebody")
 
     response = await client.get(f"{SECTIONS}?search=findme", headers=a.headers)
-    assert [s["guild_id"] for s in response.json()["sections"]] == [hit.id]
+    assert [s["community_id"] for s in response.json()["sections"]] == [hit.id]
 
 
 # --- favorites --------------------------------------------------------------
@@ -464,9 +469,9 @@ async def test_suspended_favorite_drops_out_and_returns(
 async def test_favorites_search_matches_the_handle(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A profile carries no real name, so the handle is all there is to match."""
+    """A profile carries no name, so the handle is all there is to match."""
     a = await acting_user()
-    hit = await create_user(session, username="findable", full_name="Ada Lovelace")
+    hit = await create_user(session, username="findable")
     miss = await create_user(session, username="otherperson")
     await client.put(f"{FAVORITES}/{hit.id}", headers=a.headers)
     await client.put(f"{FAVORITES}/{miss.id}", headers=a.headers)
@@ -476,11 +481,6 @@ async def test_favorites_search_matches_the_handle(
     ).json()
     assert [item["id"] for item in by_handle["items"]] == [hit.id]
 
-    by_name = (
-        await client.get(f"{FAVORITES}?search=Lovelace", headers=a.headers)
-    ).json()
-    assert by_name["items"] == []
-
 
 async def test_a_favorites_list_is_private(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -489,8 +489,8 @@ async def test_a_favorites_list_is_private(
     bystander, and the admin of a guild the starrer is in. It is the starrer's
     list, and a guild admin runs the guild rather than anyone's contacts.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    starrer = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    starrer = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     onlooker = await acting_user()
     subject = await create_user(session)
 

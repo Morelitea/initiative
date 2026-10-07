@@ -26,7 +26,7 @@ Tick something off and it stays until tomorrow, struck through, with the count a
 
 ## My Tools
 
-Every project, document, queue, counter, calendar, dashboard and post that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
+Every [tool](tools.md) of every kind that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
 A tool you have none of anywhere doesn't appear at all. Never touched a queue? No queue, and no empty table sulking behind it.
 

@@ -68,6 +68,12 @@ def provider_callback_url(slug: str) -> str:
     return f"{base}{API_V1_STR}/auth/{slug}/callback"
 
 
+def frontend_callback_url() -> str:
+    """The web app's page a provider sign-in finishes on, after the callback
+    above has done its work."""
+    return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
+
+
 def owner_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderOwnerRead:
     return AuthProviderOwnerRead(
         id=row.id,

@@ -21,6 +21,13 @@ from app.schemas.tenant.project_export import ProjectExportEnvelope
 
 BLUEPRINT_DIR = Path(__file__).parent
 
+#: The statuses a blueprint gives a stream that holds a conversation with
+#: whoever filed a case: the one that shows them the case is waiting on them,
+#: and the one their answer moves it to. Setting a stream up from its blueprint
+#: names them on the binding, so its filers see "Waiting on you" from the start.
+WAITING_ON_REQUESTER = "Waiting on requester"
+REQUESTER_REPLIED = "Requester replied"
+
 
 @lru_cache(maxsize=None)
 def blueprint_for(stream: IntakeStream) -> ProjectExportEnvelope:

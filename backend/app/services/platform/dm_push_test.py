@@ -7,10 +7,9 @@ nothing holding it up.
 
 A push reaches an installation only where two rows agree about which one it is:
 the account's message key store (``dm_devices``) and its push registration
-(``push_tokens``) both have to name the same device token. Neither row was ever
-written with one, so the sets never intersected and every direct-message push
-was dropped before it was built. The assertions here are the ones that fail if
-either half stops being recorded.
+(``push_tokens``) both have to name the same sign-in. The assertions here are
+the ones that fail if either half stops being recorded, or stops following the
+sign-in when it is renewed.
 """
 
 import base64
@@ -26,11 +25,19 @@ from app.api.v1.platform_endpoints.dm_transport_test import (
     _registration,
     _set_policy,
 )
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.dm_device import DmDevice
 from app.models.platform.push_token import PushToken
 from app.models.platform.user_dm_settings import DmPolicy
-from app.services.platform import user_tokens
-from app.testing import push_switched_on, set_notification_prefs
+from app.services.auth import sessions as session_service
+from app.testing import (
+    drain_notices,
+    get_auth_token,
+    push_switched_on,
+    set_notification_prefs,
+    signed_in_headers,
+)
+from app.testing.sockets import settle
 
 
 @pytest.fixture(autouse=True)
@@ -41,19 +48,12 @@ def fcm_configured():
         yield
 
 
-async def _device_headers(session, user) -> dict[str, str]:
-    """Authenticate the way the native app does, so the request carries the
-    device token everything here keys on."""
-    token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Pixel 9"
-    )
-    return {"Authorization": f"DeviceToken {token}"}
-
-
-async def _install(client, session, actor, *, seed: int) -> tuple[str, dict[str, str]]:
+async def _install(
+    client, session, actor, *, seed: int, headers: dict[str, str] | None = None
+) -> tuple[str, dict[str, str]]:
     """One phone: a message key store and a push registration, both made over
-    the same device-token credential."""
-    headers = await _device_headers(session, actor.user)
+    the same sign-in (a fresh one unless ``headers`` names it)."""
+    headers = headers or await signed_in_headers(session, actor.user)
     registered = await client.post(
         "/api/v1/me/dm/devices", json=_registration(seed), headers=headers
     )
@@ -67,12 +67,14 @@ async def _install(client, session, actor, *, seed: int) -> tuple[str, dict[str,
     return registered.json()["devices"][-1]["id"], headers
 
 
-async def _channel(client, session, a, b, *, seed=44):
+async def _channel(client, session, a, b, *, seed=44, recipient_headers=None):
     await _set_policy(session, a.user, DmPolicy.public)
     await _set_policy(session, b.user, DmPolicy.public)
     await _open_channel(session, a.user, b.user)
     sender_device, sender_headers = await _install(client, session, a, seed=1)
-    device_id, _ = await _install(client, session, b, seed=seed)
+    device_id, _ = await _install(
+        client, session, b, seed=seed, headers=recipient_headers
+    )
     created = await client.post(
         "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
     )
@@ -81,7 +83,8 @@ async def _channel(client, session, a, b, *, seed=44):
 
 
 async def _send(client, actor, conversation_id, device_id, **extra):
-    return await client.post(
+    """Send one message, then run the notice worker that pushes it."""
+    response = await client.post(
         f"/api/v1/me/dm/conversations/{conversation_id}/messages",
         json={
             "messages": [
@@ -95,77 +98,64 @@ async def _send(client, actor, conversation_id, device_id, **extra):
         },
         headers=actor.headers,
     )
+    await drain_notices()
+    return response
 
 
 class TestTheLink:
     """Which installation a key store belongs to, and how it learns."""
 
-    async def test_registering_over_a_device_token_records_it(
+    async def test_a_key_store_and_its_push_row_name_the_calling_sign_in(
         self, client, session, acting_user
     ):
         a = await acting_user()
-        headers = await _device_headers(session, a.user)
+        await _install(client, session, a, seed=3)
 
-        response = await client.post(
-            "/api/v1/me/dm/devices", json=_registration(3), headers=headers
-        )
-        assert response.status_code == 201, response.text
-
+        signed_in = (
+            await session.exec(
+                select(AuthSession.id).where(AuthSession.user_id == a.user.id)
+            )
+        ).one()
         device = (
             await session.exec(select(DmDevice).where(DmDevice.user_id == a.user.id))
         ).one()
-        assert device.device_token_id is not None
-
-    async def test_the_web_registers_without_one(self, client, session, acting_user):
-        """A browser has no device token, and is not given one to tidy the join."""
-        a = await acting_user()
-
-        response = await client.post(
-            "/api/v1/me/dm/devices", json=_registration(4), headers=a.headers
-        )
-        assert response.status_code == 201, response.text
-
-        device = (
-            await session.exec(select(DmDevice).where(DmDevice.user_id == a.user.id))
-        ).one()
-        assert device.device_token_id is None
-
-    async def test_a_push_registration_names_the_calling_installation(
-        self, client, session, acting_user
-    ):
-        a = await acting_user()
-        headers = await _device_headers(session, a.user)
-
-        await client.post(
-            "/api/v1/push/register",
-            json={"push_token": "fcm-abc", "platform": "android"},
-            headers=headers,
-        )
-
         token = (
             await session.exec(select(PushToken).where(PushToken.user_id == a.user.id))
         ).one()
-        assert token.device_token_id is not None
+        assert device.session_id == signed_in
+        assert token.session_id == signed_in
 
-    async def test_collecting_repairs_a_key_store_that_has_no_link(
+    async def test_collecting_relinks_the_key_store_to_the_request_s_sign_in(
         self, client, session, acting_user
     ):
         """A device registers once and never again, so registration cannot be the
-        only place the link is written — one made before there was a link to
-        write would stay unwakeable for the rest of its life."""
+        only place the link is written — one that has signed in again since, or
+        one made before there was a link to write, would stay unwakeable for the
+        rest of its life."""
         a = await acting_user()
-        device_id, headers = await _install(client, session, a, seed=7)
-        await session.exec(text("UPDATE public.dm_devices SET device_token_id = NULL"))
+        device_id, _ = await _install(client, session, a, seed=7)
+        await session.exec(text("UPDATE public.dm_devices SET session_id = NULL"))
         await session.commit()
 
-        collected = await client.get(
-            f"/api/v1/me/dm/queue?device_id={device_id}", headers=headers
-        )
-        assert collected.status_code == 200, collected.text
+        for _ in range(2):
+            # Signed in afresh each time: unlinked first, then linked elsewhere.
+            issued = await session_service.create_session(
+                session, user_id=a.user.id, amr=["pwd"], satisfied_providers=[]
+            )
+            signed_in = issued.session.id
+            headers = {
+                "Authorization": f"Bearer {get_auth_token(a.user, session_id=signed_in)}"
+            }
+            await session.commit()
 
-        device = await session.get(DmDevice, device_id)
-        await session.refresh(device)
-        assert device.device_token_id is not None
+            collected = await client.get(
+                f"/api/v1/me/dm/queue?device_id={device_id}", headers=headers
+            )
+            assert collected.status_code == 200, collected.text
+
+            device = await session.get(DmDevice, uuid.UUID(device_id))
+            await session.refresh(device)
+            assert device.session_id == signed_in
 
     async def test_one_installation_is_named_by_one_key_store(
         self, client, session, acting_user
@@ -180,7 +170,7 @@ class TestTheLink:
         a = await acting_user()
         first, headers = await _install(client, session, a, seed=13)
         # A second key store on the same account, collected under the first
-        # installation's credential.
+        # installation's sign-in.
         registered = await client.post(
             "/api/v1/me/dm/devices", json=_registration(21), headers=a.headers
         )
@@ -192,7 +182,7 @@ class TestTheLink:
         assert collected.status_code == 200, collected.text
 
         links = {
-            row.id: row.device_token_id
+            row.id: row.session_id
             for row in (
                 await session.exec(
                     select(DmDevice).where(DmDevice.user_id == a.user.id)
@@ -215,7 +205,7 @@ class TestTheLink:
         assert registered.status_code == 201, registered.text
 
         links = {
-            row.id: row.device_token_id
+            row.id: row.session_id
             for row in (
                 await session.exec(
                     select(DmDevice).where(DmDevice.user_id == a.user.id)
@@ -254,16 +244,67 @@ class TestDelivery:
         # through a push service, which is the one thing this is built not to do.
         assert conversation_id not in repr(send.await_args)
 
-    async def test_every_message_pushes(self, client, session, acting_user):
+    async def test_the_phone_is_still_woken_after_its_sign_in_is_renewed(
+        self, client, session, acting_user
+    ):
+        """A renewal moves the key store and the push row to the new session
+        together, so they go on naming the same sign-in."""
+        a = await acting_user()
+        b = await acting_user()
+        issued = await session_service.create_session(
+            session,
+            user_id=b.user.id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            device=True,
+        )
+        headers = {
+            "Authorization": f"Bearer {get_auth_token(b.user, session_id=issued.session.id)}"
+        }
+        await session.commit()
+        conversation_id, device_id, _, _ = await _channel(
+            client, session, a, b, recipient_headers=headers
+        )
+
+        renewed = await session_service.rotate_session(
+            session, raw_refresh_token=issued.refresh_token
+        )
+        assert renewed.ok
+        renewed_id = renewed.issued.session.id
+        await session.commit()
+
+        device = await session.get(DmDevice, uuid.UUID(device_id))
+        await session.refresh(device)
+        token = (
+            await session.exec(select(PushToken).where(PushToken.user_id == b.user.id))
+        ).one()
+        assert device.session_id == renewed_id
+        assert token.session_id == renewed_id
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            await _send(client, a, conversation_id, device_id)
+
+        assert send.await_count == 1
+        assert send.await_args.kwargs["push_token"] == "fcm-token-44"
+
+    async def test_every_message_pushes(
+        self, client, session, acting_user, account_socket
+    ):
         """A reply is the thing somebody is waiting for.
 
         The bell line rolls up and the email fires once, but the push is the
         channel a conversation actually happens on, and a phone that is told
-        about the first message and then goes quiet is not usable.
+        about the first message and then goes quiet is not usable. The desktop
+        is told each time too, about the one line.
         """
         a = await acting_user()
         b = await acting_user()
         conversation_id, device_id, _, _ = await _channel(client, session, a, b)
+        desktop = account_socket(b.user.id)
 
         with patch(
             "app.services.platform.push_notifications.send_push_notification",
@@ -272,8 +313,12 @@ class TestDelivery:
         ) as send:
             for _ in range(4):
                 await _send(client, a, conversation_id, device_id)
+        await settle()
 
         assert send.await_count == 4
+        alerts = [frame for frame in desktop.sent if frame["resource"] == "alert"]
+        assert len(alerts) == 4
+        assert len({str(frame["ids"]) for frame in alerts}) == 1
 
     async def test_a_message_after_a_read_still_pushes(
         self, client, session, acting_user
@@ -305,7 +350,7 @@ class TestDelivery:
         b = await acting_user()
         conversation_id, device_id, _, _ = await _channel(client, session, a, b)
         # A second phone signed in, push registered, but no message key store.
-        other = await _device_headers(session, b.user)
+        other = await signed_in_headers(session, b.user)
         await client.post(
             "/api/v1/push/register",
             json={"push_token": "fcm-keyless", "platform": "android"},
@@ -394,8 +439,8 @@ class TestWakingOwnDevices:
         assert response.status_code == 200, response.text
 
         assert send.await_count == 1
-        # The device that asked is already showing the notice; it is the other
-        # one that has to be picked up.
+        # The device that asked is already showing the notice, so its sign-in is
+        # skipped; it is the other one that has to be picked up.
         assert send.await_args.kwargs["push_token"] == "fcm-token-9"
         assert send.await_args.kwargs["data"]["target_path"] == "/messages"
 

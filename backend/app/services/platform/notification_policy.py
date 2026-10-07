@@ -31,19 +31,21 @@ whichever session happens to be sending.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable, Mapping
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Iterable, Mapping, TypeVar, cast
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
-from app.core.notification_categories import NotificationCategory, category_of
+from app.core.notification_categories import NotificationCategory
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild
-from app.models.platform.notification import NotificationType
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import guild_entitlements
+
+if TYPE_CHECKING:
+    from app.services.email import EmailPieces
 
 
 @dataclass(frozen=True)
@@ -93,18 +95,7 @@ def _guild_policy(row: Guild | None, *, lapsed: bool = False) -> NotificationPol
 
 async def resolve(session: AsyncSession, guild_id: int | None) -> NotificationPolicy:
     """Both levels, on a session that can read them, as one answer."""
-    platform = _platform_policy(
-        (await session.exec(select(AppSetting).where(AppSetting.id == 1))).one_or_none()
-    )
-    if guild_id is None:
-        return platform
-    guild = (
-        await session.exec(select(Guild).where(Guild.id == guild_id))
-    ).one_or_none()
-    held = await session.scalar(
-        select(guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions))
-    )
-    return platform.stricter_than(_guild_policy(guild, lapsed=not held))
+    return (await resolve_many(session, [guild_id]))[guild_id]
 
 
 async def resolve_many(
@@ -126,7 +117,7 @@ async def resolve_many(
                 select(
                     Guild,
                     guild_entitlements.holds_option(
-                        Guild.id, GuildAuthOption.restrictions
+                        Guild.id, CommunityAuthOption.restrictions
                     ),
                 ).where(Guild.id.in_(named))
             )
@@ -217,34 +208,71 @@ async def for_send_many(
     return {gid: answers[gid] for gid in wanted}
 
 
-# --- What a redacted notification says ---------------------------------------
+# --- What a notification says as it leaves ----------------------------------
+
+#: What a channel carries: a push's ``(title, body)``, or a notification email.
+Pieces = TypeVar("Pieces", tuple[str, str], "EmailPieces")
 
 
-def _redacted_key(category: NotificationCategory, part: str) -> str:
-    return f"redacted.{category.value}.{part}"
-
-
-def redacted_push(notification_type: NotificationType, locale: str) -> tuple[str, str]:
-    """The title and body a redacted push carries, as ``(title, body)``.
+def redacted_line(category: NotificationCategory, locale: str) -> tuple[str, str]:
+    """The title and body a redacted notification carries, as ``(title, body)``.
 
     Written per category rather than per type: the category is what the app
     already groups a notification under everywhere else, and the point of a
     redacted line is that it says the kind of thing and stops.
     """
-    category = category_of(notification_type)
+    key = f"redacted.{category.value}"
     return (
-        translate(_redacted_key(category, "title"), locale, namespace="notifications"),
-        translate(_redacted_key(category, "body"), locale, namespace="notifications"),
+        translate(f"{key}.title", locale, namespace="notifications"),
+        translate(f"{key}.body", locale, namespace="notifications"),
     )
 
 
-def redacted_subject(category: NotificationCategory, locale: str) -> str:
-    """The subject line a redacted notification email carries."""
-    return translate(
-        _redacted_key(category, "title"), locale, namespace="notifications"
-    )
+def apply(
+    policy: NotificationPolicy,
+    pieces: Pieces,
+    *,
+    category: NotificationCategory,
+    locale: str,
+) -> Pieces | None:
+    """What ``pieces`` may carry out of the app under ``policy``.
+
+    The channel is the shape of ``pieces``: a ``(title, body)`` pair is a push,
+    anything else a notification email. Returns ``None`` where that channel is
+    switched off; where content is redacted, the kind of thing that happened in
+    ``locale`` — an email keeps its link, which is the way back rather than the
+    content; and ``pieces`` as given otherwise.
+
+    Every push and notification email is put through this as it is sent,
+    under the switches as they stand then; a writer may also call it earlier to
+    store no more than will be sent.
+    """
+    if isinstance(pieces, tuple):
+        if not policy.push:
+            return None
+        return (
+            cast(Pieces, redacted_line(category, locale)) if policy.redact else pieces
+        )
+    if not policy.email:
+        return None
+    if not policy.redact:
+        return pieces
+    title, body = redacted_line(category, locale)
+    return replace(pieces, subject=title, headline=title, body=body, link_label=None)
 
 
-def redacted_body(category: NotificationCategory, locale: str) -> str:
-    """The one sentence a redacted notification email carries."""
-    return translate(_redacted_key(category, "body"), locale, namespace="notifications")
+#: What a redacted push's data keeps: where tapping it opens.
+_ROUTING_KEYS = frozenset({"type", "community_id", "target_path"})
+
+
+def push_data(
+    policy: NotificationPolicy, data: Mapping[str, object] | None
+) -> dict[str, object]:
+    """What a push's data payload may carry under ``policy``: all of it, or
+    where it is redacted, only where tapping it opens, as an email keeps its
+    link."""
+    return {
+        name: value
+        for name, value in (data or {}).items()
+        if not policy.redact or name in _ROUTING_KEYS
+    }

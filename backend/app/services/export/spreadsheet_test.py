@@ -1,4 +1,4 @@
-"""Unit tests for the spreadsheet-document renderers.
+"""Unit tests for the spreadsheet-file renderers.
 
 Focus: the workbook shape. A v3 snapshot has to reach xlsx as one
 worksheet per sheet, a legacy v1/v2 snapshot has to keep rendering, and
@@ -38,7 +38,7 @@ def test_sheets_of_reads_a_v3_workbook():
 
 
 def test_sheets_of_treats_a_legacy_snapshot_as_one_sheet():
-    """A document not re-saved since multi-sheet landed has its structures
+    """A file not re-saved since multi-sheet landed has its structures
     at the top level and no ``sheets`` key."""
     legacy = {"schema_version": 2, "kind": "spreadsheet", "cells": {"0:0": "x"}}
     assert sheets_of(legacy) == [legacy]
@@ -57,7 +57,7 @@ def test_xlsx_renders_one_worksheet_per_sheet():
     assert book["Data"]["A2"].value == 2
 
 
-def test_xlsx_titles_a_legacy_snapshot_from_the_document_name():
+def test_xlsx_titles_a_legacy_snapshot_from_the_file_name():
     legacy = {
         "schema_version": 2,
         "kind": "spreadsheet",
@@ -156,7 +156,7 @@ def test_hidden_rows_and_columns_export_hidden() -> None:
     assert sheet.row_dimensions[5].hidden is True
 
 
-# ── per-cell formatting, in both shapes a document has had ───────────────────
+# ── per-cell formatting, in both shapes a file has had ───────────────────
 
 
 def _rendered(content: dict):

@@ -7,7 +7,7 @@ states)."""
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -20,7 +20,7 @@ class ImportJobRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     created_by: int
     source: str
     params: dict[str, Any]
@@ -42,9 +42,9 @@ def serialize_import_job(job: ImportJob, *, guild_id: int) -> ImportJobRead:
     fields = {
         name: getattr(job, name)
         for name in ImportJobRead.model_fields
-        if name != "guild_id"
+        if name != "community_id"
     }
-    return ImportJobRead(guild_id=guild_id, **fields)
+    return ImportJobRead(community_id=guild_id, **fields)
 
 
 class EnvelopeImportRequest(SanitizedBaseModel):
@@ -209,12 +209,12 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: the site would not hand over.
     images_oversize: int = 0
     images_unreadable: int = 0
-    #: Attached files that are not images, each coming over as a document
+    #: Attached files that are not images, each coming over as a file
     #: attached to its task, and the storage they will use.
     files: int = 0
     file_bytes: int = 0
     #: Attached files that are not images, left behind: attachments were
-    #: switched off, or the initiative has documents switched off.
+    #: switched off, or the initiative has files switched off.
     other_attachments: int = 0
     #: Confluence: spaces read, and the pages they became.
     spaces: int = 0
@@ -233,7 +233,7 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: attachments were not asked for.
     page_attachments: int = 0
     #: Pictures the pages show, coming over as uploads, and files — with any
-    #: picture no page shows — coming over as documents filed in the wiki.
+    #: picture no page shows — coming over as files filed in the wiki.
     page_images: int = 0
     page_files: int = 0
     #: The storage both will use.
@@ -241,7 +241,7 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: Attachments too large, past the import's budget, of a type never
     #: brought, or that the site would not hand over.
     page_attachments_skipped: int = 0
-    #: Files left behind because the initiative cannot take documents.
+    #: Files left behind because the initiative cannot take files.
     page_files_blocked: int = 0
     #: Comments on the pages — footer and inline — that will come over.
     page_comments: int = 0
@@ -261,7 +261,7 @@ class BackupImportPlan(SanitizedBaseModel):
     """The confirm-screen summary, persisted to ``import_jobs.plan`` —
     counts and names only, never envelope content."""
 
-    source_guild_name: str = ""
+    source_community_name: str = ""
     app_version: str = ""
     exported_at: Optional[str] = None
     schema_version: int = 0

@@ -15,16 +15,14 @@ asserts the directory mirrors it, so the two can never silently drift.
 
 from __future__ import annotations
 
-import importlib
 import inspect
-import pkgutil
 
 import pytest
 from sqlmodel import SQLModel
 
 import app.models.platform as platform_pkg
 import app.models.tenant as tenant_pkg
-from app.db import base  # noqa: F401 — import side effect registers every model
+from app.db.base import import_modules
 from app.db.tenancy import GUILD_SCOPED_TABLES, SHARED_TABLES
 from app.models.tenant._mixins import SoftDeleteMixin
 
@@ -35,8 +33,7 @@ _TABLE_NAMES = set(SQLModel.metadata.tables)
 
 def _table_models_in(pkg) -> list[type]:
     found: list[type] = []
-    for mod_info in pkgutil.iter_modules(pkg.__path__, pkg.__name__ + "."):
-        module = importlib.import_module(mod_info.name)
+    for module in import_modules(pkg):
         for _, obj in inspect.getmembers(module, inspect.isclass):
             if obj.__module__ != module.__name__:
                 continue  # imported into the module, not defined here

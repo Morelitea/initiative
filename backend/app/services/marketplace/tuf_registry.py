@@ -63,7 +63,6 @@ from urllib import parse
 
 import httpx
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import text as sa_text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from tuf.api import exceptions as tuf_errors
@@ -79,6 +78,7 @@ from tuf.ngclient import FetcherInterface, Updater, UpdaterConfig
 
 from app.core.config import settings
 from app.core.messages import MarketplaceRegistryMessages as Codes
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.marketplace_registry import (
     STATUS_ROW_ID,
     MarketplaceRegistryStatus,
@@ -269,6 +269,27 @@ def registry_base_url() -> str:
 
 # --- fetchers -----------------------------------------------------------------
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parsed = httpx.URL(url)
+    return (
+        parsed.scheme,
+        parsed.host,
+        parsed.port or _DEFAULT_PORTS.get(parsed.scheme),
+    )
+
+
+def _request_headers(url: str) -> dict[str, str]:
+    """The headers for a fetch of ``url``: the configured token goes only to
+    the registry URL's own origin."""
+    headers = {"Accept": "application/json, */*"}
+    token = (settings.MARKETPLACE_REGISTRY_TOKEN or "").strip()
+    if token and _origin(url) == _origin(registry_base_url()):
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 async def _get(url: str) -> bytes:
     """GET ``url`` through the shared egress layer.
@@ -280,7 +301,7 @@ async def _get(url: str) -> bytes:
         response = await request_public_target(
             "GET",
             url,
-            headers={"Accept": "application/json, */*"},
+            headers=_request_headers(url),
             timeout=httpx.Timeout(FETCH_TIMEOUT_SECONDS),
             max_bytes=MAX_FETCH_BYTES,
         )
@@ -708,18 +729,9 @@ async def _stored_rows(session: AsyncSession) -> Sequence[MarketplaceTufMetadata
     return (await session.exec(select(MarketplaceTufMetadata))).all()
 
 
-def _advisory_key() -> int:
-    digest = hashlib.sha256(b"marketplace-registry:tuf").digest()
-    return int.from_bytes(digest[:8], "big", signed=True)
-
-
 async def _claim_refresh(session: AsyncSession) -> bool:
     """Take the cross-process refresh lock for this transaction."""
-    result = await session.exec(
-        sa_text("SELECT pg_try_advisory_xact_lock(:key)"),
-        params={"key": _advisory_key()},
-    )
-    return bool(result.one()[0])
+    return await advisory_lock(session, LockNamespace.MARKETPLACE_REFRESH, wait=False)
 
 
 # --- the refresh ------------------------------------------------------------------

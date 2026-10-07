@@ -2,8 +2,7 @@ import { Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import type { UsernameAvailabilityResponse } from "@/api/generated/initiativeAPI.schemas";
+import { checkUsernameAvailable } from "@/api/generated/auth/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -49,6 +48,7 @@ export const UsernameField = ({
   onChecked,
 }: UsernameFieldProps) => {
   const { t } = useTranslation("auth");
+  const { t: tErrors } = useTranslation("errors");
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
   const [touched, setTouched] = useState(false);
 
@@ -67,11 +67,8 @@ export const UsernameField = ({
     setAvailability({ state: "checking" });
     let ignore = false;
     const timer = setTimeout(() => {
-      apiClient
-        .get<UsernameAvailabilityResponse>("/auth/username-available", {
-          params: { username: candidate },
-        })
-        .then(({ data }) => {
+      checkUsernameAvailable({ username: candidate })
+        .then((data) => {
           if (ignore) return;
           setAvailability(
             data.available
@@ -137,9 +134,7 @@ export const UsernameField = ({
       </div>
       {availability.state === "taken" ? (
         <p className="text-destructive text-xs">
-          {t(`register.usernameError.${availability.reason}`, {
-            defaultValue: t("register.usernameError.USERNAME_UNAVAILABLE"),
-          })}
+          {tErrors(availability.reason, { defaultValue: tErrors("USERNAME_UNAVAILABLE") })}
         </p>
       ) : null}
     </div>

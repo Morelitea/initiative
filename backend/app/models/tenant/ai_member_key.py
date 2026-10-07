@@ -18,6 +18,8 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueCons
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.encryption import FERNET_SALT, SALT_AI_API_KEY
+
 
 class GuildAIMemberKey(SQLModel, table=True):
     __tablename__ = "guild_ai_member_keys"
@@ -44,7 +46,11 @@ class GuildAIMemberKey(SQLModel, table=True):
     # "platform" -> platform_ai_connections.id, "guild" -> guild_ai_connections.id
     connection_scope: str = Field(sa_column=Column(String(20), nullable=False))
     connection_id: int = Field(sa_column=Column(Integer, nullable=False))
-    api_key_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
+    api_key_encrypted: str = Field(
+        sa_column=Column(
+            String(2000), nullable=False, info={FERNET_SALT: SALT_AI_API_KEY}
+        )
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

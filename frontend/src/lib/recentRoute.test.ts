@@ -10,22 +10,22 @@ import { buildRecentItem } from "@/__tests__/factories/recent.factory";
 import { getActiveRecentKey, recentKeyMatches, recentRoute } from "@/lib/recentRoute";
 
 describe("recentRoute", () => {
-  it("addresses an entity inside its guild and initiative", () => {
+  it("addresses an entity inside its community and initiative", () => {
     const item = buildRecentItem({
       entity_type: "project",
       entity_id: 7,
-      guild_id: 3,
+      community_id: 3,
       initiative_id: 5,
     });
     expect(recentRoute(item)).toBe("/c/3/i/5/projects/7");
   });
 
-  // Only calendars can be guild-level (an app installs one).
-  it("keeps a guild-level entity at its guild route", () => {
+  // Only calendars can be community-level (a plug-in installs one).
+  it("keeps a community-level entity at its community route", () => {
     const item = buildRecentItem({
       entity_type: "calendar",
       entity_id: 9,
-      guild_id: 3,
+      community_id: 3,
       initiative_id: null,
     });
     expect(recentRoute(item)).toBe("/c/3/calendars/9");
@@ -33,11 +33,11 @@ describe("recentRoute", () => {
 });
 
 describe("getActiveRecentKey", () => {
-  it("reads guild, initiative, tool and entity out of a nested path", () => {
+  it("reads community, initiative, tool and entity out of a nested path", () => {
     expect(getActiveRecentKey("/c/3/i/5/counter-groups/7")).toEqual({
       entityType: "counter_group",
       entityId: 7,
-      guildId: 3,
+      communityId: 3,
       initiativeId: 5,
     });
   });
@@ -46,16 +46,16 @@ describe("getActiveRecentKey", () => {
     expect(getActiveRecentKey("/c/1/i/2/projects/4/tasks/9")).toEqual({
       entityType: "project",
       entityId: 4,
-      guildId: 1,
+      communityId: 1,
       initiativeId: 2,
     });
   });
 
-  it("reads the guild-level shape with no initiative segment", () => {
+  it("reads the community-level shape with no initiative segment", () => {
     expect(getActiveRecentKey("/c/1/calendars/12")).toEqual({
       entityType: "calendar",
       entityId: 12,
-      guildId: 1,
+      communityId: 1,
       initiativeId: null,
     });
   });
@@ -73,8 +73,8 @@ describe("getActiveRecentKey", () => {
 });
 
 describe("recentKeyMatches", () => {
-  it("matches on guild too, since entity ids collide across guilds", () => {
-    const item = buildRecentItem({ entity_type: "project", entity_id: 4, guild_id: 1 });
+  it("matches on community too, since entity ids collide across communities", () => {
+    const item = buildRecentItem({ entity_type: "project", entity_id: 4, community_id: 1 });
     expect(recentKeyMatches(getActiveRecentKey("/c/1/i/2/projects/4"), item)).toBe(true);
     expect(recentKeyMatches(getActiveRecentKey("/c/9/i/2/projects/4"), item)).toBe(false);
     expect(recentKeyMatches(null, item)).toBe(false);

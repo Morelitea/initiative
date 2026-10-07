@@ -15,6 +15,10 @@ If you come across data you don't believe you should have access to — another 
 
 Either way, please **don't poke further** than needed to confirm it, and **don't share** what you saw.
 
+## Content that shouldn't be there
+
+For something somebody posted — a comment, a notice, a picture, a profile — use **Report** on it. Anything a community holds goes to that community's moderators, and anything about an account goes to whoever runs the server.
+
 ## Reporting a security vulnerability
 
 If you've found a genuine security vulnerability in Initiative, please report it **privately** so it can be fixed before it's made public.
@@ -24,7 +28,7 @@ If you've found a genuine security vulnerability in Initiative, please report it
 
 ### How to report
 
-Email **<security@morelitea.com>** with:
+Email **<security@beyonders.studio>** with:
 
 - A description of the vulnerability.
 - Steps to reproduce it.
@@ -43,7 +47,7 @@ Email **<security@morelitea.com>** with:
 Reports are welcome about:
 
 - The application (the web interface and the service behind it).
-- The mobile apps.
+- The mobile and desktop apps.
 - The deployment setup (Docker configuration and related scripts).
 
 Vulnerabilities in third-party dependencies are generally out of scope, but a heads-up about a vulnerable dependency is still appreciated.

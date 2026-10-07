@@ -376,11 +376,11 @@ The path depends on where the table lives:
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project config, and can delete their guild. A guild admin sees the whole guild via the `current_guild_role='admin'` RLS leg, not a bypass.
 - **Platform roles are a 5-rung ladder** (`member → support → moderator → operator → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
 - `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/communities/` returns 403 and the SPA hides “Create guild” affordances.
-- Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds its settings row + mandatory apps, and makes the creator a guild admin. It gets **no initiative** — the owner names the first one from the guild home's empty state. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
+- Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds its settings row + mandatory plug-ins, and makes the creator a guild admin. It gets **no initiative** — the owner names the first one from the guild home's empty state. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
 
 ## Docker Deployment
 
-This project uses GitHub Actions to automatically build and publish Docker images to Docker Hub.
+This project uses GitHub Actions to automatically build and publish Docker images to the GitHub Container Registry (`ghcr.io/beyonders-studio/initiative`).
 
 ### How It Works
 
@@ -391,12 +391,7 @@ This project uses GitHub Actions to automatically build and publish Docker image
 
 ### Setup Requirements
 
-**First-time setup** (see `.github/DOCKER_SETUP.md` for details):
-
-1. Create a Docker Hub access token with Read & Write permissions
-2. Add GitHub secrets:
-   - `DOCKERHUB_USERNAME` - Your Docker Hub username
-   - `DOCKERHUB_TOKEN` - Your Docker Hub access token
+No registry secrets: the workflows push with their own `GITHUB_TOKEN` (`packages: write`). See `.github/DOCKER_SETUP.md`; after the package's first push, set its visibility to public once so anyone can pull it.
 
 ### Deployment Workflow
 
@@ -411,15 +406,15 @@ The typical deployment process:
 # 3. tag-release.yml auto-creates the version tag
 #    docker-publish.yml builds, publishes, and notifies
 
-# 4. Verify on Docker Hub
-# Check: https://hub.docker.com/r/USERNAME/initiative/tags
+# 4. Verify on GHCR
+# Check: https://github.com/beyonders-studio/initiative/pkgs/container/initiative
 ```
 
 The GitHub Actions workflow will:
 
 - Build the Docker image with the new version
 - Tag it appropriately (e.g., `latest`, `0.1`, `0.1.1`)
-- Push to Docker Hub
+- Push to GHCR
 - Support both x86_64 and ARM architectures
 
 ### Using Published Images
@@ -439,7 +434,7 @@ docker-compose up -d
 
 This will:
 
-- Pull the latest image from Docker Hub (`morelitea/initiative:latest`)
+- Pull the latest image from GHCR (`ghcr.io/beyonders-studio/initiative:latest`)
 - Start PostgreSQL 17 database
 - Configure automatic restarts and health checks
 - Mount persistent volumes for uploads
@@ -447,8 +442,8 @@ This will:
 Or pull and run manually:
 
 ```bash
-docker pull morelitea/initiative:latest
-docker pull morelitea/initiative:0.1.1  # specific version
+docker pull ghcr.io/beyonders-studio/initiative:latest
+docker pull ghcr.io/beyonders-studio/initiative:0.1.1  # specific version
 ```
 
 ### Manual Deployment

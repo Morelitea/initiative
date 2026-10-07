@@ -5,7 +5,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildWiki, buildWikiPage, writerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,7 +23,6 @@ vi.mock("@/hooks/useCollaboration", () => ({
     connect: vi.fn(),
     resume: vi.fn(),
     disconnect: vi.fn(),
-    sendContent: vi.fn(),
   }),
 }));
 
@@ -32,7 +31,7 @@ const editedBody = { root: { children: [{ type: "text", text: "just typed" }] } 
 // Stands in for Lexical, exposing the two things these tests drive: a body
 // edit, reported back the way the real editor reports one, and — as the real
 // one does — the state it was BUILT with, read once and never again.
-vi.mock("@/components/documents/editor/editor", () => ({
+vi.mock("@/components/ui/editor/editor", () => ({
   Editor: ({
     onSerializedChange,
     editorSerializedState,
@@ -68,15 +67,15 @@ beforeEach(() => {
     "12": buildWikiPage({ id: 12, wiki_id: 3, title: "", slug: "page-12" }),
   };
   server.use(
-    guildHttp.get("/wikis/:wikiId", () => HttpResponse.json(wiki)),
-    guildHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items: Object.values(pages) })),
-    guildHttp.get("/wiki-pages/:pageId", ({ params }) =>
+    communityHttp.get("/wikis/:wikiId", () => HttpResponse.json(wiki)),
+    communityHttp.get("/wikis/:wikiId/pages", () =>
+      HttpResponse.json({ items: Object.values(pages) })
+    ),
+    communityHttp.get("/wiki-pages/:pageId", ({ params }) =>
       HttpResponse.json(pages[params.pageId as string])
     ),
-    guildHttp.get("/wikis/:wikiId/pages/:pageId/links", () =>
-      HttpResponse.json({ outgoing: [], incoming: [] })
-    ),
-    guildHttp.patch("/wikis/:wikiId/pages/:pageId", async ({ request, params }) => {
+    communityHttp.get("/relationships/", () => HttpResponse.json([])),
+    communityHttp.patch("/wiki-pages/:pageId", async ({ request, params }) => {
       const pageId = params.pageId as string;
       const body = (await request.json()) as Record<string, unknown>;
       patches.push({ pageId, body });
@@ -100,9 +99,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const ROUTE = "/g/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId";
+const ROUTE = "/g/$communityId/i/$initiativeId/wikis/$wikiId/pages/$pageId";
 
-const PARAMS = { guildId: "1", initiativeId: "1", wikiId: "3", pageId: "11" };
+const PARAMS = { communityId: "1", initiativeId: "1", wikiId: "3", pageId: "11" };
 
 // Back to reading. `{}` would be right in the app, where the route says what an
 // absent `edit` means; the test router re-seeds the search it was rendered with

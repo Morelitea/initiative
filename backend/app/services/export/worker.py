@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -56,9 +57,6 @@ STALE_RUNNING = timedelta(minutes=15)
 _ERROR_MAX_LEN = 500
 
 _RENDER = "render"
-
-#: Advisory-lock namespace for claiming a community's next export.
-_CLAIM_LOCK_NS = 0x455851  # "EXQ"
 
 
 class _Superseded(Exception):
@@ -209,7 +207,7 @@ def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
         if job.status == ExportJobStatus.done
         else NotificationType.export_failed,
         {
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "export_job_id": job.id,
             "source": job.source,
             "format": job.format,
@@ -220,7 +218,7 @@ def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
 jobs: data_jobs.Dispatcher[ExportJob] = data_jobs.Dispatcher(
     name="export",
     model=ExportJob,
-    lock_namespace=_CLAIM_LOCK_NS,
+    lock_namespace=LockNamespace.EXPORT_CLAIM,
     queued=ExportJobStatus.queued,
     active=(ExportJobStatus.running,),
     kinds=(_RENDER,),

@@ -1,16 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  getGetUserStatsApiV1MeStatsGetQueryKey,
-  getUserStatsApiV1MeStatsGet,
-} from "@/api/generated/users/users";
+import { getGetUserStatsQueryKey, getUserStats } from "@/api/generated/users/users";
 
-export function useUserStats(guildId?: number | null) {
-  const params = guildId ? { guild_id: guildId } : undefined;
+export function useUserStats(communityId?: number | null) {
+  const params = communityId ? { community_id: communityId } : undefined;
 
   return useQuery({
-    queryKey: getGetUserStatsApiV1MeStatsGetQueryKey(params),
-    queryFn: () => getUserStatsApiV1MeStatsGet(params),
+    queryKey: getGetUserStatsQueryKey(params),
+    queryFn: () => getUserStats(params),
     staleTime: 5 * 60 * 1000,
   });
 }

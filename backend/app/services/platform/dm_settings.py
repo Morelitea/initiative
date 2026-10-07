@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlmodel import col, select
 
+from app.core.errors import CodedError
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -132,7 +133,7 @@ async def read_settings(
         send_receipts=row.send_receipts,
         communities=[
             CommunityDmToggle(
-                guild_id=guild_id,
+                community_id=guild_id,
                 name=name,
                 icon_url=icons.get(guild_id, {}).get(GuildImageVariant.icon),
                 enabled=guild_id not in switched_off,
@@ -142,12 +143,10 @@ async def read_settings(
     )
 
 
-class DirectMessageSettingsError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+class DirectMessageSettingsError(CodedError):
+    """A settings write refused with a message code."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 422
 
 
 async def update_settings(
@@ -182,16 +181,20 @@ async def update_settings(
             guild_id
             for guild_id, _ in await _rail_ordered_communities(session, user_id=user.id)
         }
-        unknown = [t.guild_id for t in communities if t.guild_id not in member_of]
+        unknown = [
+            t.community_id for t in communities if t.community_id not in member_of
+        ]
         if unknown:
             raise DirectMessageSettingsError(DirectMessageMessages.NOT_A_MEMBER)
         for toggle in communities:
-            existing = await session.get(UserDmGuildOptout, (user.id, toggle.guild_id))
+            existing = await session.get(
+                UserDmGuildOptout, (user.id, toggle.community_id)
+            )
             if toggle.enabled and existing is not None:
                 await session.delete(existing)
             elif not toggle.enabled and existing is None:
                 session.add(
-                    UserDmGuildOptout(user_id=user.id, guild_id=toggle.guild_id)
+                    UserDmGuildOptout(user_id=user.id, guild_id=toggle.community_id)
                 )
 
     if dm_policy is not None:

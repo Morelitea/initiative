@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
 from app.db import gucs
 from app.db.guild_standing import GuildContext, InstallContext, standing_values
+from app.db.public_rls import PLATFORM_ROUTES, platform_tier, role_name
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.schema_provisioning import GuildRoleKind
@@ -37,6 +38,7 @@ __all__ = [
     "Billing",
     "ContentGrantee",
     "ContextShapeError",
+    "Filer",
     "SignIn",
     "Install",
     "Member",
@@ -120,14 +122,10 @@ def _guild_schemas(guild_id: int, *, query: bool = False) -> tuple[str, ...]:
 
 
 def _tier_role(tier: Optional[str]) -> str:
-    from app.db.schema_provisioning import platform_role_name
-
-    return platform_role_name(tier) if tier is not None else "none"
+    return role_name(platform_tier(tier)) if tier is not None else "none"
 
 
 def _check_tier(tier: Optional[str]) -> None:
-    from app.db.schema_provisioning import PLATFORM_ROUTES
-
     if tier is not None and tier not in PLATFORM_ROUTES:
         raise ContextShapeError(f"Invalid platform_role: {tier!r}")
 
@@ -193,11 +191,9 @@ class Billing:
     attributed = False
 
     def route(self) -> Route:
-        from app.db.schema_provisioning import billing_role_name
-
         return Route(
             {gucs.BILLING_GUILD_ID: self.billing_guild_id},
-            billing_role_name(),
+            role_name("initiative_billing"),
             ("public",),
         )
 
@@ -230,7 +226,6 @@ def _person_values(
         gucs.PAM_READ: pam_read,
         gucs.PAM_WRITE: pam_write,
         gucs.SCOPE_INITIATIVE_ID: getattr(shape, "scope_initiative_id", None),
-        gucs.VIA_DASHBOARD_ID: getattr(shape, "via_dashboard_id", None),
         gucs.QUERY: getattr(shape, "query", False),
         gucs.GUILD_AUTH_OK: shape.sign_in.on_behalf
         or (standing is not None and standing.guild_auth_ok),
@@ -248,8 +243,7 @@ class Member:
     ``read_only`` is the community's content hold: the SELECT-only role, with
     the membership legs evaluated normally. ``seat`` is the seat's own
     configuration routes asking for the seat's role. ``query`` is the reader's
-    own SQL on the query surface, narrowed to ``scope_initiative_id`` and, for
-    a published view, answered through ``via_dashboard_id``'s grants.
+    own SQL on the query surface, narrowed to ``scope_initiative_id``.
     """
 
     guild_id: int
@@ -261,7 +255,6 @@ class Member:
     seat: bool = False
     query: bool = False
     scope_initiative_id: Optional[int] = None
-    via_dashboard_id: Optional[int] = None
     attributed = True
 
     def __post_init__(self) -> None:
@@ -317,7 +310,6 @@ class ContentGrantee:
     seat: bool = False
     query: bool = False
     scope_initiative_id: Optional[int] = None
-    via_dashboard_id: Optional[int] = None
     attributed = True
 
     def __post_init__(self) -> None:
@@ -399,14 +391,14 @@ class SettingsGrantee:
         )
 
 
-# --- An installed app ---------------------------------------------------------
+# --- An installed plug-in -----------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Install:
-    """An installed app acting in the community it is installed in.
+    """An installed plug-in acting in the community it is installed in.
 
-    The install is the principal, routed into ``guild_<id>_app``. ``standing``
+    The install is the principal, routed into ``guild_<id>_plugin``. ``standing``
     is the ``InstallContext`` the install seam built, which names the same
     community and install. A member token also names the member it acts for and
     the purpose they consented to, both carried by that context; it is never a
@@ -467,7 +459,46 @@ class Install:
                 gucs.SCOPE_INITIATIVE_ID: self.scope_initiative_id,
                 gucs.GUILD_AUTH_OK: completed and self.standing.guild_auth_ok,
             },
-            _guild_role(self.guild_id, GuildRoleKind.app),
+            _guild_role(self.guild_id, GuildRoleKind.plugin),
+            _guild_schemas(self.guild_id),
+        )
+
+
+# --- Somebody who filed a case ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Filer:
+    """A person reading the cases they filed, in the operations community.
+
+    Not a member and not a grantee: they hold no standing in the community and
+    are routed into the one role that exists for this, ``guild_<id>_filer``,
+    whose grants and row policies admit their own cases and nothing else (see
+    ``app.db.filer_access``). Only the account and its cases are written. The community is the
+    schema and the role, never ``app.current_guild_id``, which the shared
+    tables read as membership.
+    """
+
+    guild_id: int
+    user_id: int
+    #: The tasks of the cases they filed, as the seam read them through the
+    #: filer role. Empty on the first routing, which is what reads them.
+    cases: tuple[int, ...] = ()
+    attributed = True
+
+    def __post_init__(self) -> None:
+        if self.user_id is None or self.guild_id is None:
+            raise ContextShapeError(
+                "a filer routing names the account and the community"
+            )
+        object.__setattr__(self, "cases", tuple(sorted(int(c) for c in self.cases)))
+
+    def route(self) -> Route:
+        from app.db.filer_access import filer_role_name
+
+        return Route(
+            {gucs.USER_ID: self.user_id, gucs.FILER_CASES: self.cases},
+            filer_role_name(self.guild_id),
             _guild_schemas(self.guild_id),
         )
 
@@ -529,6 +560,7 @@ RequestContext = Union[
     ContentGrantee,
     SettingsGrantee,
     Install,
+    Filer,
     SystemGuild,
     SystemMaintenance,
 ]

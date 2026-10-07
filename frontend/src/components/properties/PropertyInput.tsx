@@ -41,11 +41,11 @@ export interface PropertyInputProps {
    *  arrives as an embedded `PropertySummary`. */
   initiativeId?: number | null;
   /** The row whose readers a `user_reference` value may name (the task's
-   *  project, the event's calendar, the document). Without it the picker
+   *  project, the event's calendar, the file). Without it the picker
    *  offers the initiative's members, which is what a filter wants. */
   canOpen?: { tool: Tool; id: number | null | undefined };
   /** Display info for a pre-set `user_reference` value so the picker shows a
-   *  name without a search round-trip (the server returns `{id, full_name}`
+   *  name without a search round-trip (the server returns `{id, display_name}`
    *  on reads). */
   selectedUser?: MemberLike | null;
 }

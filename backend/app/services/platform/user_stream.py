@@ -46,30 +46,14 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Dict,
-    Hashable,
-    Iterable,
-    Mapping,
-    Optional,
-    Set,
-)
+from typing import Any, Dict, Iterable, Mapping, Optional
 
-from sqlalchemy import event
-from sqlalchemy.orm import Session as SyncSession
+from app.db import post_commit
 
 logger = logging.getLogger(__name__)
 
-#: Key under which a session accumulates what it has earned the right to send
-#: but not yet committed.
-_PENDING_KEY = "user_stream_pending"
-
-#: The frames a session has queued for readers, keyed by ``(user_id,
-#: resource)``, kept apart from ``_PENDING_KEY`` so the commit can send each
-#: kind of frame to all its readers at once.
+#: The key a transaction's frames are registered under, as one step that sends
+#: each kind of frame to all its readers at once.
 _FRAMES_KEY = "user_stream_frames"
 
 #: Readers named in one notice. ``pg_notify`` refuses a payload of 8000 bytes
@@ -101,10 +85,6 @@ MAX_PENDING_REMOTE = 2048
 #: refused cannot be replayed: the frames past it were never kept, so who to
 #: tell is not knowable. Answered by telling everyone.
 _dropped_remote = False
-
-# ``loop.create_task`` keeps only a weak reference, so a fire-and-forget send
-# can be collected mid-flight. Hold them until they finish.
-_inflight: Set[asyncio.Task] = set()
 
 
 def build_frame(
@@ -244,13 +224,16 @@ async def on_bus_connected() -> None:
     _deliver_local(None, resync)
 
 
-def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> None:
+def queue_frame(
+    session: Any, user_id: int | None, frame: Dict[str, Any]
+) -> Dict[str, Any] | None:
     """Note a frame this session has earned but not yet committed.
 
-    Nothing is sent here — the hook below sends it once the transaction
-    commits, so a rollback pokes nobody. A frame that arrived before the COMMIT
-    would hand the client the state it is replacing, and nothing polls behind
-    it closely enough to correct that.
+    Nothing is sent here — the frames go once the transaction commits, so a
+    rollback pokes nobody, and a savepoint's rollback drops the frames queued
+    inside it. A frame that arrived before the COMMIT would hand the client
+    the state it is replacing, and nothing polls behind it closely enough to
+    correct that.
 
     One frame per user **per channel** per transaction: a transaction writing
     three notifications pokes the inbox once, because every frame means the
@@ -259,15 +242,49 @@ def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> Non
     not downgrade it. Keyed by channel as well as by user, since an inbox frame
     and an account frame say different things and both are owed.
 
-    ``session`` may be an ``AsyncSession`` (whose ``.info`` proxies the sync
-    session's) or a sync session; both land in the dict the hook reads.
+    ``session`` may be an ``AsyncSession`` or a sync session.
+
+    Returns the frame that will be sent, so a channel whose frames name things
+    can add to it.
     """
     if user_id is None:
-        return
-    frames: Dict[tuple[int, str], Dict[str, Any]] = session.info.setdefault(
-        _FRAMES_KEY, {}
-    )
-    frames.setdefault((user_id, frame["resource"]), frame)
+        return None
+    frames = post_commit.after_commit(session, _Frames(), key=_FRAMES_KEY)
+    return frames.setdefault((user_id, frame["resource"]), frame)
+
+
+def queue_signals(
+    session: Any, user_ids: Iterable[int], resource: str, action: str = "changed"
+) -> None:
+    """Note one channel's signal for each of a set of accounts.
+
+    Deliberately not narrowed to this process's own sockets. That narrowing
+    would have to happen before ``publish``, which is also what puts a frame
+    on the cross-worker bus — so an account connected only to another worker
+    would never be published for at all. Callers pass the whole set they mean.
+    """
+    for user_id in user_ids:
+        queue_frame(session, user_id, build_frame(resource, action))
+
+
+class _Frames(dict[tuple[int, str], Dict[str, Any]]):
+    """One transaction's frames, keyed by ``(user_id, resource)``."""
+
+    def join(self, released: Mapping[tuple[int, str], Dict[str, Any]]) -> None:
+        """Take a released savepoint's frames: each one this lacks, and for one
+        it holds already, what the savepoint's names beside its own."""
+        for key, frame in released.items():
+            held = self.setdefault(key, frame)
+            if held is frame:
+                continue
+            for kind, named in frame["ids"].items():
+                kept = held["ids"].setdefault(kind, [])
+                kept.extend(item for item in named if item not in kept)
+
+    async def __call__(self) -> None:
+        await asyncio.gather(
+            *(publish(user_ids, frame) for user_ids, frame in _grouped(self))
+        )
 
 
 def _grouped(
@@ -282,45 +299,3 @@ def _grouped(
         )
         groups.setdefault(said, ([], frame))[0].append(user_id)
     return list(groups.values())
-
-
-def after_commit(
-    session: Any, key: Hashable, send: Callable[[], Awaitable[None]]
-) -> None:
-    """Run ``send`` once this session's transaction commits, and not at all if
-    it rolls back. One ``send`` per ``key`` per transaction: the first recorded
-    wins."""
-    pending: Dict[Hashable, Callable[[], Awaitable[None]]] = session.info.setdefault(
-        _PENDING_KEY, {}
-    )
-    pending.setdefault(key, send)
-
-
-def _spawn(coro: Any) -> None:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # No loop (a sync script, a test driving a sync session): there is
-        # nothing to deliver to, and the row is committed either way.
-        coro.close()
-        return
-    task = loop.create_task(coro)
-    _inflight.add(task)
-    task.add_done_callback(_inflight.discard)
-
-
-def _emit_pending(session: SyncSession) -> None:
-    for send in session.info.pop(_PENDING_KEY, {}).values():
-        _spawn(send())
-    for user_ids, frame in _grouped(session.info.pop(_FRAMES_KEY, {})):
-        _spawn(publish(user_ids, frame))
-
-
-def _discard_pending(session: SyncSession, *_args: Any) -> None:
-    session.info.pop(_PENDING_KEY, None)
-    session.info.pop(_FRAMES_KEY, None)
-
-
-event.listens_for(SyncSession, "after_commit")(_emit_pending)
-event.listens_for(SyncSession, "after_rollback")(_discard_pending)
-event.listens_for(SyncSession, "after_soft_rollback")(_discard_pending)

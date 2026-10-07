@@ -12,20 +12,20 @@
 
 site_name = "Initiative Help"
 site_description = "Guides and reference for Initiative — collaborative project management for small businesses, clubs, event teams, and families."
-site_author = "Morelitea"
+site_author = "BeyondersStudio"
 
 # The canonical URL for the published site (powers search, the sitemap, and
 # social previews). For GitHub Pages on this repo it's the project URL below.
 # If you later use a custom domain, change this to that domain (e.g.
 # "https://docs.initiative.app/").
-site_url = "https://morelitea.github.io/initiative/"
+site_url = "https://beyonders-studio.github.io/initiative/"
 
 # Link the header logo/title back to the source repository.
-repo_url = "https://github.com/Morelitea/initiative"
-repo_name = "Morelitea/initiative"
+repo_url = "https://github.com/beyonders-studio/initiative"
+repo_name = "beyonders-studio/initiative"
 
 copyright = """
-Copyright &copy; 2026 Morelitea
+Copyright &copy; 2026 BeyondersStudio
 """
 
 # Bring your own styling for the "screenshot placeholder" and "technical
@@ -59,7 +59,7 @@ nav = [
     { "Tools" = [
       "en/guides/tools.md",
       "en/guides/projects-and-tasks.md",
-      "en/guides/documents.md",
+      "en/guides/files.md",
       "en/guides/calendar.md",
       "en/guides/queues.md",
       "en/guides/counters.md",
@@ -68,7 +68,7 @@ nav = [
       "en/guides/galleries.md",
       "en/guides/wikis.md",
     ] },
-    "en/guides/apps-and-marketplace.md",
+    "en/guides/plugins-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
     "en/guides/messages.md",
@@ -79,7 +79,7 @@ nav = [
   { "Sharing & access" = [
     "en/sharing/index.md",
     "en/sharing/initiative-roles.md",
-    "en/sharing/sharing-projects-and-documents.md",
+    "en/sharing/sharing-projects-and-files.md",
   ] },
   { "Security & privacy" = [
     "en/security/index.md",
@@ -105,6 +105,7 @@ nav = [
     "en/running-a-server/email.md",
     "en/running-a-server/push-notifications.md",
     "en/running-a-server/object-storage.md",
+    "en/running-a-server/plugins.md",
     "en/running-a-server/publishing-listings.md",
     "en/running-a-server/platform-roles.md",
     "en/running-a-server/announcements.md",
@@ -164,7 +165,7 @@ toggle.name = "Switch to light mode"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/Morelitea/initiative"
+link = "https://github.com/beyonders-studio/initiative"
 
 # ----------------------------------------------------------------------------
 # Markdown extensions (kept close to the Zensical defaults).

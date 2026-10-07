@@ -12,14 +12,13 @@ Pinned properties:
 
 from __future__ import annotations
 
-import asyncio
-
 import httpx
 import jwt
 import pytest
 
 from app.core import config as config_module
 from app.core.security import BILLING_PORTAL_AUDIENCE
+from app.db import post_commit
 from app.services.platform import billing_claim
 
 
@@ -45,18 +44,13 @@ def sent_claims(monkeypatch):
     return calls
 
 
-async def _drain():
-    for _ in range(3):
-        await asyncio.sleep(0)
-
-
 def test_disabled_by_default():
     assert billing_claim.billing_claim_enabled() is False
 
 
 async def test_unconfigured_is_a_strict_noop(sent_claims):
     billing_claim.claim_new_guild(user_id=1, guild_id=2)
-    await _drain()
+    await post_commit.settle_all()
     assert sent_claims == []
 
 
@@ -68,13 +62,13 @@ async def test_a_reachable_billing_without_a_signing_key_still_sends_nothing(
     monkeypatch.setattr(config_module.settings, "BILLING_SERVICE_URL", _URL)
     monkeypatch.setattr(config_module.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", "")
     billing_claim.claim_new_guild(user_id=1, guild_id=2)
-    await _drain()
+    await post_commit.settle_all()
     assert sent_claims == []
 
 
 async def test_configured_dispatches_one_claim(billing_configured, sent_claims):
     billing_claim.claim_new_guild(user_id=9, guild_id=77)
-    await _drain()
+    await post_commit.settle_all()
     assert sent_claims == [(9, 77, None)]
 
 
@@ -110,12 +104,12 @@ async def test_the_request_carries_a_signed_handoff_and_no_bare_identity(
         algorithms=["RS256"],
         audience=BILLING_PORTAL_AUDIENCE,
     )
-    assert claims["guild_role"] == "admin"
+    assert claims["community_role"] == "admin"
     assert claims["iss"] == "initiative"
     # The pair is named by reference and by nothing else, `sub` included.
     assert claims["sub"] == claims["user_ref"]
     assert claims["user_ref"].startswith("ubil_")
-    assert claims["guild_ref"].startswith("gbil_")
+    assert claims["community_ref"].startswith("gbil_")
     assert "guild_id" not in claims
 
 
@@ -153,7 +147,7 @@ async def test_creating_a_guild_claims_it_for_its_owner(
         json={"name": "Claimed Guild", "plan": "tier-2"},
     )
     assert response.status_code == 201
-    await _drain()
+    await post_commit.settle_all()
 
     assert sent_claims == [(user.id, response.json()["id"], "tier-2")]
 
@@ -172,7 +166,7 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
         json={"name": "Self-Hosted Guild"},
     )
     assert response.status_code == 201
-    await _drain()
+    await post_commit.settle_all()
     assert sent_claims == []
 
 
@@ -186,13 +180,12 @@ async def test_registration_claims_the_guild_it_creates(
         json={
             "email": "claim-register@example.com",
             "username": "claimregister",
-            "full_name": "Claim Register",
             "password": "securepassword123",
             "community": {"name": "Claimed", "plan": "tier-1"},
         },
     )
     assert response.status_code == 201
-    await _drain()
+    await post_commit.settle_all()
 
     assert len(sent_claims) == 1
     claimed_user, claimed_guild, plan = sent_claims[0]

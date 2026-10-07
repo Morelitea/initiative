@@ -75,20 +75,15 @@ _SERVICES = "app/services/platform"
 
 #: Functions that route into whichever community their caller names.
 _WRAPPERS: dict[tuple[str, str], str] = {
-    (f"{_SERVICES}/users.py", "hard_delete_user.erase"): (
-        "erases a deleted account's rows in one community, on that community's "
-        "cohort session"
+    (f"{_SERVICES}/intake.py", "add_filer_reply"): (
+        "writes a filer's answer in the operations community its caller read "
+        "the case in"
     ),
-    (f"{_SERVICES}/users.py", "soft_delete_user.scrub"): (
-        "scrubs a purged account's mentions and keys in one community, on that "
-        "community's cohort session"
+    (f"{_SERVICES}/users.py", "_erase_in_guild"): (
+        "erases an account's rows in one community, on that community's cohort session"
     ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
-    ),
-    (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
-        "deletes one community whose hold ran out, letting go of its app "
-        "connections in its own schema"
     ),
     (f"{_SERVICES}/intake_setup.py", "_route"): (
         "intake setup's routing helper: the platform owner's Intake page, into the operations community"
@@ -125,7 +120,7 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "cohort session per community it belonged to"
     ),
     # --- The seam itself ---------------------------------------------------
-    (f"{_ENDPOINTS}/guilds.py", "leave_guild"): (
+    (f"{_ENDPOINTS}/guilds.py", "leave_community"): (
         "routes the leaving member through establish_guild_access"
     ),
     # --- The caller's own community, behind its settings gate -------------
@@ -138,8 +133,9 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/app_settings.py", "ensure_defaults"): (
         "startup seeding of the primary community"
     ),
-    (f"{_SERVICES}/guild_purge.py", "delete_expired_holds"): (
-        "the scheduled sweep that deletes communities whose hold ran out"
+    (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
+        "the scheduled sweep that deletes a community whose hold ran out, "
+        "letting go of its plug-in connections in its own schema"
     ),
     # --- Aggregates ----------------------------------------------------------
     # --- Account closure and erasure -----------------------------------------
@@ -149,6 +145,13 @@ _ALLOWED: dict[tuple[str, str], str] = {
     ),
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
+    ),
+    (f"{_SERVICES}/tickets.py", "reply"): (
+        "tickets: writes a filer's answer in the operations community the "
+        "filer role just read their case in"
+    ),
+    (f"{_SERVICES}/ticket_notices.py", "notify_filers"): (
+        "the scheduled sweep that tells filers their case moved"
     ),
     (f"{_SERVICES}/intake_setup.py", "bind"): (
         "intake setup: the platform owner's Intake page (config.manage)"
@@ -330,7 +333,7 @@ def test_platform_routes_into_a_community_only_where_listed():
     assert unlisted == [], (
         "the platform surface routes into a community here, and the list of "
         "places it may does not name it. Reach guild content from a "
-        "/c/{guild_id} route through the seam instead, or add the site to "
+        "/c/{community_id} route through the seam instead, or add the site to "
         "_ALLOWED with the reason it belongs to the platform: " + ", ".join(unlisted)
     )
 

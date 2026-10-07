@@ -37,7 +37,7 @@ const serializeItem = (value: {
  * What an item is linked to right now, as one list of mixed kinds.
  *
  * Read from the graph rather than from the item, because the item serialises a
- * `documents` array and a `tasks` array and nothing else — the two kinds that
+ * `files` array and a `tasks` array and nothing else — the two kinds that
  * used to have junction tables of their own. An item may be pinned to any of the
  * fourteen, and reading it from the two lists made everything else disappear the
  * moment the dialog was reopened.
@@ -71,7 +71,7 @@ interface UseQueueItemFormArgs {
  * change detection) stay in each dialog.
  *
  * What an item is linked to is one list of mixed kinds rather than a list of
- * documents and a list of tasks, and the picker that searches for them owns its
+ * files and a list of tasks, and the picker that searches for them owns its
  * own typeahead — so the two narrowed lookups that used to live here are gone.
  */
 export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormArgs) => {

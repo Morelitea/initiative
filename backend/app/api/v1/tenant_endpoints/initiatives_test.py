@@ -21,13 +21,14 @@ from app.core.notification_categories import NotificationCategory
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.platform.user import UserStatus
+from app.models.platform.user import Presence, UserStatus
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
 from app.services.platform import email_outbox
+from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import initiatives as initiatives_service
 from app.testing import (
     create_resource_grant,
@@ -36,7 +37,8 @@ from app.testing import (
     set_notification_prefs,
     drain_notices,
 )
-from app.testing.factories import create_initiative
+from app.testing.factories import create_guild_membership, create_initiative
+from app.testing.sockets import open_account_socket
 
 
 async def _live_grant(
@@ -72,7 +74,7 @@ async def _initiative_with_owner(session: AsyncSession, acting_user, **overrides
     """A plain guild member and the initiative they created — and therefore
     manage — in their guild."""
     overrides.setdefault("name", "Doorway")
-    owner = await acting_user(guild_role=GuildRole.member)
+    owner = await acting_user(guild_role=CommunityRole.member)
     initiative = await create_initiative(session, owner.guild, owner.user, **overrides)
     return owner, initiative
 
@@ -84,9 +86,9 @@ async def _caller(acting_user, kind: str, owner, initiative):
     if kind == "manager":
         return owner
     if kind == "admin":
-        return await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+        return await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=initiative,
         initiative_role="member",
@@ -160,7 +162,7 @@ async def _knocked_on(
     )
     knocks = []
     for _ in range(count):
-        asker = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        asker = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
         created = await client.post(
             asker.g(f"/initiatives/{initiative.id}/join-requests"),
             headers=asker.headers,
@@ -207,15 +209,15 @@ def _capture_join_request_emails(monkeypatch) -> list[dict]:
 
 @pytest.mark.parametrize(
     "caller_role",
-    [GuildRole.admin, GuildRole.member],
+    [CommunityRole.admin, CommunityRole.member],
     ids=["a guild admin", "a plain member"],
 )
 async def test_the_default_listing_is_the_callers_own_memberships(
-    client: AsyncClient, session: AsyncSession, acting_user, caller_role: GuildRole
+    client: AsyncClient, session: AsyncSession, acting_user, caller_role: CommunityRole
 ):
     """The default listing is navigation rather than authority: it is what the
     caller joined, for a guild admin exactly as for anyone else."""
-    owner = await acting_user(guild_role=GuildRole.admin)
+    owner = await acting_user(guild_role=CommunityRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Theirs")
     caller = await acting_user(
         guild_role=caller_role, guild=owner.guild, initiative=True
@@ -231,31 +233,31 @@ async def test_the_default_listing_is_the_callers_own_memberships(
 
 @pytest.mark.parametrize(
     ("caller_role", "status_code"),
-    [(GuildRole.admin, 200), (GuildRole.member, 403)],
+    [(CommunityRole.admin, 200), (CommunityRole.member, 403)],
     ids=["a guild admin", "a plain member"],
 )
 async def test_guild_scope_lists_the_whole_guild_for_admins_only(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
-    caller_role: GuildRole,
+    caller_role: CommunityRole,
     status_code: int,
 ):
-    """``scope=guild`` is the guild-settings management listing: every
+    """``scope=community`` is the guild-settings management listing: every
     initiative in the guild, including the ones the caller never joined."""
-    owner = await acting_user(guild_role=GuildRole.admin)
+    owner = await acting_user(guild_role=CommunityRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Theirs")
     caller = await acting_user(guild_role=caller_role, guild=owner.guild)
 
     response = await client.get(
-        caller.g("/initiatives/?scope=guild"), headers=caller.headers
+        caller.g("/initiatives/?scope=community"), headers=caller.headers
     )
 
     assert response.status_code == status_code, response.text
     if status_code == 200:
         assert "Theirs" in {entry["name"] for entry in response.json()}
     else:
-        assert response.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.COMMUNITY_ADMIN_REQUIRED
 
 
 @pytest.mark.parametrize(
@@ -274,7 +276,7 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
     pages that open one resolve it that way rather than from a roster. The
     grantee leg widened nothing for an ordinary member of the guild.
     """
-    owner = await acting_user(guild_role=GuildRole.admin)
+    owner = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, owner.guild, owner.user, name="Apollo"
     )
@@ -288,7 +290,7 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
             level="read",
         )
     else:
-        actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        actor = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     base = f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}"
     detail = await client.get(base, headers=actor.headers)
@@ -316,7 +318,7 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     navigate by, so the default listing stays the whole guild for its window.
     Break-glass reads it the same way: its content grant is one of these.
     """
-    owner = await acting_user(guild_role=GuildRole.admin)
+    owner = await acting_user(guild_role=CommunityRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Apollo")
     grantee = await acting_user(tier)
     await _live_grant(
@@ -332,21 +334,20 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
 
 
 @pytest.mark.parametrize(
-    ("verb", "caller", "target", "status_code", "detail"),
+    ("verb", "caller", "status_code", "detail"),
     [
-        ("create", "admin", "own", 201, None),
-        ("create", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("create", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("update", "admin", "own", 200, None),
-        ("update", "manager", "own", 200, None),
-        ("update", "member", "own", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("archive", "admin", "own", 200, None),
-        ("archive", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("archive", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "admin", "own", 204, None),
-        ("delete", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "admin", "default", 400, InitiativeMessages.CANNOT_DELETE_DEFAULT),
+        ("create", "admin", 201, None),
+        ("create", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("create", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("update", "admin", 200, None),
+        ("update", "manager", 200, None),
+        ("update", "member", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("archive", "admin", 200, None),
+        ("archive", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("archive", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("delete", "admin", 204, None),
+        ("delete", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("delete", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
     ],
 )
 async def test_initiative_crud_answers_each_caller(
@@ -355,7 +356,6 @@ async def test_initiative_crud_answers_each_caller(
     acting_user,
     verb: str,
     caller: str,
-    target: str,
     status_code: int,
     detail: str | None,
 ):
@@ -364,16 +364,10 @@ async def test_initiative_crud_answers_each_caller(
     Putting one in the guild, filing it away, or taking it out of the guild
     altogether is the guild's decision and takes a guild admin; editing what an
     initiative says is its managers' decision. A guild admin reaches every
-    initiative in their guild without holding a membership row in it. The
-    guild's default initiative stays.
+    initiative in their guild without holding a membership row in it.
     """
     owner, initiative = await _initiative_with_owner(session, acting_user)
     actor = await _caller(acting_user, caller, owner, initiative)
-
-    if target == "default":
-        initiative = await create_initiative(
-            session, owner.guild, owner.user, name="House", is_default=True
-        )
 
     if verb == "create":
         response = await client.post(
@@ -413,7 +407,7 @@ async def test_creating_an_initiative_records_what_it_was_given(
 ):
     """The creation payload lands as given, and a join policy nobody mentioned
     settles on the closed one."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         admin.g("/initiatives/"),
@@ -440,7 +434,7 @@ async def test_create_initiative_makes_creator_manager(
     """Creating an initiative makes the creator a manager — the moderator role
     here, because the creator is a guild admin — and the read reports their
     role and the headcount rather than the roster."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     payload = {"name": "New Initiative"}
 
@@ -475,13 +469,22 @@ async def test_updating_an_initiative_records_the_new_name_and_description(
     assert data["name"] == "Updated Initiative"
     assert data["description"] == "Updated description"
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("name", "join_policy", "keep_content_in", "projects_enabled"):
+        response = await client.patch(
+            owner.g(f"/initiatives/{initiative.id}"),
+            headers=owner.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+
 
 @pytest.mark.parametrize("verb", ["create", "update"], ids=["creating", "renaming"])
 async def test_an_initiative_name_is_taken_only_once(
     client: AsyncClient, session: AsyncSession, acting_user, verb: str
 ):
     """A guild's initiative names are unique, however the name arrives."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     mine = await create_initiative(
         session, admin.guild, admin.user, name="Initiative 1"
     )
@@ -517,7 +520,7 @@ async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     archived initiatives client-side, and the settings table has to keep seeing
     them.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Archivable"
     )
@@ -535,7 +538,7 @@ async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     assert archive.json()["archived_at"] is not None
 
     listing = await client.get(
-        admin.g("/initiatives/?scope=guild"), headers=admin.headers
+        admin.g("/initiatives/?scope=community"), headers=admin.headers
     )
     assert listing.status_code == 200
     archived = next(i for i in listing.json() if i["id"] == initiative.id)
@@ -553,26 +556,24 @@ async def test_search_initiative_members_slim_and_filtered(
 ):
     """The slim members search returns a UserSummary envelope and filters by
     name, with the same membership gate as the full roster."""
-    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    admin = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Search Initiative"
     )
-    await acting_user(
-        guild_role=GuildRole.member,
+    alice = await acting_user(
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=initiative,
         initiative_role="member",
         email="alice@example.com",
         username="wonderland",
-        full_name="Alice Wonderland",
     )
-    await acting_user(
-        guild_role=GuildRole.member,
+    bob = await acting_user(
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=initiative,
         initiative_role="member",
         email="bob@example.com",
-        full_name="Bob Builder",
     )
 
     # Unfiltered: slim envelope over every member (creator + 2).
@@ -587,19 +588,19 @@ async def test_search_initiative_members_slim_and_filtered(
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
         "status",
         "profile_decorations",
-        "guild_role",
+        "community_role",
     }
     # Asserted as a value, not only as a key: the schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in.
-    by_name = {item["full_name"]: item for item in body["items"]}
-    assert by_name["Zed Admin"]["guild_role"] == "admin"
-    assert by_name["Alice Wonderland"]["guild_role"] == "member"
-    assert by_name["Bob Builder"]["guild_role"] == "member"
+    by_id = {item["id"]: item for item in body["items"]}
+    assert by_id[admin.user.id]["community_role"] == "admin"
+    assert by_id[alice.user.id]["community_role"] == "member"
+    assert by_id[bob.user.id]["community_role"] == "member"
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
@@ -612,21 +613,7 @@ async def test_search_initiative_members_slim_and_filtered(
     assert body["total_count"] == 1
     assert body["items"][0]["username"] == "wonderland"
 
-    # This guild takes the default and shows names, so a term that appears
-    # only in the real name finds her too.
-    response = await client.get(
-        admin.g(f"/initiatives/{initiative.id}/members/search"),
-        headers=admin.headers,
-        params={"search": "Alice"},
-    )
-    assert response.json()["total_count"] == 1
-
-    # Turn names off and the same term matches nothing, which is the half that
-    # matters: the search reaches exactly what the guild renders.
-    admin.guild.show_member_names = False
-    session.add(admin.guild)
-    await session.commit()
-
+    # A term outside her handle finds nobody while she has no name here...
     response = await client.get(
         admin.g(f"/initiatives/{initiative.id}/members/search"),
         headers=admin.headers,
@@ -634,30 +621,40 @@ async def test_search_initiative_members_slim_and_filtered(
     )
     assert response.json()["total_count"] == 0
 
+    # ...and the display name she set here does: the search reaches exactly
+    # what the guild renders.
+    await create_guild_membership(
+        session, user=alice.user, guild=admin.guild, display_name="Alice W"
+    )
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "Alice"},
+    )
+    assert response.json()["total_count"] == 1
+
 
 async def test_search_initiative_members_filters_by_user_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """`user_id` resolves a known selection, narrowing the same member set —
     a guild member outside the initiative is never resolved through it."""
-    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    admin = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Id Filter Initiative"
     )
     alice = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=initiative,
         initiative_role="member",
         email="alice-ids@example.com",
         username="alice-ids",
-        full_name="Alice Wonderland",
     )
     outsider = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         email="outsider-ids@example.com",
-        full_name="Olive Outsider",
     )
 
     response = await client.get(
@@ -706,7 +703,7 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
     elif caller == "admin":
         actor = await _caller(acting_user, "admin", owner, initiative)
     else:
-        actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        actor = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     response = await client.get(
         actor.g(f"/initiatives/{initiative.id}{endpoint}"), headers=actor.headers
@@ -731,13 +728,14 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
 async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The roster is read a page at a time and can be narrowed to the managers,
-    while the initiative list carries each one's headcount and the caller's own
-    role instead of everyone's. A suspended member is in neither."""
+    """The roster is read a page at a time and can be narrowed to the managers
+    or to who is here, each member saying how they appear, while the initiative
+    list carries each one's headcount and the caller's own role instead of
+    everyone's. A suspended member is in neither."""
     owner, initiative = await _initiative_with_owner(session, acting_user)
     insider = await _caller(acting_user, "member", owner, initiative)
     await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=initiative,
         initiative_role="member",
@@ -747,6 +745,11 @@ async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     first = await _roster(client, insider, initiative.id, page_size=1)
     managers = await _roster(client, insider, initiative.id, is_manager="true")
     others = await _roster(client, insider, initiative.id, is_manager="false")
+    socket = open_account_socket(insider.user.id, chosen_presence=Presence.busy)
+    try:
+        here = await _roster(client, insider, initiative.id, online="true")
+    finally:
+        content_sockets.leave(socket)  # type: ignore[arg-type]
     listed = await client.get(insider.g("/initiatives/"), headers=insider.headers)
 
     assert (first["total_count"], len(first["items"]), first["has_next"]) == (
@@ -756,6 +759,10 @@ async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     )
     assert [row["user"]["id"] for row in managers["items"]] == [owner.user.id]
     assert [row["user"]["id"] for row in others["items"]] == [insider.user.id]
+    assert [(row["user"]["id"], row["presence"]) for row in here["items"]] == [
+        (insider.user.id, "busy")
+    ]
+    assert {row["presence"] for row in first["items"]} == {"offline"}
     assert listed.status_code == 200, listed.text
     assert [
         (row["id"], row["member_count"], row["role_display_name"])
@@ -781,7 +788,7 @@ async def test_adding_a_member_takes_manager_standing(
     """Staffing an initiative is its managers' to do."""
     owner, initiative = await _initiative_with_owner(session, acting_user)
     actor = await _caller(acting_user, caller, owner, initiative)
-    newcomer = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    newcomer = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     response = await client.post(
         actor.g(f"/initiatives/{initiative.id}/members"),
@@ -801,7 +808,7 @@ async def test_add_user_not_in_guild_fails(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that adding a user not in the guild fails."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # An outsider with no membership in the admin's guild.
     outsider = await acting_user(email="outsider@example.com")
 
@@ -814,16 +821,16 @@ async def test_add_user_not_in_guild_fails(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "USER_NOT_IN_COMMUNITY"
 
 
 async def test_update_initiative_member_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test updating an initiative member's role."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -859,9 +866,9 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     """A member's row carries the role they actually hold — its own name,
     display name, and manager standing — for custom roles too, and the role
     list counts each role's holders."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -921,17 +928,17 @@ async def test_inviting_a_guild_admin_lands_them_on_a_manager_role(
     """
     from app.models.tenant.initiative import InitiativeRoleModel
 
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     if inviter == "guild admin":
         actor = admin
     else:
         actor = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=admin.guild,
             initiative=admin.initiative,
             initiative_role="project_manager",
         )
-    target = await acting_user(guild_role=GuildRole.admin, guild=admin.guild)
+    target = await acting_user(guild_role=CommunityRole.admin, guild=admin.guild)
 
     payload: dict = {"user_id": target.user.id}
     if asked_role is not None:
@@ -968,9 +975,9 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     """
     from app.testing.schema_harness import route_session_to_guild
 
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     joiner = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1038,7 +1045,7 @@ async def test_cannot_demote_last_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that demoting the last manager fails."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    manager = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     # Look up the member role ID for this initiative
     from app.models.tenant.initiative import InitiativeRoleModel
@@ -1069,10 +1076,10 @@ async def test_initiative_guild_isolation(
     from app.testing.factories import create_guild, create_guild_membership
 
     # One user who is an admin of two distinct guilds.
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     guild2 = await create_guild(session)
     await create_guild_membership(
-        session, user=a.user, guild=guild2, role=GuildRole.admin
+        session, user=a.user, guild=guild2, role=CommunityRole.admin
     )
 
     initiative1 = await create_initiative(
@@ -1109,24 +1116,24 @@ async def test_initiative_guild_isolation(
 
 @pytest.mark.parametrize(
     "caller_role",
-    [GuildRole.member, GuildRole.admin],
+    [CommunityRole.member, CommunityRole.admin],
     ids=["a plain member", "a guild admin"],
 )
 async def test_directory_lists_only_joinable_initiatives(
-    client: AsyncClient, session: AsyncSession, acting_user, caller_role: GuildRole
+    client: AsyncClient, session: AsyncSession, acting_user, caller_role: CommunityRole
 ):
     """Listing is opt-in: `private` appears only to its own members, archived
     never appears.
 
     A guild admin's front page reads the same way — their authority over the
     guild is unchanged, the directory just stops standing in for it, and
-    ``scope=guild`` is where the whole guild is.
+    ``scope=community`` is where the whole guild is.
 
     RLS *would* permit listing a private initiative to any guild member (the
     `initiatives` table is structural), so this exclusion is an app-layer
     promise — pinned here rather than assumed.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     await create_initiative(
         session, admin.guild, admin.user, name="Secret", join_policy="private"
@@ -1167,7 +1174,7 @@ async def test_directory_reports_the_callers_own_state(
     shows it — listed ahead of the joinable ones. Each card carries the roster
     size and where the caller stands with it, on which role.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     mine = await create_initiative(
         session, admin.guild, admin.user, name="Zebra Ours", join_policy="private"
     )
@@ -1176,7 +1183,7 @@ async def test_directory_reports_the_callers_own_state(
     )
 
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=mine,
         initiative_role="member",
@@ -1206,11 +1213,11 @@ async def test_directory_rejects_non_guild_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The directory is guild-scoped: an outsider never reaches it."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     await create_initiative(
         session, admin.guild, admin.user, name="Anyone", join_policy="open"
     )
-    outsider = await acting_user(guild_role=GuildRole.member)
+    outsider = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         f"/api/v1/c/{admin.guild.id}/initiatives/directory", headers=outsider.headers
@@ -1222,16 +1229,16 @@ async def test_directory_rejects_non_guild_member(
 async def _joiner(acting_user, session: AsyncSession, kind: str, owner, initiative):
     """The caller trying the door."""
     if kind == "guild member":
-        return await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        return await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     if kind == "existing member":
         return await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=initiative,
             initiative_role="member",
         )
     if kind == "guild admin":
-        return await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+        return await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
     grantee = await acting_user("support")
     await _live_grant(
         session,
@@ -1274,7 +1281,7 @@ async def test_self_join_answers_each_policy_and_caller(
     land on the moderator role their standing already carries. A grant reaches
     the guild for a window; the membership row a join writes has no end date.
     """
-    owner = await acting_user(guild_role=GuildRole.admin)
+    owner = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, owner.guild, owner.user, name="Doorway", join_policy=policy
     )
@@ -1314,11 +1321,11 @@ async def test_self_join_absorbs_a_lost_insert_race(
     here by making that lookup miss once while the row already exists — the
     interleaving a live race produces, without racing the test.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Anyone", join_policy="open"
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     # The row the winning request already committed.
     winner = await initiatives_service.self_join(
@@ -1458,9 +1465,9 @@ async def test_join_request_created_on_request_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The happy path: a guild member knocks and the row lands pending."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     response = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -1555,9 +1562,9 @@ async def test_denied_requester_may_ask_again(
 ):
     """Only a *pending* row blocks: a refusal is history, not a ban, and the
     second ask carries the first refusal for the manager to see."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     first = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -1595,9 +1602,9 @@ async def test_join_request_absorbs_a_lost_insert_race(
     Simulated by making that lookup miss once while the row already exists — the
     interleaving a live race produces, without racing the test.
     """
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     winner, created = await initiatives_service.create_join_request(
         session, initiative=initiative, user_id=member.user.id
@@ -1640,11 +1647,9 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     """Who is asking, what they said, and whether this initiative has turned
     them down before — with the settled rows kept out of the default view and
     reachable by asking for them."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(
-        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
-    )
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     first = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -1676,7 +1681,7 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     assert queue[0]["message"] == "second try"
     assert queue[0]["user"]["id"] == member.user.id
     # The queue names who is asking the way this guild names anyone —
-    # by handle, since it does not show real names.
+    # by handle, since they set no name here.
     assert queue[0]["user"]["username"] == member.user.username
     assert queue[0]["prior_denials"] == 1
 
@@ -1748,14 +1753,14 @@ async def test_joining_flips_content_visibility(
     """The point of both doors: every way in writes the same membership row,
     and ``initiative_access`` does the rest — content that 404'd before the
     join resolves after it, with no RLS change at all."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await create_initiative(
         session, manager.guild, manager.user, name="Doorway", join_policy=policy
     )
     project = await _project_shared_with_the_initiative(
         session, initiative, manager.user
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     before = await client.get(
         member.g(f"/projects/{project.id}"), headers=member.headers
@@ -1805,9 +1810,9 @@ async def test_joining_flips_content_visibility(
 async def test_approving_an_already_resolved_request_conflicts(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=member.headers,
@@ -1839,9 +1844,9 @@ async def test_resolving_a_request_someone_else_answered_conflicts(
     snapshot and an already-settled row take the same path. Serializing the
     two writers is Postgres's row lock, not this code.
     """
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     request, _ = await initiatives_service.create_join_request(
         session, initiative=initiative, user_id=member.user.id, message=None
     )
@@ -1875,9 +1880,9 @@ async def test_approving_when_already_a_member_succeeds(
     """A requester who got in another way while the request sat in the queue is
     absorbed: the row resolves and the call succeeds instead of colliding with
     the membership primary key."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=member.headers,
@@ -1917,12 +1922,12 @@ async def test_deny_resolves_without_membership(
     """A denial changes nothing about what the requester can see."""
     from app.testing.factories import create_project
 
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
     project = await create_project(
         session, initiative, manager.user, name="Shared work"
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=member.headers,
@@ -1953,12 +1958,12 @@ async def test_resolving_a_request_from_another_initiative_is_not_found(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The request id is only meaningful inside its own door."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
     other = await create_initiative(
         session, manager.guild, manager.user, name="Elsewhere", join_policy="request"
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=member.headers,
@@ -2055,18 +2060,17 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     """
     sent = _capture_join_request_emails(monkeypatch)
 
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
     bystander = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=manager.guild,
         initiative=initiative,
         initiative_role="member",
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=manager.guild,
-        full_name="Ada Lovelace",
         username="ada",
         discriminator=1815,
     )
@@ -2102,7 +2106,7 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert "I maintain the parser" in sent[0]["body"]
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.
-    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+    assert f"community_id={manager.guild.id}" in sent[0]["link"]
 
     assert (
         await _notifications_for(
@@ -2138,9 +2142,9 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     subject: str,
 ):
     """The outcome goes back to the person who asked — and only to them."""
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=member.headers,
@@ -2169,7 +2173,7 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     # Being told the answer is membership news, not something to act on.
     assert sent[0]["category"] is NotificationCategory.membership
     assert sent[0]["subject"] == subject
-    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+    assert f"community_id={manager.guild.id}" in sent[0]["link"]
 
 
 @pytest.mark.parametrize(
@@ -2199,9 +2203,9 @@ async def test_directory_badges_the_queue_for_whoever_could_answer_it(
     initiative to take the queue. The person waiting sees their own request
     reflected back instead.
     """
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    requester = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
     created = await client.post(
         requester.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=requester.headers,
@@ -2214,11 +2218,13 @@ async def test_directory_badges_the_queue_for_whoever_could_answer_it(
     elif viewer == "the requester":
         actor = requester
     elif viewer == "guild admin outside it":
-        actor = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
+        actor = await acting_user(guild_role=CommunityRole.admin, guild=manager.guild)
     else:
         actor = await acting_user(
             guild_role=(
-                GuildRole.admin if viewer == "admin inside it" else GuildRole.member
+                CommunityRole.admin
+                if viewer == "admin inside it"
+                else CommunityRole.member
             ),
             guild=manager.guild,
             initiative=initiative,
@@ -2250,9 +2256,9 @@ async def test_a_knock_writes_its_mail_down(
 
     monkeypatch.setattr(email_service, "email_configured", _email_configured)
 
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     response = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -2289,14 +2295,14 @@ async def test_a_knock_lands_even_when_no_mail_goes_out(
 
     monkeypatch.setattr(email_service, "email_configured", _email_configured)
 
-    manager = await acting_user(guild_role=GuildRole.member)
+    manager = await acting_user(guild_role=CommunityRole.member)
     if can_send:
         await set_notification_prefs(
             session, manager.user, {"categories": {"approvals": {"email": False}}}
         )
 
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
 
     response = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -2321,9 +2327,9 @@ async def test_initiative_member_search_finds_a_misspelled_name(
 ):
     """One rule for looking people up, wherever the picker is. An initiative's
     roster matches a near miss exactly as the guild's does."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -2347,7 +2353,7 @@ async def test_changing_what_an_initiative_allows_rechecks_its_members(
     from app.api.v1.tenant_endpoints import initiatives as initiatives_routes
     from app.models.tenant.initiative import InitiativeRoleModel
 
-    manager = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    manager = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
         guild=manager.guild, initiative=manager.initiative, initiative_role="member"
     )
@@ -2362,7 +2368,7 @@ async def test_changing_what_an_initiative_allows_rechecks_its_members(
     switched = await client.patch(
         manager.g(f"/initiatives/{initiative_id}"),
         headers=manager.headers,
-        json={"documents_enabled": False},
+        json={"files_enabled": False},
     )
     assert switched.status_code == 200, switched.text
     assert rechecked.pop() == {manager.user.id, member.user.id}
@@ -2379,11 +2385,11 @@ async def test_changing_what_an_initiative_allows_rechecks_its_members(
         manager.g(f"/initiatives/{initiative_id}/roles"), headers=manager.headers
     )
     (current,) = [r for r in roles.json() if r["id"] == member_role.id]
-    flipped = not current["permissions"]["create_documents"]
+    flipped = not current["permissions"]["create_files"]
     changed = await client.patch(
         manager.g(f"/initiatives/{initiative_id}/roles/{member_role.id}"),
         headers=manager.headers,
-        json={"permissions": {"create_documents": flipped}},
+        json={"permissions": {"create_files": flipped}},
     )
     assert changed.status_code == 200, changed.text
     assert rechecked.pop() == {member.user.id}

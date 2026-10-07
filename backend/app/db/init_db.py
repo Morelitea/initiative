@@ -4,21 +4,21 @@ import logging
 import re
 from urllib.parse import quote, quote_plus
 
-import asyncpg
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.security import app_platform_signing_enabled, get_password_hash
+from app.core.security import get_password_hash
 from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
+    APP_LOGIN_ROLE,
     ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
-    verify_effective_shared_grants,
     verify_engine_identities,
 )
 from app.db.session import (
@@ -55,9 +55,8 @@ async def init_owner() -> None:
 
         # Create the first superuser (the platform owner)...
         user = User(
-            full_name=settings.FIRST_OWNER_FULL_NAME,
-            username=usernames.from_full_name(settings.FIRST_OWNER_FULL_NAME)
-            or usernames.random_name(),
+            # Assigned, not picked: the owner chooses one on first sign-in.
+            username=usernames.random_name(),
             discriminator=usernames.random_discriminator(),
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
             password_set_at=datetime.now(timezone.utc),
@@ -144,84 +143,72 @@ def _require_image_knows(stamped: list[str]) -> None:
     )
 
 
-async def check_pre_baseline_db() -> None:
+async def check_pre_baseline_db(conn: AsyncConnection) -> None:
     """Exit with upgrade instructions if the database predates the v0.53.5
     baseline squash — its revision id no longer exists in this chain, so
-    alembic would fail with a cryptic "can't locate revision" otherwise."""
-    url = make_url(settings.DATABASE_URL)
+    alembic would fail with a cryptic "can't locate revision" otherwise.
 
-    try:
-        conn = await asyncpg.connect(
-            user=url.username,
-            password=url.password,
-            database=url.database,
-            host=url.host,
-            port=url.port or 5432,
-        )
-    except Exception:
-        return  # Can't connect; let alembic surface the error
-
-    try:
-        has_table = await conn.fetchval(
+    Runs on the migration lock's connection, which autocommits."""
+    has_table = await conn.scalar(
+        text(
             "SELECT EXISTS ("
             "  SELECT 1 FROM information_schema.tables "
             "  WHERE table_schema = 'public' AND table_name = 'alembic_version'"
             ")"
         )
-        if not has_table:
-            return  # Fresh database
+    )
+    if not has_table:
+        return  # Fresh database
 
-        # Every row, not just one: a database left on a branch carries a stamp
-        # per head, and a single image has to be able to run all of them.
-        stamped = [
-            row["version_num"]
-            for row in await conn.fetch("SELECT version_num FROM alembic_version")
-        ]
-        if not stamped:
-            return  # Fresh database (empty alembic_version)
-        revision = stamped[0]
+    # Every row, not just one: a database left on a branch carries a stamp
+    # per head, and a single image has to be able to run all of them.
+    stamped = list(
+        (await conn.scalars(text("SELECT version_num FROM alembic_version"))).all()
+    )
+    if not stamped:
+        return  # Fresh database (empty alembic_version)
+    revision = stamped[0]
 
-        if revision == BASELINE_REVISION:
-            # Stamped at the baseline, but roles may be missing on a database
-            # that never actually ran it (e.g. restored without roles). Clear
-            # the stamp so the (idempotent) baseline migration re-runs — it
-            # recreates roles, RLS policies, and grants as needed.
-            has_roles = await conn.fetchval(
-                "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user')"
-            )
-            if not has_roles:
-                print(
-                    "Baseline stamped but database roles missing. Re-running baseline migration..."
-                )
-                await conn.execute("DELETE FROM alembic_version")
-            return
-
-        if _is_dated_revision(revision) and revision > BASELINE_REVISION:
-            # Post-squash, so alembic can run it — as long as this image is the
-            # one that has it. Say so when it isn't, for the same reason the
-            # pre-baseline message below exists.
-            _require_image_knows(stamped)
-            return  # normal upgrade
-
-        raise SystemExit(
-            f"\n{'=' * 70}\n"
-            f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
-            f"This version's migration history starts at the v0.53.5 baseline;\n"
-            f"older databases must step through a v0.53.x release first:\n\n"
-            f"  1. Deploy any v0.53.x image (e.g. morelitea/initiative:0.53.5)\n"
-            f"     and let it boot once — its migrations and startup conversion\n"
-            f"     bring the database to the baseline state.\n"
-            f"  2. Then deploy this version and restart.\n\n"
-            f"Step 1 is mandatory, not advisory: it is what copies guild content\n"
-            f"into the per-guild schemas. This version DROPS the old copies in\n"
-            f"the public schema (migration 20260811_0163) and cannot be rolled\n"
-            f"back, so anything not converted by then is lost.\n\n"
-            f"(Installs older than v0.30.0 are no longer supported for\n"
-            f"in-place upgrade — restore into a fresh install instead.)\n"
-            f"{'=' * 70}"
+    if revision == BASELINE_REVISION:
+        # Stamped at the baseline, but roles may be missing on a database
+        # that never actually ran it (e.g. restored without roles). Clear
+        # the stamp so the (idempotent) baseline migration re-runs — it
+        # recreates roles, RLS policies, and grants as needed.
+        has_roles = await conn.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :login)"),
+            {"login": APP_LOGIN_ROLE},
         )
-    finally:
-        await conn.close()
+        if not has_roles:
+            print(
+                "Baseline stamped but database roles missing. Re-running baseline migration..."
+            )
+            await conn.execute(text("DELETE FROM alembic_version"))
+        return
+
+    if _is_dated_revision(revision) and revision > BASELINE_REVISION:
+        # Post-squash, so alembic can run it — as long as this image is the
+        # one that has it. Say so when it isn't, for the same reason the
+        # pre-baseline message below exists.
+        _require_image_knows(stamped)
+        return  # normal upgrade
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
+        f"This version's migration history starts at the v0.53.5 baseline;\n"
+        f"older databases must step through a v0.53.x release first:\n\n"
+        f"  1. Deploy any v0.53.x image (e.g. ghcr.io/beyonders-studio/initiative:0.53.5)\n"
+        f"     and let it boot once — its migrations and startup conversion\n"
+        f"     bring the database to the baseline state.\n"
+        f"  2. Then deploy this version and restart.\n\n"
+        f"Step 1 is mandatory, not advisory: it is what copies guild content\n"
+        f"into the per-guild schemas. This version DROPS the old copies in\n"
+        f"the public schema (migration 20260811_0163) and cannot be rolled\n"
+        f"back, so anything not converted by then is lost.\n\n"
+        f"(Installs older than v0.30.0 are no longer supported for\n"
+        f"in-place upgrade — restore into a fresh install instead.)\n"
+        f"{'=' * 70}"
+    )
 
 
 async def migrate_database() -> None:
@@ -231,13 +218,13 @@ async def migrate_database() -> None:
     that the upgrade then acts on, so the two share a lock rather than taking
     one each.
     """
-    async with migration_lock():
-        await check_pre_baseline_db()
+    async with migration_lock() as conn:
+        await check_pre_baseline_db(conn)
         await run_migrations()
 
 
 #: Where to report a start that failed.
-ISSUES_URL = "https://github.com/Morelitea/initiative/issues"
+ISSUES_URL = "https://github.com/beyonders-studio/initiative/issues"
 
 _URL_CREDENTIALS = re.compile(r"(://)[^/@\s]+@")
 
@@ -432,11 +419,9 @@ async def _prepare_database() -> None:
     # the per-table GRANTs (cluster state a stamped DB never re-applies), so
     # seeding dies on "permission denied for table guilds" instead. Re-assert
     # the audited shared-table grants from the registry (issue #835 follow-up).
+    # It heals the logins the URLs connect as and stops with the exact GRANTs
+    # when that does not take.
     await ensure_shared_table_grants()
-    # The heal above targets the canonical role names; verify the CONNECTED
-    # logins actually hold the audited privileges, stopping with the exact
-    # GRANTs when a deployment's URLs connect as other logins.
-    await verify_effective_shared_grants()
     await warn_if_search_operator_missing()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
@@ -456,6 +441,13 @@ async def _prepare_database() -> None:
             backfill.skipped,
             backfill.total,
         )
+    # The filer role exists in the operations community alone. Re-asserted
+    # after the back-fill, and dropped from any community it was left in.
+    from app.db.filer_access import reconcile_filer_access
+    from app.services.platform.intake import configured_operations_guild_id
+
+    await reconcile_filer_access(await configured_operations_guild_id())
+
     # Every schema the back-fill reached now binds its own copies of the
     # guild functions, so the copies the migrations left in public can go.
     # Postgres refuses each one that a schema still binds (a guild the
@@ -546,17 +538,15 @@ async def _prepare_database() -> None:
     # Listings the operator publishes themselves, from the directory
     # MARKETPLACE_EXTRA_CATALOG_DIR names. Same writer, same validation as the
     # built-ins; a manifest that has been removed retires its listing. With the
-    # setting unset nothing is read and nothing is said.
-    from app.services.marketplace.operator_catalog import (
-        operator_catalog_dir,
-        scan_operator_catalog,
-    )
+    # setting unset nothing is read, and any operator listing left from a
+    # directory that used to be set is withdrawn (the scan logs that itself).
+    from app.services.marketplace.operator_catalog import scan_operator_catalog
 
-    if operator_catalog_dir() is not None:
-        try:
-            async with SystemSessionLocal() as operator_catalog_session:
-                scan = await scan_operator_catalog(operator_catalog_session)
-                await operator_catalog_session.commit()
+    try:
+        async with SystemSessionLocal() as operator_catalog_session:
+            scan = await scan_operator_catalog(operator_catalog_session)
+            await operator_catalog_session.commit()
+        if scan.configured:
             logger.info(
                 "marketplace: operator catalog — %d published, %d withdrawn, "
                 "%d skipped",
@@ -564,40 +554,31 @@ async def _prepare_database() -> None:
                 scan.withdrawn,
                 scan.skipped,
             )
-        except Exception:
-            logger.exception("marketplace: operator catalog scan failed")
-    # This project's own app publisher. Added once; a row that exists is left
+    except Exception:
+        logger.exception("marketplace: operator catalog scan failed")
+    # This project's own plug-in publisher. Added once; a row that exists is left
     # exactly as it is, so an operator's switch survives a restart.
     try:
-        from app.services.marketplace import publishers as app_publishers
+        from app.services.marketplace import publishers as plugin_publishers
 
         async with SystemSessionLocal() as publisher_session:
-            if await app_publishers.seed_publishers(publisher_session):
-                logger.info("app publishers: seeded this project's publisher")
+            if await plugin_publishers.seed_publishers(publisher_session):
+                logger.info("plug-in publishers: seeded this project's publisher")
     except Exception:
-        logger.exception("app publishers: seeding failed")
-    # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
-    # Database-only: an app's container may boot after this one, and nothing is
+        logger.exception("plug-in publishers: seeding failed")
+    # Plug-in services the deployment declares in a mounted file (PLUGIN_SERVICES_CONFIG).
+    # Database-only: a plug-in's container may boot after this one, and nothing is
     # fetched from it. No-op when the setting is unset.
-    if settings.APP_SERVICES_CONFIG:
-        if not app_platform_signing_enabled():
-            # Registrations reconcile fine, but minting what Initiative sends an
-            # app (its context tokens and handoffs) needs the platform's own
-            # keypair.
-            logger.warning(
-                "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
-                "is not; app services will fail closed until a signing key is "
-                "configured."
-            )
+    if settings.PLUGIN_SERVICES_CONFIG:
         try:
-            from app.services.marketplace import registrations as app_registrations
+            from app.services.marketplace import registrations as plugin_registrations
 
-            async with SystemSessionLocal() as app_service_session:
-                reconciled = await app_registrations.reconcile_from_config(
-                    app_service_session
+            async with SystemSessionLocal() as plugin_service_session:
+                reconciled = await plugin_registrations.reconcile_from_config(
+                    plugin_service_session
                 )
             logger.info(
-                "app services: %d updated, %d unchanged, %d waiting for their "
+                "plug-in services: %d updated, %d unchanged, %d waiting for their "
                 "listing, %d skipped",
                 reconciled.updated,
                 reconciled.unchanged,
@@ -605,30 +586,30 @@ async def _prepare_database() -> None:
                 reconciled.skipped,
             )
         except Exception:
-            # A registration that failed to reconcile costs that app, not the
+            # A registration that failed to reconcile costs that plug-in, not the
             # boot; already-stored registrations keep working unchanged.
-            logger.exception("app services: reconciliation from config failed")
+            logger.exception("plug-in services: reconciliation from config failed")
 
-    # Apps the deployment provides to every guild (§7.7). New guilds get theirs
+    # Plug-ins the deployment provides to every guild (§7.7). New guilds get theirs
     # at creation; this is how the flag reaches guilds that predate it, on the
     # same sweep pattern that reprovisions stale schemas. Returns immediately
     # when nothing is marked mandatory, which is every install that has not
     # asked for this.
     try:
-        from app.services.tenant import mandatory_apps as mandatory_apps_service
+        from app.services.tenant import mandatory_plugins as mandatory_plugins_service
 
-        backfilled = await mandatory_apps_service.backfill_mandatory_apps()
+        backfilled = await mandatory_plugins_service.backfill_mandatory_plugins()
         if backfilled.installed or backfilled.failed:
             logger.info(
-                "mandatory apps: %d installed across %d guild(s), %d failed",
+                "mandatory plug-ins: %d installed across %d guild(s), %d failed",
                 backfilled.installed,
                 backfilled.guilds,
                 backfilled.failed,
             )
     except Exception:
-        # A guild missing a mandatory app is a gap the next boot closes; it is
+        # A guild missing a mandatory plug-in is a gap the next boot closes; it is
         # not a reason to refuse to start.
-        logger.exception("mandatory apps: backfill failed")
+        logger.exception("mandatory plug-ins: backfill failed")
 
 
 if __name__ == "__main__":  # pragma: no cover

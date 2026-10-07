@@ -17,11 +17,15 @@ Click any icon to switch. Everything follows you over — sidebar, initiatives, 
 !!! tip "Two communities at once"
     Open Initiative in two browser tabs and each one can sit in a different community, quite happily, simultaneously. Useful on the days when the work team and the volunteer thing both want you and neither will be reasoned with.
 
+Want more than an icon? The double arrow at the foot of the rail, **Expand community list**, opens every community as a card — banner, description, categories, where it is (if it has said), and how many members there are and how many are online. **Reorder** there lets you drag them into whatever order makes sense to you, which is rarely alphabetical.
+
+![The community rail expanded into cards](../images/communities/rail-cards.png)
+
 The rail also keeps up with itself. If an admin adds you somewhere, or a group login sync brings you in, or a community you're already in lists itself publicly, the rail updates where you're standing. No reloading.
 
 ## The community front page
 
-Opening a community drops you on its front page. Its tools run across the top as circles — pick one, and you get everything of that kind that's reached **you**: shared with you directly, with a role you hold, or with everyone in an initiative you're in.
+Opening a community drops you on its front page. Its name sits on the banner, with where it is underneath if it has said. Its tools run across the top as circles — pick one, and you get everything of that kind that's reached **you**: shared with you directly, with a role you hold, or with everyone in an initiative you're in.
 
 Only the tools your initiatives actually use turn up, so a community that has never once needed a queue is not given a Queues circle to look at and feel vaguely guilty about.
 
@@ -35,21 +39,25 @@ Community admins get the same page. Their authority is unchanged — open any in
 
 Most communities are private, and you get in by invitation. Some list themselves publicly, and those you can find on your own.
 
-Hit the **add-a-community** button on the rail and choose **Join a community**. That opens the **community directory**: a card per listed community, with its description, categories, member count, and how many are online right now.
+**Join a community** is its own dashed button at the foot of the rail, just below the **+** that makes a new one. It opens the **community directory**: a card per listed community, with its description, categories, where it is, member count, and how many are online right now.
 
-Search by name, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
+Search by name or by place, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
 
-What you searched and which shelf you're on live in the address, so a filtered directory view is a link you can send somebody.
+Searching by place covers a city, a neighbourhood, a postcode, or a whole country by name: "Japan" finds everything in Japan, whatever language you type it in.
+
+**Near me**, above the cards, puts the closest communities first: your city, then your region, then your country, then the ones that never said where they are, then everywhere else. It hides nothing; it only sorts. This device remembers it for next time, and the **×** beside it forgets it.
+
+What you searched, which shelf you're on and where you're near all live in the address, so a filtered directory view is a link you can send somebody.
 
 ![The community directory](../images/communities/community-directory.png)
 
 The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **16 or older** to join one. You're asked once, ever, and then never again.
 
 !!! info "It's about the community, not the button"
-    Anyone signed in can find a listed community, so joining one asks your age however you got there — the directory, or an invite into it. If you were put in one without ever being asked, it asks the first time you open it. A community that hasn't listed itself never asks, whoever invites you. And nothing else on Initiative asks at all: close the box and the rest of the app carries on exactly as it did.
+    Anyone signed in can find a listed community, so joining one asks your age however you got there — the directory, or an invite into it. If you were put in one without ever being asked, it asks the first time you open it. A community that hasn't listed itself never asks, whoever invites you. Initiative asks every account its date of birth once, so if you've already answered, joining asks nothing more.
 
-!!! info "The date isn't kept"
-    We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).
+!!! info "The date is kept encrypted"
+    It's kept encrypted and used only to check age limits. It's never shown back to anyone, and it isn't sold or shared. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"
     It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../running-a-server/configuration.md).
@@ -72,6 +80,24 @@ That certification is the entire content rule — if you can't honestly tick it,
     A listed community whose initiatives are all invite-only leaves every newcomer looking at a beautiful, entirely empty page, quietly wondering what they did wrong on the way in.
 
     Initiative spots this and tells you, with the fix attached: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive already inside it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
+
+## Saying where your community is (admins)
+
+Some communities are about a place: the allotment, the street, the Thursday quiz at the one pub with parking. **Location**, under **Community settings → Community**, says where. It's optional, and as vague or as exact as you like.
+
+| Give it | The card says |
+|---|---|
+| A country | Japan |
+| A region | Ontario, Canada |
+| A city | Seattle, WA, or Lyon, France |
+| A street address | Still just the city. The street and postcode wait behind a hover or a tap, with a link to a map. |
+
+**Place name** goes in front of all that: "Queen Anne Neighborhood, Seattle, WA". Keep it short. A card gives the whole location one line, and when the line runs out it's your place name that gets trimmed, so the city always survives.
+
+The city list is a suggestion, not a test. If yours isn't on it, type it.
+
+!!! warning "Listed means anyone can see it"
+    A [listed](#listing-your-community-admins) community shows its location to everyone browsing the directory, and the street address to anyone who opens the details. If you meet in somebody's living room, the city is plenty.
 
 ## Inviting people (admins)
 
@@ -96,7 +122,7 @@ Anyone who opens it joins after signing in or making an account.
 
 Promote and demote from **Community settings → Users**.
 
-Promoting somebody also lifts the **initiative roles they already hold** — every initiative they're in moves them up to project manager, so the app starts treating them as the authority they now actually are. They get told when somebody asks to join, and waiting requests show up on the front page. A membership left behind by an older promotion can be fixed from that initiative's **Members** tab.
+Promoting somebody to admin also lifts the **initiative roles they already hold**: in every initiative they're in, they move to **Moderator**, unless they're a Manager there already. The app then treats them as the authority they actually are — they're told when somebody asks to join, and waiting requests show up on their front page. Demoting somebody leaves their initiative roles exactly where they are.
 
 ### Why superadmin is separate
 
@@ -110,7 +136,7 @@ So the top seat is its own rung, and it's narrow on purpose: the [Security and I
 
 ### What the member list shows
 
-The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
+The things a community actually manages: **handle**, **name** (the [display name](#your-name-in-a-community), where there is one), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
 A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../running-a-server/platform-roles.md#managing-platform-users).
 
@@ -123,12 +149,12 @@ Open **Community settings** from the sidebar or the rail:
 
 | Tab | What's in it |
 |---|---|
-| **Usage** | Storage and members against the community's limits. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
-| **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
-| **Users** | Members, roles, invite links. |
+| **Usage** | Storage and members against the community's limits, and anything an installed plug-in counts for you. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
+| **Community** | Name, description, [location](#saying-where-your-community-is-admins), icon and banner (square, up to 512 KB), and the directory listing. |
+| **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
-| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
+| **Integrations** | AI settings and installed plug-ins — see [AI features](../account/ai-features.md) and [Plug-ins & the marketplace](plugins-and-marketplace.md#adding-a-plug-in). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |
@@ -161,13 +187,13 @@ Jira and Confluence have no file to drop in. Pick **Jira & Confluence** in the s
 
 No token to hand, or a Confluence this server can't reach — one on the office network, say? Export the space instead: in Confluence, **Space settings → Export space → HTML**. Pick **Jira & Confluence** here, choose **Upload it** under the connect form, and drop in the zip. It's read the same way and you get the same review; only the comments stay behind.
 
-Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Pictures sit where the issue showed them, and any other attached file becomes a document the task is attached to. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
+Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Pictures sit where the issue showed them, and any other attached file lands in Files, attached to the task. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
 
-Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](documents.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram. Pictures sit where the page showed them. Every other attached file becomes a document filed in the wiki under the page it was attached to, and a page's link to one points at it — so the spreadsheet everyone was told to "just check the attachment" for is one click away. Comments come too, footer and inline, replies under what they answer; an inline comment quotes the words it was pinned to, since here the thread sits under the page. One marked resolved is a finished conversation, so it stays behind. Files need documents switched on in the initiative; without them the pictures come on their own, and the review counts the files left behind.
+Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](files.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram. Pictures sit where the page showed them. Every other attached file lands in Files and sits in the wiki under the page it was attached to, and a page's link to one points at it — so the spreadsheet everyone was told to "just check the attachment" for is one click away. Comments come too, footer and inline, replies under what they answer; an inline comment quotes the words it was pinned to, since here the thread sits under the page. One marked resolved is a finished conversation, so it stays behind. Attachments need Files switched on in the initiative; without it the pictures come on their own, and the review counts the files left behind.
 
 Bring a project and its space over together and they arrive joined up, whichever way they pointed:
 
-- A page that mentions an issue — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written.
+- A page that mentions an issue — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](files.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written.
 - An issue that links to a page, in its description, a comment or its list of Confluence pages, points at the wiki page.
 
 A page that mentions an issue from an earlier Jira import is joined up too. The review says how many links it's joining, and names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it.
@@ -184,18 +210,47 @@ This is the setting that quietly saves somebody's entire afternoon roughly twice
 
 The hard-to-undo things, chiefly **deleting the community**.
 
-It vanishes for everyone in it immediately — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; the tab is theirs alone.
+It vanishes for everyone in it immediately — initiatives, projects, tasks, files, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; the tab is theirs alone.
 
 Everything in it is then held for a window — ninety days, unless whoever runs the server says otherwise — and at any point inside it a platform operator can restore the lot from **Settings → Platform → Communities**, exactly as it was, handing it to a new owner where nobody's left who could run it. So the 11pm decision is recoverable, as long as somebody notices in time.
 
 You get an email naming the date that window closes. Members get one less thing in their list, which is the part they can act on, so they get no mail.
 
-A restored community reconnects its installed apps itself. It gave those apps their access in the first place, so it gives it again.
+A restored community reconnects its installed plug-ins itself. It gave those plug-ins their access in the first place, so it gives it again.
 
 The friction is entirely deliberate and we're not sorry about it.
 
 ??? techspec "For the technically minded — what community deletion does"
     When the window finally runs out, it removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Until then all of that is intact, which is what makes a restore a restore rather than a rebuild. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
+
+## Your name in a community
+
+Everyone is their handle, `jordan#1234`, until they say otherwise. To go by something friendlier in one community, open its **Members** page and choose **Set your display name**, at the top beside the member count. "Jordan from the allotment" in the allotment society, plain `jordan#1234` at the residents' association, and neither one any the wiser.
+
+It shows wherever that community shows people, and people can search for it. Clear the box and you're back to your handle.
+
+Admins can set or clear a member's from the row menu under **Community settings → Users**. Handy when four people are called Sam.
+
+## Reporting something
+
+Something here that shouldn't be? Comments, notices, pictures, profiles and directory listings all carry a small flag: **Report**. Say what's wrong, add a line if you like, and **Send report**. It isn't offered on your own things, because you can already edit or delete those.
+
+| What you report | Who looks at it |
+|---|---|
+| Anything inside an initiative — a comment, a notice, a picture | That initiative's [moderators](initiatives.md#moderation), and the community's admins |
+| A profile, or a community's directory listing | Whoever runs the server |
+
+The people who look see what you wrote. The thing you reported isn't touched until one of them decides it should be.
+
+## Asking for help
+
+The lifebuoy at the foot of the sidebar is **Ask for help**. Where your server takes help requests from this community, it opens a short form — what it's about, what happened — and it goes to the people who run the server, not to the community's own admins.
+
+Where the server takes no requests from here but has said who to write to, the button gives you that address instead. Where there's neither, the button isn't there, and **Documentation**, the question mark beside it, is where to look.
+
+Every request you send lands in **My Tickets**, in the sidebar: where each one stands (**Received**, **In progress**, **Waiting on you**, **Closed**), what the team said, and your replies. You get a notification when it moves, so there's no need to keep checking. A report is listed there too, though the team looks into reports without replying to them.
+
+Whoever runs the server decides which communities take help requests. See [Platform roles](../running-a-server/platform-roles.md#what-you-decide-per-community).
 
 ## Leaving a community
 

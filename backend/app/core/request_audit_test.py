@@ -116,24 +116,30 @@ def _ws_scope() -> dict:
         "type": "websocket",
         "path": "/ws",
         "client": ("203.0.113.7", 51234),
-        "headers": [(b"user-agent", b"Firefox/1")],
+        "headers": [
+            (b"user-agent", b"Firefox/1"),
+            (b"x-forwarded-for", b"198.51.100.20"),
+        ],
     }
 
 
 async def test_a_socket_is_named_for_as_long_as_it_is_open():
     """A socket has no response to carry an id back on, but every line it
-    writes still says which session wrote it."""
+    writes still says which session wrote it, and where it came from: the
+    peer the ASGI server resolved, not a header the request carried."""
     seen = {}
 
     def inside():
         context = audit_context.current()
         seen["request_id"] = context.request_id
-        seen["source_ip"] = context.source_ip
+        seen["source_ip"] = audit_context.client_ip()
+        seen["user_agent"] = audit_context.client_user_agent()
 
     await _drive_socket(_ws_scope(), inside)
 
     assert audit_context.clean_request_id(seen["request_id"])
     assert seen["source_ip"] == "203.0.113.7"
+    assert seen["user_agent"] == "Firefox/1"
     assert audit_context.current() is None
 
 
@@ -150,7 +156,7 @@ def _requests_counted(route: str, status: str) -> float:
 async def test_a_request_is_counted_by_the_route_it_matched(client: AsyncClient):
     """The label is the route as written, so every community's list is one
     series rather than one per community."""
-    route = "/api/v1/c/{guild_id}/initiatives/"
+    route = "/api/v1/c/{community_id}/initiatives/"
     before = _requests_counted(route, "401")
 
     answered = await client.get("/api/v1/c/424242/initiatives/")
@@ -201,7 +207,7 @@ async def test_a_grantees_first_edit_is_written_down(capfd):
         )
         capfd.readouterr()
         recorded["first"] = record_privileged_edit(
-            guild_id=7, resource_type="document", resource_id=931, actor_user_id=42
+            guild_id=7, resource_type="file", resource_id=931, actor_user_id=42
         )
         recorded["lines"] = emitted(capfd, AuditEventType.PAM_CONTENT_EDITED)
 
@@ -211,7 +217,7 @@ async def test_a_grantees_first_edit_is_written_down(capfd):
     (line,) = recorded["lines"]
     assert line["actor_user_id"] == 42
     assert line["guild_id"] == 7
-    assert line["target"] == {"type": "document", "id": 931}
+    assert line["target"] == {"type": "file", "id": 931}
     assert line["is_write"] is True
     assert line["context"]["grant_id"] == 88
     assert line["context"]["source_ip"] == "203.0.113.7"
@@ -219,13 +225,13 @@ async def test_a_grantees_first_edit_is_written_down(capfd):
 
 async def test_a_members_own_editing_is_not_written_down(capfd):
     """This records privileged access. A member editing their community's own
-    document is ordinary work."""
+    file is ordinary work."""
     recorded = {}
 
     def inside():
         capfd.readouterr()
         recorded["wrote"] = record_privileged_edit(
-            guild_id=7, resource_type="document", resource_id=931, actor_user_id=42
+            guild_id=7, resource_type="file", resource_id=931, actor_user_id=42
         )
         recorded["lines"] = emitted(capfd)
 
@@ -238,7 +244,7 @@ async def test_a_members_own_editing_is_not_written_down(capfd):
 async def test_an_edit_outside_any_session_records_nothing():
     assert (
         record_privileged_edit(
-            guild_id=7, resource_type="document", resource_id=931, actor_user_id=42
+            guild_id=7, resource_type="file", resource_id=931, actor_user_id=42
         )
         is False
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Annotated, List
 
 from fastapi import (
@@ -17,12 +18,14 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    CommunityIdPath,
     GuildContext,
     SeatPaymentSessionDep,
     SeatSessionDep,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     SettingsAdminWriteContextDep,
+    SettingsContextDep,
     SettingsRLSSessionDep,
     SettingsSeatWriteContextDep,
     UploadUserDep,
@@ -38,27 +41,30 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.core.intake import IntakeStream
+from app.db.query import build_paginated_response
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import SecondFactorRequirement
-from app.core.messages import BillingMessages, GuildMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.image_headers import validate_image
+from app.core.messages import BillingMessages, GuildMessages, ImageMessages
+from app.core.rate_limit import limiter
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
 )
 from app.services.platform.identity_refs import billing_refs
-from app.services.marketplace import app_refs
-from app.db import cohorts
+from app.services.marketplace import plugin_refs
+from app.db import post_commit
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.models.platform.guild import (
     assignable_roles,
     Guild,
-    GuildCategory,
-    GuildRole,
-    GuildStatus,
+    CommunityCategory,
+    GuildMembership,
+    CommunityRole,
+    CommunityStatus,
     LIVE_STATUS_VALUES,
 )
 from app.models.platform.guild_administration import GuildAdministration
@@ -70,42 +76,44 @@ from app.models.platform.guild_image import (
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
-    CommunityGuildPage,
-    CommunityGuildRead,
-    GuildBannerRead,
-    GuildCan,
-    GuildEntitlementsRead,
-    GuildAuthSettingsRead,
-    GuildAuthSettingsUpdate,
-    GuildAuthPolicyRead,
-    GuildCreate,
-    GuildDeletionRequest,
-    GuildMembershipUpdate,
-    GuildRead,
-    GuildInviteAcceptRequest,
-    GuildInviteCreate,
-    GuildInviteRead,
-    GuildPaymentIssueRead,
-    GuildBillingSummaryRead,
-    GuildInviteStatus,
-    GuildOrderUpdate,
-    GuildUpdate,
-    LeaveGuildEligibilityResponse,
+    DirectoryCommunityPage,
+    DirectoryCommunityRead,
+    CommunityBannerRead,
+    CommunityCan,
+    CommunityEntitlementsRead,
+    CommunityAuthSettingsRead,
+    CommunityAuthSettingsUpdate,
+    CommunityAuthPolicyRead,
+    CommunityCreate,
+    CommunityDeletionRequest,
+    CommunityMembershipUpdate,
+    CommunityRead,
+    CommunityInviteAcceptRequest,
+    CommunityInviteCreate,
+    CommunityInviteRead,
+    CommunityPaymentIssueRead,
+    CommunityBillingSummaryRead,
+    CommunityInviteStatus,
+    CommunityOrderUpdate,
+    CommunityUpdate,
+    LeaveCommunityEligibilityResponse,
+    MemberApiAccessUpdate,
+    MemberDisplayNameUpdate,
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.core.guild_auth_options import effective_options
+from app.core.guild_auth_options import CommunityAuthOption, effective_options
 from app.services.platform import auth_posture
 from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
+from app.services.platform import guild_entitlements
 from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
 from app.services.content_sockets import sockets as content_sockets
-from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_revocation as app_revocation_service
+from app.services.tenant import plugin_connections as plugin_connections_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -113,58 +121,51 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _position_of(guild_context: GuildContext) -> int:
-    """Where the caller keeps this community in their list; a grantee has no
-    place in it."""
-    membership = guild_context.membership
-    return membership.position if membership is not None else 0
-
-
-def _can_of(guild_context: GuildContext) -> GuildCan:
+def _can_of(guild_context: GuildContext) -> CommunityCan:
     """What the caller may do in the community, by the standing: each flag is
     what the guard on the routes that do the thing asks."""
-    return GuildCan(
+    return CommunityCan(
         # The seam admitted the request, which a community in time out refuses.
         enter=True,
         content=not guild_context.is_settings_only,
-        administer=holds_guild_role(guild_context, GuildRole.admin, settings=True),
+        administer=holds_guild_role(guild_context, CommunityRole.admin, settings=True),
         configure=guild_context.writes_settings,
-        administer_content=holds_guild_role(guild_context, GuildRole.admin),
+        administer_content=holds_guild_role(guild_context, CommunityRole.admin),
         seat=guild_context.guild_seat,
     )
 
 
-def _can_of_membership(guild: Guild, role: GuildRole) -> GuildCan:
+def _can_of_membership(guild: Guild, role: CommunityRole) -> CommunityCan:
     """The same answers for a membership row read without a standing, as the
     caller's own list is: the row's rung asked of the ladder the standing's
     admin fact is rendered from, and the lifecycle status the seam admits a
     member by."""
-    administers = role.reaches(GuildRole.admin)
-    return GuildCan(
+    administers = role.reaches(CommunityRole.admin)
+    return CommunityCan(
         enter=guild.status in LIVE_STATUS_VALUES,
         content=True,
         administer=administers,
         configure=administers,
         administer_content=administers,
-        seat=role.reaches(GuildRole.superadmin),
+        seat=role.reaches(CommunityRole.superadmin),
     )
 
 
 def _serialize_guild(
     guild: Guild,
     *,
-    role: GuildRole,
-    position: int,
+    role: CommunityRole,
+    membership: GuildMembership | None,
     retention_days: int | None = None,
     member_count: int = 0,
     administration: GuildAdministration | None = None,
     images: dict[GuildImageVariant, str] | None = None,
-    can: GuildCan | None = None,
+    can: CommunityCan | None = None,
     closed_contact: str | None = None,
-) -> GuildRead:
+) -> CommunityRead:
     """Build one entry of the caller's own guild list.
 
-    ``GuildRead`` carries two kinds of information and this is the single seam
+    ``CommunityRead`` carries two kinds of information and this is the single seam
     that decides who gets which:
 
     - **Everyone in the guild** — the guild's identity (name, description,
@@ -181,6 +182,9 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
 
+    ``membership`` is the caller's own row, where they have one; a grantee
+    has no place in the list and no name of their own here.
+
     ``can`` is the caller's standing, where the caller has one
     (:func:`_can_of`); left out, the membership row answers.
 
@@ -189,9 +193,9 @@ def _serialize_guild(
     """
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
-    is_admin = role.reaches(GuildRole.admin)
+    is_admin = role.reaches(CommunityRole.admin)
     admin_row = administration if is_admin else None
-    return GuildRead(
+    return CommunityRead(
         id=guild.id,
         name=guild.name,
         description=guild.description,
@@ -199,7 +203,8 @@ def _serialize_guild(
         updated_at=guild.updated_at,
         role=role,
         can=_can_of_membership(guild, role) if can is None else can,
-        position=position,
+        position=membership.position if membership is not None else 0,
+        display_name=membership.display_name if membership is not None else None,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
         member_count=member_count,
@@ -212,14 +217,14 @@ def _serialize_guild(
         # Only guild admins learn the lifecycle status (for the closed entry
         # and the read-only notice); members get None so a moderation hold
         # isn't disclosed to them.
-        status=GuildStatus(guild.status) if is_admin else None,
+        status=CommunityStatus(guild.status) if is_admin else None,
         # Every member learns the *effect* of a read_only hold (their writes
         # already fail at the DB role level) so the UI can drop write
         # affordances — without disclosing the status itself.
-        content_read_only=(guild.status == GuildStatus.read_only.value),
+        content_read_only=(guild.status == CommunityStatus.read_only.value),
         contact_email=(
             closed_contact
-            if is_admin and guild.status == GuildStatus.suspended.value
+            if is_admin and guild.status == CommunityStatus.suspended.value
             else None
         ),
         # Admins only: lets their settings UI show/hide the Authentication tab.
@@ -229,7 +234,6 @@ def _serialize_guild(
         if admin_row
         else None,
         # Admins only: the state of the API-access control on that tab.
-        allow_api_keys=guild.allow_api_keys if is_admin else None,
         # Admins only: and of the session-limit control beside it.
         enforce_compliance_session=(
             guild.enforce_compliance_session if is_admin else None
@@ -240,21 +244,78 @@ def _serialize_guild(
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
         is_community=guild.is_community,
-        categories=[GuildCategory(value) for value in guild.categories],
-        show_member_names=guild.show_member_names,
+        categories=[CommunityCategory(value) for value in guild.categories],
         has_adult_content=guild.has_adult_content,
+        location=guild.location,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
         # as a guild without any. The rest of the banner is stored, so it needs
         # no such arrangement.
         icon_url=(images or {}).get(GuildImageVariant.icon),
-        banner=GuildBannerRead(
+        banner=CommunityBannerRead(
             image_url=(images or {}).get(GuildImageVariant.full), **guild.banner
         ),
+        banner_card_url=(images or {}).get(GuildImageVariant.card),
         # Read here rather than passed in, so every payload that names a guild
         # carries the same figure without each call site remembering to ask.
         # It costs no query — presence is a dict this process already holds.
         online_count=content_sockets.present_count(guild.id),
+    )
+
+
+async def _guild_read(
+    system_session: AsyncSession,
+    guild: Guild,
+    *,
+    membership: GuildMembership | None = None,
+    standing: GuildContext | None = None,
+    guild_session: AsyncSession | None = None,
+) -> CommunityRead:
+    """One community's entry, with everything it is built from gathered here.
+
+    ``standing`` and ``guild_session`` are the caller's standing in the
+    community and their session routed into it, for the routes the seam
+    admitted. ``membership`` is the caller's row, for the routes that run
+    before there is a standing to route by (creating, joining).
+
+    The roster size and the administration row are read on the routed session
+    where there is one, and on the system engine where there is not. The
+    retention window lives in the community's own schema, so it is read only on
+    a routed session. The administration row and the window are read only for
+    an admin, the only rung served them. The pictures are read on the system engine: a settings rung reads on the
+    read-only floor, which holds no grant on the image digests, and the image
+    route serves them to a grant holder as it does to a member.
+    """
+    can: CommunityCan | None = None
+    if standing is not None:
+        role = standing.rung
+        can = _can_of(standing)
+        membership = standing.membership
+    elif membership is not None:
+        role = membership.role
+    else:
+        raise TypeError("_guild_read needs a standing or a membership")
+    is_admin = role.reaches(CommunityRole.admin)
+    reader = guild_session if guild_session is not None else system_session
+    return _serialize_guild(
+        guild,
+        role=role,
+        membership=membership,
+        can=can,
+        retention_days=(
+            await guilds_service.get_guild_retention_days(guild_session)
+            if is_admin and guild_session is not None
+            else None
+        ),
+        member_count=await guilds_service.count_members(reader, guild_id=guild.id),
+        administration=(
+            await guilds_service.get_administration(reader, guild_id=guild.id)
+            if is_admin
+            else None
+        ),
+        images=await images_service.image_urls_for(
+            system_session, guild.id, *GuildImageVariant
+        ),
     )
 
 
@@ -265,15 +326,15 @@ _GUILD_PROFILE_FIELDS = (
     "is_community",
     "categories",
     "has_adult_content",
-    "show_member_names",
+    "location",
 )
 
 
-@router.get("/", response_model=List[GuildRead])
-async def list_guilds(
+@router.get("/", response_model=List[CommunityRead])
+async def list_communities(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> List[GuildRead]:
+) -> List[CommunityRead]:
     # A suspended account keeps every membership it had and reaches none of
     # them, so its guild list is empty — the same thing a suspended guild does
     # to its members' lists, and it keeps the app coherent rather than offering
@@ -287,25 +348,24 @@ async def list_guilds(
     # One query for the whole list, and only the digests — a guild list is
     # every guild the caller is in, and a banner is a third of a megabyte.
     images = await images_service.image_urls(
-        session,
-        [guild.id for guild, *_ in memberships],
-        GuildImageVariant.icon,
-        GuildImageVariant.full,
+        session, [guild.id for guild, *_ in memberships], *GuildImageVariant
     )
     # Asked once, and only when a suspended guild is on the list — the only
     # entry that names who to contact.
     closed_contact = (
         await intake_service.contact_for(session, IntakeStream.moderation)
-        if any(guild.status == GuildStatus.suspended.value for guild, *_ in memberships)
+        if any(
+            guild.status == CommunityStatus.suspended.value for guild, *_ in memberships
+        )
         else None
     )
-    payloads: List[GuildRead] = []
+    payloads: List[CommunityRead] = []
     for guild, membership, retention_days, member_count, administration in memberships:
         payloads.append(
             _serialize_guild(
                 guild,
                 role=membership.role,
-                position=membership.position,
+                membership=membership,
                 retention_days=retention_days,
                 member_count=member_count,
                 administration=administration,
@@ -317,15 +377,15 @@ async def list_guilds(
 
 
 @router.put("/order", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-async def reorder_guilds(
-    payload: GuildOrderUpdate,
+async def reorder_communities(
+    payload: CommunityOrderUpdate,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     await guilds_service.reorder_memberships(
         session,
         user_id=current_user.id,
-        ordered_guild_ids=payload.guild_ids,
+        ordered_guild_ids=payload.community_ids,
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -335,15 +395,24 @@ async def reorder_guilds(
 MAX_COMMUNITY_PAGE_SIZE = 60
 
 
-@router.get("/directory", response_model=CommunityGuildPage)
-async def list_community_guilds(
+@router.get("/directory", response_model=DirectoryCommunityPage)
+async def list_directory_communities(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    q: str | None = Query(default=None, max_length=200),
-    category: list[GuildCategory] = Query(default=[]),
+    search: str | None = Query(default=None, max_length=200),
+    # The countries ``search`` names, as ISO codes. Country names are the
+    # reader's language's business, so the client resolves them; a community
+    # in one of these matches the search as if its text had.
+    search_country: list[str] = Query(default=[], max_length=50),
+    category: list[CommunityCategory] = Query(default=[]),
+    # Where the reader is, to put the communities nearest them first. Each is
+    # optional below the country; none of them narrows what is listed.
+    near_country: str | None = Query(default=None, pattern=r"^[A-Za-z]{2}$"),
+    near_region: str | None = Query(default=None, max_length=10),
+    near_city: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
-) -> CommunityGuildPage:
+) -> DirectoryCommunityPage:
     """Browse the guilds that opted into the community directory.
 
     Runs on the system engine for the reason ``GET /invite/{code}`` does: the
@@ -351,7 +420,7 @@ async def list_community_guilds(
     read them under, and the RLS policy that scopes ``guilds`` to the caller's
     own memberships would return an empty directory. What that engine may see
     is not what this returns — the filters live in the service (listed AND
-    active, always), and :class:`CommunityGuildRead` carries only what a guild
+    active, always), and :class:`DirectoryCommunityRead` carries only what a guild
     published by opting in: no lifecycle status, no administration, no roster,
     and nothing at all from inside the guild's own schema. How many people have
     it open is a count of live connections, named to nobody.
@@ -360,19 +429,28 @@ async def list_community_guilds(
     is off there is nothing to browse and the request is refused rather than
     answered with an empty page.
     """
-    try:
-        rows, total = await guilds_service.list_community_guilds(
-            session,
-            user_id=current_user.id,
-            query=q,
-            categories=[c.value for c in category],
-            page=page,
-            page_size=page_size,
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    rows, total = await guilds_service.list_community_guilds(
+        session,
+        user_id=current_user.id,
+        query=search,
+        query_countries=[
+            code.upper()
+            for code in search_country
+            if re.fullmatch(r"[A-Za-z]{2}", code)
+        ],
+        categories=[c.value for c in category],
+        near=(
+            guilds_service.NearPlace(
+                country=near_country.upper(),
+                region_code=(near_region or "").strip().upper() or None,
+                city=(near_city or "").strip() or None,
+            )
+            if near_country
+            else None
+        ),
+        page=page,
+        page_size=page_size,
+    )
     # Who is present is live state held by the process, not a column, so it is
     # read here for the page being returned rather than joined in the query.
     online = content_sockets.present_counts(guild.id for guild, _, _ in rows)
@@ -383,34 +461,39 @@ async def list_community_guilds(
         GuildImageVariant.icon,
         GuildImageVariant.card,
     )
-    return CommunityGuildPage(
-        items=[
-            CommunityGuildRead(
-                id=guild.id,
-                name=guild.name,
-                description=guild.description,
-                icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-                banner=GuildBannerRead(
-                    image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
-                    **guild.banner,
-                ),
-                categories=[GuildCategory(value) for value in guild.categories],
-                member_count=member_count,
-                online_count=online.get(guild.id, 0),
-                already_member=already_member,
-            )
-            for guild, member_count, already_member in rows
-        ],
-        total=total,
+    return DirectoryCommunityPage(
+        **build_paginated_response(
+            [
+                DirectoryCommunityRead(
+                    id=guild.id,
+                    name=guild.name,
+                    description=guild.description,
+                    icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
+                    banner=CommunityBannerRead(
+                        image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                        **guild.banner,
+                    ),
+                    categories=[CommunityCategory(value) for value in guild.categories],
+                    location=guild.location,
+                    member_count=member_count,
+                    online_count=online.get(guild.id, 0),
+                    already_member=already_member,
+                )
+                for guild, member_count, already_member in rows
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 
-@router.post("/directory/{guild_id}/join", response_model=GuildRead)
-async def join_community_guild(
-    guild_id: int,
+@router.post("/directory/{community_id}/join", response_model=CommunityRead)
+async def join_directory_community(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     """Join a listed community guild. Its listing is the authorization.
 
     The system engine for the same reason ``accept_invite`` uses it — the user
@@ -418,64 +501,36 @@ async def join_community_guild(
     an already-joined guild is not an error; it returns the guild the caller is
     already in.
     """
-    try:
-        guild = await guilds_service.join_community_guild(
-            session, guild_id=guild_id, user=current_user
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.CommunityJoinError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except guilds_service.AgeConfirmationRequiredError as exc:
-        # The one thing the caller can fix by answering, so it is its own code:
-        # the SPA ticks the box and repeats the request.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    guild = await guilds_service.join_community_guild(
+        session, guild_id=guild_id, user=current_user
+    )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        position=membership.position,
-        member_count=member_count,
-        # Joining is how the caller first earns the full-size banner they were
-        # shown a card of.
-        images=await images_service.image_urls_for(
-            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
-        ),
-    )
+    # Joining is how the caller first earns the full-size banner they were
+    # shown a card of.
+    return await _guild_read(session, guild, membership=membership)
 
 
-@router.get("/invite/{code}", response_model=GuildInviteStatus)
+@router.get("/invite/{code}", response_model=CommunityInviteStatus)
 async def get_invite_status(
     code: str,
     session: SystemSessionDep,
-) -> GuildInviteStatus:
+) -> CommunityInviteStatus:
     invite, guild, is_valid, reason = await guilds_service.describe_invite_code(
         session, code=code
     )
-    return GuildInviteStatus(
+    return CommunityInviteStatus(
         code=code,
-        guild_id=guild.id if guild else None,
-        guild_name=guild.name if guild else None,
+        community_id=guild.id if guild else None,
+        community_name=guild.name if guild else None,
         is_valid=is_valid,
         reason=reason,
         expires_at=invite.expires_at if invite else None,
@@ -485,10 +540,10 @@ async def get_invite_status(
 
 
 async def _resolve_guild_owner(
-    session: AsyncSession, guild_in: GuildCreate, current_user: User
+    session: AsyncSession, guild_in: CommunityCreate, current_user: User
 ) -> User:
     """Who the new guild's admin will be — the caller, unless a
-    ``guilds.manage`` holder named someone else.
+    ``communities.manage`` holder named someone else.
 
     Refused rather than ignored without that capability: creating the guild
     under the caller would answer 201 for a request that named another account.
@@ -498,62 +553,57 @@ async def _resolve_guild_owner(
     requested = guild_in.owner_user_id
     if requested is None or requested == current_user.id:
         return current_user
-    if not user_has_capability(current_user, Capability.GUILDS_MANAGE):
+    if not user_has_capability(current_user, Capability.COMMUNITIES_MANAGE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_OWNER_REQUIRES_CAPABILITY,
+            detail=GuildMessages.COMMUNITY_OWNER_REQUIRES_CAPABILITY,
         )
     owner = await session.get(User, requested)
     if owner is None or owner.status is not UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_OWNER_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_OWNER_NOT_FOUND,
         )
     return owner
 
 
-@router.post("/", response_model=GuildRead, status_code=status.HTTP_201_CREATED)
-async def create_guild(
-    guild_in: GuildCreate,
+@router.post("/", response_model=CommunityRead, status_code=status.HTTP_201_CREATED)
+async def create_community(
+    guild_in: CommunityCreate,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     """Create a new guild. Uses the system session because the guild doesn't exist
     yet — no guild context or membership exists for RLS to match against.
 
-    The caller becomes the guild's admin, unless they hold ``guilds.manage``
+    The caller becomes the guild's admin, unless they hold ``communities.manage``
     and name an ``owner_user_id``, which hands the guild to that account
     instead and leaves the caller holding nothing in it.
     """
     if settings.DISABLE_GUILD_CREATION and not user_has_capability(
-        current_user, Capability.GUILDS_MANAGE
+        current_user, Capability.COMMUNITIES_MANAGE
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_CREATION_DISABLED,
+            detail=GuildMessages.COMMUNITY_CREATION_DISABLED,
         )
-    name = guild_in.name.strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_NAME_REQUIRED,
-        )
+    name = guild_in.name
 
     if not user_has_capability(
-        current_user, Capability.GUILDS_MANAGE
+        current_user, Capability.COMMUNITIES_MANAGE
     ) and not await guilds_service.may_create_another_guild(
         session, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=GuildMessages.GUILD_CREATION_LIMIT_REACHED,
+            detail=GuildMessages.COMMUNITY_CREATION_LIMIT_REACHED,
         )
 
     owner = await _resolve_guild_owner(session, guild_in, current_user)
 
     if (
         billing_service.billing_inbound_enabled()
-        and not user_has_capability(current_user, Capability.GUILDS_MANAGE)
+        and not user_has_capability(current_user, Capability.COMMUNITIES_MANAGE)
         and await guilds_service.holds_a_free_guild(session, user_id=owner.id)
     ):
         raise HTTPException(
@@ -573,7 +623,7 @@ async def create_guild(
     except guilds_service.GuildProvisionError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_PROVISION_FAILED,
+            detail=GuildMessages.COMMUNITY_PROVISION_FAILED,
         )
     if owner.id != current_user.id:
         # Both identities: created_by holds the first, the admin
@@ -599,67 +649,49 @@ async def create_guild(
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_CREATE_FAILED,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
     # The creator is the new guild's admin, so their payload carries the
     # administration row — freshly created with the guild, all defaults.
-    administration = await guilds_service.get_administration(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        position=membership.position,
-        member_count=member_count,
-        administration=administration,
-    )
+    return await _guild_read(session, guild, membership=membership)
 
 
-@router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
-async def list_guild_invites(
-    guild_id: int,
+@router.get("/{community_id}/invites", response_model=List[CommunityInviteRead])
+async def list_community_invites(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     session: SettingsRLSSessionDep,
-) -> List[GuildInviteRead]:
+) -> List[CommunityInviteRead]:
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)
-    return [GuildInviteRead.model_validate(invite) for invite in invites]
+    return [CommunityInviteRead.model_validate(invite) for invite in invites]
 
 
-@router.get("/{guild_id}", response_model=GuildRead)
-async def read_guild(
-    guild_id: int,
+@router.get("/{community_id}", response_model=CommunityRead)
+async def read_community(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
-) -> GuildRead:
+    system_session: SystemSessionDep,
+) -> CommunityRead:
     """The community as the caller's standing sees it — how a community
     reached by a settings grant, which has no entry in ``GET /communities/``, gets
     its entry and the answer to what the caller may change there.
-
-    Without its pictures: a settings rung reads on the read-only floor, which
-    holds no grant on the image digests.
     """
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session),
-        member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        administration=await guilds_service.get_administration(
-            session, guild_id=guild_id
-        ),
+    return await _guild_read(
+        system_session, guild, standing=guild_context, guild_session=session
     )
 
 
-@router.patch("/{guild_id}", response_model=GuildRead)
-async def update_guild(
-    guild_id: int,
+@router.patch("/{community_id}", response_model=CommunityRead)
+async def update_community(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
-    updates: GuildUpdate,
+    updates: CommunityUpdate,
     session: SettingsRLSSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     # Moving onto the shelf is measured against the roster the guild built
     # while it was private, and only on the way in — asked before the request
     # routes into its guild, because the answer lives in ``public.users``,
@@ -672,18 +704,14 @@ async def update_guild(
             await guilds_service.get_guild(system_session, guild_id=guild_id)
         ).is_community
         if not listed_before:
-            try:
-                await guilds_service.assert_may_list_with_members(
-                    system_session, guild_id=guild_id
-                )
-            except guilds_service.CommunityListingError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-                ) from exc
+            await guilds_service.assert_may_list_with_members(
+                system_session, guild_id=guild_id
+            )
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_provided = "banner" in updates.model_fields_set
+    location_provided = "location" in updates.model_fields_set
     # The state this PATCH is measured against. Read before the write, since the
     # service edits the row in place.
     before_profile = audit_service.snapshot(
@@ -695,44 +723,30 @@ async def update_guild(
         if retention_days_provided
         else None
     )
-    try:
-        guild = await guilds_service.update_guild(
-            session,
-            guild_id=guild_id,
-            name=updates.name,
-            description=updates.description,
-            retention_days=updates.retention_days,
-            retention_days_provided=retention_days_provided,
-            is_community=updates.is_community,
-            categories=(
-                [category.value for category in updates.categories]
-                if updates.categories
-                else []
-            ),
-            categories_provided=categories_provided,
-            has_adult_content=updates.has_adult_content,
-            has_adult_content_provided=has_adult_content_provided,
-            banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
-            banner_provided=banner_provided,
-            show_member_names=updates.show_member_names,
-        )
-    except guilds_service.CommunityDirectoryDisabledError as exc:
-        # No directory on this deployment, so there is nothing to list in.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.BannerColorError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except guilds_service.CommunityListingError as exc:
-        # The guild does not qualify to be listed. Named specifically (which
-        # rule) rather than as a generic rejection, so the settings page can say
-        # what to fix.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    await guilds_service.record_settings_change(
+    guild = await guilds_service.update_guild(
+        session,
+        guild_id=guild_id,
+        name=updates.name,
+        description=updates.description,
+        retention_days=updates.retention_days,
+        retention_days_provided=retention_days_provided,
+        is_community=updates.is_community,
+        categories=(
+            [category.value for category in updates.categories]
+            if updates.categories
+            else []
+        ),
+        categories_provided=categories_provided,
+        has_adult_content=updates.has_adult_content,
+        has_adult_content_provided=has_adult_content_provided,
+        banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
+        banner_provided=banner_provided,
+        location=(
+            updates.location.model_dump(mode="json") if updates.location else None
+        ),
+        location_provided=location_provided,
+    )
+    await audit_service.record_settings_change(
         session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
@@ -741,7 +755,7 @@ async def update_guild(
         after=audit_service.snapshot(guild, _GUILD_PROFILE_FIELDS),
     )
     if retention_days_provided:
-        await guilds_service.record_settings_change(
+        await audit_service.record_settings_change(
             session,
             guild_id=guild_id,
             actor_user_id=current_user.id,
@@ -752,21 +766,8 @@ async def update_guild(
             },
         )
     await session.commit()
-    retention_days = await guilds_service.get_guild_retention_days(session)
-    member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    # Only a guild admin reaches this endpoint, so the caps belong in the reply.
-    administration = await guilds_service.get_administration(session, guild_id=guild_id)
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        position=_position_of(guild_context),
-        retention_days=retention_days,
-        member_count=member_count,
-        administration=administration,
-        images=await images_service.image_urls_for(
-            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
-        ),
+    return await _guild_read(
+        system_session, guild, standing=guild_context, guild_session=session
     )
 
 
@@ -780,12 +781,12 @@ async def update_guild(
 # reasoning.
 
 
-@router.get("/{guild_id}/entitlements", response_model=GuildEntitlementsRead)
-async def read_guild_entitlements(
-    guild_id: int,
+@router.get("/{community_id}/entitlements", response_model=CommunityEntitlementsRead)
+async def read_community_entitlements(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
-) -> GuildEntitlementsRead:
+) -> CommunityEntitlementsRead:
     """What an operator has turned on for this guild, for its own admins.
 
     Its own read rather than fields on the guild payload: these are decisions
@@ -795,19 +796,19 @@ async def read_guild_entitlements(
     colour alone rather than an upload that would come back refused.
     """
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
-    return GuildEntitlementsRead(
-        guild_id=guild_id,
+    return CommunityEntitlementsRead(
+        community_id=guild_id,
         banner_image_enabled=(
             administration.banner_image_enabled if administration else True
         ),
     )
 
 
-@router.get("/{guild_id}/image/{sha256}", include_in_schema=False)
+@router.get("/{community_id}/image/{sha256}", include_in_schema=False)
 @limiter.limit("600/minute")
-async def read_guild_image(
+async def read_community_image(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     sha256: str,
     current_user: UploadUserDep,
     session: SystemSessionDep,
@@ -860,36 +861,30 @@ async def _store_guild_images(
     the caller's authority to be doing this at all was established against a
     real membership before this is reached.
     """
-    renditions = []
+    renditions = {}
     for variant, upload in uploads:
+        spec = IMAGE_SPECS[variant]
         try:
-            data = await read_upload_bounded(upload, IMAGE_SPECS[variant].max_bytes)
+            data = await read_upload_bounded(upload, spec.max_bytes)
         except FileTooLargeError:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=GuildMessages.IMAGE_TOO_LARGE,
+                detail=ImageMessages.IMAGE_TOO_LARGE,
             )
-        try:
-            renditions.append(
-                images_service.validate_rendition(variant, data, upload.content_type)
-            )
-        except images_service.GuildImageError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-            ) from exc
+        renditions[variant] = validate_image(spec, data)
 
     await images_service.set_images(session, guild_id=guild_id, renditions=renditions)
 
 
-@router.put("/{guild_id}/icon", response_model=GuildRead)
-async def set_guild_icon(
-    guild_id: int,
+@router.put("/{community_id}/icon", response_model=CommunityRead)
+async def set_community_icon(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     icon: UploadFile = File(...),
-) -> GuildRead:
+) -> CommunityRead:
     """Replace the guild's icon. One square picture, resized by the client."""
     await _store_guild_images(
         session,
@@ -897,39 +892,41 @@ async def set_guild_icon(
         uploads=[(GuildImageVariant.icon, icon)],
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
-@router.delete("/{guild_id}/icon", response_model=GuildRead)
-async def clear_guild_icon(
-    guild_id: int,
+@router.delete("/{community_id}/icon", response_model=CommunityRead)
+async def clear_community_icon(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     """Remove the guild's icon. It falls back to its lettered avatar."""
     await images_service.clear_images(
         session, guild_id=guild_id, variants=[GuildImageVariant.icon]
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
-@router.put("/{guild_id}/banner", response_model=GuildRead)
-async def set_guild_banner(
-    guild_id: int,
+@router.put("/{community_id}/banner", response_model=CommunityRead)
+async def set_community_banner(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     full: UploadFile = File(...),
     card: UploadFile = File(...),
-) -> GuildRead:
+) -> CommunityRead:
     """Replace the guild's banner with the two renditions of one picture.
 
     The admin chooses a single image; the settings page resizes it to both
@@ -951,70 +948,37 @@ async def set_guild_banner(
         uploads=list(zip(BANNER_VARIANTS, (full, card))),
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
-@router.delete("/{guild_id}/banner", response_model=GuildRead)
-async def clear_guild_banner(
-    guild_id: int,
+@router.delete("/{community_id}/banner", response_model=CommunityRead)
+async def clear_community_banner(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     """Remove the guild's banner. Both surfaces fall back to their plain form."""
     await images_service.clear_images(
         session, guild_id=guild_id, variants=list(BANNER_VARIANTS)
     )
     await session.commit()
-    return await _guild_payload_after_image_change(
-        settings_session, guild_id=guild_id, guild_context=guild_context
-    )
-
-
-async def _guild_payload_after_image_change(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    guild_context: GuildContext,
-) -> GuildRead:
-    """The guild as its admin now sees it, so the SPA needs no follow-up read.
-
-    Read on the route's own settings session, routed into the guild by the
-    seam, once the image write on the system engine has committed. A
-    ``GuildRead`` is not all public-schema: the trash retention window lives
-    in the guild's own schema, and the routed session reads it, the roster
-    size, the caps and the image digests as the admin the caller is.
-    """
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-    return _serialize_guild(
-        guild,
-        role=guild_context.rung,
-        can=_can_of(guild_context),
-        position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session),
-        member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        administration=await guilds_service.get_administration(
-            session, guild_id=guild_id
-        ),
-        images=await images_service.image_urls_for(
-            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
-        ),
+    guild = await guilds_service.get_guild(settings_session, guild_id=guild_id)
+    return await _guild_read(
+        session, guild, standing=guild_context, guild_session=settings_session
     )
 
 
 @router.post(
-    "/{guild_id}/billing/handoff",
+    "/{community_id}/billing/handoff",
     response_model=BillingPortalHandoffResponse,
 )
-async def create_guild_billing_handoff(
-    guild_id: int,
+async def create_community_billing_handoff(
+    guild_id: CommunityIdPath,
     seat_session: SeatPaymentSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
@@ -1030,8 +994,6 @@ async def create_guild_billing_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    guild = await seat_session.get(Guild, guild_id)
-
     try:
         user_ref, guild_ref = await billing_refs(
             user_id=current_user.id, guild_id=guild_id
@@ -1040,10 +1002,9 @@ async def create_guild_billing_handoff(
             # The portal's own vocabulary, which is not this enum: it knows
             # "the person who may act for this guild", and only the seat
             # reaches here to say so.
-            guild_role=GuildRole.admin.value,
+            guild_role=CommunityRole.admin.value,
             user_ref=user_ref,
             guild_ref=guild_ref,
-            guild_name=guild.name if guild is not None else None,
         )
     except HandoffSigningNotConfiguredError as exc:
         raise HTTPException(
@@ -1058,37 +1019,37 @@ async def create_guild_billing_handoff(
 
 
 @router.get(
-    "/{guild_id}/billing/payment-issue",
-    response_model=GuildPaymentIssueRead,
+    "/{community_id}/billing/payment-issue",
+    response_model=CommunityPaymentIssueRead,
 )
-@limiter.limit("6/minute", key_func=get_user_or_ip_key)
-async def read_guild_payment_issue(
+@limiter.limit("6/minute")
+async def read_community_payment_issue(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     seat_session: SeatSessionDep,
-) -> GuildPaymentIssueRead:
+) -> CommunityPaymentIssueRead:
     guild = await seat_session.get(Guild, guild_id)
     if (
         guild is None
-        or guild.status == GuildStatus.active.value
+        or guild.status == CommunityStatus.active.value
         or not settings.BILLING_URL
     ):
-        return GuildPaymentIssueRead()
-    return GuildPaymentIssueRead(
+        return CommunityPaymentIssueRead()
+    return CommunityPaymentIssueRead(
         payment_failed=await billing_ping.guild_payment_failed(guild_id)
     )
 
 
 @router.get(
-    "/{guild_id}/billing/summary",
-    response_model=GuildBillingSummaryRead,
+    "/{community_id}/billing/summary",
+    response_model=CommunityBillingSummaryRead,
 )
-@limiter.limit("30/minute", key_func=get_user_or_ip_key)
-async def read_guild_billing_summary(
+@limiter.limit("30/minute")
+async def read_community_billing_summary(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     _seat_session: SeatWriteSessionDep,
-) -> GuildBillingSummaryRead:
+) -> CommunityBillingSummaryRead:
     """The guild's plan, asked of billing for this response and kept nowhere.
 
     Display only: initiative never writes to billing, and nothing here changes
@@ -1103,8 +1064,8 @@ async def read_guild_billing_summary(
         )
     summary = await billing_ping.guild_plan_summary(guild_id)
     if summary is None:
-        return GuildBillingSummaryRead()
-    return GuildBillingSummaryRead(available=True, **summary.model_dump())
+        return CommunityBillingSummaryRead()
+    return CommunityBillingSummaryRead(available=True, **summary.model_dump())
 
 
 def _auth_policy_read(
@@ -1112,12 +1073,12 @@ def _auth_policy_read(
     provider_display_name: str | None = None,
     *,
     factor_required_by_platform: bool = False,
-) -> GuildAuthPolicyRead:
+) -> CommunityAuthPolicyRead:
     if policy_row is None or policy_row.policy == "open":
-        return GuildAuthPolicyRead(
+        return CommunityAuthPolicyRead(
             policy="open", factor_required_by_platform=factor_required_by_platform
         )
-    return GuildAuthPolicyRead(
+    return CommunityAuthPolicyRead(
         policy="required",
         provider_id=policy_row.provider_id,
         provider_slug=policy_row.provider_slug,
@@ -1139,22 +1100,22 @@ async def _platform_asks_everyone(session) -> bool:
 
 async def _auth_settings_response(
     seat_session: AsyncSession, system_session: AsyncSession, guild_id: int
-) -> GuildAuthSettingsRead:
+) -> CommunityAuthSettingsRead:
     guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     administration = await guilds_service.get_administration(
         seat_session, guild_id=guild_id
     )
     platform = await notification_policy.resolve(seat_session, None)
-    return GuildAuthSettingsRead(
+    return CommunityAuthSettingsRead(
         auth_options=sorted(effective_options(administration.auth_options))
         if administration
         else [],
         auth_policy=await _auth_policy_response(system_session, guild_id),
-        allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
         require_second_factor=guild.require_second_factor,
         allow_push_notifications=guild.allow_push_notifications,
@@ -1166,19 +1127,19 @@ async def _auth_settings_response(
     )
 
 
-@router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
-async def get_guild_auth_settings(
-    guild_id: int,
+@router.get("/{community_id}/auth-settings", response_model=CommunityAuthSettingsRead)
+async def get_community_auth_settings(
+    guild_id: CommunityIdPath,
     seat_session: SeatSessionDep,
     system_session: SystemSessionDep,
-) -> GuildAuthSettingsRead:
+) -> CommunityAuthSettingsRead:
     """Read the controls held by this community's superadmin seat."""
     return await _auth_settings_response(seat_session, system_session, guild_id)
 
 
 async def _auth_policy_response(
     system_session: AsyncSession, guild_id: int
-) -> GuildAuthPolicyRead:
+) -> CommunityAuthPolicyRead:
     policy_row = await system_session.get(GuildAuthPolicy, guild_id)
     display_name = None
     if policy_row is not None and policy_row.provider_id is not None:
@@ -1191,14 +1152,14 @@ async def _auth_policy_response(
     )
 
 
-@router.patch("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
-async def update_guild_auth_settings(
-    guild_id: int,
-    payload: GuildAuthSettingsUpdate,
+@router.patch("/{community_id}/auth-settings", response_model=CommunityAuthSettingsRead)
+async def update_community_auth_settings(
+    guild_id: CommunityIdPath,
+    payload: CommunityAuthSettingsUpdate,
     seat_session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildAuthSettingsRead:
+) -> CommunityAuthSettingsRead:
     """Change what reaching this community asks of somebody, and what its
     notifications may leave the app carrying.
 
@@ -1215,9 +1176,7 @@ async def update_guild_auth_settings(
     keeps an admin from locking the community behind a sign-in they have not
     completed.
 
-    Nobody is signed out by a change, with one exception: a device token
-    carries its deadline in its own expiry, so holding members to the
-    twelve-hour standard brings the ones already issued under it. Existing API
+    Nobody is signed out by a change. Existing API
     keys are left alone when keys are refused, so accepting them again
     restores them. Every notification answer only narrows what the deployment
     permits.
@@ -1247,13 +1206,13 @@ async def update_guild_auth_settings(
 
 
 @router.delete(
-    "/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+    "/{community_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
 )
-async def delete_guild(
-    guild_id: int,
+async def delete_community(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsSeatWriteContextDep,
     http_request: Request,
-    request: GuildDeletionRequest,
+    request: CommunityDeletionRequest,
     session: SettingsRLSSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1288,9 +1247,9 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # End the guild's app access. The guild has withdrawn its authorization, so
-    # each app is told to let go now rather than at the end of the retention
-    # window — a restored guild comes back with its apps disconnected, and an
+    # End the guild's plug-in access. The guild has withdrawn its authorization, so
+    # each plug-in is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its plug-ins disconnected, and an
     # admin reconnects them.
     #
     # On the REQUEST session, which is the one that can reach these rows: they
@@ -1302,9 +1261,9 @@ async def delete_guild(
     # the guild role in turn cannot do (``app_guild_base`` holds UPDATE on the
     # identity columns a guild admin edits, and deliberately not on ``status``).
     # The connections go first: a guild left live with its integrations ended
-    # is a thing its admin can see and put back, and the revocations are not
-    # dispatched until the deletion below has actually committed.
-    await app_connections_service.delete_guild_connections(session)
+    # is a thing its admin can see and put back. The plug-ins are told once
+    # this commits.
+    await plugin_connections_service.delete_guild_connections(session)
     await session.commit()
 
     # Move the guild to ``deleted`` and keep everything: the shared rows, the
@@ -1326,51 +1285,46 @@ async def delete_guild(
     # the commit that made the deletion real. Billing keeps its name for the
     # guild until the purge, and is told to go and read what happened to it.
     # The references go after the revocations, which name the guild by them.
-    app_revocation_service.send_after_response(session, background_tasks)
+    background_tasks.add_task(post_commit.settle, session)
     background_tasks.add_task(
-        app_refs.forget_guild, guild_id=guild_id, keep_billing=True
+        plugin_refs.forget_guild, guild_id=guild_id, keep_billing=True
     )
     billing_ping.notify_lifecycle_changed(guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
-    "/{guild_id}/invites",
-    response_model=GuildInviteRead,
+    "/{community_id}/invites",
+    response_model=CommunityInviteRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_invite(
-    guild_id: int,
+async def create_community_invite(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
-    invite_in: GuildInviteCreate,
+    invite_in: CommunityInviteCreate,
     session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildInviteRead:
-    try:
-        invite = await guilds_service.create_guild_invite(
-            session,
-            guild_id=guild_id,
-            created_by=current_user.id,
-            expires_at=invite_in.expires_at,
-            max_uses=invite_in.max_uses,
-            invitee_email=invite_in.invitee_email,
-            actor_user_id=current_user.id,
-        )
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+) -> CommunityInviteRead:
+    invite = await guilds_service.create_guild_invite(
+        session,
+        guild_id=guild_id,
+        created_by=current_user.id,
+        expires_at=invite_in.expires_at,
+        max_uses=invite_in.max_uses,
+        invitee_email=invite_in.invitee_email,
+        actor_user_id=current_user.id,
+    )
     await session.commit()
-    return GuildInviteRead.model_validate(invite)
+    return CommunityInviteRead.model_validate(invite)
 
 
 @router.delete(
-    "/{guild_id}/invites/{invite_id}",
+    "/{community_id}/invites/{invite_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-async def delete_guild_invite(
-    guild_id: int,
+async def delete_community_invite(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     invite_id: int,
     session: SettingsRLSSessionDep,
@@ -1386,67 +1340,40 @@ async def delete_guild_invite(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/invite/accept", response_model=GuildRead)
+@router.post("/invite/accept", response_model=CommunityRead)
 async def accept_invite(
-    payload: GuildInviteAcceptRequest,
+    payload: CommunityInviteAcceptRequest,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
+) -> CommunityRead:
     """Accept a guild invite. Uses the system session because the user doesn't
     belong to the guild yet — the invite code is the authorization."""
-    try:
-        guild = await guilds_service.redeem_invite_for_user(
-            session, code=payload.code, user=current_user
-        )
-    except guilds_service.GuildInviteError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except guilds_service.AgeConfirmationRequiredError as exc:
-        # The invite leads into a listed community, so the age question applies
-        # to it. Same code the directory's Join returns, so the SPA answers it
-        # the same way wherever the invite was opened.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    guild = await guilds_service.redeem_invite_for_user(
+        session, code=payload.code, user=current_user
+    )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
-    member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(
-        guild,
-        role=membership.role,
-        position=membership.position,
-        member_count=member_count,
-        # Joining is how the caller first earns the full-size banner they were
-        # shown a card of.
-        images=await images_service.image_urls_for(
-            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
-        ),
-    )
+    return await _guild_read(session, guild, membership=membership)
 
 
 @router.patch(
-    "/{guild_id}/members/{user_id}",
+    "/{community_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-async def update_guild_membership(
-    guild_id: int,
+async def update_community_membership(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     user_id: int,
-    payload: GuildMembershipUpdate,
+    payload: CommunityMembershipUpdate,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
@@ -1467,10 +1394,10 @@ async def update_guild_membership(
         )
 
     # 'support' is a synthesized PAM identity, never a stored membership role.
-    if payload.role == GuildRole.support:
+    if payload.role == CommunityRole.support:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     # The seat is passed on by whoever holds it, and by nobody below it. A
@@ -1481,7 +1408,7 @@ async def update_guild_membership(
     if payload.role not in assignable_roles(guild_context.rung):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     await guilds_service.lock_guild_seats(session, guild_id)
@@ -1491,26 +1418,26 @@ async def update_guild_membership(
     if target_membership is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
         )
 
     # And taking the seat away is the same authority as giving it. Asked of the
     # *locked* row, so the role this decides on is the role as it stands now.
     if (
-        target_membership.role == GuildRole.superadmin
-        and guild_context.rung != GuildRole.superadmin
+        target_membership.role == CommunityRole.superadmin
+        and guild_context.rung != CommunityRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     # What a guild must keep is its seat. An ordinary admin is not counted:
     # every guild has a superadmin, and a superadmin is an admin, so "the last
     # admin" could only ever have been the seat — which the rule below holds.
     if (
-        target_membership.role == GuildRole.superadmin
-        and payload.role != GuildRole.superadmin
+        target_membership.role == CommunityRole.superadmin
+        and payload.role != CommunityRole.superadmin
         and await guilds_service.must_keep_superadmin(
             session, guild_id=guild_id, user_id=user_id
         )
@@ -1523,7 +1450,7 @@ async def update_guild_membership(
     previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
-    if GuildRole.superadmin in (previous_role, payload.role):
+    if CommunityRole.superadmin in (previous_role, payload.role):
         # The seat moving is its own event, apart from an ordinary role
         # change.
         await audit_service.record(
@@ -1553,7 +1480,7 @@ async def update_guild_membership(
         session, guild_id=guild_id, user_id=user_id, role=payload.role
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.
@@ -1561,15 +1488,135 @@ async def update_guild_membership(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.put(
+    "/{community_id}/members/{user_id}/display-name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_member_display_name(
+    guild_id: CommunityIdPath,
+    _guild_context: SettingsAdminWriteContextDep,
+    user_id: int,
+    payload: MemberDisplayNameUpdate,
+    session: SystemSessionDep,
+) -> Response:
+    """Set what a member is called in this community, or clear it. Guild admin
+    only, or a settings grant beside a read_write one.
+
+    On the system engine, as a role change is: the guild role writes only the
+    caller's own membership row."""
+    if not await guilds_service.set_member_display_name(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        display_name=payload.display_name,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
+        )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/{community_id}/members/{user_id}/api-access",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_member_api_access(
+    guild_id: CommunityIdPath,
+    _guild_context: SettingsSeatWriteContextDep,
+    user_id: int,
+    payload: MemberApiAccessUpdate,
+    session: SystemSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    """Turn one member's personal API keys off or on for this community. The
+    seat only.
+
+    Turning them off needs the ``restrictions`` option, and applies while the
+    community holds it; turning them back on never needs it. Keys the member
+    already made are left alone either way: the gate refuses them here while
+    access is off, and they reach the community again when it is turned back
+    on.
+
+    On the system engine, as a role change is: the guild role writes only the
+    caller's own membership row."""
+    if not payload.api_keys_allowed:
+        await guild_entitlements.require_auth_option(
+            session, guild_id, CommunityAuthOption.restrictions
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user_id, for_update=True
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
+        )
+    if membership.api_keys_allowed == payload.api_keys_allowed:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    membership.api_keys_allowed = payload.api_keys_allowed
+    session.add(membership)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"api_keys_allowed": payload.api_keys_allowed},
+    )
+    await session.commit()
+    # A stream opened with one of their keys is re-checked now rather than on
+    # the next re-auth tick.
+    await content_sockets.revoke_user(guild_id, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/{community_id}/membership/display-name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_own_display_name(
+    guild_id: CommunityIdPath,
+    guild_context: SettingsContextDep,
+    payload: MemberDisplayNameUpdate,
+    session: SettingsRLSSessionDep,
+) -> Response:
+    """Set what the caller is called in this community, or clear it.
+
+    Routed as the community's own configuration is, so a member keeps it while
+    content is frozen and not while the community is in time out."""
+    if guild_context.membership is None or not (
+        await guilds_service.set_member_display_name(
+            session,
+            guild_id=guild_id,
+            user_id=guild_context.membership.user_id,
+            display_name=payload.display_name,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
+        )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get(
-    "/{guild_id}/leave/eligibility", response_model=LeaveGuildEligibilityResponse
+    "/{community_id}/leave/eligibility",
+    response_model=LeaveCommunityEligibilityResponse,
 )
 async def check_leave_eligibility(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> LeaveGuildEligibilityResponse:
+) -> LeaveCommunityEligibilityResponse:
     """Check if the current user can leave a guild.
 
     Holding its only superadmin seat is the one thing that stops them. Content
@@ -1581,7 +1628,8 @@ async def check_leave_eligibility(
     )
     if membership is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
         )
 
     # Under the lock, so the answer still holds when the caller acts on it.
@@ -1592,21 +1640,22 @@ async def check_leave_eligibility(
         system_session, guild_id=guild_id, user_id=current_user.id
     )
 
-    return LeaveGuildEligibilityResponse(
+    return LeaveCommunityEligibilityResponse(
         can_leave=not is_last_superadmin,
         is_last_superadmin=is_last_superadmin,
     )
 
 
 @router.delete(
-    "/{guild_id}/leave", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+    "/{community_id}/leave",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
 )
-async def leave_guild(
-    guild_id: int,
+async def leave_community(
+    guild_id: CommunityIdPath,
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    background_tasks: BackgroundTasks,
 ) -> Response:
     """Leave a guild.
 
@@ -1619,7 +1668,8 @@ async def leave_guild(
     )
     if membership is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
         )
 
     # ``UserSessionDep`` only sets the user_id; releasing the leaver's owner
@@ -1654,14 +1704,13 @@ async def leave_guild(
     # Ownership release happens inside remove_user_from_guild, while the
     # leaver's membership rows are still in place for RLS to match.
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild_id, user_id=current_user.id
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+        actor_user_id=current_user.id,
     )
 
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await content_sockets.revoke_user(guild_id, current_user.id)
-    # …and tell this guild's apps that the credentials this person connected
-    # under it are finished. After the commit, so an app is never told to let go
-    # of something a rollback would have put back.
-    app_revocation_service.send_after_response(session, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

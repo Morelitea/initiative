@@ -102,7 +102,7 @@ describe("MyTasksPage grouping", () => {
 
 describe("MyTasksPage status changes", () => {
   /**
-   * One task per guild so the per-row rules are observable: checking either
+   * One task per community so the per-row rules are observable: checking either
    * must not take the other away.
    */
   function stubTwoTasksAndStatuses({ patchDelayMs = 0 } = {}) {
@@ -125,7 +125,7 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 101,
         title: "Write the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
@@ -133,7 +133,7 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 102,
         title: "Read the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
@@ -154,10 +154,10 @@ describe("MyTasksPage status changes", () => {
           has_next: false,
         });
       }),
-      http.get("/api/v1/c/:guildId/projects/:projectId/task-statuses", () =>
+      http.get("/api/v1/c/:communityId/projects/:projectId/task-statuses", () =>
         HttpResponse.json([todo, done])
       ),
-      http.patch("/api/v1/c/:guildId/tasks/:taskId", async () => {
+      http.patch("/api/v1/c/:communityId/tasks/:taskId", async () => {
         patched += 1;
         if (patchDelayMs > 0) await delay(patchDelayMs);
         return HttpResponse.json({
@@ -193,7 +193,7 @@ describe("MyTasksPage status changes", () => {
     await user.click(first);
 
     // The check lands on the optimistic write, with the PATCH still in flight
-    // and the cross-guild list not yet refetched.
+    // and the cross-community list not yet refetched.
     await waitFor(() => expect(doneBoxes()[0]).toBeChecked());
   });
 
@@ -218,7 +218,7 @@ describe("MyTasksPage status changes", () => {
 describe("MyTasksPage priority", () => {
   it("saves a priority change to the task's own community", async () => {
     const user = userEvent.setup();
-    const task = buildTask({ id: 101, title: "Write the thing", guild_id: 3, priority: "low" });
+    const task = buildTask({ id: 101, title: "Write the thing", community_id: 3, priority: "low" });
     const patched: string[] = [];
     server.use(
       http.get("/api/v1/me/tasks", ({ request }) => {
@@ -231,8 +231,8 @@ describe("MyTasksPage priority", () => {
           has_next: false,
         });
       }),
-      http.patch("/api/v1/c/:guildId/tasks/:taskId", ({ params }) => {
-        patched.push(`${params.guildId}/${params.taskId}`);
+      http.patch("/api/v1/c/:communityId/tasks/:taskId", ({ params }) => {
+        patched.push(`${params.communityId}/${params.taskId}`);
         return HttpResponse.json({ ...task, priority: "high" });
       })
     );

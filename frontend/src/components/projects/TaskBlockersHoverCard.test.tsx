@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
@@ -41,7 +41,7 @@ const blockerRow = (title: string, isOpen: boolean): RelationshipRead => ({
     image_urls: [],
     icon: null,
     color: null,
-    document_type: null,
+    file_type: null,
     mime_type: null,
     original_filename: null,
     smart_link_url: null,
@@ -70,7 +70,7 @@ describe("TaskBlockersHoverCard", () => {
   it("costs no request until somebody asks what the things are", async () => {
     const asked = vi.fn();
     server.use(
-      guildHttp.get("/relationships/", () => {
+      communityHttp.get("/relationships/", () => {
         asked();
         return HttpResponse.json([blockerRow("Ship the API", true)]);
       })

@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
+import { asPhoneThatMayNotSell } from "@/__tests__/helpers/storeSelling";
 import { StartFlow } from "@/components/start/StartFlow";
 import { catalogUrl } from "@/hooks/useBillingCatalog";
 import { clearStart, readPendingStart } from "@/lib/startFlow";
@@ -50,7 +51,7 @@ const stubDeployment = () =>
     ),
     http.get("/api/v1/auth/username-suggestions", ({ request }) => {
       suggestionSeeds.push(new URL(request.url).searchParams.get("seed"));
-      return HttpResponse.json({ suggestions: ["chesterfan", "lidlifter"] });
+      return HttpResponse.json({ suggestions: ["yonderfan", "lidlifter"] });
     }),
     http.get(catalogUrl(PORTAL), () =>
       HttpResponse.json({
@@ -81,13 +82,15 @@ const register = vi.fn();
 /** The seeds the suggestions were asked for, in order. */
 const suggestionSeeds: (string | null)[] = [];
 
-const renderStart = (options: { inviteCode?: string; native?: boolean } = {}) =>
-  renderPage(StartPage, {
+const renderStart = (options: { inviteCode?: string; native?: boolean } = {}) => {
+  if (options.native) asPhoneThatMayNotSell();
+  return renderPage(StartPage, {
     initialRoute: "/start",
     routerSearch: options.inviteCode ? { invite_code: options.inviteCode } : undefined,
     auth: { user: null, token: null, register },
     server: { isNativePlatform: options.native ?? false },
   });
+};
 
 const heading = (name: string | RegExp) => screen.findByRole("heading", { name });
 const press = (name: string | RegExp) => userEvent.click(screen.getByRole("button", { name }));
@@ -180,7 +183,7 @@ it("links the privacy policy beside the birthdate where the deployment publishes
   await press("Continue");
   await heading("About you");
 
-  expect(screen.getByText("We don't share this with anyone.")).toBeInTheDocument();
+  expect(screen.getByText(/We don't sell your data\./)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
     "href",
     "/legal/privacy"
@@ -196,13 +199,13 @@ describe("what the account is made with", () => {
     await heading("About you");
     // Nothing typed yet, so there is no account to make.
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    await userEvent.click(await screen.findByRole("button", { name: "chesterfan" }));
-    expect(screen.getByLabelText("Username")).toHaveValue("chesterfan");
+    await userEvent.click(await screen.findByRole("button", { name: "yonderfan" }));
+    expect(screen.getByLabelText("Username")).toHaveValue("yonderfan");
     // The number it will get, shown and locked beside the name.
     expect(await screen.findByText("#0042")).toBeInTheDocument();
     await continueEnabled();
     // A pick is not typing, so it does not seed the next round of suggestions.
-    expect(suggestionSeeds).not.toContain("chesterfan");
+    expect(suggestionSeeds).not.toContain("yonderfan");
     await press("Continue");
     await heading("Your space");
     await press("Continue");
@@ -211,11 +214,10 @@ describe("what the account is made with", () => {
     const sent = register.mock.calls[0][0];
     expect(sent).toMatchObject({
       email: "new@example.com",
-      username: "chesterfan",
+      username: "yonderfan",
       username_offer: "signed-42",
-      community: { name: "chesterfan's space" },
+      community: { name: "yonderfan's space" },
     });
-    expect(sent).not.toHaveProperty("full_name");
   });
 
   it("holds a handle the server refuses on the step where it can be changed", async () => {
@@ -241,6 +243,8 @@ describe("what the account is made with", () => {
     await userEvent.click(screen.getByRole("radio", { name: /join a community/i }));
     await press("Continue");
     await heading("What are you into?");
+    // Where they are is asked too, and is theirs to leave blank.
+    expect(screen.getByRole("group", { name: "Where are you? (optional)" })).toBeInTheDocument();
     await press("Tabletop RPG");
     await press("Gaming");
     await press("Continue");
@@ -259,6 +263,7 @@ describe("what the account is made with", () => {
     expect(sent.inviteCode).toBeUndefined();
     // Waiting for the first sign-in, which opens the directory on every pick.
     expect(readPendingStart("new@example.com")?.categories).toEqual(["gaming", "ttrpg"]);
+    expect(readPendingStart("new@example.com")?.near.country).toBe("");
   });
 });
 
@@ -285,11 +290,12 @@ describe("signed in, making another community in the native app", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
     };
-    const createGuild = vi.fn().mockRejectedValue(refused);
+    const createCommunity = vi.fn().mockRejectedValue(refused);
+    asPhoneThatMayNotSell();
     renderPage(() => <StartFlow signedIn />, {
       initialRoute: "/",
       auth: { user: buildUser({ age_confirmed_at: "2026-01-01T00:00:00Z" }) },
-      guilds: { guilds: [], createGuild },
+      communities: { communities: [], createCommunity },
       server: { isNativePlatform: true },
     });
 

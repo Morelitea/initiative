@@ -39,7 +39,7 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. Every account is asked its date of birth once, and it is kept encrypted at rest so a plug-in's minimum age — which can differ by country — can be checked against it. Set `CLIENT_COUNTRY_HEADER` to the header your proxy writes the visitor's country into (`CF-IPCountry` behind Cloudflare) so those limits apply by country; unset, a plug-in's highest minimum age applies to everyone. Only set it when every request reaches the server through that proxy. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
 **The rule belongs to the community, not to the way in.** Every route into a listed community is covered: the directory, an invite, and the group rules your identity provider drives. A community that hasn't listed itself asks nobody, whoever brings them in, and an unanswered question never costs somebody a membership they already have or holds up the rest of Initiative.
 
@@ -61,14 +61,14 @@ It's read **once**, when an account is made. Changing it opens no existing accou
 
 Two different things, and it's worth keeping them apart.
 
-A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time the app is opened. Somebody who uses Initiative every day never reaches it.
+A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time somebody uses the app. It's thirty days in a browser and ninety in the phone and desktop apps, so somebody who uses Initiative every day never reaches it.
 
 The other one is the **absolute** limit: the longest anybody may go before signing in again, no matter how much they use it. Nothing slides it. It's blank by default, meaning there isn't one — a server you run for a club is not answering to an auditor — and it lives in **Settings → Platform → Security**, in hours.
 
 !!! warning "Set it longer than the inactivity window"
     Set it shorter and it becomes the *only* thing ending a session: the inactivity window can never be reached first, so everybody gets signed out on a timer whether they're using the app or not. That may be exactly what you want. It's just rarely what somebody means to do.
 
-Web sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
+Sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
 
 !!! warning "The app on a phone is different"
     A phone holds a longer-lived credential, and the new limit is written into the ones already issued — measured from when that person last signed in. So somebody whose phone signed in three days ago, on a deployment that has just set twelve hours, is signed out at once and asked for their password again. Shortening the number, or turning on a community's twelve-hour switch, can therefore sign phones out immediately. Lengthening the number, or clearing it, signs nobody out — and a phone that is still signed in goes back to the longer window from its next renewal. A phone that was already signed out stays signed out: it has to sign in again, which is the point.
@@ -101,7 +101,7 @@ Two things the page will stop you doing, both for the same reason: you can't req
 
 | Switch | What changing it does |
 |---|---|
-| **Mobile notifications** | Turn it off and nothing is sent to a phone: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
+| **Phone and desktop notifications** | Turn it off and nothing is sent to a phone or shown by the desktop app: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
 | **Email notifications** | Turn it off and no notification email is written, on any cadence anybody has chosen. |
 | **Hide notification details** | Turn it **on** and a push or an email reads "You were mentioned in a comment", with the app the place to find out the rest. |
 
@@ -118,13 +118,13 @@ Deleting an account or a community hides it immediately and erases it later. How
 
 | Window | Default | What happens during it |
 |---|---|---|
-| **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and documents where they left them. You can also restore one. |
+| **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and files where they left them. You can also restore one. |
 | **Keep communities for** | 90 days | It has vanished for its members. An operator can restore it from **Settings → Platform → Communities**, choosing what it comes back as and, where nobody is left who could run it, who takes it over. |
 | **Delete after (days on hold)** | 30 days | The community sits [on hold](platform-roles.md#a-communitys-status). If nobody lifts the hold by the end of the window, it's deleted, and **Keep communities for** starts counting from there. Its superadmins get the date by email the moment it goes on hold. |
 
 Leave any of them blank and **nothing happens on a timer** — the right answer for a deployment required to keep records rather than shed them. Each is counted from the moment each thing was deleted or put on hold, so changing the number moves the date for things already in the queue.
 
-A restored community reconnects its installed apps itself. It authorised those connections in the first place, so it authorises them again.
+A restored community reconnects its installed plug-ins itself. It authorised those connections in the first place, so it authorises them again.
 
 ## Running behind a reverse proxy
 
@@ -137,6 +137,33 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 
 !!! warning "Only enable proxy trust behind an actual proxy"
     `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
+
+If your proxy answers anything under `/.well-known/` itself, as some do for certificates, pass `/.well-known/assetlinks.json` through to Initiative. It's how the Android app is allowed to use passkeys for your server; without it the app sends people to the browser for them instead.
+
+## Running more than one copy
+
+Several copies of Initiative can serve one address. Here's what they share and what each keeps to itself.
+
+| | Where it lives |
+|---|---|
+| Everything people save, including live edits | The database, so every copy sees it |
+| Live editing sessions, cursors and who's here | Each copy, for the people connected to it |
+| Rate-limit counts | Each copy, unless `RATE_LIMIT_STORAGE_URI` gives them one shared count (a `redis://` URL) |
+
+People editing a document through the same copy see each other's typing as it happens. Through different copies, each one's changes reach the others within about half a minute, when their copy saves, and nobody's edits are lost: every save merges with what the other copies saved.
+
+Each server process runs the document editor in a helper process of its own. It starts the first time somebody there opens a document to edit, uses about 90 MB while it runs, and stops after five idle minutes. A server where nobody edits a document never starts it. Budget for it per process when you size the container.
+
+## Rate limits
+
+Every limit counts against the **signed-in account**, not the network it's on, so an office full of people behind one address doesn't share an allowance or lock each other out. A request with no account behind it yet counts against the network address it came from.
+
+A few count per **email address** typed in, whoever's typing it: sign-in codes and password-reset emails together come to five every fifteen minutes for one address, and so do wrong passwords. Loading the app's own pages and scripts counts against nothing.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `RATE_LIMIT_DEFAULT` | The limit for everything that doesn't set its own. Empty turns this default off; the limits individual routes set stay. | `100/minute` |
+| `RATE_LIMIT_STORAGE_URI` | Where counts are kept. `memory://` counts in each process. A `redis://` (or `rediss://`, `redis+sentinel://`, `redis+cluster://`) URL gives every process one shared count. If it can't be reached, each process counts in its own memory until it answers again. | `memory://` |
 
 ## Keeping bots out (captcha)
 
@@ -161,32 +188,22 @@ The captcha switches on once all three are saved, and the section's badge says w
 
 Leave it off unless you want that surface. See [API keys & integrations](../account/api-keys-and-integrations.md) for how users connect.
 
-## The Initiative registry
+## The Initiative registry and plug-ins
 
-Your server follows the **Initiative registry**, a signed online catalog of apps and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
+Nothing to set. Your server follows the Initiative registry from the moment it starts, and the plug-ins your communities add are set up from **Settings → Platform → Integrations**. See [Running plug-ins](plugins.md).
 
-Its panel is in **Settings → Platform → Integrations**, under **Marketplace registry**:
+??? techspec "Mirrors, other registries, and plug-ins from a file"
+    Leave all of these unset unless you have the particular reason each one is for.
 
-| | |
-|---|---|
-| **Follow the registry** | Off, the server stops asking for updates. Whatever it already brought stays. |
-| **Refresh now** | Checks straight away rather than at the next scheduled check (every fifteen minutes). |
-| **Upload a registry bundle** | For a server with no internet access: a `.tar.gz` of the registry's `metadata` and `targets` folders, carried in by hand. It's checked against the same key, so a bundle that went via a USB stick in somebody's coat pocket is exactly as trustworthy as one that didn't. |
-
-The panel also says when it last updated, how many listings came from it, and why the last attempt stopped, if it did. A skipped listing is named with its reason.
-
-| Variable | What it does | Default |
-|---|---|---|
-| `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
-| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
-| `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
-
-### Apps from the registry
-
-An app from the registry lands in **Settings → Platform → Integrations**, under **App services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
-
-- **Switch it on or off.** Off, every community that added it stops reaching it at once. Nothing is deleted.
-- **Give it an address.** An app that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
+    | Variable | What it's for | Default |
+    |---|---|---|
+    | `MARKETPLACE_REGISTRY_URL` | A mirror of the Initiative registry, for a network that can't reach it directly. Everything from it is still checked against the key built into Initiative. A server with no internet access at all uploads a [registry bundle](plugins.md#the-initiative-registry) instead. | The Initiative registry |
+    | `MARKETPLACE_REGISTRY_TOKEN` | A token for a mirror that asks for one. It is sent only to the registry's own address. | None |
+    | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
+    | `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key. The server then trusts a registry somebody else signs, in place of the Initiative registry. | The key built into Initiative |
+    | `PLUGIN_SERVICES_CONFIG` | A JSON file of plug-in services to set up at every start, in place of the form. See [Setting it up from a file](plugins.md#setting-it-up-from-a-file). | — |
+    | `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` / `PLUGIN_PLATFORM_SIGNING_KEY_ID` | Your own key for signing what Initiative sends plug-ins. Unset, Initiative makes and keeps one itself. | — |
+    | `EXPRESSION_WORKERS` | How many small helper processes each server process may run for plug-ins Initiative runs itself. They start on first use, and an idle one leaves after five minutes. 1 to 16. | `2` |
 
 ## Your own marketplace listings
 
@@ -249,7 +266,7 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 
 | Metric | What it tells you |
 |---|---|
-| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/c/{guild_id}/initiatives/`), so every community shares one line. |
+| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/c/{community_id}/initiatives/`), so every community shares one line. |
 | `initiative_http_request_duration_seconds` | How long those took, as a histogram. |
 | `initiative_http_requests_in_progress` | Requests being answered right now. |
 | `initiative_websocket_connections` | Live connections: notifications, live editing, queues and counters. One open tab holds several. |
@@ -258,6 +275,9 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 | `initiative_db_pool_connections` | Database connections each engine holds, by `state`: `checked_out`, `idle`, `overflow`. |
 | `initiative_users`, `initiative_guilds` | Accounts and communities, by `status`. |
 | `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
+| `initiative_active_users` | Accounts that did something in the last day, week and month, by `window`: `1d`, `7d`, `30d`. |
+| `initiative_tools_created_total` | Tools created, by `tool` (`project`, `file`, `wiki`, …). Imports and copies count too. |
+| `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$communityId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
 | `initiative_build_info` | The version running, in its `version` label. |
 | `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |
 
@@ -269,6 +289,21 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
     `engine` is one of `request` (what people's requests run on), `system` (background jobs and start-up), `provisioning` (setting up a new community's tables; never flagged as slow) and `query` (SQL people write in dashboard widgets).
 
     Every series is per process. With several copies of the app running, Prometheus scrapes each one: add request and statement series with `sum`, and take `initiative_users`, `initiative_guilds` and `initiative_sessions_active` with `max`, because every copy counts the same accounts.
+
+## Measuring the app in the browser (Grafana Faro)
+
+Prometheus sees the server. To see what happens in people's browsers (which pages they actually open, as opposed to the ones you spent a weekend on, plus the errors they hit and how fast pages load), point Initiative at a Grafana Faro collector, such as Alloy's `faro.receiver`.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `FARO_COLLECTOR_URL` | Where browsers send measurements: a path on this server (`/collect`, which your proxy passes to the collector) or a full `https://` address. | unset |
+
+**Nobody is measured without saying yes.** Setting it adds an **Analytics** switch to the cookie chooser, and only a browser with that switch on sends anything. Every switch starts off, and the chooser itself appears only once a platform owner turns it on under **Settings › Platform › Branding**. With the chooser off, nothing is sent.
+
+**What gets sent.** Page views, uncaught errors and Web Vitals, grouped by a random session id the browser keeps. A page is named by its pattern (`/c/$communityId/projects/$projectId`), never by its address, and nothing names the person.
+
+??? techspec "Collectors on another address"
+    A full address on another origin is added to the page's `connect-src` automatically. A path is already covered, since it is the app's own origin.
 
 ## After changing settings
 

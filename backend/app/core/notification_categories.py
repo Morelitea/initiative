@@ -30,7 +30,7 @@ decision landing on you).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Mapping
 
@@ -48,6 +48,9 @@ class Channel(str, Enum):
     in_app = "in_app"
     email = "email"
     push = "push"
+    #: A system notification from the desktop app, carried on its own
+    #: connection rather than through a push service, so it needs no Firebase.
+    desktop = "desktop"
 
 
 ALL_CHANNELS: tuple[Channel, ...] = tuple(Channel)
@@ -80,7 +83,12 @@ class CategoryGroup(str, Enum):
     account = "account"
 
 
-_ON = {Channel.in_app: True, Channel.email: True, Channel.push: True}
+_ON = {
+    Channel.in_app: True,
+    Channel.email: True,
+    Channel.push: True,
+    Channel.desktop: True,
+}
 
 
 @dataclass(frozen=True)
@@ -97,7 +105,8 @@ class CategorySpec:
     guild_scoped: bool
     #: Channels the account may switch off.
     mutable_channels: frozenset[Channel]
-    defaults: Mapping[Channel, bool]
+    #: Every channel is on until the account switches it off.
+    defaults: Mapping[Channel, bool] = field(default_factory=lambda: _ON)
 
     def is_mutable(self, channel: Channel) -> bool:
         return channel in self.mutable_channels
@@ -105,7 +114,7 @@ class CategorySpec:
 
 _ALL_MUTABLE = frozenset(ALL_CHANNELS)
 #: In-app stays on; the reachable channels are still the account's own choice.
-_KEEP_IN_APP = frozenset({Channel.email, Channel.push})
+_KEEP_IN_APP = frozenset({Channel.email, Channel.push, Channel.desktop})
 
 
 CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
@@ -115,7 +124,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.replies: CategorySpec(
         types=frozenset({NotificationType.comment_reply}),
@@ -123,7 +131,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     # Split from mentions deliberately. Being named is a deliberate act by
     # another person; a comment on something you happen to be assigned is
@@ -140,7 +147,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.reactions: CategorySpec(
         types=frozenset({NotificationType.comment_reaction}),
@@ -148,7 +154,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.assignments: CategorySpec(
         types=frozenset({NotificationType.task_assignment}),
@@ -156,7 +161,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.due_dates: CategorySpec(
         types=frozenset({NotificationType.overdue_tasks}),
@@ -164,7 +168,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.membership: CategorySpec(
         types=frozenset(
@@ -179,7 +182,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     # Something is waiting on this account's decision, so the bell keeps it:
     # a queue nobody is told about is a queue nobody works.
@@ -189,15 +191,14 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
                 NotificationType.initiative_join_requested,
                 NotificationType.user_pending_approval,
                 NotificationType.access_grant_requested,
-                NotificationType.app_consent_requested,
-                NotificationType.app_update_pending,
+                NotificationType.plugin_consent_requested,
+                NotificationType.plugin_update_pending,
             }
         ),
         group=CategoryGroup.community,
         personal=True,
         guild_scoped=True,
         mutable_channels=_KEEP_IN_APP,
-        defaults=_ON,
     ),
     NotificationCategory.posts: CategorySpec(
         types=frozenset({NotificationType.post_published}),
@@ -205,7 +206,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.events: CategorySpec(
         types=frozenset(
@@ -220,7 +220,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.event_reminders: CategorySpec(
         types=frozenset({NotificationType.event_reminder}),
@@ -228,7 +227,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=False,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.direct_messages: CategorySpec(
         types=frozenset(
@@ -242,7 +240,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=False,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     NotificationCategory.connections: CategorySpec(
         types=frozenset(
@@ -255,7 +252,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=False,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     # Work this account asked for, finished. Entirely theirs to switch off —
     # the export is in the jobs table whether or not they were pinged.
@@ -272,7 +268,6 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_ALL_MUTABLE,
-        defaults=_ON,
     ),
     # Somebody else acted on this account. Being told is not a preference.
     NotificationCategory.account: CategorySpec(
@@ -282,20 +277,20 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
                 NotificationType.username_changed,
                 NotificationType.account_suspended,
                 NotificationType.account_unsuspended,
-                NotificationType.guild_on_hold,
-                NotificationType.guild_trial_ending,
-                NotificationType.guild_trial_ended,
-                NotificationType.guild_welcome,
+                NotificationType.community_on_hold,
+                NotificationType.community_trial_ending,
+                NotificationType.community_trial_ended,
+                NotificationType.community_welcome,
                 NotificationType.access_grant_approved,
                 NotificationType.access_grant_denied,
                 NotificationType.access_grant_revoked,
+                NotificationType.ticket_updated,
             }
         ),
         group=CategoryGroup.account,
         personal=True,
         guild_scoped=False,
         mutable_channels=_KEEP_IN_APP,
-        defaults=_ON,
     ),
 }
 
@@ -317,12 +312,9 @@ PERSONAL_TYPES: frozenset[NotificationType] = frozenset(
 
 
 def sample_type(category: NotificationCategory) -> NotificationType:
-    """Any one type from a category.
-
-    Preference resolution is keyed on a notification type, but a digest — and a
-    row in the email outbox — is about a whole category, and every type in one
-    resolves identically. Sorted so the choice is stable rather than dependent
-    on set ordering.
+    """Any one type from a category, for a push that covers a whole category
+    but is sent and stored by type — the summary when a hold lifts. Sorted so
+    the choice is stable rather than dependent on set ordering.
     """
     return sorted(CATEGORY_SPECS[category].types, key=lambda t: t.value)[0]
 

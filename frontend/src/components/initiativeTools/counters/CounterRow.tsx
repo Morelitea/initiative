@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link } from "@tanstack/react-router";
 import {
+  Copy,
   GripVertical,
   Maximize2,
   Minus,
@@ -25,9 +26,7 @@ import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { cn } from "@/lib/utils";
 
-import { CounterNumberView } from "./views/CounterNumberView";
-import { CounterProgressBarView } from "./views/CounterProgressBarView";
-import { CounterSegmentedClockView } from "./views/CounterSegmentedClockView";
+import { CounterView } from "./views/CounterView";
 
 export type CounterLayout = "row" | "grid";
 
@@ -42,6 +41,7 @@ interface CounterRowProps {
   onDecrement: () => void;
   onReset: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }
 
@@ -55,9 +55,10 @@ export const CounterRow = ({
   onDecrement,
   onReset,
   onEdit,
+  onDuplicate,
   onDelete,
 }: CounterRowProps) => {
-  const { t } = useTranslation("counterGroups");
+  const { t } = useTranslation(["counterGroups", "common"]);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: counter.id.toString(),
     disabled: !canWrite,
@@ -75,51 +76,15 @@ export const CounterRow = ({
     color: fg,
   };
 
-  const hasBounds = counter.min !== null && counter.max !== null;
-  const viewSize = layout === "grid" ? "xl" : "lg";
-  const clockSize = layout === "grid" ? "lg" : "md";
-  let viewElement: React.ReactNode;
-  if (counter.view_mode === "progress_bar" && hasBounds) {
-    viewElement = (
-      <CounterProgressBarView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={viewSize}
-      />
-    );
-  } else if (counter.view_mode === "segmented_clock" && hasBounds) {
-    viewElement = (
-      <CounterSegmentedClockView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={clockSize}
-      />
-    );
-  } else {
-    viewElement = (
-      <CounterNumberView
-        count={counter.count}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={onSetCount}
-        ariaLabel={counter.name}
-        size={viewSize}
-      />
-    );
-  }
+  const viewElement = (
+    <CounterView
+      counter={counter}
+      disabled={!canWrite}
+      textColor={fg}
+      onCommit={onSetCount}
+      size={layout === "grid" ? "xl" : "lg"}
+    />
+  );
 
   // Tinted backgrounds for +/- buttons that contrast clearly against the
   // card color — darker overlay on light cards, lighter overlay on dark.
@@ -182,6 +147,10 @@ export const CounterRow = ({
         <DropdownMenuItem onSelect={onEdit} disabled={!canWrite}>
           <Pencil className="h-4 w-4" />
           {t("editCounter")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onDuplicate} disabled={!canWrite}>
+          <Copy className="h-4 w-4" />
+          {t("common:subToolDuplicate.action")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onDelete} disabled={!canWrite} className="text-destructive">
           <Trash2 className="h-4 w-4" />

@@ -91,7 +91,7 @@ export function WeekView({
         {/* All-day / multi-day spanning bar area */}
         {allSpans.spans.length > 0 && (
           <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
-            <div className="flex items-start justify-end pt-1 pr-2 text-[10px] text-muted-foreground">
+            <div className="flex items-start justify-end pt-1 pr-2 text-3xs text-muted-foreground">
               {t("common:calendar.allDay")}
             </div>
             <div className="relative col-span-7" style={{ height: spanAreaHeight + 4 }}>
@@ -103,7 +103,7 @@ export function WeekView({
                   enabled={dndEnabled}
                   onSelect={onEntryClick}
                   className={cn(
-                    "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-[11px] text-white",
+                    "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-2xs text-white",
                     onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                   )}
                   style={{
@@ -115,7 +115,7 @@ export function WeekView({
                   }}
                 >
                   {span.entry.kind && (
-                    <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-[9px] uppercase">
+                    <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-3xs uppercase">
                       {t(`common:${kindLabelKey(span.entry.kind)}`)}
                     </span>
                   )}

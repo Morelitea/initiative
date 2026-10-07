@@ -17,6 +17,8 @@ taken with ``max``.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Iterator, Mapping
 
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram, Info
@@ -89,11 +91,11 @@ db_cross_cohort_routes = Counter(
     "cohort, by the cohort (or platform pool) the connection belongs to.",
     ("cohort",),
 )
-app_hook_deliveries = Counter(
-    "initiative_app_hook_deliveries",
-    "Vendor webhook deliveries received for apps, by outcome: refused (the "
+plugin_hook_deliveries = Counter(
+    "initiative_plugin_hook_deliveries",
+    "Vendor webhook deliveries received for plug-ins, by outcome: refused (the "
     "signature did not verify), unroutable (no community connected it), "
-    "delivered, or failed (a community's app did not accept it).",
+    "delivered, or failed (a community's plug-in did not accept it).",
     ("outcome",),
 )
 db_connection_communities = Histogram(
@@ -122,13 +124,45 @@ sessions_active = Gauge(
     "initiative_sessions_active",
     "Signed-in sessions that have neither expired nor been signed out.",
 )
+active_users = Gauge(
+    "initiative_active_users",
+    "Accounts that were active within each window.",
+    ("window",),
+)
+tools_created = Counter(
+    "initiative_tools_created",
+    "Tools created, by kind.",
+    ("tool",),
+)
+page_views = Counter(
+    "initiative_page_views",
+    "Pages opened in the app, by route template.",
+    ("route",),
+)
 Info("initiative_build", "The release this process is running.").info(
     {"version": get_version()}
 )
 
 
+#: The windows active accounts are counted over, by label, in days.
+ACTIVE_WINDOWS: dict[str, int] = {"1d": 1, "7d": 7, "30d": 30}
+
+#: The SPA's route templates, the only values the page view ``route`` label
+#: takes. Kept in step with the router by ``frontend/src/pageRoutes.test.ts``.
+PAGE_ROUTES: frozenset[str] = frozenset(
+    json.loads(Path(__file__).with_name("page_routes.json").read_text())
+)
+
+#: The ``route`` label of a page view for a template not in the list.
+OTHER_PAGE = "other"
+
+
 def method_label(method: str | None) -> str:
     return method if method in METHODS else "other"
+
+
+def record_page_view(route: str) -> None:
+    page_views.labels(route=route if route in PAGE_ROUTES else OTHER_PAGE).inc()
 
 
 def record_platform_totals(
@@ -136,6 +170,7 @@ def record_platform_totals(
     users_by_status: Mapping[str, int],
     guilds_by_status: Mapping[str, int],
     live_sessions: int,
+    active_by_window: Mapping[str, int],
 ) -> None:
     """Replace the platform totals with a fresh count.
 
@@ -149,6 +184,8 @@ def record_platform_totals(
     for status, count in guilds_by_status.items():
         guilds.labels(status=status).set(count)
     sessions_active.set(live_sessions)
+    for window, count in active_by_window.items():
+        active_users.labels(window=window).set(count)
 
 
 #: The engines whose pools are reported, by the label they are reported under.

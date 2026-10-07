@@ -42,7 +42,7 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
 
   // slowapi returns 429 with {"error": "..."} instead of {"detail": "..."}, so a
   // 429 with nothing in `detail` is the rate limiter and says so. The app's own
-  // refusals use the same status for "not right now" — a guild with no free
+  // refusals use the same status for "not right now" — a community with no free
   // query slot — and those carry a code worth reading, so they are localized
   // like any other.
   if (axiosError?.response?.status === 429 && typeof detail !== "string") {

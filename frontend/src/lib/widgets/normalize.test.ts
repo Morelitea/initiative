@@ -48,6 +48,22 @@ describe("normalizeSheetRange", () => {
 });
 
 describe("normalizeQueryRows", () => {
+  it("keeps a grain it knows and drops one it does not", () => {
+    const { columns } = normalizeQueryRows(
+      [
+        { name: "m", type: "date", grain: "month" },
+        { name: "h", type: "date", grain: "hour" },
+        { name: "d", type: "date", grain: null },
+      ],
+      []
+    );
+    expect(columns).toEqual([
+      { name: "m", type: "date", grain: "month" },
+      { name: "h", type: "date" },
+      { name: "d", type: "date" },
+    ]);
+  });
+
   const columns = [
     { name: "stage", type: "text" as const },
     { name: "tasks", type: "number" as const },
@@ -90,7 +106,7 @@ describe("emptyDataFor", () => {
     }
   });
 
-  it("gives an app binding its own empty envelope", () => {
-    expect(emptyDataFor("app")).toEqual({ source: "app", rows: [], values: {} });
+  it("gives a plug-in binding its own empty envelope", () => {
+    expect(emptyDataFor("plugin")).toEqual({ source: "plugin", rows: [], values: {} });
   });
 });

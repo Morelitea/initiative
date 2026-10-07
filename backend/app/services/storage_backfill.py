@@ -30,16 +30,23 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Container
 from datetime import timedelta
 
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
+from app.db import post_commit
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
-from app.db.system_grants import ROLE_GRANTS, grant_sql
+from app.db.public_rls import PUBLIC_RLS, render_table_rls
+from app.db.system_grants import (
+    ROLE_GRANTS,
+    grant_statements,
+    grantee,
+    revoke_statements,
+)
 from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
@@ -49,6 +56,8 @@ GLOBAL_ID = 1
 # and may be reclaimed. The copy loop's advisory lock is the real concurrency
 # guard, so a too-eager reclaim still can't cause a double copy.
 _STALE_AFTER = timedelta(minutes=15)
+
+_TABLE = "storage_backfill_state"
 
 _CREATE_TABLE = """
 CREATE UNLOGGED TABLE IF NOT EXISTS storage_backfill_state (
@@ -66,29 +75,34 @@ CREATE UNLOGGED TABLE IF NOT EXISTS storage_backfill_state (
 )
 """
 
-# The system engine's verbs come from the audited shared-table registry, so the
-# lazily-created table follows the same "decide it explicitly" discipline as the
-# migrated ones (security_invariants_test compares the live catalog to it).
-_ADMIN_GRANT = grant_sql(ROLE_GRANTS["app_admin"]["storage_backfill_state"])
-if _ADMIN_GRANT is None:
-    # Every read/write in this module runs on the system engine; a registry
-    # entry of "no access" would leave the service unable to operate at all,
-    # so fail at import with a pointer to the decision rather than emitting a
-    # malformed GRANT at first use.
-    raise RuntimeError(
-        "app.db.system_grants gives the system engine no access to "
-        "storage_backfill_state; the storage backfill service requires "
-        "SELECT/INSERT/UPDATE"
-    )
-
-
-def _platform_floor() -> str:
-    """The platform ladder's floor, which carries the platform prefix."""
-    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
-
-
 _table_lock = asyncio.Lock()
 _table_ready = False
+
+
+def _table_ddl(present: Container[str]) -> str:
+    """The table, then its row security and grants as the shared-table
+    registry declares them. Every role in ``present`` (catalog names) has its
+    grants revoked before any are granted, so a table created by an earlier
+    build converges on the registry, the schema's default grants to the two
+    request-path floors are taken back where it gives them none, and a login
+    named by both login fields keeps the verbs of each."""
+    return "\n".join(
+        [
+            f"{_CREATE_TABLE.strip()};",
+            render_table_rls(_TABLE, PUBLIC_RLS[_TABLE]),
+            *(
+                f"{statement};"
+                for role in ROLE_GRANTS
+                if grantee(role) in present
+                for statement in revoke_statements(role, [_TABLE])
+            ),
+            *(
+                f"{statement};"
+                for role in ROLE_GRANTS
+                for statement in grant_statements(role, [_TABLE])
+            ),
+        ]
+    )
 
 
 class BackfillAlreadyRunning(RuntimeError):
@@ -98,10 +112,8 @@ class BackfillAlreadyRunning(RuntimeError):
 async def _ensure_table() -> None:
     """Create the UNLOGGED status table once per process (idempotent).
 
-    DDL runs on the superuser provisioning engine; RLS is forced with no policies
-    so only the BYPASSRLS ``app_admin`` engine (which the reads/writes use) can
-    reach it. ``app_admin`` is granted explicitly in case default privileges don't
-    cover a runtime-created table.
+    The provisioning engine creates the table and applies the grants declared
+    in the shared-table registry (:func:`_table_ddl`).
     """
     global _table_ready
     if _table_ready:
@@ -110,33 +122,15 @@ async def _ensure_table() -> None:
         if _table_ready:
             return
         async with db_session.provisioning_engine.begin() as conn:
-            await conn.execute(text(_CREATE_TABLE))
-            await conn.execute(
-                text("ALTER TABLE storage_backfill_state ENABLE ROW LEVEL SECURITY")
-            )
-            await conn.execute(
-                text("ALTER TABLE storage_backfill_state FORCE ROW LEVEL SECURITY")
-            )
-            # Revoke-then-grant so a table created by an earlier build (which
-            # granted ALL) converges on the registry's verb set.
-            await conn.execute(
-                text("REVOKE ALL ON storage_backfill_state FROM app_admin")
-            )
-            await conn.execute(
-                text(f"GRANT {_ADMIN_GRANT} ON storage_backfill_state TO app_admin")
-            )
-            # The schema's default privileges hand every new relation in
-            # ``public`` full DML to the two request-path floors, and this
-            # table is the system engine's alone. A migration adding an
-            # app_admin-only shared table says the same thing on its own line
-            # (0132, 0133, 0134); this one is created at runtime, so it says
-            # it here.
-            await conn.execute(
-                text(
-                    "REVOKE ALL ON storage_backfill_state "
-                    f'FROM app_guild_base, "{_platform_floor()}"'
+            present = (
+                await conn.execute(
+                    text("SELECT rolname FROM pg_roles WHERE rolname = ANY(:names)"),
+                    {"names": [grantee(role) for role in ROLE_GRANTS]},
                 )
-            )
+            ).scalars()
+            ddl = _table_ddl(set(present))
+            raw = await conn.get_raw_connection()
+            await raw.driver_connection.execute(ddl)
         _table_ready = True
 
 
@@ -275,17 +269,24 @@ async def _finalize(
 async def _run() -> None:
     """Detached task: run the backfill with its own system session and persist
     progress + the final outcome to the shared row."""
-    async with SystemSessionLocal() as session:
+    try:
+        async with SystemSessionLocal() as session:
 
-        async def _on_progress(summary: BackfillSummary) -> None:
-            await _persist(session, status="running", summary=summary)
+            async def _on_progress(summary: BackfillSummary) -> None:
+                await _persist(session, status="running", summary=summary)
 
-        try:
-            summary = await backfill_uploads_to_s3(on_progress=_on_progress)
-            await _finalize(session, summary=summary)
-        except Exception as exc:  # noqa: BLE001 — surface the failure in status
-            logger.exception("storage backfill failed")
-            await _finalize(session, error=str(exc))
+            try:
+                summary = await backfill_uploads_to_s3(on_progress=_on_progress)
+                await _finalize(session, summary=summary)
+            except Exception as exc:  # noqa: BLE001 — surface the failure in status
+                logger.exception("storage backfill failed")
+                await _finalize(session, error=str(exc))
+    except asyncio.CancelledError:
+        # Stopped at shutdown, however early. The copy skips what the bucket
+        # already holds, so the next run carries on from here and may start now.
+        async with SystemSessionLocal() as session:
+            await _persist(session, status="failed", finished=True)
+        raise
 
 
 async def start_backfill(session: AsyncSession) -> dict:
@@ -293,7 +294,7 @@ async def start_backfill(session: AsyncSession) -> dict:
     already in progress (cluster-wide)."""
     if not await try_claim(session):
         raise BackfillAlreadyRunning()
-    asyncio.create_task(_run())
+    post_commit.spawn(_run(), cancel_on_settle=True)
     row = await _fetch(session)
     if row is None:
         raise RuntimeError("storage backfill state row missing after claim")

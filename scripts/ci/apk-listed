@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Fail unless the APK is signed by a certificate backend/app/core/native_apps.py
+# lists under the named constant, so the asset links a deployment serves and
+# the passkey origins it accepts name the app as it was built.
+#
+# Usage: scripts/ci/apk-listed <apk> <constant>
+#   e.g. scripts/ci/apk-listed app-release.apk ANDROID_FINGERPRINTS
+set -euo pipefail
+
+apk=$1
+constant=$2
+native_apps="$(dirname "$0")/../../backend/app/core/native_apps.py"
+
+apksigner=$(find "${ANDROID_HOME:-}/build-tools" -mindepth 2 -maxdepth 2 \
+  -name apksigner -type f 2>/dev/null | sort -V | tail -n 1 || true)
+if [ -z "$apksigner" ]; then
+  echo "::error::apksigner was not found under the Android SDK build-tools."
+  exit 1
+fi
+
+normalise() { tr -d ':' | tr '[:upper:]' '[:lower:]'; }
+
+cert=$("$apksigner" verify --print-certs "$apk" \
+  | awk '/certificate SHA-256 digest/ { print $NF; exit }' | normalise)
+listed=$(sed -n "/^$constant: /,/^)/p" "$native_apps" \
+  | grep -oE '([0-9A-F]{2}:){31}[0-9A-F]{2}' | normalise)
+
+if [ -z "$cert" ] || ! grep -qxF "$cert" <<<"$listed"; then
+  echo "::error::The APK's signing certificate is not in $constant in backend/app/core/native_apps.py."
+  echo "Certificate SHA-256: $cert"
+  exit 1
+fi
+echo "APK certificate is listed in $constant."

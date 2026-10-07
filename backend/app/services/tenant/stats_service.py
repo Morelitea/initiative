@@ -14,7 +14,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.platform.user import User
 from app.schemas.tenant.stats import (
-    GuildTaskBreakdown,
+    CommunityTaskBreakdown,
     HeatmapDayData,
     UserStatsResponse,
     VelocityWeekData,
@@ -429,7 +429,7 @@ async def get_guild_breakdown(
     session: AsyncSession,
     user_id: int,
     guild_id: int,
-) -> List[GuildTaskBreakdown]:
+) -> List[CommunityTaskBreakdown]:
     """This community's completed-task count for the reader.
 
     One row, or none when there is nothing to report. The session is routed
@@ -459,8 +459,8 @@ async def get_guild_breakdown(
     ).one_or_none()
     name = name_row[0] if name_row is not None else None
     return [
-        GuildTaskBreakdown(
-            guild_id=guild_id, guild_name=name or "", completed_count=completed
+        CommunityTaskBreakdown(
+            community_id=guild_id, community_name=name or "", completed_count=completed
         )
     ]
 
@@ -571,7 +571,7 @@ async def _compute_guild_stats(
         backlog_trend=backlog_trend,
         velocity_data=velocity_data,
         heatmap_data=heatmap_data,
-        guild_breakdown=guild_breakdown,
+        community_breakdown=guild_breakdown,
     )
 
 
@@ -634,7 +634,7 @@ def _merge_stats(parts: List[UserStatsResponse]) -> UserStatsResponse:
         backlog_trend="Growing" if tot_assigned > tot_completed else "Shrinking",
         velocity_data=velocity_data,
         heatmap_data=heatmap_data,
-        guild_breakdown=[g for p in parts for g in p.guild_breakdown],
+        community_breakdown=[g for p in parts for g in p.community_breakdown],
     )
 
 
@@ -677,7 +677,7 @@ async def get_user_stats(
             backlog_trend="Shrinking",
             velocity_data=[],
             heatmap_data=[],
-            guild_breakdown=[],
+            community_breakdown=[],
         )
     if len(parts) == 1:
         return parts[0]

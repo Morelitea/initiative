@@ -46,7 +46,7 @@ const PAD = 4;
  * there and opens it.
  */
 function CalloutActionMenu({ anchorElem }: { anchorElem: HTMLElement }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [open, setOpen] = useState(false);
@@ -147,19 +147,19 @@ function CalloutActionMenu({ anchorElem }: { anchorElem: HTMLElement }) {
       <DropdownMenuTrigger
         className="absolute z-10 cursor-pointer rounded-md hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10"
         style={{ top: anchor.top, left: anchor.left, width: anchor.size, height: anchor.size }}
-        aria-label={t("editor.calloutActions")}
+        aria-label={t("calloutActions")}
       />
       <DropdownMenuContent align="start">
         {CALLOUT_VARIANTS.map((variant) => (
           <DropdownMenuItem key={variant} onSelect={() => setVariant(variant)}>
             <CalloutIcon variant={variant} className="size-4" />
-            {t(`editor.calloutKinds.${variant}`)}
+            {t(`calloutKinds.${variant}`)}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={remove}>
           <Trash2 className="size-4" />
-          {t("editor.removeCallout")}
+          {t("removeCallout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

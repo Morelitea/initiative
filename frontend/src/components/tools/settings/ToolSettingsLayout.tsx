@@ -4,8 +4,8 @@
  * Rename, describe, tag, share, and delete are identical for all six tools, so
  * they live here once. Everything the frame needs is derived from the `tool`
  * value — breadcrumb labels, section routes, the tag mutation — and all of its
- * copy comes from the shared `common:toolSettings.*` namespace, so adding a
- * tool costs a wrapper that names its data hooks and nothing else.
+ * copy comes from the shared `common:toolSettings.*` namespace, so a tool with
+ * nothing of its own is mounted as `ToolSettingsPage`, over its `TOOL_HOOKS`.
  *
  * The sections are real routes — `/settings/access` is a place, not a piece of
  * component state — so sharing can be linked to, and the back button walks
@@ -28,14 +28,15 @@ import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.sc
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { canUseArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
+import { canUseDuplicateCard } from "@/components/tools/settings/ToolDuplicateCard";
 import {
   type ToolExportOptions,
   type ToolMutation,
   type ToolSettingsEntity,
   ToolSettingsProvider,
 } from "@/components/tools/settings/ToolSettingsContext";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { extractSubPath, isGuildScopedPath, useGuildPath } from "@/lib/guildUrl";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
+import { extractSubPath, isCommunityScopedPath, useCommunityPath } from "@/lib/communityUrl";
 import { matchActiveTab } from "@/lib/tabs";
 import {
   TOOL_SETTINGS_DEFAULT_SECTION,
@@ -52,14 +53,18 @@ export interface ToolSettingsLayoutProps {
   isError: boolean;
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
-   * projects save those fields through their own richer form, and a document's
-   * name is edited in the editor.
+   * a file's name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
+  /** Marks it a template or takes it back — projects and files. */
+  template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
-  /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
+  /** Extra cards for the Details section, e.g. a calendar's color. */
   detailsExtra?: ReactNode;
+  /** Extra fields inside the Details card itself, below the description. Each
+   *  saves on its own; the card's Save button is for the name and description. */
+  detailsInline?: ReactNode;
   /** Extra cards for the Advanced section, e.g. duplicate or archive. */
   advancedExtra?: ReactNode;
   /**
@@ -83,9 +88,11 @@ export const ToolSettingsLayout = ({
   isLoading,
   isError,
   update,
+  template,
   setGrants,
   remove,
   detailsExtra,
+  detailsInline,
   advancedExtra,
   exportOptions,
   extraTabs = [],
@@ -93,7 +100,7 @@ export const ToolSettingsLayout = ({
 }: ToolSettingsLayoutProps) => {
   const { t } = useTranslation(["common", "nav", "access"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const location = useLocation();
 
   if (isLoading) {
@@ -130,10 +137,14 @@ export const ToolSettingsLayout = ({
       label: tab.label,
       path: sectionPath(tab.value),
     })),
-    // Advanced holds a tool's own extra operations, archiving, exporting and
-    // deletion, so it is offered only when this entity has one of them to
-    // offer.
-    ...(advancedExtra || entity.can.export || entity.can.delete || canUseArchiveCard(entity)
+    // Advanced holds a tool's own extra operations, duplicating, archiving,
+    // exporting and deletion, so it is offered only when this entity has one
+    // of them to offer.
+    ...(advancedExtra ||
+    entity.can.export ||
+    entity.can.delete ||
+    canUseArchiveCard(entity) ||
+    canUseDuplicateCard(tool, entity)
       ? [
           {
             value: "advanced",
@@ -144,10 +155,10 @@ export const ToolSettingsLayout = ({
       : []),
   ];
 
-  // The tab paths are guild-prefixed; matching happens on the sub-path, so a
-  // guild id in the address never decides which tab is lit.
+  // The tab paths are community-prefixed; matching happens on the sub-path, so a
+  // community id in the address never decides which tab is lit.
   const currentPath = location.pathname;
-  const normalizedPath = isGuildScopedPath(currentPath)
+  const normalizedPath = isCommunityScopedPath(currentPath)
     ? extractSubPath(currentPath).replace(/\/+$/, "") || "/"
     : currentPath.replace(/\/+$/, "") || "/";
   const activeTab = matchActiveTab(
@@ -158,19 +169,12 @@ export const ToolSettingsLayout = ({
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={tool}
         initiativeId={entity.initiative_id}
-        trail={[
-          { label: entity.name, to: toolDetailRoute(tool, entity.initiative_id, entity.id) },
-          { label: t("common:toolSettings.title") },
-        ]}
+        trail={[{ label: entity.name, to: toolDetailRoute(tool, entity.initiative_id, entity.id) }]}
+        title={t("common:toolSettings.title")}
       />
-
-      <div className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("common:toolSettings.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("common:toolSettings.description")}</p>
-      </div>
 
       <SettingsTabsNav
         tabs={tabs}
@@ -183,9 +187,11 @@ export const ToolSettingsLayout = ({
           tool,
           entity,
           update,
+          template,
           setGrants,
           remove,
           detailsExtra,
+          detailsInline,
           advancedExtra,
           exportOptions,
         }}

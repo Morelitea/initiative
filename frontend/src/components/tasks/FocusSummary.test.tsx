@@ -82,7 +82,7 @@ function renderFocus(prefs: Partial<FocusPreferences> = {}, stored?: unknown) {
     return (
       <FocusSummary
         focus={focus}
-        activeGuildId={1}
+        activeCommunityId={1}
         changeTaskStatus={changeTaskStatus}
         isUpdatingTask={() => false}
       />
@@ -184,10 +184,10 @@ describe("FocusSummary", () => {
       new Date(lowDue.conditions[2].value).getTime()
     );
 
-    // The list spans every guild the user belongs to and answers only to its
-    // own settings — it is not scoped by the guild you happen to be viewing,
+    // The list spans every community the user belongs to and answers only to its
+    // own settings — it is not scoped by the community you happen to be viewing,
     // nor by the task table's filters.
-    expect(captured[0].get("conditions")).not.toContain("guild_id");
+    expect(captured[0].get("conditions")).not.toContain("community_id");
   });
 
   it("asks for backlog work too, not just what someone moved to To Do", async () => {
@@ -393,27 +393,27 @@ describe("FocusSummary", () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 42, guild_id: 1, title: "Pinned far-future task" }),
+        buildTask({ id: 42, community_id: 1, title: "Pinned far-future task" }),
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 1, task_id: 42 }] });
+    renderFocus({ pins: [{ community_id: 1, task_id: 42 }] });
 
     expect(await screen.findByText("Pinned far-future task")).toBeInTheDocument();
   });
 
-  it("does not mistake a same-numbered task in another guild for the pinned one", async () => {
-    // /me/tasks filters run per guild against a shared id space, so an
-    // `id IN (…)` query returns task 7 from every guild the user belongs to.
+  it("does not mistake a same-numbered task in another community for the pinned one", async () => {
+    // /me/tasks filters run per community against a shared id space, so an
+    // `id IN (…)` query returns task 7 from every community the user belongs to.
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 7, guild_id: 1, title: "Someone else's task 7" }),
-        buildTask({ id: 7, guild_id: 2, title: "The pinned task 7" }),
+        buildTask({ id: 7, community_id: 1, title: "Someone else's task 7" }),
+        buildTask({ id: 7, community_id: 2, title: "The pinned task 7" }),
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 2, task_id: 7 }] });
+    renderFocus({ pins: [{ community_id: 2, task_id: 7 }] });
 
     expect(await screen.findByText("The pinned task 7")).toBeInTheDocument();
     expect(screen.queryByText("Someone else's task 7")).not.toBeInTheDocument();
@@ -485,7 +485,7 @@ describe("FocusSummary", () => {
       pins: buildTaskListResponse([
         buildTask({
           id: 55,
-          guild_id: 1,
+          community_id: 1,
           title,
           completed_at: finishedAt.toISOString(),
           task_status: DONE,
@@ -493,7 +493,7 @@ describe("FocusSummary", () => {
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 1, task_id: 55 }] });
+    renderFocus({ pins: [{ community_id: 1, task_id: 55 }] });
 
     if (today) {
       expect(await screen.findByText(title)).toHaveClass("line-through");

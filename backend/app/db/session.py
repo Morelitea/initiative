@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -12,22 +13,25 @@ from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncEngine,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
 
 from app.core import audit_context, metrics
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.plugin_access_token import InstallAccessToken
 from app.core.config import settings
+from app.core.identify import bearer_plugin_token
+from app.core.tools import Tool
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
-from app.db import cohorts, gucs
+from app.db import cohorts, gucs, post_commit
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_standing import (
     GuildContext,
     InstallContext,
@@ -45,6 +49,7 @@ from app.db.request_context import (
     SystemMaintenance,
     Unattributed,
 )
+from app.models.tenant._mixins import tool_models
 
 logger = logging.getLogger(__name__)
 
@@ -207,16 +212,11 @@ def served_guild_id(connection: HTTPConnection) -> int | None:
     """The community a request is served in: the one its installation token
     names, when it carries one, and otherwise the one its path addresses.
 
-    An installed app's calls are about the community its token names, whatever
+    An installed plug-in's calls are about the community its token names, whatever
     the path says, so that community's cohort serves them."""
-    scheme, _, credential = connection.headers.get("authorization", "").partition(" ")
-    if scheme.lower() == "bearer" and is_access_token(credential):
-        try:
-            token = unseal_access_token(credential)
-        except AccessTokenError:
-            token = None
-        if isinstance(token, InstallAccessToken):
-            return token.guild_id
+    token = bearer_plugin_token(connection)
+    if isinstance(token, InstallAccessToken):
+        return token.guild_id
     return cohorts.addressed_guild_id(connection.path_params)
 
 
@@ -394,6 +394,29 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
 # no-op, so the global listener is effectively scoped to routed sessions.
 event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
 
+
+@functools.cache
+def _tool_of_model() -> dict[type, Tool]:
+    models = tool_models()
+    return {models[tool.plural]: tool for tool in Tool}
+
+
+def _note_created_tools(session: SyncSession, _flush_context: Any) -> None:
+    # ``session.new`` still lists what this flush inserted. Counted once the
+    # transaction commits, and not if the savepoint it was flushed in rolls back.
+    tool_of = _tool_of_model()
+    created = [tool_of[type(row)] for row in session.new if type(row) in tool_of]
+    if created:
+        post_commit.after_commit(session, functools.partial(_count_tools, created))
+
+
+def _count_tools(tools: list[Tool]) -> None:
+    for tool in tools:
+        metrics.tools_created.labels(tool=tool.value).inc()
+
+
+event.listen(SyncSession, "after_flush", _note_created_tools, propagate=True)
+
 #: The shapes that name a person, and so carry the tier the request
 #: authenticated as.
 _TIERED = (Platform, Member, ContentGrantee, SettingsGrantee)
@@ -514,7 +537,7 @@ async def apply_install_standing(
     context: InstallContext,
     named_refs: Sequence[str] = (),
 ) -> InstallContext:
-    """Compute an installed app's standing and record it on the session.
+    """Compute an installed plug-in's standing and record it on the session.
 
     The second half of the install seam, as :func:`apply_guild_standing` is of
     the person seam. ``named_refs`` are the references the request names; the
@@ -530,7 +553,7 @@ async def apply_install_standing(
 def routed_guild_id(session: AsyncSession) -> int | None:
     """The guild this session is currently routed to, or ``None`` if it is not.
 
-    Ids of things that live in a guild schema — documents, initiatives — are
+    Ids of things that live in a guild schema — files, initiatives — are
     per-schema sequences, so the same number names a different row in each
     guild. Anything keyed by one of them outside the database needs the guild
     beside it, and where the id was read through a routed session, that routing
@@ -576,13 +599,13 @@ def require_guild_context(session: AsyncSession) -> GuildContext:
 
 
 def install_context(session: AsyncSession) -> InstallContext | None:
-    """The installed app's standing this session was routed with, or ``None``."""
+    """The installed plug-in's standing this session was routed with, or ``None``."""
     return _standing(session, InstallContext)
 
 
 def require_actor_context(session: AsyncSession) -> GuildContext | InstallContext:
     """The standing this session was routed with, a person's or an installed
-    app's, for a caller on a route that serves either."""
+    plug-in's, for a caller on a route that serves either."""
     context = guild_context(session) or install_context(session)
     if context is None:
         raise RuntimeError(
@@ -734,14 +757,8 @@ def _missing_database_error() -> RuntimeError:
     )
 
 
-#: The advisory-lock key a process holds while it migrates. Arbitrary and
-#: app-specific: all it has to be is the same number in every build, and a
-#: different one from the suite's (``conftest.py``).
-MIGRATION_LOCK_KEY = 0x1417A7E50D
-
-
 @asynccontextmanager
-async def migration_lock() -> AsyncGenerator[None, None]:
+async def migration_lock() -> AsyncGenerator[AsyncConnection, None]:
     """Take the database's migration lock for the duration of the block.
 
     Alembic runs in-process at startup, so instances sharing a database take
@@ -749,29 +766,30 @@ async def migration_lock() -> AsyncGenerator[None, None]:
     connection of its own — opened for this, closed after, which is what
     releases it — because the upgrade runs on connections alembic opens for
     itself. AUTOCOMMIT keeps that connection merely idle, rather than idle in
-    a transaction, for however long the upgrade ahead of it takes.
+    a transaction, for however long the upgrade ahead of it takes. The block
+    is given the connection, for the checks that run under the lock.
     """
     lock_engine = create_async_engine(
         settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
     )
-    params = {"key": MIGRATION_LOCK_KEY}
     try:
         conn = await lock_engine.connect()
     except InvalidCatalogNameError as exc:
         await lock_engine.dispose()
         raise _missing_database_error() from exc
     try:
-        taken = await conn.scalar(text("SELECT pg_try_advisory_lock(:key)"), params)
-        if not taken:
+        if not await advisory_lock(
+            conn, LockNamespace.MIGRATION, wait=False, xact=False
+        ):
             logger.info(
                 "Another instance is migrating this database; waiting for it to finish."
             )
             waited_from = time.monotonic()
-            await conn.execute(text("SELECT pg_advisory_lock(:key)"), params)
+            await advisory_lock(conn, LockNamespace.MIGRATION, xact=False)
             logger.info(
                 "Migration lock acquired after %.0fs.", time.monotonic() - waited_from
             )
-        yield
+        yield conn
     finally:
         # Closing the connection is what gives the lock back.
         await conn.close()

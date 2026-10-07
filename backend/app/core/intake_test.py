@@ -73,6 +73,19 @@ def test_a_blueprint_seeds_one_task_explaining_the_project(stream: IntakeStream)
     assert seed.status_name in status_names
 
 
+@pytest.mark.parametrize("stream", list(IntakeStream))
+def test_a_blueprint_can_wait_on_whoever_filed_a_case(stream: IntakeStream):
+    """A stream that holds a conversation sets up both statuses its binding
+    names: waiting on the requester, and the one their answer moves a case to.
+    A stream with none has nobody to wait on."""
+    from app.blueprints.intake import REQUESTER_REPLIED, WAITING_ON_REQUESTER
+    from app.core.intake import Conversation
+
+    names = {status.name for status in blueprint_for(stream).task_statuses}
+    holds = {WAITING_ON_REQUESTER, REQUESTER_REPLIED} <= names
+    assert holds is (meta(stream).conversation is not Conversation.none)
+
+
 def test_every_intake_error_code_is_localized():
     """A code the API can return says something in every language.
 
@@ -97,3 +110,14 @@ def test_every_intake_error_code_is_localized():
         catalogue = json.loads((locales / locale / "errors.json").read_text())
         missing = sorted(codes - set(catalogue))
         assert not missing, f"{locale}/errors.json is missing {missing}"
+
+
+@pytest.mark.parametrize("stream", list(IntakeStream))
+def test_every_stream_states_a_pace_the_limiter_reads(stream: IntakeStream):
+    """A filing rate the limiter cannot parse would surface as an error on the
+    first filing rather than here."""
+    from limits import parse
+
+    declared = meta(stream)
+    assert parse(declared.filing_rate).amount > 0
+    assert declared.max_open_per_filer is None or declared.max_open_per_filer > 0

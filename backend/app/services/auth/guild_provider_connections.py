@@ -39,9 +39,9 @@ from app.models.platform.guild_provider_connection import (
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
-    GuildProviderConnectionCreate,
-    GuildProviderConnectionRead,
-    GuildProviderConnectionUpdate,
+    CommunityProviderConnectionCreate,
+    CommunityProviderConnectionRead,
+    CommunityProviderConnectionUpdate,
 )
 from app.services import audit as audit_service
 from app.services.auth import narrowing_approval
@@ -61,8 +61,8 @@ AUDITED_FIELDS: tuple[str, ...] = (
 
 def connection_read(
     connection: GuildProviderConnection, provider: AuthProvider
-) -> GuildProviderConnectionRead:
-    return GuildProviderConnectionRead(
+) -> CommunityProviderConnectionRead:
+    return CommunityProviderConnectionRead(
         id=connection.id,
         provider_id=provider.id,
         provider_slug=provider.slug,
@@ -80,10 +80,10 @@ def connection_read(
 
 def default_read(
     default: PlatformProviderDefault, provider: AuthProvider
-) -> GuildProviderConnectionRead:
+) -> CommunityProviderConnectionRead:
     """The deployment's answer for a provider, in the shape a community's own
     connection has — so one surface renders both."""
-    return GuildProviderConnectionRead(
+    return CommunityProviderConnectionRead(
         id=None,
         inherited=True,
         provider_id=default.provider_id,
@@ -116,7 +116,7 @@ def is_login_ready_provider(provider: AuthProvider) -> bool:
 
 async def list_connections(
     session: AsyncSession, *, guild_id: int
-) -> list[GuildProviderConnectionRead]:
+) -> list[CommunityProviderConnectionRead]:
     """What this community signs in through — what it said, and what the
     deployment answered for it where it has said nothing.
 
@@ -303,11 +303,11 @@ def clean_claim(
 
 async def create_connection(
     session: AsyncSession,
-    payload: GuildProviderConnectionCreate,
+    payload: CommunityProviderConnectionCreate,
     *,
     guild_id: int,
     actor_user_id: int | None = None,
-) -> GuildProviderConnectionRead:
+) -> CommunityProviderConnectionRead:
     provider = await _connectable_provider(
         session, payload.provider_id, guild_id=guild_id
     )
@@ -366,11 +366,11 @@ async def create_connection(
 async def update_connection(
     session: AsyncSession,
     connection_id: int,
-    payload: GuildProviderConnectionUpdate,
+    payload: CommunityProviderConnectionUpdate,
     *,
     guild_id: int,
     actor_user_id: int | None = None,
-) -> GuildProviderConnectionRead:
+) -> CommunityProviderConnectionRead:
     row = await editable_connection(session, connection_id, guild_id=guild_id)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
     asks_again = False
@@ -522,10 +522,11 @@ async def admits_this_session(
     are passed in because this runs before the session context exists, which
     is where the policy legs read them from.
     """
-    providers = sorted(auth_context.satisfied_providers())
+    recorded = auth_context.current()
+    providers = sorted(recorded.satisfied_providers)
     if not providers:
         return False
-    claims = auth_context.satisfied_claims()
+    claims = recorded.satisfied_claims
     return bool(
         await session.scalar(
             select(

@@ -5,21 +5,19 @@ import { useCallback, useEffect, useMemo } from "react";
 import type {
   FilterCondition,
   FilterGroup,
-  ListMyTasksApiV1MeTasksGetParams,
+  ListMyTasksParams,
   TaskListRead,
   TaskListResponse,
   TaskPriority,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getListMyTasksApiV1MeTasksGetQueryKey,
-  listMyTasksApiV1MeTasksGet,
-} from "@/api/generated/tasks/tasks";
+import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { browserTimezone } from "@/lib/timezones";
 
-/** A pinned task, addressed by guild because task ids collide across guilds. */
+/** A pinned task, addressed by community because task ids collide across communities. */
 export type FocusPin = {
-  guild_id: number | null;
+  community_id: number | null;
   task_id: number;
 };
 
@@ -138,8 +136,8 @@ const OPEN_CATEGORIES = ["backlog", "todo", "in_progress"];
  */
 const FETCH_SIZE = 100;
 
-const pinKey = (guildId: number | null | undefined, taskId: number) =>
-  `${guildId ?? "none"}:${taskId}`;
+const pinKey = (communityId: number | null | undefined, taskId: number) =>
+  `${communityId ?? "none"}:${taskId}`;
 
 /**
  * Conditions for the rule-driven half of the section: open work that has come
@@ -245,8 +243,8 @@ const byDueDate = (a: TaskListRead, b: TaskListRead) => {
  * plus today's completions.
  *
  * Two queries rather than one, deliberately. Pins are addressed by
- * (guild, task) but `/me/tasks` filters run per guild against a shared id
- * space, so an `id IN (…)` leg matches same-numbered tasks in *other* guilds
+ * (community, task) but `/me/tasks` filters run per community against a shared id
+ * space, so an `id IN (…)` leg matches same-numbered tasks in *other* communities
  * too; the pin query over-fetches and is narrowed here. Folding it into the
  * rule query would also push pinned-but-not-urgent work past the fetch window
  * whenever the rules match a lot.
@@ -260,7 +258,7 @@ export function useFocusSummary() {
   // A stored blob predates any later field, and is user-writable via the API.
   const prefs = useMemo<FocusPreferences>(() => normalizePreferences(prefsRaw), [prefsRaw]);
 
-  const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const timezone = useMemo(browserTimezone, []);
 
   // Local midnight, off the shared clock: the list starts clean each morning,
   // so a tab left open overnight rolls over on its own instead of showing
@@ -269,7 +267,7 @@ export function useFocusSummary() {
   // churn the query key continuously).
   const today = useLiveClockValue((now) => startOfDay(now).getTime());
 
-  const ruleParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
+  const ruleParams = useMemo<ListMyTasksParams>(
     () => ({
       conditions: buildFocusConditions({
         today: new Date(today),
@@ -285,8 +283,8 @@ export function useFocusSummary() {
   );
 
   const ruleQuery = useQuery<TaskListResponse>({
-    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(ruleParams),
-    queryFn: () => listMyTasksApiV1MeTasksGet(ruleParams),
+    queryKey: getListMyTasksQueryKey(ruleParams),
+    queryFn: () => listMyTasks(ruleParams),
     enabled: isLoaded,
     placeholderData: keepPreviousData,
   });
@@ -296,7 +294,7 @@ export function useFocusSummary() {
     [prefs.pins]
   );
 
-  const pinParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
+  const pinParams = useMemo<ListMyTasksParams>(
     () => ({
       conditions: [{ field: "id", op: "in_", value: pinnedIds }],
       page: 1,
@@ -307,31 +305,31 @@ export function useFocusSummary() {
   );
 
   const pinQuery = useQuery<TaskListResponse>({
-    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(pinParams),
-    queryFn: () => listMyTasksApiV1MeTasksGet(pinParams),
+    queryKey: getListMyTasksQueryKey(pinParams),
+    queryFn: () => listMyTasks(pinParams),
     enabled: isLoaded && pinnedIds.length > 0,
     placeholderData: keepPreviousData,
   });
 
   const isPinned = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">) =>
+    (task: Pick<TaskListRead, "id" | "community_id">) =>
       prefs.pins.some(
-        (pin) => pinKey(pin.guild_id, pin.task_id) === pinKey(task.guild_id, task.id)
+        (pin) => pinKey(pin.community_id, pin.task_id) === pinKey(task.community_id, task.id)
       ),
     [prefs.pins]
   );
 
   const togglePin = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">) => {
-      const key = pinKey(task.guild_id, task.id);
+    (task: Pick<TaskListRead, "id" | "community_id">) => {
+      const key = pinKey(task.community_id, task.id);
       setPrefs((prev) => {
         const current = normalizePreferences(prev);
-        const without = current.pins.filter((pin) => pinKey(pin.guild_id, pin.task_id) !== key);
+        const without = current.pins.filter((pin) => pinKey(pin.community_id, pin.task_id) !== key);
         return {
           ...current,
           pins:
             without.length === current.pins.length
-              ? [...current.pins, { guild_id: task.guild_id ?? null, task_id: task.id }]
+              ? [...current.pins, { community_id: task.community_id ?? null, task_id: task.id }]
               : without,
         };
       });
@@ -374,7 +372,7 @@ export function useFocusSummary() {
     const seen = new Set<string>();
     const pinned: TaskListRead[] = [];
     for (const task of pinItems) {
-      const key = pinKey(task.guild_id, task.id);
+      const key = pinKey(task.community_id, task.id);
       if (seen.has(key)) continue;
       seen.add(key);
       pinned.push(task);
@@ -383,7 +381,7 @@ export function useFocusSummary() {
     const openMatches: TaskListRead[] = [];
     const completedToday: TaskListRead[] = [];
     for (const task of ruleItems) {
-      const key = pinKey(task.guild_id, task.id);
+      const key = pinKey(task.community_id, task.id);
       if (task.task_status.category === "done") {
         if (seen.has(key)) continue;
         seen.add(key);
@@ -424,7 +422,9 @@ export function useFocusSummary() {
   // doesn't accumulate them and the pin query stays small. Only pins we
   // positively resolved are removed — an absent one may just be out of reach
   // for now, and forgetting it would silently lose the user's choice.
-  const staleIds = derived.finishedEarlier.map((task) => pinKey(task.guild_id, task.id)).join("|");
+  const staleIds = derived.finishedEarlier
+    .map((task) => pinKey(task.community_id, task.id))
+    .join("|");
   useEffect(() => {
     if (!staleIds) return;
     const stale = new Set(staleIds.split("|"));
@@ -432,7 +432,7 @@ export function useFocusSummary() {
       const current = normalizePreferences(prev);
       return {
         ...current,
-        pins: current.pins.filter((pin) => !stale.has(pinKey(pin.guild_id, pin.task_id))),
+        pins: current.pins.filter((pin) => !stale.has(pinKey(pin.community_id, pin.task_id))),
       };
     });
   }, [staleIds, setPrefs]);

@@ -3,13 +3,13 @@
 Every tool and sub-tool is written through ``PUT /properties/{target}/{id}``
 with replace-all semantics, holds a value to its definition's type, keeps a
 definition inside its initiative, and carries its values in its read's
-``properties``. Tasks, documents and calendar events also filter their list by
+``properties``. Tasks, files and calendar events also filter their list by
 a value. The rules are the property engine's
 (``services/tenant/properties_test.py``); what this file pins is that each
 entity surfaces them the same way. Another entity gets the same proof by adding
 a ``Surface``.
 
-What only one entity does — a task moving between initiatives, a document
+What only one entity does — a task moving between initiatives, a file
 being copied, an event outliving its initiative — sits at the bottom under
 that entity's name.
 """
@@ -27,7 +27,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import PropertyType, PropertyValue
 from app.models.tenant.task import Task
@@ -36,7 +36,7 @@ from app.testing import (
     Actor,
     create_calendar,
     create_calendar_event,
-    create_document,
+    create_file,
     create_gallery,
     create_gallery_image,
     create_guild,
@@ -110,8 +110,8 @@ async def _initiative_itself(session, a, initiative):
     return initiative
 
 
-async def _make_document(session, a, initiative, title):
-    return (await create_document(session, initiative, a.user, name=title)).id
+async def _make_file(session, a, initiative, title):
+    return (await create_file(session, initiative, a.user, name=title)).id
 
 
 def _property_filters(a, _parent, property_id, value):
@@ -156,12 +156,12 @@ TASKS = Surface(
     make=_make_task,
     filter_query=_conditions_filter,
 )
-DOCUMENTS = Surface(
-    kind="document",
-    path="documents",
-    not_found_code="DOCUMENT_NOT_FOUND",
+FILES = Surface(
+    kind="file",
+    path="files",
+    not_found_code="FILE_NOT_FOUND",
     parent=_initiative_itself,
-    make=_make_document,
+    make=_make_file,
     filter_query=_property_filters,
 )
 EVENTS = Surface(
@@ -175,13 +175,13 @@ EVENTS = Surface(
     list_key="events",
 )
 
-SURFACES = [TASKS, DOCUMENTS, EVENTS]
+SURFACES = [TASKS, FILES, EVENTS]
 surfaces = pytest.mark.parametrize("surface", SURFACES, ids=[s.kind for s in SURFACES])
 
 
 async def _scene(surface: Surface, session, acting_user) -> tuple[Actor, Any]:
     """An initiative admin and the parent the surface's entities hang off."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     return a, await surface.parent(session, a, a.initiative)
 
 
@@ -315,12 +315,12 @@ async def test_put_holds_a_value_to_its_type(
     accepted: Any,
 ):
     """One surface stands for all here: the reading is the engine's."""
-    a, parent = await _scene(DOCUMENTS, session, acting_user)
-    entity = await DOCUMENTS.make(session, a, parent, "E")
+    a, parent = await _scene(FILES, session, acting_user)
+    entity = await FILES.make(session, a, parent, "E")
     defn = await create_property_definition(session, a.initiative, name="V", type=type_)
 
     response = await _write(
-        client, a, DOCUMENTS, entity, [{"property_id": defn.id, "value": value}]
+        client, a, FILES, entity, [{"property_id": defn.id, "value": value}]
     )
 
     if accepted is None:
@@ -338,11 +338,11 @@ async def test_put_holds_a_value_to_its_type(
     ("surface", "type_", "value"),
     [
         (TASKS, PropertyType.multi_select, ["a", "ghost"]),
-        (DOCUMENTS, PropertyType.multi_select, ["a", "ghost"]),
+        (FILES, PropertyType.multi_select, ["a", "ghost"]),
         (EVENTS, PropertyType.multi_select, ["a", "ghost"]),
-        (DOCUMENTS, PropertyType.select, "ghost"),
+        (FILES, PropertyType.select, "ghost"),
     ],
-    ids=["task-multi_select", "document-multi_select", "event-multi_select", "select"],
+    ids=["task-multi_select", "file-multi_select", "event-multi_select", "select"],
 )
 async def test_put_refuses_an_option_the_definition_lacks(
     client: AsyncClient,
@@ -379,7 +379,7 @@ async def test_put_refuses_a_person_who_cannot_open_it(
     # In the community, not in the initiative.
     outsider = await create_user(session)
     await create_guild_membership(
-        session, user=outsider, guild=a.guild, role=GuildRole.member
+        session, user=outsider, guild=a.guild, role=CommunityRole.member
     )
     defn = await create_property_definition(
         session, a.initiative, name="Owner", type=PropertyType.user_reference
@@ -423,7 +423,7 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
     a, _parent = await _scene(surface, session, acting_user)
     guild_b = await create_guild(session, name="B")
     await create_guild_membership(
-        session, user=a.user, guild=guild_b, role=GuildRole.admin
+        session, user=a.user, guild=guild_b, role=CommunityRole.admin
     )
     initiative_b = await create_initiative(session, guild_b, a.user, name="Init B")
     parent_b = await surface.parent(session, a, initiative_b)
@@ -444,9 +444,9 @@ async def test_put_needs_write_on_the_tool_that_governs_it(
     a, parent = await _scene(surface, session, acting_user)
     entity = await surface.make(session, a, parent, "E")
     defn = await create_property_definition(session, a.initiative, name="Tag")
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -545,7 +545,7 @@ async def test_every_tool_and_its_sub_tools_read_back_what_they_carry(
 ):
     """Every tool, a queue's items and a wiki's pages are written like any
     other target, and each one's own read returns its values."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
     defn = await create_property_definition(session, a.initiative, name="Note")
 
@@ -604,7 +604,7 @@ async def test_a_create_writes_its_values_with_the_row(
     in it come back holding them, and a task naming a person who cannot open
     its project is refused whole — no task is left without its values. A
     task's update does the same."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await enable_all_tools(session, a.initiative)
     note = await create_property_definition(session, a.initiative, name="Note")
     owner = await create_property_definition(
@@ -635,7 +635,7 @@ async def test_a_create_writes_its_values_with_the_row(
 
     outsider = await create_user(session)
     await create_guild_membership(
-        session, user=outsider, guild=a.guild, role=GuildRole.member
+        session, user=outsider, guild=a.guild, role=CommunityRole.member
     )
     refused = await client.post(
         a.g("/tasks/"),
@@ -724,24 +724,22 @@ async def test_duplicating_a_task_in_its_project_carries_its_values(
 
 
 # ---------------------------------------------------------------------------
-# Documents: the ``property_filters`` parameter, and copies
+# Files: the ``property_filters`` parameter, and copies
 # ---------------------------------------------------------------------------
 
 
-async def test_list_documents_filters_by_a_number(
+async def test_list_files_filters_by_a_number(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative = await _scene(DOCUMENTS, session, acting_user)
+    a, initiative = await _scene(FILES, session, acting_user)
     defn = await create_property_definition(
         session, initiative, name="Score", type=PropertyType.number
     )
-    docs = [await _make_document(session, a, initiative, f"D{n}") for n in range(3)]
+    docs = [await _make_file(session, a, initiative, f"D{n}") for n in range(3)]
     for doc, score in zip(docs, [10, 20, 30]):
-        await _write(
-            client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": score}]
-        )
+        await _write(client, a, FILES, doc, [{"property_id": defn.id, "value": score}])
 
-    listed = await _listed(client, a, DOCUMENTS, initiative, defn.id, 20)
+    listed = await _listed(client, a, FILES, initiative, defn.id, 20)
 
     assert listed & set(docs) == {docs[1]}
 
@@ -754,15 +752,15 @@ async def test_list_documents_filters_by_a_number(
     ],
     ids=["not-json", "six-predicates"],
 )
-async def test_list_documents_refuses_a_filter_it_cannot_take(
+async def test_list_files_refuses_a_filter_it_cannot_take(
     client: AsyncClient, acting_user, property_filters: str
 ):
     """Malformed, or past the five-predicate cap; the ids need not exist."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
         a.g(
-            f"/documents/?initiative_id={a.initiative.id}"
+            f"/files/?initiative_id={a.initiative.id}"
             f"&property_filters={property_filters}"
         ),
         headers=a.headers,
@@ -772,52 +770,50 @@ async def test_list_documents_refuses_a_filter_it_cannot_take(
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
 
 
-async def test_duplicating_a_document_in_place_carries_its_values(
+async def test_duplicating_a_file_in_place_carries_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative = await _scene(DOCUMENTS, session, acting_user)
-    doc = await _make_document(session, a, initiative, "Src")
+    a, initiative = await _scene(FILES, session, acting_user)
+    doc = await _make_file(session, a, initiative, "Src")
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
     await _write(
-        client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": "carryover"}]
+        client, a, FILES, doc, [{"property_id": defn.id, "value": "carryover"}]
     )
 
     duplicated = await client.post(
-        a.g(f"/documents/{doc}/copy"), headers=a.headers, json={"name": "Dup"}
+        a.g(f"/files/{doc}/duplicate"), headers=a.headers, json={"name": "Dup"}
     )
 
     assert duplicated.status_code == 201
     assert _values(duplicated.json()["properties"]).get(defn.id) == "carryover"
-    rows = await _stored(session, DOCUMENTS, duplicated.json()["id"])
+    rows = await _stored(session, FILES, duplicated.json()["id"])
     assert [row.property_id for row in rows] == [defn.id]
 
 
-async def test_copying_a_document_to_another_initiative_drops_its_values(
+async def test_copying_a_file_to_another_initiative_drops_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative = await _scene(DOCUMENTS, session, acting_user)
+    a, initiative = await _scene(FILES, session, acting_user)
     init_b = await create_initiative(session, a.guild, a.user, name="B")
-    doc = await _make_document(session, a, initiative, "Src")
+    doc = await _make_file(session, a, initiative, "Src")
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
-    await _write(
-        client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": "onlyA"}]
-    )
+    await _write(client, a, FILES, doc, [{"property_id": defn.id, "value": "onlyA"}])
 
     copied = await client.post(
-        a.g(f"/documents/{doc}/copy"),
+        a.g(f"/files/{doc}/duplicate"),
         headers=a.headers,
         json={"name": "Copied", "target_initiative_id": init_b.id},
     )
 
     assert copied.status_code == 201
     assert copied.json()["properties"] == []
-    assert await _stored(session, DOCUMENTS, copied.json()["id"]) == []
+    assert await _stored(session, FILES, copied.json()["id"]) == []
     # The original is untouched.
-    assert len(await _stored(session, DOCUMENTS, doc)) == 1
+    assert len(await _stored(session, FILES, doc)) == 1
 
 
 # ---------------------------------------------------------------------------

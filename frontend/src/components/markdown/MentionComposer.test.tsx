@@ -1,8 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildUserSummary } from "@/__tests__/factories";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { MentionChoice } from "@/components/comments/MentionPopover";
 
@@ -37,10 +40,26 @@ vi.mock("@/components/references/CreateReferencedThingDialog", () => ({
   ),
 }));
 
-const Host = ({ initial = "", onKeyDown }: { initial?: string; onKeyDown?: () => void }) => {
+const Host = ({
+  initial = "",
+  onKeyDown,
+  onChange,
+}: {
+  initial?: string;
+  onKeyDown?: () => void;
+  onChange?: (value: string) => void;
+}) => {
   const [value, setValue] = useState(initial);
   return (
-    <MentionComposer value={value} onChange={setValue} initiativeId={1} onKeyDown={onKeyDown} />
+    <MentionComposer
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        onChange?.(next);
+      }}
+      initiativeId={1}
+      onKeyDown={onKeyDown}
+    />
   );
 };
 
@@ -55,6 +74,29 @@ describe("the mention composer", () => {
     await user.click(await screen.findByRole("button", { name: "pick-person" }));
 
     expect(field()).toHaveValue("ask @[Ada](4) ");
+  });
+
+  it("shows a saved mention by the name the person goes by, changing nothing until someone types", async () => {
+    server.use(
+      http.get("*/api/v1/c/:communityId/users/search", () =>
+        HttpResponse.json({
+          items: [buildUserSummary({ id: 4, display_name: "Ada King" })],
+          total: 1,
+          page: 1,
+          page_size: 100,
+        })
+      )
+    );
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(<Host initial="ask @[](4) and @[](5)" onChange={onChange} />);
+
+    // Somebody the page cannot name is left as it was stored.
+    await waitFor(() => expect(field()).toHaveValue("ask @[Ada King](4) and @[](5)"));
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.type(field(), "!");
+    expect(onChange).toHaveBeenLastCalledWith("ask @[Ada King](4) and @[](5)!");
   });
 
   it("puts a thing made from [[ where the [[ was, not at the end", async () => {

@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from pydantic import (
+    AliasChoices,
     ConfigDict,
     Field,
     computed_field,
@@ -15,8 +16,9 @@ from app.models.platform.access_grant import (
     AccessLevel,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import CommunityStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 
 
 class AccessGrantCreate(SanitizedBaseModel):
@@ -37,7 +39,7 @@ class AccessGrantCreate(SanitizedBaseModel):
     meant.
     """
 
-    guild_id: int
+    community_id: int
     #: The content rung, or ``None`` to ask for no content access.
     access_level: Optional[AccessLevel] = None
     #: The settings rung, or ``None`` to ask for no settings access. There is
@@ -89,7 +91,7 @@ class BreakGlassCreate(SecondFactorAnswer):
     short and capped server-side — re-issue to extend.
     """
 
-    guild_id: int
+    community_id: int
     # Omit to use the break-glass default; capped server-side to the
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
@@ -116,7 +118,7 @@ class AccessGrantRead(SanitizedBaseModel):
 
     id: int
     user_id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     #: What this grant is for. ``purpose`` is what tells the two vocabularies
     #: below apart: a content grant's level is ``read``/``read_write``, a
     #: settings grant's is ``admin``/``superadmin``.
@@ -137,14 +139,17 @@ class AccessGrantRead(SanitizedBaseModel):
     # re-fetching users/guilds). Optional so ``model_validate`` over a bare
     # ORM row still works.
     #: Masked (``u***1@e***m``). An approver reads this row to decide on a
-    #: request; the full name and user id beside it identify the requester.
+    #: request; the handle and user id beside it identify the requester.
     user_email: Optional[str] = None
-    user_full_name: Optional[str] = None
-    guild_name: Optional[str] = None
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
     # The grant's guild lifecycle status, so an operator holding the grant sees
     # a suspended / read-only guild they're acting in (surfaced in the access
     # banner). Operators get this context — unlike a plain guild member.
-    guild_status: Optional[GuildStatus] = None
+    community_status: Optional[CommunityStatus] = Field(
+        default=None, validation_alias=AliasChoices("community_status", "guild_status")
+    )
     #: Masked, as ``user_email`` is.
     approved_by_email: Optional[str] = None
 
@@ -183,3 +188,7 @@ class AccessGrantLimits(SanitizedBaseModel):
 
     #: The longest window, in minutes, the caller may request.
     max_duration_minutes: int
+
+
+class AccessGrantListResponse(PageMeta):
+    items: List[AccessGrantRead]

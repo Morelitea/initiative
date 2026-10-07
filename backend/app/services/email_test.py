@@ -16,7 +16,7 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
     """A mention email whose actor display name contains markup must show the
     literal text in the HTML part (no live link inside the brand-styled body)
     while the plain-text alternative keeps the raw text."""
-    user = await create_user(session, full_name="Victim")
+    user = await create_user(session)
 
     captured: dict = {}
 
@@ -32,26 +32,22 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    # Mirrors a document-mention notice: the actor name is interpolated via
+    # Mirrors a file-mention notice: the actor name is interpolated via
     # email_t, which now escapes values for the email (HTML) namespace.
-    body_text = email_t(
-        "mention.document.body", "en", actor=EVIL_NAME, document="Plans"
-    )
+    body_text = email_t("mention.file.body", "en", actor=EVIL_NAME, file="Plans")
     html_body, text_body = email_service.render_single(
         email_service.EmailPieces(
-            subject=email_t(
-                "mention.document.subject", "en", document="Plans", escape=False
-            ),
-            headline=email_t("mention.document.title", "en"),
+            subject=email_t("mention.file.subject", "en", file="Plans", escape=False),
+            headline=email_t("mention.file.title", "en"),
             body=body_text,
-            link="https://app.example/documents/1",
+            link="https://app.example/files/1",
         ),
         user=user,
         accent="#000000",
         locale="en",
     )
     captured["subject"] = email_t(
-        "mention.document.subject", "en", document="Plans", escape=False
+        "mention.file.subject", "en", file="Plans", escape=False
     )
     captured["html_body"], captured["text_body"] = html_body, text_body
 
@@ -83,7 +79,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     the keys exist and that the note renders as text, not markup, in the
     brand-styled body.
     """
-    manager = await create_user(session, full_name="Grace")
+    manager = await create_user(session)
 
     captured: dict = {}
 
@@ -108,7 +104,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     )
     # The notice it rides on fills in the link, as ``notifications.notify`` does.
     pieces = replace(
-        pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi%2F2"
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi%2F2"
     )
     html_body, text_body = email_service.render_single(
         pieces, user=manager, accent="#000000", locale="en"
@@ -148,7 +144,7 @@ async def test_join_request_outcome_emails_render(
 ):
     """The requester's copy resolves for both outcomes, and omits the note line
     entirely when there is nothing to quote."""
-    requester = await create_user(session, full_name="Ada")
+    requester = await create_user(session)
 
     captured: dict = {}
 
@@ -164,7 +160,9 @@ async def test_join_request_outcome_emails_render(
         event=event,
         initiative_name="Parser Guild",
     )
-    pieces = replace(pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi")
+    pieces = replace(
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi"
+    )
     html_body, text_body = email_service.render_single(
         pieces, user=requester, accent="#000000", locale="en"
     )
@@ -176,65 +174,39 @@ async def test_join_request_outcome_emails_render(
     assert "They wrote" not in captured["html_body"]
 
 
-async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
-    session, monkeypatch
-):
+def test_the_hold_letter_names_the_deletion_day_when_there_is_one():
     from datetime import datetime, timezone
 
-    sent: list[dict] = []
-
-    async def fake_send_email(_session, **kwargs):
-        sent.append(kwargs)
-
-    monkeypatch.setattr(email_service, "send_email", fake_send_email)
-
     day = datetime(2026, 10, 24, tzinfo=timezone.utc)
-    for delete_at, plan_managed in ((day, True), (day, False), (None, True)):
-        await email_service.send_community_on_hold_email(
-            session,
-            recipients=["seat@example.com"],
+    billed, held, undated = (
+        email_service.community_on_hold_pieces(
             community="Acme",
             contact="help@example.com",
             guild_id=7,
             delete_at=delete_at,
             plan_managed=plan_managed,
+            locale="en",
         )
+        for delete_at, plan_managed in ((day, True), (day, False), (None, True))
+    )
 
-    billed, held, undated = sent
-    assert (
-        "<strong>24 October 2026</strong> unless its plan is restored"
-        in (billed["html_body"])
-    )
-    assert billed["text_body"].startswith(
-        "Acme is on hold and will be deleted on 24 October 2026 unless its plan is"
-        " restored."
-    )
-    assert "help@example.com" in billed["text_body"]
+    assert "<strong>24 October 2026</strong> unless its plan is restored" in billed.body
+    assert "help@example.com" in billed.body
     # Restoring the plan lifts the hold, so the letter leads to the portal.
-    for part in ("html_body", "text_body"):
-        assert "/c/7/billing?page=manage" in billed[part]
-        assert "Restore the plan" in billed[part]
+    assert billed.link is not None
+    assert billed.link.endswith("/c/7/billing?page=manage")
+    assert billed.link_label == "Restore the plan"
     # Where no plan is behind the hold, the plan is not what lifts it.
-    assert "unless the hold is lifted" in held["text_body"]
-    assert "plan" not in held["text_body"]
-    assert "/billing" not in held["html_body"]
-    assert "deleted" not in undated["html_body"]
-    assert "deleted" not in undated["text_body"]
+    assert "unless the hold is lifted" in held.body
+    assert "plan" not in held.body
+    assert held.link is None
+    assert "deleted" not in undated.body
 
 
-async def test_the_hold_letter_is_written_in_its_readers_language(session, monkeypatch):
+def test_the_hold_letter_is_written_in_its_readers_language():
     from datetime import datetime, timezone
 
-    sent: list[dict] = []
-
-    async def fake_send_email(_session, **kwargs):
-        sent.append(kwargs)
-
-    monkeypatch.setattr(email_service, "send_email", fake_send_email)
-
-    await email_service.send_community_on_hold_email(
-        session,
-        recipients=["seat@example.com"],
+    letter = email_service.community_on_hold_pieces(
         community="Acme",
         contact=None,
         guild_id=7,
@@ -243,10 +215,9 @@ async def test_the_hold_letter_is_written_in_its_readers_language(session, monke
         locale="de",
     )
 
-    (letter,) = sent
-    assert letter["subject"] == "Acme ist pausiert"
-    assert "am 4. März 2026 gelöscht" in letter["text_body"]
-    assert "Tarif wiederherstellen" in letter["html_body"]
+    assert letter.subject == "Acme ist pausiert"
+    assert "am <strong>4. März 2026</strong> gelöscht" in letter.body
+    assert letter.link_label == "Tarif wiederherstellen"
 
 
 @pytest.mark.parametrize(

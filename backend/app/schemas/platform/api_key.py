@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -16,7 +16,9 @@ class ApiKeyMetadata(SanitizedBaseModel):
     token_prefix: str
     is_active: bool
     read_only: bool = False
-    guild_id: Optional[int] = None
+    community_id: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_at: datetime
     last_used_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -34,7 +36,7 @@ class ApiKeyCreateRequest(SanitizedBaseModel):
     # Least-privilege scoping. ``read_only`` blocks all writes; ``guild_id`` pins
     # the key to a single guild. Recommended for machine credentials (MCP, CI).
     read_only: bool = False
-    guild_id: Optional[int] = None
+    community_id: Optional[int] = None
 
 
 class ApiKeyCreateResponse(SanitizedBaseModel):

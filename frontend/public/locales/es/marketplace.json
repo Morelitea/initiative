@@ -1,6 +1,7 @@
 {
   "title": "Mercado",
   "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
+  "subtitleProjects": "Proyectos listos para usar que puedes copiar en una iniciativa. Cada instalación es un proyecto nuevo y tuyo.",
   "searchPlaceholder": "Buscar en el mercado…",
   "backToMarketplace": "Volver al mercado",
   "browse": "Explorar el mercado",
@@ -24,13 +25,21 @@
   "detail": {
     "installs_one": "{{count}} instalación",
     "installs_other": "{{count}} instalaciones",
+    "minimumAge": "Mayores de {{age}} años",
     "install": "Añadir a una iniciativa",
     "preview": "Vista previa",
     "previewIsSample": "Ejemplo con datos de muestra",
     "needsUpdate": "Necesita una versión más reciente de la aplicación.",
     "withdrawn": "Ya no está disponible.",
     "notFound": "Elemento no encontrado",
-    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto."
+    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto.",
+    "notAvailableHere": "No disponible en esta aplicación",
+    "notAvailableHereDescription": "Este anuncio no forma parte del catálogo que ofrece esta aplicación."
+  },
+  "projectPreview": {
+    "showing": "Mostrar el proyecto en blanco o el ejemplo",
+    "blank": "En blanco",
+    "example": "Ejemplo"
   },
   "install": {
     "title": "Añadir {{name}}",
@@ -40,7 +49,13 @@
     "action": "Añadir",
     "done": "{{name}} añadido.",
     "failed": "No se pudo añadir ese elemento.",
-    "noInitiatives": "Todavía no puedes crear paneles en ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa."
+    "noInitiatives": "Todavía no puedes añadir esto a ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa.",
+    "descriptionCopy": "Elige dónde va. Llega como tu propia copia, que luego puedes renombrar y cambiar.",
+    "startFrom": "Desde dónde empezar",
+    "startBlank": "Empezar en blanco",
+    "startExample": "Empezar desde el ejemplo",
+    "startsOn": "Fecha de inicio",
+    "startsOnHelp": "Sus fechas se mueven para que la más temprana caiga en este día."
   },
   "update": {
     "available": "Versión {{version}} disponible",
@@ -52,6 +67,6 @@
     "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
   },
   "installedUnknown": "No se pudo comprobar cuáles de estos ya tienes, así que nada de lo siguiente aparece como instalado.",
-  "subtitleApps": "Las aplicaciones añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlas.",
+  "subtitlePlugins": "Los complementos añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlos.",
   "subtitleAuto": "Las automatizaciones se ejecutan en segundo plano para todo la comunidad."
 }

@@ -1,12 +1,12 @@
-"""`/api/v1/c/{guild_id}/search` — one query across everything in a guild.
+"""`/api/v1/c/{community_id}/search` — one query across everything in a guild.
 
 Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
 gates as the content it mirrors.
 
-An installed app may call ``/suggest``.
+An installed plug-in may call ``/suggest``.
 The scope it needs depends on the ``types`` it asks for, so the route takes
-:func:`app.api.deps.app_scope_checked` and the service narrows ``types`` to the
+:func:`app.api.deps.plugin_scope_checked` and the service narrows ``types`` to the
 kinds the install may read.
 """
 
@@ -14,20 +14,20 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     RLSSessionDep,
-    app_scope_checked,
+    plugin_scope_checked,
     get_current_active_user,
     GuildContextDep,
 )
 from app.core.references import parse_ref
 from app.core.search import SearchEntityType
-from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.plugin_rls import SEARCH_ENTRY_READ_SCOPE
 from app.db.guild_standing import InstallContext
 from app.db.search_index import entity_types
 from app.models.platform.user import User
@@ -36,12 +36,12 @@ from app.services.tenant import search as search_service
 
 router = APIRouter(route_class=ActorRoute)
 
-#: ``/suggest`` for a person or an installed app. An app needs the read scope
+#: ``/suggest`` for a person or an installed plug-in. A plug-in needs the read scope
 #: of each kind it asks for, which the service checks once it has ``types``.
 SuggestByEntityType = Annotated[
     ActorContext,
     Depends(
-        app_scope_checked(
+        plugin_scope_checked(
             {f"{resource.value}:read" for resource in SEARCH_ENTRY_READ_SCOPE.values()},
             per="entity type",
         )
@@ -57,7 +57,7 @@ _TEMPLATE_DESCRIPTION = (
     "``false`` only real content (a picker choosing where content goes)."
 )
 _SUBJECT_DESCRIPTION = (
-    "The thing being written in, as a reference (``document:12``). It is left "
+    "The thing being written in, as a reference (``file:12``). It is left "
     "out of the answer: a thing does not point at itself. A reference that "
     "names nothing narrows nothing."
 )
@@ -70,11 +70,11 @@ _TYPE_DESCRIPTION = (
 
 
 @router.get("/", response_model=SearchResults)
-async def search_guild(
+async def search_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    q: str = Query(description="What to search for.", max_length=1000),
+    search: str = Query(description="What to search for.", max_length=1000),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -85,30 +85,30 @@ async def search_guild(
     is_template: Optional[bool] = Query(
         default=None, description=_TEMPLATE_DESCRIPTION
     ),
-    limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
-    offset: int = Query(default=0, ge=0),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=search_service.MAX_PAGE_SIZE),
 ) -> SearchResults:
     """Ranked matches across the guild's tools, comments and tags.
 
-    ``total`` counts entities the caller may see, so it is what a pager should
-    show rather than an estimate to correct later.
+    ``total_count`` counts entities the caller may see, so it is what a pager
+    should show rather than an estimate to correct later.
     """
     return await search_service.search(
         session,
-        query=q,
+        query=search,
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
             include_archived=include_archived,
             template=is_template,
         ),
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
 
 
 @router.get("/recent", response_model=List[SearchSuggestion])
-async def recent_guild(
+async def recent_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -144,10 +144,10 @@ async def recent_guild(
 
 
 @router.get("/suggest", response_model=List[SearchSuggestion])
-async def suggest_guild(
+async def suggest_community(
     session: ActorSessionDep,
     guild_context: SuggestByEntityType,
-    q: str = Query(description="What to jump to.", max_length=200),
+    search: str = Query(description="What to jump to.", max_length=200),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -165,27 +165,22 @@ async def suggest_guild(
     Takes the same ``types`` as the search itself, so the palette and the
     results page can be narrowed to the same slice of the guild.
 
-    An installed app is answered the kinds among ``types`` (the default scope
+    An installed plug-in is answered the kinds among ``types`` (the default scope
     when omitted) whose read scope it holds, in the initiatives it is placed
     in, and only what it could read through the tools themselves. Asking only
-    for kinds it holds no read scope for is 403 (``APP_SCOPE_REQUIRED``).
+    for kinds it holds no read scope for is 403 (``PLUGIN_SCOPE_REQUIRED``).
     """
     install = guild_context if isinstance(guild_context, InstallContext) else None
-    try:
-        return await search_service.suggest(
-            session,
-            query=q,
-            user_id=guild_context.user_id,
-            filters=search_service.Filters(
-                types=types,
-                initiative_id=initiative_id,
-                template=is_template,
-                subject=parse_ref(subject) if subject else None,
-            ),
-            limit=limit,
-            install=install,
-        )
-    except search_service.SearchScopeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
-        ) from exc
+    return await search_service.suggest(
+        session,
+        query=search,
+        user_id=guild_context.user_id,
+        filters=search_service.Filters(
+            types=types,
+            initiative_id=initiative_id,
+            template=is_template,
+            subject=parse_ref(subject) if subject else None,
+        ),
+        limit=limit,
+        install=install,
+    )

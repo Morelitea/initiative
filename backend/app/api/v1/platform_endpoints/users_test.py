@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.db.query import MAX_ID_FILTER_VALUES
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole, GuildMembership
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.user_dm_settings import DmPolicy
@@ -58,22 +58,21 @@ def _profile_url(user: User) -> str:
 
 async def test_get_current_user(client, acting_user):
     """The account read answers with the account's own details."""
-    a = await acting_user(email="test@example.com", full_name="Test User")
+    a = await acting_user(email="test@example.com")
 
-    response = await client.get("/api/v1/users/me", headers=a.headers)
+    response = await client.get("/api/v1/me", headers=a.headers)
 
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == a.user.id
     assert data["email"] == "test@example.com"
-    assert data["full_name"] == "Test User"
     assert data["status"] == "active"
 
 
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        pytest.param("GET", "/api/v1/users/me", id="my-account"),
+        pytest.param("GET", "/api/v1/me", id="my-account"),
         pytest.param("GET", "/api/v1/users/nobody0001/profile", id="a-profile"),
     ],
 )
@@ -101,13 +100,13 @@ async def test_the_users_router_answers_403_without_the_standing(
     """403 for a caller signed in without the standing the route asks for: a
     non-member reaching into the guild, and a plain member on a route that is
     a guild admin's. The path is a selector, not a trust boundary."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     caller = (
         await acting_user()
         if who == "outsider"
-        else await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+        else await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     )
-    target = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    target = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     response = await client.request(
         method,
@@ -120,17 +119,19 @@ async def test_the_users_router_answers_403_without_the_standing(
 
 async def test_update_current_user_profile(client, acting_user):
     """Test updating current user's profile."""
-    a = await acting_user(full_name="Old Name")
+    a = await acting_user()
 
+    # An older client that still sends an account name is not refused; the
+    # name has nowhere to go.
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"full_name": "New Name", "timezone": "America/New_York"},
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["full_name"] == "New Name"
+    assert "full_name" not in data
     assert data["timezone"] == "America/New_York"
 
 
@@ -210,16 +211,16 @@ async def test_returning_a_switch_to_its_default_leaves_no_trace(client, acting_
 
 async def test_a_community_can_be_set_to_say_less(client, acting_user):
     """The one dial almost everybody will use."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.put(
         "/api/v1/me/notification-preferences",
         headers=a.headers,
-        json={"levels": [{"guild_id": a.guild.id, "level": "personal"}]},
+        json={"levels": [{"community_id": a.guild.id, "level": "personal"}]},
     )
 
     assert response.status_code == 200
-    listed = {g["guild_id"]: g for g in response.json()["guilds"]}
+    listed = {g["community_id"]: g for g in response.json()["communities"]}
     assert listed[a.guild.id]["level"] == "personal"
 
 
@@ -285,7 +286,7 @@ async def test_switching_assignment_channels_off_keeps_the_queue_while_one_is_on
 ):
     """One queue backs both channels: the items stay while either channel is
     on and go with the last one."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     await _queue_assignment_item(session, a.user, a.guild)
 
     response = await client.put(
@@ -312,18 +313,16 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
     search narrows them the way the picker's does.
     """
     caller = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         username="user-one",
-        full_name="User One",
         initiative=True,
     )
     await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=caller.guild,
         username="zed-two",
-        full_name="Zed Two",
     )
-    await acting_user(guild_role=GuildRole.member)  # somebody in another guild
+    await acting_user(guild_role=CommunityRole.member)  # somebody in another guild
 
     response = await client.get(caller.g("/users/"), headers=caller.headers)
 
@@ -360,11 +359,9 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
 async def test_search_users_returns_slim_paginated_envelope(client, acting_user):
     """The slim search endpoint returns a UserSummary envelope (no email /
     role / initiative_roles) and honours page_size."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="aaa-caller", full_name="Aaa"
-    )
-    await acting_user(guild=caller.guild, username="bbb-other", full_name="Bbb")
-    await acting_user(guild=caller.guild, username="ccc-third", full_name="Ccc")
+    caller = await acting_user(guild_role=CommunityRole.member, username="aaa-caller")
+    await acting_user(guild=caller.guild, username="bbb-other")
+    await acting_user(guild=caller.guild, username="ccc-third")
 
     response = await client.get(
         caller.g("/users/search"),
@@ -390,18 +387,38 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
         "status",
         "profile_decorations",
-        "guild_role",
+        "community_role",
     }
     # Asserted as a value, not only as a key. The schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in -- which is the state this test was written against.
-    assert summary["guild_role"] == "member"
-    # This guild takes the default and shows names.
-    assert summary["full_name"] == "Aaa"
+    assert summary["community_role"] == "member"
+    # Nobody set a name in this guild.
+    assert summary["display_name"] is None
+
+
+async def test_search_users_can_list_the_caller_first(client, acting_user):
+    """``self_first`` puts the caller at the top of page one, wherever their
+    handle would sort; everyone else keeps their order."""
+    caller = await acting_user(guild_role=CommunityRole.member, username="zzz-caller")
+    await acting_user(guild=caller.guild, username="aaa-other")
+    await acting_user(guild=caller.guild, username="bbb-other")
+
+    response = await client.get(
+        caller.g("/users/search"),
+        headers=caller.headers,
+        params={"self_first": True, "page_size": 2},
+    )
+
+    assert response.status_code == 200, response.text
+    assert [item["username"] for item in response.json()["items"]] == [
+        "zzz-caller",
+        "aaa-other",
+    ]
 
 
 async def test_search_users_says_where_each_member_stands(client, acting_user):
@@ -411,13 +428,15 @@ async def test_search_users_says_where_each_member_stands(client, acting_user):
     say which of them to reach about the community itself, and the role comes
     off the join the query already makes.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     response = await client.get(admin.g("/users/search"), headers=admin.headers)
     assert response.status_code == 200, response.text
 
-    roles = {item["username"]: item["guild_role"] for item in response.json()["items"]}
+    roles = {
+        item["username"]: item["community_role"] for item in response.json()["items"]
+    }
     assert roles[admin.user.username] == "admin"
     assert roles[member.user.username] == "member"
 
@@ -439,7 +458,7 @@ async def test_roster_groups_by_presence_and_leaves_out_private_accounts(
     """Who is here comes first, a group at a time. Somebody whose direct
     messages are private is not listed at all, the reader included, and nor is
     somebody on "My communities" who switched this one off."""
-    reader = await acting_user(guild_role=GuildRole.member, username="reader")
+    reader = await acting_user(guild_role=CommunityRole.member, username="reader")
     here = await acting_user(guild=reader.guild, username="zed-here")
     busy = await acting_user(guild=reader.guild, username="amy-busy")
     away = await acting_user(guild=reader.guild, username="bob-away")
@@ -481,7 +500,7 @@ async def test_roster_lists_everyone_where_direct_messages_are_off(
     client, session, acting_user
 ):
     """With no direct messages on the deployment there is no policy to keep."""
-    reader = await acting_user(guild_role=GuildRole.member)
+    reader = await acting_user(guild_role=CommunityRole.member)
     other = await acting_user(guild=reader.guild)
     await app_settings_service.update_community_settings(
         session, community_directory_enabled=False, direct_messages_enabled=False
@@ -510,13 +529,9 @@ async def test_search_users_finds_the_name_that_was_typed(
     """`search` matches the part of the handle this guild renders, without
     regard to case. Reading a roster is how you learn a colleague's spelling,
     so a dropped letter and a transposition both still find the person."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="asmith", full_name="Alice Smith"
-    )
-    await acting_user(guild=caller.guild, username="bjones", full_name="Bob Jones")
-    await acting_user(
-        guild=caller.guild, username="thorn-ironforge", full_name="Thorn Ironforge"
-    )
+    caller = await acting_user(guild_role=CommunityRole.member, username="asmith")
+    await acting_user(guild=caller.guild, username="bjones")
+    await acting_user(guild=caller.guild, username="thorn-ironforge")
 
     response = await client.get(
         caller.g("/users/search"), headers=caller.headers, params={"search": typed}
@@ -530,14 +545,8 @@ async def test_search_users_finds_the_name_that_was_typed(
 async def test_search_users_never_reaches_another_guild(client, acting_user):
     """Matching a name more loosely must not widen WHOSE names are matched.
     Only this guild's members are ever searched, exact spelling or not."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="asmith", full_name="Alice Smith"
-    )
-    await acting_user(
-        guild_role=GuildRole.member,
-        username="thorn-ironforge",
-        full_name="Thorn Ironforge",
-    )
+    caller = await acting_user(guild_role=CommunityRole.member, username="asmith")
+    await acting_user(guild_role=CommunityRole.member, username="thorn-ironforge")
 
     for typed in ("ironforge", "irnforge", "thorn"):
         response = await client.get(
@@ -550,32 +559,12 @@ async def test_search_users_never_reaches_another_guild(client, acting_user):
         assert body["total_count"] == 0, f"{typed} reached {body['items']}"
 
 
-async def test_search_users_matches_real_names_only_where_they_are_shown(
-    client, session, acting_user
-):
-    """A real name is searchable exactly where it is shown. In a guild that
-    hides them, neither the spelling of one nor a near miss at it matches."""
-    guild = await create_guild(session, show_member_names=False)
-    caller = await acting_user(guild=guild, username="asmith", full_name="Alice Smith")
-    await acting_user(guild=guild, username="qzx", full_name="Bartholomew Higgins")
-
-    for typed in ("Bartholomew", "Bartholemew", "Higgins"):
-        response = await client.get(
-            caller.g("/users/search"),
-            headers=caller.headers,
-            params={"search": typed},
-        )
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["total_count"] == 0, f"{typed} matched a name this guild hides"
-
-
 async def test_search_users_filters_by_user_id(client, acting_user):
     """`user_id` resolves a known selection, and only ever narrows the roster
     the caller can already see — an id from another guild returns nothing."""
-    caller = await acting_user(guild_role=GuildRole.member)
+    caller = await acting_user(guild_role=CommunityRole.member)
     bob = await acting_user(guild=caller.guild)
-    stranger = await acting_user(guild_role=GuildRole.member)
+    stranger = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         caller.g("/users/search"),
@@ -601,7 +590,7 @@ async def test_search_users_filters_by_user_id(client, acting_user):
 
 async def test_search_users_rejects_oversized_user_id_list(client, acting_user):
     """The id filter is bounded so one request can't submit an unbounded list."""
-    caller = await acting_user(guild_role=GuildRole.member)
+    caller = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         caller.g("/users/search"),
@@ -612,24 +601,25 @@ async def test_search_users_rejects_oversized_user_id_list(client, acting_user):
     assert response.status_code == 422
 
 
-async def test_self_service_password_change_revokes_sessions_and_device_tokens(
+async def test_self_service_password_change_revokes_sessions_on_every_device(
     client, session, acting_user
 ):
-    """Changing your own password via PATCH /users/me must invalidate other
-    outstanding JWTs and active device tokens — completing the three-path
-    symmetry with the admin-reset and forgot-password flows (all share
-    ``revoke_user_sessions`` / ``revoke_active_device_tokens``)."""
-    from app.models.platform.user_token import UserToken, UserTokenPurpose
-    from app.services.platform import user_tokens
+    """Changing your own password via PATCH /me invalidates other outstanding
+    JWTs and every session, the app's included, as every password write
+    does."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
 
     a = await acting_user()
     old_jwt = get_auth_token(a.user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=a.user.id, device_name="Old phone"
+    phone = await session_service.create_session(
+        session, user_id=a.user.id, amr=["pwd"], satisfied_providers=[], device=True
     )
+    phone_id = phone.session.id
+    await session.commit()
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={
             "password": "brand-new-secret-123",
             "current_password": "testpassword123",
@@ -640,59 +630,78 @@ async def test_self_service_password_change_revokes_sessions_and_device_tokens(
 
     # The pre-change JWT is rejected (token_version bumped).
     stale = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {old_jwt}"},
     )
     assert stale.status_code == 401
 
-    # The device token was revoked (consumed).
-    stale_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert stale_device.status_code == 401
-    token_row = (
-        await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == a.user.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-            )
-        )
-    ).one()
-    assert token_row.consumed_at is not None
+    # The phone's session was ended too.
+    session.expire_all()
+    ended = await session.get(AuthSession, phone_id)
+    assert ended is not None
+    assert ended.revoked_at is not None
 
 
 async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_user):
-    """The endpoint hands back the verdict and the reasons behind it. What
-    makes the verdict what it is — holding a community's sole seat — is proved
-    at the service (``app/services/platform/users_test.py``)."""
-    a = await acting_user(guild_role=GuildRole.member)
+    """The endpoint hands back the verdict and what is behind it. What makes a
+    community's sole seat is proved at the service
+    (``app/services/platform/users_test.py``); the last platform owner is
+    answered here as the delete route refuses it."""
+    a = await acting_user(guild_role=CommunityRole.member)
 
-    response = await client.get(
-        "/api/v1/users/me/deletion-eligibility", headers=a.headers
-    )
+    response = await client.get("/api/v1/me/deletion-eligibility", headers=a.headers)
 
     assert response.status_code == 200
     body = response.json()
     assert body["can_delete"] is True
-    assert body["blockers"] == []
+    assert body["last_owner"] is False
+    assert body["sole_superadmin_communities"] == []
+
+    owner = await acting_user("owner")
+    alone = await client.get("/api/v1/me/deletion-eligibility", headers=owner.headers)
+    assert alone.status_code == 200
+    assert alone.json()["can_delete"] is False
+    assert alone.json()["last_owner"] is True
 
 
-async def test_delete_user_as_admin(client, acting_user, monkeypatch):
-    """A guild admin removes a member from the guild, and billing hears of it."""
-    from app.services.platform import billing_ping
+async def test_delete_user_as_admin(client, session, acting_user, monkeypatch):
+    """A guild admin removes a member from the guild the way leaving removes
+    them: billing hears of it, the member's account stream is told their
+    memberships changed, and their contact channels are re-tested. The
+    member's platform role plays no part: here they are the platform owner."""
+    from app.services.platform import account_stream, billing_ping
+    from app.services.platform import contact_grants as contact_grants_service
 
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(
+        "owner", guild_role=CommunityRole.member, guild=admin.guild
+    )
+    guild_id, member_id = admin.guild.id, member.user.id
     pinged: list[int] = []
+    signalled: list[tuple[int | None, str]] = []
+    swept: list[int | None] = []
     monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
+    monkeypatch.setattr(
+        account_stream,
+        "queue_account_signal",
+        lambda _session, user_id, action="changed": signalled.append((user_id, action)),
+    )
+    monkeypatch.setattr(
+        contact_grants_service,
+        "queue_stale_grant_sweep",
+        lambda _session, user_id: swept.append(user_id),
+    )
 
     response = await client.delete(
-        admin.g(f"/users/{member.user.id}"), headers=admin.headers
+        admin.g(f"/users/{member_id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
-    assert pinged == [admin.guild.id]
+    session.expire_all()
+    assert await session.get(GuildMembership, (guild_id, member_id)) is None
+    assert pinged == [guild_id]
+    assert signalled == [(member_id, "membership")]
+    assert swept == [member_id]
 
 
 async def test_user_cannot_update_email_via_patch(client, acting_user):
@@ -700,7 +709,7 @@ async def test_user_cannot_update_email_via_patch(client, acting_user):
     a = await acting_user(email="original@example.com")
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"email": "hacked@example.com"},
     )
@@ -716,7 +725,7 @@ async def test_user_can_change_password(client, acting_user):
 
     # Missing current password is refused.
     missing = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"password": "newpassword123"},
     )
@@ -725,7 +734,7 @@ async def test_user_can_change_password(client, acting_user):
 
     # Wrong current password is refused.
     wrong = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"password": "newpassword123", "current_password": "not-it"},
     )
@@ -734,7 +743,7 @@ async def test_user_can_change_password(client, acting_user):
 
     # Correct current password succeeds.
     ok = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"password": "newpassword123", "current_password": "testpassword123"},
     )
@@ -751,7 +760,7 @@ async def test_changing_a_password_records_when_it_was_set(
     user_id = a.user.id
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={
             "current_password": "testpassword123",
@@ -769,7 +778,7 @@ async def test_inactive_user_cannot_access_endpoints(client, acting_user):
     """Test that inactive users cannot access protected endpoints."""
     a = await acting_user(status=UserStatus.deactivated)
 
-    response = await client.get("/api/v1/users/me", headers=a.headers)
+    response = await client.get("/api/v1/me", headers=a.headers)
 
     # Should be rejected because user is inactive
     assert response.status_code == 400
@@ -791,7 +800,7 @@ async def test_a_setting_outside_its_range_is_refused(
     """A timezone the library doesn't know and a weekday past Saturday."""
     a = await acting_user()
 
-    response = await client.patch("/api/v1/users/me", headers=a.headers, json=payload)
+    response = await client.patch("/api/v1/me", headers=a.headers, json=payload)
 
     assert response.status_code in accepted
     if in_detail:
@@ -802,13 +811,13 @@ async def test_time_format_round_trip(client, acting_user):
     """Each clock convention round-trips, and a new account answers "system"."""
     a = await acting_user()
 
-    me = await client.get("/api/v1/users/me", headers=a.headers)
+    me = await client.get("/api/v1/me", headers=a.headers)
     assert me.status_code == 200
     assert me.json()["time_format"] == "system"
 
     for value in ("12", "24", "system"):
         response = await client.patch(
-            "/api/v1/users/me", headers=a.headers, json={"time_format": value}
+            "/api/v1/me", headers=a.headers, json={"time_format": value}
         )
         assert response.status_code == 200, value
         assert response.json()["time_format"] == value
@@ -819,7 +828,7 @@ async def test_time_format_rejects_unknown(client, acting_user):
     a = await acting_user()
 
     response = await client.patch(
-        "/api/v1/users/me", headers=a.headers, json={"time_format": "48"}
+        "/api/v1/me", headers=a.headers, json={"time_format": "48"}
     )
 
     assert response.status_code == 400
@@ -827,17 +836,17 @@ async def test_time_format_rejects_unknown(client, acting_user):
 
 
 async def test_task_completion_visual_feedback_round_trip(client, acting_user):
-    """Each known visual-feedback option round-trips through PATCH /users/me."""
+    """Each known visual-feedback option round-trips through PATCH /me."""
     a = await acting_user()
 
     # Default value before any update
-    me = await client.get("/api/v1/users/me", headers=a.headers)
+    me = await client.get("/api/v1/me", headers=a.headers)
     assert me.status_code == 200
     assert me.json()["task_completion_visual_feedback"] == "none"
 
     for value in ("confetti", "heart", "d20", "gold_coin", "random", "none"):
         response = await client.patch(
-            "/api/v1/users/me",
+            "/api/v1/me",
             headers=a.headers,
             json={"task_completion_visual_feedback": value},
         )
@@ -850,7 +859,7 @@ async def test_task_completion_visual_feedback_rejects_unknown(client, acting_us
     a = await acting_user()
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"task_completion_visual_feedback": "fireworks"},
     )
@@ -864,7 +873,7 @@ async def test_task_completion_audio_and_haptic_round_trip(client, acting_user):
     a = await acting_user()
 
     # Both default to True for new users.
-    me = await client.get("/api/v1/users/me", headers=a.headers)
+    me = await client.get("/api/v1/me", headers=a.headers)
     assert me.status_code == 200
     body = me.json()
     assert body["task_completion_audio_feedback"] is True
@@ -873,7 +882,7 @@ async def test_task_completion_audio_and_haptic_round_trip(client, acting_user):
     # Toggle both off, then both on.
     for value in (False, True):
         response = await client.patch(
-            "/api/v1/users/me",
+            "/api/v1/me",
             headers=a.headers,
             json={
                 "task_completion_audio_feedback": value,
@@ -907,12 +916,12 @@ _NO_SUCH_USER = {"missing": 99998, "gone": 99999}
 async def csv_guild(acting_user):
     """A guild with an admin and two members to export, plus somebody who
     belongs to a different guild."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     return {
         "admin": admin,
         "one": await acting_user(guild=admin.guild),
         "two": await acting_user(guild=admin.guild),
-        "outsider": await acting_user(guild_role=GuildRole.member),
+        "outsider": await acting_user(guild_role=CommunityRole.member),
     }
 
 
@@ -942,8 +951,8 @@ async def test_export_users_csv_as_admin(client, session, csv_guild):
     assert header_row == [
         "user_id",
         "handle",
-        "full_name",
-        "guild_role",
+        "display_name",
+        "community_role",
         "oidc_managed",
         "status",
         "created_at",
@@ -1002,27 +1011,61 @@ async def test_export_users_csv_returns_the_members_it_was_asked_for(
 
 async def test_password_change_keeps_this_device_signed_in(client, session):
     """Changing the password revokes every other session, but THIS device gets
-    a fresh server-side session: both cookies are re-issued and the new
-    refresh chain rotates."""
-    await create_user(session, email="pwkeep@example.com")
+    a fresh server-side session: both cookies are re-issued, the new refresh
+    chain rotates, and it claims the password just re-checked and no
+    provider's sign-in. A change sent with another field is refused and leaves
+    the password and the sessions as they were."""
+    from app.models.platform.auth_session import AuthSession
+
+    user = await create_user(session, email="pwkeep@example.com")
+    user_id = user.id
 
     login = await client.post(
         "/api/v1/auth/token",
         data={"username": "pwkeep@example.com", "password": "testpassword123"},
     )
     assert login.status_code == 200
+    await session.exec(
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id)
+        .values(satisfied_providers=[7])
+    )
+    await session.commit()
+
+    refused = await client.patch(
+        "/api/v1/me",
+        json={
+            "password": "newpassword456",
+            "current_password": "testpassword123",
+            "locale": "fr",
+        },
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"][0]["msg"].endswith("USER_PASSWORD_CHANGED_ALONE")
+    assert not refused.cookies.get("refresh_token")
 
     change = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": "testpassword123"},
     )
     assert change.status_code == 200
     assert change.cookies.get("refresh_token")  # fresh chain for this device
+    assert change.json()["has_password"] is True
+
+    session.expire_all()
+    live = (
+        await session.exec(
+            select(AuthSession).where(
+                AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None)
+            )
+        )
+    ).all()
+    assert [(row.amr, row.satisfied_providers) for row in live] == [(["pwd"], [])]
 
     rotated = await client.post("/api/v1/auth/refresh")
     assert rotated.status_code == 200
     me = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {rotated.json()['access_token']}"},
     )
     assert me.status_code == 200
@@ -1049,7 +1092,7 @@ async def test_a_password_change_that_cannot_open_a_session_is_refused(
     monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
 
     change = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": "testpassword123"},
     )
     assert change.status_code == 503
@@ -1072,17 +1115,17 @@ async def test_a_password_change_that_cannot_open_a_session_is_refused(
 
 
 async def test_users_me_reports_linked_identity(client, session, acting_user):
-    """/users/me carries has_federated_identity — the signal the profile and
+    """/me carries has_federated_identity — the signal the profile and
     deletion dialogs use to hide the password confirmation for SSO accounts."""
     linked = await acting_user()
     await create_federated_identity(session, linked.user)
     plain = await acting_user()
 
-    response = await client.get("/api/v1/users/me", headers=linked.headers)
+    response = await client.get("/api/v1/me", headers=linked.headers)
     assert response.status_code == 200
     assert response.json()["has_federated_identity"] is True
 
-    response = await client.get("/api/v1/users/me", headers=plain.headers)
+    response = await client.get("/api/v1/me", headers=plain.headers)
     assert response.status_code == 200
     assert response.json()["has_federated_identity"] is False
 
@@ -1090,21 +1133,19 @@ async def test_users_me_reports_linked_identity(client, session, acting_user):
 async def test_updating_yourself_reports_your_own_linked_identity(
     client, session, acting_user
 ):
-    """PATCH /users/me reads the caller's own identity links on their platform
+    """PATCH /me reads the caller's own identity links on their platform
     tier and carries the answer back, for an empty update and a real one."""
     linked = await acting_user()
     await create_federated_identity(session, linked.user)
     plain = await acting_user()
 
-    for body in ({}, {"full_name": "Renamed"}):
-        response = await client.patch(
-            "/api/v1/users/me", headers=linked.headers, json=body
-        )
+    for body in ({}, {"timezone": "Europe/Berlin"}):
+        response = await client.patch("/api/v1/me", headers=linked.headers, json=body)
         assert response.status_code == 200, response.text
         assert response.json()["has_federated_identity"] is True
 
     response = await client.patch(
-        "/api/v1/users/me", headers=plain.headers, json={"full_name": "Plain"}
+        "/api/v1/me", headers=plain.headers, json={"timezone": "Europe/Berlin"}
     )
     assert response.status_code == 200, response.text
     assert response.json()["has_federated_identity"] is False
@@ -1132,7 +1173,7 @@ async def test_oidc_user_can_self_delete_without_password(client, session):
     await create_federated_identity(session, user, subject="oidc-subject-123")
 
     response = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=await _just_signed_in(session, user),
         json={
             "action": "soft_delete",
@@ -1167,7 +1208,7 @@ async def test_a_passkey_only_account_can_self_delete_without_a_password(
     await session.commit()
 
     response = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=await _just_signed_in(session, user),
         json={
             "action": "soft_delete",
@@ -1197,7 +1238,7 @@ async def test_self_delete_asks_a_password_account_for_its_password(
         await create_federated_identity(session, a.user, subject="linked-local-1")
 
     response = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=a.headers,
         json={
             "action": "soft_delete",
@@ -1215,14 +1256,13 @@ async def test_profile_carries_the_basics(client, session, acting_user):
     picked, and when they joined.
 
     The handle is the name here, and the page is the same one for everyone, so
-    it carries nothing a guild decides the visibility of — the real name on
-    this very account included.
+    it carries nothing a guild decides the visibility of — the name somebody
+    set in a guild included.
     """
     caller = await acting_user()
     subject = await create_user(
         session,
         username="tinker",
-        full_name="Tinker Bell",
         avatar_url="https://example.com/tinker.png",
         custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
         profile_decorations={"banner": "core.aurora", "trophies": ["core.fan"]},
@@ -1248,8 +1288,7 @@ async def test_profile_carries_the_basics(client, session, acting_user):
     }
     assert body["presence"] == "offline"
     assert body["joined_at"]
-    assert "full_name" not in body
-    # Nor anything else the account keeps to itself.
+    # Nothing the account keeps to itself.
     assert set(body.keys()) == {
         "id",
         "username",
@@ -1380,7 +1419,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(client, actin
         ] == "online"
 
         saved = await client.patch(
-            "/api/v1/users/me",
+            "/api/v1/me",
             headers=subject.headers,
             json={"presence": "offline"},
         )
@@ -1400,7 +1439,7 @@ async def test_presence_outlives_the_socket_that_set_it(client, session, acting_
     subject = await acting_user()
 
     saved = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=subject.headers,
         json={"presence": "busy"},
     )
@@ -1420,7 +1459,7 @@ async def test_presence_rejects_a_value_that_is_not_one(client, acting_user):
     a = await acting_user()
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"presence": "invisible"},
     )
@@ -1476,7 +1515,7 @@ async def test_custom_status_round_trips_as_one_object(client, acting_user):
     a = await acting_user()
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"custom_status": {"emoji": "\N{ROCKET}", "text": "  shipping  "}},
     )
@@ -1488,7 +1527,7 @@ async def test_custom_status_round_trips_as_one_object(client, acting_user):
     }
 
     cleared = await client.patch(
-        "/api/v1/users/me", headers=a.headers, json={"custom_status": None}
+        "/api/v1/me", headers=a.headers, json={"custom_status": None}
     )
 
     assert cleared.status_code == 200
@@ -1500,7 +1539,7 @@ async def test_custom_status_holds_the_line_to_its_length(client, acting_user):
     a = await acting_user()
 
     at_the_bound = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"custom_status": {"text": "x" * STATUS_TEXT_MAX_LENGTH}},
     )
@@ -1508,7 +1547,7 @@ async def test_custom_status_holds_the_line_to_its_length(client, acting_user):
     assert at_the_bound.status_code == 200
 
     over_it = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"custom_status": {"text": "x" * (STATUS_TEXT_MAX_LENGTH + 1)}},
     )
@@ -1534,7 +1573,7 @@ async def test_profile_writes_reject_a_shape_that_is_not_the_shape(
     more trophies than a profile has room for, and a colour that is not one."""
     a = await acting_user()
 
-    response = await client.patch("/api/v1/users/me", headers=a.headers, json=payload)
+    response = await client.patch("/api/v1/me", headers=a.headers, json=payload)
 
     assert response.status_code == 422
 
@@ -1544,7 +1583,7 @@ async def test_library_lists_what_ships_with_the_app(client, acting_user):
     names a pack — nobody granted it."""
     a = await acting_user()
 
-    response = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    response = await client.get("/api/v1/me/decorations", headers=a.headers)
 
     assert response.status_code == 200
     items = response.json()["items"]
@@ -1572,7 +1611,7 @@ async def test_library_carries_what_a_pack_granted(client, session, acting_user)
     )
     await session.commit()
 
-    response = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    response = await client.get("/api/v1/me/decorations", headers=a.headers)
 
     assert response.status_code == 200
     items = response.json()["items"]
@@ -1613,7 +1652,7 @@ async def test_you_wear_what_you_have(client, session, acting_user, worn, on_the
         await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"profile_decorations": worn},
     )
@@ -1637,7 +1676,7 @@ async def test_wearing_what_a_pack_granted(client, session, acting_user):
     await session.commit()
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={
             "profile_decorations": {
@@ -1686,7 +1725,7 @@ async def test_a_frame_keeps_as_many_colours_as_it_takes(
 
     # A frame that takes two, wearing two.
     primed = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={
             "profile_decorations": {
@@ -1702,7 +1741,7 @@ async def test_a_frame_keeps_as_many_colours_as_it_takes(
     ]
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={"profile_decorations": {"frame": frame, "frame_tint": tint}},
     )
@@ -1752,7 +1791,7 @@ async def test_a_pack_that_grew_gives_the_new_piece_to_whoever_has_it(
     )
     await session.commit()
 
-    response = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    response = await client.get("/api/v1/me/decorations", headers=a.headers)
 
     assert response.status_code == 200
     held = {item["id"] for item in response.json()["items"]}
@@ -1765,7 +1804,7 @@ async def test_decoration_packs_list_the_store(client, session, acting_user):
     a = await acting_user()
     listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
 
-    response = await client.get("/api/v1/users/me/decoration-packs", headers=a.headers)
+    response = await client.get("/api/v1/me/decoration-packs", headers=a.headers)
 
     assert response.status_code == 200
     entry = next(
@@ -1795,7 +1834,7 @@ async def test_the_shipped_packs_are_on_the_shelf(client, session, acting_user):
             )
     await session.commit()
 
-    response = await client.get("/api/v1/users/me/decoration-packs", headers=a.headers)
+    response = await client.get("/api/v1/me/decoration-packs", headers=a.headers)
 
     assert response.status_code == 200
     shipped = {item["public_id"] for item in response.json()["items"]}
@@ -1809,24 +1848,24 @@ async def test_installing_a_pack_puts_it_in_the_library(client, session, acting_
     listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
 
     install = await client.post(
-        f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=a.headers
+        f"/api/v1/me/decoration-packs/{listing.uid}", headers=a.headers
     )
 
     assert install.status_code == 200
     assert install.json()["installed"] is True
 
-    library = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    library = await client.get("/api/v1/me/decorations", headers=a.headers)
     owned = {item["id"]: item for item in library.json()["items"]}
     assert owned["tt.trophy"]["kind"] == "trophy"
     # The grant records the listing uid — the one name for this pack anywhere.
     assert owned["tt.trophy"]["source"] == listing.uid
 
-    listed = await client.get("/api/v1/users/me/decoration-packs", headers=a.headers)
+    listed = await client.get("/api/v1/me/decoration-packs", headers=a.headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
     assert installed == {listing.uid}
 
     worn = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={
             "profile_decorations": {
@@ -1848,11 +1887,11 @@ async def test_installing_a_pack_twice_changes_nothing(client, session, acting_u
     for _ in range(2):
         assert (
             await client.post(
-                f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=a.headers
+                f"/api/v1/me/decoration-packs/{listing.uid}", headers=a.headers
             )
         ).status_code == 200
 
-    library = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    library = await client.get("/api/v1/me/decorations", headers=a.headers)
     ids = [item["id"] for item in library.json()["items"]]
     assert ids.count("mu.frame") == 1
 
@@ -1867,10 +1906,10 @@ async def test_removing_a_pack_takes_off_what_was_worn(client, session, acting_u
     )
     for listing in (tabletop, music):
         await client.post(
-            f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=a.headers
+            f"/api/v1/me/decoration-packs/{listing.uid}", headers=a.headers
         )
     await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=a.headers,
         json={
             "profile_decorations": {
@@ -1882,20 +1921,20 @@ async def test_removing_a_pack_takes_off_what_was_worn(client, session, acting_u
     )
 
     removed = await client.delete(
-        f"/api/v1/users/me/decoration-packs/{tabletop.uid}", headers=a.headers
+        f"/api/v1/me/decoration-packs/{tabletop.uid}", headers=a.headers
     )
 
     assert removed.status_code == 200
     assert removed.json()["installed"] is False
 
-    me = await client.get("/api/v1/users/me", headers=a.headers)
+    me = await client.get("/api/v1/me", headers=a.headers)
     worn = me.json()["profile_decorations"]
     # The tabletop pieces came off; the other pack's stayed on.
     assert worn["banner"] is None
     assert worn["frame"] == "mu.frame"
     assert worn["trophies"] == ["mu.trophy"]
 
-    library = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    library = await client.get("/api/v1/me/decorations", headers=a.headers)
     assert "tt.trophy" not in {item["id"] for item in library.json()["items"]}
 
 
@@ -1907,14 +1946,12 @@ async def test_removing_a_pack_leaves_someone_elses_library_alone(
     listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
     for who in (a, other):
         await client.post(
-            f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=who.headers
+            f"/api/v1/me/decoration-packs/{listing.uid}", headers=who.headers
         )
 
-    await client.delete(
-        f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=a.headers
-    )
+    await client.delete(f"/api/v1/me/decoration-packs/{listing.uid}", headers=a.headers)
 
-    library = await client.get("/api/v1/users/me/decorations", headers=other.headers)
+    library = await client.get("/api/v1/me/decorations", headers=other.headers)
     assert "tt.trophy" in {item["id"] for item in library.json()["items"]}
 
 
@@ -1933,7 +1970,7 @@ async def test_installing_something_that_is_not_a_pack_is_a_404(
         uid = (await create_marketplace_listing(session, uid="DASHBRD0000001")).uid
 
     response = await client.post(
-        f"/api/v1/users/me/decoration-packs/{uid}", headers=a.headers
+        f"/api/v1/me/decoration-packs/{uid}", headers=a.headers
     )
 
     assert response.status_code == 404
@@ -2143,36 +2180,34 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
             ],
         },
     )
-    await client.post(
-        f"/api/v1/users/me/decoration-packs/{first.uid}", headers=a.headers
-    )
+    await client.post(f"/api/v1/me/decoration-packs/{first.uid}", headers=a.headers)
 
     response = await client.post(
-        f"/api/v1/users/me/decoration-packs/{squatter.uid}", headers=a.headers
+        f"/api/v1/me/decoration-packs/{squatter.uid}", headers=a.headers
     )
 
     assert response.status_code == 409
     assert response.json()["detail"] == "USER_DECORATION_ALREADY_GRANTED"
 
     # And the first pack's grant is untouched, still attributed to it.
-    library = await client.get("/api/v1/users/me/decorations", headers=a.headers)
+    library = await client.get("/api/v1/me/decorations", headers=a.headers)
     owned = {item["id"]: item for item in library.json()["items"]}
     assert owned["tt.trophy"]["source"] == first.uid
 
-    listed = await client.get("/api/v1/users/me/decoration-packs", headers=a.headers)
+    listed = await client.get("/api/v1/me/decoration-packs", headers=a.headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
     assert installed == {first.uid}
 
 
 async def test_member_search_narrows_to_one_initiative(client, acting_user):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     narrowed = await client.get(
         admin.g("/users/search"),

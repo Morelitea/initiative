@@ -10,16 +10,16 @@ The two role dimensions are orthogonal (platform-roles design §7):
   for guild-path actors — guild access must never depend on platform tier,
   and defaulting low makes the suite prove that continuously.
 * **Guild role** — when ``guild_role`` (or ``guild``) is given, the actor gets
-  a provisioned guild (or joins the one passed) with that ``GuildRole``;
-  requests route through ``/c/{guild_id}`` and assume ``guild_<id>``.
+  a provisioned guild (or joins the one passed) with that ``CommunityRole``;
+  requests route through ``/c/{community_id}`` and assume ``guild_<id>``.
 
 Usage (via the ``acting_user`` fixture):
 
     a = await acting_user()                                   # platform owner
     a = await acting_user("support")                          # tier ceilings
-    a = await acting_user(guild_role=GuildRole.admin,
+    a = await acting_user(guild_role=CommunityRole.admin,
                           initiative=True, project=True)      # full workspace
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                           initiative=a.initiative, initiative_role="member")
     await client.get(a.g("/projects/"), headers=a.headers)
 """
@@ -31,7 +31,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 from app.models.platform.user import User, UserRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -76,7 +76,7 @@ async def make_actor(
     session: AsyncSession,
     role: UserRole | str | None = None,
     *,
-    guild_role: GuildRole | str | None = None,
+    guild_role: CommunityRole | str | None = None,
     guild: Guild | None = None,
     initiative: Initiative | bool | None = None,
     initiative_role: str = "project_manager",
@@ -89,10 +89,10 @@ async def make_actor(
     pass an existing ``Initiative`` to join it with ``initiative_role``.
     ``project=True`` creates one owned by the actor inside the initiative;
     pass an existing ``Project`` to reference it without any grant.
-    ``**overrides`` go to ``create_user`` (e.g. ``email=``, ``full_name=``).
+    ``**overrides`` go to ``create_user`` (e.g. ``email=``, ``username=``).
     """
     if guild is not None and guild_role is None:
-        guild_role = GuildRole.member
+        guild_role = CommunityRole.member
     if role is None:
         role = UserRole.member if guild_role is not None else UserRole.owner
     if isinstance(role, str):
@@ -107,7 +107,7 @@ async def make_actor(
         return actor
 
     if isinstance(guild_role, str):
-        guild_role = GuildRole(guild_role)
+        guild_role = CommunityRole(guild_role)
     actor.guild = guild if guild is not None else await create_guild(session)
     actor.membership = await create_guild_membership(
         session, user=user, guild=actor.guild, role=guild_role

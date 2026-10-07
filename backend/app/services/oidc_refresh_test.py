@@ -19,7 +19,7 @@ from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.oidc_claim_mapping import (
     ClaimRuleAuthor,
     OIDCClaimMapping,
@@ -128,7 +128,7 @@ def _directory_rule(*, provider_id: int, guild_id: int) -> OIDCClaimMapping:
         scope_value="acme-adfs",
         target_type=OIDCMappingTargetType.guild,
         guild_id=guild_id,
-        guild_role=GuildRole.member.value,
+        guild_role=CommunityRole.member.value,
     )
 
 

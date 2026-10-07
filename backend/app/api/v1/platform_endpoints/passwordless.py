@@ -8,16 +8,12 @@ Every route runs on the system engine for the same reason the second-factor
 routes do: the tables they read are app_admin-only.
 """
 
-import logging
-import uuid
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
-    CREDENTIAL_DEVICE_TOKEN,
     require_first_party_session,
     SystemSessionDep,
     CurrentUser,
@@ -26,37 +22,27 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
-    count_wrong_answer,
+    prove_second_factor,
     refuse_if_locked,
-    replace_session,
     require_login_method,
+    set_password,
 )
 from app.core.audit_events import AuditEventType
+from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.password_policy import enforce_password_policy
-from app.core.rate_limit import (
-    count_sign_in_failure,
-    get_user_or_ip_key,
-    limiter,
-    sign_in_allowance_left,
-)
-from app.core.security import get_password_hash, has_usable_password
+from app.core.password_policy import validate_new_password
+from app.core.rate_limit import SIGN_IN_FAILURES, limiter
+from app.core.security import has_usable_password
 from app.db.session import get_session
-from app.models.platform.auth_session import AuthSession
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import UserStatus
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.passwordless import PasswordRecover, PasswordRemove
 from app.schemas.platform.second_factor import RecoveryCodes
 from app.services import audit as audit_service
-from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import totp as totp_service
-from app.services.platform import user_tokens
-from app.services.content_sockets import sockets as content_sockets
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -98,7 +84,7 @@ async def _record_recovery_refusal(
 
 
 @router.post("/password/remove", response_model=RecoveryCodes)
-@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("5/15minutes")
 async def remove_password(
     request: Request,
     response: Response,
@@ -118,7 +104,7 @@ async def remove_password(
     and hands this caller a replacement session in cookies, which is not what
     the native app carries, so the app is told to do this on the web instead.
     """
-    if _first_party == CREDENTIAL_DEVICE_TOKEN:
+    if is_device(request):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -144,49 +130,6 @@ async def remove_password(
             detail=AuthMessages.PASSWORD_IS_LAST_METHOD,
         )
 
-    # The session this request is on, read before the revocation below retires
-    # it: the one that replaces it carries what it had proved, which communities
-    # asking for a sign-in of their own it had satisfied, and each provider's
-    # own account of that.
-    prior_id = getattr(request.state, "session_id", None)
-    prior = (
-        await system_session.get(AuthSession, uuid.UUID(str(prior_id)))
-        if prior_id
-        else None
-    )
-    if prior is not None and (
-        prior.user_id != current_user.id or prior.revoked_at is not None
-    ):
-        prior = None
-    carried_amr = sorted(set(prior.amr)) if prior is not None else []
-    carried_providers = (
-        sorted(set(prior.satisfied_providers)) if prior is not None else []
-    )
-    carried_provider_auth = prior.provider_auth if prior is not None else None
-
-    # The row is written on the system engine, which is where the rest of this
-    # request's writes land.
-    account = await system_session.get(User, current_user.id)
-    if account is None:  # pragma: no cover - resolved a moment ago
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    account.hashed_password = None
-    account.password_set_at = None
-    account.updated_at = datetime.now(timezone.utc)
-    system_session.add(account)
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSWORD_REMOVED,
-        actor_user_id=account.id,
-    )
-    # Bump token_version and retire the device tokens, API keys, refresh
-    # sessions and half-finished sign-ins that rested on the password.
-    #
-    # Staged, not committed: the replacement session below joins them in one
-    # transaction, so the account keeps what it had if that fails.
-    await user_tokens.revoke_user_sessions(system_session, user=account, commit=False)
-
     # A recovery set exists from the moment the account becomes passwordless,
     # because a code is now how it gets a password back — on a deployment with
     # no mail configured, which is the self-hosted case, it is the only way.
@@ -195,42 +138,32 @@ async def remove_password(
     # settings page has been calling low.
     codes: list[str] = []
     held = await totp_service.remaining_recovery_codes(
-        system_session, user_id=account.id
+        system_session, user_id=current_user.id
     )
     if held < totp_service.LOW_ON_RECOVERY_CODES:
         codes = await totp_service.issue_recovery_codes(
-            system_session, user_id=account.id
+            system_session, user_id=current_user.id
         )
         await audit_service.record(
             system_session,
             event_type=AuditEventType.AUTH_RECOVERY_CODES_ISSUED,
-            actor_user_id=account.id,
+            actor_user_id=current_user.id,
         )
 
-    # ...and keep THIS device signed in: the revocation above took the caller's
-    # own access token and refresh chain with everything else, so a fresh
-    # session is opened and both cookies re-issued. One commit for the
-    # password, the record, the revocations, the codes and the session that
-    # stands in for this device's.
-    await replace_session(
+    # The codes are staged beside the password's removal and land on its
+    # commit, with the session that keeps this device signed in.
+    await set_password(
         request,
-        response,
         system_session,
-        user=account,
-        amr=carried_amr,
-        satisfied_providers=carried_providers,
-        provider_auth=carried_provider_auth,
+        user=current_user,
+        password=None,
+        via="self_service",
+        response=response,
     )
-
-    # Open connections stand on the credentials retired above, this device's
-    # included; its replacement session reconnects them.
-    await content_sockets.revoke_user_everywhere(current_user.id)
-    await email_service.announce_password_removed(system_session, account)
     return RecoveryCodes(codes=codes)
 
 
 @router.post("/password/recover", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def recover_with_code(
     request: Request,
     session: SessionDep,
@@ -248,75 +181,44 @@ async def recover_with_code(
     await require_login_method(session, LoginMethod.password)
     # The policy runs before anything is spent: a candidate this deployment
     # would not take must not cost the account one of its codes.
-    await enforce_password_policy(payload.password)
+    await validate_new_password(payload.password)
 
     # Counted by the address typed in as well as by the account, the same way
     # a password is, so an address nobody holds runs out like one somebody does.
-    address = payload.email.lower().strip()
-    if not await sign_in_allowance_left(address):
+    if not await SIGN_IN_FAILURES.left(payload.email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
         )
     user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
-        await count_sign_in_failure(address)
+        await SIGN_IN_FAILURES.take(payload.email)
         raise _recovery_code_invalid()
     await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
-        await count_sign_in_failure(address)
+        await SIGN_IN_FAILURES.take(payload.email)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
-    if not await totp_service.consume_recovery_code(
-        system_session, user_id=user.id, code=payload.recovery_code
-    ):
-        await count_sign_in_failure(address)
-        await _record_recovery_refusal(system_session, user_id=user.id)
-        await count_wrong_answer(system_session, user.id)
-        raise _recovery_code_invalid()
-
-    user.hashed_password = get_password_hash(payload.password)
-    user.password_set_at = datetime.now(timezone.utc)
-    # Staged before ``revoke_user_sessions`` below, which commits this session:
-    # ``user`` is bound to it, so the password, the spent code, the revocations
-    # and these two records land on one commit.
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
-        actor_user_id=user.id,
-        detail={
-            "remaining": await totp_service.remaining_recovery_codes(
-                system_session, user_id=user.id
-            )
-        },
-    )
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-        actor_user_id=user.id,
-        detail={"via": "recovery_code"},
-    )
-    # Bump token_version and retire the device tokens, API keys and refresh
-    # sessions the account held before it was recovered.
-    #
-    # ``user`` is staged on ``system_session``, so its id is read here rather
-    # than after a rollback that would leave the columns to be fetched again.
-    user_id = user.id
     try:
-        # Staged before the call below, which is what commits the system
-        # engine: the password, the stamp, the spent code and the records all
-        # land on that one commit.
-        user.updated_at = datetime.now(timezone.utc)
-        system_session.add(user)
-        await user_tokens.revoke_user_sessions(system_session, user=user)
-    except Exception as exc:
-        await system_session.rollback()
-        logger.exception("Could not record a recovery for user %s", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
-    # Open connections stand on credentials the recovery has just ended.
-    await content_sockets.revoke_user_everywhere(user_id)
-    await email_service.announce_password_changed(system_session, user)
+        await prove_second_factor(
+            system_session,
+            user_id=user.id,
+            code=None,
+            recovery_code=payload.recovery_code,
+            during="recover",
+            signed_in=False,
+        )
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_400_BAD_REQUEST:
+            await SIGN_IN_FAILURES.take(payload.email)
+        raise
+
+    # The spent code and its record land on the commit that sets the password.
+    await set_password(
+        request,
+        system_session,
+        user=user,
+        password=payload.password,
+        via="recovery_code",
+    )
     return VerificationSendResponse(status="reset")

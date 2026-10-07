@@ -45,7 +45,7 @@ from app.core.messages import CommonMessages
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.db import cohorts
 from app.db.session import install_context, routed_guild_id, set_rls_context
-from app.models.platform.guild import GUILD_LADDER, GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_LADDER, GuildMembership, CommunityRole
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import (
     Initiative,
@@ -61,13 +61,13 @@ from app.models.tenant.task import Task, TaskAssignee
 from app.services.platform.users import visible_to_other_people
 from app.db.request_context import SystemGuild
 
-_ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)]
+_ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admin)]
 
 
 @dataclass(frozen=True)
 class Governing:
     """The tool row whose sharing decides who may be named on content inside
-    it: a task's project, an event's calendar, a document itself."""
+    it: a task's project, an event's calendar, a file itself."""
 
     tool: Tool
     resource_id: int
@@ -171,7 +171,7 @@ async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
     """Where the routed community's roster is read for ``session``'s request.
 
     The request's own session for a person, so a row it has just made is seen.
-    An installed app's role reads as much of the roster as its scopes allow,
+    An installed plug-in's role reads as much of the roster as its scopes allow,
     and who can open something is not its scopes' to say, so its requests are
     answered by the community's own read instead, as
     :mod:`app.services.reachability` does.

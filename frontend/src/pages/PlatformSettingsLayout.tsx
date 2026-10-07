@@ -15,8 +15,8 @@ import { matchActiveTab } from "@/lib/tabs";
 
 /**
  * App-wide *configuration* area: authentication, security, branding, email,
- * push notifications, integrations (AI and app service registrations), and
- * storage. Owner-only (`config.manage` / `apps.manage`).
+ * push notifications, integrations (AI and plug-in service registrations), and
+ * storage. Owner-only (`config.manage` / `plugins.manage`).
  * Operational tools (users, access) live in the separate Operator dashboard.
  */
 export const PlatformSettingsLayout = () => {
@@ -27,12 +27,12 @@ export const PlatformSettingsLayout = () => {
 
   const tabs = useMemo(() => {
     // Two capabilities reach this area: `config.manage` owns app-wide
-    // configuration, `apps.manage` owns app service registrations. A holder of
+    // configuration, `plugins.manage` owns plug-in service registrations. A holder of
     // one shouldn't be shown the other's tabs — and Integrations, which holds
-    // both the AI settings and the app service registrations, is shown to
+    // both the AI settings and the plug-in service registrations, is shown to
     // either.
     const canManageConfig = hasCapability(user, Capability.configManage);
-    const canManageApps = hasCapability(user, Capability.appsManage);
+    const canManagePlugins = hasCapability(user, Capability.pluginsManage);
     return [
       {
         value: "auth",
@@ -74,7 +74,7 @@ export const PlatformSettingsLayout = () => {
         value: "integrations",
         label: t("platformLayout.tabs.integrations"),
         path: "/settings/platform/integrations",
-        visible: canManageConfig || canManageApps,
+        visible: canManageConfig || canManagePlugins,
       },
       {
         value: "storage",
@@ -104,10 +104,7 @@ export const PlatformSettingsLayout = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("platformLayout.title")}</h1>
-        <p className="text-muted-foreground">{t("platformLayout.subtitle")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("platformLayout.title")}</h1>
       <SettingsTabsNav
         tabs={tabs}
         activeTab={activeTab}

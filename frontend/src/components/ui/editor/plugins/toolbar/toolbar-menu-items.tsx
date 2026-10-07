@@ -71,17 +71,17 @@ const SwatchItems = ({
 
 export const HistoryMenuItems = () => {
   const { undo, redo, canUndo, canRedo } = useHistoryActions();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <>
       <OverflowMenuItem onSelect={undo} disabled={!canUndo}>
         <UndoIcon className="size-4" />
-        <span>{t("editor.undo")}</span>
+        <span>{t("undo")}</span>
       </OverflowMenuItem>
       <OverflowMenuItem onSelect={redo} disabled={!canRedo}>
         <RedoIcon className="size-4" />
-        <span>{t("editor.redo")}</span>
+        <span>{t("redo")}</span>
       </OverflowMenuItem>
     </>
   );
@@ -94,14 +94,14 @@ export const BlockFormatMenuItems = ({
 }) => {
   const actions = useBlockFormatActions(types);
   const names = useBlockTypeToBlockName();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const current = actions.find((action) => action.active);
 
   return (
     <OverflowSubmenu
       icon={current?.icon ?? names.paragraph.icon}
       id="textStyle"
-      label={t("editor.textStyle")}
+      label={t("textStyle")}
     >
       {actions.map((action) => (
         <ActionItem key={action.id} action={action} />
@@ -112,13 +112,13 @@ export const BlockFormatMenuItems = ({
 
 export const CodeLanguageMenuItems = () => {
   const actions = useCodeLanguageActions();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowSubmenu
       icon={<TextIcon className="size-4" />}
       id="codeLanguage"
-      label={t("editor.selectLanguage")}
+      label={t("selectLanguage")}
     >
       {actions.map((action) => (
         <ActionItem key={action.id} action={action} />
@@ -129,14 +129,10 @@ export const CodeLanguageMenuItems = () => {
 
 export const FontSizeMenuItems = () => {
   const applyFontSize = useApplyFontSize();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
-    <OverflowSubmenu
-      icon={<TypeIcon className="size-4" />}
-      id="fontSize"
-      label={t("editor.fontSize")}
-    >
+    <OverflowSubmenu icon={<TypeIcon className="size-4" />} id="fontSize" label={t("fontSize")}>
       {FONT_SIZE_PRESETS.map((size) => (
         <OverflowMenuItem key={size} onSelect={() => applyFontSize(size)}>
           <span>{size}</span>
@@ -176,24 +172,24 @@ export const LinkMenuItem = ({
   setIsLinkEditMode: (value: boolean) => void;
 }) => {
   const toggleLink = useToggleLink(setIsLinkEditMode);
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowMenuItem onSelect={toggleLink}>
       <LinkIcon className="size-4" />
-      <span>{t("editor.insertLink")}</span>
+      <span>{t("insertLink")}</span>
     </OverflowMenuItem>
   );
 };
 
 export const ClearFormattingMenuItem = () => {
   const clearFormatting = useClearFormatting();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowMenuItem onSelect={clearFormatting}>
       <EraserIcon className="size-4" />
-      <span>{t("editor.clearFormatting")}</span>
+      <span>{t("clearFormatting")}</span>
     </OverflowMenuItem>
   );
 };
@@ -201,13 +197,13 @@ export const ClearFormattingMenuItem = () => {
 export const FontColorMenuItems = () => {
   const { text } = useColorSwatches();
   const applyStyle = useApplyStyle();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowSubmenu
       icon={<PaletteIcon className="size-4" />}
       id="textColor"
-      label={t("editor.textColor")}
+      label={t("textColor")}
     >
       <SwatchItems swatches={text} onPick={(value) => applyStyle("color", value)} />
     </OverflowSubmenu>
@@ -217,13 +213,13 @@ export const FontColorMenuItems = () => {
 export const FontBackgroundMenuItems = () => {
   const { background } = useColorSwatches();
   const applyStyle = useApplyStyle();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowSubmenu
       icon={<PaintBucketIcon className="size-4" />}
       id="background"
-      label={t("editor.background")}
+      label={t("background")}
     >
       <SwatchItems
         swatches={background}
@@ -237,13 +233,13 @@ export const ElementFormatMenuItems = () => {
   const current = useCurrentAlignment();
   const alignments = useAlignmentActions(current);
   const indents = useIndentActions();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <OverflowSubmenu
       icon={alignments.find((action) => action.active)?.icon}
       id="align"
-      label={t("editor.align")}
+      label={t("align")}
     >
       {[...alignments, ...indents].map((action) => (
         <ActionItem key={action.id} action={action} />
@@ -258,10 +254,10 @@ export const BlockInsertMenuItems = (props: {
   initiativeId: number | null;
 }) => {
   const actions = useBlockInsertActions(props);
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
-    <OverflowSubmenu icon={<PlusIcon className="size-4" />} id="insert" label={t("editor.insert")}>
+    <OverflowSubmenu icon={<PlusIcon className="size-4" />} id="insert" label={t("insert")}>
       {actions.map((action) => (
         <ActionItem key={action.id} action={action} />
       ))}

@@ -96,7 +96,7 @@ export const BitsBetween = () => {
           <ul className="flex w-max gap-2.5 md:grid md:w-auto md:grid-cols-3 md:gap-4">
             <Card title={t("between.comments.title")} body={t("between.comments.body")}>
               <div className="flex items-start gap-2.5 rounded-xl border bg-card p-3">
-                <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-700 font-bold text-[10px] text-white">
+                <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-700 font-bold text-3xs text-white">
                   SM
                 </span>
                 <div className="min-w-0">
@@ -155,7 +155,7 @@ export const BitsBetween = () => {
                 <div className="flex items-center gap-2 border-b px-1.5 pb-2">
                   <Search className="h-4 w-4" />
                   <span className="flex-1 font-semibold">{t("between.search.query")}</span>
-                  <kbd className="rounded border bg-muted px-1.5 font-semibold text-[11px] text-foreground">
+                  <kbd className="rounded border bg-muted px-1.5 font-semibold text-2xs text-foreground">
                     Ctrl K
                   </kbd>
                 </div>

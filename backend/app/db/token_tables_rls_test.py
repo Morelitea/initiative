@@ -5,7 +5,7 @@ floor holds a verb on it and it carries no policy. ``push_tokens`` is reached
 from the platform path for the caller's own devices, and delivered from on the
 system engine; the guild floors hold nothing on it.
 
-Style mirrors ``app_service_registrations_rls_test``: ``SET ROLE`` drops the
+Style mirrors ``plugin_service_registrations_rls_test``: ``SET ROLE`` drops the
 superuser setup session to the role under test, so table grants and policies
 are enforced as they are on a real request.
 """
@@ -16,14 +16,18 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.core.config import settings
-from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS, SHARED_TABLE_REGISTRY
-from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import (
+    FORCED_NO_POLICY,
+    PUBLIC_RLS,
+    SHARED_TABLE_REGISTRY,
+    platform_tier,
+    role_name,
+)
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_user
 
 
-PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+PLATFORM_FLOOR = role_name("platform_base")
 REQUEST_FLOORS = ("app_user", "app_guild_base", "app_guild_base_ro", PLATFORM_FLOOR)
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 
@@ -120,7 +124,7 @@ async def test_user_tokens_are_unreadable_on_the_request_path(session, role):
     # The tier roles carry a per-run prefix, so they are named here rather than
     # in the ids, which every worker must collect alike.
     if isinstance(role, UserRole):
-        role = platform_role_name(role.value)
+        role = role_name(platform_tier(role))
     owner = await create_user(session)
     await _user_token(session, owner.id)
     seen = (await session.exec(text("SELECT count(*) FROM user_tokens"))).scalar_one()
@@ -160,7 +164,7 @@ async def test_a_platform_tier_reaches_only_its_own_push_tokens(session):
 
     for tier in UserRole:
         mine = f"fcm-mine-{tier.value}"
-        async with as_role(session, platform_role_name(tier.value), me.id):
+        async with as_role(session, role_name(platform_tier(tier)), me.id):
             async with session.begin_nested():
                 await _push_token(session, me.id, mine)
                 # The registration upsert: conflicts on its own row and returns it.

@@ -1,35 +1,30 @@
 {
   "layout": {
     "title": "My Settings",
-    "subtitle": "Manage your profile, interface preferences, and notifications.",
     "tabs": {
       "profile": "Profile",
       "account": "Account",
-      "interface": "Interface",
+      "interface": "Preferences",
       "notifications": "Notifications",
       "ai": "AI",
-      "import": "Import",
       "security": "Security",
       "trash": "Trash",
-      "danger": "Danger Zone",
       "privacy": "Privacy"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
     "goToLogin": "Go to login"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Community settings",
-    "subtitle": "Manage workspace membership and community details.",
     "permissionDenied": "You need additional permissions to view this page.",
     "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
       "read_only": {
-        "label": "Read-only",
         "message": "This community is read-only. Contact whoever runs this server to restore full access."
       }
     },
     "tabs": {
-      "guild": "Community",
+      "community": "Community",
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
@@ -48,24 +43,16 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Full name",
-    "fullNamePlaceholder": "Your name",
     "currentPasswordLabel": "Current password",
-    "currentPasswordPlaceholder": "Enter your current password",
     "currentPasswordRequired": "Enter your current password to set a new one.",
     "newPasswordLabel": "New password",
-    "confirmPasswordLabel": "Confirm password",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Upload",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.jpg",
     "removeUploadedAvatar": "Remove uploaded avatar",
-    "passwordsMismatch": "Passwords do not match",
     "saveChanges": "Save changes",
     "saving": "Saving…",
-    "reset": "Reset",
-    "updateSuccess": "Profile updated",
     "updateError": "Unable to update profile",
     "avatarUploadHelp": "Any image. It is cropped square and resized for you.",
     "avatar": {
@@ -104,14 +91,34 @@
     "primaryFailed": "The primary address could not be changed.",
     "removeDialogTitle": "Remove this address?",
     "removeDialogDescription": "<strong>{{email}}</strong> will stop signing you in and stop receiving your account mail.",
-    "removeCancel": "Cancel",
-    "removeConfirm": "Remove"
+    "removeConfirm": "Remove",
+    "passwordLabel": "Current password",
+    "addDialogTitle": "Add this address?",
+    "addDialogDescription": "We'll send a link to <strong>{{email}}</strong> to confirm it.",
+    "addConfirm": "Add",
+    "primaryDialogTitle": "Make this address primary?",
+    "primaryDialogDescription": "Password resets and sign-in codes will go to <strong>{{email}}</strong> first.",
+    "primaryConfirm": "Make primary"
+  },
+  "heldChange": {
+    "title": "A change is waiting",
+    "primary": "{{subject}} becomes your primary address on {{date}}.",
+    "removeAddress": "{{subject}} will be removed from your account on {{date}}.",
+    "secondFactorOff": "Two-factor authentication will be turned off on {{date}}.",
+    "lastPasskey": "Your last passkey, {{subject}}, will be removed on {{date}}.",
+    "description": "It waits two days, and every address on your account has been emailed about it. Until then nothing changes.",
+    "cancel": "Cancel the change",
+    "applyNow": "Make it now with a passkey",
+    "cancelled": "The change is cancelled.",
+    "applied": "The change is made.",
+    "cancelFailed": "The change couldn't be cancelled. Try again.",
+    "applyFailed": "The change couldn't be made now. Try again.",
+    "waits": "This change waits until {{date}}. Every address on your account has been emailed about it."
   },
   "security": {
     "loadingDevices": "Loading devices…",
     "devicesError": "Unable to load devices.",
     "unknownDevice": "Unknown device",
-    "loggedIn": "Logged in {{date}}",
     "revokeDialogCancel": "Cancel",
     "revoking": "Revoking…",
     "revokeError": "Unable to revoke device access",
@@ -125,36 +132,24 @@
     "keyNamePlaceholder": "e.g. reporting-script",
     "expirationLabel": "Expiration (optional)",
     "neverExpires": "Never expires",
-    "expirationHelp": "Leave blank for a key that never expires.",
     "readOnlyLabel": "Read-only",
     "readOnlyHelp": "The key can read data but never create, change, or delete anything. Recommended for automation and integrations.",
-    "guildLabel": "Community access",
-    "guildAllGuilds": "All my communities",
-    "guildHelp": "Limit the key to a single community. It won't be able to reach any other community's data.",
+    "communityLabel": "Community access",
+    "communityAllCommunities": "All my communities",
+    "communityHelp": "Limit the key to a single community. It won't be able to reach any other community's data.",
     "generateButton": "Generate API key",
     "generating": "Generating…",
     "nameRequired": "Name is required",
     "createSuccess": "API key created",
     "createError": "Unable to create API key",
-    "existingTitle": "Existing keys",
-    "existingDescription": "Only the last few characters are shown. Rotate keys regularly.",
     "loadingKeys": "Loading API keys…",
     "keysError": "Unable to load API keys.",
     "noKeys": "No API keys yet.",
-    "columnName": "Name",
-    "columnPrefix": "Prefix",
-    "columnStatus": "Status",
-    "columnScope": "Scope",
-    "columnLastUsed": "Last used",
-    "columnExpires": "Expires",
-    "columnActions": "Actions",
-    "statusActive": "Active",
     "statusExpired": "Expired",
     "statusDisabled": "Disabled",
     "scopeReadOnly": "Read-only",
-    "scopeGuild": "Community: {{guild}}",
+    "scopeCommunity": "Community: {{community}}",
     "scopeFull": "Full access",
-    "never": "Never",
     "deleteButton": "Delete",
     "deleting": "Removing…",
     "deleteSuccess": "API key deleted",
@@ -169,13 +164,28 @@
     "signOutDialogTitle": "Sign this device out?",
     "signOutDialogDescription": "This ends the session on <bold>{{deviceName}}</bold>. It will need to sign in again.",
     "signOutConfirm": "Sign out",
+    "removeDevice": "Remove device",
+    "notSignedIn": "not signed in",
+    "removeDeviceDialogTitle": "Remove this device?",
+    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> is signed out and nothing more is sent to it. If it is ever signed in again, the messages only it held are deleted from it.",
+    "removeDeviceConfirm": "Remove device",
+    "removedDevice": "Device removed",
     "signedOutOne": "Signed out",
     "signOutOthers": "Sign out everywhere else",
     "signOutOthersDialogTitle": "Sign out everywhere else?",
     "signOutOthersDialogDescription_one": "This ends {{count}} other session. You'll stay signed in here.",
     "signOutOthersDialogDescription_other": "This ends all {{count}} other sessions. You'll stay signed in here.",
     "signOutOthersConfirm": "Sign out everywhere else",
-    "signedOutOthers": "Signed out everywhere else"
+    "signedOutOthers": "Signed out everywhere else",
+    "apiKeysTitle": "API keys",
+    "apiKeysDescription": "For scripts and integrations. A key's secret is shown once, when you create it.",
+    "newKeyButton": "New API key",
+    "keyCreated": "Created {{date}}",
+    "keyLastUsed": "Last used {{date}}",
+    "keyNeverUsed": "Never used",
+    "keyExpires": "Expires {{date}}",
+    "deleteDialogTitle": "Delete this API key?",
+    "deleteDialogDescription": "Anything that uses {{name}} stops working straight away."
   },
   "ai": {
     "loading": "Loading AI settings…",
@@ -193,7 +203,7 @@
     "testError": "Unable to test connection",
     "httpWarning": "Using an unencrypted HTTP endpoint. Configure TLS / HTTPS for production deployments."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "Community AI",
     "adminOnly": "Only community admins can manage AI connections. To set your own key, open AI in your profile settings.",
     "connectionsTitle": "Community connections",
@@ -210,8 +220,8 @@
     "mode_disabled_description": "AI features are turned off for everyone.",
     "mode_platform": "Platform-managed",
     "mode_platform_description": "You define the AI connections every community uses.",
-    "mode_guild": "Community-managed",
-    "mode_guild_description": "Each community admin defines their own AI connections.",
+    "mode_community": "Community-managed",
+    "mode_community_description": "Each community admin defines their own AI connections.",
     "saveMode": "Save",
     "savingMode": "Saving…",
     "modeSaved": "AI settings updated",
@@ -221,9 +231,9 @@
   },
   "marketplaceRegistry": {
     "title": "Marketplace registry",
-    "description": "Apps and content from the Initiative registry. Everything it brings is checked against the signing key built into this server before it is used.",
+    "description": "Plug-ins and content from the Initiative registry. Everything it brings is checked against the signing key built into this server before it is used.",
     "toggleLabel": "Follow the registry",
-    "toggleHelp": "Off, this server stops asking the registry for updates. Listings and apps it already brought stay.",
+    "toggleHelp": "Off, this server stops asking the registry for updates. Listings and plug-ins it already brought stay.",
     "enabledToast": "This server follows the registry again.",
     "disabledToast": "This server no longer follows the registry.",
     "saveError": "Couldn't change the registry setting.",
@@ -254,8 +264,6 @@
     "bundleError": "Couldn't apply the bundle."
   },
   "interface": {
-    "title": "Interface settings",
-    "description": "Customize your interface preferences.",
     "colorTheme": "Color theme",
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
@@ -275,7 +283,6 @@
     "languageDescription": "Choose your preferred language for the interface.",
     "updateSuccess": "Interface preferences updated",
     "updateError": "Unable to update interface preferences",
-    "themePreview": "Theme preview",
     "themeDescriptions": {
       "kobold": "The classic Initiative theme with deep indigo tones.",
       "displacer": "Catppuccin-inspired soothing pastel theme (Latte/Macchiato).",
@@ -285,8 +292,6 @@
       "orc": "Earthy green theme with vivid orc-skin green accents. ORC ORC ORC!",
       "aboleth": "Monokai-inspired dark lair with vivid bioluminescent accent colors."
     },
-    "lightMode": "Light",
-    "darkMode": "Dark",
     "taskCompletionVisualFeedback": {
       "label": "Task completion feedback",
       "description": "A bit of fun when you finish a task you were assigned to.",
@@ -312,25 +317,37 @@
     },
     "keepScreenAwake": {
       "label": "Keep screen awake",
-      "description": "Prevent this device's screen from dimming or locking while the app is open. This setting is saved on this device only.",
+      "description": "Prevent this device's screen from dimming or locking while the app is open.",
       "unsupported": "Your browser does not support keeping the screen awake."
     },
+    "desktopKeepRunning": {
+      "label": "Keep running when the window closes",
+      "description": "Stay in the tray so notifications still arrive. Quit from the tray icon."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Open when the computer starts",
+      "description": "Start Initiative when you sign in to this computer."
+    },
+    "desktopAutoUpdate": {
+      "label": "Update the app automatically",
+      "description": "When your server needs a newer desktop app, download it and install it on restart."
+    },
     "completionTitle": "When you finish a task",
-    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it."
+    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it.",
+    "appearanceTitle": "Appearance",
+    "regionTitle": "Language and time",
+    "deviceTitle": "This device",
+    "deviceDescription": "Saved on this device only, not to your account."
   },
   "notifications": {
     "title": "Notification settings",
-    "pushNotifications": "Push Notifications",
-    "pushDescription": "Receive real-time alerts on your device",
+    "pushNotifications": "Push notifications",
+    "pushDescription": "Get alerts on this device as they happen.",
     "pushEnabled": "Enabled",
     "pushBlocked": "Blocked",
     "pushNotEnabled": "Not enabled",
-    "enablePush": "Enable Push Notifications",
-    "pushBlockedTitle": "Push notifications are blocked",
+    "enablePush": "Turn on",
     "pushBlockedDescription": "To enable push notifications, open your device settings, find this app, and enable notifications.",
-    "timezone": "Timezone",
-    "timezonePlaceholder": "Select timezone",
-    "timezoneEmpty": "No timezone found.",
     "toggleError": "Unable to update notification settings",
     "categoryHeader": "Category",
     "categories": {
@@ -366,7 +383,8 @@
     "channels": {
       "in_app": "Bell",
       "email": "Email",
-      "push": "Mobile"
+      "push": "Mobile",
+      "desktop": "Desktop"
     },
     "groups": {
       "addressed_to_me": "Addressed to me",
@@ -393,14 +411,14 @@
     },
     "quietHours": {
       "title": "Quiet hours",
-      "description": "Hold email and mobile overnight. The bell still collects, and one summary goes out when the window ends.",
+      "description": "Hold email, mobile and desktop overnight. The bell still collects, and one summary goes out when the window ends.",
       "from": "From",
       "to": "Until"
     },
     "communities": {
       "title": "Per community",
       "description": "One dial each. Set a community to say less without changing anything anywhere else.",
-      "levelLabel": "How much {{guild}} says",
+      "levelLabel": "How much {{community}} says",
       "mutedHelp": "This community says nothing at all — including if somebody names you directly.",
       "levels": {
         "everything": "Everything",
@@ -428,7 +446,7 @@
       "respectPresenceHelp": "If you're already here, the bell has told you. Email waits a few minutes and mobile stays quiet.",
       "pause": {
         "title": "Pause notifications",
-        "description": "Email and mobile stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
+        "description": "Email, mobile and desktop stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
         "active": "Paused until {{until}}",
         "scheduled": "Pausing {{from}} to {{until}}",
         "resume": "Resume",
@@ -443,7 +461,9 @@
         "note": "Password resets and sign-in emails still arrive. Those aren't notifications."
       },
       "saved": "Saved",
-      "saveError": "Unable to update when you hear about things"
+      "saveError": "Unable to update when you hear about things",
+      "zone": "Times are in {{timezone}}.",
+      "changeZone": "Change time zone"
     },
     "weekdays": {
       "1": "Monday",
@@ -453,20 +473,26 @@
       "5": "Friday",
       "6": "Saturday",
       "7": "Sunday"
-    }
+    },
+    "quietTitle": "Do not disturb"
   },
   "dangerZone": {
-    "serverConnection": "Server Connection",
+    "serverConnection": "Server connection",
     "connectedTo": "Currently connected to {{hostname}}.",
     "disconnectDescription": "Log out and disconnect from this server. You can connect to a different server afterward.",
     "disconnectButton": "Disconnect",
-    "deactivateTitle": "Deactivate Account",
+    "deactivateTitle": "Deactivate account",
     "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. Whoever runs this server can reactivate your account later.",
-    "permanentDeleteTitle": "Delete Account",
-    "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
+    "permanentDeleteTitle": "Delete account",
+    "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and files stay but show \"[Deleted User]\".",
     "cannotBeUndone": "Signing in is what stops it.",
-    "deactivateButton": "Deactivate Account",
-    "deleteButton": "Delete Account"
+    "deactivateButton": "Deactivate account",
+    "deleteButton": "Delete account",
+    "title": "Close your account"
+  },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Type",
+    "typeToConfirmSuffix": "to confirm"
   },
   "deleteAccount": {
     "title": "Delete Account",
@@ -487,6 +513,7 @@
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
     "cannotDeactivate": "Cannot deactivate account:",
+    "soleSuperadminBlocker": "You are the only superadmin of {{communityName}}. Make another member superadmin, or delete the community, first.",
     "resolveIssues": "Please resolve these issues before deleting your account.",
     "resolveIssuesDeactivate": "Please resolve these issues before deactivating your account.",
     "eligible": "Your account is eligible for deletion.",
@@ -496,8 +523,6 @@
     "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
-    "typeToConfirmPrefix": "Type",
-    "typeToConfirmSuffix": "to confirm",
     "deactivateAccount": "Deactivate Account",
     "deleteAccountButton": "Delete Account",
     "checking": "Checking…",
@@ -518,9 +543,9 @@
     "saveInterface": "Save interface settings",
     "savingInterface": "Saving…",
     "interfaceSuccess": "Interface settings updated",
-    "chesterPlayground": {
-      "title": "Chester toast playground",
-      "description": "Trigger each toast type to preview its Chester variant and animation.",
+    "yonderPlayground": {
+      "title": "Yonder toast playground",
+      "description": "Trigger each toast type to preview its Yonder variant and animation.",
       "default": {
         "label": "default (idle)",
         "message": "Just a notification"
@@ -584,7 +609,6 @@
   "email": {
     "platformOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
-    "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
     "loadError": "Unable to load email settings.",
     "hostLabel": "Host",
@@ -617,7 +641,7 @@
     "loading": "Loading push notification settings…",
     "loadError": "Unable to load push notification settings.",
     "title": "Firebase Cloud Messaging",
-    "description": "The Firebase project the mobile apps register with, and the server sends push notifications through.",
+    "description": "Optional. Without a service account key, push notifications go through BeyondersStudio's push relay and these fields can stay empty. With one, Android pushes go through your own Firebase project; iPhone pushes always use the relay.",
     "enabledLabel": "Send push notifications",
     "enabledHelp": "The mobile apps pick this up the next time they open. No restart needed.",
     "fields": {
@@ -696,8 +720,8 @@
       "confirmAction": "Withdraw",
       "saved": "Ways in updated.",
       "saveError": "Could not change the ways in.",
-      "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
-      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
+      "communitiesRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
+      "communitiesRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
       "totp": {
         "label": "Enable two-factor authentication",
         "help": "Let people protect their account with a code from an authenticator app. Each person turns it on for themselves; this is whether the server offers it at all."
@@ -762,8 +786,6 @@
     }
   },
   "platformUsers": {
-    "title": "Platform users",
-    "description": "Manage all users across the platform.",
     "loading": "Loading users…",
     "loadError": "Unable to load users.",
     "filterPlaceholder": "Filter by handle…",
@@ -837,6 +859,14 @@
       "avatarRemoved": "Profile picture removed.",
       "avatarConfirmTitle": "Remove this profile picture?",
       "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
+      "apiKeysLabel": "API keys",
+      "apiKeysHelp_one": "{{count}} key still works. Revoking switches it off now; they can make a new one.",
+      "apiKeysHelp_other": "{{count}} keys still work. Revoking switches them off now; they can make new ones.",
+      "apiKeysRevoke": "Revoke",
+      "apiKeysRevoked": "API keys revoked.",
+      "apiKeysConfirmTitle": "Revoke these API keys?",
+      "apiKeysConfirmBody_one": "{{handle}}'s key stops working at once. It stays on their list marked disabled, and they can make a new one.",
+      "apiKeysConfirmBody_other": "All {{count}} of {{handle}}'s keys stop working at once. They stay on their list marked disabled, and they can make new ones.",
       "access": "Access",
       "suspendLabel": "Suspended",
       "suspendHelp": "A suspended account can sign in and read why, and reaches nothing else.",
@@ -868,8 +898,8 @@
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "blockersTitle": "Blockers",
     "blockersDescription": "The following issues must be resolved before this user can be deleted:",
-    "guildBlockerTitle": "Only superadmin of community: {{guildName}}",
-    "guildBlockerDescription": "The account holder can make another member superadmin, or you can break glass into the community and, from its settings, appoint one or delete the community.",
+    "communityBlockerTitle": "Only superadmin of community: {{communityName}}",
+    "communityBlockerDescription": "The account holder can make another member superadmin, or you can break glass into the community and, from its settings, appoint one or delete the community.",
     "checkAgain": "Check again",
     "confirmTitle": "Confirm deletion",
     "confirmDeactivateTitle": "Confirm deactivation",
@@ -888,7 +918,6 @@
     "preferWindowHelp": "The account keeps everything and disappears for everyone else. It is erased at the end of the window unless somebody brings it back."
   },
   "accessGrants": {
-    "title": "Access requests",
     "description": "Request and approve time-bound access to a community you're not a member of.",
     "requestTitle": "Request access",
     "requestDescription": "Ask for temporary, scoped access to a community. Approvers grant it and it auto-expires.",
@@ -908,8 +937,8 @@
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
-    "guildIdLabel": "Community ID",
-    "guildIdPlaceholder": "e.g. 42",
+    "communityIdLabel": "Community ID",
+    "communityIdPlaceholder": "e.g. 42",
     "levelNone": "None",
     "nothingAsked": "Choose content access, settings access, or both.",
     "levelRead": "Read-only",
@@ -955,7 +984,6 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Sign-in, security, branding, email, push notifications, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
@@ -968,14 +996,14 @@
       "integrations": "Integrations"
     }
   },
-  "appServices": {
-    "platformOnly": "Only platform owners can manage app services.",
-    "loading": "Loading app services…",
-    "loadError": "Unable to load app services.",
-    "title": "App services",
-    "description": "The apps this deployment runs. An app's listing says what it is and may do; here you give where it answers and the keys it signs with.",
-    "empty": "No app services yet. An app appears here when its listing arrives, or once you add it.",
-    "addService": "Add app service",
+  "pluginServices": {
+    "platformOnly": "Only platform owners can manage plug-in services.",
+    "loading": "Loading plug-in services…",
+    "loadError": "Unable to load plug-in services.",
+    "title": "Plug-in services",
+    "description": "The plug-ins this deployment runs. A plug-in's listing says what it is and may do; here you give where it answers and the keys it signs with.",
+    "empty": "No plug-in services yet. A plug-in appears here when its listing arrives, or once you add it.",
+    "addService": "Add plug-in service",
     "edit": "Edit",
     "delete": "Delete",
     "cancel": "Cancel",
@@ -986,6 +1014,7 @@
     "notLiveBadge": "Not live",
     "registryBadge": "From the registry",
     "imageSummary": "Container image: {{image}}",
+    "declarativeSummary": "Initiative makes this plug-in's calls itself. It needs no address or keys, only its vendor values.",
     "needsAddress": "Runs as a container. Edit it and give the address where you run it to make it live.",
     "publisherSummary": "Publisher: {{name}}",
     "listingSummary": "Listing:",
@@ -993,68 +1022,97 @@
     "scopeCeilingSummary": "Scopes, from its listing: {{scopes}}",
     "allowedOriginsSummary": "Allowed origins: {{origins}}",
     "disabledBadge": "Disabled",
-    "disabledHelp": "This app is stopped for every community that installed it. Nothing has been deleted.",
+    "disabledHelp": "This plug-in is stopped for every community that installed it. Nothing has been deleted.",
     "publisherDisabledBadge": "Publisher switched off",
-    "publisherDisabledHelp": "Every app from {{name}} is stopped because its publisher is switched off. Nothing has been deleted.",
+    "publisherDisabledHelp": "Every plug-in from {{name}} is stopped because its publisher is switched off. Nothing has been deleted.",
     "noKeysHelp": "Not live until it has signing keys. Edit it to paste a key set or give its address.",
     "mandatoryBadge": "In every community",
     "mandatoryHelp": "Installed into every community automatically. Community admins cannot remove it or turn it off.",
     "keysTitle": "Signing keys",
-    "keysHelp": "The public keys this app signs its access-token assertions with. The app is live only once it has a pasted key set or a key set address. It can have both.",
+    "keysHelp": "The public keys this plug-in signs its access-token assertions with. The plug-in is live only once it has a pasted key set or a key set address. It can have both.",
     "jwksLabel": "Pasted key set (JWKS)",
-    "jwksHelp": "Paste the key set the app publishes. Two entries mean a rotation is in flight. Clearing the box removes it.",
+    "jwksHelp": "Paste the key set the plug-in publishes, or press Connect on a saved plug-in to read it from the plug-in. Two entries mean a rotation is in flight. Clearing the box removes it.",
     "jwksInvalid": "That isn't valid JSON.",
     "jwksUriLabel": "Key set address",
     "jwksUriPlaceholder": "https://github-app.example.com/.well-known/jwks.json",
-    "jwksUriHelp": "Where the app publishes its key set, so a key rotation needs no edit here. It must be https on the base URL's own origin; the server refuses any other address. Clearing the field removes it.",
+    "jwksUriHelp": "Where the plug-in publishes its key set, so a key rotation needs no edit here. It must be https on the base URL's own origin; the server refuses any other address. Clearing the field removes it.",
+    "connect": "Connect",
+    "connectReading": "Reading keys…",
+    "connectHelp": "Read the key set the plug-in serves at its saved base URL, and pin it in place of any key set address once you confirm its fingerprints.",
+    "connectSaveFirst": "Save the new base URL, then connect.",
+    "connectKeysTitle": "Keys the plug-in serves",
+    "connectKeysHelp": "Check each fingerprint against the one the plug-in's container logs when it starts (app key fingerprint: …). Pin them only if they match.",
+    "connectKid": "Key id: {{kid}}",
+    "connectConfirm": "Pin these keys",
+    "connectPinning": "Pinning…",
+    "connectDismiss": "Don't pin",
+    "connected": "Keys pinned. A new key set from the plug-in is used only after you connect again.",
+    "connectError": "Could not read the plug-in's keys.",
     "vendorTitle": "Vendor client",
-    "vendorHelp": "What this app's vendor issued for this server. Initiative uses it to connect communities and members to the vendor. A secret is never shown again once saved; type a new one to replace it.",
+    "vendorHelp": "What this plug-in's vendor issued for this server. Initiative uses it to connect communities and members to the vendor. A secret is never shown again once saved; type a new one to replace it.",
     "vendorSecretSet": "Set. Type to replace it.",
     "vendorEmpty": "Not set",
-    "vendorMissingHelp": "Not live until its vendor client is set. Edit it to fill in the values the app asks for.",
+    "vendorMissingHelp": "Not live until its vendor client is set. Edit it to fill in the values the plug-in asks for.",
     "redirectTitle": "Addresses to register with the vendor",
-    "redirectHelp": "Add these to the vendor's settings for this client, so it can send people back here.",
+    "redirectHelp": "Add these to the vendor's settings for this client. It sends people back to the callback and setup addresses, and its webhooks to the webhook address.",
     "callbackUrlLabel": "Callback address",
     "setupUrlLabel": "Setup address",
-    "createTitle": "Add app service",
-    "editTitle": "Edit app service",
-    "createDescription": "Give an app its address and keys before its listing arrives. What it is and may do comes from its listing. It goes live once it has signing keys.",
-    "editDescription": "Changes apply to every community that installed this app.",
-    "publicIdLabel": "App identifier",
-    "publicIdPlaceholder": "publisher.app-name",
-    "publicIdHelp": "Written as publisher.app-name, in lowercase. The part before the dot is the app's publisher.",
+    "webhookUrlLabel": "Webhook address",
+    "composeLabel": "Compose service",
+    "composeCopy": "Copy",
+    "composeCopied": "Compose service copied.",
+    "composeHelp": "Add this service to the docker-compose.yml that runs Initiative, then run docker compose up -d. The base URL below is where it answers on the Compose network.",
+    "vendorSetupTitle": "Create the GitHub App",
+    "vendorSetupHelp": "GitHub opens with this plug-in's permissions, events and Initiative's addresses filled in. Confirm it there, and GitHub sends the new app's values back here, so you type and copy none of them.",
+    "vendorSetupOrganizationLabel": "GitHub organization",
+    "vendorSetupOrganizationPlaceholder": "Optional",
+    "vendorSetupOrganizationHelp": "The organization that owns the new app. Leave blank to create it under your own GitHub account.",
+    "vendorSetupCreate": "Create the GitHub App",
+    "vendorSetupStarting": "Opening GitHub…",
+    "vendorSetupError": "Could not start the setup at GitHub.",
+    "vendorSetupFinishing": "Saving the GitHub App's values…",
+    "vendorSetupDone": "GitHub App created. Its values are saved.",
+    "vendorSetupFailed": "Could not save the GitHub App's values.",
+    "vendorSetupBack": "Back to plug-in services",
+    "createTitle": "Add plug-in service",
+    "editTitle": "Edit plug-in service",
+    "createDescription": "Give a plug-in its address and keys before its listing arrives. What it is and may do comes from its listing. It goes live once it has signing keys.",
+    "editDescription": "Changes apply to every community that installed this plug-in.",
+    "publicIdLabel": "Plug-in identifier",
+    "publicIdPlaceholder": "publisher.plugin-name",
+    "publicIdHelp": "Written as publisher.plugin-name, in lowercase. The part before the dot is the plug-in's publisher.",
     "publicIdHelpEdit": "The identifier cannot be changed once the registration exists.",
     "baseUrlLabel": "Base URL",
     "baseUrlPlaceholder": "http://initiative-github:8080",
-    "baseUrlHelp": "Where Initiative's server calls the app. This may be a private address inside your own network.",
+    "baseUrlHelp": "Where Initiative's server calls the plug-in. This may be a private address inside your own network.",
     "embedOriginLabel": "Browser address",
     "embedOriginPlaceholder": "https://github-app.example.com",
-    "embedOriginHelp": "Where a member's browser loads this app's embedded surfaces and connection pages. Leave blank when the app answers at the base URL for both.",
+    "embedOriginHelp": "Where a member's browser loads this plug-in's embedded surfaces and connection pages. Leave blank when the plug-in answers at the base URL for both.",
     "embedOriginSummary": "Browser: {{origin}}",
     "allowedOriginsLabel": "Allowed origins",
     "allowedOriginsPlaceholder": "https://app.example.com",
     "allowedOriginsHelp": "One per line. Leave blank to allow only the browser address's own origin.",
     "allowedOriginsHelpEdit": "One per line. Leave blank to keep the current origins.",
     "mandatoryLabel": "Install in every community",
-    "created": "App service registered.",
-    "saved": "App service updated.",
-    "deleted": "App service deleted.",
+    "created": "Plug-in service registered.",
+    "saved": "Plug-in service updated.",
+    "deleted": "Plug-in service deleted.",
     "enabledToast": "{{name}} is enabled again.",
     "disabledToast": "{{name}} is disabled.",
-    "saveError": "Could not save the app service.",
-    "deleteError": "Could not delete the app service.",
-    "toggleError": "Could not change the app service.",
+    "saveError": "Could not save the plug-in service.",
+    "deleteError": "Could not delete the plug-in service.",
+    "toggleError": "Could not change the plug-in service.",
     "disableTitle": "Disable {{name}}?",
-    "disableDescription": "Every community that installed this app stops reaching it immediately — data, configuration, events, and embedded pages all refuse. Nothing is deleted, and you can turn it back on at any time.",
-    "disableConfirm": "Disable app service",
+    "disableDescription": "Every community that installed this plug-in stops reaching it immediately — data, configuration, events, and embedded pages all refuse. Nothing is deleted, and you can turn it back on at any time.",
+    "disableConfirm": "Disable plug-in service",
     "deleteTitle": "Delete {{name}}?",
-    "deleteDescription": "The registration is removed for good. Every community that installed this app stops reaching it, and adding it back means registering it again.",
-    "deleteConfirmLabel": "Type the app identifier to confirm"
+    "deleteDescription": "The registration is removed for good. Every community that installed this plug-in stops reaching it, and adding it back means registering it again.",
+    "deleteConfirmLabel": "Type the plug-in identifier to confirm"
   },
-  "guilds": {
+  "communities": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
-    "platformOnly": "You need the platform owner role to manage community limits.",
+    "platformOnly": "You need the operator or owner role to manage community limits.",
     "loading": "Loading communities…",
     "loadError": "Could not load communities. Please try again.",
     "filterByName": "Filter communities by name",
@@ -1085,7 +1143,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Community",
+      "community": "Community",
       "users": "Users",
       "storageLimit": "Storage limit",
       "status": "Status",
@@ -1148,7 +1206,7 @@
       "open": "Restore community",
       "purgesOn": "Deleted. Everything in it is destroyed on {{date}}.",
       "purgesSoon": "Deleted. Everything in it is destroyed when the retention window ends.",
-      "retained": "Until then nothing has been removed — restoring brings the community back exactly as it was, apart from its app connections.",
+      "retained": "Until then nothing has been removed — restoring brings the community back exactly as it was, apart from its plug-in connections.",
       "title": "Restore {{name}}",
       "seatDescription": "Nobody is left who can run this community. Choose who takes it over.",
       "seatLabel": "Who runs it",
@@ -1157,7 +1215,7 @@
       "seatHelp": "They become its superadmin: the seat that appoints others, reaches billing and sets sign-in.",
       "statusDescription": "Choose what the community comes back as.",
       "statusLabel": "Comes back as",
-      "appsNote": "Its app connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
+      "pluginsNote": "Its plug-in connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
       "confirm": "Restore",
       "done": "Restored {{name}}.",
       "error": "Could not restore the community. Please try again."
@@ -1165,17 +1223,16 @@
   },
   "operatorDashboard": {
     "title": "Operator dashboard",
-    "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",
       "access": "Access",
-      "guilds": "Communities",
+      "communities": "Communities",
       "placement": "Sign-in placement",
-      "announcements": "Announcements"
+      "announcements": "Announcements",
+      "billing": "Billing"
     }
   },
   "providerPlacement": {
-    "title": "Sign-in placement",
     "description": "Place the people a sign-in provider signs in — by the group or directory it reports — in a community, and in an initiative there if you name one.",
     "loading": "Loading placement rules…",
     "loadError": "Could not load placement rules. Please try again.",
@@ -1248,7 +1305,7 @@
     "loading": "Loading storage settings…",
     "loadError": "Failed to load storage settings.",
     "title": "Object storage",
-    "description": "Choose where uploaded files (documents, attachments) are stored. Defaults to the local filesystem; switch to an S3-compatible store for scalable or shared deployments.",
+    "description": "Choose where uploaded files and attachments are stored. Defaults to the local filesystem; switch to an S3-compatible store for scalable or shared deployments.",
     "backendLabel": "Storage backend",
     "backendLocal": "Local filesystem",
     "backendS3": "S3-compatible",
@@ -1292,7 +1349,7 @@
       "failed": "Failed"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Member sign-in link",
       "description": "Share this link with members — it offers this community's sign-in providers and brings them straight into the community.",
@@ -1323,15 +1380,6 @@
       "requirePasskey": "Also require a passkey",
       "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out.",
       "factorRequiredByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add."
-    },
-    "apiAccess": {
-      "title": "API access",
-      "description": "Whether a personal API key may be used against this community.",
-      "allowLabel": "Allow personal API keys",
-      "allowHelp": "Members can create a key and use it here — for scripts, integrations and MCP clients.",
-      "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
-      "saved": "API access saved",
-      "error": "Could not save API access"
     },
     "sessionLimit": {
       "title": "Session length",
@@ -1576,7 +1624,7 @@
     "newTitle": "New connection",
     "editTitle": "Edit connection",
     "platformDialogDescription": "Every community can use this connection.",
-    "guildDialogDescription": "Members of this community can use this connection.",
+    "communityDialogDescription": "Members of this community can use this connection.",
     "labelLabel": "Label",
     "labelPlaceholder": "e.g. Team OpenAI",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1599,10 +1647,9 @@
     "allowMemberKeysDescription": "Members can attach a personal API key to this connection."
   },
   "memberAI": {
-    "title": "My AI",
     "description": "See every AI connection available to you across your communities. Add your own API key where allowed and pick the one you use.",
     "noneAvailable": "No AI connections are available to you yet.",
-    "sharedKeyGuild": "Uses a shared key set by your community's admins.",
+    "sharedKeyCommunity": "Uses a shared key set by your community's admins.",
     "sharedKeyPlatform": "Uses a shared key set by whoever runs this server.",
     "selected": "In use",
     "requiresKey": "Needs your key",
@@ -1684,12 +1731,9 @@
     }
   },
   "account": {
-    "identityTitle": "How you sign in",
-    "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
     "passwordsOffDescription": "Password sign-in is turned off on this server, so there is no password to set or change here.",
-    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
     "setPasswordTitle": "Set a password",
     "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
     "removePassword": "Remove your password",
@@ -1698,7 +1742,9 @@
     "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If you hold fewer than three codes, you'll be shown a fresh set — save them.",
     "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again. Any codes you held before have stopped working.",
     "passwordRemoved": "Your password has been removed.",
-    "removePasswordError": "Could not remove your password."
+    "removePasswordError": "Could not remove your password.",
+    "passwordSaved": "Password saved",
+    "changePassword": "Change password"
   },
   "privacy": {
     "dm": {
@@ -1718,7 +1764,6 @@
       "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
     },
     "receipts": {
-      "title": "Read receipts",
       "label": "Tell people when their messages reach you",
       "help": "They see when a message arrived on one of your devices and when you read it. Switch this off and they see neither — the same as somebody who has not opened the app. You still see theirs."
     },
@@ -1866,7 +1911,6 @@
     "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
   },
   "platformSecurity": {
-    "title": "Security",
     "description": "How long anybody may stay signed in, the captcha asked of anybody new, and what a notification may leave the app carrying."
   },
   "notificationDelivery": {
@@ -1875,9 +1919,9 @@
     "saved": "Notification settings saved",
     "error": "Could not save notification settings",
     "push": {
-      "label": "Mobile notifications",
-      "onHelp": "Notifications reach phones through Apple and Google.",
-      "offHelp": "This server sends nothing to a phone and stores no device registrations."
+      "label": "Phone and desktop notifications",
+      "onHelp": "Notifications reach phones through Apple and Google, and the desktop app directly.",
+      "offHelp": "This server sends nothing to a phone or the desktop app, and stores no device registrations."
     },
     "email": {
       "label": "Email notifications",
@@ -1890,16 +1934,16 @@
       "offHelp": "A notification that leaves the app names what it is about: who acted, and on what."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Notifications that leave the app",
     "description": "What this community's notifications carry once they leave. The server answers the same three questions for everybody, and the stricter answer applies.",
     "saved": "Notification settings saved",
     "error": "Could not save notification settings",
     "push": {
-      "label": "Mobile notifications",
-      "onHelp": "This community's notifications reach members' phones.",
-      "offHelp": "Nothing about this community is sent to a phone. Members still get the bell, and email if it is on.",
-      "platformHelp": "This server sends nothing to a phone, so there is nothing here to decide."
+      "label": "Phone and desktop notifications",
+      "onHelp": "This community's notifications reach members' phones and desktop apps.",
+      "offHelp": "Nothing about this community is sent to a phone or the desktop app. Members still get the bell, and email if it is on.",
+      "platformHelp": "This server sends nothing to a phone or the desktop app, so there is nothing here to decide."
     },
     "email": {
       "label": "Email notifications",
@@ -1913,5 +1957,17 @@
       "offHelp": "Notifications about this community name what they are about once they leave the app.",
       "platformHelp": "This server hides notification details everywhere, so this community is already covered."
     }
+  },
+  "billingInsights": {
+    "title": "Billing insights",
+    "description": "How the business is doing, across every community: revenue, subscribers and cancellations.",
+    "fromPaddle": "Revenue, recurring revenue, refunds, chargebacks and subscriber counts come straight from the payment processor, as it computed them.",
+    "fromBilling": "Communities by plan, trials, overdue payments and cancellations come from the billing service's own records.",
+    "noCommunity": "It opens no community and needs no access grant: nothing on the page names a community, a customer or a person.",
+    "open": "Open billing insights",
+    "opening": "Opening…",
+    "openError": "Billing insights could not be opened.",
+    "notConfigured": "This deployment has no billing service to open, or no handoff signing key.",
+    "platformOnly": "Billing insights are for platform operators and owners."
   }
 }

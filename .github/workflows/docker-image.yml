@@ -31,19 +31,16 @@ on:
         type: string
         default: ""
     outputs:
+      image:
+        description: The image repository pushed to (ghcr.io/<owner>/initiative), without a tag.
+        value: ${{ jobs.merge.outputs.image }}
       digest:
         description: The digest of the multi-arch manifest pushed, to name exactly this build.
         value: ${{ jobs.merge.outputs.digest }}
-    secrets:
-      DOCKERHUB_USERNAME:
-        required: false
-      DOCKERHUB_TOKEN:
-        required: false
-      # OTA_SIGNING_KEY comes from `signing-environment`, which reaches this
-      # workflow only when the caller passes `secrets: inherit`.
-
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
+    # OTA_SIGNING_KEY comes from `signing-environment`, which reaches this
+    # workflow only when the caller passes `secrets: inherit`. The registry is
+    # GHCR, pushed to with the job's GITHUB_TOKEN: the caller grants
+    # `packages: write`.
 
 jobs:
   build:
@@ -59,6 +56,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      packages: write
     # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
     environment: ${{ inputs.signing-environment }}
     steps:
@@ -71,27 +69,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check for required secrets
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
-            echo "::error::Please configure these secrets in your repository settings"
-            echo "::error::See .github/DOCKER_SETUP.md for instructions"
-            exit 1
-          fi
-          echo "Required secrets are configured"
+      - name: Name the image
+        # GHCR repository names are lowercase; the owner's login may not be.
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (labels) for Docker
         id: meta
@@ -174,11 +164,21 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      packages: write
       # The signature's certificate names this workflow and the ref it ran on.
       id-token: write
     outputs:
+      image: ${{ steps.name.outputs.image }}
       digest: ${{ steps.inspect.outputs.digest }}
     steps:
+      - name: Name the image
+        id: name
+        # GHCR repository names are lowercase; the owner's login may not be.
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative"
+          echo "IMAGE_NAME=$image" >> "$GITHUB_ENV"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
       - name: Download digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -189,11 +189,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags) for Docker
         id: meta

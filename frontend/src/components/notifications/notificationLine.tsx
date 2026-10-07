@@ -5,48 +5,58 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
-import { Capacitor } from "@capacitor/core";
 
-import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
+import type { NavigateFn } from "@tanstack/react-router";
+
+import { type NotificationRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { communityPath } from "@/lib/communityUrl";
 import {
   entityRefTypeFor,
   isSearchEntityType,
-  normalizeAppTarget,
   normalizeLegacyTarget,
+  normalizePluginTarget,
 } from "@/lib/entityResolver";
+import { downloadExportArtifact } from "@/lib/exportDownload";
 import { formatDate } from "@/lib/formatDate";
-import { guildPath } from "@/lib/guildUrl";
-import { entityRefRoute } from "@/lib/tools";
+import { storeSellingNow } from "@/lib/storeSelling";
+import { entityRefRoute, toolKebabSingular } from "@/lib/tools";
+import type { TranslateFn } from "@/types/i18n";
 
-// Build guild-scoped URL directly. Notification rows persist their
+/** Whether plan lines may ask the reader to choose a plan here. Not until a
+ *  phone's store has answered (`@/lib/storeSelling`). */
+const sellsHere = (): boolean => storeSellingNow() === true;
+
+// Build community-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
 // mapped onto the `/go` resolver on the way out.
-const buildGuildPath = (guildId: number, targetPath: string): string => {
+const buildCommunityPath = (communityId: number, targetPath: string): string => {
   const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  return guildPath(guildId, normalizeLegacyTarget(normalized));
+  return communityPath(communityId, normalizeLegacyTarget(normalized));
 };
 
 export const resolveSmartLink = (notification: NotificationRead): string | null => {
   const data = notification.data || {};
-  const guildValue = data.guild_id;
+  const communityValue = data.community_id;
   const targetValue = data.target_path;
 
-  let guildId: number | null = null;
-  if (typeof guildValue === "number") {
-    guildId = guildValue;
-  } else if (typeof guildValue === "string") {
-    const parsed = Number(guildValue);
-    guildId = Number.isFinite(parsed) ? parsed : null;
+  let communityId: number | null = null;
+  if (typeof communityValue === "number") {
+    communityId = communityValue;
+  } else if (typeof communityValue === "string") {
+    const parsed = Number(communityValue);
+    communityId = Number.isFinite(parsed) ? parsed : null;
   }
 
   const targetPath = typeof targetValue === "string" ? targetValue : null;
   if (targetPath) {
-    // A `target_path` with a guild belongs inside it. One without belongs to
-    // the app: an account notice (`/profile/account`) or the cross-guild task
+    // A `target_path` with a community belongs inside it. One without belongs to
+    // the app: an account notice (`/profile/account`) or the cross-community task
     // list is about the person rather than any one community, so the server
-    // sends no `guild_id` with those. The mobile tap handler has always
+    // sends no `community_id` with those. The mobile tap handler has always
     // treated a bare `target_path` as an app-level route; this matches it.
-    return guildId !== null ? buildGuildPath(guildId, targetPath) : normalizeAppTarget(targetPath);
+    return communityId !== null
+      ? buildCommunityPath(communityId, targetPath)
+      : normalizePluginTarget(targetPath);
   }
 
   if (typeof data.smart_link === "string" && data.smart_link) {
@@ -91,24 +101,26 @@ export const notificationLink = (notification: NotificationRead): string | null 
         return entityRefRoute("task", taskId);
       }
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     }
     case "initiative_added":
-      // The initiative list is a section of the guild home now.
+      // The initiative list is a section of the community home now.
       return "/";
     case "project_added":
       if (typeof data.project_id === "number") {
-        return entityRefRoute("project", data.project_id);
+        return entityRefRoute(toolKebabSingular(Tool.project), data.project_id);
       }
       return null;
     case "import_ready":
     case "import_failed": {
-      // The report lives on the guild's Data settings tab (the jobs table's
-      // "View report"). Absolute guild path — the notification names its guild.
-      const guildId = Number(data.guild_id);
-      return Number.isFinite(guildId) ? buildGuildPath(guildId, "/settings/data") : null;
+      // The report lives on the community's Data settings tab (the jobs table's
+      // "View report"). Absolute community path — the notification names its community.
+      const communityId = Number(data.community_id);
+      return Number.isFinite(communityId)
+        ? buildCommunityPath(communityId, "/settings/data")
+        : null;
     }
     case "user_pending_approval":
       return "/settings";
@@ -127,13 +139,10 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
-      if (typeof data.document_id === "number") {
-        return entityRefRoute("document", data.document_id);
-      }
       return entityRefFromData(data);
     case "post_published":
       if (typeof data.post_id === "number") {
-        return entityRefRoute("post", data.post_id);
+        return entityRefRoute(toolKebabSingular(Tool.post), data.post_id);
       }
       return null;
     case "access_grant_requested":
@@ -141,7 +150,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "access_grant_denied":
     case "access_grant_revoked":
       // The Access tab serves both requesters (their requests) and approvers
-      // (the queue). It's a platform route, not guild-scoped.
+      // (the queue). It's a platform route, not community-scoped.
       return "/settings/operator/access";
     case "event_invitation":
     case "event_updated":
@@ -266,7 +275,7 @@ export const notificationText = (
         email: data.email ?? t("notifications.plain.user"),
       });
     case "mention":
-      // A comment, a task's description, or a document.
+      // A comment, a task's description, or a file.
       if (data.comment_id) {
         return t("notifications.mentionComment", {
           mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
@@ -279,11 +288,9 @@ export const notificationText = (
           taskTitle: data.task_title ?? t("notifications.plain.item"),
         });
       }
-      return t("notifications.mentionDocument", {
+      return t("notifications.mentionFile", {
         mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
-        // Notifications stored before the rename still carry `document_title`.
-        documentTitle:
-          data.document_name ?? data.document_title ?? t("notifications.plain.document"),
+        fileTitle: data.entity_name ?? t("notifications.plain.file"),
       });
     case "comment_on_task": {
       const { name, others, count } = commentSummary(data);
@@ -365,22 +372,26 @@ export const notificationText = (
     case "access_grant_requested": {
       const level = accessLevelLabel(data.access_level, t);
       const requester = data.requester_name ?? t("notifications.someone");
-      const guild = data.guild_name ?? "a guild";
+      const community = data.community_name ?? "a community";
       return level
-        ? t("notifications.accessGrantRequested", { requester, level, guild })
-        : t("notifications.accessGrantRequestedGeneric", { requester, guild });
+        ? t("notifications.accessGrantRequested", { requester, level, community })
+        : t("notifications.accessGrantRequestedGeneric", { requester, community });
     }
     case "access_grant_approved": {
       const level = accessLevelLabel(data.access_level, t);
-      const guild = data.guild_name ?? "a guild";
+      const community = data.community_name ?? "a community";
       return level
-        ? t("notifications.accessGrantApproved", { level, guild })
-        : t("notifications.accessGrantApprovedGeneric", { guild });
+        ? t("notifications.accessGrantApproved", { level, community })
+        : t("notifications.accessGrantApprovedGeneric", { community });
     }
     case "access_grant_denied":
-      return t("notifications.accessGrantDenied", { guild: data.guild_name ?? "a guild" });
+      return t("notifications.accessGrantDenied", {
+        community: data.community_name ?? "a community",
+      });
     case "access_grant_revoked":
-      return t("notifications.accessGrantRevoked", { guild: data.guild_name ?? "a guild" });
+      return t("notifications.accessGrantRevoked", {
+        community: data.community_name ?? "a community",
+      });
     case "event_invitation":
       return t("notifications.eventInvitation", {
         organizer: data.organizer_name ?? t("notifications.someone"),
@@ -447,55 +458,66 @@ export const notificationText = (
         : t("notifications.accountSuspended");
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
-    case "app_consent_requested":
-      // The label is the app's own words, quoted as such by the string.
-      return t("notifications.appConsentRequested", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_consent_requested":
+      // The label is the plug-in's own words, quoted as such by the string.
+      return t("notifications.pluginConsentRequested", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         label: typeof data.label === "string" ? data.label : "",
       });
-    case "app_update_pending":
-      return t("notifications.appUpdatePending", {
-        app: typeof data.app_name === "string" ? data.app_name : "",
+    case "plugin_update_pending":
+      return t("notifications.pluginUpdatePending", {
+        plugin: typeof data.plugin_name === "string" ? data.plugin_name : "",
         version: typeof data.version === "string" ? data.version : "",
       });
-    case "guild_on_hold": {
+    case "community_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
       // The day it is deleted, where this deployment deletes a held community.
       const date = formatDate(data.delete_on);
       const contact = typeof data.contact === "string" ? data.contact.trim() : "";
       if (date) {
         return contact
-          ? t("notifications.guildOnHoldDeletingWithContact", { community, date, contact })
-          : t("notifications.guildOnHoldDeleting", { community, date });
+          ? t("notifications.communityOnHoldDeletingWithContact", { community, date, contact })
+          : t("notifications.communityOnHoldDeleting", { community, date });
       }
       return contact
-        ? t("notifications.guildOnHoldWithContact", { community, contact })
-        : t("notifications.guildOnHold", { community });
+        ? t("notifications.communityOnHoldWithContact", { community, contact })
+        : t("notifications.communityOnHold", { community });
     }
-    // The plan lines ask the reader to choose a plan, which the phone app may
-    // not; there each says only what happens to the community.
-    case "guild_trial_ending":
+    // The plan lines ask the reader to choose a plan, which a device that may
+    // not sell cannot offer; there each says only what happens to the community.
+    case "community_trial_ending":
       return t(
-        Capacitor.isNativePlatform()
-          ? "notifications.guildTrialEndingInApp"
-          : "notifications.guildTrialEnding",
+        !sellsHere()
+          ? "notifications.communityTrialEndingInApp"
+          : "notifications.communityTrialEnding",
         {
           community: typeof data.community === "string" ? data.community : "",
           date: formatDate(data.trial_ends_on),
         }
       );
-    case "guild_trial_ended":
+    case "community_trial_ended":
       return t(
-        Capacitor.isNativePlatform()
-          ? "notifications.guildTrialEndedInApp"
-          : "notifications.guildTrialEnded",
+        !sellsHere()
+          ? "notifications.communityTrialEndedInApp"
+          : "notifications.communityTrialEnded",
         { community: typeof data.community === "string" ? data.community : "" }
       );
-    case "guild_welcome":
+    case "ticket_updated": {
+      const subject = typeof data.subject === "string" && data.subject ? data.subject : null;
+      const state = typeof data.state === "string" ? data.state : "";
+      // A reply is the news where there is one; the state says the rest.
+      const key = data.replied
+        ? "notifications.ticketReplied"
+        : state === "waiting_on_you"
+          ? "notifications.ticketWaiting"
+          : state === "closed"
+            ? "notifications.ticketClosed"
+            : "notifications.ticketMoving";
+      return t(key, { subject: subject ?? t("notifications.ticketUnnamed") });
+    }
+    case "community_welcome":
       return t(
-        Capacitor.isNativePlatform()
-          ? "notifications.guildWelcomeInApp"
-          : "notifications.guildWelcome",
+        !sellsHere() ? "notifications.communityWelcomeInApp" : "notifications.communityWelcome",
         { community: typeof data.community === "string" ? data.community : "" }
       );
     default:
@@ -505,22 +527,68 @@ export const notificationText = (
 
 /** Export artifacts are fetched, not navigated to — pull the ids the download
  * call needs, or null when the payload is malformed. */
-export const exportDownloadTarget = (
+const exportDownloadTarget = (
   notification: NotificationRead
-): { guildId: number; jobId: number; source: string; format: string } | null => {
+): { communityId: number; jobId: number; source: string; format: string } | null => {
   if (notification.type !== "export_ready") {
     return null;
   }
   const data = notification.data || {};
-  const guildId = Number(data.guild_id);
+  const communityId = Number(data.community_id);
   const jobId = Number(data.export_job_id);
-  if (!Number.isFinite(guildId) || !Number.isFinite(jobId)) {
+  if (!Number.isFinite(communityId) || !Number.isFinite(jobId)) {
     return null;
   }
   return {
-    guildId,
+    communityId,
     jobId,
     source: typeof data.source === "string" ? data.source : "tasks",
     format: typeof data.format === "string" ? data.format : "pdf",
   };
+};
+
+/**
+ * Open a notification: mark it read, then fetch a finished export or go to
+ * the line's destination. Returns whether it led anywhere.
+ *
+ * The bell, the inbox and the desktop app's system notifications all open a
+ * line through this. `t` must have the `exports` namespace loaded, for the
+ * download's toasts.
+ */
+export const openNotification = (
+  notification: NotificationRead,
+  {
+    markRead,
+    navigate,
+    t,
+  }: {
+    markRead: (id: number) => void;
+    navigate: NavigateFn;
+    t: TranslateFn;
+  }
+): boolean => {
+  if (!notification.read_at) {
+    markRead(notification.id);
+  }
+  // A finished export is fetched, not navigated to: the artifact lives behind
+  // the job-gated download endpoint, so opening it IS the download.
+  const exportTarget = exportDownloadTarget(notification);
+  if (exportTarget) {
+    void downloadExportArtifact(
+      exportTarget.communityId,
+      exportTarget.jobId,
+      t,
+      exportTarget.source,
+      exportTarget.format
+    );
+    return true;
+  }
+  const target = notificationLink(notification);
+  if (!target) {
+    return false;
+  }
+  // A target carrying a query string (a plug-in's consent screen opens from
+  // `?plugin=`) goes as an href, so the query stays search rather than path.
+  void navigate(target.includes("?") ? { href: target } : { to: target });
+  return true;
 };

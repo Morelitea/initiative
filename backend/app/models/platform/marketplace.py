@@ -9,7 +9,7 @@ Guild-schema serials restart per guild, so a shared surface cannot key anything
 off a local id. `uid` is the catalog's answer: a publisher-assigned, immutable
 14-character code that means the same listing on every deployment carrying that
 catalog. Instances need no uid — one is already addressable as
-`/c/{guild_id}/dashboards/{id}` — they just store `listing_uid` to point back at
+`/c/{community_id}/dashboards/{id}` — they just store `listing_uid` to point back at
 where they came from, which is what keeps provenance across an export/import.
 
 Writes happen on the system-engine path only (boot seeding, and later the
@@ -121,15 +121,15 @@ class MarketplaceListing(SQLModel, table=True):
     installs_count: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )
-    # Set on a dashboard listing an app ships with itself; NULL on anything
+    # Set on a dashboard listing a plug-in ships with itself; NULL on anything
     # published on its own.
     #
     # A bundled dashboard is an ordinary listing in every other respect — same
     # kind, same uid rules, installed by the same call — because a dashboard
-    # somebody publishes to share and a dashboard that arrives with an app are
+    # somebody publishes to share and a dashboard that arrives with a plug-in are
     # the same thing to the guild installing it. This column carries the two
-    # ways they differ: it is offered only to guilds that have that app, and it
-    # is published and withdrawn with the app rather than on its own.
+    # ways they differ: it is offered only to guilds that have that plug-in, and it
+    # is published and withdrawn with the plug-in rather than on its own.
     #
     # The uid rather than a foreign key. Both rows come from one manifest, and a
     # referential cascade here would be a second mechanism for a lifecycle the
@@ -221,6 +221,13 @@ class MarketplaceListingVersion(SQLModel, table=True):
     # app is hidden from browse and refused on upgrade, rather than installing
     # something that cannot render.
     min_app_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+    # The oldest plug-in API contract (``MAJOR.MINOR``) the version needs,
+    # compared against the contract this deployment serves (the plug-in SDK
+    # version it vendors). A version this deployment cannot run is refused on
+    # install and upgrade. NULL runs on any contract.
+    min_plugin_api: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
     published_at: datetime = Field(

@@ -31,6 +31,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
@@ -39,13 +40,13 @@ from typing import (
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from pydantic_core import PydanticCustomError
-from sqlalchemy import exists, func, insert, literal, true
+from sqlalchemy import Integer, column, exists, func, insert, literal, true, values
 from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import current_install_boundary
-from app.core.messages import AppMessages, PropertyMessages, QueryMessages
+from app.core.messages import PluginMessages, PropertyMessages, QueryMessages
 from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
@@ -428,7 +429,7 @@ async def set_values(
     *,
     initiative_id: Optional[int],
 ) -> None:
-    """The whole write a person or an app makes: resolve an app's person
+    """The whole write a person or a plug-in makes: resolve a plug-in's person
     references, replace the values, mark the row changed, and let a target
     whose own shape reacts (a repeating event) do so. Authorization is the
     caller's."""
@@ -491,33 +492,39 @@ async def _write_in_place(
 
 
 async def copy_values(
-    session: AsyncSession,
-    source: Any,
-    destination: Any,
+    session: AsyncSession, model: type[SQLModel], copies: Mapping[int, int]
 ) -> None:
-    """Give ``destination`` the values ``source`` holds, replacing its own.
+    """Give each copy the values its source holds (``{source_id: copy_id}``,
+    rows of ``model``), replacing its own. Two statements however many rows.
 
-    For a duplicate or an occurrence: the same definitions apply, so the two
-    rows must share an initiative — a caller copying across initiatives copies
+    For a duplicate or an occurrence: the same definitions apply, so each pair
+    must share an initiative — a caller copying across initiatives copies
     nothing instead.
     """
-    src, dst = link_for(source), link_for(destination)
-    # The destination's pending changes first (a series' override takes its
-    # calendar just before), so its values are held to where it now sits.
+    if not copies:
+        return
+    target = link_for(model).target
+    # The copies' pending changes first (a series' override takes its calendar
+    # just before), so their values are held to where they now sit.
     await session.flush()
-    await session.exec(delete(PropertyValue).where(_of(dst.target, [destination.id])))
+    await session.exec(delete(PropertyValue).where(_of(target, copies.values())))
+    pairs = values(
+        column("source_id", Integer), column("copy_id", Integer), name="pairs"
+    ).data(list(copies.items()))
     columns = ("property_id", *VALUE_COLUMNS)
     now = datetime.now(timezone.utc)
     await session.exec(
         insert(PropertyValue).from_select(
             ["entity_type", "entity_id", *columns, "created_at", "updated_at"],
             select(
-                literal(dst.target),
-                literal(destination.id),
+                literal(target),
+                pairs.c.copy_id,
                 *(getattr(PropertyValue, c) for c in columns),
                 literal(now),
                 literal(now),
-            ).where(_of(src.target, [source.id])),
+            )
+            .join(pairs, PropertyValue.entity_id == pairs.c.source_id)
+            .where(_of(target, copies.keys())),
         )
     )
 
@@ -538,9 +545,9 @@ async def property_values_by_row_id(
     """``values`` with each person a ``user_reference`` value names as a row
     id.
 
-    Unchanged for a person. An installed app names a person by the reference
+    Unchanged for a person. An installed plug-in names a person by the reference
     it was given for them, which is resolved here the way a ``PersonId`` field
-    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``). Only
+    is; anything else in that place is a 422 (``PLUGIN_REFERENCE_UNKNOWN``). Only
     a person-valued property's value is read this way, since which values
     name a person depends on each value's definition.
     """
@@ -563,7 +570,7 @@ async def property_values_by_row_id(
             except PydanticCustomError:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=AppMessages.REFERENCE_UNKNOWN,
+                    detail=PluginMessages.REFERENCE_UNKNOWN,
                 )
             entry = entry.model_copy(update={"value": row_id})
         resolved.append(entry)
@@ -603,13 +610,12 @@ def _rehydrate_value(
         if user is None:
             return {"id": row.value_user_id} if row.value_user_id else None
         # The same person shape the rest of the API ships. ``value_user`` is
-        # the guild projection, so its name is already whatever this guild
-        # renders.
+        # the guild projection, so its name is the one set in this guild.
         return {
             "id": user.id,
             "username": user.username,
             "discriminator": user.discriminator,
-            "full_name": user.full_name,
+            "display_name": user.display_name,
             "avatar_url": user.avatar_url,
         }
     return None  # pragma: no cover
@@ -1097,7 +1103,7 @@ async def property_filter_clauses(
 
     The one reading of the param, for every list and every view of one (a
     tool's list, the event list, the posts timeline). A filter on a
-    person-valued property takes row ids, which an installed app does not
+    person-valued property takes row ids, which an installed plug-in does not
     hold, so it is left to people (``names_people``), as the task list does.
     """
     from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles

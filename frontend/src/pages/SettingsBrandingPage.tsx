@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 export const SettingsBrandingPage = () => {
@@ -67,7 +67,7 @@ export const SettingsBrandingPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("branding.colorsTitle")}</CardTitle>
           <CardDescription>{t("branding.colorsDescription")}</CardDescription>
@@ -119,7 +119,7 @@ export const SettingsBrandingPage = () => {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("branding.cookieConsent.title")}</CardTitle>
           <CardDescription>{t("branding.cookieConsent.description")}</CardDescription>
@@ -145,108 +145,108 @@ export const SettingsBrandingPage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("branding.chesterPlayground.title")}</CardTitle>
-          <CardDescription>{t("branding.chesterPlayground.description")}</CardDescription>
+          <CardTitle>{t("branding.yonderPlayground.title")}</CardTitle>
+          <CardDescription>{t("branding.yonderPlayground.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast(t("branding.chesterPlayground.default.message"))}
+              onClick={() => toast(t("branding.yonderPlayground.default.message"))}
             >
-              {t("branding.chesterPlayground.default.label")}
+              {t("branding.yonderPlayground.default.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.success(t("branding.chesterPlayground.success.message"))}
+              onClick={() => toast.success(t("branding.yonderPlayground.success.message"))}
             >
-              {t("branding.chesterPlayground.success.label")}
+              {t("branding.yonderPlayground.success.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.error(t("branding.chesterPlayground.error.message"))}
+              onClick={() => toast.error(t("branding.yonderPlayground.error.message"))}
             >
-              {t("branding.chesterPlayground.error.label")}
+              {t("branding.yonderPlayground.error.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.warning(t("branding.chesterPlayground.warning.message"))}
+              onClick={() => toast.warning(t("branding.yonderPlayground.warning.message"))}
             >
-              {t("branding.chesterPlayground.warning.label")}
+              {t("branding.yonderPlayground.warning.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.info(t("branding.chesterPlayground.info.message"))}
+              onClick={() => toast.info(t("branding.yonderPlayground.info.message"))}
             >
-              {t("branding.chesterPlayground.info.label")}
+              {t("branding.yonderPlayground.info.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.loading(t("branding.chesterPlayground.loading.message"))}
+              onClick={() => toast.loading(t("branding.yonderPlayground.loading.message"))}
             >
-              {t("branding.chesterPlayground.loading.label")}
+              {t("branding.yonderPlayground.loading.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
-                toast.success(t("branding.chesterPlayground.withDescription.message"), {
-                  description: t("branding.chesterPlayground.withDescription.detail"),
+                toast.success(t("branding.yonderPlayground.withDescription.message"), {
+                  description: t("branding.yonderPlayground.withDescription.detail"),
                 })
               }
             >
-              {t("branding.chesterPlayground.withDescription.label")}
+              {t("branding.yonderPlayground.withDescription.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
-                toast.info(t("branding.chesterPlayground.withAction.message"), {
+                toast.info(t("branding.yonderPlayground.withAction.message"), {
                   action: {
-                    label: t("branding.chesterPlayground.withAction.actionLabel"),
+                    label: t("branding.yonderPlayground.withAction.actionLabel"),
                     onClick: () =>
-                      toast.success(t("branding.chesterPlayground.withAction.reverted")),
+                      toast.success(t("branding.yonderPlayground.withAction.reverted")),
                   },
                 })
               }
             >
-              {t("branding.chesterPlayground.withAction.label")}
+              {t("branding.yonderPlayground.withAction.label")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                toast.warning(t("branding.chesterPlayground.sticky.message"), {
-                  id: "chester-sticky",
+                toast.warning(t("branding.yonderPlayground.sticky.message"), {
+                  id: "yonder-sticky",
                   duration: Infinity,
                 });
               }}
             >
-              {t("branding.chesterPlayground.sticky.label")}
+              {t("branding.yonderPlayground.sticky.label")}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.dismiss("chester-sticky")}>
-              {t("branding.chesterPlayground.dismissSticky")}
+            <Button variant="outline" size="sm" onClick={() => toast.dismiss("yonder-sticky")}>
+              {t("branding.yonderPlayground.dismissSticky")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 toast.promise(new Promise((resolve) => setTimeout(() => resolve("done"), 2000)), {
-                  loading: t("branding.chesterPlayground.promiseResolve.loading"),
-                  success: t("branding.chesterPlayground.promiseResolve.success"),
-                  error: t("branding.chesterPlayground.promiseReject.errorPrefix", {
+                  loading: t("branding.yonderPlayground.promiseResolve.loading"),
+                  success: t("branding.yonderPlayground.promiseResolve.success"),
+                  error: t("branding.yonderPlayground.promiseReject.errorPrefix", {
                     message: "",
                   }),
                 });
               }}
             >
-              {t("branding.chesterPlayground.promiseResolve.label")}
+              {t("branding.yonderPlayground.promiseResolve.label")}
             </Button>
             <Button
               variant="outline"
@@ -256,10 +256,10 @@ export const SettingsBrandingPage = () => {
                   .promise(
                     new Promise((_, reject) => setTimeout(() => reject(new Error("boom")), 2000)),
                     {
-                      loading: t("branding.chesterPlayground.promiseReject.loading"),
-                      success: t("branding.chesterPlayground.promiseResolve.success"),
+                      loading: t("branding.yonderPlayground.promiseReject.loading"),
+                      success: t("branding.yonderPlayground.promiseResolve.success"),
                       error: (err) =>
-                        t("branding.chesterPlayground.promiseReject.errorPrefix", {
+                        t("branding.yonderPlayground.promiseReject.errorPrefix", {
                           message: (err as Error).message,
                         }),
                     }
@@ -267,10 +267,10 @@ export const SettingsBrandingPage = () => {
                   .catch(() => undefined);
               }}
             >
-              {t("branding.chesterPlayground.promiseReject.label")}
+              {t("branding.yonderPlayground.promiseReject.label")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => toast.dismiss()}>
-              {t("branding.chesterPlayground.dismissAll")}
+              {t("branding.yonderPlayground.dismissAll")}
             </Button>
           </div>
         </CardContent>

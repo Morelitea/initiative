@@ -7,7 +7,7 @@
   "source_instance_url": null,
   "project": {
     "name": "Feedback",
-    "icon": "💬",
+    "icon": "\ud83d\udcac",
     "description": "What people have told us they want. Each case is one piece of feedback: read it, decide what it means, and close it.",
     "is_template": false,
     "archived_at": null,
@@ -33,17 +33,25 @@
       "is_default": false
     },
     {
-      "name": "Awaiting response",
+      "name": "Waiting on requester",
       "category": "in_progress",
       "position": 2,
       "color": "#8B5CF6",
-      "icon": "clock",
+      "icon": "hourglass",
+      "is_default": false
+    },
+    {
+      "name": "Requester replied",
+      "category": "in_progress",
+      "position": 3,
+      "color": "#EC4899",
+      "icon": "message-circle-reply",
       "is_default": false
     },
     {
       "name": "Resolved",
       "category": "done",
-      "position": 3,
+      "position": 4,
       "color": "#10B981",
       "icon": "circle-check",
       "is_default": false
@@ -75,7 +83,7 @@
   "tasks": [
     {
       "title": "How this project is fed",
-      "description": "Cases arrive here when somebody tells us what they want. Feedback is not a support request and not a bug \u2014 it is somebody saying what would make this better.\n\n**Closing a case** means it has been read and a decision made about what it means. That decision can be 'not now'.\n\nYou can restructure this project however you like. The binding only names the project.",
+      "description": "Cases arrive here when somebody tells us what they want. Feedback is not a support request and not a bug \u2014 it is somebody saying what would make this better.\n\n**Closing a case** means it has been read and a decision made about what it means. That decision can be 'not now'.\n\nAnswer whoever filed a case from the panel above its comments. **Send and wait for them** moves it to **Waiting on requester**, which they see as waiting on them; when they answer, it moves to **Requester replied** so the board shows it is back with us.\n\nYou can restructure this project however you like. The binding only names the project.",
       "priority": "medium",
       "start_date": null,
       "due_date": null,

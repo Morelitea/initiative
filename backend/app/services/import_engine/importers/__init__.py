@@ -8,7 +8,7 @@ backup orchestrator — an unknown discriminator is rejected centrally by
 from app.services.import_engine.importers.calendar import CalendarImporter
 from app.services.import_engine.importers.counter_group import CounterGroupImporter
 from app.services.import_engine.importers.dashboard import DashboardImporter
-from app.services.import_engine.importers.document import DocumentImporter
+from app.services.import_engine.importers.file import FileImporter
 from app.services.import_engine.importers.gallery import GalleryImporter
 from app.services.import_engine.importers.post import PostImporter
 from app.services.import_engine.importers.project import ProjectImporter
@@ -19,7 +19,7 @@ IMPORTERS = {
     importer.envelope_type: importer
     for importer in (
         ProjectImporter(),
-        DocumentImporter(),
+        FileImporter(),
         QueueImporter(),
         CounterGroupImporter(),
         DashboardImporter(),

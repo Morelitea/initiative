@@ -127,12 +127,12 @@ class FetchReport:
     images_oversize: int = 0
     #: Images the site would not hand over.
     images_unreadable: int = 0
-    #: Files that are not images, each coming over as a document attached to
+    #: Files that are not images, each coming over as a file attached to
     #: its task, and their bytes.
     files: int = 0
     file_bytes: int = 0
     #: Files that are not images, left behind: attachments were not asked
-    #: for, the initiative cannot take documents, or the type is never brought.
+    #: for, the initiative cannot take files, or the type is never brought.
     other_attachments: int = 0
     #: Comments that will come over.
     comments: int = 0
@@ -361,7 +361,7 @@ async def fetch_project_envelope(
     image_budget: Optional[jira_attachments.AssetBudget] = None,
     store: Optional[jira_attachments.AssetSink] = None,
     guild_id: Optional[int] = None,
-    documents: bool = False,
+    files_allowed: bool = False,
     tick: Optional[Heartbeat] = None,
 ) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
@@ -459,7 +459,7 @@ async def fetch_project_envelope(
                 store=store,
                 budget_bytes=image_budget.bytes_left,
                 max_files=image_budget.files_left,
-                documents=documents,
+                files_allowed=files_allowed,
                 tick=tick,
             )
             image_budget.bytes_left -= page_images.image_bytes + page_images.file_bytes
@@ -577,7 +577,7 @@ class JiraFetched:
     #: Rows the apply will spend on this: tasks, comments, projects and
     #: sprint calendars — what a fetch after this one has left to use.
     rows_used: int
-    #: Attached files that are not pictures, each a document of its own.
+    #: Attached files that are not pictures, each a file of its own.
     files: list[jira_attachments.StoredImage] = field(default_factory=list)
 
 
@@ -595,7 +595,7 @@ async def fetch_projects(
     link_pages: bool = False,
     asset_budget: Optional[jira_attachments.AssetBudget] = None,
     store: Optional[jira_attachments.AssetSink] = None,
-    documents: bool = False,
+    files_allowed: bool = False,
 ) -> JiraFetched:
     """Read the chosen projects and return what was read plus what it found.
 
@@ -662,7 +662,7 @@ async def fetch_projects(
                 image_budget=image_budget,
                 store=store,
                 guild_id=guild_id,
-                documents=documents,
+                files_allowed=files_allowed,
                 tick=tick,
             )
             mapped = fetched.mapped
@@ -713,7 +713,7 @@ async def fetch_projects(
             )
             report.comments += project_comments
             report.comments_restricted += fetched.restricted_comments
-            # A file document is a row too.
+            # An uploaded file is a row too.
             remaining -= fetched.issues_used + project_comments + images.files
         if progress is not None:
             await progress(report)

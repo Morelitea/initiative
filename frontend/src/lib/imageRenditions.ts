@@ -2,7 +2,7 @@
  * Preparing an uploaded picture for storage.
  *
  * Someone picks one file. What the server stores are fixed renditions — a
- * square guild icon or profile picture, and a guild banner in two sizes
+ * square community icon or profile picture, and a community banner in two sizes
  * because its card appears up to sixty times on a directory page and its
  * front-page version is a third of a megabyte. Producing those here rather
  * than on the server means nobody is asked to prepare two files, and the
@@ -21,16 +21,16 @@ export type ImageSpec = {
   maxBytes: number;
 };
 
-export const GUILD_ICON: ImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
-/** A profile picture. Square, and the same weight as a guild icon: both are
+export const COMMUNITY_ICON: ImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
+/** A profile picture. Square, and the same weight as a community icon: both are
  *  shown at 24-40px in lists and around 128px on their own settings page. */
 export const AVATAR: ImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
-export const GUILD_BANNER_CARD: ImageSpec = {
+export const COMMUNITY_BANNER_CARD: ImageSpec = {
   width: 1040,
   height: 260,
   maxBytes: 60 * 1024,
 };
-export const GUILD_BANNER_FULL: ImageSpec = {
+export const COMMUNITY_BANNER_FULL: ImageSpec = {
   width: 2400,
   height: 600,
   maxBytes: 350 * 1024,
@@ -140,14 +140,14 @@ async function render(file: File, specs: ImageSpec[]): Promise<File[]> {
 }
 
 /** One square icon from whatever the admin picked. */
-export async function renderGuildIcon(file: File): Promise<File> {
-  const [icon] = await render(file, [GUILD_ICON]);
+export async function renderCommunityIcon(file: File): Promise<File> {
+  const [icon] = await render(file, [COMMUNITY_ICON]);
   return icon;
 }
 
 /** The two banner renditions, in the order the endpoint takes them. */
-export async function renderGuildBanner(file: File): Promise<{ full: File; card: File }> {
-  const [full, card] = await render(file, [GUILD_BANNER_FULL, GUILD_BANNER_CARD]);
+export async function renderCommunityBanner(file: File): Promise<{ full: File; card: File }> {
+  const [full, card] = await render(file, [COMMUNITY_BANNER_FULL, COMMUNITY_BANNER_CARD]);
   return { full, card };
 }
 

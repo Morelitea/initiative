@@ -27,7 +27,7 @@ from seed.common import Community, chip, heading, lexical, para, share, tag
 #: paragraph or a list of them. ``links``
 #: close the page as a "See also": ``"Vallaki"`` is a page of the same wiki,
 #: ``"Other wiki::Vallaki"`` a page of another, and ``("task", title)`` any
-#: task or document the community already has.
+#: task or file the community already has.
 WIKIS: dict[str, list[dict]] = {
     "primary": [
         {
@@ -62,7 +62,7 @@ WIKIS: dict[str, list[dict]] = {
                     "links": [
                         "Vallaki",
                         "Castle Ravenloft",
-                        ("document", "Campaign Setting: The Land of Barovia"),
+                        ("file", "Campaign Setting: The Land of Barovia"),
                     ],
                 },
                 {
@@ -128,7 +128,7 @@ WIKIS: dict[str, list[dict]] = {
                     },
                     "links": [
                         "Vallaki",
-                        ("document", "Session 3 Recap: Festival of the Blazing Sun"),
+                        ("file", "Session 3 Recap: Festival of the Blazing Sun"),
                     ],
                 },
                 {
@@ -150,7 +150,7 @@ WIKIS: dict[str, list[dict]] = {
                         "The dining hall",
                         ("task", "Map Castle Ravenloft's layout"),
                         ("task", "Find the Heart of Sorrow"),
-                        ("document", "Tarokka Card Reading Results"),
+                        ("file", "Tarokka Card Reading Results"),
                     ],
                 },
                 {
@@ -190,7 +190,7 @@ WIKIS: dict[str, list[dict]] = {
                         "about that.",
                         "What is worth it anyway": "Rope. Oil. Anything silver, if he has it.",
                     },
-                    "links": [("document", "Party Provisioning Ledger")],
+                    "links": [("file", "Party Provisioning Ledger")],
                 },
                 {
                     "title": "Krezk",
@@ -231,7 +231,7 @@ WIKIS: dict[str, list[dict]] = {
                     },
                     "links": [
                         ("task", "Negotiate with the Vistani caravan"),
-                        ("document", "Tarokka Card Reading Results"),
+                        ("file", "Tarokka Card Reading Results"),
                     ],
                 },
             ],
@@ -259,7 +259,7 @@ WIKIS: dict[str, list[dict]] = {
                         "action to drink and an action to give. You may retrain one "
                         "thing per level."
                     },
-                    "links": ["Rolling in the open", ("document", "House Rules v2")],
+                    "links": ["Rolling in the open", ("file", "House Rules v2")],
                 },
                 {
                     "title": "Rolling in the open",
@@ -412,7 +412,7 @@ WIKIS: dict[str, list[dict]] = {
                     "links": [
                         "Tresendar Manor",
                         ("task", "Clear the Redbrand Hideout"),
-                        ("document", "NPC Compendium: Phandelver"),
+                        ("file", "NPC Compendium: Phandelver"),
                     ],
                 },
                 {
@@ -518,7 +518,7 @@ WIKIS: dict[str, list[dict]] = {
                     "links": [
                         "Ark Perseverance",
                         "Krellix Dominion",
-                        ("document", "Setting Bible: The Exodus Protocol"),
+                        ("file", "Setting Bible: The Exodus Protocol"),
                     ],
                 },
                 {
@@ -587,7 +587,7 @@ WIKIS: dict[str, list[dict]] = {
                     },
                     "links": [
                         ("task", "Negotiate passage through Krellix space"),
-                        ("document", "Faction Guide: Krellix Dominion"),
+                        ("file", "Faction Guide: Krellix Dominion"),
                     ],
                 },
                 {
@@ -763,7 +763,7 @@ WIKIS: dict[str, list[dict]] = {
                         "somebody on our side.",
                         "Payout": "Forty thousand, half up front.",
                     },
-                    "links": [("document", "One-Shot: Smuggler's Run Briefing")],
+                    "links": [("file", "One-Shot: Smuggler's Run Briefing")],
                 },
                 {
                     "title": "The Coriolis wreck",
@@ -827,7 +827,7 @@ WIKIS: dict[str, list[dict]] = {
                     "links": [
                         "Port Vermillion",
                         "Skull Cove",
-                        ("document", "The Shattered Seas: World Guide"),
+                        ("file", "The Shattered Seas: World Guide"),
                     ],
                 },
                 {
@@ -880,7 +880,7 @@ WIKIS: dict[str, list[dict]] = {
                         ("task", "Repair the hull after the kraken attack"),
                         ("task", "Upgrade cannons to dragon-fire shot"),
                         ("task", "Install the enchanted compass"),
-                        ("document", "Crew Manifest: The Crimson Maiden"),
+                        ("file", "Crew Manifest: The Crimson Maiden"),
                     ],
                 },
                 {
@@ -983,7 +983,7 @@ WIKIS: dict[str, list[dict]] = {
                         "The ship's two": "Spent on the ship. Audited by anybody who "
                         "asks, and people do ask.",
                     },
-                    "links": [("document", "Crimson Maiden Cargo Manifest")],
+                    "links": [("file", "Crimson Maiden Cargo Manifest")],
                 },
                 {
                     "title": "Who gives orders",
@@ -1053,7 +1053,7 @@ WIKIS: dict[str, list[dict]] = {
                     "links": [
                         "Admiral Blackwood",
                         "HMS Vengeance",
-                        ("document", "Intelligence Report: Admiral Blackwood"),
+                        ("file", "Intelligence Report: Admiral Blackwood"),
                     ],
                 },
                 {
@@ -1079,7 +1079,7 @@ WIKIS: dict[str, list[dict]] = {
                         "be tried. That preference is the only reason anybody is still "
                         "alive.",
                     },
-                    "links": [("document", "Intelligence Report: Admiral Blackwood")],
+                    "links": [("file", "Intelligence Report: Admiral Blackwood")],
                 },
                 {
                     "title": "HMS Vengeance",
@@ -1108,7 +1108,7 @@ WIKIS: dict[str, list[dict]] = {
                     },
                     "links": [
                         ("task", "Sink the HMS Ironclad"),
-                        ("document", "Session 4 Recap: The Ironclad Falls"),
+                        ("file", "Session 4 Recap: The Ironclad Falls"),
                     ],
                 },
                 {
@@ -1201,7 +1201,7 @@ async def seed(c: Community) -> None:
             for target in pd.get("links", ()):
                 if isinstance(target, tuple):
                     kind, label = target
-                    entity_id = {"task": c.tasks, "document": c.docs}[kind][label].id
+                    entity_id = {"task": c.tasks, "file": c.files}[kind][label].id
                 else:
                     wiki_name, _, label = target.rpartition("::")
                     kind = SearchEntityType.wiki_page.value

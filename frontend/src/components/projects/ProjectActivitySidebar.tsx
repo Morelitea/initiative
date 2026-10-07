@@ -9,15 +9,15 @@ import type {
   ProjectActivityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey,
-  projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet,
+  getProjectActivityFeedQueryKey,
+  projectActivityFeed,
 } from "@/api/generated/projects/projects";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentReferences } from "@/components/comments/CommentReferences";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuilds } from "@/hooks/useGuilds";
-import { guildPath } from "@/lib/guildUrl";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { taskRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -33,29 +33,21 @@ export const ProjectActivitySidebar = ({
   projectId,
   initiativeId,
 }: ProjectActivitySidebarProps) => {
-  const { activeGuildId } = useGuilds();
-  const guildId = useActiveGuildId();
+  const gp = useCommunityPath();
+  const communityId = useActiveCommunityId();
   const { t } = useTranslation(["projects", "common"]);
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
-  // Helper to create guild-scoped paths
-  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
-
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey(
-      guildId,
-      projectId!
-    ),
+    queryKey: getProjectActivityFeedQueryKey(communityId, projectId!),
     queryFn: async ({ pageParam = 1 }) => {
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet(guildId, projectId, {
-        page: pageParam as number,
-      }) as unknown as Promise<ProjectActivityResponse>;
+      return projectActivityFeed(communityId, projectId, { page: pageParam as number });
     },
-    getNextPageParam: (lastPage) => lastPage.next_page ?? undefined,
+    getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
     initialPageParam: 1,
     enabled: isEnabled,
     // No timer: the live channel names the project for anything that happens
@@ -69,6 +61,7 @@ export const ProjectActivitySidebar = ({
     }
     return activityQuery.data.pages.flatMap((page) => page.items);
   }, [activityQuery.data]);
+  const contents = useMemo(() => entries.map((entry) => entry.content), [entries]);
 
   if (!projectId) {
     return null;
@@ -128,36 +121,39 @@ export const ProjectActivitySidebar = ({
             ) : entries.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t("activitySidebar.noComments")}</p>
             ) : (
-              <ul className="space-y-3">
-                {entries.map((entry) => {
-                  const authorName = getUserDisplayName(entry.author);
-                  return (
-                    <li
-                      key={entry.comment_id}
-                      className="rounded-lg border border-border/60 bg-background px-3 py-2"
-                    >
-                      <div className="flex items-center justify-between text-muted-foreground text-xs">
-                        <span className="font-medium text-foreground">{authorName}</span>
-                        <RelativeTime date={entry.created_at} showTitle={false} />
-                      </div>
-                      <p className="text-foreground text-sm">
-                        {t("activitySidebar.commentedOn")}{" "}
-                        <Link
-                          to={gp(taskRoute(initiativeId, projectId as number, entry.task_id))}
-                          className="font-medium hover:underline"
-                        >
-                          {entry.task_title}
-                        </Link>
-                      </p>
-                      <CommentContent
-                        content={entry.content}
-                        compact
-                        className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
+              // What the comments mention is read for the whole feed at once.
+              <CommentReferences contents={contents}>
+                <ul className="space-y-3">
+                  {entries.map((entry) => {
+                    const authorName = getUserDisplayName(entry.author);
+                    return (
+                      <li
+                        key={entry.comment_id}
+                        className="rounded-lg border border-border/60 bg-background px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between text-muted-foreground text-xs">
+                          <span className="font-medium text-foreground">{authorName}</span>
+                          <RelativeTime date={entry.created_at} showTitle={false} />
+                        </div>
+                        <p className="text-foreground text-sm">
+                          {t("activitySidebar.commentedOn")}{" "}
+                          <Link
+                            to={gp(taskRoute(initiativeId, projectId as number, entry.task_id))}
+                            className="font-medium hover:underline"
+                          >
+                            {entry.task_title}
+                          </Link>
+                        </p>
+                        <CommentContent
+                          content={entry.content}
+                          compact
+                          className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CommentReferences>
             )}
             {activityQuery.hasNextPage ? (
               <Button

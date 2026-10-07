@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
@@ -14,22 +14,20 @@ const FullScreenLoader = () => (
 
 /**
  * Layout route that requires a server to be configured on native platforms.
- * On web, this passes through. On mobile without a configured server, redirects to /connect.
+ * On web, this passes through. On mobile without a configured server, sends
+ * everything but sign-in to sign-in, which asks for one.
  */
 export const Route = createFileRoute("/_serverRequired")({
-  beforeLoad: ({ context, search }) => {
+  beforeLoad: ({ context, location }) => {
     const { server } = context;
-    const justConnected = (search as { connected?: string })?.connected === "1";
-
-    // If server context is ready and we're on native without a server, redirect
-    // Skip if we just connected (search param indicates state is updating)
+    // An app with no server signs in first, and sign-in asks for one.
     if (
-      !justConnected &&
       !server?.loading &&
       server?.isNativePlatform &&
-      !server.isServerConfigured
+      !server.isServerConfigured &&
+      location.pathname !== "/login"
     ) {
-      throw redirect({ to: "/connect" });
+      throw redirect({ to: "/login" });
     }
   },
   component: ServerRequiredLayout,
@@ -37,7 +35,7 @@ export const Route = createFileRoute("/_serverRequired")({
 
 function ServerRequiredLayout() {
   const { loading, isNativePlatform, isServerConfigured } = useServer();
-  const search = useSearch({ strict: false }) as { connected?: string };
+  const { pathname } = useLocation();
   // OTA live updates (native only). Mounted here — once a server is configured but before
   // auth is required — so a fresh install can update its web bundle even from the login screen.
   const {
@@ -48,20 +46,17 @@ function ServerRequiredLayout() {
     dismissNativeUpdateRequired,
   } = useNativeUpdate();
 
-  // Check if we just connected from the connect page (search param passed via navigation)
-  const justConnected = search?.connected === "1";
-
   // Show loading state while server context initializes
   if (loading) {
     return <FullScreenLoader />;
   }
 
-  // On native with no server configured (and we didn't just connect), the
+  // On native with no server configured, anywhere but sign-in, the
   // redirect belongs to `beforeLoad` above, which re-runs once the server
   // context settles (``useRouteGuardSync``). Hold the loader until it lands
   // rather than redirecting from the render path — a rendered `<Navigate>`
   // re-navigates on every render and stops only because this layout unmounts.
-  if (isNativePlatform && !isServerConfigured && !justConnected) {
+  if (isNativePlatform && !isServerConfigured && pathname !== "/login") {
     return <FullScreenLoader />;
   }
 
@@ -77,6 +72,7 @@ function ServerRequiredLayout() {
       <NativeUpdateRequiredDialog
         open={nativeUpdateRequired.show}
         version={nativeUpdateRequired.version}
+        minNativeVersion={nativeUpdateRequired.minNativeVersion}
         onClose={dismissNativeUpdateRequired}
       />
     </>

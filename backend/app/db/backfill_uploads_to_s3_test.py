@@ -167,6 +167,7 @@ async def test_backfill_finally_releases_lock_after_aborted_transaction(
     import app.db.backfill_uploads_to_s3 as backfill_mod
     from app.core.config import settings as app_settings
     from app.db import session as db_session
+    from app.db.advisory_locks import LockNamespace, advisory_lock, advisory_unlock
     from app.db.schema_provisioning import drop_guild_schema, provision_guild
 
     async with engine.begin() as conn:
@@ -196,17 +197,11 @@ async def test_backfill_finally_releases_lock_after_aborted_transaction(
         # Probe from a DIFFERENT session (advisory locks are session-scoped, so
         # the leaked holder itself could always re-take its own lock).
         async with engine.connect() as conn:
-            got = (
-                await conn.execute(
-                    text("SELECT pg_try_advisory_lock(:k)"),
-                    {"k": backfill_mod._BACKFILL_LOCK_KEY},
-                )
-            ).scalar()
+            got = await advisory_lock(
+                conn, LockNamespace.UPLOAD_BACKFILL, wait=False, xact=False
+            )
             if got:
-                await conn.execute(
-                    text("SELECT pg_advisory_unlock(:k)"),
-                    {"k": backfill_mod._BACKFILL_LOCK_KEY},
-                )
+                await advisory_unlock(conn, LockNamespace.UPLOAD_BACKFILL)
         assert got, "advisory lock must be released after a failed run"
 
         async with db_session.system_engine.connect() as conn:
