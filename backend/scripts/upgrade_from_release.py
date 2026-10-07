@@ -190,7 +190,26 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) ->
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
+def _published(tag: str) -> bool:
+    """Whether the registry holds ``tag``'s image."""
+    result = subprocess.run(
+        ["docker", "manifest", "inspect", f"{RELEASE_IMAGE}:{tag.removeprefix('v')}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if "manifest unknown" in result.stderr or "no such manifest" in result.stderr:
+        return False
+    raise RuntimeError(f"could not ask the registry for {tag}: {result.stderr.strip()}")
+
+
 def _release_tags() -> list[str]:
+    """Every release tag whose image is published, oldest first.
+
+    A release is tagged before its image is published, and the build of that
+    tag walks the releases before it, so the newest tags wait for their image.
+    """
     output = subprocess.run(
         ["git", "tag", "--list", "v*", "--sort=v:refname"],
         cwd=REPO,
@@ -198,7 +217,14 @@ def _release_tags() -> list[str]:
         capture_output=True,
         text=True,
     ).stdout
-    return [tag for tag in output.split() if re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
+    tags = [tag for tag in output.split() if re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
+    while tags and tags[-1] not in WITHDRAWN and not _published(tags[-1]):
+        print(
+            f"{tags[-1]} has no published image yet; walking the releases before it",
+            flush=True,
+        )
+        tags.pop()
+    return tags
 
 
 async def _recreate_database(server: str) -> None:
