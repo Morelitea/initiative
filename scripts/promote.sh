@@ -230,7 +230,10 @@ current_alembic_head() {
         echo "backend/.venv/bin/python not found — run 'cd backend && uv sync'" >&2
         return 1
     }
-    (cd backend && .venv/bin/python -c "
+    # Some revisions import the app's settings, which need a SECRET_KEY to
+    # load. Reading the head uses none of it, so any valid key will do where
+    # there is no .env (the Release workflow).
+    (cd backend && SECRET_KEY="${SECRET_KEY:-$(openssl rand -hex 32)}" .venv/bin/python -c "
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 print(ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
