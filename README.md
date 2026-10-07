@@ -26,20 +26,23 @@ The [user guide](https://beyonders-studio.github.io/initiative/) covers using In
 
 ## Running your own server
 
-You need Docker with Compose. Download the example compose file and give it the two secrets it needs:
+You need Docker with Compose and an address for the server. Download the example compose file, then give it that address and the two secrets it needs:
 
 ```bash
 curl -o docker-compose.yml https://raw.githubusercontent.com/beyonders-studio/initiative/main/docker-compose.example.yml
-echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
-echo "POSTGRES_PASSWORD=$(openssl rand -hex 32)" >> .env
+cat > .env <<EOF
+APP_URL=https://initiative.example.com
+SECRET_KEY=$(openssl rand -hex 32)
+POSTGRES_PASSWORD=$(openssl rand -hex 32)
+EOF
 docker compose up -d
 ```
 
-Open http://localhost:8173 and register. The first account becomes the owner of the server.
+Initiative listens on port 8173. Point your reverse proxy's HTTPS at it, and uncomment `BEHIND_PROXY` in the compose file so the app sees each visitor's real address. Then open your address and register. The first account becomes the owner of the server.
 
 Keep that `.env` file somewhere safe. Postgres only reads the password when it first creates the database, and the secret key encrypts data you'll want to read later, so neither one is something to change on a whim.
 
-For anything beyond trying it out, put it behind HTTPS and set `APP_URL` to your public address. These pages cover the rest:
+These pages cover the rest:
 
 - [Installation](https://beyonders-studio.github.io/initiative/en/running-a-server/installation/) has the image tags, PUID/PGID and the database setup
 - [Configuration](https://beyonders-studio.github.io/initiative/en/running-a-server/configuration/) lists every setting
