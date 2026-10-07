@@ -30,25 +30,19 @@ The Initiative registry is a live, signed catalog of plug-ins, dashboards and re
 
 The registry is built from [initiative-developer](https://github.com/beyonders-studio/initiative-developer), and getting a listing into it is a pull request there. Once it's merged, it reaches every server that follows the registry. Plug-ins are written with the [plug-in SDK](https://github.com/beyonders-studio/initiative-plugin-sdk), and [Publishing your own listings](https://beyonders-studio.github.io/initiative/en/running-a-server/publishing-listings/#publishing-to-the-initiative-registry) walks through the rest.
 
-## Running your own server
+## Self-hosting
 
-Initiative runs on anything that can run Docker Compose, whether that's a Linux server, a NAS, or a Windows or Mac computer.
+Initiative is one image, `ghcr.io/beyonders-studio/initiative` (`linux/amd64` and `linux/arm64`), run beside Postgres. [docker-compose.example.yml](docker-compose.example.yml) is the supported setup, and it reads three required values from `.env`:
 
-1. Make a folder for it and save [docker-compose.example.yml](docker-compose.example.yml) in it as `docker-compose.yml`.
-2. In the same folder, make a file called `.env` with your server's address and two secrets of your own:
+| Variable | |
+|---|---|
+| `APP_URL` | The public address people reach it at |
+| `SECRET_KEY` | At least 32 characters. It encrypts stored data, so don't rotate it casually |
+| `POSTGRES_PASSWORD` | Only read when the database is first created. It goes into the connection URL, so keep it alphanumeric |
 
-   ```
-   APP_URL=https://initiative.example.com
-   SECRET_KEY=
-   POSTGRES_PASSWORD=
-   ```
+The app listens on port 8173. Behind a reverse proxy, uncomment `BEHIND_PROXY`. The first account to register becomes the server owner.
 
-   Each secret should be at least 32 random letters and numbers. A password manager's generator works fine, as long as you turn the symbols off.
-3. If a reverse proxy will sit in front of it, uncomment `BEHIND_PROXY` in the compose file so the app sees each visitor's real address.
-4. Start it from that folder with `docker compose up -d`, or with your NAS's or desktop app's own way of starting a Compose project. It listens on port 8173, so that's where your proxy points.
-5. Open your address and register. The first account becomes the owner of the server.
-
-Keep that `.env` file somewhere safe. Postgres only reads the password when it first creates the database, and the secret key encrypts data you'll want to read later, so neither one is something to change on a whim.
+Tags are `latest`, `stable` (promoted after a few days with no regressions) and version numbers. `dev` is unreleased work.
 
 These pages cover the rest:
 
@@ -56,8 +50,6 @@ These pages cover the rest:
 - [Configuration](https://beyonders-studio.github.io/initiative/en/running-a-server/configuration/) lists every setting
 - [Email](https://beyonders-studio.github.io/initiative/en/running-a-server/email/), [single sign-on](https://beyonders-studio.github.io/initiative/en/running-a-server/single-sign-on/) and [push notifications](https://beyonders-studio.github.io/initiative/en/running-a-server/push-notifications/)
 - [Backups and updates](https://beyonders-studio.github.io/initiative/en/running-a-server/backups-and-updates/)
-
-Images are published to `ghcr.io/beyonders-studio/initiative` for `linux/amd64` and `linux/arm64`. Run `latest`, `stable` or a version tag. The `dev` images are for testing what's coming and shouldn't run anywhere that matters.
 
 If you'd rather not run a server, there's a [hosted option](https://beyonders-studio.github.io/initiative/en/self-host-or-hosted/) too.
 
