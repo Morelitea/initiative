@@ -29,14 +29,12 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from urllib.parse import urlsplit
 
 import httpx
 from cryptography.fernet import InvalidToken
 from sqlalchemy import update
 from sqlmodel import select
 
-from app.core.config import settings as app_config
 from app.core.encryption import SALT_PUSH_RELAY_KEY, decrypt_field, encrypt_field
 from app.models.platform.app_setting_secret import AppSettingSecret
 
@@ -57,9 +55,6 @@ ANDROID_CONFIG_RETRY_SECONDS = 300.0
 #: What the relay hands the app for a device token: ``rh_`` and the unpadded
 #: base64url of a SHA-256 HMAC.
 _HANDLE = re.compile(r"rh_[A-Za-z0-9_-]{43}")
-
-#: The longest name the relay takes for a server.
-_NAME_MAX = 100
 
 #: The settings singleton's id, which its credentials row shares.
 _ROW_ID = 1
@@ -108,10 +103,9 @@ def authorization(server_id: str, key: str) -> str:
     return f"Bearer {server_id}.{key}"
 
 
-def server_name() -> str:
-    """What this server tells the relay it is called: its address's host."""
-    host = urlsplit(app_config.APP_URL.strip()).hostname
-    return (host or "Initiative server")[:_NAME_MAX]
+#: What every server tells the relay it is called. The relay needs a name, not
+#: this one's: its address would tell BeyondersStudio where it runs.
+SERVER_NAME = "Initiative server"
 
 
 async def _load_stored() -> tuple[str, str] | None:
@@ -179,7 +173,7 @@ async def _clear_stored(server_id: str) -> None:
 async def _register(client: httpx.AsyncClient) -> tuple[str, str] | None:
     try:
         response = await client.post(
-            f"{PUSH_RELAY_URL}/v1/servers", json={"name": server_name()}
+            f"{PUSH_RELAY_URL}/v1/servers", json={"name": SERVER_NAME}
         )
     except httpx.HTTPError as exc:
         logger.warning("push relay: could not register: %s", exc)

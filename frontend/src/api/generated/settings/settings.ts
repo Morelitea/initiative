@@ -34,6 +34,7 @@ import type {
   EmailTestRequest,
   EmailTestResponse,
   FCMConfigResponse,
+  GetFcmConfigParams,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
@@ -2186,12 +2187,14 @@ export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, T
  * server's relay key and cached); if the relay cannot say, no Firebase
  * settings are served.
  *
- * While push is on, this server's relay id is served too, registering with
- * the relay first if it has not yet: iPhone pushes always go through the
- * relay, and the app needs the id to exchange its device token for a
- * handle. A failed registration is retried no more than once every few
- * minutes (``push_relay.REGISTRATION_RETRY_SECONDS``), however often this
- * is asked.
+ * The relay id is served to a phone whose pushes go through the relay, which
+ * names its ``platform``: an iPhone always, an Android phone when there is no
+ * service account. Asking for it registers this server with the relay first
+ * if it has not yet; a failed registration is retried no more than once
+ * every few minutes (``push_relay.REGISTRATION_RETRY_SECONDS``), however
+ * often this is asked. Anyone else is not served it, and asking registers
+ * nothing: a server with its own Firebase and only Android phones never
+ * contacts the relay at all.
  *
  * Read from the settings row (``push_config``), not the environment: an owner
  * who turns push on in Settings has the mobile clients pick it up on their
@@ -2201,32 +2204,36 @@ export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, T
  * @summary Get Fcm Config
  */
 export const getFcmConfig = (
+  params?: GetFcmConfigParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<FCMConfigResponse>(
-    { url: `/api/v1/settings/fcm-config`, method: "GET", signal },
+    { url: `/api/v1/settings/fcm-config`, method: "GET", params, signal },
     options
   );
 };
 
-export const getGetFcmConfigQueryKey = () => {
-  return [`/api/v1/settings/fcm-config`] as const;
+export const getGetFcmConfigQueryKey = (params?: GetFcmConfigParams) => {
+  return [`/api/v1/settings/fcm-config`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetFcmConfigQueryOptions = <
   TData = Awaited<ReturnType<typeof getFcmConfig>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetFcmConfigParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetFcmConfigQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetFcmConfigQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getFcmConfig>>> = ({ signal }) =>
-    getFcmConfig(requestOptions, signal);
+    getFcmConfig(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getFcmConfig>>,
@@ -2236,12 +2243,13 @@ export const getGetFcmConfigQueryOptions = <
 };
 
 export type GetFcmConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getFcmConfig>>>;
-export type GetFcmConfigQueryError = ErrorType<unknown>;
+export type GetFcmConfigQueryError = ErrorType<HTTPValidationError>;
 
 export function useGetFcmConfig<
   TData = Awaited<ReturnType<typeof getFcmConfig>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | GetFcmConfigParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>> &
       Pick<
@@ -2258,8 +2266,9 @@ export function useGetFcmConfig<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetFcmConfig<
   TData = Awaited<ReturnType<typeof getFcmConfig>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: GetFcmConfigParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>> &
       Pick<
@@ -2276,8 +2285,9 @@ export function useGetFcmConfig<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetFcmConfig<
   TData = Awaited<ReturnType<typeof getFcmConfig>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: GetFcmConfigParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
@@ -2290,15 +2300,16 @@ export function useGetFcmConfig<
 
 export function useGetFcmConfig<
   TData = Awaited<ReturnType<typeof getFcmConfig>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: GetFcmConfigParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetFcmConfigQueryOptions(options);
+  const queryOptions = getGetFcmConfigQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

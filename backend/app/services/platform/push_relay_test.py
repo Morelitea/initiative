@@ -113,7 +113,8 @@ async def test_registers_once_and_keeps_the_key_encrypted(
         push_relay.reset_for_tests()  # another process, same database
         assert await push_relay.credentials(client) == ("srv_1", "key-1")
 
-    assert relay.registrations == [{"name": "tasks.example.org"}]
+    # A name, never the server's address: the relay need not know where it runs.
+    assert relay.registrations == [{"name": "Initiative server"}]
 
 
 async def test_a_registration_that_loses_the_race_takes_the_stored_one(
