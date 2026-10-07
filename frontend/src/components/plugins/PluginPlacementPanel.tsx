@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSetPluginPlacementRoles, useUpdateCommunityPlugin } from "@/hooks/useCommunityPlugins";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useCommunityInitiatives } from "@/hooks/useInitiatives";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { declaredEmbeds } from "@/lib/pluginSurfaces";
@@ -42,7 +42,11 @@ const placedIds = (plugin: CommunityPluginDetail): number[] =>
 
 export function PluginPlacementPanel({ plugin }: PluginPlacementPanelProps) {
   const { t } = useTranslation(["plugins", "common"]);
-  const initiatives = useInitiatives();
+  // Every initiative in the community, not the admin's own memberships. Placement
+  // is what bounds the plug-in's reach — an automation fires only where its
+  // install is placed — so "every current initiative" has to mean every one, and
+  // an initiative the admin never joined is still one they place it in.
+  const initiatives = useCommunityInitiatives();
   const update = useUpdateCommunityPlugin(plugin.id);
   // What the admin is choosing right now. Seeded from the plug-in and kept locally
   // so ticking several initiatives is one decision, saved per change.
