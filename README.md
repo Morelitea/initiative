@@ -42,7 +42,10 @@ Initiative is one image, `ghcr.io/beyonders-studio/initiative` (`linux/amd64` an
 
 The app listens on port 8173. Behind a reverse proxy, uncomment `BEHIND_PROXY`. The first account to register becomes the server owner.
 
-Tags are `latest`, `stable` (promoted after a few days with no regressions) and version numbers. `dev` is unreleased work.
+Tags are `latest`, `stable` (promoted after a few days with no regressions) and version numbers.
+
+> [!WARNING]
+> Don't run the `dev` tag on a server you care about. It's built from unreleased work, and its database migrations often change between builds before a release settles them. A database that ran one of those in-between migrations may have no upgrade path to the release, so you'd be restoring from a backup.
 
 These pages cover the rest:
 
