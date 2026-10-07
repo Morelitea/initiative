@@ -138,7 +138,20 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 !!! warning "Only enable proxy trust behind an actual proxy"
     `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
 
-If your proxy answers anything under `/.well-known/` itself, as some do for certificates, pass `/.well-known/assetlinks.json` through to Initiative. It's how the Android app is allowed to use passkeys for your server; without it the app sends people to the browser for them instead.
+## The app association files
+
+A phone lets an app use a site's passkeys only when the site says, in a file at a fixed address, which apps may. Initiative serves both, built from the project's own app identities (they are the project's to vouch for, not something you configure):
+
+| File | Read by | What it names |
+|---|---|---|
+| `/.well-known/assetlinks.json` | Android | The Initiative app's package and the fingerprint of the key it's signed with. |
+| `/.well-known/apple-app-site-association` | iPhone | The Initiative iPhone app. It answers 404 until that app is published. |
+
+They're served as JSON, at exactly those paths, with no redirect, and only when your address can carry a passkey at all (`https`, a host name rather than an IP address). Anything else under `/.well-known/` answers 404, never the app's page, because Apple and Google read an HTML page there as a broken file.
+
+**If you self-host**, there's nothing to set. Android checks the file on whatever server the app points at, so the Android app signs in with passkeys on yours by itself. An iPhone only reads the file for addresses built into the app (the hosted service's `initiativetasks.com` and `demo.initiativetasks.com`), so on your server the iPhone app sends people to the browser for passkeys, which works for every server.
+
+If your proxy answers anything under `/.well-known/` itself, as some do for certificates, pass `/.well-known/assetlinks.json` through to Initiative. Without it the Android app sends people to the browser for passkeys instead.
 
 ## Running more than one copy
 

@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
 - **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, with full read access to the initiative. A new role permission, **Run dashboards as Initiative**, says who may turn it on or change such a dashboard's tiles; managers always can.
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
-- **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with BeyondersStudio's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
+- **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with BeyondersStudio's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. Your server never holds a phone's token for the relay: the app registers it with the relay itself and gives your server a handle that reaches that phone for your server only. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
 - **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
 - **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
+- **Anything under `/.well-known/` that Initiative doesn't serve answers 404**, not the app's page, and the app association files are cached for an hour. The iPhone app names `initiativetasks.com` and `demo.initiativetasks.com` for passkeys, ready for when it signs in with them itself.
 - **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
 - **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
 - **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.
@@ -98,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Signing out of the phone app, or pointing it at another server, stops its push notifications** from the server it left, also when push was set up before the app last restarted.
 - **A listing no catalog directory publishes any more is withdrawn**, even when no directory is set. This removes the old built-in Automations listing earlier releases left in the marketplace. A community that installed it keeps what it has.
 - **Delete Node in a document's right-click menu removes a smart chip or mention** when opened on one, instead of doing nothing.
 - **Notifications inbox.** Clicking a finished export now downloads it, as the bell does, and items are grouped under the day they happened where you are.
