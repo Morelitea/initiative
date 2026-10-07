@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
-- **Anything under `/.well-known/` that Initiative doesn't serve answers 404**, not the app's page, and the app association files are cached for an hour. The iPhone app names `initiativetasks.com` and `demo.initiativetasks.com` for passkeys, ready for when it signs in with them itself.
+- **Anything under `/.well-known/` that Initiative doesn't serve answers 404**, not the app's page, and the app association files are cached for an hour.
 - **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
 - **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
 - **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.

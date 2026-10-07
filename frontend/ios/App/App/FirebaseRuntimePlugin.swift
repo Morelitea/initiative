@@ -2,10 +2,9 @@ import Capacitor
 import Foundation
 
 /// Says whether the connected server sends push notifications. On iOS there is no Firebase to
-/// start: the server sends iPhone pushes through BeyondersStudio's push relay, which holds the
-/// publisher's APNs key. The web layer registers the APNs token with the relay for that server and
-/// tells the server only the handle the relay returns. The name and methods match the Android
-/// plugin so the web layer calls one interface.
+/// start: the app registers its APNs token with the server, and the server sends iPhone pushes
+/// through BeyondersStudio's push relay, which holds the publisher's APNs key. The name and methods
+/// match the Android plugin so the web layer calls one interface.
 @objc(FirebaseRuntimePlugin)
 public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "FirebaseRuntimePlugin"
@@ -25,16 +24,6 @@ public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {
     // overwrite the current one.
     private var serverSendsPush = false
     private var latestCheck = 0
-
-    /// The APNs environment this build's tokens belong to, which the relay needs to send to them:
-    /// a debug build is signed with the development entitlement and registers in the sandbox.
-    private static var apnsEnvironment: String {
-        #if DEBUG
-        return "sandbox"
-        #else
-        return "production"
-        #endif
-    }
 
     @objc func initialize(_ call: CAPPluginCall) {
         guard let serverUrl = call.getString("serverUrl"), !serverUrl.isEmpty else {
@@ -65,7 +54,7 @@ public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                     self.serverSendsPush = sendsPush
                     if sendsPush {
-                        call.resolve(["success": true, "apnsEnvironment": Self.apnsEnvironment])
+                        call.resolve(["success": true])
                     } else {
                         call.resolve(["success": false, "message": "Push notifications are off on this server"])
                     }

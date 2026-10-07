@@ -54,4 +54,4 @@ The Android app asks your phone for it, right there in the app. On an iPhone, th
 
     The Android app runs the ceremony through the platform's credential manager. The server names the app in `/.well-known/assetlinks.json` and accepts the origin Android reports for it, the hash of the app's signing certificate, beside its own address. Where the phone won't confirm that association, the app uses the system browser.
 
-    The iPhone app's build names the hosted service's addresses as `webcredentials` domains, and the server answers `/.well-known/apple-app-site-association` for it once the app is published. Nothing uses that association yet: the iPhone app runs every ceremony in the browser, on every server.
+    The server answers `/.well-known/apple-app-site-association` once the iPhone app is published. Until then the iPhone app runs every ceremony in the browser, on every server.

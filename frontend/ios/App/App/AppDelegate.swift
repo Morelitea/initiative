@@ -34,8 +34,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // The web layer registers the APNs token with the push relay and gives the server the
-        // relay's handle for it, never the token itself.
+        // The APNs token goes to the server as is; the push relay sends to it.
         NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
     }
 
