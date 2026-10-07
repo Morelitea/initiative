@@ -285,11 +285,13 @@ function useCollectVerification(enabled: boolean) {
   const { phase } = useVerification();
   const running = phase === "waiting" || phase === "compare";
   // A comparison that ends verified released a device from this browser's own
-  // store, which only these queries read: the prompt about it, and the
-  // collection that was leaving its messages waiting.
+  // store, which only these queries read: the prompt about it, the notice on
+  // the device that was verified, and the collection that was leaving its
+  // messages waiting.
   useEffect(() => {
     if (phase !== "verified") return;
     void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
     void queryClient.invalidateQueries({ queryKey: messageKeys.inbox });
   }, [phase, queryClient]);
   return useQuery({

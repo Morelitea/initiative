@@ -66,7 +66,7 @@ async function contextFor(self: number, device: string, listed: DmDeviceRead[]):
       if (!directories.has(userId)) {
         directories.set(
           userId,
-          readPeerDirectory(userId).catch(() => ({ devices: [], held: [] }))
+          readPeerDirectory(userId).catch(() => ({ devices: [], held: [], unavailable: true }))
         );
       }
       return directories.get(userId) as Promise<PeerDirectory>;

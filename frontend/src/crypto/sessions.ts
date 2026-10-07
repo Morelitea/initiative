@@ -19,6 +19,7 @@ import {
   sessionsInConversation,
 } from "./store";
 import type { TrustedDevice } from "./trust";
+import type { Decrypted, InboundSession } from "./types";
 
 /** How many times a key-store write is retried when another tab moves it first. */
 const WRITE_ATTEMPTS = 3;
@@ -28,6 +29,13 @@ const WRITE_ATTEMPTS = 3;
  * side of the conversation it is on.
  */
 export type Destination = TrustedDevice & { origin: SessionOrigin };
+
+/**
+ * Why a queued message was not read: it is from a device of this account's
+ * that is waiting to be verified, it is one nothing here will ever open, or it
+ * could not be tried this time.
+ */
+export type Unread = "waiting" | "unreadable" | "retry";
 
 /** One queued message read, and what its session says about who sent it. */
 export interface Received {
@@ -146,16 +154,15 @@ export async function openOutboundSession(
 async function readOn(
   sessionId: string,
   item: { conversation_id: string; message_type: number; payload: string }
-): Promise<Received | null> {
-  const decrypted = await withSession(sessionId, async (pickle) => {
-    try {
-      const out = await ratchet.decrypt(pickle, item.message_type, item.payload);
-      return { next: out.session_pickle, value: out };
-    } catch {
-      return null;
-    }
-  });
-  if (decrypted === null) return null;
+): Promise<Received | Unread> {
+  const decrypted = await withSession<Decrypted | false>(sessionId, async (pickle) => {
+    const out = await ratchet.decrypt(pickle, item.message_type, item.payload);
+    // Refused, and the session is left as it was: written back unchanged so
+    // the answer is this session's, not a write that lost to another tab.
+    return out ? { next: out.session_pickle, value: out } : { next: pickle, value: false as const };
+  }).catch(() => null);
+  if (decrypted === null) return "retry";
+  if (decrypted === false) return "unreadable";
   await sessionsInConversation.add(item.conversation_id, sessionId);
   return {
     plaintext: decrypted.plaintext,
@@ -176,21 +183,24 @@ async function readOn(
  */
 export async function readPreKey(
   item: { conversation_id: string; message_type: number; payload: string },
-  senderOf: (identityKey: string) => Promise<Destination | undefined>
-): Promise<Received | null> {
-  const named = await ratchet.inspectPreKey(item.payload);
+  senderOf: (identityKey: string) => Promise<Destination | Unread>
+): Promise<Received | Unread> {
+  const named = await ratchet.inspectPreKey(item.payload).catch(() => undefined);
+  if (named === undefined) return "retry";
+  if (named === null) return "unreadable";
   if (await sessionPickle.get(named.session_id)) return readOn(named.session_id, item);
   const sender = await senderOf(named.identity_key);
-  if (!sender) return null;
-  const session = await withAccount(async (pickle) => {
-    try {
-      const opened = await ratchet.createInboundSession(pickle, sender.identityKey, item.payload);
-      return { next: opened.account_pickle, value: opened };
-    } catch {
-      return null;
-    }
-  });
-  if (session === null) return null;
+  if (typeof sender === "string") return sender;
+  // A prekey this account no longer holds -- spent on this same message
+  // already, or never its own -- is refused, and stays refused.
+  const session = await withAccount<InboundSession | false>(async (pickle) => {
+    const opened = await ratchet.createInboundSession(pickle, sender.identityKey, item.payload);
+    return opened
+      ? { next: opened.account_pickle, value: opened }
+      : { next: pickle, value: false as const };
+  }).catch(() => null);
+  if (session === null) return "retry";
+  if (session === false) return "unreadable";
   await keepSession(item.conversation_id, sender, session.session_id, session.session_pickle);
   return {
     plaintext: session.plaintext,
@@ -255,10 +265,19 @@ export async function claimKeysFor(
 export async function readWithHeldSession(
   item: { conversation_id: string; message_type: number; payload: string },
   roster: ReadonlySet<number>
-): Promise<Received | null> {
+): Promise<Received | Unread> {
+  // An ordinary message only follows a reply on its session, so the session it
+  // was written on is already here: one that none of them opens never will be
+  // opened, unless a session could not be tried.
+  let untried = false;
+  const attempt = async (sessionId: string) => {
+    const read = await readOn(sessionId, item);
+    if (read === "retry") untried = true;
+    return typeof read === "string" ? null : read;
+  };
   const here = await sessionsInConversation.get(item.conversation_id);
   for (const sessionId of here) {
-    const read = await readOn(sessionId, item);
+    const read = await attempt(sessionId);
     if (read) return read;
   }
   for (const sessionId of await allSessions.get()) {
@@ -266,8 +285,8 @@ export async function readWithHeldSession(
     const author = await sessionAuthor.get(sessionId);
     const ours = (await sessionOrigin.get(sessionId)) === "self";
     if (!ours && (author === undefined || !roster.has(author))) continue;
-    const read = await readOn(sessionId, item);
+    const read = await attempt(sessionId);
     if (read) return read;
   }
-  return null;
+  return untried ? "retry" : "unreadable";
 }

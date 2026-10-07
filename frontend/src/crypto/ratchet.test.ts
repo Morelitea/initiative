@@ -53,7 +53,7 @@ describe("the double ratchet", () => {
       alice.identity_key,
       sent.ciphertext
     );
-    expect(inbound.plaintext).toBe("the server cannot read this");
+    expect(inbound?.plaintext).toBe("the server cannot read this");
   });
 
   it("keeps the conversation going after the session is established", async () => {
@@ -77,9 +77,10 @@ describe("the double ratchet", () => {
     );
 
     // Bob answers on the session the pre-key message established.
+    if (!inbound) throw new Error("the pre-key message did not open");
     const reply = await ratchet.encrypt(inbound.session_pickle, "two");
     const read = await ratchet.decrypt(first.session_pickle, reply.message_type, reply.ciphertext);
-    expect(read.plaintext).toBe("two");
+    expect(read?.plaintext).toBe("two");
   });
 
   it("publishes a reusable fallback key alongside the pool", async () => {
@@ -146,7 +147,12 @@ describe("the double ratchet", () => {
     });
   });
 
-  it("refuses a session pickle it cannot read", async () => {
-    await expect(ratchet.decrypt("not-a-pickle", 1, "AAAA")).rejects.toThrow();
+  it("answers null for what it refuses to read", async () => {
+    // A refusal is an answer, not a failure: it is what lets a caller drop a
+    // message that will never open rather than retry it forever.
+    expect(await ratchet.decrypt("not-a-pickle", 1, "AAAA")).toBeNull();
+    expect(await ratchet.inspectPreKey("AAAA")).toBeNull();
+    const bob = await ratchet.createAccount();
+    expect(await ratchet.createInboundSession(bob.pickle, bob.identity_key, "AAAA")).toBeNull();
   });
 });

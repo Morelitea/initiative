@@ -4012,6 +4012,7 @@ export interface DmQueueItemRead {
 
 export interface DmQueueResponse {
   items: DmQueueItemRead[];
+  more?: boolean;
 }
 
 export interface DmRosterCheckRequest {
@@ -11904,6 +11905,7 @@ export type ListIgnoredAccountsParams = {
 
 export type CollectQueueParams = {
   device_id: string;
+  after?: number | null;
 };
 
 export type CollectVerificationParams = {
