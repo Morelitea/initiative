@@ -37,7 +37,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from app.core.plugin_scopes import ALL_SCOPES, plugin_scope_target
-from app.services.marketplace import contract, expressions
+from app.services.marketplace import contract, expressions, plugin_api
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
     MAX_IDENTIFIER_LENGTH,
@@ -2779,6 +2779,16 @@ def normalize_service_plugin_definition(
     minimum_age = _minimum_age(body.get("minimum_age"))
     if minimum_age is not None:
         cleaned["minimum_age"] = minimum_age
+
+    # The oldest plug-in API contract the plug-in calls. The catalog decides from
+    # it whether this deployment serves the version; kept here so the stored
+    # definition still says what its author asked for.
+    try:
+        min_plugin_api = plugin_api.check_min_plugin_api(body.get("min_plugin_api"))
+    except ValueError as exc:
+        fail(f"service plug-in: {exc}")
+    if min_plugin_api is not None:
+        cleaned["min_plugin_api"] = min_plugin_api
 
     _check_features(cleaned["features"], cleaned)
     check_json_size(

@@ -54,6 +54,7 @@ def maximal_manifest() -> dict:
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
         "minimum_age": {"default": 16, "US": 13},
+        "min_plugin_api": "4.2",
         "vendor": {
             "label": {"en": "Acme client"},
             "fields": [
