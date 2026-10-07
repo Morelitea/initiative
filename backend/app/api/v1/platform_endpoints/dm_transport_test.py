@@ -717,6 +717,45 @@ async def test_a_message_reaches_the_recipient_and_the_senders_own_device(
     assert base64.b64decode(items[0]["payload"]) == b"for-bob"
 
 
+async def test_a_collection_pages_past_what_it_leaves_behind(
+    client, session, acting_user, monkeypatch
+):
+    """A device leaves a message it cannot read yet where it is, so the queue
+    is read a page at a time rather than the same first page every time."""
+    from app.services.platform import dm_transport
+
+    monkeypatch.setattr(dm_transport, "QUEUE_PAGE", 2)
+    a = await acting_user()
+    b = await acting_user()
+    conversation_id, _, b_device = await _conversation_with_devices(
+        client, session, a, b
+    )
+    for body in (b"one", b"two", b"three"):
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(body).decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+
+    url = f"/api/v1/me/dm/queue?device_id={b_device}"
+    first = (await client.get(url, headers=b.headers)).json()
+    after = first["items"][-1]["id"]
+    second = (await client.get(f"{url}&after={after}", headers=b.headers)).json()
+
+    read = [base64.b64decode(i["payload"]) for i in first["items"] + second["items"]]
+    assert read == [b"one", b"two", b"three"]
+    assert (first["more"], second["more"]) == (True, False)
+
+
 async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
     client, session, acting_user
 ):

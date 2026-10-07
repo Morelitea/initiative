@@ -143,23 +143,39 @@ export async function createOutboundSession(
   ) as OutboundSession;
 }
 
-export async function inspectPreKey(ciphertext: string): Promise<PreKeyInspected> {
+/*
+ * Reading a message answers `null` where the ratchet itself refused it: it is
+ * not a message this state can open, now or later. Everything else -- the key
+ * store or the module failing to load -- still throws, so a caller can tell a
+ * message that will never open from a moment when nothing could be opened.
+ */
+
+export async function inspectPreKey(ciphertext: string): Promise<PreKeyInspected | null> {
   await loadRatchet();
-  return inspect_prekey(ciphertext) as PreKeyInspected;
+  try {
+    return inspect_prekey(ciphertext) as PreKeyInspected;
+  } catch {
+    return null;
+  }
 }
 
 export async function createInboundSession(
   pickle: string,
   theirIdentityKey: string,
   ciphertext: string
-): Promise<InboundSession> {
+): Promise<InboundSession | null> {
   await loadRatchet();
-  return create_inbound_session(
-    pickle,
-    await key(),
-    theirIdentityKey,
-    ciphertext
-  ) as InboundSession;
+  const pickleKey = await key();
+  try {
+    return create_inbound_session(
+      pickle,
+      pickleKey,
+      theirIdentityKey,
+      ciphertext
+    ) as InboundSession;
+  } catch {
+    return null;
+  }
 }
 
 export async function encrypt(sessionPickle: string, plaintext: string): Promise<Encrypted> {
@@ -171,9 +187,14 @@ export async function decrypt(
   sessionPickle: string,
   messageType: number,
   ciphertext: string
-): Promise<Decrypted> {
+): Promise<Decrypted | null> {
   await loadRatchet();
-  return session_decrypt(sessionPickle, await key(), messageType, ciphertext) as Decrypted;
+  const pickleKey = await key();
+  try {
+    return session_decrypt(sessionPickle, pickleKey, messageType, ciphertext) as Decrypted;
+  } catch {
+    return null;
+  }
 }
 
 /** Sign one relayed verification message as this device's. */

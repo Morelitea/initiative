@@ -55,6 +55,7 @@ from app.schemas.platform.dm_transport import (
     DmOneTimeKeyUpload,
     DmOutboundMessage,
     DmQueueItemRead,
+    DmQueueResponse,
     DmRosterMember,
     DmSessionKey,
     DmVerificationMessage,
@@ -1178,12 +1179,18 @@ async def collect(
     user_id: int,
     device_id: uuid.UUID,
     session_id: uuid.UUID | None = None,
-) -> list[DmQueueItemRead]:
-    """Everything waiting for one device, oldest first.
+    after: int | None = None,
+) -> DmQueueResponse:
+    """What is waiting for one device, oldest first, a page at a time.
 
     The order is not a nicety. A ratchet keeps a bounded number of skipped
     message keys, so handing them over in the order they were written is what
     keeps a client able to read them.
+
+    ``after`` is the last id of the page before, and ``more`` says another page
+    follows. A device may leave a message here that it cannot read yet -- one
+    from a device of its account's that is waiting to be verified -- so a
+    collection pages past those rather than reading the same first page again.
 
     Collecting is also where the key store learns which sign-in it is under. A
     device registers once and never again, so the link cannot only be written
@@ -1206,25 +1213,31 @@ async def collect(
         (
             await session.exec(
                 select(DmQueueItem)
-                .where(DmQueueItem.recipient_device_id == device_id)
+                .where(
+                    DmQueueItem.recipient_device_id == device_id,
+                    DmQueueItem.id > (after or 0),
+                )
                 .order_by(DmQueueItem.id)
-                .limit(QUEUE_PAGE)
+                .limit(QUEUE_PAGE + 1)
             )
         ).all()
     )
     device.last_seen_at = datetime.now(timezone.utc)
     session.add(device)
     await session.flush()
-    return [
-        DmQueueItemRead(
-            id=row.id,
-            conversation_id=row.conversation_id,
-            message_type=row.message_type,
-            payload=_encode_ciphertext(row.payload),
-            created_at=row.created_at,
-        )
-        for row in rows
-    ]
+    return DmQueueResponse(
+        items=[
+            DmQueueItemRead(
+                id=row.id,
+                conversation_id=row.conversation_id,
+                message_type=row.message_type,
+                payload=_encode_ciphertext(row.payload),
+                created_at=row.created_at,
+            )
+            for row in rows[:QUEUE_PAGE]
+        ],
+        more=len(rows) > QUEUE_PAGE,
+    )
 
 
 async def acknowledge(

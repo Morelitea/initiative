@@ -278,6 +278,8 @@ class DmQueueItemRead(BaseModel):
 
 class DmQueueResponse(BaseModel):
     items: list[DmQueueItemRead]
+    #: Another page follows the last item.
+    more: bool = False
 
 
 class DmQueueAck(BaseModel):

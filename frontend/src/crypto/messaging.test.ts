@@ -97,13 +97,14 @@ vi.mock("./client", () => ({
       const message = JSON.parse(ciphertext);
       return { session_id: `session:${message.from}`, identity_key: message.from };
     },
+    // Refusals answer `null`, as the real engine's do.
     createInboundSession: async (pickle: string, identity: string, ciphertext: string) => {
       const message = JSON.parse(ciphertext);
-      if (message.from !== identity) throw new Error("not this device");
+      if (message.from !== identity) return null;
       // A prekey opens exactly one session: the real account forgets the one it
       // just spent, so the same pre-key message cannot open a second.
       if (message.prekey) {
-        if (spent.has(message.prekey)) throw new Error("that prekey is spent");
+        if (spent.has(message.prekey)) return null;
         spent.add(message.prekey);
       }
       return {
@@ -122,9 +123,7 @@ vi.mock("./client", () => ({
     }),
     decrypt: async (sessionPickle: string, _type: number, ciphertext: string) => {
       const message = JSON.parse(ciphertext);
-      if (!sessionPickle.startsWith(`session:${message.from}`)) {
-        throw new Error("not this session");
-      }
+      if (!sessionPickle.startsWith(`session:${message.from}`)) return null;
       return { session_pickle: `${sessionPickle}!`, plaintext: message.body };
     },
     verificationOpen: async (txn: string) => (await import("./engine")).verificationOpen(txn),
@@ -144,6 +143,7 @@ vi.mock("./client", () => ({
   },
 }));
 
+import { ratchet } from "./client";
 import * as engine from "./engine";
 import {
   answerNewDevice,
@@ -353,7 +353,9 @@ describe("collecting", () => {
       ],
     });
     await collect({ receipts: false });
-    expect(api.ackQueue).not.toHaveBeenCalled();
+    expect(await messageLog.get("conv-2")).toEqual([
+      expect.objectContaining({ body: "carried on" }),
+    ]);
   });
 
   it("reads a repeated pre-key message on the session it already opened", async () => {
@@ -785,15 +787,57 @@ describe("collecting", () => {
     }
   });
 
-  it("leaves a message it cannot read on the server", async () => {
+  it("takes a message nothing here will ever read off the server", async () => {
+    // From a device no directory lists, every directory having been read: left
+    // there, it would sit in front of everything after it for good.
     api.collectQueue.mockResolvedValue({
       items: [queued({ payload: from("a-device-nobody-knows", "unreadable") })],
     });
 
     await collect();
 
-    expect(api.ackQueue).not.toHaveBeenCalled();
+    expect(api.ackQueue).toHaveBeenCalledWith({ device_id: OURS.id, message_ids: [1] });
     expect(await messageLog.get("conv-1")).toEqual([]);
+  });
+
+  it("leaves a message on the server when its sender could not be looked up", async () => {
+    api.readDirectory.mockRejectedValue(new Error("offline"));
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from("theirs", "try me later") })],
+    });
+
+    await collect();
+
+    expect(api.ackQueue).not.toHaveBeenCalled();
+  });
+
+  it("leaves a message on the server when the ratchet could not be reached", async () => {
+    // A refusal is the ratchet's answer about the message. A call that fails is
+    // nothing of the kind, and never a reason to throw the message away.
+    vi.spyOn(ratchet, "createInboundSession").mockRejectedValueOnce(new Error("worker gone"));
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from("theirs", "try me later") })],
+    });
+
+    await collect();
+
+    expect(api.ackQueue).not.toHaveBeenCalled();
+  });
+
+  it("reads past a page of messages it has to leave", async () => {
+    api.collectQueue
+      .mockResolvedValueOnce({
+        items: [queued({ id: 1, payload: from("theirs", "one") })],
+        more: true,
+      })
+      .mockResolvedValueOnce({
+        items: [queued({ id: 2, message_type: 1, payload: from("theirs", "two") })],
+      });
+
+    await collect({ receipts: false });
+
+    expect(api.collectQueue).toHaveBeenLastCalledWith({ device_id: OURS.id, after: 1 });
+    expect((await messageLog.get("conv-1")).map((m) => m.body)).toEqual(["one", "two"]);
   });
 });
 
@@ -820,6 +864,35 @@ describe("history between this account's own devices", () => {
     const asks = sentEnvelopes().filter((envelope) => envelope.kind === "history-request");
     expect(asks).toHaveLength(1);
     expect(asks[0]).toMatchObject({ deviceId: OURS.id, fingerprint: "fp" });
+  });
+
+  it("asks inside a conversation this account has accepted", async () => {
+    // The newest conversation can be an invitation nobody has answered, and the
+    // server takes nothing sent into one of those.
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    api.listConversations.mockResolvedValue({
+      conversations: [
+        {
+          id: "invited",
+          other_user_id: 8,
+          member_ids: [8],
+          created_at: "2026-09-02T00:00:00Z",
+          pending: true,
+        },
+        { id: "conv-1", other_user_id: 7, member_ids: [7], created_at: "2026-09-01T00:00:00Z" },
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    const asked = api.sendMessages.mock.calls.find(([, body]) =>
+      body.messages.some(
+        (message) => JSON.parse(JSON.parse(message.payload).body).kind === "history-request"
+      )
+    );
+    expect(asked?.[0]).toBe("conv-1");
   });
 
   it("asks loudly enough to reach a device nobody is looking at", async () => {
@@ -1162,6 +1235,34 @@ describe("history between this account's own devices", () => {
     expect(await ownDeviceWaiting()).toBeNull();
   });
 
+  it("sends a long thread in parts the server takes", async () => {
+    const long = "x".repeat(4000);
+    for (let index = 0; index < 40; index += 1) {
+      await messageLog.append("conv-1", {
+        id: `m${index}`,
+        body: long,
+        at: `2026-09-01T00:00:${String(index).padStart(2, "0")}Z`,
+        mine: true,
+      });
+    }
+    await answerNewDevice(await phoneSignsIn(), { mine: true, sendHistory: true });
+    api.collectQueue.mockResolvedValue({ items: [phoneAsks()] });
+    await collect({ receipts: false });
+
+    const parts = api.sendMessages.mock.calls
+      .flatMap(([, body]) => body.messages.map((m) => JSON.parse(m.payload).body as string))
+      .filter((text) => JSON.parse(text).kind === "history");
+    // Forty of these is 160 KB: one part of forty would be refused every time.
+    expect(parts.length).toBeGreaterThan(2);
+    for (const text of parts) {
+      expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(64 * 1024);
+    }
+    const sent = parts.flatMap((text) =>
+      (JSON.parse(text).messages as { id: string }[]).map((m) => m.id)
+    );
+    expect(sent).toEqual(expect.arrayContaining(Array.from({ length: 40 }, (_, i) => `m${i}`)));
+  });
+
   it("declines for a device confirmed without its history, and removes one that is not the account's", async () => {
     await answerNewDevice(await phoneSignsIn(), { mine: true, sendHistory: false });
     await collect({ receipts: false });
@@ -1189,6 +1290,7 @@ describe("history between this account's own devices", () => {
 
   it("releases a new device only once four matching pictures are confirmed on both", async () => {
     const waiting = await phoneSignsIn();
+    await historyAsk.open("request-1", [OUR_PHONE.id]);
     const sent: { to_device_id: string; body: string }[] = [];
     api.sendVerification.mockImplementation(async (body) => {
       sent.push(body);
@@ -1295,6 +1397,10 @@ describe("history between this account's own devices", () => {
     ).toBe(true);
     expect(verificationView()).toMatchObject({ phase: "verified" });
     expect(await ownDeviceWaiting()).toBeNull();
+    // Verified, so nothing is left to tell anybody to go and verify; the
+    // history asked for can still be on its way.
+    expect(await historyAskWaiting()).toBeUndefined();
+    expect(await historyAsk.get()).toMatchObject({ requestId: "request-1" });
   });
 
   it("asks about a device already trusted before it sends that device history", async () => {
