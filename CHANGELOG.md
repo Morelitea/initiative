@@ -36,7 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **French is retranslated from the English** across sign-in, account settings, initiatives, projects, tasks, queues, tags, stats, dates, error messages and account emails, so some wording reads differently.
 - **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
 - **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
 - **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
