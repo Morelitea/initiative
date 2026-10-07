@@ -14,6 +14,7 @@ async def test_asset_links_name_the_apps_this_image_vouches_for(client, monkeypa
     resp = await client.get("/.well-known/assetlinks.json")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/json"
+    assert resp.headers["cache-control"] == "public, max-age=3600"
     assert resp.json() == [
         {
             "relation": ["delegate_permission/common.get_login_creds"],
@@ -47,7 +48,31 @@ async def test_apple_association_waits_for_an_ios_app(client, monkeypatch):
     monkeypatch.setattr(native_apps, "IOS_APP_IDS", ("TEAMID.example.app",))
     resp = await client.get(path)
     assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/json"
+    assert resp.headers["cache-control"] == "public, max-age=3600"
     assert resp.json() == {"webcredentials": {"apps": ["TEAMID.example.app"]}}
 
     monkeypatch.setattr(settings, "APP_URL", "http://intranet.local")
     assert (await client.get(path)).status_code == 404
+
+
+async def test_other_well_known_paths_are_not_the_app(client, monkeypatch, tmp_path):
+    """A path the association routes do not serve is a 404, never the SPA's
+    index page, even where the SPA bundle is present."""
+    import app.main as main
+
+    index = tmp_path / "index.html"
+    index.write_text("<!doctype html><title>Initiative</title>")
+    monkeypatch.setattr(main, "static_index_path", index)
+
+    for path in (
+        "/.well-known/apple-app-site-association.json",
+        "/.well-known/security.txt",
+        "/.well-known/",
+    ):
+        resp = await client.get(path, follow_redirects=False)
+        assert resp.status_code == 404, path
+        assert "text/html" not in resp.headers.get("content-type", ""), path
+
+    # The SPA still answers its own routes.
+    assert (await client.get("/some/app/route")).status_code == 200

@@ -97,8 +97,13 @@ static_path = Path("static")
 static_path.mkdir(parents=True, exist_ok=True)
 static_index_path = static_path / "index.html"
 static_root = static_path.resolve()
+#: Paths the SPA never answers for. ``.well-known`` holds only what
+#: ``app.api.well_known`` serves: anything else there is a 404 rather than the
+#: index page, because a phone reads an HTML 200 there as a broken association.
 reserved_prefixes = [
-    prefix.strip("/") for prefix in {API_V1_STR} if prefix and prefix.strip("/")
+    prefix.strip("/")
+    for prefix in {API_V1_STR, "/.well-known"}
+    if prefix and prefix.strip("/")
 ]
 
 
