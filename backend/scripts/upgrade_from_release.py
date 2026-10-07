@@ -162,6 +162,9 @@ WITHDRAWN = {
     # Its bootstrap withheld the TEMPORARY privilege a 0414 backfill needs
     # (issue #2152); v0.73.1 grants it.
     "v0.73.0": "v0.73.1",
+    # Never published: its build walked from its own tag, whose image did not
+    # exist yet.
+    "v0.75.1": "v0.75.2",
 }
 
 
@@ -218,7 +221,7 @@ def _release_tags() -> list[str]:
         text=True,
     ).stdout
     tags = [tag for tag in output.split() if re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
-    while tags and tags[-1] not in WITHDRAWN and not _published(tags[-1]):
+    while tags and not _published(tags[-1]):
         print(
             f"{tags[-1]} has no published image yet; walking the releases before it",
             flush=True,
