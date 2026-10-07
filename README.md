@@ -70,7 +70,7 @@ FastAPI, SQLModel and PostgreSQL on the backend, React, TypeScript and Vite on t
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) explains how to get a dev environment running and how changes get in. Pull requests go to the `dev` branch, and contributing means agreeing to the [Contributor License Agreement](CLA.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to get a dev environment running and how changes get in. Pull requests go to the `dev` branch, and your first one asks you to sign the [Contributor License Agreement](CLA.md).
 
 To report a security problem, follow [SECURITY.md](SECURITY.md) rather than opening an issue.
 
