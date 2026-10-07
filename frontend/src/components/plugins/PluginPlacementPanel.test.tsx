@@ -73,7 +73,10 @@ let roster = [
 ];
 
 vi.mock("@/hooks/useInitiatives", () => ({
-  useInitiatives: () => ({ data: roster, isLoading: false }),
+  useCommunityInitiatives: () => ({ data: roster, isLoading: false }),
+  // The admin's own memberships: narrower than the community on purpose. The
+  // panel must never read this list — see "every initiative in the community".
+  useInitiatives: () => ({ data: roster.slice(0, 1), isLoading: false }),
 }));
 
 /** A page the plug-in shows inside initiatives. */
@@ -186,6 +189,25 @@ describe("PluginPlacementPanel", () => {
 
     expect(await screen.findByLabelText("Every current initiative")).toBeChecked();
     expect(screen.queryByLabelText("Platform")).toBeNull();
+  });
+
+  describe("every initiative in the community", () => {
+    // The admin is a member of Platform only. Placement bounds where the
+    // plug-in's automations fire, so an initiative they never joined still
+    // counts — reading their memberships instead left automations silent there
+    // while the panel claimed "every current initiative".
+    it("places it in initiatives the admin is not a member of", async () => {
+      renderPage(() => <PluginPlacementPanel plugin={plugin([])} />);
+
+      (await screen.findByLabelText("Every current initiative")).click();
+      await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1, 2] }]));
+    });
+
+    it("does not read as every initiative while one the admin never joined is missing", async () => {
+      renderPage(() => <PluginPlacementPanel plugin={plugin([1])} />);
+
+      expect(await screen.findByLabelText("Only the initiatives I choose")).toBeChecked();
+    });
   });
 
   it("choosing to pick shows the current placements and saves nothing", async () => {

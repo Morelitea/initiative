@@ -29,7 +29,7 @@ vi.mock("@/hooks/useCommunityPlugins", () => ({
 }));
 
 vi.mock("@/hooks/useInitiatives", () => ({
-  useInitiatives: () => ({
+  useCommunityInitiatives: () => ({
     isLoading: false,
     data: [
       { id: 11, name: "Garden" },
