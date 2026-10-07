@@ -396,7 +396,10 @@
     "updateNow": "Update now",
     "updating": "Updating…",
     "notNow": "Not now",
-    "updateFailed": "The update didn't finish. Download it instead."
+    "updateFailed": "The update didn't finish. Download it instead.",
+    "openSourceLicences": "Open-source licences",
+    "licencesTitle": "Open-source licences",
+    "licencesUnavailable": "The licence notices could not be loaded."
   },
   "temporaryAccess": "Temporary access",
   "expiresInMinutes": "expires in {{minutes}}m",

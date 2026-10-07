@@ -396,7 +396,10 @@
     "updateNow": "Mettre à jour",
     "updating": "Mise à jour…",
     "notNow": "Pas maintenant",
-    "updateFailed": "La mise à jour n'a pas abouti. Téléchargez-la plutôt."
+    "updateFailed": "La mise à jour n'a pas abouti. Téléchargez-la plutôt.",
+    "openSourceLicences": "Licences open source",
+    "licencesTitle": "Licences open source",
+    "licencesUnavailable": "Les mentions de licence n'ont pas pu être chargées."
   },
   "temporaryAccess": "Accès temporaire",
   "expiresInMinutes": "expire dans {{minutes}} min",

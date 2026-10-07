@@ -1,0 +1,262 @@
+{
+  "$comment": [
+    "The native code in the iOS and Android apps that is not an npm package, for THIRD_PARTY_NOTICES.txt (scripts/third-party-notices.mjs).",
+    "UPDATE THIS FILE WHEN NATIVE DEPENDENCIES CHANGE: a Capacitor plug-in added, removed or upgraded; ios/App/CapApp-SPM/Package.swift; android/app/build.gradle; android/variables.gradle.",
+    "The build fails when package.json installs a Capacitor plug-in that 'plugins' does not list, or 'plugins' lists one it no longer installs. It cannot see a plug-in's own Package.swift or build.gradle changing underneath it, so check those on every plug-in upgrade.",
+    "'plugins' maps each Capacitor plug-in (and the @capacitor/android and @capacitor/ios platforms) to the libraries it brings in; 'app' is what the app's own projects add.",
+    "A library either has 'licenceFile' (the upstream LICENSE, verbatim, under licences/), or 'copyright' and a licence whose standard text is in licences/texts/, or 'terms' (proprietary terms we link to and cannot reproduce). 'notice' is an upstream NOTICE file, which Apache-2.0 requires verbatim.",
+    "Versions are what the manifests ask for; Swift Package Manager and Gradle resolve the exact one at build time."
+  ],
+  "app": {
+    "ios": [],
+    "android": ["androidx", "play-billing", "firebase-messaging", "google-play-services"]
+  },
+  "plugins": {
+    "@capacitor/android": {
+      "android": ["androidx", "cordova-android"]
+    },
+    "@capacitor/ios": {
+      "ios": ["capacitor-swift-pm", "cordova-ios"]
+    },
+    "@capacitor-community/keep-awake": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor-community/safe-area": {
+      "ios": [],
+      "android": ["androidx", "kotlin-stdlib"]
+    },
+    "@capacitor/app": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/browser": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/camera": {
+      "ios": ["ion-ios-camera"],
+      "android": ["ion-android-camera", "androidx", "material-components", "gson", "kotlin-stdlib"]
+    },
+    "@capacitor/device": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/haptics": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/network": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/preferences": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capacitor/push-notifications": {
+      "ios": [],
+      "android": ["androidx", "firebase-messaging", "google-play-services"]
+    },
+    "@capacitor/splash-screen": {
+      "ios": [],
+      "android": ["androidx"]
+    },
+    "@capawesome/capacitor-passkeys": {
+      "ios": [],
+      "android": ["androidx", "google-play-services"]
+    },
+    "@capgo/capacitor-updater": {
+      "ios": ["alamofire", "zipfoundation", "version", "bigint"],
+      "android": [
+        "androidx",
+        "okhttp",
+        "okio",
+        "kotlin-stdlib",
+        "guava",
+        "versioncompare",
+        "brotli-dec",
+        "google-play-services",
+        "play-app-update"
+      ]
+    }
+  },
+  "libraries": {
+    "capacitor-swift-pm": {
+      "name": "Capacitor (capacitor-swift-pm)",
+      "platform": "iOS",
+      "version": "8.5.2, exact (ios/App/CapApp-SPM/Package.swift)",
+      "source": "https://github.com/ionic-team/capacitor-swift-pm",
+      "licence": "MIT",
+      "licenceFile": "native/capacitor-swift-pm.txt"
+    },
+    "cordova-ios": {
+      "name": "Apache Cordova iOS (the CapacitorCordova framework, inside capacitor-swift-pm)",
+      "platform": "iOS",
+      "version": "as shipped in capacitor-swift-pm 8.5.2",
+      "source": "https://github.com/apache/cordova-ios",
+      "licence": "Apache-2.0",
+      "notice": "native/cordova-ios.NOTICE.txt"
+    },
+    "ion-ios-camera": {
+      "name": "IONCameraLib (ion-ios-camera)",
+      "platform": "iOS",
+      "version": "2.0.x (@capacitor/camera's Package.swift: upToNextMinor from 2.0.0)",
+      "source": "https://github.com/ionic-team/ion-ios-camera",
+      "licence": "MIT",
+      "licenceFile": "native/ion-ios-camera.txt"
+    },
+    "alamofire": {
+      "name": "Alamofire",
+      "platform": "iOS",
+      "version": "5.x from 5.12.0 (@capgo/capacitor-updater's Package.swift)",
+      "source": "https://github.com/Alamofire/Alamofire",
+      "licence": "MIT",
+      "licenceFile": "native/alamofire.txt"
+    },
+    "zipfoundation": {
+      "name": "ZIPFoundation",
+      "platform": "iOS",
+      "version": "from 0.9.20 (@capgo/capacitor-updater's Package.swift)",
+      "source": "https://github.com/weichsel/ZIPFoundation",
+      "licence": "MIT",
+      "licenceFile": "native/zipfoundation.txt"
+    },
+    "version": {
+      "name": "Version",
+      "platform": "iOS",
+      "version": "0.8.0, exact (@capgo/capacitor-updater's Package.swift)",
+      "source": "https://github.com/mrackwitz/Version",
+      "licence": "MIT",
+      "licenceFile": "native/version.txt"
+    },
+    "bigint": {
+      "name": "BigInt",
+      "platform": "iOS",
+      "version": "from 5.7.0 (@capgo/capacitor-updater's Package.swift)",
+      "source": "https://github.com/attaswift/BigInt",
+      "licence": "MIT",
+      "licenceFile": "native/bigint.txt"
+    },
+    "cordova-android": {
+      "name": "Apache Cordova Android (org.apache.cordova:framework)",
+      "platform": "Android",
+      "version": "14.0.1 (android/variables.gradle, cordovaAndroidVersion)",
+      "source": "https://github.com/apache/cordova-android",
+      "licence": "Apache-2.0",
+      "notice": "native/cordova-android.NOTICE.txt"
+    },
+    "androidx": {
+      "name": "AndroidX libraries (appcompat, core, core-ktx, core-splashscreen, activity, fragment, coordinatorlayout, webkit, browser, exifinterface, credentials, work-runtime, lifecycle-process)",
+      "platform": "Android",
+      "version": "android/variables.gradle and each plug-in's build.gradle",
+      "source": "https://android.googlesource.com/platform/frameworks/support",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright The Android Open Source Project"
+    },
+    "material-components": {
+      "name": "Material Components for Android (com.google.android.material:material)",
+      "platform": "Android",
+      "version": "1.13.0 (@capacitor/camera's build.gradle default)",
+      "source": "https://github.com/material-components/material-components-android",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright The Android Open Source Project"
+    },
+    "kotlin-stdlib": {
+      "name": "Kotlin standard library (org.jetbrains.kotlin:kotlin-stdlib)",
+      "platform": "Android",
+      "version": "as required by OkHttp and AndroidX",
+      "source": "https://github.com/JetBrains/kotlin",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors"
+    },
+    "ion-android-camera": {
+      "name": "ION Camera for Android (io.ionic.libs:ioncamera-android)",
+      "platform": "Android",
+      "version": "1.0.2 (@capacitor/camera's build.gradle)",
+      "source": "https://github.com/ionic-team/ion-android-camera",
+      "licence": "MIT",
+      "licenceFile": "native/ion-android-camera.txt"
+    },
+    "gson": {
+      "name": "Gson (com.google.code.gson:gson)",
+      "platform": "Android",
+      "version": "2.10.1 (@capacitor/camera's build.gradle)",
+      "source": "https://github.com/google/gson",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright 2008 Google Inc."
+    },
+    "firebase-messaging": {
+      "name": "Firebase Cloud Messaging (com.google.firebase:firebase-messaging)",
+      "platform": "Android",
+      "version": "25.0.1 (@capacitor/push-notifications' build.gradle; the app's Firebase BOM 33.7.0 asks for less, and Gradle takes the higher)",
+      "source": "https://github.com/firebase/firebase-android-sdk",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright Google LLC"
+    },
+    "okhttp": {
+      "name": "OkHttp (com.squareup.okhttp3:okhttp)",
+      "platform": "Android",
+      "version": "5.4.0 (@capgo/capacitor-updater's build.gradle)",
+      "source": "https://github.com/square/okhttp",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright 2019 Square, Inc."
+    },
+    "okio": {
+      "name": "Okio (com.squareup.okio:okio)",
+      "platform": "Android",
+      "version": "as required by OkHttp",
+      "source": "https://github.com/square/okio",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright 2013 Square, Inc."
+    },
+    "guava": {
+      "name": "Guava (com.google.guava:guava)",
+      "platform": "Android",
+      "version": "33.6.0-android (@capgo/capacitor-updater's build.gradle)",
+      "source": "https://github.com/google/guava",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright (C) The Guava Authors"
+    },
+    "versioncompare": {
+      "name": "version-compare (io.github.g00fy2:versioncompare)",
+      "platform": "Android",
+      "version": "1.5.0 (@capgo/capacitor-updater's build.gradle)",
+      "source": "https://github.com/G00fY2/version-compare",
+      "licence": "Apache-2.0",
+      "copyright": "Copyright (C) 2018 Thomas Wirth"
+    },
+    "brotli-dec": {
+      "name": "Brotli decoder (org.brotli:dec)",
+      "platform": "Android",
+      "version": "0.1.2 (@capgo/capacitor-updater's build.gradle)",
+      "source": "https://github.com/google/brotli",
+      "licence": "MIT",
+      "licenceFile": "native/brotli.txt"
+    },
+    "google-play-services": {
+      "name": "Google Play services (play-services-tasks, play-services-auth and the other play-services libraries Firebase and AndroidX Credentials bring in)",
+      "platform": "Android",
+      "version": "play-services-tasks 18.4.1 (@capgo/capacitor-updater's build.gradle); the rest as Firebase and AndroidX require",
+      "licence": "Proprietary (Android Software Development Kit License Agreement)",
+      "terms": "https://developer.android.com/studio/terms",
+      "note": "Distributed in the Android app as a binary under Google's terms, not an open-source licence."
+    },
+    "play-billing": {
+      "name": "Google Play Billing Library (com.android.billingclient:billing)",
+      "platform": "Android",
+      "version": "8.0.0 (android/app/build.gradle)",
+      "licence": "Proprietary (Android Software Development Kit License Agreement)",
+      "terms": "https://developer.android.com/studio/terms",
+      "note": "Distributed in the Android app as a binary under Google's terms, not an open-source licence."
+    },
+    "play-app-update": {
+      "name": "Google Play In-App Updates (com.google.android.play:app-update, app-update-ktx)",
+      "platform": "Android",
+      "version": "2.1.0 (@capgo/capacitor-updater's build.gradle)",
+      "licence": "Proprietary (Play Core Software Development Kit Terms of Service)",
+      "terms": "https://developer.android.com/guide/playcore#license",
+      "note": "Distributed in the Android app as a binary under Google's terms, not an open-source licence."
+    }
+  }
+}

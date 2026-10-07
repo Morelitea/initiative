@@ -396,7 +396,10 @@
     "updateNow": "Actualizar ahora",
     "updating": "Actualizando…",
     "notNow": "Ahora no",
-    "updateFailed": "La actualización no terminó. Descárgala en su lugar."
+    "updateFailed": "La actualización no terminó. Descárgala en su lugar.",
+    "openSourceLicences": "Licencias de código abierto",
+    "licencesTitle": "Licencias de código abierto",
+    "licencesUnavailable": "No se pudieron cargar los avisos de licencia."
   },
   "temporaryAccess": "Acceso temporal",
   "expiresInMinutes": "caduca en {{minutes}} min",

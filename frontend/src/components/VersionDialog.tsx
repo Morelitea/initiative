@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Download, ExternalLink, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -158,6 +160,16 @@ export const VersionDialog = ({
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
+              {/* The licence notices that travel with the app; out of the
+                  way on purpose, since few people go looking. */}
+              <DialogClose asChild>
+                <Link
+                  to="/licences"
+                  className="mt-3 block text-center text-muted-foreground text-xs hover:text-foreground hover:underline"
+                >
+                  {t("version.openSourceLicences")}
+                </Link>
+              </DialogClose>
             </div>
           </div>
         </div>
