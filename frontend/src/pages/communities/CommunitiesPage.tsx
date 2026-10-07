@@ -84,11 +84,15 @@ export function CommunitiesPage() {
     [nearKey, savedNear]
   );
 
+  // The words for the place are the reader's own; the endpoint needs only
+  // where it is.
+  const { near_place: _words, ...nearParams } = nearSearchOf(near);
+
   const directory = useDirectoryCommunities(
     {
       search: query || undefined,
       search_country: queryCountries.length ? queryCountries : undefined,
-      ...nearSearchOf(near),
+      ...nearParams,
       category: categories.length ? categories : undefined,
     },
     { enabled: communityDirectoryEnabled }

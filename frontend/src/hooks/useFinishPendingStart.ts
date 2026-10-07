@@ -6,7 +6,7 @@ import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.sche
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
 import { communityPath } from "@/lib/communityUrl";
-import { type NearPlace, nearOfPlace, nearSearchOf, saveNear } from "@/lib/directoryNear";
+import { nearOfPlace, nearSearchOf, type Place, saveNear } from "@/lib/directoryNear";
 import { toast } from "@/lib/mascotToast";
 import {
   clearStart,
@@ -46,7 +46,7 @@ export const useOpenDirectory = () => {
   const userRef = useRef(user);
   userRef.current = user;
   return useCallback(
-    (categories: CommunityCategory[], near: NearPlace | null = null) => {
+    (categories: CommunityCategory[], near: Place | null = null) => {
       // Kept for next time too, so the directory keeps opening near them. The
       // address carries it either way.
       if (near) saveNear(near, userRef.current?.id ?? null);

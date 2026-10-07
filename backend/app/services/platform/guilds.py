@@ -8,7 +8,7 @@ import logging
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import ColumnElement, and_, case, exists, false, func, or_, text, true
+from sqlalchemy import ColumnElement, case, exists, func, or_, text
 from sqlalchemy.orm import aliased
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -112,62 +112,71 @@ MIN_COMMUNITY_SEATS = 2
 
 @dataclass(frozen=True)
 class NearPlace:
-    """Where a reader of the directory is: a country, and optionally finer."""
+    """Where a reader of the directory is: a country, and optionally a point."""
 
     country: str
-    region_code: str | None = None
-    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
-def proximity_rank(near: NearPlace) -> ColumnElement[int]:
-    """How close a guild's location is to ``near``, lowest first.
+#: How far away a community still counts as nearby, whichever side of a border
+#: it is on: about an hour's drive.
+NEARBY_KM = 100
 
-    0 the same city, 1 the same region, 2 the same country, 3 no location at
-    all, 4 somewhere else. Matched on the parts a location names rather than
-    on distance: a location is a place a person picked, not a coordinate.
-    A city counts only within the same country, and within the same region
-    where both say which.
+_EARTH_RADIUS_KM = 6371.0
+
+
+def _distance_km(
+    latitude: ColumnElement[float],
+    longitude: ColumnElement[float],
+    from_latitude: float,
+    from_longitude: float,
+) -> ColumnElement[float]:
+    """The great-circle distance from a point (haversine), in kilometres."""
+    d_lat = func.radians(latitude - from_latitude) / 2
+    d_lon = func.radians(longitude - from_longitude) / 2
+    a = func.power(func.sin(d_lat), 2) + func.cos(
+        func.radians(from_latitude)
+    ) * func.cos(func.radians(latitude)) * func.power(func.sin(d_lon), 2)
+    # Rounding can carry ``a`` a hair past 1 for antipodal points.
+    return 2 * _EARTH_RADIUS_KM * func.asin(func.sqrt(func.least(a, 1.0)))
+
+
+def proximity_order(near: NearPlace) -> list[ColumnElement[Any]]:
+    """The directory's order nearest ``near`` first, as ORDER BY terms.
+
+    Nearby communities first (within ``NEARBY_KM``, across a border too), then
+    the rest of the reader's country, then the communities whose country nobody
+    knows, then everywhere else; within each, the closest first, and those
+    with no point after those with one. A reader who gave only a country is
+    ordered by the country alone.
     """
     location = Guild.__table__.c.location
     country = location["country"].astext
-    region = func.upper(location["region_code"].astext)
     same_country = country == near.country
-    same_region = (
-        and_(same_country, region == near.region_code) if near.region_code else false()
+    if near.latitude is None or near.longitude is None:
+        return [
+            case(
+                (same_country, 0),
+                # No location, or one nobody pinned: either kind of null — SQL
+                # or JSON — has no country.
+                (country.is_(None), 1),
+                else_=2,
+            )
+        ]
+    distance = _distance_km(
+        location["latitude"].as_float(),
+        location["longitude"].as_float(),
+        near.latitude,
+        near.longitude,
     )
-    if near.city:
-        region_agrees = (
-            or_(location["region_code"].astext.is_(None), region == near.region_code)
-            if near.region_code
-            else true()
-        )
-        same_city = and_(
-            same_country,
-            region_agrees,
-            func.lower(location["city"].astext) == near.city.lower(),
-        )
-    else:
-        same_city = false()
-    return case(
-        (same_city, 0),
-        (same_region, 1),
-        (same_country, 2),
-        # Either kind of null — SQL or JSON — is no location.
-        (or_(location.is_(None), func.jsonb_typeof(location) == "null"), 3),
-        else_=4,
+    tier = case(
+        (distance <= NEARBY_KM, 0),
+        (same_country, 1),
+        (country.is_(None), 2),
+        else_=3,
     )
-
-
-#: The parts of a guild's location the directory's search reads as text. The
-#: country is matched by code instead (see ``list_community_guilds``).
-LOCATION_SEARCH_PARTS = (
-    "label",
-    "city",
-    "region",
-    "region_code",
-    "address",
-    "postal_code",
-)
+    return [tier, distance.asc().nulls_last()]
 
 
 # Canonical order for a guild's categories: the order they are declared in
@@ -2256,13 +2265,12 @@ async def list_community_guilds(
     Ordered by member count, busiest first, since that is what someone with no
     guild yet is choosing between; ``query`` narrows on name or description
     across the whole directory rather than within a page, so a search reaches
-    guilds no amount of scrolling had loaded. It reaches the location too: the
-    text parts of it, and ``query_countries`` — the countries the search names,
-    resolved by the caller, since a country is stored as its code.
+    guilds no amount of scrolling had loaded. It reaches the location too: its
+    text, and ``query_countries`` — the countries the search names, resolved by
+    the caller, since a country is stored as its code.
 
-    ``near`` reorders without narrowing: the reader's own city first, then
-    their region, then their country, then the communities that never said
-    where they are, then everywhere else (``proximity_rank``).
+    ``near`` reorders without narrowing: the communities nearest the reader
+    first (``proximity_order``).
 
     Needs a session that can see every guild's ``guild_memberships`` rows to
     count them (the system engine), the same precondition ``count_members``
@@ -2299,7 +2307,7 @@ async def list_community_guilds(
         location = Guild.__table__.c.location
         matches = [Guild.name.ilike(needle), Guild.description.ilike(needle)]
         matches.extend(
-            location[part].astext.ilike(needle) for part in LOCATION_SEARCH_PARTS
+            location[part].astext.ilike(needle) for part in ("text", "label")
         )
         if query_countries:
             matches.append(location["country"].astext.in_(query_countries))
@@ -2325,7 +2333,7 @@ async def list_community_guilds(
     # never swaps pages between two requests that saw the same counts.
     ordering = [member_count.desc(), Guild.name.asc(), Guild.id.asc()]
     if near is not None:
-        ordering.insert(0, proximity_rank(near))
+        ordering[:0] = proximity_order(near)
     statement = statement.order_by(*ordering)
     rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
     return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(

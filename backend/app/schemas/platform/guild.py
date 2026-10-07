@@ -70,18 +70,15 @@ class CommunityBannerWrite(SanitizedBaseModel):
 
 
 class CommunityLocation(SanitizedBaseModel):
-    """Where a community is, as precisely as its admin cares to say.
+    """Where a community is, in its admin's own words.
 
-    The country is the one required part: everything finer is optional, so a
-    community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
-    address. The parts are generic rather than one country's address form —
-    ``region`` is whatever the country's first-level division is (a state, a
-    province, a prefecture, a county), and a country without one leaves it out.
-
-    ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
-    which lets a card say "Seattle, WA" where the country writes its regions
-    that way. ``label`` is the admin's own name for the place
-    ("Queen Anne Neighborhood"), shown ahead of it.
+    ``text`` is the place as it was typed and as it is shown: a country alone
+    ("Japan"), a city ("Lyon, France") or a full street address. ``label`` is
+    the community's own name for the place ("Queen Anne Neighborhood"), shown
+    ahead of it. ``country``
+    (ISO 3166-1 alpha-2) and the coordinates are the place it was pinned to,
+    for putting the communities near a reader first: a country alone pins no
+    point, and text that was never pinned leaves all three out.
 
     The same shape is read and written: the whole location is one value, and a
     PATCH replaces it.
@@ -89,33 +86,38 @@ class CommunityLocation(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    #: ISO 3166-1 alpha-2, upper case.
-    country: str = Field(pattern=r"^[A-Za-z]{2}$")
-    region: Optional[str] = Field(default=None, max_length=100)
-    region_code: Optional[str] = Field(default=None, max_length=10)
-    city: Optional[str] = Field(default=None, max_length=100)
-    #: The street part of an exact address. Shown only on request, never on a
-    #: card's own line.
-    address: Optional[str] = Field(default=None, max_length=200)
-    #: Kept with the address for whoever opens the details; never on a card.
-    postal_code: Optional[str] = Field(default=None, max_length=20)
-    #: The community's own name for the place. Short, because it shares one
-    #: line of a card with the place itself.
+    text: str = Field(max_length=200)
+    #: Short, because it shares one line of a card with the place itself.
     label: Optional[TitleStr] = Field(default=None, max_length=60)
+    country: Optional[str] = Field(default=None, pattern=r"^[A-Za-z]{2}$")
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+
+    @field_validator("text", mode="after")
+    @classmethod
+    def _tidy_text(cls, value: str) -> str:
+        tidied = " ".join(value.split())
+        if not tidied:
+            raise ValueError("A location says where.")
+        return tidied
+
+    @field_validator("label", mode="after")
+    @classmethod
+    def _tidy_label(cls, value: Optional[str]) -> Optional[str]:
+        return " ".join(value.split()) if value else None
 
     @field_validator("country", mode="after")
     @classmethod
-    def _upper_country(cls, value: str) -> str:
-        return value.upper()
+    def _upper_country(cls, value: Optional[str]) -> Optional[str]:
+        return value.upper() if value else None
 
-    @field_validator(
-        "region", "region_code", "city", "address", "postal_code", "label", mode="after"
-    )
-    @classmethod
-    def _blank_is_absent(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        return " ".join(value.split()) or None
+    @model_validator(mode="after")
+    def _point_within_country(self) -> CommunityLocation:
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("A point has both coordinates.")
+        if self.latitude is not None and not self.country:
+            raise ValueError("A point belongs to a country.")
+        return self
 
 
 class CommunityBase(SanitizedBaseModel):
