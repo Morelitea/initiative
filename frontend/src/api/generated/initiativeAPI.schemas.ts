@@ -4351,6 +4351,13 @@ export interface EnvelopeImportResult {
  *
  * Only exposes public fields (API key, project ID, sender ID).
  * Does NOT expose service account credentials.
+ *
+ * ``push_relay_server_id`` is this server's id at the push relay, under
+ * which the app registers its device token with the relay for a handle;
+ * null while push is off or the server could not register.
+ * ``android_via_relay`` says Android pushes go through the relay too (no
+ * service account is configured), so the Android app registers a handle
+ * rather than its FCM token. iPhone pushes always go through the relay.
  */
 export interface FCMConfigResponse {
   enabled: boolean;
@@ -4358,6 +4365,8 @@ export interface FCMConfigResponse {
   application_id: string | null;
   api_key: string | null;
   sender_id: string | null;
+  push_relay_server_id: string | null;
+  android_via_relay: boolean;
 }
 
 /**

@@ -98,3 +98,49 @@ async def test_unregister_cannot_delete_other_users_token(
         session, user_id=owner.id
     )
     assert [t.push_token for t in remaining] == [token_value]
+
+
+async def test_a_sign_in_holds_one_registration(
+    client: AsyncClient, session: AsyncSession
+):
+    """A new token from the same sign-in replaces the one it held, so one
+    account cannot pile up tokens the push relay will answer as dead."""
+    user = await create_user(session)
+    headers = await signed_in_headers(session, user)
+
+    for token in ("first-push-token-abc", "second-push-token-abc"):
+        response = await client.post(
+            "/api/v1/push/register",
+            headers=headers,
+            json={"push_token": token, "platform": "android"},
+        )
+        assert response.status_code == 200, response.text
+
+    rows = await push_tokens_service.get_push_tokens_for_user(session, user_id=user.id)
+    assert [row.push_token for row in rows] == ["second-push-token-abc"]
+
+
+async def test_each_sign_in_keeps_its_own_registration(
+    client: AsyncClient, session: AsyncSession
+):
+    """Two devices are two sign-ins; one registering leaves the other's."""
+    user = await create_user(session)
+    phone = await signed_in_headers(session, user)
+    tablet = await signed_in_headers(session, user)
+
+    for headers, token in (
+        (phone, "phone-push-token-abc"),
+        (tablet, "tablet-push-token-abc"),
+    ):
+        response = await client.post(
+            "/api/v1/push/register",
+            headers=headers,
+            json={"push_token": token, "platform": "android"},
+        )
+        assert response.status_code == 200, response.text
+
+    rows = await push_tokens_service.get_push_tokens_for_user(session, user_id=user.id)
+    assert sorted(row.push_token for row in rows) == [
+        "phone-push-token-abc",
+        "tablet-push-token-abc",
+    ]

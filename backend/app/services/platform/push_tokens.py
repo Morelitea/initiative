@@ -30,6 +30,7 @@ async def register_push_token(
 
     Uses a PostgreSQL upsert on (user_id, push_token) to atomically handle
     token refresh/rotation without a race-condition between SELECT and INSERT.
+    A sign-in keeps one registration: the session's other tokens are removed.
     """
     now = datetime.now(timezone.utc)
     stmt = (
@@ -53,8 +54,20 @@ async def register_push_token(
         .returning(PushToken)
     )
     result = await session.exec(stmt)
+    row = result.scalars().one()
+    if session_id is not None:
+        # One registration per sign-in: whatever this device held before
+        # (a rotated token, or the other kind after a move between Firebase
+        # and the push relay) is replaced, not kept beside it.
+        await session.exec(
+            delete(PushToken).where(
+                PushToken.user_id == user_id,
+                PushToken.session_id == session_id,
+                PushToken.push_token != push_token,
+            )
+        )
     await session.commit()
-    return result.scalars().one()
+    return row
 
 
 async def get_push_tokens_for_user(

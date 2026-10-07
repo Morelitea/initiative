@@ -41,6 +41,12 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * A deployment that has switched push notifications off declines (403) and
  * stores nothing: there is nothing for the token to be used for, and holding
  * it would be keeping an address this deployment has said it does not send to.
+ *
+ * A sign-in holds one registration: a new token replaces the one it held
+ * before (the device's token rotated, or it moved between Firebase and the
+ * push relay). That, and the limit per account, keep one account from
+ * piling up tokens the push relay will answer as dead: enough dead answers
+ * and the relay suspends this whole server.
  * @summary Register Push Token
  */
 export const registerPushToken = (

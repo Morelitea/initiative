@@ -31,6 +31,13 @@ class FCMConfigResponse(SanitizedBaseModel):
 
     Only exposes public fields (API key, project ID, sender ID).
     Does NOT expose service account credentials.
+
+    ``push_relay_server_id`` is this server's id at the push relay, under
+    which the app registers its device token with the relay for a handle;
+    null while push is off or the server could not register.
+    ``android_via_relay`` says Android pushes go through the relay too (no
+    service account is configured), so the Android app registers a handle
+    rather than its FCM token. iPhone pushes always go through the relay.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -40,3 +47,5 @@ class FCMConfigResponse(SanitizedBaseModel):
     application_id: Optional[str] = None
     api_key: Optional[RawTextStr] = None
     sender_id: Optional[str] = None
+    push_relay_server_id: Optional[str] = None
+    android_via_relay: bool = False

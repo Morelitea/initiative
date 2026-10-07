@@ -151,9 +151,17 @@ async def send_push_notification(
     iPhone tokens always go to the relay; Android tokens go to it only when
     no service account is configured.
 
+    A token sent through the relay is the handle the relay gave the device
+    (``push_relay.is_handle``), and one sent to FCM is the device's own. A
+    token of the other kind cannot be delivered where this platform now goes
+    (the operator added or removed a service account after the device
+    registered), so it is reported dead without a request; the app registers
+    the right kind on its next launch.
+
     Args:
         client: The HTTP client the whole fan-out shares
-        push_token: The device's token (FCM for Android, APNs for iPhone)
+        push_token: The device's relay handle, or its FCM token when Android
+            goes to FCM directly
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
@@ -178,6 +186,13 @@ async def send_push_notification(
         return (False, False)
 
     via_relay = platform == "ios" or not cfg.service_account_json
+    if push_relay.is_handle(push_token) != via_relay:
+        logger.info(
+            "Push token for %s is not addressable %s; dropping it",
+            platform,
+            "through the push relay" if via_relay else "through FCM",
+        )
+        return (False, True)
     relay_server_id: Optional[str] = None
     if via_relay:
         held = await push_relay.credentials(client)
@@ -189,7 +204,6 @@ async def send_push_notification(
         headers = {
             "Authorization": push_relay.authorization(relay_server_id, relay_key),
             "Content-Type": "application/json",
-            "X-Push-Platform": platform,
         }
     else:
         if not cfg.project_id:
