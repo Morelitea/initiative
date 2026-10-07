@@ -33,8 +33,13 @@ Two behaviours are worth stating plainly:
   named in the log (and in the rescan response) and skipped; its neighbours
   publish and the boot continues.
 
-Unset means absent: no directory is read, nothing is withdrawn, and nothing is
-logged.
+Unset reads as an empty directory. Nothing is read and nothing is published,
+and because the directory is the only source of operator listings, every one
+still in the catalog is withdrawn — the same answer an empty directory gives.
+A deployment that once had a directory (earlier releases copied one in for
+every install) does not keep its listings forever after the setting goes away.
+The scan reports ``configured=False`` all the same, and says nothing unless it
+withdrew something.
 """
 
 from __future__ import annotations
@@ -125,8 +130,9 @@ class ScanProblem:
 class OperatorScanResult:
     """What one scan did."""
 
-    #: Whether a directory is configured at all. False means the feature is
-    #: off and nothing was read, written, or withdrawn.
+    #: Whether a directory is configured at all. False means nothing was read
+    #: or published; ``withdrawn`` still counts the operator listings retired
+    #: because no directory publishes them any more.
     configured: bool = False
     #: Configured, but the directory is not there to read.
     directory_missing: bool = False
@@ -297,15 +303,35 @@ async def scan_operator_catalog(
     commits.
     """
     root = directory or operator_catalog_dir()
-    if root is None:
-        return OperatorScanResult(configured=False)
 
     if _scan_lock.locked():
         raise OperatorCatalogScanRunning(
             "a marketplace catalog scan is already running"
         )
     async with _scan_lock:
+        if root is None:
+            return await _withdraw_without_directory(session)
         return await _scan(session, root)
+
+
+async def _withdraw_without_directory(session: AsyncSession) -> OperatorScanResult:
+    """No directory configured: retire every operator listing.
+
+    The directory is the only source of operator listings, so with none set
+    nothing publishes one, and the answer is the one an empty directory gives —
+    every ``operator`` listing is withdrawn. Earlier releases copied a
+    directory into every deployment; without this, a deployment that no longer
+    has one would offer what it held forever. Withdrawn, not deleted, as on the
+    configured path.
+    """
+    withdrawn = await _withdraw_absent(session, claimed=set())
+    if withdrawn:
+        logger.info(
+            "marketplace: no operator catalog directory is set; "
+            "withdrew %d operator listing(s)",
+            withdrawn,
+        )
+    return OperatorScanResult(configured=False, withdrawn=withdrawn)
 
 
 async def _scan(session: AsyncSession, root: Path) -> OperatorScanResult:
