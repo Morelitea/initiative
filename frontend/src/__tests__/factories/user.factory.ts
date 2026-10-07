@@ -136,6 +136,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // Answered, so the one-time birthdate screen does not stand in front of
     // whatever a test renders.
     birthdate_on_file: true,
+    birthdate_required: false,
     age_below_minimum_at: null,
     avatar_url: null,
     role: "member",

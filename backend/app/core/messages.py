@@ -692,6 +692,9 @@ class UserMessages:
     #: The date given puts this account under the minimum age for the parts of
     #: the platform that are open to people they have not met.
     AGE_BELOW_MINIMUM = "USER_AGE_BELOW_MINIMUM"
+    #: The date given at sign-up is under the minimum age for an account where
+    #: the person is. No account is made.
+    AGE_BELOW_ACCOUNT_MINIMUM = "USER_AGE_BELOW_ACCOUNT_MINIMUM"
     #: A date that is not one somebody could have been born on — in the future,
     #: or further back than a person lives.
     AGE_INVALID_BIRTHDATE = "USER_AGE_INVALID_BIRTHDATE"

@@ -39,9 +39,11 @@ class DirectMessageSettingsRead(SanitizedBaseModel):
     dm_policy: DmPolicy
     #: In the reader's own rail order, the same rule My Contacts uses.
     communities: List[CommunityDmToggle]
-    #: NULL while the account has not answered the age question, which holds
-    #: the policy at ``private`` whatever it says.
+    #: NULL while the account has not answered the age question.
     age_confirmed_at: Optional[datetime] = None
+    #: Whether the age question is still owed: unanswered, on a deployment
+    #: that checks age. True holds the policy at ``private`` whatever it says.
+    age_answer_required: bool = False
     #: Whether this account's clients report a message as delivered and read.
     send_receipts: bool = True
 

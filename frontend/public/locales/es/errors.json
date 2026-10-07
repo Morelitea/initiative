@@ -503,6 +503,7 @@
   "COMMUNITY_AGE_CONFIRMATION_REQUIRED": "Confirma que tienes 16 años o más antes de unirte a una comunidad que cualquiera puede encontrar.",
   "COMMUNITY_AGE_BELOW_MINIMUM": "Nos dijiste que no tienes la edad suficiente para unirte a una comunidad que cualquiera puede encontrar. Quien gestiona este servidor puede restablecer la pregunta.",
   "USER_AGE_BELOW_MINIMUM": "Necesitas tener 16 años o más para unirte a una comunidad que cualquiera puede encontrar.",
+  "USER_AGE_BELOW_ACCOUNT_MINIMUM": "No tienes la edad mínima para tener una cuenta aquí, así que no podemos crearte una.",
   "USER_AGE_INVALID_BIRTHDATE": "Esa no es una fecha en la que pudieras haber nacido. Revísala e inténtalo de nuevo.",
   "IMAGE_EMPTY": "Esa imagen estaba vacía.",
   "IMAGE_TOO_LARGE": "Esa imagen es demasiado grande.",

@@ -22,6 +22,7 @@ export const dmHandlers = [
       dm_policy: "community",
       communities: [],
       age_confirmed_at: "2020-01-01T00:00:00Z",
+      age_answer_required: false,
       send_receipts: true,
     })
   ),

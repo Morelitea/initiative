@@ -82,7 +82,12 @@ beforeEach(() => {
   mocks.messageRequests.mockReturnValue({ data: { ...noGrants, accepted: [ADA, GRACE] } });
   mocks.connections.mockReturnValue({ data: noGrants });
   mocks.settings.mockReturnValue({
-    data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+    data: {
+      dm_policy: "community",
+      communities: [],
+      age_confirmed_at: "2020-01-01T00:00:00Z",
+      age_answer_required: false,
+    },
   });
 });
 
@@ -189,7 +194,12 @@ describe("ConversationList", () => {
   it("explains an empty list by the setting that emptied it", async () => {
     mocks.messageRequests.mockReturnValue({ data: noGrants });
     mocks.settings.mockReturnValue({
-      data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+      data: {
+        dm_policy: "private",
+        communities: [],
+        age_confirmed_at: "2020-01-01T00:00:00Z",
+        age_answer_required: false,
+      },
     });
 
     // Not "nobody yet", which would read as an absence of people rather than
@@ -205,7 +215,12 @@ describe("ConversationList", () => {
     // with nothing to open is looking at.
     mocks.messageRequests.mockReturnValue({ data: noGrants });
     mocks.settings.mockReturnValue({
-      data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+      data: {
+        dm_policy: "private",
+        communities: [],
+        age_confirmed_at: "2020-01-01T00:00:00Z",
+        age_answer_required: false,
+      },
     });
     show();
 
@@ -216,7 +231,12 @@ describe("ConversationList", () => {
   it("says the age question is what is holding it back, and where to answer it", async () => {
     mocks.messageRequests.mockReturnValue({ data: noGrants });
     mocks.settings.mockReturnValue({
-      data: { dm_policy: "community", communities: [], age_confirmed_at: null },
+      data: {
+        dm_policy: "community",
+        communities: [],
+        age_confirmed_at: null,
+        age_answer_required: true,
+      },
     });
     show();
 

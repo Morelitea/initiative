@@ -22,6 +22,7 @@ from app.models.platform.user import UserRole
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.user_ignore import UserIgnore
+from app.services.platform import app_settings as app_settings_service
 from app.testing import create_guild, create_guild_membership, create_user
 
 
@@ -217,6 +218,21 @@ async def test_an_unconfirmed_age_denies_in_both_directions(session):
 
     assert await _permission(session, a, b) == "denied"
     assert await _permission(session, b, a) == "denied"
+
+
+async def test_no_age_check_counts_an_unconfirmed_account(session):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False, community_age_gate_enabled=False
+    )
+    a = await create_user(session, age_confirmed_at=None)
+    b = await create_user(session)
+    await _policy(session, a, DmPolicy.public)
+    await _policy(session, b, DmPolicy.public)
+    await _grant(session, a, b, ContactGrantKind.connection)
+    await _grant(session, a, b, ContactGrantKind.message)
+
+    assert await _permission(session, a, b) == "open"
+    assert await _permission(session, b, a) == "open"
 
 
 async def test_being_ignored_does_not_change_the_answer(session):
