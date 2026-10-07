@@ -24,7 +24,7 @@ Nothing contacts the relay until you switch push on.
 
 Apple and Google address a phone by a **device token**. With the relay in the middle, your server never holds one:
 
-1. **Your server registers with the relay**, once: the first time the app asks it for its push settings, or the first push it sends, whichever comes first. It sends its address's host name, gets back an id and a key, and keeps them encrypted in your database. The id is public and your server hands it to the app; the key stays on your server.
+1. **Your server registers with the relay**, once, the first time a phone that needs the relay asks it for its push settings, or the first push it sends through the relay, whichever comes first. A phone needs the relay if it's an iPhone, or an Android phone on a server with no Firebase service account of its own. Your server gives the relay no name or address of its own (every server registers as "Initiative server"), gets back an id and a key, and keeps them encrypted in your database. The id is public and your server hands it to the app; the key stays on your server. **A server with its own Firebase and only Android phones never contacts the relay at all.**
 2. **The phone trades its token for a handle.** The app sends its device token straight to the relay, along with your server's id, and gets back a **handle**: an opaque string that reaches this phone, for your server only. The relay's address is built into the app, so a server can't redirect where tokens go.
 3. **Your server is told the handle**, never the token, and sends to it like any other. The relay looks the handle up, checks it belongs to your server, and passes the message to Apple or Google.
 

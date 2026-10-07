@@ -110,6 +110,26 @@ describe("registerDeviceForPush", () => {
     expect(seen.relayRegistrations[0]?.environment).toBe("sandbox");
   });
 
+  it("names its platform when it asks the server how pushes go", async () => {
+    wire({ push_relay_server_id: SERVER_ID, android_via_relay: false });
+    const asked: (string | null)[] = [];
+    server.use(
+      http.get("*/settings/fcm-config", ({ request }) => {
+        asked.push(new URL(request.url).searchParams.get("platform"));
+        return HttpResponse.json({
+          enabled: true,
+          push_relay_server_id: null,
+          android_via_relay: false,
+        });
+      })
+    );
+
+    await registerDeviceForPush({ serverUrl: SERVER, token: FCM_TOKEN, platform: "android" });
+    await registerDeviceForPush({ serverUrl: SERVER, token: APNS_TOKEN, platform: "ios" });
+
+    expect(asked).toEqual(["android", "ios"]);
+  });
+
   it("gives the server Android's own token when it sends through its own Firebase", async () => {
     const seen = wire({ push_relay_server_id: SERVER_ID, android_via_relay: false });
 

@@ -97,12 +97,19 @@ const sha256Hex = async (value: string): Promise<string> => {
 
 /**
  * Which platforms the server sends through the relay, and its relay id.
+ * The phone names its platform: the server hands its relay id (and registers
+ * with the relay for it) only to a phone whose pushes go that way, so a server
+ * with its own Firebase never contacts the relay for an Android phone.
  * Null when the server could not be asked; nothing is registered then,
  * because which kind of token it wants is not known.
  */
-export const readPushRouting = async (serverUrl: string): Promise<PushRouting | null> => {
+export const readPushRouting = async (
+  serverUrl: string,
+  platform: PushPlatform
+): Promise<PushRouting | null> => {
   try {
-    const response = await fetch(`${serverUrl}/settings/fcm-config`, {
+    const query = new URLSearchParams({ platform });
+    const response = await fetch(`${serverUrl}/settings/fcm-config?${query}`, {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) return null;
@@ -233,7 +240,7 @@ export const registerDeviceForPush = async ({
 }): Promise<void> => {
   const serverOrigin = originOf(serverUrl);
   if (!serverOrigin) return;
-  const routing = await readPushRouting(serverUrl);
+  const routing = await readPushRouting(serverUrl, platform);
   if (!routing) return;
   if (platform === "android" && !routing.androidViaRelay) {
     await registerPushToken(token, platform);

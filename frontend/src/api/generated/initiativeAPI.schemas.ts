@@ -10227,6 +10227,22 @@ export type ListAccessGrantQueueParams = {
   page_size?: number;
 };
 
+export type GetFcmConfigParams = {
+  /**
+   * The phone asking. Its relay id is served only to a phone whose pushes go through the relay.
+   */
+  platform?: GetFcmConfigPlatform;
+};
+
+export type GetFcmConfigPlatform =
+  | (typeof GetFcmConfigPlatform)[keyof typeof GetFcmConfigPlatform]
+  | null;
+
+export const GetFcmConfigPlatform = {
+  ios: "ios",
+  android: "android",
+} as const;
+
 export type ListPlatformCommunityStorageParams = {
   /**
    * Matches the name.
