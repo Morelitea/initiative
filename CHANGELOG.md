@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
+- **A phone's sign-in keeps one push registration**: a new token replaces the one it held, and an account can register at most 30 an hour. One account can no longer pile up tokens the push relay answers as dead, which would get the whole server's pushes suspended.
 - **Anything under `/.well-known/` that Initiative doesn't serve answers 404**, not the app's page, and the app association files are cached for an hour.
 - **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
 - **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.

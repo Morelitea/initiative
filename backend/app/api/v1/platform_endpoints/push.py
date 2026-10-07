@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import UserSessionDep, CurrentUser, require_first_party_session
 from app.core import auth_context
+from app.core.rate_limit import limiter
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
     PushTokenUnregisterRequest,
@@ -16,10 +17,12 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=PushTokenResponse)
+@limiter.limit("30/hour")
 async def register_push_token(
+    request: Request,
     session: UserSessionDep,
     current_user: CurrentUser,
-    request: PushTokenRegisterRequest,
+    payload: PushTokenRegisterRequest,
     _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> PushTokenResponse:
     """Register a push notification token for the current user.
@@ -38,6 +41,12 @@ async def register_push_token(
     A deployment that has switched push notifications off declines (403) and
     stores nothing: there is nothing for the token to be used for, and holding
     it would be keeping an address this deployment has said it does not send to.
+
+    A sign-in holds one registration: a new token replaces the one it held
+    before (the device's token rotated, or it moved between Firebase and the
+    push relay). That, and the limit per account, keep one account from
+    piling up tokens the push relay will answer as dead: enough dead answers
+    and the relay suspends this whole server.
     """
     if not (await app_settings.get_app_settings(session)).push_notifications_enabled:
         raise HTTPException(
@@ -48,8 +57,8 @@ async def register_push_token(
     await push_tokens.register_push_token(
         session=session,
         user_id=current_user.id,
-        push_token=request.push_token,
-        platform=request.platform,
+        push_token=payload.push_token,
+        platform=payload.platform,
         session_id=credential.session_id if credential else None,
     )
     return PushTokenResponse(status="registered")

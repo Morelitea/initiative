@@ -178,18 +178,20 @@ async def test_delivery_reads_stamps_and_prunes_the_devices(session, monkeypatch
 
     recipient = await create_user(session)
     bystander = await create_user(session)
-    signed_in, signed_out, elsewhere = [
+    # A sign-in holds one registration, so the live and the dead device are
+    # two phones.
+    signed_in, other_phone, signed_out, elsewhere = [
         (
             await session_service.create_session(
                 session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
             )
         ).session.id
-        for user in (recipient, recipient, bystander)
+        for user in (recipient, recipient, recipient, bystander)
     ]
     await session_service.revoke_session(session, session_id=signed_out)
     for user, value, sid in (
         (recipient, "live", signed_in),
-        (recipient, "gone", signed_in),
+        (recipient, "gone", other_phone),
         (recipient, "signed-out", signed_out),
         (recipient, "unlinked", None),
         (bystander, "gone", elsewhere),
