@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
 - **"Every current initiative" places a plug-in in every initiative in the community**, including ones you are not a member of. It used to reach only your own initiatives, so automations stayed silent everywhere else while the setting said every initiative. If you chose it before, open the plug-in's settings and choose **Every current initiative** again to reach the rest.
 
 ## [0.75.1] - 2026-10-07

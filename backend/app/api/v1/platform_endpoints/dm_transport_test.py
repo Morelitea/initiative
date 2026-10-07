@@ -155,36 +155,64 @@ async def test_a_malformed_key_is_refused(client, acting_user):
     assert response.status_code == 422
 
 
-async def test_a_payload_is_handed_back_the_way_the_ratchet_reads_it(
-    client, acting_user
+async def test_keys_are_handed_back_the_way_the_ratchet_writes_them(
+    client, session, acting_user
 ):
-    """The ciphertext decoder on the client keeps its padding, so the server
-    must too -- a value whose length is not a multiple of three comes back
-    unreadable otherwise, which is two messages in every three."""
+    """A client finds who sent a pre-key message by comparing the identity it
+    names with the one the directory lists, as text. The ratchet writes keys
+    without padding, so every key goes back that way, however it was published.
+    """
     a = await acting_user()
-    payload = _registration()
-    payload["identity_key"] = base64.b64encode(b"\x01" * 32).decode()
+    b = await acting_user()
+    await _set_policy(session, a.user, DmPolicy.public)
+    await _set_policy(session, b.user, DmPolicy.public)
+    await _open_channel(session, a.user, b.user)
+    written = _signed_registration(b.user.id, seed=45)
+    written.pop("_device")
+    otk = written["one_time_keys"][0]
 
-    response = await client.post(
-        "/api/v1/me/dm/devices", json=payload, headers=a.headers
+    def padded(value: str) -> str:
+        return value + "=" * (-len(value) % 4)
+
+    published = {
+        **written,
+        "identity_key": padded(written["identity_key"]),
+        "fingerprint_key": padded(written["fingerprint_key"]),
+        "signature": padded(written["signature"]),
+        "one_time_keys": [
+            {
+                **otk,
+                "public_key": padded(otk["public_key"]),
+                "signature": padded(otk["signature"]),
+            }
+        ],
+    }
+    registered = await client.post(
+        "/api/v1/me/dm/devices", json=published, headers=b.headers
     )
-    assert response.status_code == 201
+    assert registered.status_code == 201, registered.text
+
+    directory = await client.get(
+        f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+    )
+    claimed = await client.post(
+        f"/api/v1/users/{b.user.id}/dm/session-keys", headers=a.headers
+    )
+    for device in (
+        registered.json()["devices"][0],
+        directory.json()["devices"][0],
+        claimed.json()["devices"][0],
+    ):
+        assert device["identity_key"] == written["identity_key"]
+        assert device["fingerprint_key"] == written["fingerprint_key"]
+        assert device["signature"] == written["signature"]
     assert (
-        response.json()["devices"][0]["identity_key"]
-        == base64.b64encode(b"\x01" * 32).decode()
+        claimed.json()["devices"][0]["one_time_key"]["public_key"]
+        == (otk["public_key"])
     )
-
-
-async def test_padded_keys_are_accepted_too(client, acting_user):
-    """The ratchet omits the padding; a client that sends it is not refused."""
-    a = await acting_user()
-    payload = _registration()
-    payload["identity_key"] = base64.b64encode(b"\x01" * 32).decode()
-
-    response = await client.post(
-        "/api/v1/me/dm/devices", json=payload, headers=a.headers
+    assert (
+        claimed.json()["devices"][0]["one_time_key"]["signature"] == (otk["signature"])
     )
-    assert response.status_code == 201
 
 
 async def test_a_fallback_key_may_reuse_a_prekey_id(client, acting_user):
@@ -373,7 +401,7 @@ async def test_a_device_signs_its_keys(client, session, acting_user):
     signed_itself = await client.put(url, json=backfill, headers=a.headers)
     assert signed_itself.status_code == 200, signed_itself.text
     listed = signed_itself.json()["devices"][0]
-    assert listed["signature"].rstrip("=") == backfill["signature"]
+    assert listed["signature"] == backfill["signature"]
     assert listed["one_time_key_count"] == 2
     again = await client.put(url, json=backfill, headers=a.headers)
     assert again.json()["detail"] == "DM_INVALID_SIGNATURE"
