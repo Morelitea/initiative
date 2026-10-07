@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A file's featured image keeps its own shape.** It used to be cropped to a wide banner across the top of the file; now it shows whole, at its own proportions, and stops short of filling the screen.
+
 ## [0.75.1] - 2026-10-07
 
 ### Changed

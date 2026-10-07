@@ -16,7 +16,8 @@ interface FileFeaturedImageProps {
 /**
  * The picture a file leads with, and the one its card shows.
  *
- * Set, it runs the width of the file. Unset, a writer gets one small row
+ * Set, it runs the width of the file at its own shape, never cropped, and
+ * no taller than most of the screen. Unset, a writer gets one small row
  * to add it from, there before a word is written; a reader sees nothing. A
  * picture written into the body can be made the featured one from the picture
  * itself, so this row is one of two ways in.
@@ -55,7 +56,7 @@ export const FileFeaturedImage = ({
           src={resolveUploadUrl(url) ?? undefined}
           alt={t("featuredImage.label")}
           referrerPolicy="no-referrer"
-          className="aspect-[3/1] w-full object-cover"
+          className="max-h-[60vh] w-full object-contain"
         />
         {canEdit ? (
           <div className="absolute top-2 right-2 flex gap-2 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
