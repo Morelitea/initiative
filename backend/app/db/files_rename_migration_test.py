@@ -17,6 +17,7 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import text
 
+from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.platform.notification import NotificationType
 from app.services.platform import notice_outbox, user_notifications
@@ -65,6 +66,29 @@ _NEW_STATEMENT = (
 )
 #: A plug-in widget's parameters are the plug-in's, whatever they are called.
 _PLUGIN_BINDING = {"source": "plugin", "params": {"document_id": 5}}
+
+
+def _guild_runner(schema: str):
+    """Revision 0464 one way or the other, on one guild's schema only."""
+    files = _load("20261006_0464_documents_are_files.py")
+
+    def run(forward: bool):
+        def apply(sync_session) -> None:
+            bind = sync_session.connection()
+
+            def in_schema(step) -> None:
+                bind.execute(
+                    text("SELECT set_config('search_path', :sp, true)"),
+                    {"sp": f"{schema}, public"},
+                )
+                step()
+
+            with Operations.context(MigrationContext.configure(bind)):
+                files._convert(bind, forward, in_schema)
+
+        return apply
+
+    return run
 
 
 async def _guild_values(session, schema: str, ids: dict[str, int]) -> dict:
@@ -172,21 +196,7 @@ async def test_guild_values_say_file_and_back(session) -> None:
     )
     await session.commit()
 
-    files = _load("20261006_0464_documents_are_files.py")
-
-    def run(forward: bool):
-        def apply(sync_session) -> None:
-            bind = sync_session.connection()
-            codes = files._KIND_CODES_AFTER if forward else files._KIND_CODES_BEFORE
-            bind.exec_driver_sql(files._kind_code_fn(codes))
-            bind.execute(
-                text("SELECT set_config('search_path', :sp, true)"),
-                {"sp": f"{schema}, public"},
-            )
-            with Operations.context(MigrationContext.configure(bind)):
-                files._apply(forward)
-
-        return apply
+    run = _guild_runner(schema)
 
     try:
         await session.run_sync(run(False))
@@ -282,6 +292,45 @@ async def test_guild_values_say_file_and_back(session) -> None:
     finally:
         await session.run_sync(run(True))
         await session.commit()
+
+
+async def test_an_edge_between_two_files_is_respelled(session) -> None:
+    """Both ends name the kind, and the rewrite reaches them one column at a
+    time, so the code reads both spellings while it does."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    schema = f"guild_{guild.id}"
+    initiative = await create_initiative(session, guild, user)
+    first = await create_file(session, initiative, user)
+    second = await create_file(session, initiative, user)
+    await create_relationship(
+        session,
+        guild,
+        source=(SearchEntityType.file, first.id),
+        target=(SearchEntityType.file, second.id),
+        relationship_type=RelationshipType.references,
+    )
+    await session.commit()
+    run = _guild_runner(schema)
+    edge = (
+        "SELECT source_type, target_type, source_node, target_node "
+        f'FROM "{schema}".relationships'
+    )
+    nodes = ((6 << 32) | first.id, (6 << 32) | second.id)
+    code = "SELECT public.relationship_kind_code(:kind)"
+
+    try:
+        await session.run_sync(run(False))
+        await session.commit()
+        assert await _rows(session, edge) == [("document", "document", *nodes)]
+        assert await _rows(session, code, kind="file") == [(None,)]
+    finally:
+        # A failed step aborts the transaction; restore from a fresh one.
+        await session.rollback()
+        await session.run_sync(run(True))
+        await session.commit()
+    assert await _rows(session, edge) == [("file", "file", *nodes)]
+    assert await _rows(session, code, kind="document") == [(None,)]
 
 
 async def _public_values(session, user_id: int, registration_id: int) -> dict:
