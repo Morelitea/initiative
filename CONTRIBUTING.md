@@ -286,7 +286,7 @@ Please **do not** open a public issue for security vulnerabilities. See [SECURIT
 
 This repository is open source under the [AGPL-3.0](LICENSE). Copyright is retained by the maintainers, who retain full commercial rights. Initiative is open core — see [License](README.md#license) for what's open and what isn't.
 
-Contributions are made under the [Contributor License Agreement](./CLA.md) (version 2), which grants Beyonders Studio the rights to your contribution, including the right to relicense it. You sign it once, on your first pull request: a CLA check comments asking you to, and you sign by posting this comment on the pull request:
+Contributions are made under the [Contributor License Agreement](./CLA.md) (version 2), which grants Morelitea LLC, doing business as Beyonders Studio, the rights to your contribution, including the right to relicense it. You sign it once, on your first pull request: a CLA check comments asking you to, and you sign by posting this comment on the pull request:
 
 ```
 I have read the CLA Document and I hereby sign the CLA
