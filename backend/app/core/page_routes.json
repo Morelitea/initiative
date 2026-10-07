@@ -112,6 +112,7 @@
   "/forgot-password",
   "/invite/$code",
   "/legal/$slug",
+  "/licences",
   "/login",
   "/marketplace",
   "/messages",
