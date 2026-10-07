@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The operator dashboard's Communities list has one billing button per community.** The **Operations** button is gone; open the billing operator console from **Manage › Change in billing**.
+
 ### Fixed
 
 - **Opening billing or breaking glass asks for your second factor instead of signing you out.** When a new grant needed a code from your authenticator app or a passkey, the app read the request as an expired session and signed you out.

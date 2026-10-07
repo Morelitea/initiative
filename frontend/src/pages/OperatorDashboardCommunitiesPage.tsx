@@ -32,30 +32,20 @@ import type { AppColumnDef } from "@/lib/table";
 
 // Storage caps are entered in binary GB (GiB) so a value round-trips cleanly
 // with `formatBytes` (which is also 1024-based). The editor for them, and for
-// every other operator setting, lives in CommunityOperatorSettingsSheet.
+// every other operator setting, lives in CommunityOperatorSettingsSheet, and so
+// does the way into the billing operator console.
 const CommunityBillingCell = ({ community }: { community: PlatformCommunityStorageRead }) => {
   const { t } = useTranslation("settings");
   return (
-    <div className="flex items-center gap-1">
-      <BillingConsoleButton
-        community={community}
-        console="support"
-        size="sm"
-        variant="outline"
-        aria-label={t("communities.billing.openLabel", { name: community.name })}
-      >
-        {community.tier_name ?? t("communities.billing.noPlan")}
-      </BillingConsoleButton>
-      <BillingConsoleButton
-        community={community}
-        console="operator"
-        size="sm"
-        variant="ghost"
-        aria-label={t("communities.billing.operatorLabel", { name: community.name })}
-      >
-        {t("communities.billing.operations")}
-      </BillingConsoleButton>
-    </div>
+    <BillingConsoleButton
+      community={community}
+      console="support"
+      size="sm"
+      variant="outline"
+      aria-label={t("communities.billing.openLabel", { name: community.name })}
+    >
+      {community.tier_name ?? t("communities.billing.noPlan")}
+    </BillingConsoleButton>
   );
 };
 

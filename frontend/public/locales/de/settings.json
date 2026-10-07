@@ -1232,8 +1232,6 @@
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden.",
-      "operatorLabel": "Abrechnungsvorgänge für {{name}}",
-      "operations": "Vorgänge",
       "factor": {
         "title": "Bestätige, dass du es bist",
         "description": "Wenn du die Abrechnung für {{name}} öffnest, erhältst du eine Abrechnungsfreigabe. Gib einen Code aus deiner Authenticator-App oder einen Wiederherstellungscode ein.",

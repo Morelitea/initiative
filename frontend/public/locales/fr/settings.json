@@ -1232,8 +1232,6 @@
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation.",
-      "operatorLabel": "Opérations de facturation pour {{name}}",
-      "operations": "Opérations",
       "factor": {
         "title": "Confirmez votre identité",
         "description": "Ouvrir la facturation de {{name}} vous accorde un accès à la facturation. Saisissez un code de votre application d'authentification ou un code de récupération.",
