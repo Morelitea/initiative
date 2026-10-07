@@ -428,6 +428,30 @@ describe("silent session renewal", () => {
     expect(announced(onChallenge)).toEqual(detail);
   });
 
+  it("leaves a grant's second-factor ask to the caller, signed in", async () => {
+    const refresh = { calls: 0 };
+    server.use(
+      http.post("/api/v1/settings/platform/communities/1/billing/service-handoff", () =>
+        HttpResponse.json({ detail: "ACCESS_GRANT_SECOND_FACTOR_REQUIRED" }, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refresh.calls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
+
+    await expect(
+      apiClient.post("/settings/platform/communities/1/billing/service-handoff")
+    ).rejects.toMatchObject({
+      response: { status: 401, data: { detail: "ACCESS_GRANT_SECOND_FACTOR_REQUIRED" } },
+    });
+
+    expect(refresh.calls).toBe(0);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it("does not renew for auth lifecycle endpoints", async () => {
     let refreshCalls = 0;
     server.use(

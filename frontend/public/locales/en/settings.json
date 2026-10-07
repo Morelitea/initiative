@@ -1153,8 +1153,6 @@
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal.",
-      "operatorLabel": "Billing operations for {{name}}",
-      "operations": "Operations",
       "factor": {
         "title": "Confirm it's you",
         "description": "Opening billing for {{name}} issues you a billing grant. Enter a code from your authenticator app or a recovery code.",
