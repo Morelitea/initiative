@@ -5,7 +5,8 @@ name: CLA
 # asked to, on the pull request, and signs by commenting the phrase CLA.md §7
 # gives. The signature (GitHub account, pull request, time) is committed to
 # signatures/version2/cla.json on the cla-signatures branch. A pull request
-# whose committers have all signed, or are on the allowlist, passes.
+# whose committers have all signed, or are on the allowlist (the
+# organization's members and its bots), passes.
 #
 # pull_request_target runs with this repository's token, write access
 # included, even for a pull request from a fork. That is safe only because
@@ -69,4 +70,18 @@ jobs:
           # Matched against each commit's GitHub login, or, for a commit whose
           # email is linked to no account, the git author name, which anyone
           # can set. So the list is exact names, with no wildcard.
-          allowlist: LeeJMorel,jordandrako,dependabot[bot],initiative-release[bot]
+          #
+          # Members of the beyonders-studio organization are never asked to
+          # sign: their work is covered by their agreement with the
+          # organization, not by this check. The list is per commit author,
+          # not per pull request author, so a member who opens a pull request
+          # carrying an outside contributor's commits still gets that
+          # contributor asked. Keep it in step with
+          # https://github.com/orgs/beyonders-studio/people.
+          #
+          # claude: commits the maintainers make through Claude Code sessions
+          # are attributed by GitHub to the `claude` account (author email
+          # noreply@anthropic.com). They are the maintainers' own work, and
+          # without this entry every release pull request from dev would stop
+          # on them.
+          allowlist: LeeJMorel,jordandrako,tomj12k,Dazhbug,viwrastupr,claude,dependabot[bot],initiative-release[bot]
