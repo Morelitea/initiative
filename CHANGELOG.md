@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Opening billing or breaking glass asks for your second factor instead of signing you out.** When a new grant needed a code from your authenticator app or a passkey, the app read the request as an expired session and signed you out.
+
 ## [0.75.2] - 2026-10-07
 
 ### Changed

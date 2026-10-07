@@ -474,6 +474,12 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
   error.response?.data?.detail === "COMMUNITY_AUTH_STEP_UP_REQUIRED";
 
+// Issuing yourself a grant (break glass, a billing visit) takes the account's
+// second factor with the request. The session is fine, so it neither renews
+// nor reads as signed out; the caller asks for the factor and sends it again.
+const isGrantFactorRefusal = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
+  error.response?.data?.detail === "ACCESS_GRANT_SECOND_FACTOR_REQUIRED";
+
 // The other half of the same idea: this community wants a factor of the
 // account's own — a code from its authenticator app, or a passkey — which no
 // provider's sign-in page supplies. The session itself is fine, so like the
@@ -579,6 +585,7 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     }
     return Promise.reject(error);
   }
+  if (isGrantFactorRefusal(error)) return Promise.reject(error);
   if (
     error.response?.status === 401 &&
     canRenewSession() &&
