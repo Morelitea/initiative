@@ -24,6 +24,7 @@ import { Route as PluginsConnectedRouteImport } from './routes/plugins.connected
 import { Route as ServerRequiredAuthenticatedIndexRouteImport } from './routes/_serverRequired/_authenticated/index'
 import { Route as ServerRequiredAuthenticatedAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/announcements'
 import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/communities'
+import { Route as ServerRequiredAuthenticatedLicencesRouteImport } from './routes/_serverRequired/_authenticated/licences'
 import { Route as ServerRequiredAuthenticatedMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/marketplace'
 import { Route as ServerRequiredAuthenticatedMessagesRouteImport } from './routes/_serverRequired/_authenticated/messages'
 import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
@@ -254,6 +255,12 @@ const ServerRequiredAuthenticatedCommunitiesRoute =
   ServerRequiredAuthenticatedCommunitiesRouteImport.update({
     id: '/communities',
     path: '/communities',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedLicencesRoute =
+  ServerRequiredAuthenticatedLicencesRouteImport.update({
+    id: '/licences',
+    path: '/licences',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedMarketplaceRoute =
@@ -1418,6 +1425,7 @@ export interface FileRoutesByFullPath {
   '/plugins/connected': typeof PluginsConnectedRoute
   '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/licences': typeof ServerRequiredAuthenticatedLicencesRoute
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
@@ -1584,6 +1592,7 @@ export interface FileRoutesByTo {
   '/plugins/connected': typeof PluginsConnectedRoute
   '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/licences': typeof ServerRequiredAuthenticatedLicencesRoute
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
@@ -1735,6 +1744,7 @@ export interface FileRoutesById {
   '/plugins/connected': typeof PluginsConnectedRoute
   '/_serverRequired/_authenticated/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/_serverRequired/_authenticated/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/_serverRequired/_authenticated/licences': typeof ServerRequiredAuthenticatedLicencesRoute
   '/_serverRequired/_authenticated/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/_serverRequired/_authenticated/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
@@ -1904,6 +1914,7 @@ export interface FileRouteTypes {
     | '/plugins/connected'
     | '/announcements'
     | '/communities'
+    | '/licences'
     | '/marketplace'
     | '/messages'
     | '/my-calendar'
@@ -2070,6 +2081,7 @@ export interface FileRouteTypes {
     | '/plugins/connected'
     | '/announcements'
     | '/communities'
+    | '/licences'
     | '/marketplace'
     | '/messages'
     | '/my-calendar'
@@ -2220,6 +2232,7 @@ export interface FileRouteTypes {
     | '/plugins/connected'
     | '/_serverRequired/_authenticated/announcements'
     | '/_serverRequired/_authenticated/communities'
+    | '/_serverRequired/_authenticated/licences'
     | '/_serverRequired/_authenticated/marketplace'
     | '/_serverRequired/_authenticated/messages'
     | '/_serverRequired/_authenticated/my-calendar'
@@ -2484,6 +2497,13 @@ declare module '@tanstack/react-router' {
       path: '/communities'
       fullPath: '/communities'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCommunitiesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/licences': {
+      id: '/_serverRequired/_authenticated/licences'
+      path: '/licences'
+      fullPath: '/licences'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedLicencesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/marketplace': {
@@ -4140,6 +4160,7 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren =
 interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedAnnouncementsRoute: typeof ServerRequiredAuthenticatedAnnouncementsRoute
   ServerRequiredAuthenticatedCommunitiesRoute: typeof ServerRequiredAuthenticatedCommunitiesRoute
+  ServerRequiredAuthenticatedLicencesRoute: typeof ServerRequiredAuthenticatedLicencesRoute
   ServerRequiredAuthenticatedMarketplaceRoute: typeof ServerRequiredAuthenticatedMarketplaceRoute
   ServerRequiredAuthenticatedMessagesRoute: typeof ServerRequiredAuthenticatedMessagesRoute
   ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
@@ -4164,6 +4185,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedAnnouncementsRoute,
     ServerRequiredAuthenticatedCommunitiesRoute:
       ServerRequiredAuthenticatedCommunitiesRoute,
+    ServerRequiredAuthenticatedLicencesRoute:
+      ServerRequiredAuthenticatedLicencesRoute,
     ServerRequiredAuthenticatedMarketplaceRoute:
       ServerRequiredAuthenticatedMarketplaceRoute,
     ServerRequiredAuthenticatedMessagesRoute:

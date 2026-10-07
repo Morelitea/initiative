@@ -396,7 +396,10 @@
     "updateNow": "Jetzt aktualisieren",
     "updating": "Wird aktualisiert…",
     "notNow": "Nicht jetzt",
-    "updateFailed": "Die Aktualisierung wurde nicht abgeschlossen. Lade sie stattdessen herunter."
+    "updateFailed": "Die Aktualisierung wurde nicht abgeschlossen. Lade sie stattdessen herunter.",
+    "openSourceLicences": "Open-Source-Lizenzen",
+    "licencesTitle": "Open-Source-Lizenzen",
+    "licencesUnavailable": "Die Lizenzhinweise konnten nicht geladen werden."
   },
   "temporaryAccess": "Temporärer Zugriff",
   "expiresInMinutes": "läuft in {{minutes}} Min. ab",

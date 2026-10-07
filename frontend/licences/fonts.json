@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "The fonts the build emits, for THIRD_PARTY_NOTICES.txt (scripts/third-party-notices.mjs).",
+    "'files' are patterns matched against the build's output paths; the build fails when it emits a font file no entry claims.",
+    "A font's licence comes from its npm package ('packageLicence'), a file under licences/ ('licenceFile'), or 'copyright' plus the standard text in licences/texts/."
+  ],
+  "fonts": [
+    {
+      "name": "Outfit",
+      "shippedBy": "@fontsource-variable/outfit (the app's typeface)",
+      "licence": "OFL-1.1",
+      "source": "https://github.com/Outfitio/Outfit-Fonts",
+      "files": ["(^|/)outfit-[^/]*\\.woff2?$"],
+      "packageLicence": { "package": "@fontsource-variable/outfit", "file": "LICENSE" }
+    },
+    {
+      "name": "Assistant",
+      "shippedBy": "@excalidraw/excalidraw (the whiteboard's UI font)",
+      "licence": "OFL-1.1",
+      "source": "https://github.com/hafontia/Assistant",
+      "files": ["(^|/)Assistant-[^/]*\\.woff2?$"],
+      "licenceFile": "fonts/assistant.txt"
+    }
+  ]
+}
