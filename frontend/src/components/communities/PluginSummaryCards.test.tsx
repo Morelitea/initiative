@@ -25,6 +25,9 @@ vi.mock("@/api/generated/plugins/plugins", () => ({
 
 import { PluginSummaryCards } from "./PluginSummaryCards";
 
+// A moment, so the calendar day it falls on depends on where the reader is.
+const RESETS_ON = "2026-11-15T12:00:00Z";
+
 const summary = (returns: unknown[]) => ({ plugin_id: 3, name: "Meter", returns });
 
 const ALLOWANCE = [
@@ -37,7 +40,7 @@ const ALLOWANCE = [
 describe("PluginSummaryCards", () => {
   beforeEach(() => {
     state.summaries = [summary(ALLOWANCE)];
-    state.values = { used: 250, allowed: 500, left: 1500, resets_on: "2026-11-15T12:00:00Z" };
+    state.values = { used: 250, allowed: 500, left: 1500, resets_on: RESETS_ON };
     state.rows = [];
     state.error = false;
     state.asked = [];
@@ -53,7 +56,8 @@ describe("PluginSummaryCards", () => {
     expect(screen.queryByText("Monthly allowance")).not.toBeInTheDocument();
     expect(screen.getByText("Credits left")).toBeInTheDocument();
     expect(screen.getByText("1,500")).toBeInTheDocument();
-    expect(screen.getByText("November 15, 2026")).toBeInTheDocument();
+    const resets = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(new Date(RESETS_ON));
+    expect(screen.getByText(resets)).toBeInTheDocument();
   });
 
   it("draws a figure with no ceiling alone", () => {
