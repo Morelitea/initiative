@@ -538,17 +538,15 @@ async def _prepare_database() -> None:
     # Listings the operator publishes themselves, from the directory
     # MARKETPLACE_EXTRA_CATALOG_DIR names. Same writer, same validation as the
     # built-ins; a manifest that has been removed retires its listing. With the
-    # setting unset nothing is read and nothing is said.
-    from app.services.marketplace.operator_catalog import (
-        operator_catalog_dir,
-        scan_operator_catalog,
-    )
+    # setting unset nothing is read, and any operator listing left from a
+    # directory that used to be set is withdrawn (the scan logs that itself).
+    from app.services.marketplace.operator_catalog import scan_operator_catalog
 
-    if operator_catalog_dir() is not None:
-        try:
-            async with SystemSessionLocal() as operator_catalog_session:
-                scan = await scan_operator_catalog(operator_catalog_session)
-                await operator_catalog_session.commit()
+    try:
+        async with SystemSessionLocal() as operator_catalog_session:
+            scan = await scan_operator_catalog(operator_catalog_session)
+            await operator_catalog_session.commit()
+        if scan.configured:
             logger.info(
                 "marketplace: operator catalog — %d published, %d withdrawn, "
                 "%d skipped",
@@ -556,8 +554,8 @@ async def _prepare_database() -> None:
                 scan.withdrawn,
                 scan.skipped,
             )
-        except Exception:
-            logger.exception("marketplace: operator catalog scan failed")
+    except Exception:
+        logger.exception("marketplace: operator catalog scan failed")
     # This project's own plug-in publisher. Added once; a row that exists is left
     # exactly as it is, so an operator's switch survives a restart.
     try:

@@ -835,7 +835,8 @@ class Settings(BaseSettings):
     # change to the application. Scanned at boot and on demand from
     # Settings → Platform; a file that is removed retires its listing.
     # Unset (the default) means no directory is read and nothing is published
-    # beyond the built-ins.
+    # beyond the built-ins; any listing a directory published earlier is
+    # withdrawn, as if the directory were empty.
     MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
 
     # --- Data export engine ---

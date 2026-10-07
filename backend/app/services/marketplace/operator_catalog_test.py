@@ -139,18 +139,59 @@ async def _listings(session) -> dict[str, MarketplaceListing]:
 
 
 class TestUnconfigured:
-    async def test_no_directory_means_no_feature(self, session, monkeypatch):
-        """Unset is absent: nothing is read, nothing is published, and — the
-        part worth pinning — nothing already in the catalog is withdrawn."""
+    async def test_no_directory_withdraws_what_a_directory_once_published(
+        self, session, monkeypatch
+    ):
+        """Unset reads as empty. The directory is the only source of operator
+        listings, so one left from a directory that is no longer set — the
+        Automations listing earlier releases copied into every deployment — is
+        withdrawn rather than offered forever."""
         monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
         await upsert_listing(session, _manifest(), source="operator")
         await session.commit()
 
         result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.configured is False
+        assert (result.published, result.withdrawn, result.skipped) == (0, 1, 0)
+        assert (await _listings(session))["acme.standup"].available is False
+
+    async def test_no_directory_and_no_operator_listings_is_a_no_op(
+        self, session, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
 
         assert result.configured is False
         assert (result.published, result.withdrawn, result.skipped) == (0, 0, 0)
-        assert (await _listings(session))["acme.standup"].available is True
+        assert await _listings(session) == {}
+
+    async def test_no_directory_leaves_other_sources_alone(self, session, monkeypatch):
+        """Only what the directory published is the directory's to withdraw;
+        a built-in or a registry listing is out of its scope either way."""
+        monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
+        await upsert_listing(
+            session,
+            _manifest(uid=BUILTIN_UID, public_id="core.shipped"),
+            source="builtin",
+        )
+        await upsert_listing(
+            session,
+            _manifest(uid=REGISTRY_UID, public_id="acme.registered"),
+            source="registry",
+        )
+        await session.commit()
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.withdrawn == 0
+        listings = await _listings(session)
+        assert listings["core.shipped"].available is True
+        assert listings["acme.registered"].available is True
 
     async def test_a_blank_setting_reads_as_unset(self, session, monkeypatch):
         monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", "   ")
