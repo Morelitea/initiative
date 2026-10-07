@@ -408,6 +408,15 @@ Detect Changes job, and the run's summary page says which:
   file's top level (a pydantic field, a constant) selects every test that used
   the file.
 
+**A tree is tested whole once.** A run that passed every backend and frontend
+test and the seam suite records the tree it tested (the `tested-raw-*` and
+`tested-tree-*` artifacts, `scripts/ci/tested_tree.sh`). A later push or pull
+request of that exact tree runs neither suite, and one that differs only in
+what a release rewrites (`VERSION`, `CHANGELOG.md`, `RELEASED_MIGRATION`, the
+`MIN_*_VERSION` files, the regenerated API client) runs the always-run core.
+So a release pull request cut from a tested dev commit, the push to `main` and
+the merge back into `dev` do not re-run the suite dev already passed.
+
 The **always-run core** is every test marked `always` (a file's
 `pytestmark = pytest.mark.always`, or `@pytest.mark.always` on one test). Mark
 a test `always` when it checks something across *every* table, route,
