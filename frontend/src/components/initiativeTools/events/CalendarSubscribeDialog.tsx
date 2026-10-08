@@ -19,17 +19,20 @@ import { buildApiUrl } from "@/lib/wsUrl";
 /** The longest name an API key takes. */
 const KEY_NAME_MAX = 100;
 
+type SubscribableCalendar = { id: number; name: string };
+
 type CalendarSubscribeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   communityId: number;
-  calendar: { id: number; name: string };
+  calendars: SubscribableCalendar[];
 };
 
 /**
- * A subscription link to one calendar, for another calendar app.
+ * Subscription links to calendars, for another calendar app: one link per
+ * calendar, so each stays a calendar of its own there.
  *
- * The link is a personal API key that names this calendar, so it follows the
+ * A link is a personal API key that names its calendar, so it follows the
  * community's API-access setting, shows under Settings › Security, and is
  * shown once. Getting another replaces it.
  */
@@ -37,17 +40,70 @@ export const CalendarSubscribeDialog = ({
   open,
   onOpenChange,
   communityId,
-  calendar,
+  calendars,
 }: CalendarSubscribeDialogProps) => {
   const { t } = useTranslation(["calendars", "common"]);
-  const [link, setLink] = useState<string | null>(null);
+  const [dialogKey, setDialogKey] = useState(0);
   const keysQuery = useMyApiKeys();
-  const hasLink = (keysQuery.data?.keys ?? []).some(
-    (key) =>
-      key.resource_type === Tool.calendar &&
-      key.resource_id === calendar.id &&
-      key.community_id === communityId
+  const linked = new Set(
+    (keysQuery.data?.keys ?? [])
+      .filter((key) => key.resource_type === Tool.calendar && key.community_id === communityId)
+      .map((key) => key.resource_id)
   );
+
+  const close = () => {
+    onOpenChange(false);
+    // Links are shown once: closing forgets them.
+    setDialogKey((key) => key + 1);
+  };
+
+  const [only] = calendars.length === 1 ? calendars : [];
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {only ? t("subscribe.title", { name: only.name }) : t("subscribe.titleMany")}
+          </DialogTitle>
+          <DialogDescription>{t("subscribe.description")}</DialogDescription>
+        </DialogHeader>
+        <p className="text-muted-foreground text-sm">{t("subscribe.secret")}</p>
+        <ul key={dialogKey} className="max-h-[50vh] space-y-3 overflow-y-auto">
+          {calendars.map((calendar) => (
+            <SubscribeRow
+              key={calendar.id}
+              communityId={communityId}
+              calendar={calendar}
+              hasLink={linked.has(calendar.id)}
+              showName={!only}
+            />
+          ))}
+        </ul>
+        <p className="text-muted-foreground text-sm">{t("subscribe.manage")}</p>
+        <DialogFooter>
+          <Button type="button" onClick={close}>
+            {t("common:done")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/** One calendar's link: made on request and shown once. */
+const SubscribeRow = ({
+  communityId,
+  calendar,
+  hasLink,
+  showName,
+}: {
+  communityId: number;
+  calendar: SubscribableCalendar;
+  hasLink: boolean;
+  showName: boolean;
+}) => {
+  const { t } = useTranslation("calendars");
+  const [link, setLink] = useState<string | null>(null);
 
   const createLink = useCreateApiKey({
     onSuccess: (data) => {
@@ -57,11 +113,6 @@ export const CalendarSubscribeDialog = ({
     },
     onError: (error) => toast.error(getErrorMessage(error, "calendars:subscribe.error")),
   });
-
-  const close = () => {
-    onOpenChange(false);
-    setLink(null);
-  };
 
   const copyLink = () => {
     if (!link || !navigator?.clipboard) {
@@ -73,56 +124,47 @@ export const CalendarSubscribeDialog = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("subscribe.title", { name: calendar.name })}</DialogTitle>
-          <DialogDescription>{t("subscribe.description")}</DialogDescription>
-        </DialogHeader>
-        <p className="text-muted-foreground text-sm">{t("subscribe.secret")}</p>
-        {link ? (
-          <>
-            <code className="block break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-              {link}
-            </code>
-            <p className="text-muted-foreground text-sm">{t("subscribe.manage")}</p>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={copyLink}>
-                {t("subscribe.copy")}
-              </Button>
-              <Button type="button" variant="outline" asChild>
-                <a href={link.replace(/^https?:/, "webcal:")}>{t("subscribe.open")}</a>
-              </Button>
-              <Button type="button" onClick={close}>
-                {t("common:done")}
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            {hasLink ? <p className="text-sm">{t("subscribe.replaces")}</p> : null}
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={close}>
-                {t("common:cancel")}
-              </Button>
-              <Button
-                type="button"
-                disabled={createLink.isPending}
-                onClick={() =>
-                  createLink.mutate({
-                    name: t("subscribe.keyName", { name: calendar.name }).slice(0, KEY_NAME_MAX),
-                    community_id: communityId,
-                    resource_type: Tool.calendar,
-                    resource_id: calendar.id,
-                  })
-                }
-              >
-                {hasLink ? t("subscribe.getNewLink") : t("subscribe.getLink")}
-              </Button>
-            </DialogFooter>
-          </>
+    <li className="space-y-2 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {showName ? <p className="truncate font-medium">{calendar.name}</p> : null}
+          {hasLink && !link ? (
+            <p className="text-muted-foreground text-sm">{t("subscribe.replaces")}</p>
+          ) : null}
+        </div>
+        {link ? null : (
+          <Button
+            type="button"
+            size="sm"
+            disabled={createLink.isPending}
+            onClick={() =>
+              createLink.mutate({
+                name: t("subscribe.keyName", { name: calendar.name }).slice(0, KEY_NAME_MAX),
+                community_id: communityId,
+                resource_type: Tool.calendar,
+                resource_id: calendar.id,
+              })
+            }
+          >
+            {hasLink ? t("subscribe.getNewLink") : t("subscribe.getLink")}
+          </Button>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+      {link ? (
+        <>
+          <code className="block break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+            {link}
+          </code>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={copyLink}>
+              {t("subscribe.copy")}
+            </Button>
+            <Button type="button" size="sm" variant="outline" asChild>
+              <a href={link.replace(/^https?:/, "webcal:")}>{t("subscribe.open")}</a>
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </li>
   );
 };

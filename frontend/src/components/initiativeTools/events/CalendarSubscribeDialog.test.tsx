@@ -1,6 +1,8 @@
 /**
  * A subscription link is a personal API key that names one calendar, made
  * through the ordinary key route and shown once as the calendar's feed URL.
+ * A page with several calendars offers a link for each, so each stays its own
+ * calendar in the other app.
  */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -33,9 +35,9 @@ const key = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const renderDialog = () =>
+const renderDialog = (calendars = [CALENDAR]) =>
   renderWithProviders(
-    <CalendarSubscribeDialog open onOpenChange={() => {}} communityId={1} calendar={CALENDAR} />
+    <CalendarSubscribeDialog open onOpenChange={() => {}} communityId={1} calendars={calendars} />
   );
 
 describe("CalendarSubscribeDialog", () => {
@@ -72,5 +74,30 @@ describe("CalendarSubscribeDialog", () => {
 
     expect(await screen.findByRole("button", { name: "Get a new link" })).toBeInTheDocument();
     expect(screen.getByText(/stops the old one working/)).toBeInTheDocument();
+  });
+
+  it("makes a separate link for the calendar picked from several", async () => {
+    let body: unknown;
+    server.use(
+      http.get("/api/v1/me/api-keys", () => HttpResponse.json({ keys: [key()] })),
+      http.post("/api/v1/me/api-keys", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(
+          { api_key: key({ id: 2, resource_id: 8 }), secret: "ppk_other" },
+          { status: 201 }
+        );
+      })
+    );
+    renderDialog([CALENDAR, { id: 8, name: "Matches" }]);
+
+    // Rehearsals already has a link; Matches does not.
+    expect(await screen.findByRole("button", { name: "Get a new link" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Get link" }));
+
+    expect(body).toMatchObject({ resource_type: "calendar", resource_id: 8 });
+    expect(
+      await screen.findByText(/\/calendars\/8\/feed\.ics\?token=ppk_other$/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Get a new link" })).toBeInTheDocument();
   });
 });

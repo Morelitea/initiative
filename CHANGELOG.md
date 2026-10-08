@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Subscribe to a calendar from Google Calendar, Apple Calendar or Outlook.** Open a calendar and choose **Subscribe** for a link that keeps that app up to date. The link shows the calendar as you see it, and only while you can see it. It stops working if you leave the community, if your API access there is turned off, or if the calendar's initiative keeps its content in. It shows under Settings › Security with your API keys, where you can remove it.
+- **Subscribe to a calendar from Google Calendar, Apple Calendar or Outlook.** Choose **Subscribe** on a calendar, or on an initiative's or the community's calendars to pick from several, for a link that keeps that app up to date. Each calendar gets its own link, so it stays a separate calendar there. The link shows the calendar as you see it, and only while you can see it. It stops working if you leave the community, if your API access there is turned off, or if the calendar's initiative keeps its content in. It shows under Settings › Security with your API keys, where you can remove it.
 - **Task tables sort by status and by tag.** Status sorts in the order of the project's board, and tags by each task's first tag alphabetically, with untagged tasks last.
 
 ### Fixed

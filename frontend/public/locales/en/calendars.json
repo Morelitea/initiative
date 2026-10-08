@@ -129,7 +129,8 @@
   "subscribe": {
     "menu": "Subscribe",
     "title": "Subscribe to {{name}}",
-    "description": "Add this calendar to Google Calendar, Apple Calendar or Outlook. It keeps itself up to date.",
+    "titleMany": "Subscribe to calendars",
+    "description": "Add a calendar to Google Calendar, Apple Calendar or Outlook. Each calendar gets its own link, so it stays a separate calendar there and keeps itself up to date.",
     "secret": "Anyone with this link can see the calendar's events, so keep it to yourself. Events another app has already copied stay there after you remove the link.",
     "replaces": "You already have a link for this calendar. Getting a new one stops the old one working.",
     "getLink": "Get link",

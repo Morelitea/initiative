@@ -129,7 +129,8 @@
   "subscribe": {
     "menu": "S'abonner",
     "title": "S'abonner à {{name}}",
-    "description": "Ajoutez ce calendrier à Google Agenda, Apple Calendrier ou Outlook. Il se tient à jour tout seul.",
+    "titleMany": "S'abonner à des calendriers",
+    "description": "Ajoutez un calendrier à Google Agenda, Apple Calendrier ou Outlook. Chaque calendrier a son propre lien : il y reste un calendrier distinct et se tient à jour tout seul.",
     "secret": "Toute personne disposant de ce lien peut voir les événements du calendrier : gardez-le pour vous. Les événements déjà copiés par une autre application y restent après la suppression du lien.",
     "replaces": "Vous avez déjà un lien pour ce calendrier. En demander un nouveau désactive l'ancien.",
     "getLink": "Obtenir le lien",

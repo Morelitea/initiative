@@ -474,12 +474,19 @@ export const CalendarsView = ({
   const [createCalendarOpen, setCreateCalendarOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
-  // One calendar in view can be subscribed to, unless its initiative keeps its
-  // content in or the community does not take this member's API keys. The
-  // focus page has already read it, so this is the cache.
+  // What can be subscribed to, a link per calendar: the one in focus, or every
+  // calendar an initiative's page or the community's lists. Not while the
+  // initiative keeps its content in, nor where the community does not take
+  // this member's API keys. The focus page has already read its calendar, so
+  // that read is the cache.
   const focusedCalendar = useCalendar(focusCalendarId ?? null).data;
+  const subscribeCalendars = focusedCalendar
+    ? [focusedCalendar]
+    : communityScope || initiativeId
+      ? calendars
+      : [];
   const subscribable =
-    focusedCalendar != null && !keepsContentIn && Boolean(activeCommunity?.can.use_api);
+    subscribeCalendars.length > 0 && !keepsContentIn && Boolean(activeCommunity?.can.use_api);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
 
   // Drive the app-wide bottom-nav add button for this route. Creating an
@@ -853,7 +860,7 @@ export const CalendarsView = ({
           open={subscribeOpen}
           onOpenChange={setSubscribeOpen}
           communityId={communityId}
-          calendar={focusedCalendar}
+          calendars={subscribeCalendars}
         />
       ) : null}
     </div>
