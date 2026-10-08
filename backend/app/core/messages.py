@@ -583,6 +583,21 @@ class SettingsMessages:
     STORAGE_BACKFILL_NOT_CONFIGURED = "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
 
 
+class EvidenceMessages:
+    """What a person attaches to a ticket or a report."""
+
+    #: The stream takes no files.
+    NOT_TAKEN = "EVIDENCE_NOT_TAKEN"
+    TOO_MANY = "EVIDENCE_TOO_MANY"
+    TOO_LARGE = "EVIDENCE_TOO_LARGE"
+    EMPTY = "EVIDENCE_EMPTY"
+    #: Its bytes are not one of the types the stream takes.
+    TYPE_NOT_ALLOWED = "EVIDENCE_TYPE_NOT_ALLOWED"
+    #: A picture that could not be read to take its location out.
+    UNREADABLE = "EVIDENCE_UNREADABLE"
+    NOT_FOUND = "EVIDENCE_NOT_FOUND"
+
+
 class ModerationMessages:
     """Reporting something, and settling a report."""
 

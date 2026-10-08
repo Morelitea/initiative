@@ -660,6 +660,62 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     return _make(f"guild_{int(guild_id)}/")
 
 
+#: What every evidence object's key starts with, in whichever community holds
+#: it. The one kind of object that may be copied between communities.
+EVIDENCE_KEY_PREFIX = "evidence-"
+
+
+def _copy_across(src: StorageBackend, dst: StorageBackend, key: str) -> bool:
+    """Copy ``key`` from one community's namespace to another's, as it is."""
+    if isinstance(src, DualReadStorage) and isinstance(dst, DualReadStorage):
+        if _copy_across(src._primary, dst._primary, key):
+            return True
+        # Not yet moved into the object store: copy what the fallback holds.
+        blob = src._fallback.open_readable(key)
+        if blob is None or blob.path is None:
+            return False
+        dst._primary.write(key, blob.path.read_bytes(), content_type=blob.content_type)
+        return True
+    if isinstance(src, S3Storage) and isinstance(dst, S3Storage):
+        source = src._object_key(key)
+        if not src._head(source):
+            return False
+        # Server-side: the bytes never pass through the application.
+        dst._client.copy_object(
+            Bucket=dst._bucket,
+            Key=dst._object_key(key),
+            CopySource={"Bucket": src._bucket, "Key": source},
+        )
+        return True
+    if isinstance(src, LocalFilesystemStorage) and isinstance(
+        dst, LocalFilesystemStorage
+    ):
+        source, target = src._safe_path(key), dst._safe_path(key)
+        if source is None or target is None or not source.is_file():
+            return False
+        shutil.copyfile(source, target)
+        return True
+    raise TypeError("both communities are held by the same kind of store")
+
+
+def copy_between_guilds(src_guild_id: int, dst_guild_id: int, key: str) -> bool:
+    """Copy one evidence object from ``src_guild_id``'s namespace into
+    ``dst_guild_id``'s under the same key, without reading it. Returns whether
+    the source was there to copy.
+
+    Evidence alone crosses: any other key is refused. What is copied is the
+    stored form, already encrypted; re-wrapping its key for the destination is
+    the caller's (``app.services.platform.evidence``).
+    """
+    if not key.startswith(EVIDENCE_KEY_PREFIX) or not is_flat_storage_key(key):
+        raise ValueError("only an evidence object is copied between communities")
+    if int(src_guild_id) == int(dst_guild_id):
+        raise ValueError("source and destination are the same community")
+    return _copy_across(
+        get_guild_storage(src_guild_id), get_guild_storage(dst_guild_id), key
+    )
+
+
 def purge_guild_blobs(guild_id: int) -> int:
     """Remove all of a guild's stored blobs — called on guild deprovision.
 

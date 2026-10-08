@@ -78,6 +78,15 @@ class AuditEventType(str, Enum):
     USER_SUSPENDED = "user.suspended", AuditCategory.MODERATION
     USER_UNSUSPENDED = "user.unsuspended", AuditCategory.MODERATION
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared", AuditCategory.MODERATION
+    #: A file somebody attached to a ticket or a report was opened: by the
+    #: people working it, or by whoever attached it. Who looked at evidence,
+    #: and when, is a record kept as long as the privileged-access family's.
+    EVIDENCE_ACCESSED = (
+        "evidence.accessed",
+        AuditCategory.MODERATION,
+        1,
+        False,
+    )
     USER_SIGN_IN_LOCK_LIFTED = "user.sign_in_lock_lifted", AuditCategory.MODERATION
 
     # The platform ladder. Granting a rung is an operator's job (``roles.assign``),

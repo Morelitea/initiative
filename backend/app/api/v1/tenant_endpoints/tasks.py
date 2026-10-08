@@ -39,6 +39,7 @@ from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
+    CaseEvidenceRead,
     CaseMessageRead,
     TaskCaseRead,
     TaskCreate,
@@ -433,6 +434,20 @@ async def read_task_case(
                 created_at=message.created_at,
             )
             for message in case.messages
+        ],
+        evidence=[
+            CaseEvidenceRead(
+                id=item.id,
+                display_name=item.display_name,
+                content_type=item.content_type,
+                size_bytes=item.size_bytes,
+                created_at=item.created_at,
+                comment_id=item.comment_id,
+                from_requester=(
+                    case.filer is not None and item.created_by == case.filer.id
+                ),
+            )
+            for item in case.evidence
         ],
     )
 

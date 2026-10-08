@@ -17,11 +17,24 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from fastapi.exceptions import RequestValidationError
+from pydantic import TypeAdapter, ValidationError
 
-from app.api.deps import UserSessionDep, get_current_active_user
-from app.core.intake import IntakeStream
+from app.api.deps import UploadUserDep, UserSessionDep, get_current_active_user
+from app.core.audit_events import AuditEventType
+from app.core.intake import EvidencePolicy, IntakeStream, meta
 from app.core.messages import (
+    EvidenceMessages,
     ModerationMessages,
     SupportMessages,
     TicketMessages,
@@ -41,6 +54,9 @@ from app.schemas.platform.ticket import (
     TicketMessageRead,
     TicketReplyCreate,
 )
+from app.schemas.tenant.evidence import EvidencePolicyRead, EvidenceRead
+from app.services import audit as audit_service
+from app.services.platform import evidence as evidence_service
 from app.services.platform import tickets as tickets_service
 from app.services.platform.intake import CaseCapReached
 from app.services.tenant import moderation as moderation_service
@@ -73,25 +89,83 @@ async def read_ticket_availability(
     return TicketAvailability(
         **{
             stream.value: StreamAvailabilityRead(
-                mode=answer.mode, contact=answer.contact
+                mode=answer.mode,
+                contact=answer.contact,
+                evidence=EvidencePolicyRead.of(meta(stream).evidence),
             )
             for stream, answer in offered.items()
         }
     )
 
 
+_TICKET = TypeAdapter(TicketCreate)
+
+#: How the filing is sent: the ticket as JSON in one part, and its files.
+TICKET_PART_DESCRIPTION = (
+    "The ticket, as JSON: a support request or a report, told apart by ``stream``."
+)
+
+
+def _parse_ticket(raw: str) -> TicketCreate:
+    try:
+        return _TICKET.validate_json(raw)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
+
+async def _read_files(
+    files: list[UploadFile], policy: EvidencePolicy
+) -> list[evidence_service.PreparedEvidence]:
+    """Read the files sent with a filing or an answer, held to ``policy``.
+
+    Counted before anything is read, and each read no further than one byte
+    past the largest a file may be.
+    """
+    from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
+
+    files = [f for f in files if f.filename or f.size]
+    if not files:
+        return []
+    incoming: list[evidence_service.IncomingFile] = []
+    try:
+        if policy.max_files == 0:
+            raise evidence_service.EvidenceRefused(EvidenceMessages.NOT_TAKEN)
+        if len(files) > policy.max_files:
+            raise evidence_service.EvidenceRefused(EvidenceMessages.TOO_MANY)
+        for upload in files:
+            try:
+                data = await read_upload_bounded(upload, policy.max_bytes)
+            except FileTooLargeError:
+                raise evidence_service.EvidenceRefused(
+                    EvidenceMessages.TOO_LARGE
+                ) from None
+            incoming.append(
+                evidence_service.IncomingFile(filename=upload.filename, data=data)
+            )
+        return evidence_service.prepare(incoming, policy)
+    except evidence_service.EvidenceRefused as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+
+
 @me_router.post("", response_model=TicketAccepted, status_code=status.HTTP_202_ACCEPTED)
 async def file_ticket(
     session: UserSessionDep,
     current_user: CurrentUser,
-    payload: Annotated[TicketCreate, Body()],
+    payload: Annotated[str, Form(description=TICKET_PART_DESCRIPTION)],
+    files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> TicketAccepted:
     """File a ticket. One route, whatever kind and from wherever.
 
-    The reply says that it arrived and nothing more: not who will read it, and
-    for a report not whether one already existed.
+    Sent as ``multipart/form-data``: the ticket as JSON in ``payload``, and up
+    to as many ``files`` as the stream takes (``/availability`` says how many,
+    how large and of which types). The reply says that it arrived and nothing
+    more: not who will read it, and for a report not whether one already
+    existed.
     """
-    stream = IntakeStream(payload.stream)
+    ticket = _parse_ticket(payload)
+    stream = IntakeStream(ticket.stream)
     try:
         await tickets_service.hold_pace(current_user, stream)
     except tickets_service.FilingTooFast as exc:
@@ -99,14 +173,17 @@ async def file_ticket(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=TicketMessages.FILING_TOO_FAST,
         ) from exc
+    attached = await _read_files(files, meta(stream).evidence)
 
-    if isinstance(payload, SupportTicketCreate):
-        return await _ask_for_help(current_user, payload)
-    return await _report(session, current_user, payload)
+    if isinstance(ticket, SupportTicketCreate):
+        return await _ask_for_help(current_user, ticket, attached)
+    return await _report(session, current_user, ticket, attached)
 
 
 async def _ask_for_help(
-    requester: User, payload: SupportTicketCreate
+    requester: User,
+    payload: SupportTicketCreate,
+    attached: list[evidence_service.PreparedEvidence],
 ) -> TicketAccepted:
     try:
         await support_service.request_help(
@@ -114,6 +191,7 @@ async def _ask_for_help(
             requester=requester,
             subject=payload.subject,
             body=payload.body,
+            evidence=attached,
         )
     except support_service.SupportUnavailable as exc:
         raise HTTPException(
@@ -134,7 +212,10 @@ async def _ask_for_help(
 
 
 async def _report(
-    session: UserSessionDep, reporter: User, payload: ModerationTicketCreate
+    session: UserSessionDep,
+    reporter: User,
+    payload: ModerationTicketCreate,
+    attached: list[evidence_service.PreparedEvidence],
 ) -> TicketAccepted:
     try:
         target = parse_target(payload.target_type)
@@ -152,6 +233,7 @@ async def _report(
         reason=payload.reason,
         detail=payload.detail,
         guild_id=payload.community_id,
+        evidence=attached,
     )
     return TicketAccepted(venue=filed.venue)
 
@@ -193,12 +275,17 @@ async def read_filed_ticket(
         **_filed(detail.ticket).model_dump(),
         conversation=detail.conversation,
         can_reply=detail.can_reply,
+        evidence=EvidencePolicyRead.of(meta(detail.ticket.stream).evidence),
         messages=[
             TicketMessageRead(
                 id=message.id,
                 mine=message.mine,
                 content=message.content,
                 created_at=message.created_at,
+                attachments=[
+                    EvidenceRead.model_validate(attachment, from_attributes=True)
+                    for attachment in message.attachments
+                ],
             )
             for message in detail.messages
         ],
@@ -212,18 +299,25 @@ async def read_filed_ticket(
 )
 async def reply_to_filed_ticket(
     task_id: int,
-    payload: TicketReplyCreate,
+    body: Annotated[str, Form()],
     current_user: CurrentUser,
+    files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> FiledTicketDetailRead:
     """Answer on a case the reader filed. Returns the case as it now stands.
 
-    Paced like a filing into the case's stream: each answer is something a
-    person reads.
+    Sent as ``multipart/form-data``: the answer in ``body``, and any ``files``
+    the stream takes. Paced like a filing into the case's stream: each answer
+    is something a person reads.
     """
+    try:
+        answer = TicketReplyCreate(body=body)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
     try:
         detail = await tickets_service.read_filed(current_user, task_id)
         await tickets_service.hold_pace(current_user, detail.ticket.stream)
-        await tickets_service.reply(current_user, detail, payload.body)
+        attached = await _read_files(files, meta(detail.ticket.stream).evidence)
+        await tickets_service.reply(current_user, detail, answer.body, attached)
     except tickets_service.TicketNotFound as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -240,3 +334,45 @@ async def reply_to_filed_ticket(
             detail=TicketMessages.REPLY_NOT_TAKEN,
         ) from exc
     return await read_filed_ticket(task_id, current_user)
+
+
+@me_router.get("/{task_id}/evidence/{evidence_id}", include_in_schema=False)
+async def read_filed_evidence(
+    task_id: int,
+    evidence_id: int,
+    current_user: UploadUserDep,
+):
+    """One file the reader sent with a case they filed, opened.
+
+    Only their own: what they sent. Served without a header, so a page can
+    show a picture by address alone.
+    """
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import set_rls_context
+
+    try:
+        guild_id = await tickets_service.filed_evidence(
+            current_user, task_id, evidence_id
+        )
+    except tickets_service.TicketNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=EvidenceMessages.NOT_FOUND,
+        ) from exc
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        obj = await evidence_service.sealed(session, evidence_id)
+    if obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=EvidenceMessages.NOT_FOUND
+        )
+    audit_service.emit(
+        event_type=AuditEventType.EVIDENCE_ACCESSED,
+        actor_user_id=int(current_user.id),
+        guild_id=guild_id,
+        target_type="evidence",
+        target_id=evidence_id,
+        detail={"as": "filer", "task_id": task_id},
+    )
+    return evidence_service.serve(guild_id, obj)

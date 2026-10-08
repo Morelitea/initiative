@@ -8,6 +8,8 @@ database, not filtered by the code under test.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -20,6 +22,7 @@ from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.comment import Comment, CommentAudience
+from app.models.tenant.evidence import Evidence
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.task import Task
 from app.services.platform.intake import CaseFiler, open_case
@@ -83,6 +86,25 @@ async def operations(session):
             audience=CommentAudience.filer,
         )
     )
+
+    def attached(case_id: int, by: int, name: str) -> Evidence:
+        return Evidence(
+            case_id=case_id,
+            origin_guild_id=guild.id,
+            origin_id=uuid.uuid4(),
+            storage_key=f"evidence-{uuid.uuid4().hex}.iev",
+            size_bytes=1,
+            content_type="text/plain",
+            display_name=name,
+            sha256="0" * 64,
+            wrapped_dek=b"sealed",
+            kek_version=1,
+            created_by=by,
+        )
+
+    session.add(attached(mine.case_id, asker.id, "mine.txt"))
+    session.add(attached(mine.case_id, staff.id, "staff-notes.txt"))
+    session.add(attached(theirs.case_id, other.id, "theirs.txt"))
     await session.commit()
     await set_rls_context(session, Unattributed())
     yield {
@@ -125,6 +147,19 @@ async def test_a_filer_reads_what_is_said_to_them_and_nothing_else(
     assert sorted(said) == ["Have you tried a recovery code?", "Help."]
 
 
+async def test_a_filer_reads_the_files_they_sent_and_not_their_keys(
+    role_session, operations
+):
+    sent = await _read_as_filer(
+        role_session, operations["asker"], select(Evidence.display_name)
+    )
+    assert sent == ["mine.txt"]
+    with pytest.raises(DBAPIError, match="permission denied"):
+        await _read_as_filer(
+            role_session, operations["asker"], select(Evidence.wrapped_dek)
+        )
+
+
 async def test_a_filer_reads_their_task_s_status_and_not_its_words(
     role_session, operations
 ):
@@ -145,6 +180,7 @@ async def test_a_filer_reads_their_task_s_status_and_not_its_words(
         "SELECT id, category::text FROM task_statuses",
         "SELECT id, awaiting_filer_status_id FROM intake_bindings",
         "SELECT id, content, created_by FROM comments",
+        "SELECT id, case_id, display_name FROM evidence",
     ],
 )
 async def test_a_filer_reads_on_a_connection_whose_plans_are_kept(
