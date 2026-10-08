@@ -46,6 +46,7 @@ from app.schemas.tenant.calendar import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.services.export.adapters.calendar_events import event_dicts
+from app.services.export.engine import count_within_bound, get_adapter
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendars as calendars_service
@@ -81,6 +82,25 @@ async def read_calendar(
     )
 
 
+async def _feed_user(
+    request: Request, session: SessionDep, guild_id: CommunityIdPath, calendar_id: int
+) -> User:
+    """The person a calendar's subscription link names. A dependency, so the
+    feed's rate limit counts them rather than the address fetching for them."""
+    return await authenticate_feed(
+        request, session, (guild_id, Tool.calendar, calendar_id)
+    )
+
+
+def _unchanged(if_none_match: Optional[str], etag: str) -> bool:
+    """Whether ``If-None-Match`` names ``etag``: any tag in its list, weak or
+    strong, or ``*``."""
+    if if_none_match is None:
+        return False
+    tags = {tag.strip().removeprefix("W/") for tag in if_none_match.split(",")}
+    return "*" in tags or etag in tags
+
+
 @router.get("/{calendar_id}/feed.ics", include_in_schema=False)
 @limiter.limit("30/minute")
 async def calendar_feed(
@@ -88,32 +108,44 @@ async def calendar_feed(
     guild_id: CommunityIdPath,
     calendar_id: int,
     session: SessionDep,
+    user: Annotated[User, Depends(_feed_user)],
     if_none_match: Annotated[Optional[str], Header(alias="If-None-Match")] = None,
 ) -> Response:
     """The calendar as an iCalendar feed, for another app to subscribe to.
 
     Signed in by a personal API key in ``?token=`` that names this calendar,
     and answered as the calendar page's events export of it: the same reader,
-    the same events, and refused while its initiative keeps its content in.
-    Every fetch is authorized afresh.
+    the same events, the same row bound, and refused while its initiative
+    keeps its content in. Every fetch is authorized afresh.
     """
-    user = await authenticate_feed(request, session, (Tool.calendar, calendar_id))
     # SessionDep, routed here: the guild comes from the path and access is
-    # established for the person the link names, as a file download does.
+    # established for the person the link names, as a file download does. The
+    # dependency has already put the deployment's second-factor question.
     try:
-        context = await establish_guild_access(session, user, guild_id)
+        context = await establish_guild_access(
+            session, user, guild_id, factor_asked=True
+        )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
     await resource_access.load_authorized(
         session, Tool.calendar, calendar_id, user, context
     )
-    dicts, _ = await event_dicts(session, user, {"calendar_ids": [calendar_id]})
+    params = {"calendar_ids": [calendar_id]}
+    await count_within_bound(
+        session,
+        get_adapter("events", "ics"),
+        user=user,
+        guild_id=guild_id,
+        params=params,
+        format="ics",
+    )
+    dicts, _ = await event_dicts(session, user, params)
     body = ical_from_export_dicts(dicts)
     headers = {
         "ETag": f'"{sha256(body).hexdigest()}"',
         "Cache-Control": "private, no-cache",
     }
-    if if_none_match == headers["ETag"]:
+    if _unchanged(if_none_match, headers["ETag"]):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     return Response(body, media_type="text/calendar; charset=utf-8", headers=headers)
 

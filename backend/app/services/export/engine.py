@@ -113,6 +113,30 @@ def get_adapter(source: str, format: str) -> SourceAdapter:
     return adapter
 
 
+async def count_within_bound(
+    session: AsyncSession,
+    adapter: SourceAdapter,
+    *,
+    user: User,
+    guild_id: int,
+    params: dict[str, Any],
+    format: str,
+) -> int:
+    """How many rows ``params`` selects, refused past the source's bound.
+
+    Aggregate sources (whole-initiative/guild) declare their own ceiling — a
+    guild dump legitimately exceeds the per-report bound."""
+    from app.core.messages import ExportMessages
+
+    row_count = await adapter.count(
+        session, user=user, guild_id=guild_id, params=params, format=format
+    )
+    max_rows = getattr(adapter, "max_rows", None) or export_limits.EXPORT_MAX_ROWS
+    if row_count > max_rows:
+        raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
+    return row_count
+
+
 async def start_export(
     session: AsyncSession,
     *,
@@ -135,15 +159,9 @@ async def start_export(
     from app.core.messages import ExportMessages
 
     adapter = get_adapter(source, format)
-
-    row_count = await adapter.count(
-        session, user=user, guild_id=guild_id, params=params, format=format
+    row_count = await count_within_bound(
+        session, adapter, user=user, guild_id=guild_id, params=params, format=format
     )
-    # Aggregate sources (whole-initiative/guild) declare their own ceiling —
-    # a guild dump legitimately exceeds the per-report bound.
-    max_rows = getattr(adapter, "max_rows", None) or export_limits.EXPORT_MAX_ROWS
-    if row_count > max_rows:
-        raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
 
     # Aggregate sources always run as a job: their build spans many entities
     # (and possibly upload blobs), and the worker's fresh creator-routed

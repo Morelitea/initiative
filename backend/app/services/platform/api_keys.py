@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
@@ -54,7 +55,13 @@ async def create_api_key(
         raise ValueError("User must be persisted before creating API keys")
 
     if resource_type is not None:
-        # A person holds one key per resource; a new one replaces it.
+        # A person holds one key per resource; a new one replaces it. Two
+        # replacements at once take turns.
+        await advisory_lock(
+            session,
+            LockNamespace.API_KEY_RESOURCE,
+            f"{user.id}:{guild_id}:{resource_type}:{resource_id}",
+        )
         previous = (
             await session.exec(
                 select(UserApiKey).where(

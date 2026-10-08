@@ -2600,7 +2600,9 @@ async def remove_user_from_guild(
     # ends what they reach at a vendor.
     await consents_service.delete_member_consents(session, user_id=user_id)
     # And their subscription links into it, so coming back does not bring an
-    # old one back.
+    # old one back. They are the system engine's and go on a session of their
+    # own, ahead of this one's commit; a removal that then rolls back leaves a
+    # member with no links, who makes another.
     await api_keys_service.delete_resource_keys(user_id=user_id, guild_id=guild_id)
 
     # Remove guild membership

@@ -137,14 +137,15 @@ CREDENTIAL_INSTALL = "install"
 def _admit(
     request: Request,
     authenticated: Authenticated,
-    resource: tuple[Tool, int] | None = None,
+    resource: tuple[int, Tool, int] | None = None,
 ) -> User:
     """Hand the request the account a credential named, and say which
     credential it was.
 
     ``read_only`` API keys may only issue safe (non-mutating) HTTP methods,
     and a key that names one tool resource is admitted only by the route that
-    serves that resource, which passes it as ``resource``; those are the parts
+    serves that resource, which passes it as ``(guild_id, tool, id)``; those
+    are the parts
     of a key's scope that need the request itself. The guild a key is limited
     to was recorded where it was read, and the guild-access gate applies it.
     """
@@ -161,7 +162,7 @@ def _admit(
     names = (
         None
         if api_key is None or api_key.resource_type is None
-        else (api_key.resource_type, api_key.resource_id)
+        else (api_key.guild_id, api_key.resource_type, api_key.resource_id)
     )
     if names != resource:
         raise HTTPException(
@@ -180,7 +181,7 @@ async def _authenticate(
     request: Request,
     session: AsyncSession,
     identified: Identified | None,
-    resource: tuple[Tool, int] | None = None,
+    resource: tuple[int, Tool, int] | None = None,
 ) -> User:
     """The account the credential a request presented names, admitted."""
     # Nothing recorded until a credential is read, so a request that presents
@@ -2097,15 +2098,19 @@ UploadUserDep = Annotated[User, Depends(get_upload_user)]
 
 
 async def authenticate_feed(
-    request: Request, session: AsyncSession, resource: tuple[Tool, int]
+    request: Request, session: AsyncSession, resource: tuple[int, Tool, int]
 ) -> User:
-    """The person a subscription link names, for the feed of ``resource``.
+    """The person a subscription link names, for the feed of ``resource``,
+    ``(guild_id, tool, id)``.
 
     Calendar apps fetch a feed by its URL alone, so its ``?token=`` carries a
     personal API key, admitted only when the key names ``resource`` (see
     :func:`_admit`). Held to the same account status and second-factor rules
     as :func:`get_upload_user`; the route then establishes guild access as a
     file download does, where the community's API-access rule applies.
+
+    A feed route calls it from a dependency, so its rate limit counts the
+    person the link names (``request.state.user_id``).
     """
     identified = identify_url_token(request, FEED_URL_CREDENTIALS)
     user = await _active_user(

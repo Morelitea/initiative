@@ -660,14 +660,16 @@ async def test_a_feed_link_serves_its_calendar_and_nothing_else(
     assert "SUMMARY:Standup" in served.text
     unchanged = await client.get(
         _feed(member, calendar.id, token),
-        headers={"If-None-Match": served.headers["ETag"]},
+        headers={"If-None-Match": f'"other", W/{served.headers["ETag"]}'},
     )
     assert unchanged.status_code == 304
 
     # The calendar it names, by its feed, and nothing else: not another
-    # calendar's feed, and not the API.
+    # calendar's feed, not the same id in another community, and not the API.
+    elsewhere = f"/api/v1/c/{admin.guild.id + 1}/calendars/{calendar.id}/feed.ics"
     for refused in (
         await client.get(_feed(member, other.id, token)),
+        await client.get(f"{elsewhere}?token={token}"),
         await client.get(
             member.g(f"/calendars/{calendar.id}"),
             headers={"Authorization": f"Bearer {token}"},
@@ -722,3 +724,18 @@ async def test_a_feed_follows_the_readers_access_on_every_fetch(
             select(UserApiKey).where(UserApiKey.user_id == member.user.id)
         )
     ).all() == []
+
+
+async def test_a_feeds_rate_limit_counts_each_person(
+    client: AsyncClient, acting_user, session, rate_limit_of_one_per_minute
+):
+    """Calendar apps fetch from a few addresses of their own, so the limit
+    counts the person a link names rather than the address asking."""
+    admin, member, calendar = await _member_with_calendar(session, acting_user)
+    token = await _feed_link(client, member, calendar)
+    admin_token = await _feed_link(client, admin, calendar)
+
+    for _ in range(30):
+        assert (await client.get(_feed(member, calendar.id, token))).status_code == 200
+    assert (await client.get(_feed(member, calendar.id, token))).status_code == 429
+    assert (await client.get(_feed(admin, calendar.id, admin_token))).status_code == 200
