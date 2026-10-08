@@ -15,6 +15,7 @@ routes read through.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated, Optional
 
 from fastapi import (
@@ -142,7 +143,8 @@ async def _read_files(
             incoming.append(
                 evidence_service.IncomingFile(filename=upload.filename, data=data)
             )
-        return evidence_service.prepare(incoming, policy)
+        # Reading a picture is work for a thread, not the event loop.
+        return await asyncio.to_thread(evidence_service.prepare, incoming, policy)
     except evidence_service.EvidenceRefused as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code

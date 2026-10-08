@@ -44,7 +44,6 @@ def _apply_upgrade() -> None:
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("wrapped_dek", sa.LargeBinary(), nullable=False),
         sa.Column("kek_version", sa.SmallInteger(), nullable=False),
-        sa.Column("purge_after", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("kind IN ('attachment')", name="ck_evidence_kind"),
         sa.CheckConstraint(

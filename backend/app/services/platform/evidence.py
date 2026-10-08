@@ -5,8 +5,9 @@ Every path that handles an attached file goes through here:
 - :func:`prepare` holds files to their stream's policy — how many, how large,
   and what their bytes say they are — and takes a picture's location out of it
   before anything is hashed or stored.
-- :func:`store` seals each file under a key of its own and writes its row, on
-  the caller's session, in the caller's transaction.
+- :class:`Sealing` seals each file under a key of its own and writes its row,
+  on the caller's session, in the caller's transaction, and removes what it
+  wrote if that transaction does not commit.
 - :func:`serve` streams one back, opened and checked against its hash, with
   the headers that keep a browser from treating it as anything but a download
   or a picture. Whether the reader may have the row is decided before this is
@@ -27,9 +28,11 @@ import hashlib
 import io
 import logging
 import re
+import struct
 import unicodedata
 import uuid
 import warnings
+import zlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -108,9 +111,144 @@ def _sniff(data: bytes) -> str:
     return detected
 
 
+#: Bytes per value of each TIFF field type, for finding a value stored apart
+#: from its entry.
+_TIFF_TYPE_SIZES = {
+    1: 1,
+    2: 1,
+    3: 2,
+    4: 4,
+    5: 8,
+    6: 1,
+    7: 1,
+    8: 2,
+    9: 4,
+    10: 8,
+    11: 4,
+    12: 8,
+    13: 4,
+}
+
+_EXIF_PREFIX = b"Exif\x00\x00"
+
+
+def _clear(buf: bytearray, start: int, length: int, end: int) -> None:
+    if start < 0 or length < 0 or start + length > end:
+        raise ValueError("an EXIF value lies outside its block")
+    buf[start : start + length] = bytes(length)
+
+
+def _drop_gps(buf: bytearray, base: int, end: int) -> bool:
+    """Take the location out of the EXIF block at ``buf[base:end]``, in place.
+
+    The location's own directory and every value it points at are zeroed and
+    its entry is removed from the first directory, so the block keeps its
+    length and every other offset in it still holds. Returns whether there was
+    a location to take out.
+    """
+    if buf[base : base + 6] == _EXIF_PREFIX:
+        base += 6
+    order = bytes(buf[base : base + 2])
+    if order == b"II":
+        e = "<"
+    elif order == b"MM":
+        e = ">"
+    else:
+        raise ValueError("not a TIFF header")
+    ifd0 = base + struct.unpack_from(e + "I", buf, base + 4)[0]
+    count = struct.unpack_from(e + "H", buf, ifd0)[0]
+    directory_end = ifd0 + 2 + 12 * count
+    if directory_end + 4 > end:
+        raise ValueError("the first directory runs past its block")
+    for i in range(count):
+        entry = ifd0 + 2 + 12 * i
+        if struct.unpack_from(e + "H", buf, entry)[0] != _GPS_TAG:
+            continue
+        gps = base + struct.unpack_from(e + "I", buf, entry + 8)[0]
+        gps_count = struct.unpack_from(e + "H", buf, gps)[0]
+        if gps + 2 + 12 * gps_count + 4 > end:
+            raise ValueError("the location directory runs past its block")
+        for j in range(gps_count):
+            field = gps + 2 + 12 * j
+            kind, n = struct.unpack_from(e + "HI", buf, field + 2)
+            size = _TIFF_TYPE_SIZES.get(kind, 1) * n
+            if size > 4:
+                offset = base + struct.unpack_from(e + "I", buf, field + 8)[0]
+                _clear(buf, offset, size, end)
+        _clear(buf, gps, 2 + 12 * gps_count + 4, end)
+        # The entry goes from the first directory: the ones after it, and the
+        # next-directory offset, move up one place.
+        buf[entry : directory_end + 4] = buf[entry + 12 : directory_end + 4] + bytes(12)
+        struct.pack_into(e + "H", buf, ifd0, count - 1)
+        return True
+    return False
+
+
+def _jpeg_exif(buf: bytearray) -> bool:
+    found = False
+    i = 2
+    while i + 4 <= len(buf):
+        if buf[i] != 0xFF:
+            raise ValueError("not a JPEG marker")
+        marker = buf[i + 1]
+        if marker == 0xFF:
+            i += 1
+            continue
+        if marker in (0x01, 0xD8) or 0xD0 <= marker <= 0xD7:
+            i += 2
+            continue
+        if marker in (0xD9, 0xDA):
+            # The picture itself starts here; nothing after it is metadata.
+            break
+        length = struct.unpack_from(">H", buf, i + 2)[0]
+        end = i + 2 + length
+        if marker == 0xE1 and buf[i + 4 : i + 10] == _EXIF_PREFIX:
+            found |= _drop_gps(buf, i + 4, end)
+        i = end
+    return found
+
+
+def _png_exif(buf: bytearray) -> bool:
+    found = False
+    i = 8
+    while i + 8 <= len(buf):
+        length = struct.unpack_from(">I", buf, i)[0]
+        kind = bytes(buf[i + 4 : i + 8])
+        start, end = i + 8, i + 8 + length
+        if kind == b"eXIf" and _drop_gps(buf, start, end):
+            found = True
+            struct.pack_into(">I", buf, end, zlib.crc32(buf[i + 4 : end]) & 0xFFFFFFFF)
+        if kind == b"IEND":
+            break
+        i = end + 4
+    return found
+
+
+def _webp_exif(buf: bytearray) -> bool:
+    if buf[0:4] != b"RIFF" or buf[8:12] != b"WEBP":
+        raise ValueError("not a WebP container")
+    found = False
+    i = 12
+    while i + 8 <= len(buf):
+        kind = bytes(buf[i : i + 4])
+        length = struct.unpack_from("<I", buf, i + 4)[0]
+        start, end = i + 8, i + 8 + length
+        if kind == b"EXIF":
+            found |= _drop_gps(buf, start, end)
+        i = end + (length & 1)
+    return found
+
+
+_LOCATION_REMOVERS = {"JPEG": _jpeg_exif, "PNG": _png_exif, "WEBP": _webp_exif}
+
+
 def _without_location(data: bytes, content_type: str) -> bytes:
     """``data`` with where the picture was taken removed, or as it was where
-    it carries no location. Pictures of other kinds carry no EXIF to remove."""
+    it carries no location. Pictures of other kinds carry no EXIF to remove.
+
+    Only the location is changed, in place: the picture is not re-encoded, so
+    its pixels, its frames and its size are what was sent.
+    """
     fmt = _EXIF_TYPES.get(content_type)
     if fmt is None:
         return data
@@ -123,26 +261,18 @@ def _without_location(data: bytes, content_type: str) -> bytes:
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
             with Image.open(io.BytesIO(data)) as image:
-                exif = image.getexif()
-                if _GPS_TAG not in exif:
+                if _GPS_TAG not in image.getexif():
                     return data
-                del exif[_GPS_TAG]
-                params: dict[str, object] = {"exif": exif.tobytes()}
-                if fmt == "JPEG":
-                    # The image's own quantization: re-saved as close to the
-                    # original as JPEG allows.
-                    params["quality"] = "keep"
-                if image.info.get("icc_profile"):
-                    params["icc_profile"] = image.info["icc_profile"]
-                out = io.BytesIO()
-                image.save(out, format=fmt, **params)
-                return out.getvalue()
+        buf = bytearray(data)
+        _LOCATION_REMOVERS[fmt](buf)
+        return bytes(buf)
     except (
         UnidentifiedImageError,
         Image.DecompressionBombError,
         Image.DecompressionBombWarning,
         OSError,
         ValueError,
+        struct.error,
     ) as exc:
         raise EvidenceRefused(EvidenceMessages.UNREADABLE) from exc
 
@@ -213,13 +343,15 @@ def store(
     guild_id: int,
     prepared: Iterable[PreparedEvidence],
     created_by: Optional[int],
+    written: list[str],
     case_id: Optional[int] = None,
     report_id: Optional[int] = None,
     comment_id: Optional[int] = None,
 ) -> list[Evidence]:
     """Seal and store each file in ``guild_id``'s namespace, and add its row to
-    ``session``, which must be routed into that community. Nothing commits
-    here; :func:`discard` removes the objects of rows whose transaction did not.
+    ``session``, which must be routed into that community. Each object's key
+    is added to ``written`` before it is written. Nothing commits here: use
+    :class:`Sealing`, which removes the objects if the rows never land.
     """
     storage = storage_service.get_guild_storage(guild_id)
     rows: list[Evidence] = []
@@ -227,6 +359,7 @@ def store(
         origin_id = uuid.uuid4()
         dek = blob_crypto.new_dek()
         key = _key(origin_id)
+        written.append(key)
         storage.write(
             key,
             blob_crypto.encrypt(
@@ -257,14 +390,66 @@ def store(
     return rows
 
 
-def discard(guild_id: int, rows: Iterable[Evidence]) -> None:
-    """Remove the stored objects of rows that were never committed."""
+def discard(guild_id: int, keys: Iterable[str]) -> None:
+    """Remove these stored objects, whose rows were never committed."""
     storage = storage_service.get_guild_storage(guild_id)
-    for row in rows:
+    for key in keys:
         try:
-            storage.delete(row.storage_key)
+            storage.delete(key)
         except Exception:  # pragma: no cover - best effort, logged
-            logger.exception("evidence: could not remove %s", row.storage_key)
+            logger.exception("evidence: could not remove %s", key)
+
+
+class Sealing:
+    """The objects one transaction writes into ``guild_id``'s namespace.
+
+    Everything written inside the ``with`` block is removed again when the
+    block ends without :meth:`keep` having been called — whatever failed, and
+    wherever. Call :meth:`keep` straight after the commit that holds the rows::
+
+        with Sealing(guild_id) as sealing:
+            sealing.store(session, prepared=files, created_by=user_id, case_id=1)
+            ...
+            await session.commit()
+            sealing.keep()
+    """
+
+    def __init__(self, guild_id: int) -> None:
+        self.guild_id = guild_id
+        self.written: list[str] = []
+        self._kept = False
+
+    def __enter__(self) -> "Sealing":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if not self._kept and self.written:
+            discard(self.guild_id, self.written)
+
+    def store(
+        self,
+        session: AsyncSession,
+        *,
+        prepared: Iterable[PreparedEvidence],
+        created_by: Optional[int],
+        case_id: Optional[int] = None,
+        report_id: Optional[int] = None,
+        comment_id: Optional[int] = None,
+    ) -> list[Evidence]:
+        return store(
+            session,
+            guild_id=self.guild_id,
+            prepared=prepared,
+            created_by=created_by,
+            written=self.written,
+            case_id=case_id,
+            report_id=report_id,
+            comment_id=comment_id,
+        )
+
+    def keep(self) -> None:
+        """The rows committed: the objects stay."""
+        self._kept = True
 
 
 # -- Listing ------------------------------------------------------------------
@@ -406,6 +591,7 @@ async def transfer(
     destination: AsyncSession,
     destination_guild_id: int,
     case_id: int,
+    written: list[str],
 ) -> list[Evidence]:
     """Carry ``rows`` — read in ``source_guild_id`` — into the operations case
     ``case_id``, on ``destination``, a system session routed into
@@ -414,7 +600,8 @@ async def transfer(
     Each object is copied as it is stored; it is never opened. Its key is
     unwrapped with the source community's key and wrapped with the
     destination's, and the new row keeps the object's origin and hash, which is
-    what its bytes are bound to. Nothing commits here.
+    what its bytes are bound to. Each object copied is added to ``written``.
+    Nothing commits here.
     """
     already = set(
         (
@@ -429,15 +616,19 @@ async def transfer(
         if row.origin_id in already:
             # Carried by an earlier escalation of the same report.
             continue
-        if not same_community and not storage_service.copy_between_guilds(
-            source_guild_id, destination_guild_id, row.storage_key
-        ):
-            logger.warning(
-                "evidence: %s is gone from community %s; not carried",
-                row.storage_key,
-                source_guild_id,
-            )
-            continue
+        if not same_community:
+            # Named before the copy, so one that fails part way is removed too.
+            written.append(row.storage_key)
+            if not storage_service.copy_between_guilds(
+                source_guild_id, destination_guild_id, row.storage_key
+            ):
+                written.pop()
+                logger.warning(
+                    "evidence: %s is gone from community %s; not carried",
+                    row.storage_key,
+                    source_guild_id,
+                )
+                continue
         dek = blob_crypto.unwrap(
             row.wrapped_dek,
             holding_guild_id=source_guild_id,
@@ -491,19 +682,17 @@ async def carry_report(
         return 0
     async with cohorts.system_session(operations) as destination:
         await set_rls_context(destination, SystemGuild(operations))
-        carried = await transfer(
-            source_guild_id=source_guild_id,
-            rows=rows,
-            destination=destination,
-            destination_guild_id=operations,
-            case_id=case_id,
-        )
-        try:
+        with Sealing(operations) as sealing:
+            carried = await transfer(
+                source_guild_id=source_guild_id,
+                rows=rows,
+                destination=destination,
+                destination_guild_id=operations,
+                case_id=case_id,
+                written=sealing.written,
+            )
             await destination.commit()
-        except BaseException:
-            if int(operations) != int(source_guild_id):
-                discard(operations, carried)
-            raise
+            sealing.keep()
     return len(carried)
 
 
@@ -511,88 +700,152 @@ async def carry_report(
 
 
 async def purge_due(session: AsyncSession, guild_id: int) -> int:
-    """One community's retention: date the evidence of what has closed, undate
-    what has reopened, and delete what is past its date — the row, then the
-    object. Returns how many went.
+    """One community's retention: delete the evidence of what closed long
+    enough ago — the rows, then the objects. Returns how many went.
 
     A case closes when its task is done or in the trash, and its evidence is
     kept for its stream's ``retention_days`` from then. A report closes when it
-    is settled, and its evidence is kept for the moderation stream's.
+    is settled, and its evidence is kept for the moderation stream's. Each is
+    read from the parent as it stands when the rows are deleted, so a reopened
+    case keeps its files, and one closed again counts from the new close. The
+    tasks are locked while that is decided, so a reopen at the same moment
+    either lands first and keeps the files, or waits for them to go.
     """
     from app.models.tenant.intake import IntakeCase
     from app.models.tenant.moderation import ModerationReport
     from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 
     now = datetime.now(timezone.utc)
-    closed_case = (
-        select(IntakeCase.id)
-        .join(Task, Task.id == IntakeCase.task_id)
-        .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-        .where(
-            or_(
-                Task.deleted_at.is_not(None),  # type: ignore[union-attr]
-                TaskStatus.category == TaskStatusCategory.done,
-            )
-        )
-    )
+    gone: list[str] = []
     for stream in IntakeStream:
-        keep = timedelta(days=meta(stream).retention_days)
-        of_stream = closed_case.where(IntakeCase.stream == stream.value)
-        await session.exec(
-            update(Evidence)
-            .where(Evidence.case_id.in_(of_stream))  # type: ignore[union-attr]
-            .where(Evidence.purge_after.is_(None))  # type: ignore[union-attr]
-            .values(purge_after=now + keep)
-        )
-    await session.exec(
-        update(Evidence)
-        .where(Evidence.case_id.is_not(None))  # type: ignore[union-attr]
-        .where(Evidence.case_id.not_in(closed_case))  # type: ignore[union-attr]
-        .where(Evidence.purge_after.is_not(None))  # type: ignore[union-attr]
-        .values(purge_after=None)
-    )
-    report_keep = timedelta(days=meta(IntakeStream.moderation).retention_days)
-    await session.exec(
-        update(Evidence)
-        .where(Evidence.report_id.is_not(None))  # type: ignore[union-attr]
-        .where(Evidence.purge_after.is_(None))  # type: ignore[union-attr]
-        .where(
-            Evidence.report_id.in_(  # type: ignore[union-attr]
-                select(ModerationReport.id).where(
-                    ModerationReport.decided_at.is_not(None)  # type: ignore[union-attr]
-                )
-            )
-        )
-        .values(purge_after=now + report_keep)
-    )
-    gone = (
-        await session.exec(
-            delete(Evidence)
+        cutoff = now - timedelta(days=meta(stream).retention_days)
+        closed_long_enough = (
+            select(IntakeCase.id)
+            .join(Task, Task.id == IntakeCase.task_id)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(IntakeCase.stream == stream.value)
+            .where(IntakeCase.id.in_(select(Evidence.case_id)))  # type: ignore[union-attr]
             .where(
-                and_(
-                    Evidence.purge_after.is_not(None),  # type: ignore[union-attr]
-                    Evidence.purge_after < now,  # type: ignore[operator]
+                or_(
+                    Task.deleted_at < cutoff,  # type: ignore[operator]
+                    and_(
+                        TaskStatus.category == TaskStatusCategory.done,
+                        Task.completed_at < cutoff,  # type: ignore[operator]
+                    ),
                 )
             )
-            .returning(Evidence.storage_key)
+            .with_for_update(of=Task)
         )
-    ).all()
+        gone += (
+            (
+                await session.exec(
+                    delete(Evidence)
+                    .where(Evidence.case_id.in_(closed_long_enough))  # type: ignore[union-attr]
+                    .returning(Evidence.storage_key)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    report_cutoff = now - timedelta(days=meta(IntakeStream.moderation).retention_days)
+    gone += (
+        (
+            await session.exec(
+                delete(Evidence)
+                .where(
+                    Evidence.report_id.in_(  # type: ignore[union-attr]
+                        select(ModerationReport.id).where(
+                            ModerationReport.decided_at < report_cutoff  # type: ignore[operator]
+                        )
+                    )
+                )
+                .returning(Evidence.storage_key)
+            )
+        )
+        .scalars()
+        .all()
+    )
     await session.commit()
     if gone:
-        storage = storage_service.get_guild_storage(guild_id)
-        for (key,) in gone:
-            # Another row may still name the object: a report's evidence and a
-            # case it was carried into in the same community share none, but
-            # this keeps that true rather than assuming it.
-            still = (
-                await session.exec(
-                    select(Evidence.id).where(Evidence.storage_key == key).limit(1)
-                )
-            ).first()
-            if still is None:
-                storage.delete(key)
+        await _remove_unnamed(session, guild_id, gone)
         logger.info("evidence: purged %s from community %s", len(gone), guild_id)
     return len(gone)
+
+
+async def _remove_unnamed(
+    session: AsyncSession, guild_id: int, keys: Iterable[str]
+) -> None:
+    """Remove the objects no row in ``guild_id`` names any more. A report's
+    file carried into a case in the same community is one object under two
+    rows, and stays while either does."""
+    keys = set(keys)
+    if not keys:
+        return
+    still = set(
+        (
+            await session.exec(
+                select(Evidence.storage_key).where(
+                    Evidence.storage_key.in_(tuple(keys))  # type: ignore[union-attr]
+                )
+            )
+        ).all()
+    )
+    discard(guild_id, keys - still)
+
+
+async def released_by_purge(
+    session: AsyncSession,
+    *,
+    task_ids: Sequence[int] = (),
+    initiative_ids: Sequence[int] = (),
+) -> set[str]:
+    """The stored objects that go when these tasks and initiatives are purged
+    for good: their cases' and reports' files, which their rows' cascade takes
+    with them. An object another surviving row still names is left out.
+
+    Read before the parents are deleted, on the purging session; the caller
+    removes what this returns once its commit has landed.
+    """
+    from app.models.tenant.intake import IntakeCase
+    from app.models.tenant.moderation import ModerationReport
+
+    conditions = []
+    if task_ids:
+        conditions.append(
+            Evidence.case_id.in_(  # type: ignore[union-attr]
+                select(IntakeCase.id).where(
+                    IntakeCase.task_id.in_(tuple(task_ids))  # type: ignore[union-attr]
+                )
+            )
+        )
+    if initiative_ids:
+        conditions.append(
+            Evidence.report_id.in_(  # type: ignore[union-attr]
+                select(ModerationReport.id).where(
+                    ModerationReport.initiative_id.in_(tuple(initiative_ids))  # type: ignore[union-attr]
+                )
+            )
+        )
+    if not conditions:
+        return set()
+    doomed = (
+        await session.exec(
+            select(Evidence.id, Evidence.storage_key).where(or_(*conditions))
+        )
+    ).all()
+    if not doomed:
+        return set()
+    keys = {key for _, key in doomed}
+    still = set(
+        (
+            await session.exec(
+                select(Evidence.storage_key)
+                .where(Evidence.storage_key.in_(tuple(keys)))  # type: ignore[union-attr]
+                .where(Evidence.id.not_in(tuple(i for i, _ in doomed)))  # type: ignore[union-attr]
+            )
+        ).all()
+    )
+    return keys - still
 
 
 # -- Key rotation -------------------------------------------------------------

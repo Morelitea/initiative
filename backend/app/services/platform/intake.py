@@ -518,18 +518,15 @@ async def open_case(
                             occurrences=existing.occurrences, detail=news
                         ),
                     )
-                stored = evidence_service.store(
-                    session,
-                    guild_id=guild_id,
-                    prepared=evidence,
-                    created_by=attached_by,
-                    case_id=existing.id,
-                )
-                try:
+                with evidence_service.Sealing(guild_id) as sealing:
+                    sealing.store(
+                        session,
+                        prepared=evidence,
+                        created_by=attached_by,
+                        case_id=existing.id,
+                    )
                     await session.commit()
-                except BaseException:
-                    evidence_service.discard(guild_id, stored)
-                    raise
+                    sealing.keep()
                 return CaseOutcome(
                     task_id=existing.task_id, opened=False, case_id=int(existing.id)
                 )
@@ -600,19 +597,16 @@ async def open_case(
             )
             session.add(opening)
         await session.flush()
-        stored = evidence_service.store(
-            session,
-            guild_id=guild_id,
-            prepared=evidence,
-            created_by=attached_by,
-            case_id=case.id,
-            comment_id=opening.id if opening is not None else None,
-        )
-        try:
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=attached_by,
+                case_id=case.id,
+                comment_id=opening.id if opening is not None else None,
+            )
             await session.commit()
-        except BaseException:
-            evidence_service.discard(guild_id, stored)
-            raise
+            sealing.keep()
         return CaseOutcome(task_id=task.id, opened=True, case_id=int(case.id))
 
 
@@ -683,34 +677,33 @@ async def add_filer_reply(
         )
         session.add(comment)
         await session.flush()
-        stored = evidence_service.store(
-            session,
-            guild_id=guild_id,
-            prepared=evidence,
-            created_by=filer.id,
-            case_id=case_id,
-            comment_id=comment.id,
-        )
-        await notify_task_assignees(session, comment=comment, author=filer, task=task)
-        # Their other tabs follow the same conversation.
-        ticket_stream.queue_ticket_signal(session, filer.id)
-        active = binding.active_status_id if binding is not None else None
-        if state is FilerState.waiting_on_you and active is not None:
-            # Checked against the task's own project: a case moved elsewhere
-            # keeps its status rather than borrowing one.
-            belongs = (
-                await session.exec(
-                    select(TaskStatus.id)
-                    .where(TaskStatus.id == active)
-                    .where(TaskStatus.project_id == task.project_id)
-                )
-            ).first()
-            if belongs is not None:
-                task.task_status_id = active
-                session.add(task)
-        try:
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=filer.id,
+                case_id=case_id,
+                comment_id=comment.id,
+            )
+            await notify_task_assignees(
+                session, comment=comment, author=filer, task=task
+            )
+            # Their other tabs follow the same conversation.
+            ticket_stream.queue_ticket_signal(session, filer.id)
+            active = binding.active_status_id if binding is not None else None
+            if state is FilerState.waiting_on_you and active is not None:
+                # Checked against the task's own project: a case moved elsewhere
+                # keeps its status rather than borrowing one.
+                belongs = (
+                    await session.exec(
+                        select(TaskStatus.id)
+                        .where(TaskStatus.id == active)
+                        .where(TaskStatus.project_id == task.project_id)
+                    )
+                ).first()
+                if belongs is not None:
+                    task.task_status_id = active
+                    session.add(task)
             await session.commit()
-        except BaseException:
-            evidence_service.discard(guild_id, stored)
-            raise
+            sealing.keep()
     return True

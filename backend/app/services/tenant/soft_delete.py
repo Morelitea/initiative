@@ -310,7 +310,9 @@ async def hard_purge_entities(
     in the bin or not, then deleted a level at a time from the bottom up, one
     statement per table, so no foreign key is left pointing at a row that went
     first. For Files anywhere in the set, upload cleanup runs before the
-    DELETEs so ``Upload`` rows pinned only by the doomed files go too.
+    DELETEs so ``Upload`` rows pinned only by the doomed files go too. The
+    stored names returned include the evidence objects of doomed cases and
+    reports, which live in the same storage.
     """
     from app.services.tenant.files import unresolve_wikilinks_to_file
     from app.services.tenant.attachments import (
@@ -373,6 +375,16 @@ async def hard_purge_entities(
     # What is left of an initiative's files goes with it.
     if doomed.get(Initiative):
         released |= await purge_initiative_uploads(session, doomed[Initiative])
+
+    # Files attached to a doomed case or report, which go with their rows.
+    if doomed.get(Task) or doomed.get(Initiative):
+        from app.services.platform.evidence import released_by_purge
+
+        released |= await released_by_purge(
+            session,
+            task_ids=doomed.get(Task, ()),
+            initiative_ids=doomed.get(Initiative, ()),
+        )
 
     # Tombstones go with the edges: what one remembers is a link between two
     # things, and one of them is about to stop existing. Last of the sweeps,

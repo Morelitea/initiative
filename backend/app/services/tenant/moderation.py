@@ -272,18 +272,15 @@ async def _place_in_initiative(
                     detail=detail,
                 )
             )
-        stored = evidence_service.store(
-            session,
-            guild_id=guild_id,
-            prepared=evidence,
-            created_by=reporter_id,
-            report_id=existing.id,
-        )
-        try:
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=reporter_id,
+                report_id=existing.id,
+            )
             await session.commit()
-        except BaseException:
-            evidence_service.discard(guild_id, stored)
-            raise
+            sealing.keep()
 
 
 #: Identity targets whose id names an account. For these the case's subject is

@@ -8,6 +8,8 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import update
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.core import blob_crypto
@@ -16,13 +18,15 @@ from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.comment import Comment, CommentAudience
+from app.core.intake import IntakeStream, meta
 from app.models.tenant.evidence import Evidence
+from app.models.tenant.task import Task
 from app.models.tenant.intake import IntakeCase
 from app.services import storage as storage_service
 from app.services.platform import evidence as evidence_service
 from app.services.platform.evidence_test import picture
 from app.api.v1.platform_endpoints import tickets_following_test as following
-from app.api.v1.platform_endpoints.tickets_following_test import TICKETS, _file, _move
+from app.api.v1.platform_endpoints.tickets_following_test import TICKETS, _file
 from app.api.v1.platform_endpoints.tickets_test import _set_support
 from app.api.v1.tenant_endpoints import moderation_test as moderation
 
@@ -313,7 +317,7 @@ async def test_a_reports_files_are_read_by_its_moderators_and_carried_on_escalat
     ).json()
     assert [e["id"] for e in reports["items"][0]["evidence"]] == [row.id]
     opened = await client.get(mod.g(f"/evidence/{row.id}"), headers=mod.headers)
-    assert opened.status_code == 200
+    assert opened.status_code == 200, opened.text
     original = opened.content
 
     settled = await client.post(
@@ -349,60 +353,185 @@ async def test_a_reports_files_are_read_by_its_moderators_and_carried_on_escalat
 # -- Keeping and rotating -----------------------------------------------------
 
 
-async def test_a_closed_cases_files_are_kept_for_the_stream_then_go(
-    client,
-    session,
-    acting_user,
-    desk,
-):
+async def _with_file(client, acting_user) -> int:
     filer = await acting_user("member")
     task_id = await _file(filer.user)
-    await client.post(
+    response = await client.post(
         f"{TICKETS}/{task_id}/replies",
         data={"body": "Here."},
         files=[_jpeg()],
         headers=filer.headers,
     )
-    await _move(session, desk, task_id, desk["done"])
+    assert response.status_code == 201, response.text
+    return task_id
 
+
+async def _set_state(session, desk, task_id: int, *, done_days_ago: float | None):
+    """Done since ``done_days_ago`` days, or open again for ``None``: the
+    status and the completion time move together, as the task routes keep
+    them."""
     await set_rls_context(session, SystemGuild(desk["guild_id"]))
-    await evidence_service.purge_due(session, desk["guild_id"])
-    (row,) = (await session.exec(select(Evidence))).all()
-    assert row.purge_after is not None
-    assert row.purge_after > datetime.now(timezone.utc) + timedelta(days=89)
+    task = (await session.exec(select(Task).where(Task.id == task_id))).one()
+    if done_days_ago is None:
+        task.task_status_id = desk["active"]
+        task.completed_at = None
+    else:
+        task.task_status_id = desk["done"]
+        task.completed_at = datetime.now(timezone.utc) - timedelta(days=done_days_ago)
+    session.add(task)
+    await session.commit()
+
+
+async def _sweep(session, desk) -> int:
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    return await evidence_service.purge_due(session, desk["guild_id"])
+
+
+async def test_a_closed_cases_files_are_kept_for_the_stream_then_go(
+    client, session, acting_user, desk
+):
+    task_id = await _with_file(client, acting_user)
+    (row,) = await _evidence(session, desk["guild_id"])
     storage = storage_service.get_guild_storage(desk["guild_id"])
+
+    # Support keeps them 90 days from the close.
+    await _set_state(session, desk, task_id, done_days_ago=89)
+    assert await _sweep(session, desk) == 0
     assert storage.exists(row.storage_key)
 
-    row.purge_after = datetime.now(timezone.utc) - timedelta(minutes=1)
-    session.add(row)
-    await session.commit()
-    assert await evidence_service.purge_due(session, desk["guild_id"]) == 1
-    assert (await session.exec(select(Evidence))).all() == []
+    await _set_state(session, desk, task_id, done_days_ago=91)
+    assert await _sweep(session, desk) == 1
+    assert await _evidence(session, desk["guild_id"]) == []
     assert not storage.exists(row.storage_key)
 
 
-async def test_a_reopened_case_keeps_its_files(
-    client,
-    session,
-    acting_user,
-    desk,
+async def test_a_reopened_case_keeps_its_files(client, session, acting_user, desk):
+    task_id = await _with_file(client, acting_user)
+    await _set_state(session, desk, task_id, done_days_ago=200)
+    await _set_state(session, desk, task_id, done_days_ago=None)
+    assert await _sweep(session, desk) == 0
+    assert len(await _evidence(session, desk["guild_id"])) == 1
+
+
+async def test_a_case_closed_again_counts_from_the_new_close(
+    client, session, acting_user, desk
 ):
-    filer = await acting_user("member")
-    task_id = await _file(filer.user)
-    await client.post(
-        f"{TICKETS}/{task_id}/replies",
-        data={"body": "Here."},
-        files=[_jpeg()],
-        headers=filer.headers,
+    task_id = await _with_file(client, acting_user)
+    await _set_state(session, desk, task_id, done_days_ago=200)
+    # Reopened and closed again between two sweeps.
+    await _set_state(session, desk, task_id, done_days_ago=None)
+    await _set_state(session, desk, task_id, done_days_ago=1)
+    assert await _sweep(session, desk) == 0
+    assert len(await _evidence(session, desk["guild_id"])) == 1
+
+
+async def test_a_long_trashed_cases_files_go(client, session, acting_user, desk):
+    task_id = await _with_file(client, acting_user)
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    task = (await session.exec(select(Task).where(Task.id == task_id))).one()
+    task.deleted_at = datetime.now(timezone.utc) - timedelta(days=91)
+    session.add(task)
+    await session.commit()
+    assert await _sweep(session, desk) == 1
+
+
+async def test_purging_a_case_for_good_releases_its_files(
+    client, session, acting_user, desk
+):
+    from app.services.tenant.attachments import delete_blobs
+    from app.services.tenant.soft_delete import hard_purge_entity, soft_delete_entity
+    from app.testing.schema_harness import route_session_to_guild
+
+    task_id = await _with_file(client, acting_user)
+    (row,) = await _evidence(session, desk["guild_id"])
+    storage = storage_service.get_guild_storage(desk["guild_id"])
+
+    await route_session_to_guild(session, desk["guild_id"])
+    task = (await session.exec(select(Task).where(Task.id == task_id))).one()
+    await soft_delete_entity(
+        session, task, deleted_by_user_id=desk["staff"].user.id, retention_days=30
     )
-    await _move(session, desk, task_id, desk["done"])
+    await session.commit()
+    released = await hard_purge_entity(session, task)
+    await session.commit()
+    delete_blobs(desk["guild_id"], released)
+
+    assert row.storage_key in released
+    assert await _evidence(session, desk["guild_id"]) == []
+    assert not storage.exists(row.storage_key)
+
+
+async def test_an_object_another_row_still_names_is_not_released(
+    client, session, acting_user, desk
+):
+    task_id = await _with_file(client, acting_user)
+    other_task = await _with_file(client, acting_user)
+    (row, other) = await _evidence(session, desk["guild_id"])
     await set_rls_context(session, SystemGuild(desk["guild_id"]))
-    await evidence_service.purge_due(session, desk["guild_id"])
-    await _move(session, desk, task_id, desk["active"])
-    await set_rls_context(session, SystemGuild(desk["guild_id"]))
-    await evidence_service.purge_due(session, desk["guild_id"])
-    (row,) = (await session.exec(select(Evidence))).all()
-    assert row.purge_after is None
+    # As a report's file carried into a case in the same community is.
+    await session.exec(
+        update(Evidence)
+        .where(Evidence.id == other.id)
+        .values(storage_key=row.storage_key)
+    )
+    await session.commit()
+    released = await evidence_service.released_by_purge(session, task_ids=[task_id])
+    assert released == set()
+    released = await evidence_service.released_by_purge(
+        session, task_ids=[task_id, other_task]
+    )
+    assert released == {row.storage_key}
+
+
+# -- Writing fails part way ---------------------------------------------------
+
+
+async def test_what_was_written_before_a_failed_write_is_removed(
+    session, desk, monkeypatch
+):
+    gid = desk["guild_id"]
+    storage = storage_service.get_guild_storage(gid)
+    written: list[str] = []
+    real = type(storage).write
+
+    def flaky(self, key, data, **kwargs):
+        written.append(key)
+        if len(written) == 2:
+            raise OSError("no space left")
+        return real(self, key, data, **kwargs)
+
+    monkeypatch.setattr(type(storage), "write", flaky)
+    files = evidence_service.prepare(
+        [
+            evidence_service.IncomingFile("a.jpg", picture()),
+            evidence_service.IncomingFile("b.jpg", picture()),
+        ],
+        meta(IntakeStream.support).evidence,
+    )
+    with pytest.raises(OSError):
+        with evidence_service.Sealing(gid) as sealing:
+            sealing.store(session, prepared=files, created_by=None, case_id=1)
+    assert len(written) == 2
+    assert not storage.exists(written[0])
+
+
+async def test_what_was_written_for_rows_that_never_landed_is_removed(session, desk):
+    gid = desk["guild_id"]
+    storage = storage_service.get_guild_storage(gid)
+    files = evidence_service.prepare(
+        [evidence_service.IncomingFile("a.jpg", picture())],
+        meta(IntakeStream.support).evidence,
+    )
+    await set_rls_context(session, SystemGuild(gid))
+    with pytest.raises(DBAPIError):
+        with evidence_service.Sealing(gid) as sealing:
+            # No such case: the commit is refused.
+            sealing.store(session, prepared=files, created_by=None, case_id=999_999)
+            await session.commit()
+            sealing.keep()
+    await session.rollback()
+    (key,) = sealing.written
+    assert not storage.exists(key)
 
 
 async def test_rotation_rewraps_the_keys_and_leaves_the_objects(
@@ -413,7 +542,8 @@ async def test_rotation_rewraps_the_keys_and_leaves_the_objects(
 ):
     from app.core.config import settings
 
-    assert (await _ask(client, asker, asker.guild.id, [_jpeg()])).status_code == 202
+    asked = await _ask(client, asker, asker.guild.id, [_jpeg()])
+    assert asked.status_code == 202, asked.text
     (row,) = await _evidence(session, desk["guild_id"])
     storage = storage_service.get_guild_storage(desk["guild_id"])
     before = storage.open_readable(row.storage_key).path.read_bytes()

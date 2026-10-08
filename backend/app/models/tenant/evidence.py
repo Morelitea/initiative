@@ -11,6 +11,10 @@ It is stored encrypted under a key of its own (``app.core.blob_crypto``), and
 the row holds that key wrapped for the community the row is in. ``origin_*``
 name the object as it was first made, which is what its bytes are bound to: a
 copy carried into another community keeps them, and gets a key wrapped there.
+
+How long a row is kept is read from its parent — when the case's task was
+done or trashed, when the report was settled — by the retention sweep
+(``app.services.platform.evidence.purge_due``), not stored on the row.
 """
 
 from __future__ import annotations
@@ -116,10 +120,6 @@ class Evidence(CreatedByMixin, table=True):
     wrapped_dek: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     kek_version: int = Field(sa_column=Column(SmallInteger, nullable=False))
 
-    #: When it is deleted, once its case or report has closed. NULL while open.
-    purge_after: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
