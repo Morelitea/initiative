@@ -352,7 +352,7 @@ def _report_payload(
                 if t.priority
                 else "",
                 "due": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                "assignees": ", ".join(t.assignee_handles),
+                "assignees": ", ".join(t.assignee_names),
             }
             for t in tasks
         ],

@@ -814,7 +814,7 @@ async def notify_task_assignees(
             for user_id in await _task_assignee_ids(session, cast(int, task.id))
             if user_id != author.id
         ]
-    name = notifications.actor_name(author)
+    name = await notifications.actor_name(session, author)
     await notifications.notify(
         session,
         NotificationType.comment_on_task,
@@ -858,7 +858,7 @@ async def _process_comment_notifications(
     )
     if thread is None:
         return
-    name = notifications.actor_name(author)
+    name = await notifications.actor_name(session, author)
     told: set[int] = {author.id} if author.id is not None else set()
 
     def first_time(user_ids: Sequence[int | None]) -> list[int]:

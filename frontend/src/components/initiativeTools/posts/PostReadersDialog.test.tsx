@@ -39,7 +39,10 @@ describe("PostReadersDialog", () => {
     server.use(
       communityHttp.get("/posts/3/reads", () =>
         HttpResponse.json({
-          read: [person(1, "reader", { read_at: "2026-03-01T09:00:00Z" })],
+          read: [
+            person(1, "reader", { read_at: "2026-03-01T09:00:00Z" }),
+            person(4, "ada", { read_at: "2026-03-01T09:00:00Z", display_name: "Ada Lovelace" }),
+          ],
           unread: [person(2, "waiting"), person(3, "alsowaiting")],
         })
       )
@@ -47,9 +50,11 @@ describe("PostReadersDialog", () => {
 
     renderPage(page());
 
-    expect(await screen.findByRole("tab", { name: /read 1/i })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: /^read 2/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /unread 2/i })).toBeInTheDocument();
     expect(screen.getByText(/reader/)).toBeInTheDocument();
+    // By the name the community knows them by, where they set one.
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
 
   it("says so when a notice has reached everybody it went to", async () => {

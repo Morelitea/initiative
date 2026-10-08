@@ -157,6 +157,9 @@ class ProjectExportTask(SanitizedBaseModel):
     # exactly what an absent field means here.
     links: List[ProjectExportTaskLink] = []
     comments: List[ProjectExportComment] = []
+    # What the community called each assignee, beside ``assignee_handles``
+    # (which an import matches on), for a reader of the file.
+    assignee_names: List[str] = []
     # The handles the description mentions, as a comment's are.
     mention_handles: List[str] = []
 

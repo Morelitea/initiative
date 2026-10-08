@@ -35,6 +35,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
+from app.core.user_display import name_here
 from app.db import cohorts
 from app.db.advisory_locks import LockNamespace
 from app.models.platform.notification import NotificationType
@@ -276,7 +277,7 @@ async def _execute(
             from app.services.export.stamp import stamp_export
 
             request = await apply_brand(request, user_session)
-            return stamp_export(request, user)
+            return stamp_export(request, await name_here(user_session, user))
 
     request = await _beating(build(), heartbeat)
 

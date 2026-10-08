@@ -10,7 +10,7 @@ with one rule set:
 - checkbox         → ``value_boolean``
 - date/datetime    → ``value_text`` (ISO 8601)
 - multi_select     → ``value_json``
-- user_reference   → ``value_handle``
+- user_reference   → ``value_handle``, and ``value_name`` beside it
 
 Reads the ``PropertySummary`` list every row carries once
 ``properties_service.annotate_properties`` has run — the same values its read
@@ -47,10 +47,16 @@ def property_export_dict(summary: PropertySummary) -> dict:
     elif prop_type == "multi_select":
         record["value_json"] = value
     elif prop_type == "user_reference":
+        known = isinstance(value, dict) and value.get("username")
         record["value_handle"] = (
             usernames.format_handle(value["username"], value["discriminator"])
-            if isinstance(value, dict) and value.get("username")
+            if known
             else None
+        )
+        # What the community calls them, for a reader; the handle is what an
+        # import matches on.
+        record["value_name"] = (
+            (value.get("display_name") or record["value_handle"]) if known else None
         )
     return record
 

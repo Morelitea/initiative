@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
-import { UserHandle } from "@/components/UserHandle";
+import { UserName } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 
 interface ContactPersonRowProps {
@@ -12,10 +12,12 @@ interface ContactPersonRowProps {
     id: number;
     username: string;
     discriminator: number;
+    /** Their name in the community the list came from; contacts have none. */
+    display_name?: string | null;
     avatar_url?: string | null;
     profile_decorations?: ProfileDecorationsOutput | null;
   };
-  /** One line under the handle — when they connected, what they asked for. */
+  /** One line under the name — when they connected, what they asked for. */
   detail?: ReactNode;
   /** The row's own controls. */
   children?: ReactNode;
@@ -33,7 +35,7 @@ export const ContactPersonRow = ({ user, detail, children }: ContactPersonRowPro
   <li className="flex items-center gap-3 py-2">
     <ProfileAvatar user={user} decorations={user.profile_decorations} className="size-8 shrink-0" />
     <div className="min-w-0 flex-1">
-      <UserHandle user={user} className="text-sm" nameClassName="min-w-0 truncate" />
+      <UserName user={user} className="text-sm" nameClassName="min-w-0 truncate" />
       {detail ? <p className="truncate text-muted-foreground text-xs">{detail}</p> : null}
     </div>
     {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}

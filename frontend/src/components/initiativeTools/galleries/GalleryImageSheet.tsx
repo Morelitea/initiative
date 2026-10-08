@@ -18,7 +18,7 @@ import { ReportButton } from "@/components/moderation/ReportButton";
 import { PropertyPanel } from "@/components/properties";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { TagPicker } from "@/components/tags/TagPicker";
-import { UserHandle } from "@/components/UserHandle";
+import { UserName } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImagePicker } from "@/components/ui/image-picker";
@@ -243,7 +243,7 @@ export const GalleryImageSheet = ({
                     presence={image.uploader.presence}
                     className="size-5 shrink-0"
                   />
-                  <UserHandle user={image.uploader} nameClassName="min-w-0 truncate" />
+                  <UserName user={image.uploader} nameClassName="min-w-0 truncate" />
                 </>
               ) : (
                 "—"

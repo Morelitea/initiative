@@ -154,7 +154,7 @@ async def _notify_about_event(
     """Tell ``user_ids`` something about ``event``, naming whoever did it in
     ``role`` (organizer, editor, …): the person, or an installed plug-in by its
     name. The time is each reader's own, and ``at`` names one occurrence."""
-    name = notifications_service.actor_name(actor)
+    name = await notifications_service.actor_name(session, actor)
     await notifications_service.notify(
         session,
         notification_type,

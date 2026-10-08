@@ -8,9 +8,10 @@ time-driven sweeps (overdue tasks, hold summaries, event reminders), each of
 which starts from what is waiting in each community and claims its work before
 sending it.
 
-A notification is read on the cross-guild ``/me/notifications`` surface, away
-from the guild it was written in, so the people it names are named by their
-handle rather than by whatever that one guild renders.
+The people a notification names are named as the community it is about names
+them (``user_display.name_here``), on the session that community is routed
+into: the bell is read away from that community, but what happened, happened
+there.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ from app.core.notification_categories import (
     sample_type,
 )
 from app.core.tools import COMMENT_TARGETS, Tool
-from app.core.user_display import handle_of
+from app.core.user_display import name_here
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db import cohorts
 from app.db.advisory_locks import LockNamespace, advisory_lock
@@ -112,12 +113,12 @@ class PluginAuthor:
     id: None = None
 
 
-def actor_name(actor: "User | PluginAuthor") -> str:
-    """What a notification calls whoever caused it: a person's handle, or an
-    installed plug-in's name."""
+async def actor_name(session: AsyncSession, actor: "User | PluginAuthor") -> str:
+    """What a notification calls whoever caused it: a person's name in the
+    community ``session`` is routed into, or an installed plug-in's name."""
     if isinstance(actor, PluginAuthor):
         return actor.name
-    return handle_of(actor)
+    return await name_here(session, actor)
 
 
 async def author_of(
@@ -416,6 +417,7 @@ async def notify(
     # A channel the deployment or the community has switched off is not worded
     # at all; ``notice`` applies the same answer again to what is.
     policy = await notification_policy.for_send(session, guild_id)
+    named = await actor_name(session, actor) if actor is not None else None
     rows: list[dict[str, Any]] = []
     for user_id in wanted:
         recipient = accounts.get(user_id)
@@ -458,7 +460,7 @@ async def notify(
                 email=pieces,
                 rollup_key=rollup_key,
                 actor_id=actor_id(actor),
-                actor_name=actor_name(actor) if actor is not None else None,
+                actor_name=named,
                 email_names_line=email_names_line,
             )
         )
@@ -848,10 +850,11 @@ async def notify_assigned(
     accounts = await accounts_service.load(wanted, excluding_ignorers_of=assigned_by.id)
     all_prefs = await notification_prefs.load_prefs_for_delivery_many(list(accounts))
     smart_link = _build_smart_link(target_path=subject.target_path, guild_id=guild_id)
+    assigned_by_name = await actor_name(session, assigned_by)
     line = {
         "task_id": task.id,
         "project_id": task.project_id,
-        "assigned_by_name": actor_name(assigned_by),
+        "assigned_by_name": assigned_by_name,
         "community_id": guild_id,
         **_place_of(subject),
         "target_path": subject.target_path,
@@ -874,7 +877,7 @@ async def notify_assigned(
                     project_id=task.project_id,
                     task_title=task.title,
                     project_name=project_name,
-                    assigned_by_name=actor_name(assigned_by),
+                    assigned_by_name=assigned_by_name,
                     assigned_by_id=assigned_by.id,
                 )
             )
@@ -1414,7 +1417,7 @@ async def enqueue_reaction_event(
     if author.id == reactor.id:
         return
     target_path = subject.target_path
-    reactor_name = handle_of(reactor)
+    reactor_name = await name_here(session, reactor)
     await notice_outbox.enqueue(
         session,
         [

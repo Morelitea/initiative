@@ -192,6 +192,7 @@ def _strip_project(env: dict[str, Any]) -> None:
         ]
         task["description"] = _clean_markdown(task.get("description"), handles)
         task["assignee_handles"] = []
+        task["assignee_names"] = []
         task["comments"] = []
         task["mention_handles"] = []
         task["archived_at"] = None
