@@ -125,5 +125,20 @@
     "addDate": "Ajouter une date",
     "added": "Date ajoutée.",
     "openAlone": "Modifier uniquement cette occurrence"
+  },
+  "subscribe": {
+    "menu": "S'abonner",
+    "title": "S'abonner à {{name}}",
+    "description": "Ajoutez ce calendrier à Google Agenda, Apple Calendrier ou Outlook. Il se tient à jour tout seul.",
+    "secret": "Toute personne disposant de ce lien peut voir les événements du calendrier : gardez-le pour vous. Les événements déjà copiés par une autre application y restent après la suppression du lien.",
+    "replaces": "Vous avez déjà un lien pour ce calendrier. En demander un nouveau désactive l'ancien.",
+    "getLink": "Obtenir le lien",
+    "getNewLink": "Obtenir un nouveau lien",
+    "copy": "Copier le lien",
+    "copied": "Lien copié.",
+    "open": "Ouvrir dans l'application de calendrier",
+    "manage": "Vous pouvez supprimer ce lien dans Paramètres › Sécurité.",
+    "keyName": "Calendrier : {{name}}",
+    "error": "Impossible de créer le lien d'abonnement."
   }
 }

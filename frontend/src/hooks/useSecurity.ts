@@ -8,6 +8,7 @@ import {
 } from "@/api/generated/auth/auth";
 import { removeDevice } from "@/api/generated/direct-messages/direct-messages";
 import type {
+  ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
   SignedInSessionInfo,
@@ -45,17 +46,12 @@ export const useMySessions = () => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type CreateApiKeyVars = {
-  name: string;
-  expires_at?: string | null;
-  read_only?: boolean;
-  community_id?: number | null;
-};
-
-export const useCreateApiKey = (options?: MutationOpts<ApiKeyCreateResponse, CreateApiKeyVars>) =>
-  useApiMutation<ApiKeyCreateResponse, CreateApiKeyVars>(
+export const useCreateApiKey = (
+  options?: MutationOpts<ApiKeyCreateResponse, ApiKeyCreateRequest>
+) =>
+  useApiMutation<ApiKeyCreateResponse, ApiKeyCreateRequest>(
     {
-      mutationFn: (data) => createMyApiKey(data as Parameters<typeof createMyApiKey>[0]),
+      mutationFn: (data) => createMyApiKey(data),
       invalidate: () => queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY }),
     },
     options

@@ -292,6 +292,9 @@ export const UserSettingsSecurityPage = () => {
                             })}
                           </Badge>
                         ) : null}
+                        {key.resource_type != null ? (
+                          <Badge variant="outline">{t("security.scopeSubscription")}</Badge>
+                        ) : null}
                         {!key.read_only && key.community_id == null ? (
                           <Badge variant="outline">{t("security.scopeFull")}</Badge>
                         ) : null}
