@@ -234,12 +234,20 @@ async def test_a_calendar_feed_is_refused_to_a_member_whose_api_access_is_off(
     )
     assert (await client.get(feed)).status_code == 200
 
+    async def use_api() -> bool:
+        """What the member's community list says, which Subscribe reads."""
+        listed = await client.get("/api/v1/communities/", headers=headers)
+        return next(c for c in listed.json() if c["id"] == guild.id)["can"]["use_api"]
+
+    assert await use_api() is True
+
     revoked = await client.put(
         _api_access(guild.id, member.id),
         headers=get_auth_headers(seat),
         json={"api_keys_allowed": False},
     )
     assert revoked.status_code == 204, revoked.text
+    assert await use_api() is False
     refused = await client.get(feed)
     assert refused.status_code == 403
     assert refused.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"

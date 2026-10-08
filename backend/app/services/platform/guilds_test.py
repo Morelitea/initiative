@@ -369,7 +369,8 @@ async def test_list_memberships(session: AsyncSession):
 
     assert len(memberships) == 2
     guild_names = {
-        guild.name for guild, _membership, _retention, _count, _admin in memberships
+        guild.name
+        for guild, _membership, _retention, _count, _admin, _api in memberships
     }
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
@@ -396,7 +397,7 @@ async def test_reorder_memberships(session: AsyncSession):
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
     ordered_ids = [
-        guild.id for guild, _membership, _retention, _count, _admin in memberships
+        guild.id for guild, _membership, _retention, _count, _admin, _api in memberships
     ]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
@@ -815,7 +816,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
         memberships = await guild_service.list_memberships(caller, user_id=user.id)
     by_guild = {
         guild.id: retention
-        for guild, _membership, retention, _count, _admin in memberships
+        for guild, _membership, retention, _count, _admin, _api in memberships
     }
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
@@ -838,7 +839,8 @@ async def test_list_memberships_includes_member_count(session: AsyncSession):
 
     memberships = await guild_service.list_memberships(session, user_id=user.id)
     counts = {
-        guild.id: count for guild, _membership, _retention, count, _admin in memberships
+        guild.id: count
+        for guild, _membership, _retention, count, _admin, _api in memberships
     }
 
     assert counts[shared.id] == 2

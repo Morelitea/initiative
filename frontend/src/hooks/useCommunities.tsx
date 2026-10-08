@@ -139,6 +139,8 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Co
     configure: false,
     administer_content: false,
     seat: false,
+    // A grant is never reached with a personal API key.
+    use_api: false,
   },
   position: Number.MAX_SAFE_INTEGER,
   display_name: null,

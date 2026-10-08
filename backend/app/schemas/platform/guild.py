@@ -170,6 +170,10 @@ class CommunityCan(SanitizedBaseModel):
     administer_content: bool = False
     #: Hold its top seat: sign-in, billing, AI, plug-ins, data and deletion.
     seat: bool = False
+    #: Reach it with a personal API key, a subscription link included: false
+    #: where its superadmin turned this member's API access off, and for a
+    #: grant, which is never reached with one.
+    use_api: bool = False
 
 
 class CommunityRead(CommunityBase):

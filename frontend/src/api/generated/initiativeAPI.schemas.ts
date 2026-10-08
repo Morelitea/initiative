@@ -2104,6 +2104,7 @@ export interface CommunityCan {
   configure: boolean;
   administer_content: boolean;
   seat: boolean;
+  use_api: boolean;
 }
 
 /**

@@ -599,40 +599,6 @@ async def _enforce_guild_auth_policy(
         )
 
 
-async def refuses_api_keys(session: AsyncSession, membership: GuildMembership) -> bool:
-    """Whether ``membership``'s community refuses its member's personal API
-    keys: turned off for them, while the community holds the ``restrictions``
-    option that setting needs."""
-    if membership.api_keys_allowed:
-        return False
-    return bool(
-        await session.scalar(
-            select(
-                guild_entitlements.holds_option(
-                    membership.guild_id, CommunityAuthOption.restrictions
-                )
-            )
-        )
-    )
-
-
-async def declines_this_credential(
-    session: AsyncSession, membership: GuildMembership
-) -> bool:
-    """Whether the community declines the credential this request was made
-    with.
-
-    True only for a personal API key whose holder's API access the community
-    turned off. The key's own ``guild_id`` says nothing here: a key pinned
-    elsewhere and a key pinned nowhere both address this guild the same way.
-    The cross-guild aggregates, which pick their guilds in one query, ask the
-    same question there (see ``app.services.cross_guild``).
-    """
-    return auth_context.current().api_key_credential and await refuses_api_keys(
-        session, membership
-    )
-
-
 def pinned_elsewhere(guild_id: int) -> bool:
     """Whether this request's API key is limited to a guild other than
     ``guild_id``. False for a key limited to no guild and for every other
@@ -645,17 +611,21 @@ async def _enforce_guild_api_access(
     session: AsyncSession, membership: GuildMembership
 ) -> None:
     """A member whose API access the community turned off does not reach it
-    with a personal API key.
+    with a personal API key (:func:`guild_entitlements.accepts_api_keys`).
 
     Runs beside the sign-in gate, for members. A grantee is never reached with
-    a personal API key at all; the grant branch refuses one before this.
+    a personal API key at all; the grant branch refuses one before this. The
+    key's own ``guild_id`` says nothing here: a key pinned elsewhere and a key
+    pinned nowhere both address this guild the same way.
 
     Covers every path that resolves its guild through
-    :func:`_load_guild_context`: REST, uploads and file downloads, the
-    realtime sockets and the keepalive. The cross-guild aggregates, which pick
-    their guilds themselves, ask the same question where they do it.
+    :func:`_load_guild_context`: REST, uploads and file downloads, subscription
+    feeds, the realtime sockets and the keepalive. The cross-guild aggregates,
+    which pick their guilds themselves, ask the same question where they do it.
     """
-    if await declines_this_credential(session, membership):
+    if auth_context.current().api_key_credential and (
+        await guild_entitlements.refuses_api_keys(session, membership)
+    ):
         raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
 
 

@@ -33,6 +33,7 @@ export function communityCan(
     configure: administers,
     administer_content: administers,
     seat: role === "superadmin",
+    use_api: true,
     ...overrides,
   };
 }

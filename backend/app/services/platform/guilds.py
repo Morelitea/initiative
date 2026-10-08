@@ -51,6 +51,7 @@ from app.services.platform import billing_ping
 
 from app.services.platform import account_stream, user_stream
 from app.services.platform import api_keys as api_keys_service
+from app.services.platform import guild_entitlements
 from app.services.platform import contact_grants as contact_grants_service
 from app.services.platform.retention import COMMUNITY_DELETION, COMMUNITY_HOLD
 from app.db.request_context import Platform, SystemGuild, Unattributed
@@ -604,9 +605,11 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]]:
-    """Return (guild, membership, retention_days, member_count, administration)
-    for each guild the user belongs to.
+) -> list[
+    tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None, bool]
+]:
+    """Return (guild, membership, retention_days, member_count, administration,
+    accepts_api_keys) for each guild the user belongs to.
 
     One bounded pass, whatever the number of guilds:
 
@@ -625,15 +628,23 @@ async def list_memberships(
       settings surface (:func:`gather_across_guilds`). A guild the seam does not
       admit the caller to right now reports ``None``; a member's entry is
       ``None`` and costs no query.
+    * ``accepts_api_keys`` is :func:`guild_entitlements.accepts_api_keys`,
+      selected beside the membership row.
     """
     # lazy: avoids a circular import
     from app.db.session import SystemSessionLocal, set_rls_context
     from app.services.cross_guild import gather_across_guilds
 
     await set_rls_context(session, Platform(user_id=user_id))
-    pairs = (
+    rows = (
         await session.exec(
-            select(Guild, GuildMembership)
+            select(
+                Guild,
+                GuildMembership,
+                guild_entitlements.accepts_api_keys(
+                    Guild.id, GuildMembership.api_keys_allowed
+                ),
+            )
             .join(GuildMembership, GuildMembership.guild_id == Guild.id)
             .where(GuildMembership.user_id == user_id)
             .order_by(
@@ -652,8 +663,8 @@ async def list_memberships(
     # A guild ON HOLD or DELETED disappears for everyone, admins included. Only
     # a platform operator sees it.
     listed = [
-        (guild, membership)
-        for guild, membership in pairs
+        (guild, membership, accepts)
+        for guild, membership, accepts in rows
         if CommunityStatus(guild.status) not in UNLISTED_STATUSES
         and (guild.status in LIVE_STATUS_VALUES or membership.role in GUILD_ADMIN_ROLES)
     ]
@@ -661,7 +672,7 @@ async def list_memberships(
         return []
 
     administered = [
-        guild for guild, membership in listed if membership.role in GUILD_ADMIN_ROLES
+        guild for guild, membership, _ in listed if membership.role in GUILD_ADMIN_ROLES
     ]
     administrations: dict[int, GuildAdministration] = {}
     if administered:
@@ -680,7 +691,7 @@ async def list_memberships(
 
     async with SystemSessionLocal() as system_session:
         counts = await count_members_by_guild(
-            system_session, guild_ids=[guild.id for guild, _ in listed]
+            system_session, guild_ids=[guild.id for guild, *_ in listed]
         )
 
     retention: dict[int, int | None] = {}
@@ -713,8 +724,9 @@ async def list_memberships(
             administrations.get(guild.id)
             if membership.role in GUILD_ADMIN_ROLES
             else None,
+            bool(accepts),
         )
-        for guild, membership in listed
+        for guild, membership, accepts in listed
     ]
 
 

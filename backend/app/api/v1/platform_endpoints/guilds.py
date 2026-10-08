@@ -121,9 +121,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _can_of(guild_context: GuildContext) -> CommunityCan:
+def _can_of(guild_context: GuildContext, *, use_api: bool) -> CommunityCan:
     """What the caller may do in the community, by the standing: each flag is
-    what the guard on the routes that do the thing asks."""
+    what the guard on the routes that do the thing asks. ``use_api`` is
+    :func:`guild_entitlements.accepts_api_keys` for the caller's membership."""
     return CommunityCan(
         # The seam admitted the request, which a community in time out refuses.
         enter=True,
@@ -132,10 +133,13 @@ def _can_of(guild_context: GuildContext) -> CommunityCan:
         configure=guild_context.writes_settings,
         administer_content=holds_guild_role(guild_context, CommunityRole.admin),
         seat=guild_context.guild_seat,
+        use_api=use_api,
     )
 
 
-def _can_of_membership(guild: Guild, role: CommunityRole) -> CommunityCan:
+def _can_of_membership(
+    guild: Guild, role: CommunityRole, *, use_api: bool
+) -> CommunityCan:
     """The same answers for a membership row read without a standing, as the
     caller's own list is: the row's rung asked of the ladder the standing's
     admin fact is rendered from, and the lifecycle status the seam admits a
@@ -148,6 +152,7 @@ def _can_of_membership(guild: Guild, role: CommunityRole) -> CommunityCan:
         configure=administers,
         administer_content=administers,
         seat=role.reaches(CommunityRole.superadmin),
+        use_api=use_api,
     )
 
 
@@ -159,8 +164,8 @@ def _serialize_guild(
     retention_days: int | None = None,
     member_count: int = 0,
     administration: GuildAdministration | None = None,
+    can: CommunityCan,
     images: dict[GuildImageVariant, str] | None = None,
-    can: CommunityCan | None = None,
     closed_contact: str | None = None,
 ) -> CommunityRead:
     """Build one entry of the caller's own guild list.
@@ -185,8 +190,8 @@ def _serialize_guild(
     ``membership`` is the caller's own row, where they have one; a grantee
     has no place in the list and no name of their own here.
 
-    ``can`` is the caller's standing, where the caller has one
-    (:func:`_can_of`); left out, the membership row answers.
+    ``can`` is what the caller may do: :func:`_can_of` where the caller has a
+    standing, :func:`_can_of_membership` where the row answers.
 
     ``closed_contact`` is who a suspended guild's admins are told to contact;
     it reaches the payload only for that guild and that rung.
@@ -202,7 +207,7 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=role,
-        can=_can_of_membership(guild, role) if can is None else can,
+        can=can,
         position=membership.position if membership is not None else 0,
         display_name=membership.display_name if membership is not None else None,
         # Trash retention window — set from the admin-only trash settings tab.
@@ -286,15 +291,20 @@ async def _guild_read(
     read-only floor, which holds no grant on the image digests, and the image
     route serves them to a grant holder as it does to a member.
     """
-    can: CommunityCan | None = None
+    if standing is not None:
+        membership = standing.membership
+    elif membership is None:
+        raise TypeError("_guild_read needs a standing or a membership")
+    # A grantee holds no membership, and a grant is never reached with a key.
+    use_api = membership is not None and not (
+        await guild_entitlements.refuses_api_keys(system_session, membership)
+    )
     if standing is not None:
         role = standing.rung
-        can = _can_of(standing)
-        membership = standing.membership
-    elif membership is not None:
-        role = membership.role
+        can = _can_of(standing, use_api=use_api)
     else:
-        raise TypeError("_guild_read needs a standing or a membership")
+        role = membership.role
+        can = _can_of_membership(guild, role, use_api=use_api)
     is_admin = role.reaches(CommunityRole.admin)
     reader = guild_session if guild_session is not None else system_session
     return _serialize_guild(
@@ -360,12 +370,22 @@ async def list_communities(
         else None
     )
     payloads: List[CommunityRead] = []
-    for guild, membership, retention_days, member_count, administration in memberships:
+    for (
+        guild,
+        membership,
+        retention_days,
+        member_count,
+        administration,
+        accepts_api_keys,
+    ) in memberships:
         payloads.append(
             _serialize_guild(
                 guild,
                 role=membership.role,
                 membership=membership,
+                can=_can_of_membership(
+                    guild, membership.role, use_api=accepts_api_keys
+                ),
                 retention_days=retention_days,
                 member_count=member_count,
                 administration=administration,

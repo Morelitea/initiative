@@ -475,9 +475,11 @@ export const CalendarsView = ({
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   // One calendar in view can be subscribed to, unless its initiative keeps its
-  // content in. The focus page has already read it, so this is the cache.
+  // content in or the community does not take this member's API keys. The
+  // focus page has already read it, so this is the cache.
   const focusedCalendar = useCalendar(focusCalendarId ?? null).data;
-  const subscribable = focusedCalendar != null && !keepsContentIn;
+  const subscribable =
+    focusedCalendar != null && !keepsContentIn && Boolean(activeCommunity?.can.use_api);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
 
   // Drive the app-wide bottom-nav add button for this route. Creating an

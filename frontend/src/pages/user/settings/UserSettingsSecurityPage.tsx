@@ -154,11 +154,13 @@ const NewApiKeyDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("security.communityAllCommunities")}</SelectItem>
-                  {communities.map((community) => (
-                    <SelectItem key={community.id} value={String(community.id)}>
-                      {community.name}
-                    </SelectItem>
-                  ))}
+                  {communities
+                    .filter((community) => community.can.use_api)
+                    .map((community) => (
+                      <SelectItem key={community.id} value={String(community.id)}>
+                        {community.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">{t("security.communityHelp")}</p>
